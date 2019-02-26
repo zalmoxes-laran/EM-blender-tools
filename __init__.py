@@ -25,10 +25,12 @@ bl_info = {
     "author": "E. Demetrescu",
     "version": (1, 1, 0),
     "blender": (2, 80, 0),
-    "location": "Tool Shelf panel",
+    "location": "3D View > Toolbox",
 #    "warning": "This addon is still in development.",
     "wiki_url": "",
-    "category": "Tools" }
+    "category": "Tools",
+    }
+
 
 
 import bpy
@@ -58,6 +60,8 @@ modules = developer_utils.setup_addon_modules(__path__, __name__, "bpy" in local
 from . import (
        UI,
        EM_list,
+       epoch_manager,
+       functions
        )
 
 #######################################################################################################################
@@ -221,8 +225,8 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     
-    bpy.types.WindowManager.interface_vars = bpy.props.PointerProperty(type=InterfaceVars)
-    bpy.types.WindowManager.ccToolViewVar = bpy.props.PointerProperty(type=ccToolViewVar)
+    #bpy.types.WindowManager.interface_vars = bpy.props.PointerProperty(type=InterfaceVars)
+    #bpy.types.WindowManager.ccToolViewVar = bpy.props.PointerProperty(type=ccToolViewVar)
 
     bpy.types.Scene.em_list = prop.CollectionProperty(type = EMListItem)
     bpy.types.Scene.em_list_index = prop.IntProperty(name = "Index for my_list", default = 0)

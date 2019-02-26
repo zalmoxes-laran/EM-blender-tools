@@ -13,6 +13,10 @@ from bpy.types import Menu, Panel, UIList, PropertyGroup
 from bpy.props import StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
 from bpy.app.handlers import persistent
 
+from .epoch_manager import *
+from .EM_list import *
+
+
 SCENE_EM = '#EM'
 UNIQUE_ID_NAME = 'em_belong_id'
 
