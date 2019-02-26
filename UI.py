@@ -1,0 +1,299 @@
+#    part of this library is a heavy modified version of the original code from: 
+#    "name": "Super Grouper",
+#    "author": "Paul Geraskin, Aleksey Juravlev, BA Community",
+
+import bpy
+import random
+import string
+
+from .functions import *
+from bpy.props import *
+from bpy.types import Operator
+from bpy.types import Menu, Panel, UIList, PropertyGroup
+from bpy.props import StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
+from bpy.app.handlers import persistent
+
+SCENE_EM = '#EM'
+UNIQUE_ID_NAME = 'em_belong_id'
+
+
+class EMToolsPanel(bpy.types.Panel):
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_context = "objectmode"
+    bl_category = "EM"
+    bl_label = "Extended Matrix"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        sg_settings = scene.sg_settings
+        obj = context.object
+        box = layout.box()
+        row = box.row(align=True)
+        row.label(text="EM file")
+        row = box.row(align=True)
+        row.prop(context.scene, 'EM_file', toggle = True, text ="")
+        row = box.row(align=True)
+        split = row.split()
+        col = split.column()
+        col.operator("import.em_graphml", icon="STICKY_UVS_DISABLE", text='(Re)Load EM file')
+        #row = layout.row()
+        col = split.column(align=True)
+        col.operator("uslist_icon.update", icon="PARTICLE_DATA", text='Refresh icons')
+
+        if bpy.types.Scene.em_list is True:
+
+            row = layout.row()
+            layout.alignment = 'LEFT'
+            row.label(text="List of US/USV in EM file:")
+            row = layout.row()
+            row.template_list("EM_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
+
+            split = layout.split()
+            col = split.column()
+
+    #       tools to select proxies and UUSS
+
+            # First column, aligned
+    #        row = layout.row(align=True)
+            if scene.em_list[scene.em_list_index].icon == 'FILE_TICK':
+                col.operator("select.fromlistitem", icon="HAND", text='EM -> Proxy')
+
+            # Second column, aligned
+            col = split.column(align=True)
+            if check_if_current_obj_has_brother_inlist(obj.name):
+                col.operator("select.listitem", icon="HAND", text='Proxy -> EM')
+
+            # Third column, aligned
+    #        row = layout.row()
+            split = layout.split()
+            col = split.column(align=True)
+            col.prop(sg_settings, "em_proxy_sync2", text='EM -> Proxy')
+
+            col = split.column(align=True)
+            col.prop(sg_settings, "em_proxy_sync2_zoom", text='+ locate')
+
+            col = split.column(align=True)
+            col.prop(sg_settings, "em_proxy_sync", text='Proxy -> EM')
+
+            if scene.sg_settings.em_proxy_sync:
+                if check_if_current_obj_has_brother_inlist(obj.name):
+                    select_list_element_from_obj_proxy(obj)
+
+            if scene.sg_settings.em_proxy_sync2:
+                if scene.em_list[scene.em_list_index].icon == 'FILE_TICK':
+                    list_item = scene.em_list[scene.em_list_index]
+                    if list_item.name != obj.name:
+                        select_3D_obj(list_item.name)
+                        if scene.sg_settings.em_proxy_sync2_zoom:
+                            for area in bpy.context.screen.areas:
+                                if area.type == 'VIEW_3D':
+                                    ctx = bpy.context.copy()
+                                    ctx['area'] = area
+                                    ctx['region'] = area.regions[-1]
+                                    bpy.ops.view3d.view_selected(ctx)
+
+            if scene.em_list_index >= 0 and len(scene.em_list) > 0:
+                item = scene.em_list[scene.em_list_index]
+                box = layout.box()
+                row = box.row(align=True)
+                row.label(text="US/USV name, description:")
+                row = box.row()
+                row.prop(item, "name", text="")
+    #            row = layout.row()
+    #            row.label(text="Description:")
+                row = box.row()
+    #            layout.alignment = 'LEFT'
+                row.prop(item, "description", text="", slider=True)
+            if obj.type in ['MESH']:
+                obj = context.object
+                box = layout.box()
+                row = box.row()
+                row.label(text="Override active object's name:")#: " + obj.name)
+                row = box.row()
+                row.prop(obj, "name", "Manual")
+                row = box.row()
+                row.operator("usname.toproxy", icon="OUTLINER_DATA_FONT", text='Using EM list')
+
+
+class EM_BasePanel(bpy.types.Panel):
+    bl_label = "Epochs Manager"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+    bl_context = "objectmode"
+    bl_category = 'EM'
+
+    def draw(self, context):
+        layout = self.layout
+
+        scene = context.scene
+        sg_settings = scene.sg_settings
+
+        row = layout.row(align=True)
+        op = row.operator(
+            "epoch_manager.change_selected_objects", text="", emboss=False, icon='BBOX')
+        op.sg_objects_changer = 'BOUND_SHADE'
+
+        op = row.operator(
+            "epoch_manager.change_selected_objects", text="", emboss=False, icon='WIRE')
+        op.sg_objects_changer = 'WIRE_SHADE'
+
+        op = row.operator(
+            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SOLID')
+        op.sg_objects_changer = 'MATERIAL_SHADE'
+
+        op = row.operator(
+            "epoch_manager.change_selected_objects", text="", emboss=False, icon='RETOPO')
+        op.sg_objects_changer = 'SHOW_WIRE'
+
+        op = row.operator(
+            "emset.emmaterial", text="", emboss=False, icon='MATERIAL')
+        #op.sg_objects_changer = 'EM_COLOURS'
+
+        row = layout.row()
+        row.template_list(
+            "EM_named_epoch_managers", "", scene, "epoch_managers", scene, "epoch_managers_index")
+
+
+        layout.label(text="Selection Settings:")
+        row = layout.row(align=True)
+        row.prop(sg_settings, "select_all_layers", text='Layers')
+        row.prop(sg_settings, "unlock_obj", text='UnLock')
+        row.prop(sg_settings, "unhide_obj", text='Unhide')
+        row = layout.row(align=True)
+
+
+class EM_named_epoch_managers(UIList):
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        epoch_manager = item
+        #user_preferences = context.user_preferences
+        icons_style = 'OUTLINER'
+
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            layout.prop(epoch_manager, "name", text="", emboss=False)
+
+            # select operator
+            icon = 'RESTRICT_SELECT_OFF' if epoch_manager.use_toggle else 'RESTRICT_SELECT_ON'
+            #if icons_style == 'OUTLINER':
+            icon = 'VIEWZOOM' if epoch_manager.use_toggle else 'VIEWZOOM'
+            op = layout.operator(
+                "epoch_manager.toggle_select", text="", emboss=False, icon=icon)
+            op.group_idx = index
+            op.is_menu = False
+            op.is_select = True
+
+            # lock operator
+            icon = 'LOCKED' if epoch_manager.is_locked else 'UNLOCKED'
+            #if icons_style == 'OUTLINER':
+            icon = 'RESTRICT_SELECT_ON' if epoch_manager.is_locked else 'RESTRICT_SELECT_OFF'
+            op = layout.operator(
+                "epoch_manager.change_grouped_objects", text="", emboss=False, icon=icon)
+            op.sg_group_changer = 'LOCKING'
+            op.group_idx = index
+
+            # view operator
+            icon = 'RESTRICT_VIEW_OFF' if epoch_manager.use_toggle else 'RESTRICT_VIEW_ON'
+            op = layout.operator(
+                "epoch_manager.toggle_visibility", text="", emboss=False, icon=icon)
+            op.group_idx = index
+
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+
+
+class EM_Add_Objects_Sub_Menu(bpy.types.Menu):
+    bl_idname = "epoch_manager.add_objects_sub_menu"
+    bl_label = "Add Selected Objects"
+    bl_description = "Add Objects Menu"
+
+    def draw(self, context):
+        layout = self.layout
+
+        for i, e_manager in enumerate(context.scene.epoch_managers):
+            op = layout.operator(EM_add_to_group.bl_idname, text=e_manager.name)
+            op.group_idx = i
+
+
+class EM_Remove_SGroup_Sub_Menu(bpy.types.Menu):
+    bl_idname = "epoch_manager.remove_e_manager_sub_menu"
+    bl_label = "Remove Super Group"
+    bl_description = "Remove Super Group Menu"
+
+    def draw(self, context):
+        layout = self.layout
+
+        for i, e_manager in enumerate(context.scene.epoch_managers):
+            op = layout.operator(EM_epoch_manager_remove.bl_idname, text=e_manager.name)
+            op.group_idx = i
+
+
+class EM_Select_SGroup_Sub_Menu(bpy.types.Menu):
+    bl_idname = "epoch_manager.select_e_manager_sub_menu"
+    bl_label = "Select SGroup"
+    bl_description = "Select SGroup Menu"
+
+    def draw(self, context):
+        layout = self.layout
+
+        for i, e_manager in enumerate(context.scene.epoch_managers):
+            op = layout.operator(EM_toggle_select.bl_idname, text=e_manager.name)
+            op.group_idx = i
+            op.is_select = True
+            op.is_menu = True
+
+
+class EM_Deselect_SGroup_Sub_Menu(bpy.types.Menu):
+    bl_idname = "epoch_manager.deselect_e_manager_sub_menu"
+    bl_label = "Deselect SGroup"
+    bl_description = "Deselect SGroup Menu"
+
+    def draw(self, context):
+        layout = self.layout
+
+        for i, e_manager in enumerate(context.scene.epoch_managers):
+            op = layout.operator(EM_toggle_select.bl_idname, text=e_manager.name)
+            op.group_idx = i
+            op.is_select = False
+            op.is_menu = True
+
+
+class EM_Toggle_Visible_SGroup_Sub_Menu(bpy.types.Menu):
+    bl_idname = "epoch_manager.toggle_e_manager_sub_menu"
+    bl_label = "Toggle SGroup"
+    bl_description = "Toggle SGroup Menu"
+
+    def draw(self, context):
+        layout = self.layout
+
+        for i, e_manager in enumerate(context.scene.epoch_managers):
+            op = layout.operator(EM_toggle_visibility.bl_idname, text=e_manager.name)
+            op.group_idx = i
+
+
+class EM_Toggle_Shading_Sub_Menu(bpy.types.Menu):
+    bl_idname = "epoch_manager.toggle_shading_sub_menu"
+    bl_label = "Toggle Shading"
+    bl_description = "Toggle Shading Menu"
+
+    def draw(self, context):
+        layout = self.layout
+
+        op = layout.operator(EM_change_selected_objects.bl_idname, text="Bound Shade")
+        op.sg_objects_changer = 'BOUND_SHADE'
+
+        op = layout.operator(EM_change_selected_objects.bl_idname, text="Wire Shade")
+        op.sg_objects_changer = 'WIRE_SHADE'
+
+        op = layout.operator(EM_change_selected_objects.bl_idname, text="Material Shade")
+        op.sg_objects_changer = 'MATERIAL_SHADE'
+
+        op = layout.operator(EM_change_selected_objects.bl_idname, text="Show Wire")
+        op.sg_objects_changer = 'SHOW_WIRE'
+
+        layout.separator()
+        op = layout.operator(EM_change_selected_objects.bl_idname, text="One Side")
+        op.sg_objects_changer = 'ONESIDE_SHADE'
+        op = layout.operator(EM_change_selected_objects.bl_idname, text="Double Side")
+        op.sg_objects_changer = 'TWOSIDE_SHADE'
