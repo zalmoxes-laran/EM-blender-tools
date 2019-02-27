@@ -10,16 +10,20 @@ from bpy.props import (BoolProperty,
                        IntProperty
                        )
 
+
+def menu_func(self, context):
+    self.layout.separator()
+
 def settingsSwitch(self, context):
 #    wm = bpy.context.window_manager
     layout = self.layout
     scene = context.scene
-    sg_settings = scene.sg_settings    
-    if bpy.scene.sg_settings.em_proxy_sync:
-        scene.sg_settings.em_proxy_sync2 = False
+    em_settings = scene.em_settings    
+    if bpy.scene.em_settings.em_proxy_sync:
+        scene.em_settings.em_proxy_sync2 = False
 
-    if bpy.scene.sg_settings.em_proxy_sync2:
-        scene.sg_settings.em_proxy_sync = False
+    if bpy.scene.em_settings.em_proxy_sync2:
+        scene.em_settings.em_proxy_sync = False
 
 def check_if_current_obj_has_brother_inlist(obj_name):
     scene = bpy.context.scene

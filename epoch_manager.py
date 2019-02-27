@@ -3,7 +3,20 @@
 #    "author": "Paul Geraskin, Aleksey Juravlev, BA Community",
 
 import bpy
-from bpy.props import StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
+
+from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
+import bpy.props as prop
+
+########################
+
+class EM_UL_List(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        icons_style = 'OUTLINER'
+        scene = context.scene
+        layout.label(text = item.name, icon = item.icon)
+        layout.label(text = item.description, icon='NONE', icon_value=0)
+
+########################
 
 def generate_id():
     # Generate unique id
@@ -79,12 +92,12 @@ def EM_select_objects(context, ids, do_select):
                     if prop.unique_id_object in ids:
                         for i in range(20):
                             if obj.layers[i] is True:
-                                if scene.layers[i] is True or scene.sg_settings.select_all_layers:
+                                if scene.layers[i] is True or scene.em_settings.select_all_layers:
                                     # unlock
-                                    if scene.sg_settings.unlock_obj:
+                                    if scene.em_settings.unlock_obj:
                                         obj.hide_select = False
                                     # unhide
-                                    if scene.sg_settings.unhide_obj:
+                                    if scene.em_settings.unhide_obj:
                                         obj.hide = False
 
                                     # select
@@ -92,13 +105,13 @@ def EM_select_objects(context, ids, do_select):
 
                                     # break if we need to select only visible
                                     # layers
-                                    if scene.sg_settings.select_all_layers is False:
+                                    if scene.em_settings.select_all_layers is False:
                                         break
                                     else:
                                         temp_scene_layers[i] = obj.layers[i]
 
         # set layers switching to a scene
-        if scene.sg_settings.select_all_layers:
+        if scene.em_settings.select_all_layers:
             scene.layers = temp_scene_layers
     else:
         for obj in context.selected_objects:
@@ -136,7 +149,7 @@ class EM_toggle_select(bpy.types.Operator):
                         has_selection = True
 
                     EM_select_objects(context, [e_manager.unique_id], True)
-                    if scene.sg_settings.unlock_obj:
+                    if scene.em_settings.unlock_obj:
                         e_manager.is_locked = False
 
                     # set last active object if no selection was before
@@ -156,7 +169,7 @@ class EM_toggle_visibility(bpy.types.Operator):
     bl_description = "Toggle Visibility"
     bl_options = {'REGISTER', 'UNDO'}
 
-    group_idx = IntProperty()
+    group_idx : IntProperty()
 
     def execute(self, context):
         scene = context.scene
@@ -237,7 +250,7 @@ class EM_change_grouped_objects(bpy.types.Operator):
 
     list_objects = ['LOCKING']
 
-    group_idx = IntProperty()
+    group_idx : IntProperty()
 
     def execute(self, context):
         scene_parse = context.scene
@@ -296,7 +309,7 @@ class EM_change_selected_objects(bpy.types.Operator):
     bl_description = "Change Selected"
     bl_options = {'REGISTER', 'UNDO'}
 
-    sg_objects_changer = EnumProperty(
+    sg_objects_changer : EnumProperty(
         items=(('BOUND_SHADE', 'BOUND_SHADE', ''),
                ('WIRE_SHADE', 'WIRE_SHADE', ''),
                ('MATERIAL_SHADE', 'MATERIAL_SHADE', ''),
@@ -384,7 +397,7 @@ class EM_epoch_manager_remove(bpy.types.Operator):
     bl_label = "Clear all epochs"
     bl_options = {'REGISTER', 'UNDO'}
 
-    group_idx = IntProperty()
+    group_idx : IntProperty()
 
     @classmethod
     def poll(cls, context):

@@ -6,25 +6,25 @@ import bpy.props as prop
 
 #from bpy.props import StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
 
-from bpy.props import *
 from bpy.props import (BoolProperty,
                        FloatProperty,
                        StringProperty,
                        EnumProperty,
                        CollectionProperty,
                        IntProperty,
-                       PointerProperty
+                       PointerProperty,
+                       FloatVectorProperty,
                        )
+
+from bpy.types import (
+        AddonPreferences,
+        PropertyGroup,
+        )
+
 from .functions import *
 from .epoch_manager import *
 
-##### da qui inizia la definizione delle classi pannello
-
-
-
 #### da qui si definiscono le funzioni e gli operatori
-
-
 class EM_usname_OT_toproxy(bpy.types.Operator):
     bl_idname = "usname.toproxy"
     bl_label = "Use US name for selected proxy"
@@ -33,7 +33,7 @@ class EM_usname_OT_toproxy(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         item = scene.em_list[scene.em_list_index]
-        scene.objects.active.name = item.name
+        context.active_object.name = item.name
         update_icons(context)
         set_EM_materials_using_EM_list(context)
         return {'FINISHED'}

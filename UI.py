@@ -19,17 +19,16 @@ from .EM_list import *
 SCENE_EM = '#EM'
 UNIQUE_ID_NAME = 'em_belong_id'
 
-class EMToolsPanel(bpy.types.Panel):
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    bl_context = "objectmode"
-    bl_category = "EM"
+
+class EM_ToolsPanel:
     bl_label = "Extended Matrix"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
 
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        sg_settings = scene.sg_settings
+        em_settings = scene.em_settings
         obj = context.object
         box = layout.box()
         row = box.row(align=True)
@@ -44,138 +43,140 @@ class EMToolsPanel(bpy.types.Panel):
         col = split.column(align=True)
         col.operator("uslist_icon.update", icon="PARTICLE_DATA", text='Refresh icons')
 
-        if bpy.types.Scene.em_list is True:
+        #if bpy.types.Scene.em_list is True:
 
-            row = layout.row()
-            layout.alignment = 'LEFT'
-            row.label(text="List of US/USV in EM file:")
-            row = layout.row()
-            row.template_list("EM_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
+        row = layout.row()
+        layout.alignment = 'LEFT'
+        row.label(text="List of US/USV in EM file:")
+        row = layout.row()
+        row.template_list("EM_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
 
-            split = layout.split()
-            col = split.column()
+        split = layout.split()
+        col = split.column()
 
-    #       tools to select proxies and UUSS
+        #tools to select proxies and UUSS
 
-            # First column, aligned
-    #        row = layout.row(align=True)
-            if scene.em_list[scene.em_list_index].icon == 'FILE_TICK':
-                col.operator("select.fromlistitem", icon="HAND", text='EM -> Proxy')
+        # First column, aligned
+        #row = layout.row(align=True)
+        if scene.em_list[scene.em_list_index].icon == 'FILE_TICK':
+            col.operator("select.fromlistitem", icon="HAND", text='EM -> Proxy')
 
-            # Second column, aligned
-            col = split.column(align=True)
+        # Second column, aligned
+        col = split.column(align=True)
+        if check_if_current_obj_has_brother_inlist(obj.name):
+            col.operator("select.listitem", icon="HAND", text='Proxy -> EM')
+
+        # Third column, aligned
+        #row = layout.row()
+        split = layout.split()
+        col = split.column(align=True)
+        col.prop(em_settings, "em_proxy_sync2", text='EM -> Proxy')
+
+        col = split.column(align=True)
+        col.prop(em_settings, "em_proxy_sync2_zoom", text='+ locate')
+
+        col = split.column(align=True)
+        col.prop(em_settings, "em_proxy_sync", text='Proxy -> EM')
+
+        if scene.em_settings.em_proxy_sync:
             if check_if_current_obj_has_brother_inlist(obj.name):
-                col.operator("select.listitem", icon="HAND", text='Proxy -> EM')
+                select_list_element_from_obj_proxy(obj)
 
-            # Third column, aligned
-    #        row = layout.row()
-            split = layout.split()
-            col = split.column(align=True)
-            col.prop(sg_settings, "em_proxy_sync2", text='EM -> Proxy')
+        if scene.em_settings.em_proxy_sync2:
+            if scene.em_list[scene.em_list_index].icon == 'FILE_TICK':
+                list_item = scene.em_list[scene.em_list_index]
+                if list_item.name != obj.name:
+                    select_3D_obj(list_item.name)
+                    if scene.em_settings.em_proxy_sync2_zoom:
+                        for area in bpy.context.screen.areas:
+                            if area.type == 'VIEW_3D':
+                                ctx = bpy.context.copy()
+                                ctx['area'] = area
+                                ctx['region'] = area.regions[-1]
+                                bpy.ops.view3d.view_selected(ctx)
 
-            col = split.column(align=True)
-            col.prop(sg_settings, "em_proxy_sync2_zoom", text='+ locate')
+        if scene.em_list_index >= 0 and len(scene.em_list) > 0:
+            item = scene.em_list[scene.em_list_index]
+            box = layout.box()
+            row = box.row(align=True)
+            row.label(text="US/USV name, description:")
+            row = box.row()
+            row.prop(item, "name", text="")
+            #row = layout.row()
+            #row.label(text="Description:")
+            row = box.row()
+            #layout.alignment = 'LEFT'
+            row.prop(item, "description", text="", slider=True)
+        if obj.type in ['MESH']:
+            obj = context.object
+            box = layout.box()
+            row = box.row()
+            row.label(text="Override active object's name:")#: " + obj.name)
+            row = box.row()
+            #row.prop(obj, "name", "Manual")
+            #row = box.row()
+            row.operator("usname.toproxy", icon="OUTLINER_DATA_FONT", text='Using EM list')
 
-            col = split.column(align=True)
-            col.prop(sg_settings, "em_proxy_sync", text='Proxy -> EM')
+class VIEW3D_EM_ToolsPanel(Panel, EM_ToolsPanel):
+    bl_category = "EM"
+    bl_idname = "VIEW3D_EM_ToolsPanel"
+    bl_context = "objectmode"
 
-            if scene.sg_settings.em_proxy_sync:
-                if check_if_current_obj_has_brother_inlist(obj.name):
-                    select_list_element_from_obj_proxy(obj)
-
-            if scene.sg_settings.em_proxy_sync2:
-                if scene.em_list[scene.em_list_index].icon == 'FILE_TICK':
-                    list_item = scene.em_list[scene.em_list_index]
-                    if list_item.name != obj.name:
-                        select_3D_obj(list_item.name)
-                        if scene.sg_settings.em_proxy_sync2_zoom:
-                            for area in bpy.context.screen.areas:
-                                if area.type == 'VIEW_3D':
-                                    ctx = bpy.context.copy()
-                                    ctx['area'] = area
-                                    ctx['region'] = area.regions[-1]
-                                    bpy.ops.view3d.view_selected(ctx)
-
-            if scene.em_list_index >= 0 and len(scene.em_list) > 0:
-                item = scene.em_list[scene.em_list_index]
-                box = layout.box()
-                row = box.row(align=True)
-                row.label(text="US/USV name, description:")
-                row = box.row()
-                row.prop(item, "name", text="")
-    #            row = layout.row()
-    #            row.label(text="Description:")
-                row = box.row()
-    #            layout.alignment = 'LEFT'
-                row.prop(item, "description", text="", slider=True)
-            if obj.type in ['MESH']:
-                obj = context.object
-                box = layout.box()
-                row = box.row()
-                row.label(text="Override active object's name:")#: " + obj.name)
-                row = box.row()
-                row.prop(obj, "name", "Manual")
-                row = box.row()
-                row.operator("usname.toproxy", icon="OUTLINER_DATA_FONT", text='Using EM list')
-
-
-class EM_BasePanel(bpy.types.Panel):
+class EM_BasePanel:
     bl_label = "Epochs Manager"
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
-    bl_context = "objectmode"
-    bl_category = 'EM'
+    bl_region_type = 'UI'
 
     def draw(self, context):
         layout = self.layout
 
         scene = context.scene
-        sg_settings = scene.sg_settings
+        em_settings = scene.em_settings
 
         row = layout.row(align=True)
         op = row.operator(
-            "epoch_manager.change_selected_objects", text="", emboss=False, icon='BBOX')
+            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_BBOX')
         op.sg_objects_changer = 'BOUND_SHADE'
 
         op = row.operator(
-            "epoch_manager.change_selected_objects", text="", emboss=False, icon='WIRE')
+            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_WIRE')
         op.sg_objects_changer = 'WIRE_SHADE'
 
         op = row.operator(
-            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SOLID')
+            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_SOLID')
         op.sg_objects_changer = 'MATERIAL_SHADE'
 
         op = row.operator(
-            "epoch_manager.change_selected_objects", text="", emboss=False, icon='RETOPO')
+            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SPHERE')
         op.sg_objects_changer = 'SHOW_WIRE'
 
         op = row.operator(
-            "emset.emmaterial", text="", emboss=False, icon='MATERIAL')
+            "emset.emmaterial", text="", emboss=False, icon='SHADING_TEXTURE')
         #op.sg_objects_changer = 'EM_COLOURS'
 
         row = layout.row()
         row.template_list(
             "EM_named_epoch_managers", "", scene, "epoch_managers", scene, "epoch_managers_index")
 
-
         layout.label(text="Selection Settings:")
         row = layout.row(align=True)
-        row.prop(sg_settings, "select_all_layers", text='Layers')
-        row.prop(sg_settings, "unlock_obj", text='UnLock')
-        row.prop(sg_settings, "unhide_obj", text='Unhide')
+        row.prop(em_settings, "select_all_layers", text='Layers')
+        row.prop(em_settings, "unlock_obj", text='UnLock')
+        row.prop(em_settings, "unhide_obj", text='Unhide')
         row = layout.row(align=True)
 
+class VIEW3D_EM_BasePanel(Panel, EM_BasePanel):
+    bl_category = "EM"
+    bl_idname = "VIEW3D_EM_BasePanel"
+    bl_context = "objectmode"
 
 class EM_named_epoch_managers(UIList):
-
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         epoch_manager = item
         #user_preferences = context.user_preferences
         icons_style = 'OUTLINER'
-
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             layout.prop(epoch_manager, "name", text="", emboss=False)
-
             # select operator
             icon = 'RESTRICT_SELECT_OFF' if epoch_manager.use_toggle else 'RESTRICT_SELECT_ON'
             #if icons_style == 'OUTLINER':
@@ -185,7 +186,6 @@ class EM_named_epoch_managers(UIList):
             op.group_idx = index
             op.is_menu = False
             op.is_select = True
-
             # lock operator
             icon = 'LOCKED' if epoch_manager.is_locked else 'UNLOCKED'
             #if icons_style == 'OUTLINER':
@@ -194,7 +194,6 @@ class EM_named_epoch_managers(UIList):
                 "epoch_manager.change_grouped_objects", text="", emboss=False, icon=icon)
             op.sg_group_changer = 'LOCKING'
             op.group_idx = index
-
             # view operator
             icon = 'RESTRICT_VIEW_OFF' if epoch_manager.use_toggle else 'RESTRICT_VIEW_ON'
             op = layout.operator(
@@ -203,7 +202,6 @@ class EM_named_epoch_managers(UIList):
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
-
 
 class EM_Add_Objects_Sub_Menu(bpy.types.Menu):
     bl_idname = "epoch_manager.add_objects_sub_menu"
