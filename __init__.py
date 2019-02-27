@@ -1,7 +1,6 @@
 '''
 Copyright (C) 2018 Emanuel Demetrescu
 
-
 Created by EMANUEL DEMETRESCU 2018-2019
 emanuel.demetrescu@gmail.com
 
@@ -31,38 +30,34 @@ bl_info = {
     "category": "Tools",
     }
 
-
-
-import bpy
-
-
 # load and reload submodules
 ##################################
 
+import bpy
 import importlib
-
-import bpy.props as prop
+#import bpy.props as prop
 from bpy.props import (BoolProperty,
                        FloatProperty,
                        StringProperty,
                        EnumProperty,
                        CollectionProperty,
-                       IntProperty
+                       BoolVectorProperty,
+                       IntProperty,
+                       FloatVectorProperty,
+                       PointerProperty
                        )
 from .functions import *
-from bpy.props import StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty, FloatVectorProperty
-
 from bpy.types import Menu, Panel, UIList, PropertyGroup
 from . import developer_utils
-importlib.reload(developer_utils)
-modules = developer_utils.setup_addon_modules(__path__, __name__, "bpy" in locals())
-
+#importlib.reload(developer_utils)
+#modules = developer_utils.setup_addon_modules(__path__, __name__, "bpy" in locals())
 from . import (
        UI,
        EM_list,
        epoch_manager,
        functions
        )
+import traceback
 
 #######################################################################################################################
 # per epoch manager
@@ -85,10 +80,8 @@ class EM_Group(PropertyGroup):
         description="wire color of the group"
     )
 
-
 class EM_Object_Id(PropertyGroup):
     unique_id_object = StringProperty(default="")
-
 
 class EM_Other_Settings(PropertyGroup):
     select_all_layers = BoolProperty(name="Select Visible Layers", default=True)
@@ -138,7 +131,6 @@ class EMListItem(bpy.types.PropertyGroup):
            description="",
            default="Empty")
 
-
 class EPOCHListItem(bpy.types.PropertyGroup):
     """ Group of properties representing an item in the list """
 
@@ -183,18 +175,19 @@ class EM_UL_List(bpy.types.UIList):
         layout.label(item.description, icon='NONE', icon_value=0)
 #        layout.column_flow(align = True)
 
-
-
 # register
 ##################################
-
-import traceback
 
 def menu_func(self, context):
     self.layout.separator()
 
-
 classes = (
+       EM_Group,
+       EM_Object_Id,
+       EM_Other_Settings,
+       EMListItem,
+       EPOCHListItem,
+       EM_UL_List,
        UI.EMToolsPanel,
        UI.EM_BasePanel,
        UI.EM_named_epoch_managers,

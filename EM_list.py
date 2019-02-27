@@ -1,5 +1,5 @@
-import xml.etree.ElementTree as ET
 import bpy
+import xml.etree.ElementTree as ET
 import os
 import bpy.props as prop
 

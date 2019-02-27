@@ -16,10 +16,8 @@ from bpy.app.handlers import persistent
 from .epoch_manager import *
 from .EM_list import *
 
-
 SCENE_EM = '#EM'
 UNIQUE_ID_NAME = 'em_belong_id'
-
 
 class EMToolsPanel(bpy.types.Panel):
     bl_space_type = "VIEW_3D"
