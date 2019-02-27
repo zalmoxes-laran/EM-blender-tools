@@ -3,10 +3,18 @@
 #    "author": "Paul Geraskin, Aleksey Juravlev, BA Community",
 
 import bpy
+import string
 
 from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
 import bpy.props as prop
 
+from .functions import *
+
+import random
+
+
+SCENE_EM = '#EM'
+UNIQUE_ID_NAME = 'em_belong_id'
 ########################
 
 class EM_UL_List(bpy.types.UIList):
@@ -85,34 +93,18 @@ def EM_create_group_scene(context):
 def EM_select_objects(context, ids, do_select):
     if do_select:
         scene = context.scene
-        temp_scene_layers = list(scene.layers[:])  # copy layers of the scene
         for obj in scene.objects:
             if obj.em_belong_id:
                 for prop in obj.em_belong_id:
                     if prop.unique_id_object in ids:
-                        for i in range(20):
-                            if obj.layers[i] is True:
-                                if scene.layers[i] is True or scene.em_settings.select_all_layers:
-                                    # unlock
-                                    if scene.em_settings.unlock_obj:
-                                        obj.hide_select = False
-                                    # unhide
-                                    if scene.em_settings.unhide_obj:
-                                        obj.hide = False
-
-                                    # select
-                                    obj.select = True
-
-                                    # break if we need to select only visible
-                                    # layers
-                                    if scene.em_settings.select_all_layers is False:
-                                        break
-                                    else:
-                                        temp_scene_layers[i] = obj.layers[i]
-
-        # set layers switching to a scene
-        if scene.em_settings.select_all_layers:
-            scene.layers = temp_scene_layers
+                        if scene.em_settings.unlock_obj:
+                            obj.hide_select = False
+                        # unhide
+                        if scene.em_settings.unhide_obj:
+                            obj.hide_viewport = False
+                        # select
+                        obj.select_set(True)
+       
     else:
         for obj in context.selected_objects:
             if obj.em_belong_id:
@@ -126,9 +118,9 @@ class EM_toggle_select(bpy.types.Operator):
     bl_description = "Toggle Select"
     bl_options = {'REGISTER', 'UNDO'}
 
-    group_idx = IntProperty()
-    is_menu = BoolProperty(name="Is Menu?", default=True)
-    is_select = BoolProperty(name="Is Select?", default=True)
+    group_idx : IntProperty()
+    is_menu : BoolProperty(name="Is Menu?", default=True)
+    is_select : BoolProperty(name="Is Select?", default=True)
 
     def invoke(self, context, event):
         scene = context.scene
@@ -154,7 +146,7 @@ class EM_toggle_select(bpy.types.Operator):
 
                     # set last active object if no selection was before
                     if has_selection is False and context.selected_objects:
-                        scene.objects.active = context.selected_objects[-1]
+                        context.view_layer.objects.active = context.selected_objects[-1]
 
                 else:
                     EM_select_objects(context, [e_manager.unique_id], False)
@@ -240,7 +232,7 @@ class EM_change_grouped_objects(bpy.types.Operator):
     bl_description = "Change Grouped"
     bl_options = {'REGISTER', 'UNDO'}
 
-    sg_group_changer = EnumProperty(
+    sg_group_changer : EnumProperty(
         items=(('COLOR_WIRE', 'COLOR_WIRE', ''),
                ('DEFAULT_COLOR_WIRE', 'DEFAULT_COLOR_WIRE', ''),
                ('LOCKING', 'LOCKING', '')
@@ -454,7 +446,7 @@ class EM_add_to_group(bpy.types.Operator):
     bl_description = "Add To Super Group"
     bl_options = {'REGISTER', 'UNDO'}
 
-    group_idx = IntProperty()
+    group_idx : IntProperty()
 
 
     def execute(self, context):

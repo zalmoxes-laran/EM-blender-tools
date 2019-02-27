@@ -193,9 +193,9 @@ def add_sceneobj_to_epochs():
                     for i in scene.epoch_managers:
                         if i.name == USS.epoch:
                             #print("found "+str(USS.epoch)+ " corrispondende all'indice"+str(idx))
-                            obj.select = True
+                            obj.select_set(True)
                             bpy.ops.epoch_manager.add_to_group(group_idx=idx)
-                            obj.select = False
+                            obj.select_set(False)
                         idx +=1
                         
                         
@@ -241,13 +241,13 @@ def em_setup_mat_cycles(matname):
 #    links.new(colornode.outputs[0], mainNode.inputs[0])
     links.new(mainNode.outputs[0], output.inputs[0])
 
-def em_setup_mat_bi(matname):
-    R, G, B = EM_mat_get_RGB_values(matname)
-    mat = bpy.data.materials[matname]
-    mat.use_nodes = False
-    mat.diffuse_color = (R,G,B)
-    mat.use_transparency = True
-    mat.alpha = 0.5
+# def em_setup_mat_bi(matname):
+#     R, G, B = EM_mat_get_RGB_values(matname)
+#     mat = bpy.data.materials[matname]
+#     mat.use_nodes = False
+#     mat.diffuse_color = (R,G,B)
+#     mat.use_transparency = True
+#     mat.alpha = 0.5
     
 def check_material_presence(matname):
     mat_presence = False
@@ -265,11 +265,8 @@ def consolidate_EM_material_presence(overwrite_mats):
             overwrite_mats = True
         if overwrite_mats == True:
             scene = bpy.context.scene
-            if scene.render.engine == 'CYCLES':
-                em_setup_mat_cycles(EM_mat_name)
-            else:
-                em_setup_mat_bi(EM_mat_name)
-            
+            em_setup_mat_cycles(EM_mat_name)
+
         
 def set_EM_materials_using_EM_list(context):
     em_list_lenght = len(context.scene.em_list)
@@ -277,7 +274,6 @@ def set_EM_materials_using_EM_list(context):
     counter = 0
     while counter < em_list_lenght:
         current_ob_em_list = context.scene.em_list[counter]
-        #if ob.name == context.scene.em_list[counter].name:
         overwrite_mats = True
         consolidate_EM_material_presence(overwrite_mats)
         if current_ob_em_list.icon == 'FILE_TICK':

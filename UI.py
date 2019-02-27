@@ -3,8 +3,6 @@
 #    "author": "Paul Geraskin, Aleksey Juravlev, BA Community",
 
 import bpy
-import random
-import string
 
 from .functions import *
 from bpy.props import *
@@ -15,10 +13,6 @@ from bpy.app.handlers import persistent
 
 from .epoch_manager import *
 from .EM_list import *
-
-SCENE_EM = '#EM'
-UNIQUE_ID_NAME = 'em_belong_id'
-
 
 class EM_ToolsPanel:
     bl_label = "Extended Matrix"
@@ -160,7 +154,7 @@ class EM_BasePanel:
 
         layout.label(text="Selection Settings:")
         row = layout.row(align=True)
-        row.prop(em_settings, "select_all_layers", text='Layers')
+        #row.prop(em_settings, "select_all_layers", text='Layers')
         row.prop(em_settings, "unlock_obj", text='UnLock')
         row.prop(em_settings, "unhide_obj", text='Unhide')
         row = layout.row(align=True)

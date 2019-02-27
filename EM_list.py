@@ -45,6 +45,7 @@ class EM_update_icon_list(bpy.types.Operator):
 
     def execute(self, context):
         update_icons(context)
+        
         return {'FINISHED'}
 
 class EM_select_list_item(bpy.types.Operator):
