@@ -177,7 +177,7 @@ class EM_named_epoch_managers(UIList):
             icon = 'VIEWZOOM' if epoch_manager.use_toggle else 'VIEWZOOM'
             op = layout.operator(
                 "epoch_manager.toggle_select", text="", emboss=False, icon=icon)
-            op.group_idx = index
+            op.group_em_idx = index
             op.is_menu = False
             op.is_select = True
             # lock operator
@@ -186,13 +186,13 @@ class EM_named_epoch_managers(UIList):
             icon = 'RESTRICT_SELECT_ON' if epoch_manager.is_locked else 'RESTRICT_SELECT_OFF'
             op = layout.operator(
                 "epoch_manager.change_grouped_objects", text="", emboss=False, icon=icon)
-            op.sg_group_changer = 'LOCKING'
-            op.group_idx = index
+            op.em_group_changer = 'LOCKING'
+            op.group_em_idx = index
             # view operator
             icon = 'RESTRICT_VIEW_OFF' if epoch_manager.use_toggle else 'RESTRICT_VIEW_ON'
             op = layout.operator(
                 "epoch_manager.toggle_visibility", text="", emboss=False, icon=icon)
-            op.group_idx = index
+            op.group_em_idx = index
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
@@ -207,7 +207,7 @@ class EM_Add_Objects_Sub_Menu(bpy.types.Menu):
 
         for i, e_manager in enumerate(context.scene.epoch_managers):
             op = layout.operator(EM_add_to_group.bl_idname, text=e_manager.name)
-            op.group_idx = i
+            op.group_em_idx = i
 
 
 class EM_Remove_SGroup_Sub_Menu(bpy.types.Menu):
@@ -220,7 +220,7 @@ class EM_Remove_SGroup_Sub_Menu(bpy.types.Menu):
 
         for i, e_manager in enumerate(context.scene.epoch_managers):
             op = layout.operator(EM_epoch_manager_remove.bl_idname, text=e_manager.name)
-            op.group_idx = i
+            op.group_em_idx = i
 
 
 class EM_Select_SGroup_Sub_Menu(bpy.types.Menu):
@@ -233,7 +233,7 @@ class EM_Select_SGroup_Sub_Menu(bpy.types.Menu):
 
         for i, e_manager in enumerate(context.scene.epoch_managers):
             op = layout.operator(EM_toggle_select.bl_idname, text=e_manager.name)
-            op.group_idx = i
+            op.group_em_idx = i
             op.is_select = True
             op.is_menu = True
 
@@ -248,7 +248,7 @@ class EM_Deselect_SGroup_Sub_Menu(bpy.types.Menu):
 
         for i, e_manager in enumerate(context.scene.epoch_managers):
             op = layout.operator(EM_toggle_select.bl_idname, text=e_manager.name)
-            op.group_idx = i
+            op.group_em_idx = i
             op.is_select = False
             op.is_menu = True
 
@@ -263,7 +263,7 @@ class EM_Toggle_Visible_SGroup_Sub_Menu(bpy.types.Menu):
 
         for i, e_manager in enumerate(context.scene.epoch_managers):
             op = layout.operator(EM_toggle_visibility.bl_idname, text=e_manager.name)
-            op.group_idx = i
+            op.group_em_idx = i
 
 
 class EM_Toggle_Shading_Sub_Menu(bpy.types.Menu):
@@ -291,3 +291,84 @@ class EM_Toggle_Shading_Sub_Menu(bpy.types.Menu):
         op.sg_objects_changer = 'ONESIDE_SHADE'
         op = layout.operator(EM_change_selected_objects.bl_idname, text="Double Side")
         op.sg_objects_changer = 'TWOSIDE_SHADE'
+
+#########################################################################################################
+
+class RM_BasePanel:
+    bl_label = "Rep. Models Manager"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    def draw(self, context):
+        layout = self.layout
+
+        scene = context.scene
+        rm_settings = scene.rm_settings
+
+
+        row = layout.row(align=True)
+        row.operator(
+            "repmod_manager.repmod_manager_add", icon='ADD', text="")
+        op = row.operator(
+            "repmod_manager.repmod_manager_remove", icon='REMOVE', text="")
+        op.group_rm_idx = scene.repmod_managers_index
+
+        op = row.operator(
+            "repmod_manager.repmod_manager_move", icon='TRIA_UP', text="")
+        op.do_move = 'UP'
+
+        op = row.operator(
+            "repmod_manager.repmod_manager_move", icon='TRIA_DOWN', text="")
+        op.do_move = 'DOWN'
+
+
+        row = layout.row()
+        row.template_list(
+            "RM_named_repmod_managers", "", scene, "repmod_managers", scene, "repmod_managers_index")
+
+        layout.label(text="Selection Settings:")
+        row = layout.row(align=True)
+        #row.prop(rm_settings, "select_all_layers", text='Layers')
+        row.prop(rm_settings, "unlock_obj", text='UnLock')
+        row.prop(rm_settings, "unhide_obj", text='Unhide')
+        row = layout.row(align=True)
+
+
+class VIEW3D_RM_BasePanel(Panel, RM_BasePanel):
+    bl_category = "EM"
+    bl_idname = "VIEW3D_RM_BasePanel"
+    bl_context = "objectmode"
+
+
+class RM_named_repmod_managers(UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        repmod_manager = item
+        #user_preferences = context.user_preferences
+        icons_style = 'OUTLINER'
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            layout.prop(repmod_manager, "name", text="", emboss=False)
+            # select operator
+            icon = 'RESTRICT_SELECT_OFF' if repmod_manager.use_toggle else 'RESTRICT_SELECT_ON'
+            #if icons_style == 'OUTLINER':
+            icon = 'VIEWZOOM' if repmod_manager.use_toggle else 'VIEWZOOM'
+            op = layout.operator(
+                "repmod_manager.toggle_select", text="", emboss=False, icon=icon)
+            op.group_rm_idx = index
+            op.is_menu = False
+            op.is_select = True
+            # lock operator
+            icon = 'LOCKED' if repmod_manager.is_locked else 'UNLOCKED'
+            #if icons_style == 'OUTLINER':
+            icon = 'RESTRICT_SELECT_ON' if repmod_manager.is_locked else 'RESTRICT_SELECT_OFF'
+            op = layout.operator(
+                "repmod_manager.rmchange_grouped_objects", text="", emboss=False, icon=icon)
+            op.rm_group_changer = 'LOCKING'
+            op.group_rm_idx = index
+            # view operator
+            icon = 'RESTRICT_VIEW_OFF' if repmod_manager.use_toggle else 'RESTRICT_VIEW_ON'
+            op = layout.operator(
+                "repmod_manager.toggle_visibility", text="", emboss=False, icon=icon)
+            op.group_rm_idx = index
+
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'

@@ -56,6 +56,7 @@ from . import (
         EM_list,
         epoch_manager,
         functions,
+        representation_model,
         )
 
 from .functions import *
@@ -64,7 +65,6 @@ from bpy.utils import register_class, unregister_class
 
 class EPOCHListItem(bpy.types.PropertyGroup):
     """ Group of properties representing an item in the list """
-
     name: prop.StringProperty(
            name="Name",
            description="A name for this item",
@@ -90,14 +90,11 @@ class EPOCHListItem(bpy.types.PropertyGroup):
            description="",
            default=0.0)
 
-
 class EM_Group(PropertyGroup):
     use_toggle: BoolProperty(name="", default=True)
-    #is_wire = BoolProperty(name="", default=False)
     is_locked: BoolProperty(name="", default=False)
     is_selected: BoolProperty(name="", default=False)
-                               # this is just a temporary value as a user can
-                               # select/deselect
+
     unique_id: StringProperty(default="")
 
     wire_color: FloatVectorProperty(
@@ -174,6 +171,8 @@ classes = (
     # UI.EM_Deselect_SGroup_Sub_Menu,
     # UI.EM_Toggle_Shading_Sub_Menu,
     # UI.EM_Toggle_Visible_SGroup_Sub_Menu,
+    UI.VIEW3D_RM_BasePanel,
+    UI.RM_named_repmod_managers,
     EM_list.EM_usname_OT_toproxy,
     EM_list.EM_update_icon_list,
     EM_list.EM_select_from_list_item,
@@ -190,6 +189,12 @@ classes = (
     epoch_manager.EM_epoch_manager_add,
     epoch_manager.EM_epoch_manager_remove,
     epoch_manager.EM_add_to_group,
+    representation_model.RM_repmod_manager_add,
+    representation_model.RM_repmod_manager_remove,
+    representation_model.RM_repmod_move,
+    representation_model.RM_toggle_select,
+    representation_model.RM_change_grouped_objects,
+    representation_model.RM_toggle_visibility,
 #     epoch_manager.EM_remove_from_group,
     EMListItem,
     EM_Other_Settings,
@@ -220,10 +225,15 @@ def register():
 ##################
 
     bpy.types.Scene.epoch_managers = CollectionProperty(type=EM_Group)
+    bpy.types.Scene.repmod_managers = CollectionProperty(type=EM_Group)
     bpy.types.Object.em_belong_id = CollectionProperty(type=EM_Object_Id)
+    bpy.types.Object.rm_belong_id = CollectionProperty(type=EM_Object_Id)
     bpy.types.Scene.em_settings = PointerProperty(type=EM_Other_Settings)
+    bpy.types.Scene.rm_settings = PointerProperty(type=EM_Other_Settings)
 
     bpy.types.Scene.epoch_managers_index = IntProperty(default=-1)
+    bpy.types.Scene.repmod_managers_index = IntProperty(default=-1)
+
 
     bpy.types.VIEW3D_MT_object_specials.append(menu_func)
 

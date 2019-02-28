@@ -44,7 +44,7 @@ def EM_extract_node_name(node_element):
     nodename = None
     for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
         attrib = subnode.attrib
-        print(attrib)
+        #print(attrib)
         if attrib == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
             is_d4 = True
             nodeurl = subnode.text
@@ -162,7 +162,7 @@ def extract_epochs(node_element):
         y_max += h_row
         scene.epoch_list[epoch_list_index_ema].min_y = y_min
         scene.epoch_list[epoch_list_index_ema].max_y = y_max        
-        print(str(id_row))
+        #print(str(id_row))
         epoch_list_index_ema += 1        
 
     for nodelabel in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
@@ -270,7 +270,7 @@ def consolidate_EM_material_presence(overwrite_mats):
         
 def set_EM_materials_using_EM_list(context):
     em_list_lenght = len(context.scene.em_list)
-    print(str(em_list_lenght))
+    #print(str(em_list_lenght))
     counter = 0
     while counter < em_list_lenght:
         current_ob_em_list = context.scene.em_list[counter]
@@ -279,7 +279,7 @@ def set_EM_materials_using_EM_list(context):
         if current_ob_em_list.icon == 'FILE_TICK':
             current_ob_scene = context.scene.objects[current_ob_em_list.name]
             current_ob_scene.name
-            print(current_ob_em_list.name + ' has symbol: ' +current_ob_em_list.shape)
+            #print(current_ob_em_list.name + ' has symbol: ' +current_ob_em_list.shape)
             if current_ob_em_list.shape ==  'rectangle':
                 ob_material_name = 'US'
             if current_ob_em_list.shape ==  'ellipse':
