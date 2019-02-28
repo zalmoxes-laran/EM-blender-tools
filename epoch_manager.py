@@ -190,9 +190,10 @@ class EM_toggle_visibility(bpy.types.Operator):
             current_e_manager.use_toggle = not current_e_manager.use_toggle  # switch visibility
 
             # set active object so that WMenu worked
-            if current_e_manager.use_toggle is False and scene.objects.active is None:
+            if current_e_manager.use_toggle is False and context.active_object is None:
                 if scene.objects:
-                    scene.objects.active = scene.objects[0]
+                    #scene.objects.active = scene.objects[0]
+                    context.view_layer.objects.active = scene.objects[0]
         return {'FINISHED'}
 
 def EM_switch_object(obj, scene_source, scene_terget, e_manager_id):

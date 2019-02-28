@@ -68,7 +68,7 @@ class RM_Deselect_SGroup_Sub_Menu(bpy.types.Menu):
 
 class RM_Toggle_Visible_SGroup_Sub_Menu(bpy.types.Menu):
     bl_idname = "repmod_manager.toggle_rm_manager_sub_menu"
-    bl_label = "Toggle SGroup"
+    bl_label = "Toggle Rep Mod visibility"
     bl_description = "Toggle SGroup Menu"
 
     def draw(self, context):
