@@ -23,59 +23,59 @@ class RM_Add_Objects_Sub_Menu(bpy.types.Menu):
 
     def draw(self, context):
         layout = self.layout
-        for i, e_manager in enumerate(context.scene.repmod_managers):
-            op = layout.operator(RM_add_to_group.bl_idname, text=e_manager.name)
+        for i, rm_manager in enumerate(context.scene.repmod_managers):
+            op = layout.operator(RM_add_to_group.bl_idname, text=rm_manager.name)
             op.group_rm_idx = i
 
 class RM_Remove_SGroup_Sub_Menu(bpy.types.Menu):
-    bl_idname = "repmod_manager.remove_e_manager_sub_menu"
+    bl_idname = "repmod_manager.remove_rm_manager_sub_menu"
     bl_label = "Remove Super Group"
     bl_description = "Remove Super Group Menu"
 
     def draw(self, context):
         layout = self.layout
-        for i, e_manager in enumerate(context.scene.repmod_managers):
-            op = layout.operator(RM_repmod_manager_remove.bl_idname, text=e_manager.name)
+        for i, rm_manager in enumerate(context.scene.repmod_managers):
+            op = layout.operator(RM_repmod_manager_remove.bl_idname, text=rm_manager.name)
             op.group_rm_idx = i
 
 class RM_Select_SGroup_Sub_Menu(bpy.types.Menu):
-    bl_idname = "repmod_manager.select_e_manager_sub_menu"
+    bl_idname = "repmod_manager.select_rm_manager_sub_menu"
     bl_label = "Select SGroup"
     bl_description = "Select SGroup Menu"
 
     def draw(self, context):
         layout = self.layout
-        for i, e_manager in enumerate(context.scene.repmod_managers):
-            op = layout.operator(RM_toggle_select.bl_idname, text=e_manager.name)
+        for i, rm_manager in enumerate(context.scene.repmod_managers):
+            op = layout.operator(RM_toggle_select.bl_idname, text=rm_manager.name)
             op.group_rm_idx = i
             op.is_select = True
             op.is_menu = True
 
 class RM_Deselect_SGroup_Sub_Menu(bpy.types.Menu):
-    bl_idname = "repmod_manager.deselect_e_manager_sub_menu"
+    bl_idname = "repmod_manager.deselect_rm_manager_sub_menu"
     bl_label = "Deselect SGroup"
     bl_description = "Deselect SGroup Menu"
 
     def draw(self, context):
         layout = self.layout
 
-        for i, e_manager in enumerate(context.scene.repmod_managers):
-            op = layout.operator(RM_toggle_select.bl_idname, text=e_manager.name)
+        for i, rm_manager in enumerate(context.scene.repmod_managers):
+            op = layout.operator(RM_toggle_select.bl_idname, text=rm_manager.name)
             op.group_rm_idx = i
             op.is_select = False
             op.is_menu = True
 
 
 class RM_Toggle_Visible_SGroup_Sub_Menu(bpy.types.Menu):
-    bl_idname = "repmod_manager.toggle_e_manager_sub_menu"
+    bl_idname = "repmod_manager.toggle_rm_manager_sub_menu"
     bl_label = "Toggle SGroup"
     bl_description = "Toggle SGroup Menu"
 
     def draw(self, context):
         layout = self.layout
 
-        for i, e_manager in enumerate(context.scene.repmod_managers):
-            op = layout.operator(RM_toggle_visibility.bl_idname, text=e_manager.name)
+        for i, rm_manager in enumerate(context.scene.repmod_managers):
+            op = layout.operator(RM_toggle_visibility.bl_idname, text=rm_manager.name)
             op.group_rm_idx = i
 
 
@@ -111,8 +111,8 @@ def generate_id():
     other_ids = []
     for scene in bpy.data.scenes:
         if scene != bpy.context.scene and scene.name.endswith(SCENE_RM) is False:
-            for e_manager in scene.repmod_managers:
-                other_ids.append(e_manager.unique_id)
+            for rm_manager in scene.repmod_managers:
+                other_ids.append(rm_manager.unique_id)
 
     while True:
         uni_numb = None
@@ -140,9 +140,9 @@ class RM_clean_object_ids(bpy.types.Operator):
         scenes_ids = []
         for scene in bpy.data.scenes:
             if scene.repmod_managers:
-                for e_manager in scene.repmod_managers:
-                    if e_manager.unique_id not in scenes_ids:
-                        scenes_ids.append(e_manager.unique_id)
+                for rm_manager in scene.repmod_managers:
+                    if rm_manager.unique_id not in scenes_ids:
+                        scenes_ids.append(rm_manager.unique_id)
 
         for obj in bpy.data.objects:
             RM_del_properties_from_obj(UNIQUE_ID_NAME, scenes_ids, obj, False)
@@ -227,12 +227,12 @@ class RM_toggle_select(bpy.types.Operator):
         if self.group_rm_idx < len(scene.repmod_managers):
             # check_same_ids()  # check scene ids
 
-            e_manager = scene.repmod_managers[self.group_rm_idx]
+            rm_manager = scene.repmod_managers[self.group_rm_idx]
 
             if event.ctrl is True and self.is_menu is False:
                 self.is_select = False
 
-            if e_manager.use_toggle is True:
+            if rm_manager.use_toggle is True:
                 if self.is_select is True:
 
                     # add active object if no selection
@@ -240,16 +240,16 @@ class RM_toggle_select(bpy.types.Operator):
                     if context.selected_objects:
                         has_selection = True
 
-                    RM_select_objects(context, [e_manager.unique_id], True)
+                    RM_select_objects(context, [rm_manager.unique_id], True)
                     if scene.rm_settings.unlock_obj:
-                        e_manager.is_locked = False
+                        rm_manager.is_locked = False
 
                     # set last active object if no selection was before
                     if has_selection is False and context.selected_objects:
                         scene.objects.active = context.selected_objects[-1]
 
                 else:
-                    RM_select_objects(context, [e_manager.unique_id], False)
+                    RM_select_objects(context, [rm_manager.unique_id], False)
 
         return {'FINISHED'}
 
@@ -268,55 +268,58 @@ class RM_toggle_visibility(bpy.types.Operator):
         scene = context.scene
         if self.group_rm_idx < len(scene.repmod_managers):
             # check_same_ids()  # check scene ids
-            current_e_manager = scene.repmod_managers[self.group_rm_idx]
+            current_rm_manager = scene.repmod_managers[self.group_rm_idx]
 
             # Try to get or create new GroupScene
             group_scene = RM_get_group_scene(context)
-            if group_scene is None and current_e_manager.use_toggle is True:
+            if group_scene is None and current_rm_manager.use_toggle is True:
                 group_scene = RM_create_group_scene(context)
 
             # if GroupScene exists now we can switch objects
             if group_scene is not None:
-                if current_e_manager.use_toggle is True:
+                if current_rm_manager.use_toggle is True:
                     for obj in scene.objects:
                         RM_switch_object(
-                            obj, scene, group_scene, current_e_manager.unique_id)
+                            obj, scene, group_scene, current_rm_manager.unique_id, context)
                 else:
                     for obj in group_scene.objects:
                         RM_switch_object(
-                            obj, group_scene, scene, current_e_manager.unique_id)
+                            obj, group_scene, scene, current_rm_manager.unique_id, context)
                     if len(group_scene.objects) == 0:
                         bpy.data.scenes.remove(group_scene)
 
-            current_e_manager.use_toggle = not current_e_manager.use_toggle  # switch visibility
+            current_rm_manager.use_toggle = not current_rm_manager.use_toggle  # switch visibility
 
             # set active object so that WMenu worked
-            if current_e_manager.use_toggle is False and scene.objects.active is None:
+            if current_rm_manager.use_toggle is False and context.active_object is None:
                 if scene.objects:
-                    scene.objects.active = scene.objects[0]
+                    context.view_layer.objects.active = scene.objects[0]
         return {'FINISHED'}
 
-def RM_switch_object(obj, scene_source, scene_terget, e_manager_id):
+def RM_switch_object(obj, scene_source, scene_target, rm_manager_id, context):
     do_switch = False
     if obj.rm_belong_id:
         for prop in obj.rm_belong_id:
-            if prop.unique_id_object == e_manager_id:
+            if prop.unique_id_object == rm_manager_id:
                 do_switch = True
                 break
 
         if do_switch is True:
-            layers = obj.layers[:]  # copy layers
-            obj.select = False
+            #layers = obj.layers[:]  # copy layers
+            obj.select_set(False)
 
             # if object is not already linked
-            if obj.name not in scene_terget.objects:
-                obj2 = scene_terget.objects.link(obj)
-                obj2.layers = layers  # paste layers
+            #if obj.name not in scene_target.objects:
+            if obj.name not in context.collection.objects:
+                #obj2 = scene_target.objects.link(obj)
+                obj2 = context.collection.objects.link(obj)
+                #obj2.layers = layers  # paste layers
 
-            scene_source.objects.unlink(obj)
-            layers = None  # clean
+            #scene_source.objects.unlink(obj)
+            context.collection.objects.unlink(obj)
+            #layers = None  # clean
 
-def rm_is_object_in_e_managers(groups_prop_values, obj):
+def rm_is_object_in_rm_managers(groups_prop_values, obj):
     is_in_group = False
     for prop in obj.rm_belong_id:
         if prop.unique_id_object in groups_prop_values:
@@ -350,27 +353,27 @@ class RM_change_grouped_objects(bpy.types.Operator):
         if scene_parse.repmod_managers:
             # check_same_ids()  # check scene ids
 
-            e_manager = None
+            rm_manager = None
             if self.rm_group_changer not in self.list_objects:
-                e_manager = scene_parse.repmod_managers[
+                rm_manager = scene_parse.repmod_managers[
                     scene_parse.repmod_managers_index]
             else:
                 if self.group_rm_idx < len(scene_parse.repmod_managers):
-                    e_manager = scene_parse.repmod_managers[self.group_rm_idx]
+                    rm_manager = scene_parse.repmod_managers[self.group_rm_idx]
 
-            if e_manager is not None and e_manager.use_toggle is True:
+            if rm_manager is not None and rm_manager.use_toggle is True:
                 for obj in scene_parse.objects:
-                    if rm_is_object_in_e_managers([e_manager.unique_id], obj):
+                    if rm_is_object_in_rm_managers([rm_manager.unique_id], obj):
                         if self.rm_group_changer == 'COLOR_WIRE':
-                            r = e_manager.wire_color[0]
-                            g = e_manager.wire_color[1]
-                            b = e_manager.wire_color[2]
+                            r = rm_manager.wire_color[0]
+                            g = rm_manager.wire_color[1]
+                            b = rm_manager.wire_color[2]
                             obj.color = (r, g, b, 1)
                             obj.show_wire_color = True
                         elif self.rm_group_changer == 'DEFAULT_COLOR_WIRE':
                             obj.show_wire_color = False
                         elif self.rm_group_changer == 'LOCKING':
-                            if e_manager.is_locked is False:
+                            if rm_manager.is_locked is False:
                                 obj.hide_select = True
                                 obj.select = False
                             else:
@@ -378,10 +381,10 @@ class RM_change_grouped_objects(bpy.types.Operator):
 
                 # switch locking for the group
                 if self.rm_group_changer == 'LOCKING':
-                    if e_manager.is_locked is False:
-                        e_manager.is_locked = True
+                    if rm_manager.is_locked is False:
+                        rm_manager.is_locked = True
                     else:
-                        e_manager.is_locked = False
+                        rm_manager.is_locked = False
 
         return {'FINISHED'}
 
@@ -442,11 +445,13 @@ class RM_change_selected_objects(bpy.types.Operator):
 
         return {'FINISHED'}
 
+
+
 class RM_repmod_manager_add(bpy.types.Operator):
 
     """Add and select a new layer group"""
     bl_idname = "repmod_manager.repmod_manager_add"
-    bl_label = "Add Epoch group"
+    bl_label = "Add representation model group"
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -454,41 +459,49 @@ class RM_repmod_manager_add(bpy.types.Operator):
         return bool(context.scene)
 
     def execute(self, context):
-        
-        bpy.ops.repmod_manager.repmod_manager_remove()        
         scene = context.scene
-        epoch_number = len(scene.epoch_list)
-        for epoch in range(epoch_number):
-            epochname = scene.epoch_list[epoch].name
+        
+        check_same_ids()  # check scene ids
+        
+        repmod_managers = scene.repmod_managers
+        
+        # get all ids
+        all_ids = []
+        for rm_group in repmod_managers:
+            if rm_group.unique_id not in all_ids:
+                all_ids.append(rm_group.unique_id)
+        
+        # remove s_groups
+        for obj in context.selected_objects:
+            for rm_group in repmod_managers:
+                RM_del_properties_from_obj(UNIQUE_ID_NAME, all_ids, obj, True)
 
-            check_same_ids()  # check scene ids
+        # generate new id
+        uni_numb = generate_id()
+        all_ids = None
 
-            repmod_managers = scene.repmod_managers
+        group_idx = len(repmod_managers)
+        new_rm_group = repmod_managers.add()
+        new_rm_group.name = "RM.%.3d" % group_idx
+        new_rm_group.unique_id = uni_numb
+        scene.repmod_managers_index = group_idx
 
-            # get all ids
-            all_ids = []
-            for e_manager in repmod_managers:
-                if e_manager.unique_id not in all_ids:
-                    all_ids.append(e_manager.unique_id)
-
-             # generate new id
-            uni_numb = generate_id()
-            all_ids = None
-
-            group_rm_idx = len(repmod_managers)
-            new_e_manager = repmod_managers.add()
-            new_e_manager.name = epochname
-            new_e_manager.unique_id = uni_numb
-            scene.repmod_managers_index = group_rm_idx
+        # add the unique id of selected objects
+        for obj in context.selected_objects:
+            RM_add_property_to_obj(new_rm_group.unique_id, obj)
 
         return {'FINISHED'}
-    
+
+
+
+
+
 
 class RM_repmod_manager_remove(bpy.types.Operator):
 
     """Remove selected layer group"""
     bl_idname = "repmod_manager.repmod_manager_remove"
-    bl_label = "Clear all epochs"
+    bl_label = "Remove current representation model group"
     bl_options = {'REGISTER', 'UNDO'}
 
     group_rm_idx : IntProperty()
@@ -499,47 +512,45 @@ class RM_repmod_manager_remove(bpy.types.Operator):
 
     def execute(self, context):
         scene_parse = context.scene
-        epoch_num = len(scene_parse.repmod_managers)
-        for i in range(epoch_num):
-            self.group_rm_idx = scene_parse.repmod_managers_index
-            # if a scene contains goups
-            if scene_parse.repmod_managers:
-                check_same_ids()  # check scene ids
-                get_e_manager = scene_parse.repmod_managers[self.group_rm_idx]
-                if get_e_manager is not None and self.group_rm_idx < len(scene_parse.repmod_managers):
-                    e_manager_id = get_e_manager.unique_id
+    
+        if scene_parse.repmod_managers:
+            check_same_ids()  # check scene ids
+            
+            get_rm_manager = scene_parse.repmod_managers[self.group_rm_idx]
+            if get_rm_manager is not None and self.group_rm_idx < len(scene_parse.repmod_managers):
+                rm_manager_id = get_rm_manager.unique_id
 
-                    # get all ids
-                    e_managers = []
-                    for e_manager in scene_parse.repmod_managers:
-                        e_managers.append(e_manager.unique_id)
+                # get all ids
+                rm_managers = []
+                for rm_manager in scene_parse.repmod_managers:
+                    rm_managers.append(rm_manager.unique_id)
 
-                    # clear context scene
-                    for obj in scene_parse.objects:
+                # clear context scene
+                for obj in scene_parse.objects:
+                    RM_del_properties_from_obj(
+                        UNIQUE_ID_NAME, [rm_manager_id], obj, True)
+
+                # clear RM scene
+                rm_scene_name = scene_parse.name + SCENE_RM
+                if rm_scene_name in bpy.data.scenes:
+                    rm_scene = bpy.data.scenes[scene_parse.name + SCENE_RM]
+                    for obj in rm_scene.objects:
+                        RM_switch_object(obj, rm_scene, scene_parse, rm_manager_id, context)
                         RM_del_properties_from_obj(
-                            UNIQUE_ID_NAME, [e_manager_id], obj, True)
+                            UNIQUE_ID_NAME, [rm_manager_id], obj, True)
 
-                    # clear SGR scene
-                    sgr_scene_name = scene_parse.name + SCENE_RM
-                    if sgr_scene_name in bpy.data.scenes:
-                        sgr_scene = bpy.data.scenes[scene_parse.name + SCENE_RM]
-                        for obj in sgr_scene.objects:
-                            SGR_switch_object(obj, sgr_scene, scene_parse, e_manager_id)
-                            RM_del_properties_from_obj(
-                                UNIQUE_ID_NAME, [e_manager_id], obj, True)
+                    # remove group_scene if it's empty
+                    if len(rm_scene.objects) == 0:
+                        bpy.data.scenes.remove(rm_scene)
 
-                        # remove group_scene if it's empty
-                        if len(sgr_scene.objects) == 0:
-                            bpy.data.scenes.remove(sgr_scene)
-
-                    # finally remove e_manager
-                    scene_parse.repmod_managers.remove(self.group_rm_idx)
-                    if len(scene_parse.repmod_managers) > 0:
-                        scene_parse.repmod_managers_index = len(scene_parse.repmod_managers) - 1
-                    else:
-                        scene_parse.repmod_managers_index = -1
+                # finally remove rm_manager
+                scene_parse.repmod_managers.remove(self.group_rm_idx)
+                if len(scene_parse.repmod_managers) > 0:
+                    scene_parse.repmod_managers_index = len(scene_parse.repmod_managers) - 1
+                else:
+                    scene_parse.repmod_managers_index = -1
 #                    self.group_rm_idx = scene_parse.repmod_managers_index
-        
+    
         return {'FINISHED'}
 
 
@@ -565,30 +576,30 @@ class RM_repmod_move(bpy.types.Operator):
         scene = context.scene
 
         # if a scene contains goups
-        if scene.super_groups and len(scene.super_groups) > 1:
-            s_group_id = scene.super_groups[scene.super_groups_index].unique_id
-            if scene.super_groups:
+        if scene.repmod_managers and len(scene.repmod_managers) > 1:
+            rm_group_id = scene.repmod_managers[scene.repmod_managers_index].unique_id
+            if scene.repmod_managers:
                 move_id = None
-                if self.do_move == 'UP' and scene.super_groups_index > 0:
-                    move_id = scene.super_groups_index - 1
-                    scene.super_groups.move(scene.super_groups_index, move_id)
-                elif self.do_move == 'DOWN' and scene.super_groups_index < len(scene.super_groups) - 1:
-                    move_id = scene.super_groups_index + 1
-                    scene.super_groups.move(scene.super_groups_index, move_id)
+                if self.do_move == 'UP' and scene.repmod_managers_index > 0:
+                    move_id = scene.repmod_managers_index - 1
+                    scene.repmod_managers.move(scene.repmod_managers_index, move_id)
+                elif self.do_move == 'DOWN' and scene.repmod_managers_index < len(scene.repmod_managers) - 1:
+                    move_id = scene.repmod_managers_index + 1
+                    scene.repmod_managers.move(scene.repmod_managers_index, move_id)
 
                 if move_id is not None:
-                    scene.super_groups_index = move_id
+                    scene.repmod_managers_index = move_id
 
         return {'FINISHED'}
 
 
 class RM_add_to_group(bpy.types.Operator):
-    bl_idname = "repmod_manager.add_to_group"
+    bl_idname = "repmod_manager.repmod_add_to_group"
     bl_label = "Add Selected Objects"
     bl_description = "Add To Super Group"
     bl_options = {'REGISTER', 'UNDO'}
 
-    group_rm_idx = IntProperty()
+    group_rm_idx : IntProperty()
 
 
     def execute(self, context):
@@ -597,30 +608,30 @@ class RM_add_to_group(bpy.types.Operator):
         if scene_parse.repmod_managers:
             check_same_ids()  # check ids
 
-            # remove e_managers
+            # remove rm_managers
             ids = []
-            for e_manager in scene_parse.repmod_managers:
-                ids.append(e_manager.unique_id)
+            for rm_manager in scene_parse.repmod_managers:
+                ids.append(rm_manager.unique_id)
             for obj in context.selected_objects:
-                for e_manager in scene_parse.repmod_managers:
+                for rm_manager in scene_parse.repmod_managers:
                     RM_del_properties_from_obj(UNIQUE_ID_NAME, ids, obj, True)
             ids = None
 
-            e_manager = scene_parse.repmod_managers[self.group_rm_idx]
-            if e_manager is not None and self.group_rm_idx < len(scene_parse.repmod_managers):
+            rm_manager = scene_parse.repmod_managers[self.group_rm_idx]
+            if rm_manager is not None and self.group_rm_idx < len(scene_parse.repmod_managers):
                 for obj in context.selected_objects:
                     # add the unique id of selected group
-                    RM_add_property_to_obj(e_manager.unique_id, obj)
+                    RM_add_property_to_obj(rm_manager.unique_id, obj)
 
                     # switch locking for obj
-                    if e_manager.is_locked is True:
+                    if rm_manager.is_locked is True:
                         obj.hide_select = True
                         obj.select = False
                     else:
                         obj.hide_select = False
 
                     # check if the group is hidden
-                    if e_manager.use_toggle is False:
+                    if rm_manager.use_toggle is False:
                         # Try to get or create new GroupScene
                         group_scene = RM_get_group_scene(context)
                         if group_scene is None:
@@ -635,12 +646,12 @@ class RM_add_to_group(bpy.types.Operator):
 
 
 class RM_remove_from_group(bpy.types.Operator):
-    bl_idname = "repmod_manager.super_remove_from_group"
+    bl_idname = "repmod_manager.repmod_remove_from_group"
     bl_label = "Remove Selected Objects"
     bl_description = "Remove from Super Group"
     bl_options = {'REGISTER', 'UNDO'}
 
-    # group_rm_idx = bpy.props.IntProperty()
+    group_rm_idx : bpy.props.IntProperty()
 
     def execute(self, context):
         scene = context.scene
@@ -649,14 +660,14 @@ class RM_remove_from_group(bpy.types.Operator):
             check_same_ids()  # check ids
 
             # get all ids
-            e_managers = []
-            for e_manager in scene.repmod_managers:
-                e_managers.append(e_manager.unique_id)
+            rm_managers = []
+            for rm_manager in scene.repmod_managers:
+                rm_managers.append(rm_manager.unique_id)
 
-            # remove e_managers
+            # remove rm_managers
             for obj in context.selected_objects:
-                RM_del_properties_from_obj(UNIQUE_ID_NAME, e_managers, obj, True)
-            e_managers = None  # clear
+                RM_del_properties_from_obj(UNIQUE_ID_NAME, rm_managers, obj, True)
+            rm_managers = None  # clear
 
         return {'FINISHED'}
 
@@ -677,7 +688,7 @@ def RM_add_property_to_obj(prop_name, obj):
         added_prop.unique_id_object = prop_name
 
 
-def RM_del_properties_from_obj(prop_name, e_managers_ids, obj, delete_in_e_managers=True):
+def RM_del_properties_from_obj(prop_name, rm_managers_ids, obj, delete_in_rm_managers=True):
     props = obj.rm_belong_id
 
     if len(props.values()) > 0:
@@ -688,10 +699,10 @@ def RM_del_properties_from_obj(prop_name, e_managers_ids, obj, delete_in_e_manag
         for i in range(prop_len):
             prop_obj = props[index_prop]
             is_removed = False
-            if prop_obj.unique_id_object in e_managers_ids and delete_in_e_managers == True:
+            if prop_obj.unique_id_object in rm_managers_ids and delete_in_rm_managers == True:
                 props.remove(index_prop)
                 is_removed = True
-            elif prop_obj.unique_id_object not in e_managers_ids and delete_in_e_managers == False:
+            elif prop_obj.unique_id_object not in rm_managers_ids and delete_in_rm_managers == False:
                 props.remove(index_prop)
                 is_removed = True
 
@@ -714,16 +725,16 @@ def check_same_ids():
     if check_scenes:
         other_ids = []
         for scene in check_scenes:
-            for e_manager in scene.repmod_managers:
-                if e_manager.unique_id not in other_ids:
-                    other_ids.append(e_manager.unique_id)
+            for rm_manager in scene.repmod_managers:
+                if rm_manager.unique_id not in other_ids:
+                    other_ids.append(rm_manager.unique_id)
 
         all_obj_list = None
 
         if other_ids:
             for i in range(len(current_scene.repmod_managers)):
-                current_e_manager = current_scene.repmod_managers[i]
-                current_id = current_e_manager.unique_id
+                current_rm_manager = current_scene.repmod_managers[i]
+                current_id = current_rm_manager.unique_id
                 if current_id in other_ids:
                     new_id = generate_id()
 
@@ -737,14 +748,14 @@ def check_same_ids():
                     for obj in all_obj_list:
                         has_id = False
                         for prop in obj.rm_belong_id:
-                            if prop.unique_id_object == current_e_manager.unique_id:
+                            if prop.unique_id_object == current_rm_manager.unique_id:
                                 has_id = True
                                 break
                         if has_id == True:
                             RM_add_property_to_obj(new_id, obj)
 
                     # set new id
-                    current_e_manager.unique_id = new_id
+                    current_rm_manager.unique_id = new_id
 
     # clean
     check_scenes = None

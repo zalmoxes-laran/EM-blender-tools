@@ -326,6 +326,17 @@ class RM_BasePanel:
         row.template_list(
             "RM_named_repmod_managers", "", scene, "repmod_managers", scene, "repmod_managers_index")
 
+
+        row = layout.row()
+        op = row.operator("repmod_manager.repmod_add_to_group", text="Add")
+        op.group_rm_idx = scene.repmod_managers_index
+
+        row.operator(
+            "repmod_manager.repmod_remove_from_group", text="Remove")
+        row.operator("repmod_manager.clean_object_ids", text="Clean")
+
+
+
         layout.label(text="Selection Settings:")
         row = layout.row(align=True)
         #row.prop(rm_settings, "select_all_layers", text='Layers')
