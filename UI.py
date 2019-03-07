@@ -295,7 +295,7 @@ class EM_Toggle_Shading_Sub_Menu(bpy.types.Menu):
 #########################################################################################################
 
 class RM_BasePanel:
-    bl_label = "Rep. Models Manager"
+    bl_label = "Representation Models"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
 

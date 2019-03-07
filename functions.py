@@ -16,7 +16,7 @@ def menu_func(self, context):
 
 def settingsSwitch(self, context):
 #    wm = bpy.context.window_manager
-    layout = self.layout
+    #layout = self.layout
     scene = context.scene
     em_settings = scene.em_settings    
     if bpy.scene.em_settings.em_proxy_sync:
@@ -123,8 +123,8 @@ def select_3D_obj(name):
     scene = bpy.context.scene
     bpy.ops.object.select_all(action="DESELECT")
     object_to_select = bpy.data.objects[name]
-    object_to_select.select = True
-    scene.objects.active = object_to_select
+    object_to_select.select_set(True)
+    bpy.context.view_layer.objects.active = object_to_select
     
 def update_icons(context):
     scene = context.scene
