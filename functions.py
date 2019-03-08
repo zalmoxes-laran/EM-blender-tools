@@ -194,7 +194,7 @@ def add_sceneobj_to_epochs():
                         if i.name == USS.epoch:
                             #print("found "+str(USS.epoch)+ " corrispondende all'indice"+str(idx))
                             obj.select_set(True)
-                            bpy.ops.epoch_manager.add_to_group(group_idx=idx)
+                            bpy.ops.epoch_manager.add_to_group(group_em_idx=idx)
                             obj.select_set(False)
                         idx +=1
                         

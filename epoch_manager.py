@@ -110,7 +110,7 @@ def EM_select_objects(context, ids, do_select):
             if obj.em_belong_id:
                 for prop in obj.em_belong_id:
                     if prop.unique_id_object in ids:
-                        obj.select = False
+                        obj.select_set(False)
 
 class EM_toggle_select(bpy.types.Operator):
     bl_idname = "epoch_manager.toggle_select"
@@ -272,7 +272,7 @@ class EM_change_grouped_objects(bpy.types.Operator):
                         elif self.em_group_changer == 'LOCKING':
                             if e_manager.is_locked is False:
                                 obj.hide_select = True
-                                obj.select = False
+                                obj.select_set(False)
                             else:
                                 obj.hide_select = False
 

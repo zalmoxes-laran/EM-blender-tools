@@ -176,41 +176,23 @@ def RM_create_group_scene(context):
 def RM_select_objects(context, ids, do_select):
     if do_select:
         scene = context.scene
-        temp_scene_layers = list(scene.layers[:])  # copy layers of the scene
         for obj in scene.objects:
             if obj.rm_belong_id:
                 for prop in obj.rm_belong_id:
                     if prop.unique_id_object in ids:
-                        for i in range(20):
-                            if obj.layers[i] is True:
-                                if scene.layers[i] is True or scene.rm_settings.select_all_layers:
-                                    # unlock
-                                    if scene.rm_settings.unlock_obj:
-                                        obj.hide_select = False
-                                    # unhide
-                                    if scene.rm_settings.unhide_obj:
-                                        obj.hide = False
-
-                                    # select
-                                    obj.select = True
-
-                                    # break if we need to select only visible
-                                    # layers
-                                    if scene.rm_settings.select_all_layers is False:
-                                        break
-                                    else:
-                                        temp_scene_layers[i] = obj.layers[i]
-
-        # set layers switching to a scene
-        if scene.rm_settings.select_all_layers:
-            scene.layers = temp_scene_layers
+                        if scene.rm_settings.unlock_obj:
+                            obj.hide_select = False
+                        # unhide
+                        if scene.rm_settings.unhide_obj:
+                            obj.hide_viewport = False
+                        # select
+                        obj.select_set(True)
     else:
         for obj in context.selected_objects:
             if obj.rm_belong_id:
                 for prop in obj.rm_belong_id:
                     if prop.unique_id_object in ids:
-                        obj.select = False
-
+                        obj.select_set(False)
 
 class RM_toggle_select(bpy.types.Operator):
     bl_idname = "repmod_manager.toggle_select"
@@ -246,7 +228,7 @@ class RM_toggle_select(bpy.types.Operator):
 
                     # set last active object if no selection was before
                     if has_selection is False and context.selected_objects:
-                        scene.objects.active = context.selected_objects[-1]
+                        context.view_layer.objects.active = context.selected_objects[-1]
 
                 else:
                     RM_select_objects(context, [rm_manager.unique_id], False)
@@ -375,7 +357,7 @@ class RM_change_grouped_objects(bpy.types.Operator):
                         elif self.rm_group_changer == 'LOCKING':
                             if rm_manager.is_locked is False:
                                 obj.hide_select = True
-                                obj.select = False
+                                obj.select_set(False)
                             else:
                                 obj.hide_select = False
 
