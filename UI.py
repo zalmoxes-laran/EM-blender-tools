@@ -146,8 +146,8 @@ class EM_ToolsPanel:
             row = box.row()
             row.label(text="Override active object's name:")#: " + obj.name)
             row = box.row()
-            #row.prop(obj, "name", "Manual")
-            #row = box.row()
+            row.prop(obj, "name", text="Manual")
+            row = box.row()
             row.operator("usname.toproxy", icon="OUTLINER_DATA_FONT", text='Using EM list')
 
 class VIEW3D_EM_ToolsPanel(Panel, EM_ToolsPanel):
