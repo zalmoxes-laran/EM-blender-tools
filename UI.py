@@ -14,8 +14,8 @@ from bpy.app.handlers import persistent
 from .epoch_manager import *
 from .EM_list import *
 
-class EM_ToolsPanel:
-    bl_label = "Extended Matrix"
+class EM_SetupPanel:
+    bl_label = "EM setup"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
 
@@ -40,7 +40,46 @@ class EM_ToolsPanel:
         #if bpy.types.Scene.em_list is True:
 
         row = layout.row()
+
+        row = layout.row(align=True)
+
+        op = row.operator(
+            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_BBOX')
+        op.sg_objects_changer = 'BOUND_SHADE'
+
+        op = row.operator(
+            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_WIRE')
+        op.sg_objects_changer = 'WIRE_SHADE'
+
+        op = row.operator(
+            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_SOLID')
+        op.sg_objects_changer = 'MATERIAL_SHADE'
+
+        op = row.operator(
+            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SPHERE')
+        op.sg_objects_changer = 'SHOW_WIRE'
+
+        op = row.operator(
+            "emset.emmaterial", text="", emboss=False, icon='SHADING_TEXTURE')
+        #op.sg_objects_changer = 'EM_COLOURS'
+
+class VIEW3D_EM_SetupPanel(Panel, EM_SetupPanel):
+    bl_category = "EM"
+    bl_idname = "VIEW3D_EM_SetupPanel"
+    bl_context = "objectmode"
+
+class EM_ToolsPanel:
+    bl_label = "Extended Matrix"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        em_settings = scene.em_settings
+        obj = context.object
         layout.alignment = 'LEFT'
+        row = layout.row()
         row.label(text="List of US/USV in EM file:")
         row = layout.row()
         row.template_list("EM_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
@@ -127,26 +166,7 @@ class EM_BasePanel:
         scene = context.scene
         em_settings = scene.em_settings
 
-        row = layout.row(align=True)
-        op = row.operator(
-            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_BBOX')
-        op.sg_objects_changer = 'BOUND_SHADE'
 
-        op = row.operator(
-            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_WIRE')
-        op.sg_objects_changer = 'WIRE_SHADE'
-
-        op = row.operator(
-            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_SOLID')
-        op.sg_objects_changer = 'MATERIAL_SHADE'
-
-        op = row.operator(
-            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SPHERE')
-        op.sg_objects_changer = 'SHOW_WIRE'
-
-        op = row.operator(
-            "emset.emmaterial", text="", emboss=False, icon='SHADING_TEXTURE')
-        #op.sg_objects_changer = 'EM_COLOURS'
 
         row = layout.row()
         row.template_list(
@@ -295,16 +315,14 @@ class EM_Toggle_Shading_Sub_Menu(bpy.types.Menu):
 #########################################################################################################
 
 class RM_BasePanel:
-    bl_label = "Representation Models"
+    bl_label = "Representation models"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
 
     def draw(self, context):
         layout = self.layout
-
         scene = context.scene
         rm_settings = scene.rm_settings
-
 
         row = layout.row(align=True)
         row.operator(

@@ -162,6 +162,7 @@ class EMListItem(bpy.types.PropertyGroup):
 ##################################
 
 classes = (
+    UI.VIEW3D_EM_SetupPanel,
     UI.VIEW3D_EM_ToolsPanel,
     UI.VIEW3D_EM_BasePanel,
     UI.EM_named_epoch_managers,
