@@ -24,22 +24,26 @@ class EM_SetupPanel:
         scene = context.scene
         em_settings = scene.em_settings
         obj = context.object
-        box = layout.box()
-        row = box.row(align=True)
-        row.label(text="EM file")
-        row = box.row(align=True)
-        row.prop(context.scene, 'EM_file', toggle = True, text ="")
-        row = box.row(align=True)
+        #box = layout.box()
+        row = layout.row(align=True)
         split = row.split()
         col = split.column()
-        col.operator("import.em_graphml", icon="STICKY_UVS_DISABLE", text='(Re)Load EM file')
+        col.label(text="EM file")
+        col = split.column(align=True)
+        col.operator("import.em_graphml", icon="FILE_REFRESH", text='(Re)Load')
         #row = layout.row()
         col = split.column(align=True)
-        col.operator("uslist_icon.update", icon="PARTICLE_DATA", text='Refresh icons')
+        col.operator("uslist_icon.update", icon="PRESET", text='Refresh')
+
+        #row = box.row(align=True)
+        
+        row = layout.row(align=True)
+        row.prop(context.scene, 'EM_file', toggle = True, text ="")
+        #row = layout.row(align=True)
 
         #if bpy.types.Scene.em_list is True:
 
-        row = layout.row()
+        #row = layout.row()
 
         row = layout.row(align=True)
 
