@@ -67,9 +67,9 @@ class EM_SetupPanel:
             "emset.emmaterial", text="", emboss=False, icon='SHADING_TEXTURE')
         #op.sg_objects_changer = 'EM_COLOURS'
 
-class VIEW3D_EM_SetupPanel(Panel, EM_SetupPanel):
+class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):
     bl_category = "EM"
-    bl_idname = "VIEW3D_EM_SetupPanel"
+    bl_idname = "VIEW3D_PT_SetupPanel"
     bl_context = "objectmode"
 
 class EM_ToolsPanel:
@@ -154,9 +154,9 @@ class EM_ToolsPanel:
             row = box.row()
             row.operator("usname.toproxy", icon="OUTLINER_DATA_FONT", text='Using EM list')
 
-class VIEW3D_EM_ToolsPanel(Panel, EM_ToolsPanel):
+class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_category = "EM"
-    bl_idname = "VIEW3D_EM_ToolsPanel"
+    bl_idname = "VIEW3D_PT_ToolsPanel"
     bl_context = "objectmode"
 
 class EM_BasePanel:
@@ -174,7 +174,7 @@ class EM_BasePanel:
 
         row = layout.row()
         row.template_list(
-            "EM_named_epoch_managers", "", scene, "epoch_managers", scene, "epoch_managers_index")
+            "EM_UL_named_epoch_managers", "", scene, "epoch_managers", scene, "epoch_managers_index")
 
         layout.label(text="Selection Settings:")
         row = layout.row(align=True)
@@ -183,12 +183,12 @@ class EM_BasePanel:
         row.prop(em_settings, "unhide_obj", text='Unhide')
         row = layout.row(align=True)
 
-class VIEW3D_EM_BasePanel(Panel, EM_BasePanel):
+class VIEW3D_PT_BasePanel(Panel, EM_BasePanel):
     bl_category = "EM"
-    bl_idname = "VIEW3D_EM_BasePanel"
+    bl_idname = "VIEW3D_PT_BasePanel"
     bl_context = "objectmode"
 
-class EM_named_epoch_managers(UIList):
+class EM_UL_named_epoch_managers(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         epoch_manager = item
         #user_preferences = context.user_preferences
@@ -346,7 +346,7 @@ class RM_BasePanel:
 
         row = layout.row()
         row.template_list(
-            "RM_named_repmod_managers", "", scene, "repmod_managers", scene, "repmod_managers_index")
+            "RM_UL_named_repmod_managers", "", scene, "repmod_managers", scene, "repmod_managers_index")
 
 
         row = layout.row()
@@ -373,7 +373,7 @@ class VIEW3D_RM_BasePanel(Panel, RM_BasePanel):
     bl_context = "objectmode"
 
 
-class RM_named_repmod_managers(UIList):
+class RM_UL_named_repmod_managers(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         repmod_manager = item
         #user_preferences = context.user_preferences
