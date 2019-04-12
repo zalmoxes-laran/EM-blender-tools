@@ -172,7 +172,7 @@ classes = (
     # UI.EM_Deselect_SGroup_Sub_Menu,
     # UI.EM_Toggle_Shading_Sub_Menu,
     # UI.EM_Toggle_Visible_SGroup_Sub_Menu,
-    UI.VIEW3D_PT_BasePanel,
+    #UI.VIEW3D_PT_BasePanel,
     UI.RM_UL_named_repmod_managers,
     EM_list.EM_usname_OT_toproxy,
     EM_list.EM_update_icon_list,
