@@ -199,7 +199,6 @@ classes = (
     representation_model.RM_add_to_group,
     representation_model.RM_remove_from_group,
     representation_model.RM_clean_object_ids,
-#     epoch_manager.EM_remove_from_group,
     EMListItem,
     EM_Other_Settings,
     EPOCHListItem,
@@ -238,8 +237,9 @@ def register():
     bpy.types.Scene.epoch_managers_index = IntProperty(default=-1)
     bpy.types.Scene.repmod_managers_index = IntProperty(default=-1)
 
+    #bpy.types.VIEW3D_MT_object_specials.append(menu_func)
 
-    bpy.types.VIEW3D_MT_object_specials.append(menu_func)
+    bpy.types.VIEW3D_MT_mesh_add.append(menu_func)
 
 ######################################################################################################
 
