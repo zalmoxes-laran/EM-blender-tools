@@ -168,53 +168,15 @@ class EM_toggle_visibility(bpy.types.Operator):
         if self.group_em_idx < len(scene.epoch_managers):
             # check_same_ids()  # check scene ids
             current_e_manager = scene.epoch_managers[self.group_em_idx]
-
-            # Try to get or create new GroupScene
-            group_scene = EM_get_group_scene(context)
-            if group_scene is None and current_e_manager.use_toggle is True:
-                group_scene = EM_create_group_scene(context)
-
-            # if GroupScene exists now we can switch objects
-            if group_scene is not None:
-                if current_e_manager.use_toggle is True:
-                    for obj in scene.objects:
-                        EM_switch_object(
-                            obj, scene, group_scene, current_e_manager.unique_id)
-                else:
-                    for obj in group_scene.objects:
-                        EM_switch_object(
-                            obj, group_scene, scene, current_e_manager.unique_id)
-                    if len(group_scene.objects) == 0:
-                        bpy.data.scenes.remove(group_scene)
-
-            current_e_manager.use_toggle = not current_e_manager.use_toggle  # switch visibility
-
-            # set active object so that WMenu worked
-            if current_e_manager.use_toggle is False and context.active_object is None:
-                if scene.objects:
-                    #scene.objects.active = scene.objects[0]
-                    context.view_layer.objects.active = scene.objects[0]
+            for obj in scene.objects:
+                if obj.em_belong_id:
+                    for prop in obj.em_belong_id:
+                        if prop.unique_id_object == current_e_manager.unique_id:
+                            obj.hide_viewport = current_e_manager.use_toggle
+                            #bpy.ops.object.hide_view_set(current_e_manager.use_toggle)
+                            #obj.hide_view_set(unselected_False)            
+        current_e_manager.use_toggle = not current_e_manager.use_toggle
         return {'FINISHED'}
-
-def EM_switch_object(obj, scene_source, scene_terget, e_manager_id):
-    do_switch = False
-    if obj.em_belong_id:
-        for prop in obj.em_belong_id:
-            if prop.unique_id_object == e_manager_id:
-                do_switch = True
-                break
-
-        if do_switch is True:
-            layers = obj.layers[:]  # copy layers
-            obj.select = False
-
-            # if object is not already linked
-            if obj.name not in scene_terget.objects:
-                obj2 = scene_terget.objects.link(obj)
-                obj2.layers = layers  # paste layers
-
-            scene_source.objects.unlink(obj)
-            layers = None  # clean
 
 def sg_is_object_in_e_managers(groups_prop_values, obj):
     is_in_group = False
