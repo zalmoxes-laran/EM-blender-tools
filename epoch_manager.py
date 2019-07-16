@@ -281,16 +281,16 @@ class EM_change_selected_objects(bpy.types.Operator):
     def execute(self, context):
         for obj in context.selected_objects:
             if self.sg_objects_changer == 'BOUND_SHADE':
-                obj.draw_type = 'BOUNDS'
+                obj.display_type = 'BOUNDS'
                 obj.show_wire = False
             elif self.sg_objects_changer == 'WIRE_SHADE':
-                obj.draw_type = 'WIRE'
+                obj.display_type = 'WIRE'
                 obj.show_wire = False
             elif self.sg_objects_changer == 'MATERIAL_SHADE':
-                obj.draw_type = 'TEXTURED'
+                obj.display_type = 'TEXTURED'
                 obj.show_wire = False
             elif self.sg_objects_changer == 'SHOW_WIRE':
-                obj.draw_type = 'TEXTURED'
+                obj.display_type = 'TEXTURED'
                 obj.show_wire = True
             elif self.sg_objects_changer == 'ONESIDE_SHADE':
                 if obj.type == 'MESH':
