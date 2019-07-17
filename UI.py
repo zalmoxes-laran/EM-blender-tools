@@ -169,13 +169,10 @@ class EM_BasePanel:
 
         scene = context.scene
         em_settings = scene.em_settings
-
-
-
         row = layout.row()
         row.template_list(
             "EM_UL_named_epoch_managers", "", scene, "epoch_managers", scene, "epoch_managers_index")
-
+        #self.layout.prop(context.scene, "test_color", text='Detail Color')
         layout.label(text="Selection Settings:")
         row = layout.row(align=True)
         #row.prop(em_settings, "select_all_layers", text='Layers')
@@ -192,15 +189,20 @@ class EM_UL_named_epoch_managers(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         epoch_manager = item
         #user_preferences = context.user_preferences
+        #self.layout.prop(context.scene, "test_color", text='Detail Color')
         icons_style = 'OUTLINER'
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            layout = layout.split(factor=0.6, align=True)
             layout.prop(epoch_manager, "name", text="", emboss=False)
             # select operator
             icon = 'RESTRICT_SELECT_OFF' if epoch_manager.use_toggle else 'RESTRICT_SELECT_ON'
             #if icons_style == 'OUTLINER':
             icon = 'VIEWZOOM' if epoch_manager.use_toggle else 'VIEWZOOM'
+            layout = layout.split(factor=0.1, align=True)
+            layout.prop(epoch_manager, "epoch_color", text="", emboss=True, icon_value=0)
             op = layout.operator(
                 "epoch_manager.toggle_select", text="", emboss=False, icon=icon)
+            #self.layout.prop(context.scene, "test_color", text='Detail Color')
             op.group_em_idx = index
             op.is_menu = False
             op.is_select = True

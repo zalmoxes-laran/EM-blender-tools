@@ -64,46 +64,56 @@ from bpy.utils import register_class, unregister_class
 
 
 class EPOCHListItem(bpy.types.PropertyGroup):
-    """ Group of properties representing an item in the list """
-    name: prop.StringProperty(
-           name="Name",
-           description="A name for this item",
-           default="Untitled")
+       """ Group of properties representing an item in the list """
+       name: prop.StringProperty(
+              name="Name",
+              description="A name for this item",
+              default="Untitled")
 
-    id: prop.StringProperty(
-           name="id",
-           description="A description for this item",
-           default="Empty")
+       id: prop.StringProperty(
+              name="id",
+              description="A description for this item",
+              default="Empty")
 
-    min_y: prop.FloatProperty(
-           name="code for icon",
-           description="",
-           default=0.0)
+       min_y: prop.FloatProperty(
+              name="code for icon",
+              description="",
+              default=0.0)
 
-    max_y: prop.FloatProperty(
-           name="code for icon",
-           description="",
-           default=0.0)
+       max_y: prop.FloatProperty(
+              name="code for icon",
+              description="",
+              default=0.0)
 
-    height: prop.FloatProperty(
-           name="height of epoch row",
-           description="",
-           default=0.0)
+       height: prop.FloatProperty(
+              name="height of epoch row",
+              description="",
+              default=0.0)
+
 
 class EM_Group(PropertyGroup):
-    use_toggle: BoolProperty(name="", default=True)
-    is_locked: BoolProperty(name="", default=False)
-    is_selected: BoolProperty(name="", default=False)
+       use_toggle: BoolProperty(name="", default=True)
+       is_locked: BoolProperty(name="", default=False)
+       is_selected: BoolProperty(name="", default=False)
 
-    unique_id: StringProperty(default="")
+       unique_id: StringProperty(default="")
 
-    wire_color: FloatVectorProperty(
-        name="wire",
-        subtype='COLOR',
-        default=(0.2, 0.2, 0.2),
-        min=0.0, max=1.0,
-        description="wire color of the group"
-    )
+       epoch_color: FloatVectorProperty(
+              name="epoch_color",
+              subtype="COLOR",
+              size=4,
+              min=0.0,
+              max=1.0,
+              default=(0.5, 0.5, 0.5, 1.0)
+       )
+
+       wire_color: FloatVectorProperty(
+              name="wire",
+              subtype='COLOR',
+              default=(0.2, 0.2, 0.2),
+              min=0.0, max=1.0,
+              description="wire color of the group"
+       )
 
 class EM_Object_Id(PropertyGroup):
     unique_id_object: StringProperty(default="")
