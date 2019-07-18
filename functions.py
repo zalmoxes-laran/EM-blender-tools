@@ -14,16 +14,24 @@ from bpy.props import (BoolProperty,
 def menu_func(self, context):
     self.layout.separator()
 
-def settingsSwitch(self, context):
+def sync_Switch_em(self, context):
 #    wm = bpy.context.window_manager
     #layout = self.layout
     scene = context.scene
-    em_settings = scene.em_settings    
-    if bpy.scene.em_settings.em_proxy_sync:
+    em_settings = scene.em_settings
+    if scene.em_settings.em_proxy_sync is True:
         scene.em_settings.em_proxy_sync2 = False
+        scene.em_settings.em_proxy_sync2_zoom = False
+    return
 
-    if bpy.scene.em_settings.em_proxy_sync2:
+def sync_Switch_proxy(self, context):
+#    wm = bpy.context.window_manager
+    #layout = self.layout
+    scene = context.scene
+    em_settings = scene.em_settings
+    if scene.em_settings.em_proxy_sync2 is True:
         scene.em_settings.em_proxy_sync = False
+    return
 
 def check_if_current_obj_has_brother_inlist(obj_name):
     scene = bpy.context.scene
@@ -113,10 +121,10 @@ def epoch_list_clear(context):
 #Check the presence-absence of US against the GraphML
 def EM_check_GraphML_Blender(node_name):
     data = bpy.data
-    icon_check = 'CANCEL'
+    icon_check = 'RESTRICT_INSTANCED_ON'
     for ob in data.objects:
         if ob.name == node_name:
-            icon_check = 'FILE_TICK'
+            icon_check = 'RESTRICT_INSTANCED_OFF'
     return icon_check
 
 def select_3D_obj(name):
@@ -276,7 +284,7 @@ def set_EM_materials_using_EM_list(context):
         current_ob_em_list = context.scene.em_list[counter]
         overwrite_mats = True
         consolidate_EM_material_presence(overwrite_mats)
-        if current_ob_em_list.icon == 'FILE_TICK':
+        if current_ob_em_list.icon == 'RESTRICT_INSTANCED_OFF':
             current_ob_scene = context.scene.objects[current_ob_em_list.name]
             current_ob_scene.name
             #print(current_ob_em_list.name + ' has symbol: ' +current_ob_em_list.shape)

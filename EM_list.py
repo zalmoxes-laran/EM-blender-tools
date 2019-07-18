@@ -30,6 +30,11 @@ class EM_usname_OT_toproxy(bpy.types.Operator):
     bl_label = "Use US name for selected proxy"
     bl_options = {"REGISTER", "UNDO"}
 
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        return (obj.type in ['MESH'])
+
     def execute(self, context):
         scene = context.scene
         item = scene.em_list[scene.em_list_index]
@@ -53,6 +58,11 @@ class EM_select_list_item(bpy.types.Operator):
     bl_label = "Select element in the list above from a 3D proxy"
     bl_options = {"REGISTER", "UNDO"}
 
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        return (check_if_current_obj_has_brother_inlist(obj.name))
+
     def execute(self, context):
         scene = context.scene
         obj = context.object
@@ -63,6 +73,11 @@ class EM_select_from_list_item(bpy.types.Operator):
     bl_idname = "select.fromlistitem"
     bl_label = "Select 3D proxy from the list above"
     bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        scene = context.scene
+        return (scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF')
 
     def execute(self, context):
         scene = context.scene

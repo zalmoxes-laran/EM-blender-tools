@@ -119,12 +119,13 @@ class EM_Object_Id(PropertyGroup):
     unique_id_object: StringProperty(default="")
 
 class EM_Other_Settings(PropertyGroup):
-    select_all_layers: BoolProperty(name="Select Visible Layers", default=True)
-    unlock_obj: BoolProperty(name="Unlock Objects", default=False)
-    unhide_obj: BoolProperty(name="Unhide Objects", default=True)
-    em_proxy_sync: BoolProperty(name="Sync EM Proxy selection", default=False, update = settingsSwitch)
-    em_proxy_sync2: BoolProperty(name="Sync EM Proxy selection2", default=False, update = settingsSwitch)
-    em_proxy_sync2_zoom: BoolProperty(name="Sync EM Proxy selection2 zoom", default=False, update = settingsSwitch)
+       contex = bpy.context
+       select_all_layers: BoolProperty(name="Select Visible Layers", default=True)
+       unlock_obj: BoolProperty(name="Unlock Objects", default=False)
+       unhide_obj: BoolProperty(name="Unhide Objects", default=True)
+       em_proxy_sync: BoolProperty(name="Selecting a proxy you select the corresponding EM", default=False, update = functions.sync_Switch_em)
+       em_proxy_sync2: BoolProperty(name="Selecting an EM you select the corresponding proxy", default=False, update = functions.sync_Switch_proxy)
+       em_proxy_sync2_zoom: BoolProperty(name="Option to zoom to proxy", default=False, update = functions.sync_Switch_proxy)
 
 #######################################################################################################################
 

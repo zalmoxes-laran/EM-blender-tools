@@ -1,4 +1,4 @@
-#    part of this library is a heavy modified version of the original code from: 
+#    part of this library is a (very) heavily modified version of the original code from: 
 #    "name": "Super Grouper",
 #    "author": "Paul Geraskin, Aleksey Juravlev, BA Community",
 
