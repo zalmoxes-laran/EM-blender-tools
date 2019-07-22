@@ -32,11 +32,19 @@ class EM_SetupPanel:
         col = split.column(align=True)
         col.operator("import.em_graphml", icon="FILE_REFRESH", text='(Re)Load')
         #row = layout.row()
-        col = split.column(align=True)
-        col.operator("uslist_icon.update", icon="PRESET", text='Refresh')
-        
+        #col = split.column(align=True)
+        #col.operator("uslist_icon.update", icon="PRESET", text='Refresh')
+
         row = layout.row(align=True)
         row.prop(context.scene, 'EM_file', toggle = True, text ="")
+
+        row = layout.row(align=True)
+        split = row.split()
+        col = split.column()
+        col.label(text="Display mode")
+        col = split.column(align=True)
+        col.operator("import.em_graphml", icon="FILE_REFRESH", text='Update')
+        #row = layout.row()
 
         row = layout.row(align=True)
 
@@ -134,8 +142,6 @@ class EM_ToolsPanel:
                                 ctx['region'] = area.regions[-1]
                                 bpy.ops.view3d.view_selected(ctx)
             
-        
-
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_ToolsPanel"

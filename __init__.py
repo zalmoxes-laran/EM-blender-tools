@@ -89,6 +89,11 @@ class EPOCHListItem(bpy.types.PropertyGroup):
               name="height of epoch row",
               description="",
               default=0.0)
+       
+       epoch_color: prop.StringProperty(
+              name="color of epoch row",
+              description="",
+              default="Empty")       
 
 
 class EM_Group(PropertyGroup):
