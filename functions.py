@@ -148,7 +148,6 @@ def select_list_element_from_obj_proxy(obj):
             scene.em_list_index = index_list
         index_list += 1
         
-        
 def extract_epochs(node_element):
     geometry = node_element.find('.//{http://www.yworks.com/xml/graphml}Geometry')
     y_start = float(geometry.attrib['y'])
@@ -162,7 +161,6 @@ def extract_epochs(node_element):
     for row in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}Table/{http://www.yworks.com/xml/graphml}Rows/{http://www.yworks.com/xml/graphml}Row'):
         id_row = row.attrib['id']
         h_row = float(row.attrib['height'])
-
         scene.epoch_list.add()
         scene.epoch_list[epoch_list_index_ema].id = str(id_row)
         scene.epoch_list[epoch_list_index_ema].height = h_row
@@ -210,15 +208,21 @@ def add_sceneobj_to_epochs():
                         
 #------------------- qui funzioni per materiali------------------------------------------
 
+def epoch_mat_get_RGB_values(context, matname, epoch_idx):
+    prefix = "_ep"
+    if matname.startswith(prefix):
+        epochname = matname.replace(prefix, '', 1)
+        context.scene.epoch_list[epoch_idx].name
+
 def EM_mat_get_RGB_values(matname):
     if matname == "US":
         R = 0.328
         G = 0.033
         B = 0.033
     elif matname == "USVn":
-         R = 0.031
-         G = 0.191
-         B = 0.026
+        R = 0.031
+        G = 0.191
+        B = 0.026
     elif matname == "USVs":
         R = 0.018
         G = 0.275
@@ -275,7 +279,6 @@ def consolidate_EM_material_presence(overwrite_mats):
             scene = bpy.context.scene
             em_setup_mat_cycles(EM_mat_name)
 
-        
 def set_EM_materials_using_EM_list(context):
     em_list_lenght = len(context.scene.em_list)
     #print(str(em_list_lenght))
@@ -303,3 +306,25 @@ def set_EM_materials_using_EM_list(context):
             current_ob_scene.data.materials.clear()
             current_ob_scene.data.materials.append(mat)
         counter += 1
+
+def consolidate_epoch_material_presence(matname):
+    if not check_material_presence(matname):
+        epoch_mat = bpy.data.materials.new(name=matname)
+    else:#overwrite_mats == True:
+        em_setup_mat_cycles(matname)
+
+def set_epoch_materials():
+    mat_prefix = "ep_"
+    epoch_list_lenght = len(context.scene.epoch_list)
+    #print(str(em_list_lenght))
+    counter = 0
+    while counter < epoch_list_lenght:
+        current_element_epoch_list = context.scene.epoch_list[counter]
+        matname = mat_prefix + current_element_epoch_list.name
+        if check_material_presence(matname):
+
+            em_list_lenght = len(context.scene.em_list)
+            #print(str(em_list_lenght))
+            counter = 0
+            while counter < em_list_lenght:
+                current_ob_em_list = context.scene.em_list[counter]

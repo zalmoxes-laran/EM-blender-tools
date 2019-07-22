@@ -325,11 +325,9 @@ class RM_BasePanel:
             "repmod_manager.repmod_manager_move", icon='TRIA_DOWN', text="")
         op.do_move = 'DOWN'
 
-
         row = layout.row()
         row.template_list(
             "RM_UL_named_repmod_managers", "", scene, "repmod_managers", scene, "repmod_managers_index")
-
 
         row = layout.row()
         op = row.operator("repmod_manager.repmod_add_to_group", text="Add")
