@@ -14,6 +14,73 @@ from bpy.app.handlers import persistent
 from .epoch_manager import *
 from .EM_list import *
 
+
+class Displaymodemenu(bpy.types.Menu):
+    bl_label = "Custom Menu"
+    bl_idname = "OBJECT_MT_custom_menu"
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.operator("wm.open_mainfile")
+        layout.operator("wm.save_as_mainfile").copy = True
+
+        layout.operator("object.shade_smooth")
+
+        layout.label(text="Hello world!", icon='WORLD_DATA')
+
+        # use an operator enum property to populate a sub-menu
+        layout.operator_menu_enum("object.select_by_type",
+                                  property="type",
+                                  text="Select All by Type...",
+                                  )
+
+        # call another menu
+        layout.operator("wm.call_menu", text="Unwrap").name = "VIEW3D_MT_uv_map"
+
+
+class Display_mode_menu:
+    bl_label = "EM setup"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    def draw(self, context):
+
+        layout = self.layout
+
+        row = layout.row()
+        box = row.box()
+
+        row = box.row()
+        # add the custom menu defined above
+        box.menu(CustomMenu.bl_idname, text='My custom menu', icon='COLOR')
+
+        row = box.row()
+        # add a standard blender menu - the add menu
+        box.menu('INFO_MT_mesh_add', 'Add', icon='COLOR')
+
+        row = box.row()
+        # add an enum property menu
+        # this allows only certain values to be set for a property
+        box.prop_menu_enum(context.scene, 'test_enum', text='enum property', icon='COLOR')
+
+
+class VIEW3D_PT_Display_mode_menu(Panel, Display_mode_menu):
+    bl_category = "EM"
+    bl_idname = "VIEW3D_PT_Display_mode_menu"
+    bl_context = "objectmode"
+
+
+
+# enum_menu_items = [
+#                 ('OPT1','Option 1','',1),
+#                 ('OPT2','Option 2','',2),
+#                 ('OPT3','Option 3','',3),
+#                 ('OPT4','Option 4','',4),
+#                 ]
+
+###_____________________________________________________________________________________________________________________
+
 class EM_SetupPanel:
     bl_label = "EM setup"
     bl_space_type = 'VIEW_3D'

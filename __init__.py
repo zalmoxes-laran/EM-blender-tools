@@ -183,6 +183,8 @@ classes = (
     UI.VIEW3D_PT_BasePanel,
     UI.EM_UL_named_epoch_managers,
     UI.RM_UL_named_repmod_managers,
+    #UI.Display_mode_menu,
+    #UI.VIEW3D_PT_Display_mode_menu,
     EM_list.EM_usname_OT_toproxy,
     EM_list.EM_update_icon_list,
     EM_list.EM_select_from_list_item,
@@ -214,39 +216,44 @@ classes = (
     )
 
 
-def register():
-    for cls in classes:
-        bpy.utils.register_class(cls)
 
-    #bpy.types.WindowManager.interface_vars = bpy.props.PointerProperty(type=InterfaceVars)
-    bpy.types.Scene.em_list = prop.CollectionProperty(type = EMListItem)
-    bpy.types.Scene.em_list_index = prop.IntProperty(name = "Index for my_list", default = 0)
-    bpy.types.Scene.epoch_list = prop.CollectionProperty(type = EPOCHListItem)
-    bpy.types.Scene.epoch_list_index = prop.IntProperty(name = "Index for epoch_list", default = 0)
-    bpy.types.Scene.EM_file = StringProperty(
-      name = "EM GraphML file",
-      default = "",
-      description = "Define the path to the EM GraphML file",
-      subtype = 'FILE_PATH'
-      )
+    #bpy.types.INFO_HT_header.append(draw_item)
+
+    
+
+def register():
+       for cls in classes:
+              bpy.utils.register_class(cls)
+       #bpy.types.Scene.test_enum = bpy.props.EnumProperty(items=enum_menu_items)
+       #bpy.types.WindowManager.interface_vars = bpy.props.PointerProperty(type=InterfaceVars)
+       bpy.types.Scene.em_list = prop.CollectionProperty(type = EMListItem)
+       bpy.types.Scene.em_list_index = prop.IntProperty(name = "Index for my_list", default = 0)
+       bpy.types.Scene.epoch_list = prop.CollectionProperty(type = EPOCHListItem)
+       bpy.types.Scene.epoch_list_index = prop.IntProperty(name = "Index for epoch_list", default = 0)
+       bpy.types.Scene.EM_file = StringProperty(
+              name = "EM GraphML file",
+              default = "",
+              description = "Define the path to the EM GraphML file",
+              subtype = 'FILE_PATH'
+       )
 
 ######################################################################################################
 #per epoch manager
 ##################
 
-    bpy.types.Scene.epoch_managers = CollectionProperty(type=EM_Group)
-    bpy.types.Scene.repmod_managers = CollectionProperty(type=EM_Group)
-    bpy.types.Object.em_belong_id = CollectionProperty(type=EM_Object_Id)
-    bpy.types.Object.rm_belong_id = CollectionProperty(type=EM_Object_Id)
-    bpy.types.Scene.em_settings = PointerProperty(type=EM_Other_Settings)
-    bpy.types.Scene.rm_settings = PointerProperty(type=EM_Other_Settings)
+       bpy.types.Scene.epoch_managers = CollectionProperty(type=EM_Group)
+       bpy.types.Scene.repmod_managers = CollectionProperty(type=EM_Group)
+       bpy.types.Object.em_belong_id = CollectionProperty(type=EM_Object_Id)
+       bpy.types.Object.rm_belong_id = CollectionProperty(type=EM_Object_Id)
+       bpy.types.Scene.em_settings = PointerProperty(type=EM_Other_Settings)
+       bpy.types.Scene.rm_settings = PointerProperty(type=EM_Other_Settings)
 
-    bpy.types.Scene.epoch_managers_index = IntProperty(default=-1)
-    bpy.types.Scene.repmod_managers_index = IntProperty(default=-1)
+       bpy.types.Scene.epoch_managers_index = IntProperty(default=-1)
+       bpy.types.Scene.repmod_managers_index = IntProperty(default=-1)
 
     #bpy.types.VIEW3D_MT_object_specials.append(menu_func)
 
-    bpy.types.VIEW3D_MT_mesh_add.append(menu_func)
+       bpy.types.VIEW3D_MT_mesh_add.append(menu_func)
 
 ######################################################################################################
 

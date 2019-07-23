@@ -234,11 +234,7 @@ def add_sceneobj_to_epochs():
                         
 #------------------- qui funzioni per materiali------------------------------------------
 
-# def epoch_mat_get_RGB_values(context, matname, epoch_idx):
-#     prefix = "_ep"
-#     if matname.startswith(prefix):
-#         epochname = matname.replace(prefix, '', 1)
-#         context.scene.epoch_list[epoch_idx].name
+
 
 def EM_mat_get_RGB_values(matname):
     if matname == "US":
@@ -333,22 +329,29 @@ def set_EM_materials_using_EM_list(context):
             current_ob_scene.data.materials.append(mat)
         counter += 1
 
-# def consolidate_epoch_material_presence(matname):
-#     if not check_material_presence(matname):
-#         epoch_mat = bpy.data.materials.new(name=matname)
-#     else:#overwrite_mats == True:
-#         em_setup_mat_cycles(matname)
+def consolidate_epoch_material_presence(matname):
+    if not check_material_presence(matname):
+        epoch_mat = bpy.data.materials.new(name=matname)
+    else:#overwrite_mats == True:
+        em_setup_mat_cycles(matname)
 
-# def set_epoch_materials():
-#     mat_prefix = "ep_"
-#     epoch_list_lenght = len(context.scene.epoch_list)
-#     counter = 0
-#     while counter < epoch_list_lenght:
-#         current_element_epoch_list = context.scene.epoch_list[counter]
-#         matname = mat_prefix + current_element_epoch_list.name
-#         if check_material_presence(matname):
+def set_epoch_materials():
+    mat_prefix = "ep_"
+    epoch_list_lenght = len(context.scene.epoch_list)
+    counter = 0
+    while counter < epoch_list_lenght:
+        current_element_epoch_list = context.scene.epoch_list[counter]
+        matname = mat_prefix + current_element_epoch_list.name
+        if check_material_presence(matname):
 
-#             em_list_lenght = len(context.scene.em_list)
-#             counter = 0
-#             while counter < em_list_lenght:
-#                 current_ob_em_list = context.scene.em_list[counter]
+            em_list_lenght = len(context.scene.em_list)
+            counter = 0
+            while counter < em_list_lenght:
+                current_ob_em_list = context.scene.em_list[counter]
+
+
+def epoch_mat_get_RGB_values(context, matname, epoch_idx):
+    prefix = "_ep"
+    if matname.startswith(prefix):
+        epochname = matname.replace(prefix, '', 1)
+        context.scene.epoch_list[epoch_idx].name
