@@ -10,10 +10,21 @@ from bpy.props import (BoolProperty,
                        IntProperty
                        )
 
+
 def hex_to_rgb(value):
+    gamma = 2.2
     value = value.lstrip('#')
     lv = len(value)
-    return tuple(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
+    fin = list(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
+    r = pow(fin[0] / 255, gamma)
+    g = pow(fin[1] / 255, gamma)
+    b = pow(fin[2] / 255, gamma)
+    fin.clear()
+    fin.append(r)
+    fin.append(g)
+    fin.append(b)
+    #fin.append(1.0)
+    return tuple(fin)
 
 def menu_func(self, context):
     self.layout.separator()
@@ -186,6 +197,7 @@ def extract_epochs(node_element):
             id_node = str(RowNodeLabelModelParameter.attrib['id'])
             if 'backgroundColor' in nodelabel.attrib:
                 e_color = str(nodelabel.attrib['backgroundColor'])
+                print(e_color)
             else:
                 e_color = "#BCBCBC"
             #print(e_color)

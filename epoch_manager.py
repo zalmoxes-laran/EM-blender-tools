@@ -322,11 +322,9 @@ class EM_epoch_manager_add(bpy.types.Operator):
         epoch_number = len(scene.epoch_list)
         for epoch in range(epoch_number):
             epochname = scene.epoch_list[epoch].name
-
+            epoch_color = scene.epoch_list[epoch].epoch_color
             check_same_ids()  # check scene ids
-
             epoch_managers = scene.epoch_managers
-
             # get all ids
             all_ids = []
             for e_manager in epoch_managers:
@@ -341,7 +339,10 @@ class EM_epoch_manager_add(bpy.types.Operator):
             new_e_manager = epoch_managers.add()
             new_e_manager.name = epochname
             new_e_manager.unique_id = uni_numb
+            new_e_manager.epoch_color = hex_to_rgb(epoch_color)
+            print(str(new_e_manager.epoch_color))
             scene.epoch_managers_index = group_em_idx
+
 
         return {'FINISHED'}
 
