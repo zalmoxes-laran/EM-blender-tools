@@ -249,13 +249,26 @@ class EM_change_grouped_objects(bpy.types.Operator):
 
 class EM_set_EM_materials(bpy.types.Operator):
     bl_idname = "emset.emmaterial"
-    bl_label = "Change proxy materials"
-    bl_description = "Change proxy materials"
+    bl_label = "Change proxy materials EM"
+    bl_description = "Change proxy materials using EM standard palette"
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
+        context.scene.proxy_display_mode = "EM"
         update_icons(context)
         set_EM_materials_using_EM_list(context)
+        return {'FINISHED'}
+
+class EM_set_epoch_materials(bpy.types.Operator):
+    bl_idname = "emset.epochmaterial"
+    bl_label = "Change proxy epochs"
+    bl_description = "Change proxy materials using epochs"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    def execute(self, context):
+        context.scene.proxy_display_mode = "Epochs"
+        #update_icons(context)
+        set_epoch_materials(context)
         return {'FINISHED'}
 
 class EM_change_selected_objects(bpy.types.Operator):

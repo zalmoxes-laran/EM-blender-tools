@@ -183,8 +183,7 @@ classes = (
     UI.VIEW3D_PT_BasePanel,
     UI.EM_UL_named_epoch_managers,
     UI.RM_UL_named_repmod_managers,
-    #UI.Display_mode_menu,
-    #UI.VIEW3D_PT_Display_mode_menu,
+    UI.Display_mode_menu,
     EM_list.EM_usname_OT_toproxy,
     EM_list.EM_update_icon_list,
     EM_list.EM_select_from_list_item,
@@ -195,6 +194,7 @@ classes = (
     epoch_manager.EM_toggle_visibility,
     epoch_manager.EM_change_grouped_objects,
     epoch_manager.EM_set_EM_materials,
+    epoch_manager.EM_set_epoch_materials,
     epoch_manager.EM_change_selected_objects,
     epoch_manager.EM_epoch_manager_add,
     epoch_manager.EM_epoch_manager_remove,
@@ -216,10 +216,8 @@ classes = (
     )
 
 
-
     #bpy.types.INFO_HT_header.append(draw_item)
 
-    
 
 def register():
        for cls in classes:
@@ -247,12 +245,24 @@ def register():
        bpy.types.Object.rm_belong_id = CollectionProperty(type=EM_Object_Id)
        bpy.types.Scene.em_settings = PointerProperty(type=EM_Other_Settings)
        bpy.types.Scene.rm_settings = PointerProperty(type=EM_Other_Settings)
-
+       bpy.types.Scene.proxy_display_mode = StringProperty(
+              name = "Proxy display mode",
+              default = "EM",
+              description = "EM proxy current display mode"
+       )
+       bpy.types.Scene.proxy_blend_mode = StringProperty(
+              name = "Proxy blend mode",
+              default = "BLEND",
+              description = "EM proxy blend mode for current display mode"
+       )
+       bpy.types.Scene.proxy_display_alpha = FloatProperty(
+              name="alpha",
+              description="The alphavalue for proxies",
+              min=0,
+              max=1,
+              default=0.5)
        bpy.types.Scene.epoch_managers_index = IntProperty(default=-1)
        bpy.types.Scene.repmod_managers_index = IntProperty(default=-1)
-
-    #bpy.types.VIEW3D_MT_object_specials.append(menu_func)
-
        bpy.types.VIEW3D_MT_mesh_add.append(menu_func)
 
 ######################################################################################################

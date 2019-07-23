@@ -258,22 +258,35 @@ def EM_mat_get_RGB_values(matname):
 def em_setup_mat_cycles(matname):
 #    image = mat.texture_slots[0].texture.image
     R, G, B = EM_mat_get_RGB_values(matname)
+    scene = bpy.context.scene
     mat = bpy.data.materials[matname]
     mat.use_nodes = True
     mat.node_tree.nodes.clear()
+    mat.use_backface_culling = True
+    mat.blend_method = scene.proxy_blend_mode
     links = mat.node_tree.links
     nodes = mat.node_tree.nodes
     output = nodes.new('ShaderNodeOutputMaterial')
     output.location = (0, 0)
     mainNode = nodes.new('ShaderNodeBsdfDiffuse')
-    mainNode.inputs['Color'].default_value = (R,G,B,0.5)
-    mainNode.location = (-400, -50)
+    mainNode.inputs['Color'].default_value = (R,G,B,scene.proxy_display_alpha)
+    mainNode.location = (-800, 50)
     mainNode.name = "diffuse"
+    mixNode = nodes.new('ShaderNodeMixShader')
+    mixNode.location = (-400,-50)
+    transpNode = nodes.new('ShaderNodeBsdfTransparent')
+    transpNode.location = (-800,-200)
+    mixNode.name = "mixnode"
+    mixNode.inputs[0].default_value = scene.proxy_display_alpha
+    #print(scene.proxy_display_alpha)
+
 #    colornode = nodes.new('ShaderNodeTexImage')
 #    colornode.location = (-1100, -50)
         
 #    links.new(colornode.outputs[0], mainNode.inputs[0])
-    links.new(mainNode.outputs[0], output.inputs[0])
+    links.new(mainNode.outputs[0], mixNode.inputs[1])
+    links.new(transpNode.outputs[0], mixNode.inputs[2])
+    links.new(mixNode.outputs[0], output.inputs[0])
 
 # def em_setup_mat_bi(matname):
 #     R, G, B = EM_mat_get_RGB_values(matname)
@@ -335,20 +348,22 @@ def consolidate_epoch_material_presence(matname):
     else:#overwrite_mats == True:
         em_setup_mat_cycles(matname)
 
-def set_epoch_materials():
+def set_epoch_materials(context):
     mat_prefix = "ep_"
     epoch_list_lenght = len(context.scene.epoch_list)
     counter = 0
     while counter < epoch_list_lenght:
         current_element_epoch_list = context.scene.epoch_list[counter]
         matname = mat_prefix + current_element_epoch_list.name
-        if check_material_presence(matname):
+        consolidate_epoch_material_presence(matname)
 
-            em_list_lenght = len(context.scene.em_list)
-            counter = 0
-            while counter < em_list_lenght:
-                current_ob_em_list = context.scene.em_list[counter]
-
+        epoch_list_lenght = len(context.scene.epoch_list)
+        counter_2 = 0
+        while counter_2 < epoch_list_lenght:
+            current_ob_epoch_list = context.scene.epoch_list[counter]
+            counter_2 += 1 
+            print(current_ob_epoch_list)
+        counter += 1
 
 def epoch_mat_get_RGB_values(context, matname, epoch_idx):
     prefix = "_ep"
