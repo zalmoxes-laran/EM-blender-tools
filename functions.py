@@ -255,9 +255,8 @@ def EM_mat_get_RGB_values(matname):
         B = 0.347
     return R, G, B
 
-def em_setup_mat_cycles(matname):
+def em_setup_mat_cycles(matname, R, G, B):
 #    image = mat.texture_slots[0].texture.image
-    R, G, B = EM_mat_get_RGB_values(matname)
     scene = bpy.context.scene
     mat = bpy.data.materials[matname]
     mat.use_nodes = True
@@ -312,7 +311,8 @@ def consolidate_EM_material_presence(overwrite_mats):
             overwrite_mats = True
         if overwrite_mats == True:
             scene = bpy.context.scene
-            em_setup_mat_cycles(EM_mat_name)
+            R, G, B = EM_mat_get_RGB_values(EM_mat_name)
+            em_setup_mat_cycles(EM_mat_name,R,G,B)
 
 def set_EM_materials_using_EM_list(context):
     em_list_lenght = len(context.scene.em_list)
@@ -346,7 +346,8 @@ def consolidate_epoch_material_presence(matname):
     if not check_material_presence(matname):
         epoch_mat = bpy.data.materials.new(name=matname)
     else:#overwrite_mats == True:
-        em_setup_mat_cycles(matname)
+        print 
+        em_setup_mat_cycles(matname, 0.1,0.1,0.1)
 
 def set_epoch_materials(context):
     mat_prefix = "ep_"
