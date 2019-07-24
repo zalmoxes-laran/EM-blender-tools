@@ -22,7 +22,7 @@ bl_info = {
     "name": "EM tools",
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
-    "version": (1, 1, 2),
+    "version": (1, 1, 3),
     "blender": (2, 80, 0),
 #     "location": "3D View > Toolbox",
 #    "warning": "This addon is still in development.",
@@ -96,7 +96,7 @@ class EPOCHListItem(bpy.types.PropertyGroup):
               default="Empty")       
 
        use_toggle: BoolProperty(name="", default=True)
-       is_locked: BoolProperty(name="", default=False)
+       is_locked: BoolProperty(name="", default=True)
        is_selected: BoolProperty(name="", default=False)
 
        unique_id: StringProperty(default="")
@@ -191,6 +191,7 @@ classes = (
     epoch_manager.EM_set_EM_materials,
     epoch_manager.EM_set_epoch_materials,
     epoch_manager.EM_change_selected_objects,
+    epoch_manager.EM_toggle_selectable,
     representation_model.RM_repmod_manager_add,
     representation_model.RM_repmod_manager_remove,
     representation_model.RM_repmod_move,

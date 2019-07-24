@@ -229,29 +229,26 @@ class EM_UL_named_epoch_managers(UIList):
             layout.prop(epoch_list, "name", text="", emboss=False)
 
             # select operator
-            icon = 'RESTRICT_SELECT_OFF' if epoch_list.use_toggle else 'RESTRICT_SELECT_ON'
-
-            #if icons_style == 'OUTLINER':
-            # icon = 'VIEWZOOM' if epoch_list.use_toggle else 'VIEWZOOM'
+            icon = 'RESTRICT_SELECT_ON' if epoch_list.is_selected else 'RESTRICT_SELECT_OFF'
+            if icons_style == 'OUTLINER':
+                icon = 'VIEWZOOM' if epoch_list.use_toggle else 'VIEWZOOM'
             layout = layout.split(factor=0.1, align=True)
             layout.prop(epoch_list, "epoch_RGB_color", text="", emboss=True, icon_value=0)
-            #op = layout.operator(
-            #    "epoch_list.toggle_select", text="", emboss=False, icon=icon)
+            op = layout.operator(
+                "epoch_manager.toggle_select", text="", emboss=False, icon=icon)
 
             #self.layout.prop(context.scene, "test_color", text='Detail Color')
-            # op.group_em_idx = index
+            op.group_em_idx = index
             # op.is_menu = False
             # op.is_select = True
 
             # lock operator
-            # icon = 'LOCKED' if epoch_list.is_locked else 'UNLOCKED'
-
-            #if icons_style == 'OUTLINER':
-            # icon = 'RESTRICT_SELECT_ON' if epoch_list.is_locked else 'RESTRICT_SELECT_OFF'
-            # op = layout.operator(
-            #     "epoch_manager.toggle_select.change_grouped_objects", text="", emboss=False, icon=icon)
-            # op.em_group_changer = 'LOCKING'
-            # op.group_em_idx = index
+            icon = 'LOCKED' if epoch_list.is_locked else 'UNLOCKED'
+            if icons_style == 'OUTLINER':
+                icon = 'RESTRICT_SELECT_OFF' if epoch_list.is_locked else 'RESTRICT_SELECT_ON'
+            op = layout.operator("epoch_manager.toggle_selectable", text="", emboss=False, icon=icon)
+            #op.em_group_changer = 'LOCKING'
+            op.group_em_idx = index
 
             # view operator
             icon = 'RESTRICT_VIEW_OFF' if epoch_list.use_toggle else 'RESTRICT_VIEW_ON'
@@ -262,100 +259,33 @@ class EM_UL_named_epoch_managers(UIList):
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
 
-class EM_Add_Objects_Sub_Menu(bpy.types.Menu):
-    bl_idname = "epoch_manager.add_objects_sub_menu"
-    bl_label = "Add Selected Objects"
-    bl_description = "Add Objects Menu"
-
-    def draw(self, context):
-        layout = self.layout
-
-        for i, e_manager in enumerate(context.scene.epoch_managers):
-            op = layout.operator(EM_add_to_group.bl_idname, text=e_manager.name)
-            op.group_em_idx = i
 
 
-class EM_Remove_SGroup_Sub_Menu(bpy.types.Menu):
-    bl_idname = "epoch_manager.remove_e_manager_sub_menu"
-    bl_label = "Remove Super Group"
-    bl_description = "Remove Super Group Menu"
+# class EM_Toggle_Shading_Sub_Menu(bpy.types.Menu):
+#     bl_idname = "epoch_manager.toggle_shading_sub_menu"
+#     bl_label = "Toggle Shading"
+#     bl_description = "Toggle Shading Menu"
 
-    def draw(self, context):
-        layout = self.layout
+#     def draw(self, context):
+#         layout = self.layout
 
-        for i, e_manager in enumerate(context.scene.epoch_managers):
-            op = layout.operator(EM_epoch_manager_remove.bl_idname, text=e_manager.name)
-            op.group_em_idx = i
+#         op = layout.operator(EM_change_selected_objects.bl_idname, text="Bound Shade")
+#         op.sg_objects_changer = 'BOUND_SHADE'
 
+#         op = layout.operator(EM_change_selected_objects.bl_idname, text="Wire Shade")
+#         op.sg_objects_changer = 'WIRE_SHADE'
 
-class EM_Select_SGroup_Sub_Menu(bpy.types.Menu):
-    bl_idname = "epoch_manager.select_e_manager_sub_menu"
-    bl_label = "Select SGroup"
-    bl_description = "Select SGroup Menu"
+#         op = layout.operator(EM_change_selected_objects.bl_idname, text="Material Shade")
+#         op.sg_objects_changer = 'MATERIAL_SHADE'
 
-    def draw(self, context):
-        layout = self.layout
+#         op = layout.operator(EM_change_selected_objects.bl_idname, text="Show Wire")
+#         op.sg_objects_changer = 'SHOW_WIRE'
 
-        for i, e_manager in enumerate(context.scene.epoch_managers):
-            op = layout.operator(EM_toggle_select.bl_idname, text=e_manager.name)
-            op.group_em_idx = i
-            op.is_select = True
-            op.is_menu = True
-
-
-class EM_Deselect_SGroup_Sub_Menu(bpy.types.Menu):
-    bl_idname = "epoch_manager.deselect_e_manager_sub_menu"
-    bl_label = "Deselect SGroup"
-    bl_description = "Deselect SGroup Menu"
-
-    def draw(self, context):
-        layout = self.layout
-
-        for i, e_manager in enumerate(context.scene.epoch_managers):
-            op = layout.operator(EM_toggle_select.bl_idname, text=e_manager.name)
-            op.group_em_idx = i
-            op.is_select = False
-            op.is_menu = True
-
-
-class EM_Toggle_Visible_SGroup_Sub_Menu(bpy.types.Menu):
-    bl_idname = "epoch_manager.toggle_e_manager_sub_menu"
-    bl_label = "Toggle SGroup"
-    bl_description = "Toggle SGroup Menu"
-
-    def draw(self, context):
-        layout = self.layout
-
-        for i, e_manager in enumerate(context.scene.epoch_managers):
-            op = layout.operator(EM_toggle_visibility.bl_idname, text=e_manager.name)
-            op.group_em_idx = i
-
-
-class EM_Toggle_Shading_Sub_Menu(bpy.types.Menu):
-    bl_idname = "epoch_manager.toggle_shading_sub_menu"
-    bl_label = "Toggle Shading"
-    bl_description = "Toggle Shading Menu"
-
-    def draw(self, context):
-        layout = self.layout
-
-        op = layout.operator(EM_change_selected_objects.bl_idname, text="Bound Shade")
-        op.sg_objects_changer = 'BOUND_SHADE'
-
-        op = layout.operator(EM_change_selected_objects.bl_idname, text="Wire Shade")
-        op.sg_objects_changer = 'WIRE_SHADE'
-
-        op = layout.operator(EM_change_selected_objects.bl_idname, text="Material Shade")
-        op.sg_objects_changer = 'MATERIAL_SHADE'
-
-        op = layout.operator(EM_change_selected_objects.bl_idname, text="Show Wire")
-        op.sg_objects_changer = 'SHOW_WIRE'
-
-        layout.separator()
-        op = layout.operator(EM_change_selected_objects.bl_idname, text="One Side")
-        op.sg_objects_changer = 'ONESIDE_SHADE'
-        op = layout.operator(EM_change_selected_objects.bl_idname, text="Double Side")
-        op.sg_objects_changer = 'TWOSIDE_SHADE'
+#         layout.separator()
+#         op = layout.operator(EM_change_selected_objects.bl_idname, text="One Side")
+#         op.sg_objects_changer = 'ONESIDE_SHADE'
+#         op = layout.operator(EM_change_selected_objects.bl_idname, text="Double Side")
+#         op.sg_objects_changer = 'TWOSIDE_SHADE'
 
 #########################################################################################################
 

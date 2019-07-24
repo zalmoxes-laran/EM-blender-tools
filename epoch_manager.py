@@ -1,7 +1,3 @@
-#    part of this library is a (very) heavily modified version of the original code from: 
-#    "name": "Super Grouper",
-#    "author": "Paul Geraskin, Aleksey Juravlev, BA Community",
-
 import bpy
 import string
 
@@ -23,66 +19,29 @@ class EM_UL_List(bpy.types.UIList):
 
 ########################
 
-def EM_select_objects(context, ids, do_select):
-    if do_select:
-        scene = context.scene
-        for obj in scene.objects:
-            if obj.em_belong_id:
-                for prop in obj.em_belong_id:
-                    if prop.unique_id_object in ids:
-                        if scene.em_settings.unlock_obj:
-                            obj.hide_select = False
-                        # unhide
-                        if scene.em_settings.unhide_obj:
-                            obj.hide_viewport = False
-                        # select
-                        obj.select_set(True)
-       
-    else:
-        for obj in context.selected_objects:
-            if obj.em_belong_id:
-                for prop in obj.em_belong_id:
-                    if prop.unique_id_object in ids:
-                        obj.select_set(False)
-
 class EM_toggle_select(bpy.types.Operator):
+
+    """Draw a line with the mouse"""
     bl_idname = "epoch_manager.toggle_select"
     bl_label = "Toggle Select"
     bl_description = "Toggle Select"
     bl_options = {'REGISTER', 'UNDO'}
 
     group_em_idx : IntProperty()
-    is_menu : BoolProperty(name="Is Menu?", default=True)
-    is_select : BoolProperty(name="Is Select?", default=True)
 
-    def invoke(self, context, event):
+    def execute(self, context):
         scene = context.scene
-        if self.group_em_idx < len(scene.epoch_managers):
+        if self.group_em_idx < len(scene.epoch_list):
             # check_same_ids()  # check scene ids
-
-            e_manager = scene.epoch_managers[self.group_em_idx]
-
-            if event.ctrl is True and self.is_menu is False:
-                self.is_select = False
-
-            if e_manager.use_toggle is True:
-                if self.is_select is True:
-
-                    # add active object if no selection
-                    has_selection = False
-                    if context.selected_objects:
-                        has_selection = True
-
-                    EM_select_objects(context, [e_manager.unique_id], True)
-                    if scene.em_settings.unlock_obj:
-                        e_manager.is_locked = False
-
-                    # set last active object if no selection was before
-                    if has_selection is False and context.selected_objects:
-                        context.view_layer.objects.active = context.selected_objects[-1]
-
-                else:
-                    EM_select_objects(context, [e_manager.unique_id], False)
+            current_e_manager = scene.epoch_list[self.group_em_idx]
+            for us in scene.em_list:
+                if us.icon == "RESTRICT_INSTANCED_OFF":
+                    print(us.epoch)
+                    if current_e_manager.name == us.epoch:
+                        object_to_select = bpy.data.objects[us.name]
+                        object_to_select.select_set(True)
+                        #object_to_select.select_set(current_e_manager.is_selected)
+        #current_e_manager.is_selected = not current_e_manager.is_selected
 
         return {'FINISHED'}
 
@@ -108,6 +67,31 @@ class EM_toggle_visibility(bpy.types.Operator):
                         object_to_set_visibility = bpy.data.objects[us.name]
                         object_to_set_visibility.hide_viewport = current_e_manager.use_toggle
         current_e_manager.use_toggle = not current_e_manager.use_toggle
+        return {'FINISHED'}
+
+
+class EM_toggle_selectable(bpy.types.Operator):
+
+    """Draw a line with the mouse"""
+    bl_idname = "epoch_manager.toggle_selectable"
+    bl_label = "Toggle Selectable"
+    bl_description = "Toggle Selectable"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    group_em_idx : IntProperty()
+
+    def execute(self, context):
+        scene = context.scene
+        if self.group_em_idx < len(scene.epoch_list):
+            # check_same_ids()  # check scene ids
+            current_e_manager = scene.epoch_list[self.group_em_idx]
+            for us in scene.em_list:
+                if us.icon == "RESTRICT_INSTANCED_OFF":
+                    print(us.epoch)
+                    if current_e_manager.name == us.epoch:
+                        object_to_set_visibility = bpy.data.objects[us.name]
+                        object_to_set_visibility.hide_select = current_e_manager.is_locked
+        current_e_manager.is_locked = not current_e_manager.is_locked
         return {'FINISHED'}
 
 class EM_set_EM_materials(bpy.types.Operator):
