@@ -62,7 +62,9 @@ class EM_SetupPanel:
         row = layout.row(align=True)
         row.prop(context.scene, 'EM_file', toggle = True, text ="")
 
-        row = layout.row(align=True)
+        box = layout.box()
+        row = box.row(align=True)
+        #row = layout.row(align=True)
         split = row.split()
         col = split.column()
         col.label(text="US/USV")
@@ -86,12 +88,12 @@ class EM_SetupPanel:
         
         col = split.column(align=True)
         col.prop(scene, "proxy_display_alpha")
-        
-        col = split.column(align=True)
-        col.prop(scene, "proxy_shader_mode")
 
-        col = split.column()
-        col.operator("import.em_graphml", icon="FILE_REFRESH", text='')
+        col = split.column(align=True)
+        col.prop(scene, "proxy_shader_mode", text='', icon="NODE_MATERIAL")
+
+        #col = split.column()
+        #col.operator("import.em_graphml", icon="FILE_REFRESH", text='')
 
         row = layout.row(align=True)
 
@@ -231,10 +233,10 @@ class EM_UL_named_epoch_managers(UIList):
 
             #if icons_style == 'OUTLINER':
             # icon = 'VIEWZOOM' if epoch_list.use_toggle else 'VIEWZOOM'
-            # layout = layout.split(factor=0.1, align=True)
-            # layout.prop(epoch_list, "epoch_color", text="", emboss=True, icon_value=0)
-            # op = layout.operator(
-            #     "epoch_manager.toggle_select", text="", emboss=False, icon=icon)
+            layout = layout.split(factor=0.1, align=True)
+            layout.prop(epoch_list, "epoch_RGB_color", text="", emboss=True, icon_value=0)
+            #op = layout.operator(
+            #    "epoch_list.toggle_select", text="", emboss=False, icon=icon)
 
             #self.layout.prop(context.scene, "test_color", text='Detail Color')
             # op.group_em_idx = index

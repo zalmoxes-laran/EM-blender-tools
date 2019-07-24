@@ -218,7 +218,7 @@ def register():
        bpy.types.Scene.em_list_index = prop.IntProperty(name = "Index for my_list", default = 0)
        bpy.types.Scene.epoch_list = prop.CollectionProperty(type = EPOCHListItem)
        bpy.types.Scene.epoch_list_index = prop.IntProperty(name = "Index for epoch_list", default = 0)
-       bpy.types.Scene.proxy_shader_mode = BoolProperty(name="Proxy shader mode", default=False, update = functions.proxy_shader_mode_function)
+       bpy.types.Scene.proxy_shader_mode = BoolProperty(name="Proxy shader mode", description = "Enable additive shader for proxies",default=False, update = functions.proxy_shader_mode_function)
        bpy.types.Scene.EM_file = StringProperty(
               name = "EM GraphML file",
               default = "",
@@ -247,7 +247,9 @@ def register():
               description="The alphavalue for proxies",
               min=0,
               max=1,
-              default=0.5)
+              default=0.5,
+              update = functions.update_display_mode
+       )
 
        bpy.types.VIEW3D_MT_mesh_add.append(menu_func)
 

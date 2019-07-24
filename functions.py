@@ -54,7 +54,7 @@ def proxy_shader_mode_function(self, context):
         scene.proxy_blend_mode = "ADD"
     else:
         scene.proxy_blend_mode = "BLEND"
-    update_display_mode()
+    update_display_mode(self, context)
 
 def check_if_current_obj_has_brother_inlist(obj_name):
     scene = bpy.context.scene
@@ -246,9 +246,9 @@ def add_sceneobj_to_epochs():
 
 def update_display_mode(self, context):
     if bpy.context.scene.proxy_display_mode == "EM":
-        bpy.ops.emset.emmaterial
+        bpy.ops.emset.emmaterial()
     if bpy.context.scene.proxy_display_mode == "Epochs":
-        bpy.ops.emset.epochmaterial
+        bpy.ops.emset.epochmaterial()
 
 def em_setup_mat_cycles(matname, R, G, B):
     scene = bpy.context.scene
@@ -379,9 +379,3 @@ def set_epoch_materials(context):
                     obj = bpy.data.objects[em_element.name]
                     obj.data.materials.clear()
                     obj.data.materials.append(mat)
-
-# def epoch_mat_get_RGB_values(context, matname, epoch_idx):
-#     prefix = "_ep"
-#     if matname.startswith(prefix):
-#         epochname = matname.replace(prefix, '', 1)
-#         context.scene.epoch_list[epoch_idx].name
