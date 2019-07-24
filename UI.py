@@ -22,9 +22,6 @@ class Display_mode_menu(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
 
-        #layout.operator("wm.open_mainfile")
-        #layout.operator("wm.save_as_mainfile").copy = True
-
         layout.operator("emset.emmaterial", text="EM")
         layout.operator("emset.epochmaterial", text="Epochs")
 
@@ -39,8 +36,6 @@ class Display_mode_menu(bpy.types.Menu):
         # call another menu
         #layout.operator("wm.call_menu", text="Unwrap").name = "VIEW3D_MT_uv_map"
 
-
-
 class EM_SetupPanel:
     bl_label = "EM setup"
     bl_space_type = 'VIEW_3D'
@@ -53,6 +48,7 @@ class EM_SetupPanel:
         obj = context.object
         current_proxy_display_mode = context.scene.proxy_display_mode
         #box = layout.box()
+
         row = layout.row(align=True)
         split = row.split()
         col = split.column()
@@ -69,6 +65,17 @@ class EM_SetupPanel:
         row = layout.row(align=True)
         split = row.split()
         col = split.column()
+        col.label(text="US/USV")
+        #col = split.column()
+        col.prop(scene, "em_list", text='')
+        col = split.column()
+        col.label(text="Epochs")
+        #col = split.column()
+        col.prop(scene, "epoch_list", text='')
+
+        row = layout.row(align=True)
+        split = row.split()
+        col = split.column()
         col.label(text="Display mode")
         col = split.column(align=True)
         
@@ -79,6 +86,9 @@ class EM_SetupPanel:
         
         col = split.column(align=True)
         col.prop(scene, "proxy_display_alpha")
+        
+        col = split.column(align=True)
+        col.prop(scene, "proxy_shader_mode")
 
         col = split.column()
         col.operator("import.em_graphml", icon="FILE_REFRESH", text='')
@@ -123,7 +133,6 @@ class EM_ToolsPanel:
         #layout.alignment = 'LEFT'
         row = layout.row()
         row.template_list("EM_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
-
         if scene.em_list_index >= 0 and len(scene.em_list) > 0:
             item = scene.em_list[scene.em_list_index]
             box = layout.box()
@@ -195,7 +204,7 @@ class EM_BasePanel:
         em_settings = scene.em_settings
         row = layout.row()
         row.template_list(
-            "EM_UL_named_epoch_managers", "", scene, "epoch_managers", scene, "epoch_managers_index")
+            "EM_UL_named_epoch_managers", "", scene, "epoch_list", scene, "epoch_list_index")
         #layout.label(text="Selection Settings:")
         #row = layout.row(align=True)
         #row.prop(em_settings, "unlock_obj", text='UnLock')
@@ -209,35 +218,41 @@ class VIEW3D_PT_BasePanel(Panel, EM_BasePanel):
 
 class EM_UL_named_epoch_managers(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        epoch_manager = item
+        epoch_list = item
         #user_preferences = context.user_preferences
         #self.layout.prop(context.scene, "test_color", text='Detail Color')
         icons_style = 'OUTLINER'
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             layout = layout.split(factor=0.6, align=True)
-            layout.prop(epoch_manager, "name", text="", emboss=False)
+            layout.prop(epoch_list, "name", text="", emboss=False)
+
             # select operator
-            icon = 'RESTRICT_SELECT_OFF' if epoch_manager.use_toggle else 'RESTRICT_SELECT_ON'
+            icon = 'RESTRICT_SELECT_OFF' if epoch_list.use_toggle else 'RESTRICT_SELECT_ON'
+
             #if icons_style == 'OUTLINER':
-            icon = 'VIEWZOOM' if epoch_manager.use_toggle else 'VIEWZOOM'
-            layout = layout.split(factor=0.1, align=True)
-            layout.prop(epoch_manager, "epoch_color", text="", emboss=True, icon_value=0)
-            op = layout.operator(
-                "epoch_manager.toggle_select", text="", emboss=False, icon=icon)
+            # icon = 'VIEWZOOM' if epoch_list.use_toggle else 'VIEWZOOM'
+            # layout = layout.split(factor=0.1, align=True)
+            # layout.prop(epoch_list, "epoch_color", text="", emboss=True, icon_value=0)
+            # op = layout.operator(
+            #     "epoch_manager.toggle_select", text="", emboss=False, icon=icon)
+
             #self.layout.prop(context.scene, "test_color", text='Detail Color')
-            op.group_em_idx = index
-            op.is_menu = False
-            op.is_select = True
+            # op.group_em_idx = index
+            # op.is_menu = False
+            # op.is_select = True
+
             # lock operator
-            icon = 'LOCKED' if epoch_manager.is_locked else 'UNLOCKED'
+            # icon = 'LOCKED' if epoch_list.is_locked else 'UNLOCKED'
+
             #if icons_style == 'OUTLINER':
-            icon = 'RESTRICT_SELECT_ON' if epoch_manager.is_locked else 'RESTRICT_SELECT_OFF'
-            op = layout.operator(
-                "epoch_manager.change_grouped_objects", text="", emboss=False, icon=icon)
-            op.em_group_changer = 'LOCKING'
-            op.group_em_idx = index
+            # icon = 'RESTRICT_SELECT_ON' if epoch_list.is_locked else 'RESTRICT_SELECT_OFF'
+            # op = layout.operator(
+            #     "epoch_manager.toggle_select.change_grouped_objects", text="", emboss=False, icon=icon)
+            # op.em_group_changer = 'LOCKING'
+            # op.group_em_idx = index
+
             # view operator
-            icon = 'RESTRICT_VIEW_OFF' if epoch_manager.use_toggle else 'RESTRICT_VIEW_ON'
+            icon = 'RESTRICT_VIEW_OFF' if epoch_list.use_toggle else 'RESTRICT_VIEW_ON'
             op = layout.operator(
                 "epoch_manager.toggle_visibility", text="", emboss=False, icon=icon)
             op.group_em_idx = index

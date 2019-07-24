@@ -95,15 +95,13 @@ class EPOCHListItem(bpy.types.PropertyGroup):
               description="",
               default="Empty")       
 
-
-class EM_Group(PropertyGroup):
        use_toggle: BoolProperty(name="", default=True)
        is_locked: BoolProperty(name="", default=False)
        is_selected: BoolProperty(name="", default=False)
 
        unique_id: StringProperty(default="")
 
-       epoch_color: FloatVectorProperty(
+       epoch_RGB_color: FloatVectorProperty(
               name="epoch_color",
               subtype="COLOR",
               size=3,
@@ -120,9 +118,6 @@ class EM_Group(PropertyGroup):
               description="wire color of the group"
        )
 
-class EM_Object_Id(PropertyGroup):
-    unique_id_object: StringProperty(default="")
-
 class EM_Other_Settings(PropertyGroup):
        contex = bpy.context
        select_all_layers: BoolProperty(name="Select Visible Layers", default=True)
@@ -131,6 +126,7 @@ class EM_Other_Settings(PropertyGroup):
        em_proxy_sync: BoolProperty(name="Selecting a proxy you select the corresponding EM", default=False, update = functions.sync_Switch_em)
        em_proxy_sync2: BoolProperty(name="Selecting an EM you select the corresponding proxy", default=False, update = functions.sync_Switch_proxy)
        em_proxy_sync2_zoom: BoolProperty(name="Option to zoom to proxy", default=False, update = functions.sync_Switch_proxy)
+       
 
 #######################################################################################################################
 
@@ -150,7 +146,7 @@ class EMListItem(bpy.types.PropertyGroup):
     icon: prop.StringProperty(
            name="code for icon",
            description="",
-           default="QUESTION")
+           default="RESTRICT_INSTANCED_ON")
 
     url: prop.StringProperty(
            name="url",
@@ -192,13 +188,9 @@ classes = (
     epoch_manager.EM_UL_List,
     epoch_manager.EM_toggle_select,
     epoch_manager.EM_toggle_visibility,
-    epoch_manager.EM_change_grouped_objects,
     epoch_manager.EM_set_EM_materials,
     epoch_manager.EM_set_epoch_materials,
     epoch_manager.EM_change_selected_objects,
-    epoch_manager.EM_epoch_manager_add,
-    epoch_manager.EM_epoch_manager_remove,
-    epoch_manager.EM_add_to_group,
     representation_model.RM_repmod_manager_add,
     representation_model.RM_repmod_manager_remove,
     representation_model.RM_repmod_move,
@@ -210,9 +202,7 @@ classes = (
     representation_model.RM_clean_object_ids,
     EMListItem,
     EM_Other_Settings,
-    EPOCHListItem,
-    EM_Group,
-    EM_Object_Id
+    EPOCHListItem
     )
 
 
@@ -228,6 +218,7 @@ def register():
        bpy.types.Scene.em_list_index = prop.IntProperty(name = "Index for my_list", default = 0)
        bpy.types.Scene.epoch_list = prop.CollectionProperty(type = EPOCHListItem)
        bpy.types.Scene.epoch_list_index = prop.IntProperty(name = "Index for epoch_list", default = 0)
+       bpy.types.Scene.proxy_shader_mode = BoolProperty(name="Proxy shader mode", default=False, update = functions.proxy_shader_mode_function)
        bpy.types.Scene.EM_file = StringProperty(
               name = "EM GraphML file",
               default = "",
@@ -239,10 +230,6 @@ def register():
 #per epoch manager
 ##################
 
-       bpy.types.Scene.epoch_managers = CollectionProperty(type=EM_Group)
-       bpy.types.Scene.repmod_managers = CollectionProperty(type=EM_Group)
-       bpy.types.Object.em_belong_id = CollectionProperty(type=EM_Object_Id)
-       bpy.types.Object.rm_belong_id = CollectionProperty(type=EM_Object_Id)
        bpy.types.Scene.em_settings = PointerProperty(type=EM_Other_Settings)
        bpy.types.Scene.rm_settings = PointerProperty(type=EM_Other_Settings)
        bpy.types.Scene.proxy_display_mode = StringProperty(
@@ -261,8 +248,7 @@ def register():
               min=0,
               max=1,
               default=0.5)
-       bpy.types.Scene.epoch_managers_index = IntProperty(default=-1)
-       bpy.types.Scene.repmod_managers_index = IntProperty(default=-1)
+
        bpy.types.VIEW3D_MT_mesh_add.append(menu_func)
 
 ######################################################################################################
@@ -275,8 +261,5 @@ def unregister():
 ######################################################################################################
 #per epoch manager
 ##################
-    del bpy.types.Scene.epoch_managers
-    del bpy.types.Object.em_belong_id
     del bpy.types.Scene.em_settings
-    del bpy.types.Scene.epoch_managers_index
 ######################################################################################################

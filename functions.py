@@ -48,6 +48,14 @@ def sync_Switch_proxy(self, context):
         scene.em_settings.em_proxy_sync = False
     return
 
+def proxy_shader_mode_function(self, context):
+    scene = context.scene
+    if scene.proxy_shader_mode is True:
+        scene.proxy_blend_mode = "ADD"
+    else:
+        scene.proxy_blend_mode = "BLEND"
+    update_display_mode()
+
 def check_if_current_obj_has_brother_inlist(obj_name):
     scene = bpy.context.scene
     for us_usv in scene.em_list:
@@ -180,7 +188,6 @@ def extract_epochs(node_element):
         scene.epoch_list.add()
         scene.epoch_list[epoch_list_index_ema].id = str(id_row)
         scene.epoch_list[epoch_list_index_ema].height = h_row
-        # read the color of the epoch from the title of the row
         
         
         y_min = y_max
@@ -195,6 +202,7 @@ def extract_epochs(node_element):
         if RowNodeLabelModelParameter is not None:
             label_node = nodelabel.text
             id_node = str(RowNodeLabelModelParameter.attrib['id'])
+            # read the color of the epoch from the title of the row, if no color is provided, a default color is used
             if 'backgroundColor' in nodelabel.attrib:
                 e_color = str(nodelabel.attrib['backgroundColor'])
                 print(e_color)
@@ -209,7 +217,9 @@ def extract_epochs(node_element):
             if id_node == id_key:
                 scene.epoch_list[i].name = str(label_node)
                 scene.epoch_list[i].epoch_color = e_color
+                scene.epoch_list[i].epoch_RGB_color = hex_to_rgb(e_color)
 
+## diverrà deprecata !
 def add_sceneobj_to_epochs():
     scene = bpy.context.scene
     #deselect all objects
@@ -222,7 +232,7 @@ def add_sceneobj_to_epochs():
                 if obj.name == USS.name:
                     #print("ho trovato un oggetto in scena chiamato "+ str(obj.name)+ " ed un nodo US chiamato: " + str(USS.name))
                     idx = 0
-                    for i in scene.epoch_managers:
+                    for i in scene.epoch_list:
                         if i.name == USS.epoch:
                             #print("found "+str(USS.epoch)+ " corrispondende all'indice"+str(idx))
                             obj.select_set(True)
@@ -232,33 +242,22 @@ def add_sceneobj_to_epochs():
                         
                         
                         
-#------------------- qui funzioni per materiali------------------------------------------
+#------------------- qui funzioni generali per materiali------------------------------------------
 
-
-
-def EM_mat_get_RGB_values(matname):
-    if matname == "US":
-        R = 0.328
-        G = 0.033
-        B = 0.033
-    elif matname == "USVn":
-        R = 0.031
-        G = 0.191
-        B = 0.026
-    elif matname == "USVs":
-        R = 0.018
-        G = 0.275
-        B = 0.799
-    elif matname == "VSF" or matname == "SF":
-        R = 0.799
-        G = 0.753
-        B = 0.347
-    return R, G, B
+def update_display_mode(self, context):
+    if bpy.context.scene.proxy_display_mode == "EM":
+        bpy.ops.emset.emmaterial
+    if bpy.context.scene.proxy_display_mode == "Epochs":
+        bpy.ops.emset.epochmaterial
 
 def em_setup_mat_cycles(matname, R, G, B):
-#    image = mat.texture_slots[0].texture.image
     scene = bpy.context.scene
     mat = bpy.data.materials[matname]
+    mat.diffuse_color[0] = R
+    mat.diffuse_color[1] = G
+    mat.diffuse_color[2] = B
+    mat.show_transparent_back = False
+    mat.use_backface_culling = True
     mat.use_nodes = True
     mat.node_tree.nodes.clear()
     mat.use_backface_culling = True
@@ -277,23 +276,10 @@ def em_setup_mat_cycles(matname, R, G, B):
     transpNode.location = (-800,-200)
     mixNode.name = "mixnode"
     mixNode.inputs[0].default_value = scene.proxy_display_alpha
-    #print(scene.proxy_display_alpha)
 
-#    colornode = nodes.new('ShaderNodeTexImage')
-#    colornode.location = (-1100, -50)
-        
-#    links.new(colornode.outputs[0], mainNode.inputs[0])
     links.new(mainNode.outputs[0], mixNode.inputs[1])
     links.new(transpNode.outputs[0], mixNode.inputs[2])
     links.new(mixNode.outputs[0], output.inputs[0])
-
-# def em_setup_mat_bi(matname):
-#     R, G, B = EM_mat_get_RGB_values(matname)
-#     mat = bpy.data.materials[matname]
-#     mat.use_nodes = False
-#     mat.diffuse_color = (R,G,B)
-#     mat.use_transparency = True
-#     mat.alpha = 0.5
     
 def check_material_presence(matname):
     mat_presence = False
@@ -302,7 +288,11 @@ def check_material_presence(matname):
             mat_presence = True
             return mat_presence
     return mat_presence
-    
+
+#_____________________________________________________________________________________
+# materials for EM
+#_____________________________________________________________________________________
+
 def consolidate_EM_material_presence(overwrite_mats):
     EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF']
     for EM_mat_name in EM_mat_list:
@@ -342,32 +332,56 @@ def set_EM_materials_using_EM_list(context):
             current_ob_scene.data.materials.append(mat)
         counter += 1
 
+def EM_mat_get_RGB_values(matname):
+    if matname == "US":
+        R = 0.328
+        G = 0.033
+        B = 0.033
+    elif matname == "USVn":
+        R = 0.031
+        G = 0.191
+        B = 0.026
+    elif matname == "USVs":
+        R = 0.018
+        G = 0.275
+        B = 0.799
+    elif matname == "VSF" or matname == "SF":
+        R = 0.799
+        G = 0.753
+        B = 0.347
+    return R, G, B
+
+#_____________________________________________________________________________________
+# materials for epochs
+#_____________________________________________________________________________________
+
 def consolidate_epoch_material_presence(matname):
     if not check_material_presence(matname):
         epoch_mat = bpy.data.materials.new(name=matname)
-    else:#overwrite_mats == True:
-        print 
-        em_setup_mat_cycles(matname, 0.1,0.1,0.1)
+    else:
+        epoch_mat = bpy.data.materials[matname]
+    return epoch_mat
 
 def set_epoch_materials(context):
+    scene = context.scene 
     mat_prefix = "ep_"
-    epoch_list_lenght = len(context.scene.epoch_list)
-    counter = 0
-    while counter < epoch_list_lenght:
-        current_element_epoch_list = context.scene.epoch_list[counter]
-        matname = mat_prefix + current_element_epoch_list.name
-        consolidate_epoch_material_presence(matname)
+    for epoch in scene.epoch_list:
+        matname = mat_prefix + epoch.name
+        mat = consolidate_epoch_material_presence(matname)
+        R = epoch.epoch_RGB_color[0]
+        G = epoch.epoch_RGB_color[1]
+        B = epoch.epoch_RGB_color[2]
+        em_setup_mat_cycles(matname,R,G,B)
+        for em_element in scene.em_list:
+            if em_element.icon == "RESTRICT_INSTANCED_OFF":
+                if em_element.epoch == epoch.name:
+                    print(em_element.name + " element is in epoch "+epoch.name)
+                    obj = bpy.data.objects[em_element.name]
+                    obj.data.materials.clear()
+                    obj.data.materials.append(mat)
 
-        epoch_list_lenght = len(context.scene.epoch_list)
-        counter_2 = 0
-        while counter_2 < epoch_list_lenght:
-            current_ob_epoch_list = context.scene.epoch_list[counter]
-            counter_2 += 1 
-            print(current_ob_epoch_list)
-        counter += 1
-
-def epoch_mat_get_RGB_values(context, matname, epoch_idx):
-    prefix = "_ep"
-    if matname.startswith(prefix):
-        epochname = matname.replace(prefix, '', 1)
-        context.scene.epoch_list[epoch_idx].name
+# def epoch_mat_get_RGB_values(context, matname, epoch_idx):
+#     prefix = "_ep"
+#     if matname.startswith(prefix):
+#         epochname = matname.replace(prefix, '', 1)
+#         context.scene.epoch_list[epoch_idx].name

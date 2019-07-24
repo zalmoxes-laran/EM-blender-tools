@@ -124,8 +124,8 @@ class EM_import_GraphML(bpy.types.Operator):
                 if scene.epoch_list[epoch_in].min_y < scene.em_list[em_i].y_pos < scene.epoch_list[epoch_in].max_y:
                     scene.em_list[em_i].epoch = scene.epoch_list[epoch_in].name
 #                    print(scene.epoch_list[epoch_in].name)
-        bpy.ops.epoch_manager.epoch_manager_remove()
-        bpy.ops.epoch_manager.epoch_manager_add()
-        add_sceneobj_to_epochs()
+        #bpy.ops.epoch_manager.epoch_manager_remove()
+        #bpy.ops.epoch_manager.epoch_manager_add()
+        #add_sceneobj_to_epochs()
 
         return {'FINISHED'}
