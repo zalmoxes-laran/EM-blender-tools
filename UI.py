@@ -23,7 +23,7 @@ class Display_mode_menu(bpy.types.Menu):
         layout = self.layout
 
         layout.operator("emset.emmaterial", text="EM")
-        layout.operator("emset.epochmaterial", text="Epochs")
+        layout.operator("emset.epochmaterial", text="Periods")
 
         #layout.label(text="Hello world!", icon='WORLD_DATA')
 
@@ -71,7 +71,7 @@ class EM_SetupPanel:
         #col = split.column()
         col.prop(scene, "em_list", text='')
         col = split.column()
-        col.label(text="Epochs")
+        col.label(text="Periods")
         #col = split.column()
         col.prop(scene, "epoch_list", text='')
 
@@ -196,7 +196,7 @@ class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_context = "objectmode"
 
 class EM_BasePanel:
-    bl_label = "Epochs Manager"
+    bl_label = "Periods Manager"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
 

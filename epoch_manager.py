@@ -108,12 +108,12 @@ class EM_set_EM_materials(bpy.types.Operator):
 
 class EM_set_epoch_materials(bpy.types.Operator):
     bl_idname = "emset.epochmaterial"
-    bl_label = "Change proxy epochs"
-    bl_description = "Change proxy materials using epochs"
+    bl_label = "Change proxy periods"
+    bl_description = "Change proxy materials using periods"
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
-        context.scene.proxy_display_mode = "Epochs"
+        context.scene.proxy_display_mode = "Periods"
         #update_icons(context)
         set_epoch_materials(context)
         return {'FINISHED'}

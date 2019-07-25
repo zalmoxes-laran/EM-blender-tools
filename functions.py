@@ -247,7 +247,7 @@ def add_sceneobj_to_epochs():
 def update_display_mode(self, context):
     if bpy.context.scene.proxy_display_mode == "EM":
         bpy.ops.emset.emmaterial()
-    if bpy.context.scene.proxy_display_mode == "Epochs":
+    if bpy.context.scene.proxy_display_mode == "Periods":
         bpy.ops.emset.epochmaterial()
 
 def em_setup_mat_cycles(matname, R, G, B):
