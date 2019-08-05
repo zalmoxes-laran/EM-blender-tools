@@ -62,7 +62,6 @@ from . import (
 from .functions import *
 from bpy.utils import register_class, unregister_class
 
-
 class EPOCHListItem(bpy.types.PropertyGroup):
        """ Group of properties representing an item in the list """
        name: prop.StringProperty(
