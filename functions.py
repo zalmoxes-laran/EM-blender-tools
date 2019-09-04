@@ -339,7 +339,7 @@ def EM_mat_get_RGB_values(matname):
         B = 0.033
     elif matname == "USVn":
         R = 0.031
-        G = 0.191
+        G = 0.191 
         B = 0.026
     elif matname == "USVs":
         R = 0.018
