@@ -39,6 +39,18 @@ def sync_Switch_em(self, context):
         scene.em_settings.em_proxy_sync2_zoom = False
     return
 
+def sync_update_epoch_soloing(self, context):
+    scene = context.scene
+    soling = False
+    for epoch in scene.epoch_list:
+        if epoch.epoch_soloing is True:
+            soloing_epoch = epoch
+            soloing = True
+    if soloing is True:
+        for epoch in scene.epoch_list:
+            if epoch is not soloing_epoch
+    return
+
 def sync_Switch_proxy(self, context):
 #    wm = bpy.context.window_manager
     #layout = self.layout

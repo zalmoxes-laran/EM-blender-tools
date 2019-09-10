@@ -62,6 +62,7 @@ from . import (
 from .functions import *
 from bpy.utils import register_class, unregister_class
 
+
 class EPOCHListItem(bpy.types.PropertyGroup):
        """ Group of properties representing an item in the list """
        name: prop.StringProperty(
@@ -97,6 +98,7 @@ class EPOCHListItem(bpy.types.PropertyGroup):
        use_toggle: BoolProperty(name="", default=True)
        is_locked: BoolProperty(name="", default=True)
        is_selected: BoolProperty(name="", default=False)
+       epoch_soloing: BoolProperty(name="Epoch soloing", default=False, update = functions.sync_update_epoch_soloing)
 
        unique_id: StringProperty(default="")
 
