@@ -256,6 +256,12 @@ class EM_UL_named_epoch_managers(UIList):
                 "epoch_manager.toggle_visibility", text="", emboss=False, icon=icon)
             op.group_em_idx = index
 
+            # soloing operator
+            icon = 'RADIOBUT_ON' if epoch_list.epoch_soloing else 'RADIOBUT_OFF'
+            op = layout.operator(
+                "epoch_manager.toggle_soloing", text="", emboss=False, icon=icon)
+            op.group_em_idx = index
+
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
 

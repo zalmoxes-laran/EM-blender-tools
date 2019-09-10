@@ -48,7 +48,8 @@ def sync_update_epoch_soloing(self, context):
             soloing = True
     if soloing is True:
         for epoch in scene.epoch_list:
-            if epoch is not soloing_epoch
+            if epoch is not soloing_epoch:
+                pass
     return
 
 def sync_Switch_proxy(self, context):

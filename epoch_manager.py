@@ -71,8 +71,7 @@ class EM_toggle_visibility(bpy.types.Operator):
 
 
 class EM_toggle_selectable(bpy.types.Operator):
-
-    """Draw a line with the mouse"""
+    """Toggle select"""
     bl_idname = "epoch_manager.toggle_selectable"
     bl_label = "Toggle Selectable"
     bl_description = "Toggle Selectable"
@@ -92,6 +91,30 @@ class EM_toggle_selectable(bpy.types.Operator):
                         object_to_set_visibility = bpy.data.objects[us.name]
                         object_to_set_visibility.hide_select = current_e_manager.is_locked
         current_e_manager.is_locked = not current_e_manager.is_locked
+        return {'FINISHED'}
+
+class EM_toggle_soloing(bpy.types.Operator):
+    """Toggle soloing"""
+    bl_idname = "epoch_manager.toggle_soloing"
+    bl_label = "Toggle Soloing"
+    bl_description = "Toggle epoch Soloing"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    group_em_idx : IntProperty()
+
+    def execute(self, context):
+        scene = context.scene
+        if self.group_em_idx < len(scene.epoch_list):
+            # check_same_ids()  # check scene ids
+            current_e_manager = scene.epoch_list[self.group_em_idx]
+
+            for us in scene.em_list:
+                if us.icon == "RADIOBUT_OFF":
+                    print(us.epoch)
+                    if current_e_manager.name == us.epoch:
+                        object_to_set_visibility = bpy.data.objects[us.name]
+                        object_to_set_visibility.hide_select = current_e_manager.is_locked
+        current_e_manager.epoch_soloing = not current_e_manager.epoch_soloing
         return {'FINISHED'}
 
 class EM_set_EM_materials(bpy.types.Operator):

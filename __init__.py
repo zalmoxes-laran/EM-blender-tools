@@ -98,7 +98,7 @@ class EPOCHListItem(bpy.types.PropertyGroup):
        use_toggle: BoolProperty(name="", default=True)
        is_locked: BoolProperty(name="", default=True)
        is_selected: BoolProperty(name="", default=False)
-       epoch_soloing: BoolProperty(name="Epoch soloing", default=False, update = functions.sync_update_epoch_soloing)
+       epoch_soloing: BoolProperty(name="", default=False)
 
        unique_id: StringProperty(default="")
 
@@ -193,6 +193,7 @@ classes = (
     epoch_manager.EM_set_epoch_materials,
     epoch_manager.EM_change_selected_objects,
     epoch_manager.EM_toggle_selectable,
+    epoch_manager.EM_toggle_soloing,
     representation_model.RM_repmod_manager_add,
     representation_model.RM_repmod_manager_remove,
     representation_model.RM_repmod_move,
