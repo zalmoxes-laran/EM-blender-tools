@@ -98,6 +98,7 @@ class EM_import_GraphML(bpy.types.Operator):
         em_list_index_ema = 0
 #        tree = ET.parse('/Users/emanueldemetrescu/Desktop/EM_test.graphml')
         allnodes = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
+        
         for node_element in allnodes:
 #            print(node_element.text)
             if EM_check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
@@ -110,6 +111,8 @@ class EM_import_GraphML(bpy.types.Operator):
 #                    print('-' + my_nodename + '-' + ' has an icon: ' + EM_check_GraphML_Blender(my_nodename))
                     scene.em_list[em_list_index_ema].description = my_node_description
                     scene.em_list[em_list_index_ema].shape = my_node_shape
+                    scene.em_list[em_list_index_ema].id_node = getnode_id(node_element)
+                    #print(scene.em_list[em_list_index_ema].id_node)
                     em_list_index_ema += 1
                 else:
                     pass
@@ -123,5 +126,6 @@ class EM_import_GraphML(bpy.types.Operator):
             for epoch_in in range(len(scene.epoch_list)):
                 if scene.epoch_list[epoch_in].min_y < scene.em_list[em_i].y_pos < scene.epoch_list[epoch_in].max_y:
                     scene.em_list[em_i].epoch = scene.epoch_list[epoch_in].name
+        get_edge(tree)
 
         return {'FINISHED'}

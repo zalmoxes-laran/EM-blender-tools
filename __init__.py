@@ -169,6 +169,11 @@ class EMListItem(bpy.types.PropertyGroup):
            description="",
            default="Empty")
 
+    id_node: prop.StringProperty(
+           name="id node",
+           description="",
+           default="Empty")
+
 
 
 # register
