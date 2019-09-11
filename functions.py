@@ -103,28 +103,41 @@ def add_sceneobj_to_epochs():
 #### Functions to extract data from GraphML file ####
 ### #### #### #### #### #### #### #### #### #### ####
 
-def get_edge(tree):
+def get_edge_target(tree, node_element):
+    bpy.types.Scene.em_reused_US = []
     alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
+    id_node = getnode_id(node_element)
     for edge in alledges:
-        id_target_node = getnode_edge_target(edge)
-        print(edge.tag+" has id: "+ getnode_id(edge)+" with target US_node: "+ id_target_node+" that is the US: "+ find_node_us_by_id(id_target_node))
-        pass
-    return
+        EM_us_target = "" 
+        node_y_pos = 0.0
+        id_node_edge_source = getnode_edge_source(edge)
+        if id_node_edge_source == id_node:
+            my_continuity_node_description, node_y_pos = EM_extract_continuity(node_element)
+            id_node_edge_target = getnode_edge_target(edge)
+            EM_us_target = find_node_us_by_id(id_node_edge_target)
+            #print("edge with id: "+ getnode_id(edge)+" with target US_node "+ id_node_edge_target+" which is the US "+ find_node_us_by_id(id_node_edge_target))
+    return EM_us_target, node_y_pos
 
 def getnode_id(node_element):
     id_node = str(node_element.attrib['id'])
     return id_node
 
 def getnode_edge_target(node_element):
-    node_edge_target = str(node_element.attrib['target'])
-    return node_edge_target
+    id_node_edge_target = str(node_element.attrib['target'])
+    #print(id_node_edge_target)
+    return id_node_edge_target
 
-def find_node_us_by_id(id):
+def getnode_edge_source(node_element):
+    id_node_edge_source = str(node_element.attrib['source'])
+    #print(id_node_edge_source)
+    return id_node_edge_source
+
+def find_node_us_by_id(id_node):
+    us_node = ""
     for us in bpy.context.scene.em_list:
-        if id == us.id_node:
-            us_node = us
+        if id_node == us.id_node:
+            us_node = us.name
     return us_node
-    
 
 def EM_extract_node_name(node_element):
     is_d4 = False
@@ -152,12 +165,33 @@ def EM_extract_node_name(node_element):
                 nodeshape = USshape.attrib['type']
 #                print(nodeshape)
             for geometry in subnode.findall('./{http://www.yworks.com/xml/graphml}ShapeNode/{http://www.yworks.com/xml/graphml}Geometry'):
+            #for geometry in subnode.findall('./{http://www.yworks.com/xml/graphml}Geometry'):
                 node_y_pos = geometry.attrib['y']
     if not is_d4:
         nodeurl = '--None--'
     if not is_d5:
         nodedescription = '--None--'
     return nodename, nodedescription, nodeurl, nodeshape, node_y_pos 
+
+def EM_extract_continuity(node_element):
+    is_d5 = False
+    node_y_pos = 0.0
+    nodedescription = None
+    for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+        attrib = subnode.attrib
+        #print(attrib)
+        if attrib == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
+            is_d5 = True
+            nodedescription = subnode.text
+            #print(nodedescription)
+        if attrib == {'key': 'd6'}:
+            for geometry in subnode.findall('./{http://www.yworks.com/xml/graphml}SVGNode/{http://www.yworks.com/xml/graphml}Geometry'):
+                node_y_pos = float(geometry.attrib['y'])
+                #print("il valore y di nodo "+ str(nodedescription) +" = "+str(node_y_pos))
+    if not is_d5:
+        nodedescription = '--None--'
+    return nodedescription, node_y_pos 
+
 
 def EM_check_node_type(node_element):
     id_node = str(node_element.attrib)
@@ -186,12 +220,29 @@ def EM_check_node_us(node_element):
         id_node_us = False
     return id_node_us
 
+def EM_check_node_continuity(node_element):
+    id_node_continuity = False
+    my_node_description, my_node_y_pos = EM_extract_continuity(node_element)
+    if my_node_description == "_continuity":
+        id_node_continuity = True
+    else:
+        id_node_continuity = False
+    return id_node_continuity
+
 def EM_list_clear(context):
     scene = context.scene
     scene.em_list.update()
     list_lenght = len(scene.em_list)
     for x in range(list_lenght):
         scene.em_list.remove(0)
+    return
+
+def EM_reused_list_clear(context):
+    scene = context.scene
+    scene.em_reused_US.update()
+    list_lenght = len(scene.em_reused_US)
+    for x in range(list_lenght):
+        scene.em_reused_US.remove(0)
     return
 
 def epoch_list_clear(context):

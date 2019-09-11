@@ -174,7 +174,18 @@ class EMListItem(bpy.types.PropertyGroup):
            description="",
            default="Empty")
 
+class EMreusedUS(bpy.types.PropertyGroup):
+    """ Group of properties representing an item in the list """
 
+    epoch: prop.StringProperty(
+           name="Epoch",
+           description="Epoch",
+           default="Untitled")
+
+    EM_element: prop.StringProperty(
+           name="EM US/USV",
+           description="",
+           default="Empty")
 
 # register
 ##################################
@@ -210,7 +221,8 @@ classes = (
     representation_model.RM_clean_object_ids,
     EMListItem,
     EM_Other_Settings,
-    EPOCHListItem
+    EPOCHListItem,
+    EMreusedUS
     )
 
 
@@ -224,6 +236,7 @@ def register():
        #bpy.types.WindowManager.interface_vars = bpy.props.PointerProperty(type=InterfaceVars)
        bpy.types.Scene.em_list = prop.CollectionProperty(type = EMListItem)
        bpy.types.Scene.em_list_index = prop.IntProperty(name = "Index for my_list", default = 0)
+       bpy.types.Scene.em_reused_US = prop.CollectionProperty(type = EMreusedUS)
        bpy.types.Scene.epoch_list = prop.CollectionProperty(type = EPOCHListItem)
        bpy.types.Scene.epoch_list_index = prop.IntProperty(name = "Index for epoch_list", default = 0)
        bpy.types.Scene.proxy_shader_mode = BoolProperty(name="Proxy shader mode", description = "Enable additive shader for proxies",default=False, update = functions.proxy_shader_mode_function)
