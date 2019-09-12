@@ -225,10 +225,6 @@ classes = (
     EMreusedUS
     )
 
-
-    #bpy.types.INFO_HT_header.append(draw_item)
-
-
 def register():
        for cls in classes:
               bpy.utils.register_class(cls)

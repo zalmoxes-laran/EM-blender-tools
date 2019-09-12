@@ -119,9 +119,6 @@ class EM_import_GraphML(bpy.types.Operator):
             if EM_check_node_type(node_element) == 'node_swimlane':
                 extract_epochs(node_element)
 
-        #funzione temporanea di sviluppo
-        #get_edge(tree)
-
         for em_i in range(len(scene.em_list)):
             #print(scene.em_list[em_i].name)
             for epoch_in in range(len(scene.epoch_list)):
@@ -142,7 +139,7 @@ class EM_import_GraphML(bpy.types.Operator):
                                 #print("epoca "+epoch.name+" : min"+str(epoch.min_y)+" max: "+str(epoch.max_y)+" minore di "+str(continuity_y)+" e "+ str(epoch.min_y) +" minore di "+str(EM_item.y_pos))
                                 if scene.epoch_list[ep_i].max_y > continuity_y and scene.epoch_list[ep_i].max_y < EM_item.y_pos:
                                     print("found")
-                                    scene.em_reused_US.add()
+                                    bpy.context.scene.em_reused_US.add()
                                     scene.em_reused_US[em_reused_US_index].epoch = scene.epoch_list[ep_i].name
                                     scene.em_reused_US[em_reused_US_index].EM_element = EM_item.name
                                     print("All'epoca "+scene.em_reused_US[em_reused_US_index].epoch+ " appartiene l'US/USM: "+ scene.em_reused_US[em_reused_US_index].EM_element)
