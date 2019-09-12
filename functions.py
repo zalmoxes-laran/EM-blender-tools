@@ -104,7 +104,6 @@ def add_sceneobj_to_epochs():
 ### #### #### #### #### #### #### #### #### #### ####
 
 def get_edge_target(tree, node_element):
-    bpy.types.Scene.em_reused_US = []
     alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
     id_node = getnode_id(node_element)
     for edge in alledges:
@@ -239,10 +238,10 @@ def EM_list_clear(context):
 
 def EM_reused_list_clear(context):
     scene = context.scene
-    scene.em_reused_US.update()
-    list_lenght = len(scene.em_reused_US)
+    scene.em_reused.update()
+    list_lenght = len(scene.em_reused)
     for x in range(list_lenght):
-        scene.em_reused_US.remove(0)
+        scene.em_reused.remove(0)
     return
 
 def epoch_list_clear(context):
@@ -270,7 +269,6 @@ def extract_epochs(node_element):
         scene.epoch_list.add()
         scene.epoch_list[epoch_list_index_ema].id = str(id_row)
         scene.epoch_list[epoch_list_index_ema].height = h_row
-        
         
         y_min = y_max
         y_max += h_row

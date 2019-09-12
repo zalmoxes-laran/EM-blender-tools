@@ -107,13 +107,27 @@ class EM_toggle_soloing(bpy.types.Operator):
         if self.group_em_idx < len(scene.epoch_list):
             # check_same_ids()  # check scene ids
             current_e_manager = scene.epoch_list[self.group_em_idx]
+            for epoch in scene.epoch_list:
+                if epoch == current_e_manager:
+                    epoch.use_toggle = True
+                else:
+                    if current_e_manager.epoch_soloing is True:
+                        epoch.use_toggle = True
+                    if current_e_manager.epoch_soloing is False:
+                        epoch.use_toggle = False
+                        if epoch.epoch_soloing is True:
+                            epoch.epoch_soloing = False
+                            print("L'epoca da spegnere è :"+epoch.name)
+                        
 
-            for us in scene.em_list:
-                if us.icon == "RADIOBUT_OFF":
-                    print(us.epoch)
-                    if current_e_manager.name == us.epoch:
-                        object_to_set_visibility = bpy.data.objects[us.name]
-                        object_to_set_visibility.hide_select = current_e_manager.is_locked
+
+
+            # for us in scene.em_list:
+            #     if us.icon == "RADIOBUT_OFF":
+            #         print(us.epoch)
+            #         if current_e_manager.name == us.epoch:
+            #             object_to_set_visibility = bpy.data.objects[us.name]
+            #             object_to_set_visibility.hide_select = current_e_manager.is_locked
         current_e_manager.epoch_soloing = not current_e_manager.epoch_soloing
         return {'FINISHED'}
 

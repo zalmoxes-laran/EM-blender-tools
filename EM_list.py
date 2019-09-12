@@ -97,6 +97,7 @@ class EM_import_GraphML(bpy.types.Operator):
         EM_list_clear(context)
         EM_reused_list_clear(context)
         em_list_index_ema = 0
+        em_reused_index = 0
 
         allnodes = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
         
@@ -134,16 +135,16 @@ class EM_import_GraphML(bpy.types.Operator):
                     print(EM_us_target+" has y value: "+str(continuity_y))
                     for EM_item in bpy.context.scene.em_list:
                         if EM_item.name == EM_us_target:
-                            em_reused_US_index = 0
+                            
                             for ep_i in range(len(scene.epoch_list)):
                                 #print("epoca "+epoch.name+" : min"+str(epoch.min_y)+" max: "+str(epoch.max_y)+" minore di "+str(continuity_y)+" e "+ str(epoch.min_y) +" minore di "+str(EM_item.y_pos))
                                 if scene.epoch_list[ep_i].max_y > continuity_y and scene.epoch_list[ep_i].max_y < EM_item.y_pos:
                                     print("found")
-                                    bpy.context.scene.em_reused_US.add()
-                                    scene.em_reused_US[em_reused_US_index].epoch = scene.epoch_list[ep_i].name
-                                    scene.em_reused_US[em_reused_US_index].EM_element = EM_item.name
-                                    print("All'epoca "+scene.em_reused_US[em_reused_US_index].epoch+ " appartiene l'US/USM: "+ scene.em_reused_US[em_reused_US_index].EM_element)
-                                    em_reused_US_index += 1
+                                    scene.em_reused.add()
+                                    scene.em_reused[em_reused_index].epoch = scene.epoch_list[ep_i].name
+                                    scene.em_reused[em_reused_index].em_element = EM_item.name
+                                    print("All'epoca "+scene.em_reused[em_reused_index].epoch+ " appartiene l'US/USM: "+ scene.em_reused[em_reused_index].em_element)
+                                    em_reused_index += 1
                 else:
                     pass
 
