@@ -53,17 +53,23 @@ class EM_toggle_visibility(bpy.types.Operator):
     bl_description = "Toggle Visibility"
     bl_options = {'REGISTER', 'UNDO'}
 
-    group_em_idx : IntProperty()
+    group_em_vis_idx : IntProperty()
 
     def execute(self, context):
+        #print(str(self.group_em_vis_idx))
         scene = context.scene
-        if self.group_em_idx < len(scene.epoch_list):
+        if self.group_em_vis_idx < len(scene.epoch_list):
             # check_same_ids()  # check scene ids
-            current_e_manager = scene.epoch_list[self.group_em_idx]
+            current_e_manager = scene.epoch_list[self.group_em_vis_idx]
             for us in scene.em_list:
                 if us.icon == "RESTRICT_INSTANCED_OFF":
-                    print(us.epoch)
+                    #print(us.epoch)
                     if current_e_manager.name == us.epoch:
+                        #if scene.em_settings.soloing_mode == True:
+                        #    for em_reused in scene.em_reused:
+                        #        if em_reused.em_element == us.name and em_reused.epoch == us.epoch:
+                        #            print("found " + us.name +" reused element for this epoch")
+                        #else:
                         object_to_set_visibility = bpy.data.objects[us.name]
                         object_to_set_visibility.hide_viewport = current_e_manager.use_toggle
         current_e_manager.use_toggle = not current_e_manager.use_toggle
@@ -104,23 +110,25 @@ class EM_toggle_soloing(bpy.types.Operator):
 
     def execute(self, context):
         scene = context.scene
+        ep_idx = 0
+        scene.em_settings.soloing_mode = not scene.em_settings.soloing_mode
         if self.group_em_idx < len(scene.epoch_list):
             # check_same_ids()  # check scene ids
             current_e_manager = scene.epoch_list[self.group_em_idx]
-            for epoch in scene.epoch_list:
-                if epoch == current_e_manager:
-                    epoch.use_toggle = True
+            for ep_idx in range(len(scene.epoch_list)):
+                if ep_idx == self.group_em_idx:
+                    scene.epoch_list[ep_idx].use_toggle = False
+                    bpy.ops.epoch_manager.toggle_visibility("INVOKE_DEFAULT", group_em_vis_idx = ep_idx)
                 else:
                     if current_e_manager.epoch_soloing is True:
-                        epoch.use_toggle = True
-                    if current_e_manager.epoch_soloing is False:
-                        epoch.use_toggle = False
-                        if epoch.epoch_soloing is True:
-                            epoch.epoch_soloing = False
-                            print("L'epoca da spegnere è :"+epoch.name)
+                        current_e_manager.epoch_soloing = False
+                    
+                    if scene.epoch_list[ep_idx].use_toggle == True:
+                        bpy.ops.epoch_manager.toggle_visibility("INVOKE_DEFAULT", group_em_vis_idx = ep_idx)
                         
-
-
+                #    print("L'epoca da spegnere è :"+scene.epoch_list[ep_idx].name)
+            
+                        
 
             # for us in scene.em_list:
             #     if us.icon == "RADIOBUT_OFF":

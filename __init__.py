@@ -127,6 +127,7 @@ class EM_Other_Settings(PropertyGroup):
        em_proxy_sync: BoolProperty(name="Selecting a proxy you select the corresponding EM", default=False, update = functions.sync_Switch_em)
        em_proxy_sync2: BoolProperty(name="Selecting an EM you select the corresponding proxy", default=False, update = functions.sync_Switch_proxy)
        em_proxy_sync2_zoom: BoolProperty(name="Option to zoom to proxy", default=False, update = functions.sync_Switch_proxy)
+       soloing_mode: BoolProperty(name="Soloing mode", default=False)
        
 
 #######################################################################################################################
