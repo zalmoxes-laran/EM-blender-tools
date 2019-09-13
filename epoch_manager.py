@@ -36,7 +36,7 @@ class EM_toggle_select(bpy.types.Operator):
             current_e_manager = scene.epoch_list[self.group_em_idx]
             for us in scene.em_list:
                 if us.icon == "RESTRICT_INSTANCED_OFF":
-                    print(us.epoch)
+                   #print(us.epoch)
                     if current_e_manager.name == us.epoch:
                         object_to_select = bpy.data.objects[us.name]
                         object_to_select.select_set(True)
@@ -105,7 +105,7 @@ class EM_toggle_selectable(bpy.types.Operator):
             current_e_manager = scene.epoch_list[self.group_em_idx]
             for us in scene.em_list:
                 if us.icon == "RESTRICT_INSTANCED_OFF":
-                    print(us.epoch)
+                   #print(us.epoch)
                     if current_e_manager.name == us.epoch:
                         object_to_set_visibility = bpy.data.objects[us.name]
                         object_to_set_visibility.hide_select = current_e_manager.is_locked
@@ -128,7 +128,7 @@ class EM_toggle_soloing(bpy.types.Operator):
         if self.group_em_idx < len(scene.epoch_list):
             #get current row in epoch list
             current_e_manager = scene.epoch_list[self.group_em_idx]
-            print("epoca cliccata: "+ current_e_manager.name)
+           #print("epoca cliccata: "+ current_e_manager.name)
             # invert soloing icon for clicked row
             current_e_manager.epoch_soloing = not current_e_manager.epoch_soloing
             # set general soloing mode from current row

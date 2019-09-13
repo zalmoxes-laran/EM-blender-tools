@@ -106,15 +106,17 @@ def add_sceneobj_to_epochs():
 def get_edge_target(tree, node_element):
     alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
     id_node = getnode_id(node_element)
+    EM_us_target = "" 
+    node_y_pos = 0.0
+    
     for edge in alledges:
-        EM_us_target = "" 
-        node_y_pos = 0.0
-        id_node_edge_source = getnode_edge_source(edge)
+        id_node_edge_source = getnode_edge_source(edge) 
         if id_node_edge_source == id_node:
             my_continuity_node_description, node_y_pos = EM_extract_continuity(node_element)
             id_node_edge_target = getnode_edge_target(edge)
             EM_us_target = find_node_us_by_id(id_node_edge_target)
-            #print("edge with id: "+ getnode_id(edge)+" with target US_node "+ id_node_edge_target+" which is the US "+ find_node_us_by_id(id_node_edge_target))
+            #print("edge with id: "+ getnode_id(edge)+" with target US_node "+ id_node_edge_target+" which is the US "+ EM_us_target)
+    #print("edge with id: "+ getnode_id(edge)+" with target US_node "+ id_node_edge_target+" which is the US "+ EM_us_target)
     return EM_us_target, node_y_pos
 
 def getnode_id(node_element):
@@ -224,6 +226,7 @@ def EM_check_node_continuity(node_element):
     my_node_description, my_node_y_pos = EM_extract_continuity(node_element)
     if my_node_description == "_continuity":
         id_node_continuity = True
+        #print("found node continuity")
     else:
         id_node_continuity = False
     return id_node_continuity
@@ -285,7 +288,7 @@ def extract_epochs(node_element):
             # read the color of the epoch from the title of the row, if no color is provided, a default color is used
             if 'backgroundColor' in nodelabel.attrib:
                 e_color = str(nodelabel.attrib['backgroundColor'])
-                print(e_color)
+                #print(e_color)
             else:
                 e_color = "#BCBCBC"
             #print(e_color)
@@ -475,7 +478,7 @@ def set_epoch_materials(context):
         for em_element in scene.em_list:
             if em_element.icon == "RESTRICT_INSTANCED_OFF":
                 if em_element.epoch == epoch.name:
-                    print(em_element.name + " element is in epoch "+epoch.name)
+                    #print(em_element.name + " element is in epoch "+epoch.name)
                     obj = bpy.data.objects[em_element.name]
                     obj.data.materials.clear()
                     obj.data.materials.append(mat)
