@@ -54,6 +54,7 @@ class EM_toggle_visibility(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     group_em_vis_idx : IntProperty()
+    soloing_epoch: StringProperty()
 
     def execute(self, context):
         #print(str(self.group_em_vis_idx))
@@ -61,17 +62,29 @@ class EM_toggle_visibility(bpy.types.Operator):
         if self.group_em_vis_idx < len(scene.epoch_list):
             # check_same_ids()  # check scene ids
             current_e_manager = scene.epoch_list[self.group_em_vis_idx]
+            #parsing the em list
             for us in scene.em_list:
+                #selecting only in-scene em elements
                 if us.icon == "RESTRICT_INSTANCED_OFF":
-                    #print(us.epoch)
+                    # check if the us is in epoch
                     if current_e_manager.name == us.epoch:
-                        #if scene.em_settings.soloing_mode == True:
-                        #    for em_reused in scene.em_reused:
-                        #        if em_reused.em_element == us.name and em_reused.epoch == us.epoch:
-                        #            print("found " + us.name +" reused element for this epoch")
-                        #else:
+                        # identify object to be turned on/off
                         object_to_set_visibility = bpy.data.objects[us.name]
-                        object_to_set_visibility.hide_viewport = current_e_manager.use_toggle
+                        # before to turn on/off elements in scene, check if we are in soloing mode
+                        if scene.em_settings.soloing_mode == True:
+                            found_reused = False
+                            # parsing the re_used element list
+                            for em_reused in scene.em_reused:
+                                if found_reused is False:
+                                    if em_reused.em_element == us.name and em_reused.epoch == self.soloing_epoch:
+                                        #print("found " + us.name +" reused element for this epoch")
+                                        object_to_set_visibility.hide_viewport = False
+                                        found_reused = True
+                                    else:
+                                        object_to_set_visibility.hide_viewport = current_e_manager.use_toggle
+                        else:
+                            object_to_set_visibility.hide_viewport = current_e_manager.use_toggle
+                        #print(current_e_manager.use_toggle)
         current_e_manager.use_toggle = not current_e_manager.use_toggle
         return {'FINISHED'}
 
@@ -111,32 +124,36 @@ class EM_toggle_soloing(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         ep_idx = 0
-        scene.em_settings.soloing_mode = not scene.em_settings.soloing_mode
+        # check if selected row is consistent
         if self.group_em_idx < len(scene.epoch_list):
-            # check_same_ids()  # check scene ids
+            #get current row in epoch list
             current_e_manager = scene.epoch_list[self.group_em_idx]
+            print("epoca cliccata: "+ current_e_manager.name)
+            # invert soloing icon for clicked row
+            current_e_manager.epoch_soloing = not current_e_manager.epoch_soloing
+            # set general soloing mode from current row
+            scene.em_settings.soloing_mode = current_e_manager.epoch_soloing
+            # parsing epoch list to update icons and run routines
             for ep_idx in range(len(scene.epoch_list)):
+                # in case of the row to be "soloed"
                 if ep_idx == self.group_em_idx:
+                    # force toggle visibility to soloing row
                     scene.epoch_list[ep_idx].use_toggle = False
-                    bpy.ops.epoch_manager.toggle_visibility("INVOKE_DEFAULT", group_em_vis_idx = ep_idx)
+                    bpy.ops.epoch_manager.toggle_visibility("INVOKE_DEFAULT", group_em_vis_idx = ep_idx, soloing_epoch = current_e_manager.name)
+                # in case of other rows..
                 else:
-                    if current_e_manager.epoch_soloing is True:
-                        current_e_manager.epoch_soloing = False
-                    
-                    if scene.epoch_list[ep_idx].use_toggle == True:
-                        bpy.ops.epoch_manager.toggle_visibility("INVOKE_DEFAULT", group_em_vis_idx = ep_idx)
-                        
-                #    print("L'epoca da spegnere è :"+scene.epoch_list[ep_idx].name)
-            
-                        
-
-            # for us in scene.em_list:
-            #     if us.icon == "RADIOBUT_OFF":
-            #         print(us.epoch)
-            #         if current_e_manager.name == us.epoch:
-            #             object_to_set_visibility = bpy.data.objects[us.name]
-            #             object_to_set_visibility.hide_select = current_e_manager.is_locked
-        current_e_manager.epoch_soloing = not current_e_manager.epoch_soloing
+                    # .. force turn off soloing
+                    scene.epoch_list[ep_idx].epoch_soloing = False
+                    # .. check if they are turned off
+                    if scene.epoch_list[ep_idx].use_toggle == False:
+                        # .. and in that case check if we are no more in soloing mode..
+                        if scene.em_settings.soloing_mode is False:
+                            # .. and turn them all back visible
+                            bpy.ops.epoch_manager.toggle_visibility("INVOKE_DEFAULT", group_em_vis_idx = ep_idx, soloing_epoch = current_e_manager.name)
+                    else:
+                        #scene.epoch_list[ep_idx].use_toggle == False
+                        bpy.ops.epoch_manager.toggle_visibility("INVOKE_DEFAULT", group_em_vis_idx = ep_idx, soloing_epoch = current_e_manager.name)
+                            
         return {'FINISHED'}
 
 class EM_set_EM_materials(bpy.types.Operator):
