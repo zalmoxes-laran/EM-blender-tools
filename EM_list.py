@@ -95,11 +95,13 @@ class EM_import_GraphML(bpy.types.Operator):
         graphml_file = scene.EM_file
         tree = ET.parse(graphml_file)
         EM_list_clear(context)
+        EM_reused_list_clear(context)
         em_list_index_ema = 0
-#        tree = ET.parse('/Users/emanueldemetrescu/Desktop/EM_test.graphml')
+        em_reused_index = 0
+
         allnodes = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
+        
         for node_element in allnodes:
-#            print(node_element.text)
             if EM_check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
                 if EM_check_node_us(node_element): # Check if the node is an US, SU, USV, USM or USR node
                     my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos = EM_extract_node_name(node_element)
@@ -110,18 +112,39 @@ class EM_import_GraphML(bpy.types.Operator):
 #                    print('-' + my_nodename + '-' + ' has an icon: ' + EM_check_GraphML_Blender(my_nodename))
                     scene.em_list[em_list_index_ema].description = my_node_description
                     scene.em_list[em_list_index_ema].shape = my_node_shape
+                    scene.em_list[em_list_index_ema].id_node = getnode_id(node_element)
+                    #print(scene.em_list[em_list_index_ema].id_node)
                     em_list_index_ema += 1
                 else:
                     pass
             if EM_check_node_type(node_element) == 'node_swimlane':
-#                print("swimlane node is: " + str(node_element.attrib))
                 extract_epochs(node_element)
-#                my_epoch, my_y_max_epoch, my_y_min_epoch = extract_epochs(node_element)
-#                print(my_epoch)
+
         for em_i in range(len(scene.em_list)):
             #print(scene.em_list[em_i].name)
             for epoch_in in range(len(scene.epoch_list)):
                 if scene.epoch_list[epoch_in].min_y < scene.em_list[em_i].y_pos < scene.epoch_list[epoch_in].max_y:
                     scene.em_list[em_i].epoch = scene.epoch_list[epoch_in].name
+
+        #porzione di codice per estrarre le continuità
+        
+        for node_element in allnodes:
+            if EM_check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
+                if EM_check_node_continuity(node_element):
+                    #print("founf continuity node")
+                    EM_us_target, continuity_y = get_edge_target(tree, node_element)
+                    #print(EM_us_target+" has y value: "+str(continuity_y))
+                    for EM_item in bpy.context.scene.em_list:
+                        if EM_item.icon == "RESTRICT_INSTANCED_OFF":
+                            if EM_item.name == EM_us_target:
+                                for ep_i in range(len(scene.epoch_list)):
+                                    #print("epoca "+epoch.name+" : min"+str(epoch.min_y)+" max: "+str(epoch.max_y)+" minore di "+str(continuity_y)+" e "+ str(epoch.min_y) +" minore di "+str(EM_item.y_pos))
+                                    if scene.epoch_list[ep_i].max_y > continuity_y and scene.epoch_list[ep_i].max_y < EM_item.y_pos:
+                                        #print("found")
+                                        scene.em_reused.add()
+                                        scene.em_reused[em_reused_index].epoch = scene.epoch_list[ep_i].name
+                                        scene.em_reused[em_reused_index].em_element = EM_item.name
+                                       #print("All'epoca "+scene.em_reused[em_reused_index].epoch+ " appartiene : "+ scene.em_reused[em_reused_index].em_element)
+                                        em_reused_index += 1
 
         return {'FINISHED'}

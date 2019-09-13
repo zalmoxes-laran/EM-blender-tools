@@ -254,6 +254,12 @@ class EM_UL_named_epoch_managers(UIList):
             icon = 'RESTRICT_VIEW_OFF' if epoch_list.use_toggle else 'RESTRICT_VIEW_ON'
             op = layout.operator(
                 "epoch_manager.toggle_visibility", text="", emboss=False, icon=icon)
+            op.group_em_vis_idx = index
+
+            # soloing operator
+            icon = 'RADIOBUT_ON' if epoch_list.epoch_soloing else 'RADIOBUT_OFF'
+            op = layout.operator(
+                "epoch_manager.toggle_soloing", text="", emboss=False, icon=icon)
             op.group_em_idx = index
 
         elif self.layout_type in {'GRID'}:

@@ -22,7 +22,7 @@ bl_info = {
     "name": "EM tools",
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
-    "version": (1, 1, 3),
+    "version": (1, 1, 4),
     "blender": (2, 80, 0),
 #     "location": "3D View > Toolbox",
 #    "warning": "This addon is still in development.",
@@ -98,7 +98,7 @@ class EPOCHListItem(bpy.types.PropertyGroup):
        use_toggle: BoolProperty(name="", default=True)
        is_locked: BoolProperty(name="", default=True)
        is_selected: BoolProperty(name="", default=False)
-       epoch_soloing: BoolProperty(name="Epoch soloing", default=False, update = functions.sync_update_epoch_soloing)
+       epoch_soloing: BoolProperty(name="", default=False)
 
        unique_id: StringProperty(default="")
 
@@ -127,6 +127,7 @@ class EM_Other_Settings(PropertyGroup):
        em_proxy_sync: BoolProperty(name="Selecting a proxy you select the corresponding EM", default=False, update = functions.sync_Switch_em)
        em_proxy_sync2: BoolProperty(name="Selecting an EM you select the corresponding proxy", default=False, update = functions.sync_Switch_proxy)
        em_proxy_sync2_zoom: BoolProperty(name="Option to zoom to proxy", default=False, update = functions.sync_Switch_proxy)
+       soloing_mode: BoolProperty(name="Soloing mode", default=False)
        
 
 #######################################################################################################################
@@ -169,7 +170,23 @@ class EMListItem(bpy.types.PropertyGroup):
            description="",
            default="Empty")
 
+    id_node: prop.StringProperty(
+           name="id node",
+           description="",
+           default="Empty")
 
+class EMreusedUS(bpy.types.PropertyGroup):
+    """ Group of properties representing an item in the list """
+
+    epoch: prop.StringProperty(
+           name="epoch",
+           description="Epoch",
+           default="Untitled")
+
+    em_element: prop.StringProperty(
+           name="em_element",
+           description="",
+           default="Empty")
 
 # register
 ##################################
@@ -193,6 +210,7 @@ classes = (
     epoch_manager.EM_set_epoch_materials,
     epoch_manager.EM_change_selected_objects,
     epoch_manager.EM_toggle_selectable,
+    epoch_manager.EM_toggle_soloing,
     representation_model.RM_repmod_manager_add,
     representation_model.RM_repmod_manager_remove,
     representation_model.RM_repmod_move,
@@ -204,12 +222,9 @@ classes = (
     representation_model.RM_clean_object_ids,
     EMListItem,
     EM_Other_Settings,
-    EPOCHListItem
+    EPOCHListItem,
+    EMreusedUS
     )
-
-
-    #bpy.types.INFO_HT_header.append(draw_item)
-
 
 def register():
        for cls in classes:
@@ -218,6 +233,7 @@ def register():
        #bpy.types.WindowManager.interface_vars = bpy.props.PointerProperty(type=InterfaceVars)
        bpy.types.Scene.em_list = prop.CollectionProperty(type = EMListItem)
        bpy.types.Scene.em_list_index = prop.IntProperty(name = "Index for my_list", default = 0)
+       bpy.types.Scene.em_reused = prop.CollectionProperty(type = EMreusedUS)
        bpy.types.Scene.epoch_list = prop.CollectionProperty(type = EPOCHListItem)
        bpy.types.Scene.epoch_list_index = prop.IntProperty(name = "Index for epoch_list", default = 0)
        bpy.types.Scene.proxy_shader_mode = BoolProperty(name="Proxy shader mode", description = "Enable additive shader for proxies",default=False, update = functions.proxy_shader_mode_function)

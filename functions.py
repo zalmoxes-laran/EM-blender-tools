@@ -10,24 +10,12 @@ from bpy.props import (BoolProperty,
                        IntProperty
                        )
 
-
-def hex_to_rgb(value):
-    gamma = 2.2
-    value = value.lstrip('#')
-    lv = len(value)
-    fin = list(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
-    r = pow(fin[0] / 255, gamma)
-    g = pow(fin[1] / 255, gamma)
-    b = pow(fin[2] / 255, gamma)
-    fin.clear()
-    fin.append(r)
-    fin.append(g)
-    fin.append(b)
-    #fin.append(1.0)
-    return tuple(fin)
-
 def menu_func(self, context):
     self.layout.separator()
+
+### #### #### #### #### #### #### #### ####
+##### functions to switch menus in UI  ####
+### #### #### #### #### #### #### #### ####
 
 def sync_Switch_em(self, context):
 #    wm = bpy.context.window_manager
@@ -48,7 +36,8 @@ def sync_update_epoch_soloing(self, context):
             soloing = True
     if soloing is True:
         for epoch in scene.epoch_list:
-            if epoch is not soloing_epoch
+            if epoch is not soloing_epoch:
+                pass
     return
 
 def sync_Switch_proxy(self, context):
@@ -60,13 +49,9 @@ def sync_Switch_proxy(self, context):
         scene.em_settings.em_proxy_sync = False
     return
 
-def proxy_shader_mode_function(self, context):
-    scene = context.scene
-    if scene.proxy_shader_mode is True:
-        scene.proxy_blend_mode = "ADD"
-    else:
-        scene.proxy_blend_mode = "BLEND"
-    update_display_mode(self, context)
+## #### #### #### #### #### #### #### #### #### #### ####
+##### Functions to check properties of scene objects ####
+## #### #### #### #### #### #### #### #### #### #### ####
 
 def check_if_current_obj_has_brother_inlist(obj_name):
     scene = bpy.context.scene
@@ -76,6 +61,84 @@ def check_if_current_obj_has_brother_inlist(obj_name):
             return is_brother
     is_brother = False
     return is_brother
+
+def select_3D_obj(name):
+    scene = bpy.context.scene
+    bpy.ops.object.select_all(action="DESELECT")
+    object_to_select = bpy.data.objects[name]
+    object_to_select.select_set(True)
+    bpy.context.view_layer.objects.active = object_to_select
+
+def select_list_element_from_obj_proxy(obj):
+    scene = bpy.context.scene
+    index_list = 0
+    for i in scene.em_list:
+        if obj.name == i.name:
+            scene.em_list_index = index_list
+        index_list += 1
+
+## diverrà deprecata !
+def add_sceneobj_to_epochs():
+    scene = bpy.context.scene
+    #deselect all objects
+    selection_names = bpy.context.selected_objects
+    bpy.ops.object.select_all(action='DESELECT')
+    #looking through all objects
+    for obj in bpy.data.objects:
+        if obj.type == 'MESH':
+            for USS in scene.em_list:
+                if obj.name == USS.name:
+                    #print("ho trovato un oggetto in scena chiamato "+ str(obj.name)+ " ed un nodo US chiamato: " + str(USS.name))
+                    idx = 0
+                    for i in scene.epoch_list:
+                        if i.name == USS.epoch:
+                            #print("found "+str(USS.epoch)+ " corrispondende all'indice"+str(idx))
+                            obj.select_set(True)
+                            bpy.ops.epoch_manager.add_to_group(group_em_idx=idx)
+                            obj.select_set(False)
+                        idx +=1
+                        
+                        
+### #### #### #### #### #### #### #### #### #### ####
+#### Functions to extract data from GraphML file ####
+### #### #### #### #### #### #### #### #### #### ####
+
+def get_edge_target(tree, node_element):
+    alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
+    id_node = getnode_id(node_element)
+    EM_us_target = "" 
+    node_y_pos = 0.0
+    
+    for edge in alledges:
+        id_node_edge_source = getnode_edge_source(edge) 
+        if id_node_edge_source == id_node:
+            my_continuity_node_description, node_y_pos = EM_extract_continuity(node_element)
+            id_node_edge_target = getnode_edge_target(edge)
+            EM_us_target = find_node_us_by_id(id_node_edge_target)
+            #print("edge with id: "+ getnode_id(edge)+" with target US_node "+ id_node_edge_target+" which is the US "+ EM_us_target)
+    #print("edge with id: "+ getnode_id(edge)+" with target US_node "+ id_node_edge_target+" which is the US "+ EM_us_target)
+    return EM_us_target, node_y_pos
+
+def getnode_id(node_element):
+    id_node = str(node_element.attrib['id'])
+    return id_node
+
+def getnode_edge_target(node_element):
+    id_node_edge_target = str(node_element.attrib['target'])
+    #print(id_node_edge_target)
+    return id_node_edge_target
+
+def getnode_edge_source(node_element):
+    id_node_edge_source = str(node_element.attrib['source'])
+    #print(id_node_edge_source)
+    return id_node_edge_source
+
+def find_node_us_by_id(id_node):
+    us_node = ""
+    for us in bpy.context.scene.em_list:
+        if id_node == us.id_node:
+            us_node = us.name
+    return us_node
 
 def EM_extract_node_name(node_element):
     is_d4 = False
@@ -103,12 +166,33 @@ def EM_extract_node_name(node_element):
                 nodeshape = USshape.attrib['type']
 #                print(nodeshape)
             for geometry in subnode.findall('./{http://www.yworks.com/xml/graphml}ShapeNode/{http://www.yworks.com/xml/graphml}Geometry'):
+            #for geometry in subnode.findall('./{http://www.yworks.com/xml/graphml}Geometry'):
                 node_y_pos = geometry.attrib['y']
     if not is_d4:
         nodeurl = '--None--'
     if not is_d5:
         nodedescription = '--None--'
     return nodename, nodedescription, nodeurl, nodeshape, node_y_pos 
+
+def EM_extract_continuity(node_element):
+    is_d5 = False
+    node_y_pos = 0.0
+    nodedescription = None
+    for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+        attrib = subnode.attrib
+        #print(attrib)
+        if attrib == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
+            is_d5 = True
+            nodedescription = subnode.text
+            #print(nodedescription)
+        if attrib == {'key': 'd6'}:
+            for geometry in subnode.findall('./{http://www.yworks.com/xml/graphml}SVGNode/{http://www.yworks.com/xml/graphml}Geometry'):
+                node_y_pos = float(geometry.attrib['y'])
+                #print("il valore y di nodo "+ str(nodedescription) +" = "+str(node_y_pos))
+    if not is_d5:
+        nodedescription = '--None--'
+    return nodedescription, node_y_pos 
+
 
 def EM_check_node_type(node_element):
     id_node = str(node_element.attrib)
@@ -137,12 +221,30 @@ def EM_check_node_us(node_element):
         id_node_us = False
     return id_node_us
 
+def EM_check_node_continuity(node_element):
+    id_node_continuity = False
+    my_node_description, my_node_y_pos = EM_extract_continuity(node_element)
+    if my_node_description == "_continuity":
+        id_node_continuity = True
+        #print("found node continuity")
+    else:
+        id_node_continuity = False
+    return id_node_continuity
+
 def EM_list_clear(context):
     scene = context.scene
     scene.em_list.update()
     list_lenght = len(scene.em_list)
     for x in range(list_lenght):
         scene.em_list.remove(0)
+    return
+
+def EM_reused_list_clear(context):
+    scene = context.scene
+    scene.em_reused.update()
+    list_lenght = len(scene.em_reused)
+    for x in range(list_lenght):
+        scene.em_reused.remove(0)
     return
 
 def epoch_list_clear(context):
@@ -152,36 +254,6 @@ def epoch_list_clear(context):
     for x in range(list_lenght):
         scene.epoch_list.remove(0)
     return
-
-#Check the presence-absence of US against the GraphML
-def EM_check_GraphML_Blender(node_name):
-    data = bpy.data
-    icon_check = 'RESTRICT_INSTANCED_ON'
-    for ob in data.objects:
-        if ob.name == node_name:
-            icon_check = 'RESTRICT_INSTANCED_OFF'
-    return icon_check
-
-def select_3D_obj(name):
-    scene = bpy.context.scene
-    bpy.ops.object.select_all(action="DESELECT")
-    object_to_select = bpy.data.objects[name]
-    object_to_select.select_set(True)
-    bpy.context.view_layer.objects.active = object_to_select
-    
-def update_icons(context):
-    scene = context.scene
-    for US in scene.em_list:
-        US.icon = EM_check_GraphML_Blender(US.name)
-    return
-
-def select_list_element_from_obj_proxy(obj):
-    scene = bpy.context.scene
-    index_list = 0
-    for i in scene.em_list:
-        if obj.name == i.name:
-            scene.em_list_index = index_list
-        index_list += 1
         
 def extract_epochs(node_element):
     geometry = node_element.find('.//{http://www.yworks.com/xml/graphml}Geometry')
@@ -201,7 +273,6 @@ def extract_epochs(node_element):
         scene.epoch_list[epoch_list_index_ema].id = str(id_row)
         scene.epoch_list[epoch_list_index_ema].height = h_row
         
-        
         y_min = y_max
         y_max += h_row
         scene.epoch_list[epoch_list_index_ema].min_y = y_min
@@ -217,7 +288,7 @@ def extract_epochs(node_element):
             # read the color of the epoch from the title of the row, if no color is provided, a default color is used
             if 'backgroundColor' in nodelabel.attrib:
                 e_color = str(nodelabel.attrib['backgroundColor'])
-                print(e_color)
+                #print(e_color)
             else:
                 e_color = "#BCBCBC"
             #print(e_color)
@@ -231,30 +302,27 @@ def extract_epochs(node_element):
                 scene.epoch_list[i].epoch_color = e_color
                 scene.epoch_list[i].epoch_RGB_color = hex_to_rgb(e_color)
 
-## diverrà deprecata !
-def add_sceneobj_to_epochs():
-    scene = bpy.context.scene
-    #deselect all objects
-    selection_names = bpy.context.selected_objects
-    bpy.ops.object.select_all(action='DESELECT')
-    #looking through all objects
-    for obj in bpy.data.objects:
-        if obj.type == 'MESH':
-            for USS in scene.em_list:
-                if obj.name == USS.name:
-                    #print("ho trovato un oggetto in scena chiamato "+ str(obj.name)+ " ed un nodo US chiamato: " + str(USS.name))
-                    idx = 0
-                    for i in scene.epoch_list:
-                        if i.name == USS.epoch:
-                            #print("found "+str(USS.epoch)+ " corrispondende all'indice"+str(idx))
-                            obj.select_set(True)
-                            bpy.ops.epoch_manager.add_to_group(group_em_idx=idx)
-                            obj.select_set(False)
-                        idx +=1
-                        
-                        
-                        
-#------------------- qui funzioni generali per materiali------------------------------------------
+## #### #### #### #### #### #### #### #### #### #### #### ####
+#### Check the presence-absence of US against the GraphML ####
+## #### #### #### #### #### #### #### #### #### #### #### ####
+
+def EM_check_GraphML_Blender(node_name):
+    data = bpy.data
+    icon_check = 'RESTRICT_INSTANCED_ON'
+    for ob in data.objects:
+        if ob.name == node_name:
+            icon_check = 'RESTRICT_INSTANCED_OFF'
+    return icon_check
+
+def update_icons(context):
+    scene = context.scene
+    for US in scene.em_list:
+        US.icon = EM_check_GraphML_Blender(US.name)
+    return
+
+## #### #### #### #### #### #### #### ####                       
+ #### General functions for materials ####
+## #### #### #### #### #### #### #### ####
 
 def update_display_mode(self, context):
     if bpy.context.scene.proxy_display_mode == "EM":
@@ -301,9 +369,9 @@ def check_material_presence(matname):
             return mat_presence
     return mat_presence
 
-#_____________________________________________________________________________________
-# materials for EM
-#_____________________________________________________________________________________
+#  #### #### #### #### #### #### ####
+#### Functions materials for EM  ####
+#  #### #### #### #### #### #### ####
 
 def consolidate_EM_material_presence(overwrite_mats):
     EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF']
@@ -344,6 +412,14 @@ def set_EM_materials_using_EM_list(context):
             current_ob_scene.data.materials.append(mat)
         counter += 1
 
+def proxy_shader_mode_function(self, context):
+    scene = context.scene
+    if scene.proxy_shader_mode is True:
+        scene.proxy_blend_mode = "ADD"
+    else:
+        scene.proxy_blend_mode = "BLEND"
+    update_display_mode(self, context)
+
 def EM_mat_get_RGB_values(matname):
     if matname == "US":
         R = 0.328
@@ -363,9 +439,24 @@ def EM_mat_get_RGB_values(matname):
         B = 0.347
     return R, G, B
 
-#_____________________________________________________________________________________
-# materials for epochs
-#_____________________________________________________________________________________
+def hex_to_rgb(value):
+    gamma = 2.2
+    value = value.lstrip('#')
+    lv = len(value)
+    fin = list(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
+    r = pow(fin[0] / 255, gamma)
+    g = pow(fin[1] / 255, gamma)
+    b = pow(fin[2] / 255, gamma)
+    fin.clear()
+    fin.append(r)
+    fin.append(g)
+    fin.append(b)
+    #fin.append(1.0)
+    return tuple(fin)
+
+# #### #### #### #### #### ####
+#### materials for epochs  ####
+# #### #### #### #### #### ####
 
 def consolidate_epoch_material_presence(matname):
     if not check_material_presence(matname):
@@ -387,7 +478,7 @@ def set_epoch_materials(context):
         for em_element in scene.em_list:
             if em_element.icon == "RESTRICT_INSTANCED_OFF":
                 if em_element.epoch == epoch.name:
-                    print(em_element.name + " element is in epoch "+epoch.name)
+                    #print(em_element.name + " element is in epoch "+epoch.name)
                     obj = bpy.data.objects[em_element.name]
                     obj.data.materials.clear()
                     obj.data.materials.append(mat)
