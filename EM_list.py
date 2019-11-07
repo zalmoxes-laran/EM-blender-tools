@@ -40,7 +40,11 @@ class EM_usname_OT_toproxy(bpy.types.Operator):
         item = scene.em_list[scene.em_list_index]
         context.active_object.name = item.name
         update_icons(context)
-        set_EM_materials_using_EM_list(context)
+        if context.scene.proxy_display_mode == "EM":
+            bpy.ops.emset.emmaterial
+        else:
+            bpy.ops.emset.epochmaterial
+        #set_EM_materials_using_EM_list(context)
         return {'FINISHED'}
 
 class EM_update_icon_list(bpy.types.Operator):
