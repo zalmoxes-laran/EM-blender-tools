@@ -33,7 +33,10 @@ class EM_usname_OT_toproxy(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         obj = context.object
-        return (obj.type in ['MESH'])
+        if obj is None:
+            pass
+        else:
+            return (obj.type in ['MESH'])
 
     def execute(self, context):
         scene = context.scene
@@ -65,7 +68,10 @@ class EM_select_list_item(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         obj = context.object
-        return (check_if_current_obj_has_brother_inlist(obj.name))
+        if obj is None:
+            pass
+        else:
+            return (check_if_current_obj_has_brother_inlist(obj.name))
 
     def execute(self, context):
         scene = context.scene
@@ -81,7 +87,11 @@ class EM_select_from_list_item(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         scene = context.scene
-        return (scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF')
+        list_exists = scene.em_list[0]
+        if list_exists is None:
+            pass
+        else:
+            return (scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF')
 
     def execute(self, context):
         scene = context.scene
@@ -104,23 +114,30 @@ class EM_import_GraphML(bpy.types.Operator):
         em_reused_index = 0
 
         allnodes = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
+
+        #resources = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
         
         for node_element in allnodes:
             if EM_check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
                 if EM_check_node_us(node_element): # Check if the node is an US, SU, USV, USM or USR node
-                    my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos = EM_extract_node_name(node_element)
+                    my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos, my_node_fill_color = EM_extract_node_name(node_element)
                     scene.em_list.add()
                     scene.em_list[em_list_index_ema].name = my_nodename
                     scene.em_list[em_list_index_ema].icon = EM_check_GraphML_Blender(my_nodename)
                     scene.em_list[em_list_index_ema].y_pos = float(my_node_y_pos)
 #                    print('-' + my_nodename + '-' + ' has an icon: ' + EM_check_GraphML_Blender(my_nodename))
                     scene.em_list[em_list_index_ema].description = my_node_description
-                    scene.em_list[em_list_index_ema].shape = my_node_shape
+                    if my_node_shape == "ellipse":
+                        if my_node_fill_color == '#FFFFFF':
+                            scene.em_list[em_list_index_ema].shape = my_node_shape+"_white"
+                    else:
+                        scene.em_list[em_list_index_ema].shape = my_node_shape
                     scene.em_list[em_list_index_ema].id_node = getnode_id(node_element)
                     #print(scene.em_list[em_list_index_ema].id_node)
                     em_list_index_ema += 1
                 else:
                     pass
+                    #EM_extract_document_node(node_element)
             if EM_check_node_type(node_element) == 'node_swimlane':
                 extract_epochs(node_element)
 

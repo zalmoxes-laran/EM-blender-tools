@@ -92,9 +92,6 @@ class EM_SetupPanel:
         col = split.column(align=True)
         col.prop(scene, "proxy_shader_mode", text='', icon="NODE_MATERIAL")
 
-        #col = split.column()
-        #col.operator("import.em_graphml", icon="FILE_REFRESH", text='')
-
         row = layout.row(align=True)
 
         row.label(text="On selected:")
@@ -174,21 +171,23 @@ class EM_ToolsPanel:
         col.prop(em_settings, "em_proxy_sync", text='', icon="LONGDISPLAY")
 
         if scene.em_settings.em_proxy_sync is True:
-            if check_if_current_obj_has_brother_inlist(obj.name):
-                    select_list_element_from_obj_proxy(obj)
+            if obj is not None:
+                if check_if_current_obj_has_brother_inlist(obj.name):
+                        select_list_element_from_obj_proxy(obj)
                 
         if scene.em_settings.em_proxy_sync2 is True:
             if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
                 list_item = scene.em_list[scene.em_list_index]
-                if list_item.name != obj.name:
-                    select_3D_obj(list_item.name)
-                    if scene.em_settings.em_proxy_sync2_zoom is True:
-                        for area in bpy.context.screen.areas:
-                            if area.type == 'VIEW_3D':
-                                ctx = bpy.context.copy()
-                                ctx['area'] = area
-                                ctx['region'] = area.regions[-1]
-                                bpy.ops.view3d.view_selected(ctx)
+                if obj is not None:
+                    if list_item.name != obj.name:
+                        select_3D_obj(list_item.name)
+                        if scene.em_settings.em_proxy_sync2_zoom is True:
+                            for area in bpy.context.screen.areas:
+                                if area.type == 'VIEW_3D':
+                                    ctx = bpy.context.copy()
+                                    ctx['area'] = area
+                                    ctx['region'] = area.regions[-1]
+                                    bpy.ops.view3d.view_selected(ctx)
             
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_category = "EM"

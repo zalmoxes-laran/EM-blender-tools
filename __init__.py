@@ -22,7 +22,7 @@ bl_info = {
     "name": "EM tools",
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
-    "version": (1, 1, 4),
+    "version": (1, 1, 5),
     "blender": (2, 80, 0),
 #     "location": "3D View > Toolbox",
 #    "warning": "This addon is still in development.",
@@ -46,6 +46,7 @@ from bpy.props import (
         CollectionProperty,
         FloatVectorProperty,
         )
+        
 from bpy.types import (
         AddonPreferences,
         PropertyGroup,
@@ -282,4 +283,16 @@ def unregister():
 #per epoch manager
 ##################
     del bpy.types.Scene.em_settings
+    del bpy.types.Scene.em_list
+    del bpy.types.Scene.em_list_index
+    del bpy.types.Scene.em_reused
+    del bpy.types.Scene.epoch_list
+    del bpy.types.Scene.epoch_list_index
+    del bpy.types.Scene.proxy_shader_mode
+    del bpy.types.Scene.EM_file
+    del bpy.types.Scene.rm_settings
+    del bpy.types.Scene.proxy_display_mode
+    del bpy.types.Scene.proxy_blend_mode
+    del bpy.types.Scene.proxy_display_alpha
+
 ######################################################################################################

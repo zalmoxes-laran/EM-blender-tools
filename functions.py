@@ -140,6 +140,37 @@ def find_node_us_by_id(id_node):
             us_node = us.name
     return us_node
 
+def EM_extract_document_node(node_element):
+
+    node_id = node_element.attrib['id']
+    if len(node_id) > 2:
+        subnode_is_document = False
+        nodeurl = " "
+        nodename = " "
+        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+            attrib1 = subnode.attrib
+            #print(subnode.tag)
+            if attrib1 == {'key': 'd6'}:
+                for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
+                    nodename = USname.text
+                for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}Property'):
+                    attrib2 = nodetype.attrib
+                    if attrib2 == {'class': 'com.yworks.yfiles.bpmn.view.DataObjectTypeEnum', 'name': 'com.yworks.bpmn.dataObjectType', 'value': 'DATA_OBJECT_TYPE_PLAIN'}:
+                        subnode_is_document = True
+
+        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+            attrib1 = subnode.attrib                        
+            if subnode_is_document is True:
+
+                if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
+
+                    is_d4 = True
+                    nodeurl = subnode.text
+
+        if subnode_is_document is True:
+            print(nodename+ ' sta nel nodo con id ' + node_id + ' con url: '+ nodeurl)
+        return nodename, node_id, nodeurl
+
 def EM_extract_node_name(node_element):
     is_d4 = False
     is_d5 = False
@@ -148,6 +179,7 @@ def EM_extract_node_name(node_element):
     nodeurl = None
     nodedescription = None
     nodename = None
+    fillcolor = None
     for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
         attrib = subnode.attrib
         #print(attrib)
@@ -161,6 +193,8 @@ def EM_extract_node_name(node_element):
         if attrib == {'key': 'd6'}:
             for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
                 nodename = USname.text
+            for fill_color in subnode.findall('.//{http://www.yworks.com/xml/graphml}Fill'):
+                fillcolor = fill_color.attrib['color']
 #                print(nodename)
             for USshape in subnode.findall('.//{http://www.yworks.com/xml/graphml}Shape'):
                 nodeshape = USshape.attrib['type']
@@ -172,7 +206,7 @@ def EM_extract_node_name(node_element):
         nodeurl = '--None--'
     if not is_d5:
         nodedescription = '--None--'
-    return nodename, nodedescription, nodeurl, nodeshape, node_y_pos 
+    return nodename, nodedescription, nodeurl, nodeshape, node_y_pos, fillcolor 
 
 def EM_extract_continuity(node_element):
     is_d5 = False
@@ -213,7 +247,7 @@ def EM_check_node_type(node_element):
 
 def EM_check_node_us(node_element):
     US_nodes_list = ['rectangle', 'parallelogram', 'ellipse', 'hexagon', 'octagon']
-    my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos = EM_extract_node_name(node_element)
+    my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos, my_node_fill_color = EM_extract_node_name(node_element)
 #    print(my_node_shape)
     if my_node_shape in US_nodes_list:
         id_node_us = True
@@ -395,9 +429,13 @@ def set_EM_materials_using_EM_list(context):
         if current_ob_em_list.icon == 'RESTRICT_INSTANCED_OFF':
             current_ob_scene = context.scene.objects[current_ob_em_list.name]
             current_ob_scene.name
+            ob_material_name = 'US'
             #print(current_ob_em_list.name + ' has symbol: ' +current_ob_em_list.shape)
-            if current_ob_em_list.shape ==  'rectangle':
+            if current_ob_em_list.shape == 'rectangle':
                 ob_material_name = 'US'
+            if current_ob_em_list.shape == 'ellipse_white':
+                ob_material_name = 'US'
+                #print("found ellipse white")
             if current_ob_em_list.shape ==  'ellipse':
                 ob_material_name = 'USVn'
             if current_ob_em_list.shape ==  'parallelogram':
