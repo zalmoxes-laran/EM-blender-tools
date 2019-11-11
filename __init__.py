@@ -131,6 +131,7 @@ class EM_Other_Settings(PropertyGroup):
        soloing_mode: BoolProperty(name="Soloing mode", default=False)
        
 
+
 #######################################################################################################################
 
 class EMListItem(bpy.types.PropertyGroup):
@@ -189,6 +190,29 @@ class EMreusedUS(bpy.types.PropertyGroup):
            description="",
            default="Empty")
 
+class EMListSources(bpy.types.PropertyGroup):
+    """ Group of properties representing a source in the list """
+
+    name: prop.StringProperty(
+           name="Name",
+           description="A name for this item",
+           default="Untitled")
+
+    description: prop.StringProperty(
+           name="Description",
+           description="A description for this item",
+           default="Empty")
+
+    icon: prop.StringProperty(
+           name="code for icon",
+           description="",
+           default="RESTRICT_INSTANCED_ON")
+
+    url: prop.StringProperty(
+           name="url",
+           description="An url behind this item",
+           default="Empty")
+
 # register
 ##################################
 
@@ -199,6 +223,8 @@ classes = (
     UI.EM_UL_named_epoch_managers,
     UI.RM_UL_named_repmod_managers,
     UI.Display_mode_menu,
+    UI.VIEW3D_PT_SourcesPanel,
+    UI.EM_UL_sources_managers,
     EM_list.EM_usname_OT_toproxy,
     EM_list.EM_update_icon_list,
     EM_list.EM_select_from_list_item,
@@ -224,7 +250,8 @@ classes = (
     EMListItem,
     EM_Other_Settings,
     EPOCHListItem,
-    EMreusedUS
+    EMreusedUS,
+    EMListSources
     )
 
 def register():
@@ -237,6 +264,8 @@ def register():
        bpy.types.Scene.em_reused = prop.CollectionProperty(type = EMreusedUS)
        bpy.types.Scene.epoch_list = prop.CollectionProperty(type = EPOCHListItem)
        bpy.types.Scene.epoch_list_index = prop.IntProperty(name = "Index for epoch_list", default = 0)
+       bpy.types.Scene.em_sources_list = prop.CollectionProperty(type = EMListSources)
+       bpy.types.Scene.em_sources_list_index = prop.IntProperty(name = "Index for sources list", default = 0)
        bpy.types.Scene.proxy_shader_mode = BoolProperty(name="Proxy shader mode", description = "Enable additive shader for proxies",default=False, update = functions.proxy_shader_mode_function)
        bpy.types.Scene.EM_file = StringProperty(
               name = "EM GraphML file",
@@ -294,5 +323,7 @@ def unregister():
     del bpy.types.Scene.proxy_display_mode
     del bpy.types.Scene.proxy_blend_mode
     del bpy.types.Scene.proxy_display_alpha
+    del bpy.types.Scene.em_sources_list_index
+    del bpy.types.Scene.em_sources_list
 
 ######################################################################################################

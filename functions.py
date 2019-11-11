@@ -167,9 +167,9 @@ def EM_extract_document_node(node_element):
                     is_d4 = True
                     nodeurl = subnode.text
 
-        if subnode_is_document is True:
-            print(nodename+ ' sta nel nodo con id ' + node_id + ' con url: '+ nodeurl)
-        return nodename, node_id, nodeurl
+        #if subnode_is_document is True:
+        #    print(nodename+ ' sta nel nodo con id ' + node_id + ' con url: '+ nodeurl)
+        return nodename, node_id, nodeurl, subnode_is_document
 
 def EM_extract_node_name(node_element):
     is_d4 = False
@@ -288,7 +288,16 @@ def epoch_list_clear(context):
     for x in range(list_lenght):
         scene.epoch_list.remove(0)
     return
-        
+
+def sources_list_clear(context):
+    scene = context.scene
+    scene.em_sources_list.update()
+    list_lenght = len(scene.em_sources_list)
+    for x in range(list_lenght):
+        scene.em_sources_list.remove(0)
+    return
+
+
 def extract_epochs(node_element):
     geometry = node_element.find('.//{http://www.yworks.com/xml/graphml}Geometry')
     y_start = float(geometry.attrib['y'])

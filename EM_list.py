@@ -110,8 +110,10 @@ class EM_import_GraphML(bpy.types.Operator):
         tree = ET.parse(graphml_file)
         EM_list_clear(context)
         EM_reused_list_clear(context)
+        sources_list_clear(context)
         em_list_index_ema = 0
         em_reused_index = 0
+        em_sources_index_ema = 0
 
         allnodes = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
 
@@ -136,8 +138,16 @@ class EM_import_GraphML(bpy.types.Operator):
                     #print(scene.em_list[em_list_index_ema].id_node)
                     em_list_index_ema += 1
                 else:
-                    pass
-                    #EM_extract_document_node(node_element)
+                    #pass
+                    src_nodename, src_node_id, src_nodeurl, subnode_is_document = EM_extract_document_node(node_element)
+                    if subnode_is_document:
+                        scene.em_sources_list.add()
+                        scene.em_sources_list[em_sources_index_ema].name = src_nodename
+                        scene.em_sources_list[em_sources_index_ema].url = src_nodeurl
+                        em_sources_index_ema += 1
+                    else:
+                        pass
+
             if EM_check_node_type(node_element) == 'node_swimlane':
                 extract_epochs(node_element)
 
