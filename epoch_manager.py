@@ -14,6 +14,7 @@ class EM_UL_List(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         icons_style = 'OUTLINER'
         scene = context.scene
+        layout = layout.split(factor =0.30, align = True)
         layout.label(text = item.name, icon = item.icon)
         layout.label(text = item.description, icon='NONE', icon_value=0)
 
