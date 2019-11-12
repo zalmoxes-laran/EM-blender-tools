@@ -152,7 +152,6 @@ class EM_ToolsPanel:
 
         split = layout.split()
         col = split.column()
-
         col.operator("select.fromlistitem", text='Proxy', icon="MESH_CUBE")
         col = split.column(align=True)
         col.operator("select.listitem", text='EM', icon="LONGDISPLAY")
@@ -217,8 +216,6 @@ class VIEW3D_PT_BasePanel(Panel, EM_BasePanel):
     bl_idname = "VIEW3D_PT_BasePanel"
     bl_context = "objectmode"
 
-
-
 class EM_UL_named_epoch_managers(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         epoch_list = item
@@ -266,33 +263,6 @@ class EM_UL_named_epoch_managers(UIList):
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
 
-
-
-# class EM_Toggle_Shading_Sub_Menu(bpy.types.Menu):
-#     bl_idname = "epoch_manager.toggle_shading_sub_menu"
-#     bl_label = "Toggle Shading"
-#     bl_description = "Toggle Shading Menu"
-
-#     def draw(self, context):
-#         layout = self.layout
-
-#         op = layout.operator(EM_change_selected_objects.bl_idname, text="Bound Shade")
-#         op.sg_objects_changer = 'BOUND_SHADE'
-
-#         op = layout.operator(EM_change_selected_objects.bl_idname, text="Wire Shade")
-#         op.sg_objects_changer = 'WIRE_SHADE'
-
-#         op = layout.operator(EM_change_selected_objects.bl_idname, text="Material Shade")
-#         op.sg_objects_changer = 'MATERIAL_SHADE'
-
-#         op = layout.operator(EM_change_selected_objects.bl_idname, text="Show Wire")
-#         op.sg_objects_changer = 'SHOW_WIRE'
-
-#         layout.separator()
-#         op = layout.operator(EM_change_selected_objects.bl_idname, text="One Side")
-#         op.sg_objects_changer = 'ONESIDE_SHADE'
-#         op = layout.operator(EM_change_selected_objects.bl_idname, text="Double Side")
-#         op.sg_objects_changer = 'TWOSIDE_SHADE'
 
 #########################################################################################################
 
@@ -395,11 +365,30 @@ class EM_SourcesPanel:
         row = layout.row()
         row.template_list(
             "EM_UL_sources_managers", "", scene, "em_sources_list", scene, "em_sources_list_index")
-        #layout.label(text="Selection Settings:")
-        #row = layout.row(align=True)
-        #row.prop(em_settings, "unlock_obj", text='UnLock')
-        #row.prop(em_settings, "unhide_obj", text='Unhide')
-        #row = layout.row(align=True)
+
+        if scene.em_sources_list_index >= 0 and len(scene.em_sources_list) > 0:
+            item_source = scene.em_sources_list[scene.em_sources_list_index]
+            box = layout.box()
+            row = box.row(align=True)
+            row.label(text="Source name, description, and url:")
+            row = box.row()
+            split = row.split()
+            col = split.column()
+            row.prop(item_source, "name", text="")
+            split = row.split()
+            col = split.column()
+            col.operator("nodename.to3dsource", icon="PASTEDOWN", text='')
+            row = box.row()
+            row.prop(item_source, "description", text="", slider=True, emboss=True)
+            row = box.row()
+            row.prop(item_source, "url", text="", slider=True, emboss=True)
+
+        split = layout.split()
+        col = split.column()
+        col.operator("select.fromsourcelistitem", text='3D source', icon="MESH_CUBE")
+
+        col = split.column(align=True)
+        col.operator("select.sourcelistitem", text='Source node', icon="LONGDISPLAY")
 
 class VIEW3D_PT_SourcesPanel(Panel, EM_SourcesPanel):
     bl_category = "EM"
@@ -407,49 +396,10 @@ class VIEW3D_PT_SourcesPanel(Panel, EM_SourcesPanel):
     bl_context = "objectmode"
 
 class EM_UL_sources_managers(UIList):
+
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        em_sources_list = item
-        #user_preferences = context.user_preferences
-        #self.layout.prop(context.scene, "test_color", text='Detail Color')
         icons_style = 'OUTLINER'
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            layout = layout.split(factor=0.6, align=True)
-            layout.prop(em_sources_list, "name", text="", emboss=False)
-
-            # # select operator
-            # icon = 'RESTRICT_SELECT_ON' if em_sources_list.is_selected else 'RESTRICT_SELECT_OFF'
-            # if icons_style == 'OUTLINER':
-            #     icon = 'VIEWZOOM' if em_sources_list.use_toggle else 'VIEWZOOM'
-            # layout = layout.split(factor=0.1, align=True)
-            # layout.prop(em_sources_list, "epoch_RGB_color", text="", emboss=True, icon_value=0)
-            # op = layout.operator(
-            #     "epoch_manager.toggle_select", text="", emboss=False, icon=icon)
-
-            # #self.layout.prop(context.scene, "test_color", text='Detail Color')
-            # op.group_em_idx = index
-            # # op.is_menu = False
-            # # op.is_select = True
-
-            # # lock operator
-            # icon = 'LOCKED' if em_sources_list.is_locked else 'UNLOCKED'
-            # if icons_style == 'OUTLINER':
-            #     icon = 'RESTRICT_SELECT_OFF' if em_sources_list.is_locked else 'RESTRICT_SELECT_ON'
-            # op = layout.operator("epoch_manager.toggle_selectable", text="", emboss=False, icon=icon)
-            # #op.em_group_changer = 'LOCKING'
-            # op.group_em_idx = index
-
-            # # view operator
-            # icon = 'RESTRICT_VIEW_OFF' if em_sources_list.use_toggle else 'RESTRICT_VIEW_ON'
-            # op = layout.operator(
-            #     "epoch_manager.toggle_visibility", text="", emboss=False, icon=icon)
-            # op.group_em_vis_idx = index
-
-            # # soloing operator
-            # icon = 'RADIOBUT_ON' if em_sources_list.epoch_soloing else 'RADIOBUT_OFF'
-            # op = layout.operator(
-            #     "epoch_manager.toggle_soloing", text="", emboss=False, icon=icon)
-            # op.group_em_idx = index
-
-        elif self.layout_type in {'GRID'}:
-            layout.alignment = 'CENTER'
-
+        scene = context.scene
+        layout = layout.split(factor =0.22, align = True)
+        layout.label(text = item.name, icon = item.icon)
+        layout.label(text = item.description, icon=item.icon_url)

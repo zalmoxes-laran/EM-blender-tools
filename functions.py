@@ -53,10 +53,10 @@ def sync_Switch_proxy(self, context):
 ##### Functions to check properties of scene objects ####
 ## #### #### #### #### #### #### #### #### #### #### ####
 
-def check_if_current_obj_has_brother_inlist(obj_name):
+def check_if_current_obj_has_brother_inlist(obj_name, list_element):
     scene = bpy.context.scene
-    for us_usv in scene.em_list:
-        if us_usv.name == obj_name:
+    for element_list in list_element:
+        if element_list.name == obj_name:
             is_brother = True
             return is_brother
     is_brother = False
@@ -75,6 +75,14 @@ def select_list_element_from_obj_proxy(obj):
     for i in scene.em_list:
         if obj.name == i.name:
             scene.em_list_index = index_list
+        index_list += 1
+
+def select_sourcelist_element_from_obj_proxy(obj):
+    scene = bpy.context.scene
+    index_list = 0
+    for i in scene.em_sources_list:
+        if obj.name == i.name:
+            scene.em_sources_list_index = index_list
         index_list += 1
 
 ## diverrà deprecata !
@@ -142,11 +150,14 @@ def find_node_us_by_id(id_node):
 
 def EM_extract_document_node(node_element):
 
+    is_d4 = False
+    is_d5 = False
     node_id = node_element.attrib['id']
     if len(node_id) > 2:
         subnode_is_document = False
         nodeurl = " "
         nodename = " "
+        node_description = " "
         for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
             attrib1 = subnode.attrib
             #print(subnode.tag)
@@ -166,10 +177,15 @@ def EM_extract_document_node(node_element):
 
                     is_d4 = True
                     nodeurl = subnode.text
+                if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
+                    is_d5 = True
+                    node_description = subnode.text
 
-        #if subnode_is_document is True:
-        #    print(nodename+ ' sta nel nodo con id ' + node_id + ' con url: '+ nodeurl)
-        return nodename, node_id, nodeurl, subnode_is_document
+        if not is_d4:
+            nodeurl = '--None--'
+        if not is_d5:
+            nodedescription = '--None--'
+        return nodename, node_id, node_description, nodeurl, subnode_is_document
 
 def EM_extract_node_name(node_element):
     is_d4 = False

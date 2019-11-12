@@ -208,6 +208,11 @@ class EMListSources(bpy.types.PropertyGroup):
            description="",
            default="RESTRICT_INSTANCED_ON")
 
+    icon_url: prop.StringProperty(
+           name="code for icon url",
+           description="",
+           default="CHECKBOX_DEHLT")
+
     url: prop.StringProperty(
            name="url",
            description="An url behind this item",
@@ -230,6 +235,9 @@ classes = (
     EM_list.EM_select_from_list_item,
     EM_list.EM_import_GraphML,
     EM_list.EM_select_list_item,
+    EM_list.EM_select_from_source_list_item,
+    EM_list.EM_select_sourcelist_item,
+    EM_list.EM_sourcename_OT_toproxy,
     epoch_manager.EM_UL_List,
     epoch_manager.EM_toggle_select,
     epoch_manager.EM_toggle_visibility,

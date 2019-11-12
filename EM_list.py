@@ -50,6 +50,26 @@ class EM_usname_OT_toproxy(bpy.types.Operator):
         #set_EM_materials_using_EM_list(context)
         return {'FINISHED'}
 
+class EM_sourcename_OT_toproxy(bpy.types.Operator):
+    bl_idname = "nodename.to3dsource"
+    bl_label = "Use node name for selected 3D source"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        if obj is None:
+            pass
+        else:
+            return (obj.type in ['MESH'])
+
+    def execute(self, context):
+        scene = context.scene
+        item = scene.em_sources_list[scene.em_sources_list_index]
+        context.active_object.name = item.name
+        update_icons(context)
+        return {'FINISHED'}
+
 class EM_update_icon_list(bpy.types.Operator):
     bl_idname = "uslist_icon.update"
     bl_label = "Update only the icons"
@@ -57,7 +77,6 @@ class EM_update_icon_list(bpy.types.Operator):
 
     def execute(self, context):
         update_icons(context)
-        
         return {'FINISHED'}
 
 class EM_select_list_item(bpy.types.Operator):
@@ -67,16 +86,37 @@ class EM_select_list_item(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        scene = context.scene
         obj = context.object
         if obj is None:
             pass
         else:
-            return (check_if_current_obj_has_brother_inlist(obj.name))
+            return (check_if_current_obj_has_brother_inlist(obj.name, scene.em_list))
 
     def execute(self, context):
         scene = context.scene
         obj = context.object
         select_list_element_from_obj_proxy(obj)
+        return {'FINISHED'}
+
+class EM_select_sourcelist_item(bpy.types.Operator):
+    bl_idname = "select.sourcelistitem"
+    bl_label = "Select element in the list above from a 3D source"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        scene = context.scene
+        obj = context.object
+        if obj is None:
+            pass
+        else:
+            return (check_if_current_obj_has_brother_inlist(obj.name, scene.em_sources_list))
+
+    def execute(self, context):
+        scene = context.scene
+        obj = context.object
+        select_sourcelist_element_from_obj_proxy(obj)
         return {'FINISHED'}
 
 class EM_select_from_list_item(bpy.types.Operator):
@@ -99,6 +139,26 @@ class EM_select_from_list_item(bpy.types.Operator):
         select_3D_obj(list_item.name)
         return {'FINISHED'}
 
+class EM_select_from_source_list_item(bpy.types.Operator):
+    bl_idname = "select.fromsourcelistitem"
+    bl_label = "Select 3D source from the list above"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        scene = context.scene
+        list_exists = scene.em_sources_list[0]
+        if list_exists is None:
+            pass
+        else:
+            return (scene.em_sources_list[scene.em_sources_list_index].icon == 'RESTRICT_INSTANCED_OFF')
+
+    def execute(self, context):
+        scene = context.scene
+        list_item = scene.em_sources_list[scene.em_sources_list_index]
+        select_3D_obj(list_item.name)
+        return {'FINISHED'}
+
 class EM_import_GraphML(bpy.types.Operator):
     bl_idname = "import.em_graphml"
     bl_label = "Import the EM GraphML"
@@ -117,7 +177,6 @@ class EM_import_GraphML(bpy.types.Operator):
 
         allnodes = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
 
-        #resources = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
         
         for node_element in allnodes:
             if EM_check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
@@ -127,7 +186,6 @@ class EM_import_GraphML(bpy.types.Operator):
                     scene.em_list[em_list_index_ema].name = my_nodename
                     scene.em_list[em_list_index_ema].icon = EM_check_GraphML_Blender(my_nodename)
                     scene.em_list[em_list_index_ema].y_pos = float(my_node_y_pos)
-#                    print('-' + my_nodename + '-' + ' has an icon: ' + EM_check_GraphML_Blender(my_nodename))
                     scene.em_list[em_list_index_ema].description = my_node_description
                     if my_node_shape == "ellipse":
                         if my_node_fill_color == '#FFFFFF':
@@ -135,16 +193,28 @@ class EM_import_GraphML(bpy.types.Operator):
                     else:
                         scene.em_list[em_list_index_ema].shape = my_node_shape
                     scene.em_list[em_list_index_ema].id_node = getnode_id(node_element)
-                    #print(scene.em_list[em_list_index_ema].id_node)
                     em_list_index_ema += 1
                 else:
-                    #pass
-                    src_nodename, src_node_id, src_nodeurl, subnode_is_document = EM_extract_document_node(node_element)
+                    source_already_in_list = False
+                    src_nodename, src_node_id, src_node_description, src_nodeurl, subnode_is_document = EM_extract_document_node(node_element)
                     if subnode_is_document:
-                        scene.em_sources_list.add()
-                        scene.em_sources_list[em_sources_index_ema].name = src_nodename
-                        scene.em_sources_list[em_sources_index_ema].url = src_nodeurl
-                        em_sources_index_ema += 1
+                        if em_sources_index_ema > 0: 
+                            for source_item in scene.em_sources_list:
+                                if source_item.name == src_nodename:
+                                    source_already_in_list = True
+                        if source_already_in_list:
+                            pass
+                        else:
+                            scene.em_sources_list.add()
+                            scene.em_sources_list[em_sources_index_ema].name = src_nodename
+                            scene.em_sources_list[em_sources_index_ema].icon = EM_check_GraphML_Blender(src_nodename)
+                            scene.em_sources_list[em_sources_index_ema].url = src_nodeurl
+                            if src_nodeurl == "--None--":
+                                scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_DEHLT"
+                            else:
+                                scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_HLT"
+                            scene.em_sources_list[em_sources_index_ema].description = src_node_description
+                            em_sources_index_ema += 1
                     else:
                         pass
 
@@ -152,13 +222,11 @@ class EM_import_GraphML(bpy.types.Operator):
                 extract_epochs(node_element)
 
         for em_i in range(len(scene.em_list)):
-            #print(scene.em_list[em_i].name)
             for epoch_in in range(len(scene.epoch_list)):
                 if scene.epoch_list[epoch_in].min_y < scene.em_list[em_i].y_pos < scene.epoch_list[epoch_in].max_y:
                     scene.em_list[em_i].epoch = scene.epoch_list[epoch_in].name
 
         #porzione di codice per estrarre le continuità
-        
         for node_element in allnodes:
             if EM_check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
                 if EM_check_node_continuity(node_element):

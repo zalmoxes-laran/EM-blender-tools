@@ -36,17 +36,12 @@ class EM_toggle_select(bpy.types.Operator):
             current_e_manager = scene.epoch_list[self.group_em_idx]
             for us in scene.em_list:
                 if us.icon == "RESTRICT_INSTANCED_OFF":
-                   #print(us.epoch)
                     if current_e_manager.name == us.epoch:
                         object_to_select = bpy.data.objects[us.name]
                         object_to_select.select_set(True)
-                        #object_to_select.select_set(current_e_manager.is_selected)
-        #current_e_manager.is_selected = not current_e_manager.is_selected
-
         return {'FINISHED'}
 
 class EM_toggle_visibility(bpy.types.Operator):
-
     """Draw a line with the mouse"""
     bl_idname = "epoch_manager.toggle_visibility"
     bl_label = "Toggle Visibility"
@@ -57,7 +52,6 @@ class EM_toggle_visibility(bpy.types.Operator):
     soloing_epoch: StringProperty()
 
     def execute(self, context):
-        #print(str(self.group_em_vis_idx))
         scene = context.scene
         if self.group_em_vis_idx < len(scene.epoch_list):
             # check_same_ids()  # check scene ids
@@ -77,17 +71,14 @@ class EM_toggle_visibility(bpy.types.Operator):
                             for em_reused in scene.em_reused:
                                 if found_reused is False:
                                     if em_reused.em_element == us.name and em_reused.epoch == self.soloing_epoch:
-                                        #print("found " + us.name +" reused element for this epoch")
                                         object_to_set_visibility.hide_viewport = False
                                         found_reused = True
                                     else:
                                         object_to_set_visibility.hide_viewport = current_e_manager.use_toggle
                         else:
                             object_to_set_visibility.hide_viewport = current_e_manager.use_toggle
-                        #print(current_e_manager.use_toggle)
         current_e_manager.use_toggle = not current_e_manager.use_toggle
         return {'FINISHED'}
-
 
 class EM_toggle_selectable(bpy.types.Operator):
     """Toggle select"""
@@ -105,7 +96,6 @@ class EM_toggle_selectable(bpy.types.Operator):
             current_e_manager = scene.epoch_list[self.group_em_idx]
             for us in scene.em_list:
                 if us.icon == "RESTRICT_INSTANCED_OFF":
-                   #print(us.epoch)
                     if current_e_manager.name == us.epoch:
                         object_to_set_visibility = bpy.data.objects[us.name]
                         object_to_set_visibility.hide_select = current_e_manager.is_locked
@@ -128,7 +118,6 @@ class EM_toggle_soloing(bpy.types.Operator):
         if self.group_em_idx < len(scene.epoch_list):
             #get current row in epoch list
             current_e_manager = scene.epoch_list[self.group_em_idx]
-           #print("epoca cliccata: "+ current_e_manager.name)
             # invert soloing icon for clicked row
             current_e_manager.epoch_soloing = not current_e_manager.epoch_soloing
             # set general soloing mode from current row
@@ -151,7 +140,6 @@ class EM_toggle_soloing(bpy.types.Operator):
                             # .. and turn them all back visible
                             bpy.ops.epoch_manager.toggle_visibility("INVOKE_DEFAULT", group_em_vis_idx = ep_idx, soloing_epoch = current_e_manager.name)
                     else:
-                        #scene.epoch_list[ep_idx].use_toggle == False
                         bpy.ops.epoch_manager.toggle_visibility("INVOKE_DEFAULT", group_em_vis_idx = ep_idx, soloing_epoch = current_e_manager.name)
                             
         return {'FINISHED'}
