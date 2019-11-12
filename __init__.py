@@ -22,7 +22,7 @@ bl_info = {
     "name": "EM tools",
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
-    "version": (1, 1, 5),
+    "version": (1, 1, 6),
     "blender": (2, 80, 0),
 #     "location": "3D View > Toolbox",
 #    "warning": "This addon is still in development.",
@@ -57,7 +57,6 @@ from . import (
         EM_list,
         epoch_manager,
         functions,
-        representation_model,
         )
 
 from .functions import *
@@ -129,8 +128,6 @@ class EM_Other_Settings(PropertyGroup):
        em_proxy_sync2: BoolProperty(name="Selecting an EM you select the corresponding proxy", default=False, update = functions.sync_Switch_proxy)
        em_proxy_sync2_zoom: BoolProperty(name="Option to zoom to proxy", default=False, update = functions.sync_Switch_proxy)
        soloing_mode: BoolProperty(name="Soloing mode", default=False)
-       
-
 
 #######################################################################################################################
 
@@ -246,15 +243,6 @@ classes = (
     epoch_manager.EM_change_selected_objects,
     epoch_manager.EM_toggle_selectable,
     epoch_manager.EM_toggle_soloing,
-    representation_model.RM_repmod_manager_add,
-    representation_model.RM_repmod_manager_remove,
-    representation_model.RM_repmod_move,
-    representation_model.RM_toggle_select,
-    representation_model.RM_change_grouped_objects,
-    representation_model.RM_toggle_visibility,
-    representation_model.RM_add_to_group,
-    representation_model.RM_remove_from_group,
-    representation_model.RM_clean_object_ids,
     EMListItem,
     EM_Other_Settings,
     EPOCHListItem,
@@ -265,8 +253,6 @@ classes = (
 def register():
        for cls in classes:
               bpy.utils.register_class(cls)
-       #bpy.types.Scene.test_enum = bpy.props.EnumProperty(items=enum_menu_items)
-       #bpy.types.WindowManager.interface_vars = bpy.props.PointerProperty(type=InterfaceVars)
        bpy.types.Scene.em_list = prop.CollectionProperty(type = EMListItem)
        bpy.types.Scene.em_list_index = prop.IntProperty(name = "Index for my_list", default = 0)
        bpy.types.Scene.em_reused = prop.CollectionProperty(type = EMreusedUS)
