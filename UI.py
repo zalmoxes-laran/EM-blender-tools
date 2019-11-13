@@ -56,8 +56,9 @@ class EM_SetupPanel:
         col = split.column(align=True)
         col.operator("import.em_graphml", icon="FILE_REFRESH", text='(Re)Load')
         #row = layout.row()
-        #col = split.column(align=True)
-        #col.operator("uslist_icon.update", icon="PRESET", text='Refresh')
+        col = split.column(align=True)
+        op = col.operator("list_icon.update", icon="PRESET", text='Refresh')
+        op.list_type = "all"
 
         row = layout.row(align=True)
         row.prop(context.scene, 'EM_file', toggle = True, text ="")
@@ -143,7 +144,8 @@ class EM_ToolsPanel:
             row.prop(item, "name", text="")
             split = row.split()
             col = split.column()
-            col.operator("usname.toproxy", icon="PASTEDOWN", text='')
+            op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
+            op.list_type = "em_list"
             #row = layout.row()
             #row.label(text="Description:")
             row = box.row()
@@ -154,7 +156,8 @@ class EM_ToolsPanel:
         col = split.column()
         col.operator("select.fromlistitem", text='Proxy', icon="MESH_CUBE")
         col = split.column(align=True)
-        col.operator("select.listitem", text='EM', icon="LONGDISPLAY")
+        op = col.operator("select.listitem", text='EM', icon="LONGDISPLAY")
+        op.list_type = "em_list"
 
         split = layout.split()
         col = split.column(align=True)
@@ -377,7 +380,8 @@ class EM_SourcesPanel:
             row.prop(item_source, "name", text="")
             split = row.split()
             col = split.column()
-            col.operator("nodename.to3dsource", icon="PASTEDOWN", text='')
+            op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
+            op.list_type = "em_sources_list"
             row = box.row()
             row.prop(item_source, "description", text="", slider=True, emboss=True)
             row = box.row()

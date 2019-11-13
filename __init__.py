@@ -187,8 +187,8 @@ class EMreusedUS(bpy.types.PropertyGroup):
            description="",
            default="Empty")
 
-class EMListSources(bpy.types.PropertyGroup):
-    """ Group of properties representing a source in the list """
+class EMListParadata(bpy.types.PropertyGroup):
+    """ Group of properties representing a paradata element in the list """
 
     name: prop.StringProperty(
            name="Name",
@@ -215,6 +215,11 @@ class EMListSources(bpy.types.PropertyGroup):
            description="An url behind this item",
            default="Empty")
 
+    id_node: prop.StringProperty(
+           name="id_node",
+           description="The id node of this item",
+           default="Empty")
+
 # register
 ##################################
 
@@ -227,14 +232,13 @@ classes = (
     UI.Display_mode_menu,
     UI.VIEW3D_PT_SourcesPanel,
     UI.EM_UL_sources_managers,
-    EM_list.EM_usname_OT_toproxy,
+    EM_list.EM_listitem_OT_to3D,
     EM_list.EM_update_icon_list,
     EM_list.EM_select_from_list_item,
     EM_list.EM_import_GraphML,
     EM_list.EM_select_list_item,
     EM_list.EM_select_from_source_list_item,
     EM_list.EM_select_sourcelist_item,
-    EM_list.EM_sourcename_OT_toproxy,
     epoch_manager.EM_UL_List,
     epoch_manager.EM_toggle_select,
     epoch_manager.EM_toggle_visibility,
@@ -247,7 +251,7 @@ classes = (
     EM_Other_Settings,
     EPOCHListItem,
     EMreusedUS,
-    EMListSources
+    EMListParadata
     )
 
 def register():
@@ -258,8 +262,15 @@ def register():
        bpy.types.Scene.em_reused = prop.CollectionProperty(type = EMreusedUS)
        bpy.types.Scene.epoch_list = prop.CollectionProperty(type = EPOCHListItem)
        bpy.types.Scene.epoch_list_index = prop.IntProperty(name = "Index for epoch_list", default = 0)
-       bpy.types.Scene.em_sources_list = prop.CollectionProperty(type = EMListSources)
+       bpy.types.Scene.em_sources_list = prop.CollectionProperty(type = EMListParadata)
        bpy.types.Scene.em_sources_list_index = prop.IntProperty(name = "Index for sources list", default = 0)
+       bpy.types.Scene.em_properties_list = prop.CollectionProperty(type = EMListParadata)
+       bpy.types.Scene.em_properties_list_index = prop.IntProperty(name = "Index for properties list", default = 0)
+       bpy.types.Scene.em_extractors_list = prop.CollectionProperty(type = EMListParadata)
+       bpy.types.Scene.em_extractors_list_index = prop.IntProperty(name = "Index for extractors list", default = 0)
+       bpy.types.Scene.em_combiners_list = prop.CollectionProperty(type = EMListParadata)
+       bpy.types.Scene.em_combiners_list_index = prop.IntProperty(name = "Index for combiners list", default = 0)
+
        bpy.types.Scene.proxy_shader_mode = BoolProperty(name="Proxy shader mode", description = "Enable additive shader for proxies",default=False, update = functions.proxy_shader_mode_function)
        bpy.types.Scene.EM_file = StringProperty(
               name = "EM GraphML file",
@@ -299,25 +310,31 @@ def register():
 
 
 def unregister():
-    for cls in classes:
-        bpy.utils.unregister_class(cls)
+       for cls in classes:
+              bpy.utils.unregister_class(cls)
 
 ######################################################################################################
 #per epoch manager
 ##################
-    del bpy.types.Scene.em_settings
-    del bpy.types.Scene.em_list
-    del bpy.types.Scene.em_list_index
-    del bpy.types.Scene.em_reused
-    del bpy.types.Scene.epoch_list
-    del bpy.types.Scene.epoch_list_index
-    del bpy.types.Scene.proxy_shader_mode
-    del bpy.types.Scene.EM_file
-    del bpy.types.Scene.rm_settings
-    del bpy.types.Scene.proxy_display_mode
-    del bpy.types.Scene.proxy_blend_mode
-    del bpy.types.Scene.proxy_display_alpha
-    del bpy.types.Scene.em_sources_list_index
-    del bpy.types.Scene.em_sources_list
+       del bpy.types.Scene.em_settings
+       del bpy.types.Scene.em_list
+       del bpy.types.Scene.em_list_index
+       del bpy.types.Scene.em_reused
+       del bpy.types.Scene.epoch_list
+       del bpy.types.Scene.epoch_list_index
+       del bpy.types.Scene.proxy_shader_mode
+       del bpy.types.Scene.EM_file
+       del bpy.types.Scene.rm_settings
+       del bpy.types.Scene.proxy_display_mode
+       del bpy.types.Scene.proxy_blend_mode
+       del bpy.types.Scene.proxy_display_alpha
+       del bpy.types.Scene.em_sources_list_index
+       del bpy.types.Scene.em_sources_list
+       del bpy.types.Scene.em_properties_list
+       del bpy.types.Scene.em_properties_list_index
+       del bpy.types.Scene.em_extractors_list
+       del bpy.types.Scene.em_extractors_list_index
+       del bpy.types.Scene.em_combiners_list
+       del bpy.types.Scene.em_combiners_list_index
 
 ######################################################################################################

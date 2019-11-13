@@ -365,18 +365,19 @@ def extract_epochs(node_element):
 #### Check the presence-absence of US against the GraphML ####
 ## #### #### #### #### #### #### #### #### #### #### #### ####
 
-def EM_check_GraphML_Blender(node_name):
+def check_objs_in_scene_and_provide_icon_for_list_element(list_element_name):
     data = bpy.data
     icon_check = 'RESTRICT_INSTANCED_ON'
     for ob in data.objects:
-        if ob.name == node_name:
+        if ob.name == list_element_name:
             icon_check = 'RESTRICT_INSTANCED_OFF'
     return icon_check
 
-def update_icons(context):
+def update_icons(context,list_type):
     scene = context.scene
-    for US in scene.em_list:
-        US.icon = EM_check_GraphML_Blender(US.name)
+    list_path = "scene."+list_type
+    for element in eval(list_path):
+        element.icon = check_objs_in_scene_and_provide_icon_for_list_element(element.name)
     return
 
 ## #### #### #### #### #### #### #### ####                       
@@ -443,7 +444,7 @@ def consolidate_EM_material_presence(overwrite_mats):
             R, G, B = EM_mat_get_RGB_values(EM_mat_name)
             em_setup_mat_cycles(EM_mat_name,R,G,B)
 
-def set_EM_materials_using_EM_list(context):
+def set_materials_using_EM_list(context):
     em_list_lenght = len(context.scene.em_list)
     #print(str(em_list_lenght))
     counter = 0
@@ -455,12 +456,10 @@ def set_EM_materials_using_EM_list(context):
             current_ob_scene = context.scene.objects[current_ob_em_list.name]
             current_ob_scene.name
             ob_material_name = 'US'
-            #print(current_ob_em_list.name + ' has symbol: ' +current_ob_em_list.shape)
             if current_ob_em_list.shape == 'rectangle':
                 ob_material_name = 'US'
             if current_ob_em_list.shape == 'ellipse_white':
                 ob_material_name = 'US'
-                #print("found ellipse white")
             if current_ob_em_list.shape ==  'ellipse':
                 ob_material_name = 'USVn'
             if current_ob_em_list.shape ==  'parallelogram':
@@ -469,7 +468,6 @@ def set_EM_materials_using_EM_list(context):
                 ob_material_name = 'USVn'
             if current_ob_em_list.shape ==  'octagon':
                 ob_material_name = 'SF'
-            #if current_ob_em_list.shape =  'rectangle':
             mat = bpy.data.materials[ob_material_name]
             current_ob_scene.data.materials.clear()
             current_ob_scene.data.materials.append(mat)
@@ -528,7 +526,7 @@ def consolidate_epoch_material_presence(matname):
         epoch_mat = bpy.data.materials[matname]
     return epoch_mat
 
-def set_epoch_materials(context):
+def set_materials_using_epoch_list(context):
     scene = context.scene 
     mat_prefix = "ep_"
     for epoch in scene.epoch_list:

@@ -25,10 +25,12 @@ from .functions import *
 from .epoch_manager import *
 
 #### da qui si definiscono le funzioni e gli operatori
-class EM_usname_OT_toproxy(bpy.types.Operator):
-    bl_idname = "usname.toproxy"
-    bl_label = "Use US name for selected proxy"
+class EM_listitem_OT_to3D(bpy.types.Operator):
+    bl_idname = "listitem.toobj"
+    bl_label = "Use element's name from the list above to rename selected 3D object"
     bl_options = {"REGISTER", "UNDO"}
+
+    list_type: StringProperty()
 
     @classmethod
     def poll(cls, context):
@@ -40,43 +42,33 @@ class EM_usname_OT_toproxy(bpy.types.Operator):
 
     def execute(self, context):
         scene = context.scene
-        item = scene.em_list[scene.em_list_index]
+        item_name_picker_cmd = "scene."+self.list_type+"[scene."+self.list_type+"_index]"
+        #item = scene.em_list[scene.em_list_index]
+        item = eval(item_name_picker_cmd)
         context.active_object.name = item.name
-        update_icons(context)
-        if context.scene.proxy_display_mode == "EM":
-            bpy.ops.emset.emmaterial
-        else:
-            bpy.ops.emset.epochmaterial
-        #set_EM_materials_using_EM_list(context)
+        update_icons(context, self.list_type)
+        if self.list_type == "em_list":
+            if context.scene.proxy_display_mode == "EM":
+                bpy.ops.emset.emmaterial()
+            else:
+                bpy.ops.emset.epochmaterial()
         return {'FINISHED'}
 
-class EM_sourcename_OT_toproxy(bpy.types.Operator):
-    bl_idname = "nodename.to3dsource"
-    bl_label = "Use node name for selected 3D source"
-    bl_options = {"REGISTER", "UNDO"}
-
-    @classmethod
-    def poll(cls, context):
-        obj = context.object
-        if obj is None:
-            pass
-        else:
-            return (obj.type in ['MESH'])
-
-    def execute(self, context):
-        scene = context.scene
-        item = scene.em_sources_list[scene.em_sources_list_index]
-        context.active_object.name = item.name
-        update_icons(context)
-        return {'FINISHED'}
 
 class EM_update_icon_list(bpy.types.Operator):
-    bl_idname = "uslist_icon.update"
+    bl_idname = "list_icon.update"
     bl_label = "Update only the icons"
     bl_options = {"REGISTER", "UNDO"}
 
+    list_type: StringProperty()
+
     def execute(self, context):
-        update_icons(context)
+        if self.list_type == "all":
+            lists = ["em_list","epoch_list","em_sources_list","em_properties_list","em_extractors_list","em_combiners_list"]
+            for single_list in lists:
+                update_icons(context, single_list)
+        else:
+            update_icons(context, self.list_type)
         return {'FINISHED'}
 
 class EM_select_list_item(bpy.types.Operator):
@@ -84,14 +76,18 @@ class EM_select_list_item(bpy.types.Operator):
     bl_label = "Select element in the list above from a 3D proxy"
     bl_options = {"REGISTER", "UNDO"}
 
+    list_type: StringProperty()
+
     @classmethod
     def poll(cls, context):
+        global list_type
         scene = context.scene
-        obj = context.object
+        obj = context.object 
+        list_cmd = ("scene."+ list_type)
         if obj is None:
             pass
         else:
-            return (check_if_current_obj_has_brother_inlist(obj.name, scene.em_list))
+            return (check_if_current_obj_has_brother_inlist(obj.name, eval(list_cmd)))
 
     def execute(self, context):
         scene = context.scene
@@ -184,7 +180,7 @@ class EM_import_GraphML(bpy.types.Operator):
                     my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos, my_node_fill_color = EM_extract_node_name(node_element)
                     scene.em_list.add()
                     scene.em_list[em_list_index_ema].name = my_nodename
-                    scene.em_list[em_list_index_ema].icon = EM_check_GraphML_Blender(my_nodename)
+                    scene.em_list[em_list_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(my_nodename)
                     scene.em_list[em_list_index_ema].y_pos = float(my_node_y_pos)
                     scene.em_list[em_list_index_ema].description = my_node_description
                     if my_node_shape == "ellipse":
@@ -207,7 +203,7 @@ class EM_import_GraphML(bpy.types.Operator):
                         else:
                             scene.em_sources_list.add()
                             scene.em_sources_list[em_sources_index_ema].name = src_nodename
-                            scene.em_sources_list[em_sources_index_ema].icon = EM_check_GraphML_Blender(src_nodename)
+                            scene.em_sources_list[em_sources_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(src_nodename)
                             scene.em_sources_list[em_sources_index_ema].url = src_nodeurl
                             if src_nodeurl == "--None--":
                                 scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_DEHLT"

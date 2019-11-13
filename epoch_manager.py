@@ -153,8 +153,8 @@ class EM_set_EM_materials(bpy.types.Operator):
     
     def execute(self, context):
         context.scene.proxy_display_mode = "EM"
-        update_icons(context)
-        set_EM_materials_using_EM_list(context)
+        update_icons(context,"em_list")
+        set_materials_using_EM_list(context)
         return {'FINISHED'}
 
 class EM_set_epoch_materials(bpy.types.Operator):
@@ -165,8 +165,8 @@ class EM_set_epoch_materials(bpy.types.Operator):
     
     def execute(self, context):
         context.scene.proxy_display_mode = "Periods"
-        #update_icons(context)
-        set_epoch_materials(context)
+        update_icons(context,"em_list")
+        set_materials_using_epoch_list(context)
         return {'FINISHED'}
 
 class EM_change_selected_objects(bpy.types.Operator):
@@ -209,8 +209,5 @@ class EM_change_selected_objects(bpy.types.Operator):
             elif self.sg_objects_changer == 'TWOSIDE_SHADE':
                 if obj.type == 'MESH':
                     obj.data.show_double_sided = True
-            #elif self.sg_objects_changer == 'EM_COLOURS':
-                #if obj.type == 'MESH':
-                   #set_EM_materials_using_EM_list(context)
 
         return {'FINISHED'}
