@@ -10,11 +10,11 @@ from bpy.types import Operator
 from bpy.types import Menu, Panel, UIList, PropertyGroup
 from bpy.props import StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
 from bpy.app.handlers import persistent
-
 from .epoch_manager import *
 from .EM_list import *
 
-
+#####################################################################
+#SETUP MENU
 class Display_mode_menu(bpy.types.Menu):
     bl_label = "Custom Menu"
     bl_idname = "OBJECT_MT_Display_mode_menu"
@@ -119,7 +119,11 @@ class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_SetupPanel"
     bl_context = "objectmode"
+#SETUP MENU
+#####################################################################
 
+#####################################################################
+#US/USV Manager
 class EM_ToolsPanel:
     bl_label = "US/USV Manager"
     bl_space_type = 'VIEW_3D'
@@ -153,11 +157,21 @@ class EM_ToolsPanel:
             row.prop(item, "description", text="", slider=True, emboss=True)
 
         split = layout.split()
-        col = split.column()
-        col.operator("select.fromlistitem", text='Proxy', icon="MESH_CUBE")
-        col = split.column(align=True)
-        op = col.operator("select.listitem", text='EM', icon="LONGDISPLAY")
-        op.list_type = "em_list"
+        if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
+            col = split.column()
+            op = col.operator("select.fromlistitem", text='Proxy', icon="MESH_CUBE")
+            op.list_type = "em_list"
+        else:
+            col = split.column()
+            col.label(text="Proxy", icon='MESH_CUBE') 
+        if obj:
+            if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
+                col = split.column(align=True)
+                op = col.operator("select.listitem", text='EM', icon="LONGDISPLAY")
+                op.list_type = "em_list"
+            else:
+                col = split.column()
+                col.label(text="EM", icon='LONGDISPLAY')             
 
         split = layout.split()
         col = split.column(align=True)
@@ -174,7 +188,7 @@ class EM_ToolsPanel:
 
         if scene.em_settings.em_proxy_sync is True:
             if obj is not None:
-                if check_if_current_obj_has_brother_inlist(obj.name):
+                if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
                         select_list_element_from_obj_proxy(obj)
                 
         if scene.em_settings.em_proxy_sync2 is True:
@@ -190,12 +204,16 @@ class EM_ToolsPanel:
                                     ctx['area'] = area
                                     ctx['region'] = area.regions[-1]
                                     bpy.ops.view3d.view_selected(ctx)
-            
+
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_ToolsPanel"
     bl_context = "objectmode"
+#US/USV Manager
+#####################################################################
 
+#####################################################################
+#Periods Manager
 class EM_BasePanel:
     bl_label = "Periods Manager"
     bl_space_type = 'VIEW_3D'
@@ -265,10 +283,131 @@ class EM_UL_named_epoch_managers(UIList):
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
+#Periods Manager
+#####################################################################
+
+#####################################################################
+#Sources Manager
+class EM_SourcesPanel:
+    bl_label = "Sources Manager"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        em_settings = scene.em_settings
+        obj = context.object
+        row = layout.row()
+        row.template_list(
+            "EM_UL_sources_managers", "", scene, "em_sources_list", scene, "em_sources_list_index")
+
+        if scene.em_sources_list_index >= 0 and len(scene.em_sources_list) > 0:
+            item_source = scene.em_sources_list[scene.em_sources_list_index]
+            box = layout.box()
+            row = box.row(align=True)
+            row.label(text="Source name, description, and url:")
+            row = box.row()
+            split = row.split()
+            col = split.column()
+            row.prop(item_source, "name", text="")
+            split = row.split()
+            col = split.column()
+            op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
+            op.list_type = "em_sources_list"
+            row = box.row()
+            row.prop(item_source, "description", text="", slider=True, emboss=True)
+            row = box.row()
+            row.prop(item_source, "url", text="", slider=True, emboss=True)
+
+        split = layout.split()
+        if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
+            col = split.column()
+            op = col.operator("select.fromlistitem", text='3D source', icon="MESH_CUBE")
+            op.list_type = "em_sources_list"
+        else:
+            col = split.column()
+            col.label(text="3D source", icon='MESH_CUBE')
+        if obj:
+            if check_if_current_obj_has_brother_inlist(obj.name, "em_sources_list"):
+                col = split.column(align=True)
+                op = col.operator("select.listitem", text='Source node', icon="LONGDISPLAY")
+                op.list_type = "em_sources_list"
+            else:
+                col = split.column()
+                col.label(text="Source node", icon='LONGDISPLAY')            
+
+class VIEW3D_PT_SourcesPanel(Panel, EM_SourcesPanel):
+    bl_category = "EM"
+    bl_idname = "VIEW3D_PT_SourcesPanel"
+    bl_context = "objectmode"
+
+class EM_UL_sources_managers(UIList):
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        icons_style = 'OUTLINER'
+        scene = context.scene
+        layout = layout.split(factor =0.22, align = True)
+        layout.label(text = item.name, icon = item.icon)
+        layout.label(text = item.description, icon=item.icon_url)
+#Sources Manager
+#####################################################################
+
+#####################################################################
+#Properties Viewer
+class EM_PropertiesPanel:
+    bl_label = "Properties Viewer"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        em_settings = scene.em_settings
+        obj = context.object
+        row = layout.row()
+        row.template_list(
+            "EM_UL_properties_viewer", "", scene, "em_properties_list", scene, "em_properties_list_index")
+
+        if scene.em_sources_list_index >= 0 and len(scene.em_sources_list) > 0:
+            item_source = scene.em_properties_list[scene.em_properties_list_index]
+            box = layout.box()
+            row = box.row(align=True)
+            row.label(text="Property name, description, and url:")
+            row = box.row()
+            split = row.split()
+            col = split.column()
+            row.prop(item_source, "name", text="")
+            split = row.split()
+            # col = split.column()
+            # op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
+            # op.list_type = "em_sources_list"
+            row = box.row()
+            row.prop(item_source, "description", text="", slider=True, emboss=True)
+            #row = box.row()
+            #row.prop(item_source, "url", text="", slider=True, emboss=True)
+         
+class VIEW3D_PT_PropertiesPanel(Panel, EM_PropertiesPanel):
+    bl_category = "EM"
+    bl_idname = "VIEW3D_PT_PropertiesPanel"
+    bl_context = "objectmode"
+
+class EM_UL_properties_viewer(UIList):
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        icons_style = 'OUTLINER'
+        scene = context.scene
+        layout = layout.split(factor =0.4, align = True)
+        #layout.label(text = item.name, icon = item.icon)
+        layout.label(text = item.name)
+        #layout.label(text = item.description, icon=item.icon_url)
+        layout.label(text = item.description)
+#Properties Manager
+#####################################################################
 
 
-#########################################################################################################
-
+#####################################################################
+#Representation models
 class RM_BasePanel:
     bl_label = "Representation models"
     bl_space_type = 'VIEW_3D'
@@ -306,8 +445,6 @@ class RM_BasePanel:
             "repmod_manager.repmod_remove_from_group", text="Remove")
         row.operator("repmod_manager.clean_object_ids", text="Clean")
 
-
-
         layout.label(text="Selection Settings:")
         row = layout.row(align=True)
         #row.prop(rm_settings, "select_all_layers", text='Layers')
@@ -315,12 +452,10 @@ class RM_BasePanel:
         row.prop(rm_settings, "unhide_obj", text='Unhide')
         row = layout.row(align=True)
 
-
 class VIEW3D_RM_BasePanel(Panel, RM_BasePanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_RM_BasePanel"
     bl_context = "objectmode"
-
 
 class RM_UL_named_repmod_managers(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -354,56 +489,5 @@ class RM_UL_named_repmod_managers(UIList):
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
-
-###########################################################################################################################################•
-class EM_SourcesPanel:
-    bl_label = "Sources Manager"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        em_settings = scene.em_settings
-        row = layout.row()
-        row.template_list(
-            "EM_UL_sources_managers", "", scene, "em_sources_list", scene, "em_sources_list_index")
-
-        if scene.em_sources_list_index >= 0 and len(scene.em_sources_list) > 0:
-            item_source = scene.em_sources_list[scene.em_sources_list_index]
-            box = layout.box()
-            row = box.row(align=True)
-            row.label(text="Source name, description, and url:")
-            row = box.row()
-            split = row.split()
-            col = split.column()
-            row.prop(item_source, "name", text="")
-            split = row.split()
-            col = split.column()
-            op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
-            op.list_type = "em_sources_list"
-            row = box.row()
-            row.prop(item_source, "description", text="", slider=True, emboss=True)
-            row = box.row()
-            row.prop(item_source, "url", text="", slider=True, emboss=True)
-
-        split = layout.split()
-        col = split.column()
-        col.operator("select.fromsourcelistitem", text='3D source', icon="MESH_CUBE")
-
-        col = split.column(align=True)
-        col.operator("select.sourcelistitem", text='Source node', icon="LONGDISPLAY")
-
-class VIEW3D_PT_SourcesPanel(Panel, EM_SourcesPanel):
-    bl_category = "EM"
-    bl_idname = "VIEW3D_PT_SourcesPanel"
-    bl_context = "objectmode"
-
-class EM_UL_sources_managers(UIList):
-
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        icons_style = 'OUTLINER'
-        scene = context.scene
-        layout = layout.split(factor =0.22, align = True)
-        layout.label(text = item.name, icon = item.icon)
-        layout.label(text = item.description, icon=item.icon_url)
+#Representation models
+#####################################################################

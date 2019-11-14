@@ -62,6 +62,23 @@ from . import (
 from .functions import *
 from bpy.utils import register_class, unregister_class
 
+class EDGESListItem(bpy.types.PropertyGroup):
+       """ Group of properties an item in the list """
+
+       id_node: prop.StringProperty(
+              name="id",
+              description="A description for this item",
+              default="Empty")
+
+       source: prop.StringProperty(
+              name="source",
+              description="A description for this item",
+              default="Empty")
+
+       target: prop.StringProperty(
+              name="target",
+              description="A description for this item",
+              default="Empty")
 
 class EPOCHListItem(bpy.types.PropertyGroup):
        """ Group of properties representing an item in the list """
@@ -232,13 +249,13 @@ classes = (
     UI.Display_mode_menu,
     UI.VIEW3D_PT_SourcesPanel,
     UI.EM_UL_sources_managers,
+    UI.VIEW3D_PT_PropertiesPanel,
+    UI.EM_UL_properties_viewer,
     EM_list.EM_listitem_OT_to3D,
     EM_list.EM_update_icon_list,
     EM_list.EM_select_from_list_item,
     EM_list.EM_import_GraphML,
     EM_list.EM_select_list_item,
-    EM_list.EM_select_from_source_list_item,
-    EM_list.EM_select_sourcelist_item,
     epoch_manager.EM_UL_List,
     epoch_manager.EM_toggle_select,
     epoch_manager.EM_toggle_visibility,
@@ -251,7 +268,8 @@ classes = (
     EM_Other_Settings,
     EPOCHListItem,
     EMreusedUS,
-    EMListParadata
+    EMListParadata,
+    EDGESListItem
     )
 
 def register():
@@ -262,6 +280,10 @@ def register():
        bpy.types.Scene.em_reused = prop.CollectionProperty(type = EMreusedUS)
        bpy.types.Scene.epoch_list = prop.CollectionProperty(type = EPOCHListItem)
        bpy.types.Scene.epoch_list_index = prop.IntProperty(name = "Index for epoch_list", default = 0)
+
+       bpy.types.Scene.edges_list = prop.CollectionProperty(type = EDGESListItem)
+       #bpy.types.Scene.em_sources_list_index = prop.IntProperty(name = "Index for sources list", default = 0)
+
        bpy.types.Scene.em_sources_list = prop.CollectionProperty(type = EMListParadata)
        bpy.types.Scene.em_sources_list_index = prop.IntProperty(name = "Index for sources list", default = 0)
        bpy.types.Scene.em_properties_list = prop.CollectionProperty(type = EMListParadata)
@@ -270,6 +292,15 @@ def register():
        bpy.types.Scene.em_extractors_list_index = prop.IntProperty(name = "Index for extractors list", default = 0)
        bpy.types.Scene.em_combiners_list = prop.CollectionProperty(type = EMListParadata)
        bpy.types.Scene.em_combiners_list_index = prop.IntProperty(name = "Index for combiners list", default = 0)
+
+       bpy.types.Scene.em_v_sources_list = prop.CollectionProperty(type = EMListParadata)
+       bpy.types.Scene.em_v_sources_list_index = prop.IntProperty(name = "Index for sources list", default = 0)
+       bpy.types.Scene.em_v_properties_list = prop.CollectionProperty(type = EMListParadata)
+       bpy.types.Scene.em_v_properties_list_index = prop.IntProperty(name = "Index for properties list", default = 0)
+       bpy.types.Scene.em_v_extractors_list = prop.CollectionProperty(type = EMListParadata)
+       bpy.types.Scene.em_v_extractors_list_index = prop.IntProperty(name = "Index for extractors list", default = 0)
+       bpy.types.Scene.em_v_combiners_list = prop.CollectionProperty(type = EMListParadata)
+       bpy.types.Scene.em_v_combiners_list_index = prop.IntProperty(name = "Index for combiners list", default = 0)
 
        bpy.types.Scene.proxy_shader_mode = BoolProperty(name="Proxy shader mode", description = "Enable additive shader for proxies",default=False, update = functions.proxy_shader_mode_function)
        bpy.types.Scene.EM_file = StringProperty(
@@ -337,4 +368,14 @@ def unregister():
        del bpy.types.Scene.em_combiners_list
        del bpy.types.Scene.em_combiners_list_index
 
+       del bpy.types.Scene.em_v_sources_list_index
+       del bpy.types.Scene.em_v_sources_list
+       del bpy.types.Scene.em_v_properties_list
+       del bpy.types.Scene.em_v_properties_list_index
+       del bpy.types.Scene.em_v_extractors_list
+       del bpy.types.Scene.em_v_extractors_list_index
+       del bpy.types.Scene.em_v_combiners_list
+       del bpy.types.Scene.em_v_combiners_list_index
+
+       del bpy.types.Scene.edges_list
 ######################################################################################################
