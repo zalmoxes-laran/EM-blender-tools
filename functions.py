@@ -426,8 +426,7 @@ def read_edge_db(context, tree):
         scene.edges_list[em_list_index_ema].source = str(edge.attrib['source'])#getnode_edge_source(edge)
         scene.edges_list[em_list_index_ema].target = getnode_edge_target(edge)
         #print(scene.edges_list[em_list_index_ema].id_node)
-        print(scene.edges_list[em_list_index_ema].source)
-        
+        #print(scene.edges_list[em_list_index_ema].target)
         em_list_index_ema += 1
     return
 
@@ -436,19 +435,19 @@ def create_derived_lists():
     scene = bpy.context.scene
     # pass delle US/USV
     for node in scene.em_list:
-        pass
+        #print("nodo: "+node.name)
         # pass degli edges
         for edge_item in scene.edges_list:
-            pass
+            #print("arco id: "+edge_item.id_node)
             #controlliamo se troviamo edge che parte da lui
             if edge_item.source == node.id_node:
-                pass
+                
                 # pass delle properties
                 for property_item in scene.em_properties_list:
-                    pass
+                    
                     #controlliamo se troviamo una proprietà di arrivo compatibile con l'edge
                     if edge_item.target == property_item.id_node:
-                        print(property_item.name)
+                        print("trovato nodo: "+ node.name+" con source: "+ property_item.name)
                         # trovata la proprietà connessa, ora riparto dal pass degli edges
                         for edge_item in scene.edges_list:
                             pass

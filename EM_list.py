@@ -172,6 +172,7 @@ class EM_import_GraphML(bpy.types.Operator):
                     scene.em_properties_list.add()
                     scene.em_properties_list[em_properties_index_ema].name = pro_nodename
                     scene.em_properties_list[em_properties_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(pro_nodename)
+                    scene.em_properties_list[em_properties_index_ema].id_node = pro_node_id
                     scene.em_properties_list[em_properties_index_ema].url = pro_nodeurl
                     if pro_nodeurl == "--None--":
                         scene.em_properties_list[em_properties_index_ema].icon_url = "CHECKBOX_DEHLT"
@@ -183,7 +184,7 @@ class EM_import_GraphML(bpy.types.Operator):
                     ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_extractor = EM_extract_extractor_node(node_element)
                     scene.em_extractors_list.add()
                     scene.em_extractors_list[em_extractors_index_ema].name = ext_nodename
-                   #print(ext_nodename)
+                    scene.em_extractors_list[em_extractors_index_ema].id_node = ext_node_id                   
                     scene.em_extractors_list[em_extractors_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(ext_nodename)
                     scene.em_extractors_list[em_extractors_index_ema].url = ext_nodeurl
                    #print(ext_nodeurl)
