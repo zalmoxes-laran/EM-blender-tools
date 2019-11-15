@@ -189,7 +189,7 @@ class EM_ToolsPanel:
         if scene.em_settings.em_proxy_sync is True:
             if obj is not None:
                 if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
-                        select_list_element_from_obj_proxy(obj)
+                        select_list_element_from_obj_proxy(obj, "em_list")
                 
         if scene.em_settings.em_proxy_sync2 is True:
             if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
@@ -288,8 +288,8 @@ class EM_UL_named_epoch_managers(UIList):
 
 #####################################################################
 #Sources Manager
-class EM_SourcesPanel:
-    bl_label = "Sources Manager"
+class EM_ParadataPanel:
+    bl_label = "Paradata Manager"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
 
@@ -299,9 +299,16 @@ class EM_SourcesPanel:
         em_settings = scene.em_settings
         obj = context.object
         row = layout.row()
-        row.template_list(
-            "EM_UL_sources_managers", "", scene, "em_sources_list", scene, "em_sources_list_index")
+        
+        source_list_var = "em_v_source_list"
+        source_list_var = "em_v_source_list_index"
+        source_list_cmd = "scene.em_v_sources_list"
+        source_list_index_cmd = "scene.em_v_sources_list_index"
 
+        if scene.paradata_streaming_mode:
+            row.template_list("EM_UL_sources_managers", "", scene, "em_v_sources_list", scene, "em_v_sources_list_index")
+        else:
+            row.template_list("EM_UL_sources_managers", "", scene, "em_sources_list", scene, "em_sources_list_index")
         if scene.em_sources_list_index >= 0 and len(scene.em_sources_list) > 0:
             item_source = scene.em_sources_list[scene.em_sources_list_index]
             box = layout.box()
@@ -314,7 +321,10 @@ class EM_SourcesPanel:
             split = row.split()
             col = split.column()
             op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
-            op.list_type = "em_sources_list"
+            if scene.paradata_streaming_mode:
+                op.list_type = "em_v_sources_list"
+            else:
+                op.list_type = "em_sources_list"
             row = box.row()
             row.prop(item_source, "description", text="", slider=True, emboss=True)
             row = box.row()
@@ -337,7 +347,7 @@ class EM_SourcesPanel:
                 col = split.column()
                 col.label(text="Source node", icon='LONGDISPLAY')            
 
-class VIEW3D_PT_SourcesPanel(Panel, EM_SourcesPanel):
+class VIEW3D_PT_SourcesPanel(Panel, EM_ParadataPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_SourcesPanel"
     bl_context = "objectmode"

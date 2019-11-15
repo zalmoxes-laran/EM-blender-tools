@@ -276,7 +276,7 @@ def register():
        for cls in classes:
               bpy.utils.register_class(cls)
        bpy.types.Scene.em_list = prop.CollectionProperty(type = EMListItem)
-       bpy.types.Scene.em_list_index = prop.IntProperty(name = "Index for my_list", default = 0)
+       bpy.types.Scene.em_list_index = prop.IntProperty(name = "Index for my_list", default = 0, update = functions.switch_paradata_lists)
        bpy.types.Scene.em_reused = prop.CollectionProperty(type = EMreusedUS)
        bpy.types.Scene.epoch_list = prop.CollectionProperty(type = EPOCHListItem)
        bpy.types.Scene.epoch_list_index = prop.IntProperty(name = "Index for epoch_list", default = 0)
@@ -301,6 +301,8 @@ def register():
        bpy.types.Scene.em_v_extractors_list_index = prop.IntProperty(name = "Index for extractors list", default = 0)
        bpy.types.Scene.em_v_combiners_list = prop.CollectionProperty(type = EMListParadata)
        bpy.types.Scene.em_v_combiners_list_index = prop.IntProperty(name = "Index for combiners list", default = 0)
+
+       bpy.types.Scene.paradata_streaming_mode = BoolProperty(name="Paradata streaming mode", description = "Enable/disable tables streaming mode",default=True, update = functions.switch_paradata_lists)
 
        bpy.types.Scene.proxy_shader_mode = BoolProperty(name="Proxy shader mode", description = "Enable additive shader for proxies",default=False, update = functions.proxy_shader_mode_function)
        bpy.types.Scene.EM_file = StringProperty(

@@ -160,6 +160,7 @@ class EM_import_GraphML(bpy.types.Operator):
                         scene.em_sources_list.add()
                         scene.em_sources_list[em_sources_index_ema].name = src_nodename
                         scene.em_sources_list[em_sources_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(src_nodename)
+                        scene.em_sources_list[em_sources_index_ema].id_node = src_node_id
                         scene.em_sources_list[em_sources_index_ema].url = src_nodeurl
                         if src_nodeurl == "--None--":
                             scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_DEHLT"
@@ -209,7 +210,7 @@ class EM_import_GraphML(bpy.types.Operator):
         for node_element in allnodes:
             if EM_check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
                 if EM_check_node_continuity(node_element):
-                    #print("founf continuity node")
+                    #print("found continuity node")
                     EM_us_target, continuity_y = get_edge_target(tree, node_element)
                     #print(EM_us_target+" has y value: "+str(continuity_y))
                     for EM_item in bpy.context.scene.em_list:
@@ -225,5 +226,6 @@ class EM_import_GraphML(bpy.types.Operator):
                                        #print("All'epoca "+scene.em_reused[em_reused_index].epoch+ " appartiene : "+ scene.em_reused[em_reused_index].em_element)
                                         em_reused_index += 1
         read_edge_db(context,tree)
-        create_derived_lists()
+        node_send = scene.em_list[scene.em_list_index]
+        create_derived_lists(node_send)
         return {'FINISHED'}
