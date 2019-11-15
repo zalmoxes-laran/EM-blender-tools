@@ -63,7 +63,7 @@ class EM_update_icon_list(bpy.types.Operator):
 
     def execute(self, context):
         if self.list_type == "all":
-            lists = ["em_list","epoch_list","em_sources_list","em_properties_list","em_extractors_list","em_combiners_list"]
+            lists = ["em_list","epoch_list","em_sources_list","em_properties_list","em_extractors_list","em_combiners_list","em_v_sources_list","em_v_properties_list","em_v_extractors_list","em_v_combiners_list"]
             for single_list in lists:
                 update_icons(context, single_list)
         else:
@@ -112,6 +112,7 @@ class EM_select_from_list_item(bpy.types.Operator):
 class EM_import_GraphML(bpy.types.Operator):
     bl_idname = "import.em_graphml"
     bl_label = "Import the EM GraphML"
+    bl_description = "Import the EM GraphML"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):

@@ -76,6 +76,16 @@ class EM_SetupPanel:
         #col = split.column()
         col.prop(scene, "epoch_list", text='')
 
+        col = split.column()
+        col.label(text="Properties")
+        #col = split.column()
+        col.prop(scene, "em_properties_list", text='')
+
+        col = split.column()
+        col.label(text="Sources")
+        #col = split.column()
+        col.prop(scene, "em_sources_list", text='')
+
         row = layout.row(align=True)
         split = row.split()
         col = split.column()
@@ -85,17 +95,18 @@ class EM_SetupPanel:
         col.menu(Display_mode_menu.bl_idname, text=current_proxy_display_mode, icon='COLOR')
  
         row = layout.row()
-        split = row.split()
+        #split = row.split()
         
-        col = split.column(align=True)
-        col.prop(scene, "proxy_display_alpha")
+        #col = split.column(align=True)
+        row.prop(scene, "proxy_display_alpha")
 
-        col = split.column(align=True)
-        col.prop(scene, "proxy_shader_mode", text='', icon="NODE_MATERIAL")
+        #col = split.column(align=True)
+        row.prop(scene, "proxy_shader_mode", text='', icon="NODE_MATERIAL")
 
-        row = layout.row(align=True)
+        #row = layout.row(align=True)
+        #col = split.column(align=True)
 
-        row.label(text="On selected:")
+        #col.label(text="On selected:")
         op = row.operator(
             "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_BBOX')
         op.sg_objects_changer = 'BOUND_SHADE'
@@ -159,21 +170,21 @@ class EM_ToolsPanel:
         split = layout.split()
         if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
             col = split.column()
-            op = col.operator("select.fromlistitem", text='Proxy', icon="MESH_CUBE")
+            op = col.operator("select.fromlistitem", text='', icon="MESH_CUBE")
             op.list_type = "em_list"
         else:
             col = split.column()
-            col.label(text="Proxy", icon='MESH_CUBE') 
+            col.label(text="", icon='MESH_CUBE') 
         if obj:
             if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
                 col = split.column(align=True)
-                op = col.operator("select.listitem", text='EM', icon="LONGDISPLAY")
+                op = col.operator("select.listitem", text='', icon="LONGDISPLAY")
                 op.list_type = "em_list"
             else:
                 col = split.column()
-                col.label(text="EM", icon='LONGDISPLAY')             
+                col.label(text="", icon='LONGDISPLAY')             
 
-        split = layout.split()
+        #split = layout.split()
         col = split.column(align=True)
         col.label(text="Sync:")
 
@@ -185,6 +196,9 @@ class EM_ToolsPanel:
 
         col = split.column(align=True)
         col.prop(em_settings, "em_proxy_sync", text='', icon="LONGDISPLAY")
+
+        col = split.column(align=True)
+        col.prop(scene, "paradata_streaming_mode", text='', icon="SHORTDISPLAY")
 
         if scene.em_settings.em_proxy_sync is True:
             if obj is not None:
@@ -209,6 +223,7 @@ class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_ToolsPanel"
     bl_context = "objectmode"
+
 #US/USV Manager
 #####################################################################
 
@@ -287,7 +302,8 @@ class EM_UL_named_epoch_managers(UIList):
 #####################################################################
 
 #####################################################################
-#Sources Manager
+#Paradata Section
+
 class EM_ParadataPanel:
     bl_label = "Paradata Manager"
     bl_space_type = 'VIEW_3D'
@@ -299,18 +315,81 @@ class EM_ParadataPanel:
         em_settings = scene.em_settings
         obj = context.object
         row = layout.row()
-        
-        source_list_var = "em_v_source_list"
-        source_list_var = "em_v_source_list_index"
-        source_list_cmd = "scene.em_v_sources_list"
-        source_list_index_cmd = "scene.em_v_sources_list_index"
 
+        # define variables 
         if scene.paradata_streaming_mode:
-            row.template_list("EM_UL_sources_managers", "", scene, "em_v_sources_list", scene, "em_v_sources_list_index")
+            property_list_var = "em_v_properties_list"
+            property_list_index_var = "em_v_properties_list_index"
+            property_list_cmd = "scene.em_v_properties_list"
+            property_list_index_cmd = "scene.em_v_properties_list_index"
+
+            extractor_list_var = "em_v_extractors_list"
+            extractor_list_index_var = "em_v_extractors_list_index"
+            extractor_list_cmd = "scene.em_v_extractors_list"
+            extractor_list_index_cmd = "scene.em_v_extractors_list_index"
+
+            source_list_var = "em_v_sources_list"
+            source_list_index_var = "em_v_sources_list_index"
+            source_list_cmd = "scene.em_v_sources_list"
+            source_list_index_cmd = "scene.em_v_sources_list_index"
+
         else:
-            row.template_list("EM_UL_sources_managers", "", scene, "em_sources_list", scene, "em_sources_list_index")
-        if scene.em_sources_list_index >= 0 and len(scene.em_sources_list) > 0:
-            item_source = scene.em_sources_list[scene.em_sources_list_index]
+            property_list_var = "em_properties_list"
+            property_list_index_var = "em_properties_list_index"
+            property_list_cmd = "scene.em_properties_list"
+            property_list_index_cmd = "scene.em_properties_list_index"
+
+            extractor_list_var = "em_extractors_list"
+            extractor_list_index_var = "em_extractors_list_index"
+            extractor_list_cmd = "scene.em_extractors_list"
+            extractor_list_index_cmd = "scene.em_extractors_list_index"  
+
+            source_list_var = "em_sources_list"
+            source_list_index_var = "em_sources_list_index"
+            source_list_cmd = "scene.em_sources_list"
+            source_list_index_cmd = "scene.em_sources_list_index"           
+
+    ###############################################################################
+    ##          Properties
+    ###############################################################################
+
+        row.label(text="Properties:")
+        row.prop(scene, "prop_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
+        row = layout.row()
+        row.template_list("EM_UL_properties_managers", "", scene, property_list_var, scene, property_list_index_var, rows=2)
+        len_property_var = "len("+property_list_cmd+")"
+        if eval(property_list_index_cmd) >= 0 and eval(len_property_var) > 0:
+            #item_source = scene.em_properties_list[scene.em_properties_list_index]
+            item_property = eval(property_list_cmd)[eval(property_list_index_cmd)]
+            box = layout.box()
+            row = box.row(align=True)
+            row.label(text="Property name and description:")
+            row = box.row()
+            split = row.split()
+            col = split.column()
+            row.prop(item_property, "name", text="")
+            split = row.split()
+            # col = split.column()
+            # op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
+            # op.list_type = "em_sources_list"
+            row = box.row()
+            row.prop(item_property, "description", text="", slider=True, emboss=True)
+            #row = box.row()
+            #row.prop(item_source, "url", text="", slider=True, emboss=True)
+
+    ###############################################################################
+    ##          Extractors
+    ###############################################################################
+
+        row = layout.row()
+        row.label(text="Extractors:")
+        row.prop(scene, "extr_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
+        row = layout.row()
+        row.template_list("EM_UL_extractors_managers", "", scene, extractor_list_var, scene, extractor_list_index_var, rows=2)
+
+        len_source_var = "len("+extractor_list_cmd+")"
+        if eval(extractor_list_index_cmd) >= 0 and eval(len_source_var) > 0:
+            item_source = eval(extractor_list_cmd)[eval(extractor_list_index_cmd)]
             box = layout.box()
             row = box.row(align=True)
             row.label(text="Source name, description, and url:")
@@ -321,10 +400,7 @@ class EM_ParadataPanel:
             split = row.split()
             col = split.column()
             op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
-            if scene.paradata_streaming_mode:
-                op.list_type = "em_v_sources_list"
-            else:
-                op.list_type = "em_sources_list"
+            op.list_type = extractor_list_var
             row = box.row()
             row.prop(item_source, "description", text="", slider=True, emboss=True)
             row = box.row()
@@ -334,22 +410,67 @@ class EM_ParadataPanel:
         if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
             col = split.column()
             op = col.operator("select.fromlistitem", text='3D source', icon="MESH_CUBE")
-            op.list_type = "em_sources_list"
+            op.list_type = extractor_list_var
         else:
             col = split.column()
             col.label(text="3D source", icon='MESH_CUBE')
         if obj:
-            if check_if_current_obj_has_brother_inlist(obj.name, "em_sources_list"):
+            if check_if_current_obj_has_brother_inlist(obj.name, extractor_list_var):
                 col = split.column(align=True)
                 op = col.operator("select.listitem", text='Source node', icon="LONGDISPLAY")
-                op.list_type = "em_sources_list"
+                op.list_type = extractor_list_var
+            else:
+                col = split.column()
+                col.label(text="Source node", icon='LONGDISPLAY')    
+
+    ###############################################################################
+    ##          Sources
+    ###############################################################################
+
+        row = layout.row()
+        row.label(text="Sources:")
+        row = layout.row()
+        row.template_list("EM_UL_sources_managers", "", scene, source_list_var, scene, source_list_index_var, rows=2)
+
+        len_source_var = "len("+source_list_cmd+")"
+        if eval(source_list_index_cmd) >= 0 and eval(len_source_var) > 0:
+            item_source = eval(source_list_cmd)[eval(source_list_index_cmd)]
+            box = layout.box()
+            row = box.row(align=True)
+            row.label(text="Source name, description, and url:")
+            row = box.row()
+            split = row.split()
+            col = split.column()
+            row.prop(item_source, "name", text="")
+            split = row.split()
+            col = split.column()
+            op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
+            op.list_type = source_list_var
+            row = box.row()
+            row.prop(item_source, "description", text="", slider=True, emboss=True)
+            row = box.row()
+            row.prop(item_source, "url", text="", slider=True, emboss=True)
+
+        split = layout.split()
+        if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
+            col = split.column()
+            op = col.operator("select.fromlistitem", text='3D source', icon="MESH_CUBE")
+            op.list_type = source_list_var
+        else:
+            col = split.column()
+            col.label(text="3D source", icon='MESH_CUBE')
+        if obj:
+            if check_if_current_obj_has_brother_inlist(obj.name, source_list_var):
+                col = split.column(align=True)
+                op = col.operator("select.listitem", text='Source node', icon="LONGDISPLAY")
+                op.list_type = source_list_var
             else:
                 col = split.column()
                 col.label(text="Source node", icon='LONGDISPLAY')            
 
-class VIEW3D_PT_SourcesPanel(Panel, EM_ParadataPanel):
+class VIEW3D_PT_ParadataPanel(Panel, EM_ParadataPanel):
     bl_category = "EM"
-    bl_idname = "VIEW3D_PT_SourcesPanel"
+    bl_idname = "VIEW3D_PT_ParadataPanel"
     bl_context = "objectmode"
 
 class EM_UL_sources_managers(UIList):
@@ -360,61 +481,27 @@ class EM_UL_sources_managers(UIList):
         layout = layout.split(factor =0.22, align = True)
         layout.label(text = item.name, icon = item.icon)
         layout.label(text = item.description, icon=item.icon_url)
-#Sources Manager
-#####################################################################
 
-#####################################################################
-#Properties Viewer
-class EM_PropertiesPanel:
-    bl_label = "Properties Viewer"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        em_settings = scene.em_settings
-        obj = context.object
-        row = layout.row()
-        row.template_list(
-            "EM_UL_properties_viewer", "", scene, "em_properties_list", scene, "em_properties_list_index")
-
-        if scene.em_sources_list_index >= 0 and len(scene.em_sources_list) > 0:
-            item_source = scene.em_properties_list[scene.em_properties_list_index]
-            box = layout.box()
-            row = box.row(align=True)
-            row.label(text="Property name, description, and url:")
-            row = box.row()
-            split = row.split()
-            col = split.column()
-            row.prop(item_source, "name", text="")
-            split = row.split()
-            # col = split.column()
-            # op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
-            # op.list_type = "em_sources_list"
-            row = box.row()
-            row.prop(item_source, "description", text="", slider=True, emboss=True)
-            #row = box.row()
-            #row.prop(item_source, "url", text="", slider=True, emboss=True)
-         
-class VIEW3D_PT_PropertiesPanel(Panel, EM_PropertiesPanel):
-    bl_category = "EM"
-    bl_idname = "VIEW3D_PT_PropertiesPanel"
-    bl_context = "objectmode"
-
-class EM_UL_properties_viewer(UIList):
+class EM_UL_properties_managers(UIList):
 
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         icons_style = 'OUTLINER'
         scene = context.scene
         layout = layout.split(factor =0.4, align = True)
-        #layout.label(text = item.name, icon = item.icon)
         layout.label(text = item.name)
-        #layout.label(text = item.description, icon=item.icon_url)
         layout.label(text = item.description)
-#Properties Manager
-#####################################################################
 
+class EM_UL_extractors_managers(UIList):
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        icons_style = 'OUTLINER'
+        scene = context.scene
+        layout = layout.split(factor =0.25, align = True)
+        layout.label(text = item.name, icon = item.icon)
+        layout.label(text = item.description, icon=item.icon_url)
+
+# Paradata section 
+#####################################################################
 
 #####################################################################
 #Representation models

@@ -430,27 +430,78 @@ def read_edge_db(context, tree):
         em_list_index_ema += 1
     return
 
+def stream_properties(self, context):
+    scene = context.scene
+    create_derived_extractors_list(scene.em_v_extractors_list[scene.em_v_extractors_list_index])
+    return
+
+def stream_combiners(self, context):
+    pass
+    return
+
+def stream_extractors(self, context):
+    pass
+    return
+
+
+def create_derived_extractors_list(property_item):
+    context = bpy.context
+    scene = context.scene
+    extr_index = 0
+    sour_index = 0
+    EM_list_clear(context, "em_v_extractors_list")
+    EM_list_clear(context, "em_v_sources_list")
+
+    for edge_item in scene.edges_list:
+        #controlliamo se troviamo un edge che parte da questa proprietà
+        if edge_item.source == property_item.id_node:
+            pass
+            # una volta trovato l'edge, faccio un pass degli estrattori 
+            for extractor_item in scene.em_extractors_list:
+                pass
+                # controlliamo se troviamo un estrattore di arrivo compatibile con l'edge
+                if edge_item.target == extractor_item.id_node:
+                    print("trovata proprietà: "+ property_item.name+" con estrattore: "+ extractor_item.name)
+                    scene.em_v_extractors_list.add()
+                    scene.em_v_extractors_list[extr_index].name = extractor_item.name
+                    scene.em_v_extractors_list[extr_index].description = extractor_item.description
+                    scene.em_v_extractors_list[extr_index].url = extractor_item.url
+                    # trovato l'estrattore connesso ora riparto dal pass degli edges
+                    for edge_item in scene.edges_list:
+                        pass
+                        #controlliamo se troviamo un edge che parte da questo estrattore
+                        if edge_item.source == extractor_item.id_node:
+                            pass
+                            # una volta trovato l'edge, faccio un pass delle sources
+                            for source_item in scene.em_sources_list:
+                                pass
+                                # controlliamo se troviamo un estrattore di arrivo compatibile con l'edge
+                                if edge_item.target == source_item.id_node:
+                                    print("trovato nodo estrattore: "+extractor_item.name+" con source: "+source_item.name)
+                                    scene.em_v_sources_list.add()
+                                    scene.em_v_sources_list[sour_index].name = source_item.name
+                                    scene.em_v_sources_list[sour_index].description = source_item.description
+                                    scene.em_v_sources_list[sour_index].url = source_item.url
+                                    sour_index += 1
+                    extr_index += 1
+
+    print("extractors: "+ str(extr_index))
+    print("sources: "+ str(sour_index))
 
 def create_derived_lists(node):
     context = bpy.context
     scene = context.scene
     prop_index = 0
-    extr_index = 0
-    sour_index = 0
 
-    EM_list_clear(context, "em_v_sources_list")
     EM_list_clear(context, "em_v_properties_list")
-    EM_list_clear(context, "em_v_extractors_list")
 
     # pass degli edges
     for edge_item in scene.edges_list:
         #print("arco id: "+edge_item.id_node)
         #controlliamo se troviamo edge che parte da lui
         if edge_item.source == node.id_node:
-            
             # pass delle properties
             for property_item in scene.em_properties_list:
-                
                 #controlliamo se troviamo una proprietà di arrivo compatibile con l'edge
                 if edge_item.target == property_item.id_node:
                     print("trovato nodo: "+ node.name+" con proprieta: "+ property_item.name)
@@ -459,44 +510,16 @@ def create_derived_lists(node):
                     scene.em_v_properties_list[prop_index].description = property_item.description
                     scene.em_v_properties_list[prop_index].url = property_item.url
 
-                    # trovata la proprietà connessa, ora riparto dal pass degli edges
-                    for edge_item in scene.edges_list:
-                        pass
-                        #controlliamo se troviamo un edge che parte da questa proprietà
-                        if edge_item.source == property_item.id_node:
-                            pass
-                            # una volta trovato l'edge, faccio un pass degli estrattori 
-                            for extractor_item in scene.em_extractors_list:
-                                pass
-                                # controlliamo se troviamo un estrattore di arrivo compatibile con l'edge
-                                if edge_item.target == extractor_item.id_node:
-                                    print("trovata proprietà: "+ property_item.name+" con estrattore: "+ extractor_item.name)
-                                    scene.em_v_extractors_list.add()
-                                    scene.em_v_extractors_list[extr_index].name = extractor_item.name
-                                    scene.em_v_extractors_list[extr_index].description = extractor_item.description
-                                    scene.em_v_extractors_list[extr_index].url = extractor_item.url
-                                    # trovato l'estrattore connesso ora riparto dal pass degli edges
-                                    for edge_item in scene.edges_list:
-                                        pass
-                                        #controlliamo se troviamo un edge che parte da questo estrattore
-                                        if edge_item.source == extractor_item.id_node:
-                                            pass
-                                            # una volta trovato l'edge, faccio un pass delle sources
-                                            for source_item in scene.em_sources_list:
-                                                pass
-                                                # controlliamo se troviamo un estrattore di arrivo compatibile con l'edge
-                                                if edge_item.target == source_item.id_node:
-                                                    print("trovato nodo estrattore: "+extractor_item.name+" con source: "+source_item.name)
-                                                    scene.em_v_sources_list.add()
-                                                    scene.em_v_sources_list[sour_index].name = source_item.name
-                                                    scene.em_v_sources_list[sour_index].description = source_item.description
-                                                    scene.em_v_sources_list[sour_index].url = source_item.url
-                                                    sour_index += 1
-                                    extr_index += 1
+                    if scene.prop_paradata_streaming_mode:
+                        print("qui ci arrivo")
+                        selected_property_node = scene.em_v_properties_list[scene.em_v_properties_list_index]
+                        create_derived_extractors_list(selected_property_node)
+                    else:
+                        create_derived_extractors_list(property_item)
+
                     prop_index += 1 
     print("property: "+ str(prop_index))
-    print("extractors: "+ str(extr_index))
-    print("sources: "+ str(sour_index))
+
                             
     return
 

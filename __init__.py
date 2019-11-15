@@ -247,10 +247,10 @@ classes = (
     UI.EM_UL_named_epoch_managers,
     UI.RM_UL_named_repmod_managers,
     UI.Display_mode_menu,
-    UI.VIEW3D_PT_SourcesPanel,
+    UI.VIEW3D_PT_ParadataPanel,
+    UI.EM_UL_properties_managers,
     UI.EM_UL_sources_managers,
-    UI.VIEW3D_PT_PropertiesPanel,
-    UI.EM_UL_properties_viewer,
+    UI.EM_UL_extractors_managers,
     EM_list.EM_listitem_OT_to3D,
     EM_list.EM_update_icon_list,
     EM_list.EM_select_from_list_item,
@@ -296,13 +296,16 @@ def register():
        bpy.types.Scene.em_v_sources_list = prop.CollectionProperty(type = EMListParadata)
        bpy.types.Scene.em_v_sources_list_index = prop.IntProperty(name = "Index for sources list", default = 0)
        bpy.types.Scene.em_v_properties_list = prop.CollectionProperty(type = EMListParadata)
-       bpy.types.Scene.em_v_properties_list_index = prop.IntProperty(name = "Index for properties list", default = 0)
+       bpy.types.Scene.em_v_properties_list_index = prop.IntProperty(name = "Index for properties list", default = 0, update = functions.stream_properties)
        bpy.types.Scene.em_v_extractors_list = prop.CollectionProperty(type = EMListParadata)
-       bpy.types.Scene.em_v_extractors_list_index = prop.IntProperty(name = "Index for extractors list", default = 0)
+       bpy.types.Scene.em_v_extractors_list_index = prop.IntProperty(name = "Index for extractors list", default = 0, update = functions.stream_extractors)
        bpy.types.Scene.em_v_combiners_list = prop.CollectionProperty(type = EMListParadata)
-       bpy.types.Scene.em_v_combiners_list_index = prop.IntProperty(name = "Index for combiners list", default = 0)
+       bpy.types.Scene.em_v_combiners_list_index = prop.IntProperty(name = "Index for combiners list", default = 0, update = functions.stream_combiners)
 
        bpy.types.Scene.paradata_streaming_mode = BoolProperty(name="Paradata streaming mode", description = "Enable/disable tables streaming mode",default=True, update = functions.switch_paradata_lists)
+       bpy.types.Scene.prop_paradata_streaming_mode = BoolProperty(name="Properties Paradata streaming mode", description = "Enable/disable property table streaming mode",default=True, update = functions.stream_properties)
+       bpy.types.Scene.comb_paradata_streaming_mode = BoolProperty(name="Combiners Paradata streaming mode", description = "Enable/disable combiner table streaming mode",default=True, update = functions.stream_combiners)
+       bpy.types.Scene.extr_paradata_streaming_mode = BoolProperty(name="Extractors Paradata streaming mode", description = "Enable/disable extractor table streaming mode",default=True, update = functions.stream_extractors)
 
        bpy.types.Scene.proxy_shader_mode = BoolProperty(name="Proxy shader mode", description = "Enable additive shader for proxies",default=False, update = functions.proxy_shader_mode_function)
        bpy.types.Scene.EM_file = StringProperty(
@@ -380,4 +383,10 @@ def unregister():
        del bpy.types.Scene.em_v_combiners_list_index
 
        del bpy.types.Scene.edges_list
+
+       del bpy.types.Scene.paradata_streaming_mode
+
+       del bpy.types.Scene.prop_paradata_streaming_mode
+       del bpy.types.Scene.comb_paradata_streaming_mode
+       del bpy.types.Scene.extr_paradata_streaming_mode
 ######################################################################################################
