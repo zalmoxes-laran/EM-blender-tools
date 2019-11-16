@@ -432,7 +432,7 @@ def read_edge_db(context, tree):
 
 def stream_properties(self, context):
     scene = context.scene
-    create_derived_extractors_list(scene.em_v_extractors_list[scene.em_v_extractors_list_index])
+    create_derived_extractors_list(scene.em_v_properties_list[scene.em_v_properties_list_index])
     return
 
 def stream_combiners(self, context):
@@ -452,10 +452,13 @@ def create_derived_extractors_list(property_item):
     EM_list_clear(context, "em_v_extractors_list")
     EM_list_clear(context, "em_v_sources_list")
 
+    #scene.em_v_extractors_list_index = 0
+
     for edge_item in scene.edges_list:
+        #print(property_item.id_node)
         #controlliamo se troviamo un edge che parte da questa proprietà
         if edge_item.source == property_item.id_node:
-            pass
+            print("trovato arco in uscita dalla proprietà "+property_item.name+" con id: "+property_item.id_node)
             # una volta trovato l'edge, faccio un pass degli estrattori 
             for extractor_item in scene.em_extractors_list:
                 pass
@@ -483,6 +486,7 @@ def create_derived_extractors_list(property_item):
                                     scene.em_v_sources_list[sour_index].description = source_item.description
                                     scene.em_v_sources_list[sour_index].url = source_item.url
                                     sour_index += 1
+                    
                     extr_index += 1
 
     print("extractors: "+ str(extr_index))
@@ -494,6 +498,8 @@ def create_derived_lists(node):
     prop_index = 0
 
     EM_list_clear(context, "em_v_properties_list")
+
+    #scene.em_v_properties_list_index = 0
 
     # pass degli edges
     for edge_item in scene.edges_list:
@@ -511,8 +517,10 @@ def create_derived_lists(node):
                     scene.em_v_properties_list[prop_index].url = property_item.url
 
                     if scene.prop_paradata_streaming_mode:
-                        print("qui ci arrivo")
-                        selected_property_node = scene.em_v_properties_list[scene.em_v_properties_list_index]
+                        #print("qui ci arrivo")
+                        selected_property_node = scene.em_properties_list[scene.em_properties_list_index]
+                        #selected_property_node = scene.em_v_properties_list[0]
+                        print("il nodo che voglio inseguire: "+selected_property_node.name)
                         create_derived_extractors_list(selected_property_node)
                     else:
                         create_derived_extractors_list(property_item)
