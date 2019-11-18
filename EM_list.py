@@ -129,6 +129,8 @@ class EM_import_GraphML(bpy.types.Operator):
         em_sources_index_ema = 0
         em_properties_index_ema = 0
         em_extractors_index_ema = 0
+        em_combiners_index_ema = 0
+
 
         allnodes = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
 
@@ -141,34 +143,40 @@ class EM_import_GraphML(bpy.types.Operator):
                     scene.em_list[em_list_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(my_nodename)
                     scene.em_list[em_list_index_ema].y_pos = float(my_node_y_pos)
                     scene.em_list[em_list_index_ema].description = my_node_description
+                    if my_nodename == "USV317":
+                        print(my_node_shape)
                     if my_node_shape == "ellipse":
                         if my_node_fill_color == '#FFFFFF':
                             scene.em_list[em_list_index_ema].shape = my_node_shape+"_white"
+                        else:
+                            scene.em_list[em_list_index_ema].shape = my_node_shape
                     else:
                         scene.em_list[em_list_index_ema].shape = my_node_shape
                     scene.em_list[em_list_index_ema].id_node = getnode_id(node_element)
                     em_list_index_ema += 1
                 elif EM_check_node_document(node_element):
                     source_already_in_list = False
+                    source_number = 2
                     src_nodename, src_node_id, src_node_description, src_nodeurl, subnode_is_document = EM_extract_document_node(node_element)
+                    src_nodename_safe = src_nodename
                     if em_sources_index_ema > 0: 
                         for source_item in scene.em_sources_list:
                             if source_item.name == src_nodename:
                                 source_already_in_list = True
                     if source_already_in_list:
-                        pass
+                        src_nodename = src_nodename+"_"+str(source_number)
+                        source_number +=1
+                    scene.em_sources_list.add()
+                    scene.em_sources_list[em_sources_index_ema].name = src_nodename
+                    scene.em_sources_list[em_sources_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(src_nodename_safe)
+                    scene.em_sources_list[em_sources_index_ema].id_node = src_node_id
+                    scene.em_sources_list[em_sources_index_ema].url = src_nodeurl
+                    if src_nodeurl == "--None--":
+                        scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_DEHLT"
                     else:
-                        scene.em_sources_list.add()
-                        scene.em_sources_list[em_sources_index_ema].name = src_nodename
-                        scene.em_sources_list[em_sources_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(src_nodename)
-                        scene.em_sources_list[em_sources_index_ema].id_node = src_node_id
-                        scene.em_sources_list[em_sources_index_ema].url = src_nodeurl
-                        if src_nodeurl == "--None--":
-                            scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_DEHLT"
-                        else:
-                            scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_HLT"
-                        scene.em_sources_list[em_sources_index_ema].description = src_node_description
-                        em_sources_index_ema += 1
+                        scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_HLT"
+                    scene.em_sources_list[em_sources_index_ema].description = src_node_description
+                    em_sources_index_ema += 1
                 elif EM_check_node_property(node_element):
                     pro_nodename, pro_node_id, pro_node_description, pro_nodeurl, subnode_is_property = EM_extract_property_node(node_element)
                     scene.em_properties_list.add()
@@ -196,6 +204,23 @@ class EM_import_GraphML(bpy.types.Operator):
                         scene.em_extractors_list[em_extractors_index_ema].icon_url = "CHECKBOX_HLT"
                     scene.em_extractors_list[em_extractors_index_ema].description = ext_node_description
                     em_extractors_index_ema += 1
+
+                elif EM_check_node_combiner(node_element):
+                    ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_combiner = EM_extract_combiner_node(node_element)
+                    scene.em_combiners_list.add()
+                    scene.em_combiners_list[em_combiners_index_ema].name = ext_nodename
+                    scene.em_combiners_list[em_combiners_index_ema].id_node = ext_node_id                   
+                    scene.em_combiners_list[em_combiners_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(ext_nodename)
+                    scene.em_combiners_list[em_combiners_index_ema].url = ext_nodeurl
+                   #print(ext_nodeurl)
+                    if ext_nodeurl == "--None--":
+                        scene.em_combiners_list[em_combiners_index_ema].icon_url = "CHECKBOX_DEHLT"
+                    else:
+                        scene.em_combiners_list[em_combiners_index_ema].icon_url = "CHECKBOX_HLT"
+                    scene.em_combiners_list[em_combiners_index_ema].description = ext_node_description
+                    em_combiners_index_ema += 1
+
+
                 else:
                     pass
 

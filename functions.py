@@ -138,6 +138,46 @@ def find_node_us_by_id(id_node):
             us_node = us.name
     return us_node
 
+def EM_extract_combiner_node(node_element):
+
+    is_d4 = False
+    is_d5 = False
+    node_id = node_element.attrib['id']
+    if len(node_id) > 2:
+        subnode_is_combiner = False
+        nodeurl = " "
+        nodename = " "
+        node_description = " "
+        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+            attrib1 = subnode.attrib
+            #print(subnode.tag)
+            if attrib1 == {'key': 'd6'}:
+                for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
+                    nodename = check_if_empty(USname.text)
+                    #print(nodename)
+                for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}SVGContent'):
+                    attrib2 = nodetype.attrib
+                    if attrib2 == {'refid': '2'}:
+                        subnode_is_combiner = True
+                        
+        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+            attrib1 = subnode.attrib                        
+            if subnode_is_combiner is True:
+
+                if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
+                    if subnode.text is not None:
+                        is_d4 = True
+                        nodeurl = check_if_empty(subnode.text)
+                if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
+                    is_d5 = True
+                    node_description = check_if_empty(subnode.text)
+
+        if not is_d4:
+            nodeurl = '--None--'
+        if not is_d5:
+            nodedescription = '--None--'
+        return nodename, node_id, node_description, nodeurl, subnode_is_combiner
+
 def EM_extract_extractor_node(node_element):
 
     is_d4 = False
@@ -153,7 +193,7 @@ def EM_extract_extractor_node(node_element):
             #print(subnode.tag)
             if attrib1 == {'key': 'd6'}:
                 for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
-                    nodename = USname.text
+                    nodename = check_if_empty(USname.text)
                     #print(nodename)
                 for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}SVGContent'):
                     attrib2 = nodetype.attrib
@@ -167,10 +207,10 @@ def EM_extract_extractor_node(node_element):
                 if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
                     if subnode.text is not None:
                         is_d4 = True
-                        nodeurl = subnode.text
+                        nodeurl = check_if_empty(subnode.text)
                 if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
                     is_d5 = True
-                    node_description = subnode.text
+                    node_description = check_if_empty(subnode.text)
 
         if not is_d4:
             nodeurl = '--None--'
@@ -216,6 +256,11 @@ def EM_extract_document_node(node_element):
             nodedescription = '--None--'
         return nodename, node_id, node_description, nodeurl, subnode_is_document
 
+def check_if_empty(name):
+    if name == None:
+        name = "--None--"
+    return name
+
 def EM_extract_property_node(node_element):
     is_d4 = False
     is_d5 = False
@@ -229,7 +274,7 @@ def EM_extract_property_node(node_element):
             attrib1 = subnode.attrib
             if attrib1 == {'key': 'd6'}:
                 for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
-                    nodename = USname.text
+                    nodename = check_if_empty(USname.text)
                 for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}Property'):
                     attrib2 = nodetype.attrib
                     if attrib2 == {'class': 'com.yworks.yfiles.bpmn.view.BPMNTypeEnum', 'name': 'com.yworks.bpmn.type', 'value': 'ARTIFACT_TYPE_ANNOTATION'}:
@@ -274,7 +319,7 @@ def EM_extract_node_name(node_element):
             nodedescription = subnode.text
         if attrib == {'key': 'd6'}:
             for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
-                nodename = USname.text
+                nodename = check_if_empty(USname.text)
             for fill_color in subnode.findall('.//{http://www.yworks.com/xml/graphml}Fill'):
                 fillcolor = fill_color.attrib['color']
             for USshape in subnode.findall('.//{http://www.yworks.com/xml/graphml}Shape'):
@@ -343,6 +388,10 @@ def EM_check_node_property(node_element):
 def EM_check_node_extractor(node_element):
      ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_extractor = EM_extract_extractor_node(node_element)
      return subnode_is_extractor
+
+def EM_check_node_combiner(node_element):
+     com_nodename, com_node_id, com_node_description, com_nodeurl, subnode_is_combiner = EM_extract_combiner_node(node_element)
+     return subnode_is_combiner
 
 def EM_check_node_continuity(node_element):
     id_node_continuity = False
@@ -424,7 +473,7 @@ def read_edge_db(context, tree):
         scene.edges_list.add()
         scene.edges_list[em_list_index_ema].id_node = str(edge.attrib['id'])
         scene.edges_list[em_list_index_ema].source = str(edge.attrib['source'])#getnode_edge_source(edge)
-        scene.edges_list[em_list_index_ema].target = getnode_edge_target(edge)
+        scene.edges_list[em_list_index_ema].target = str(edge.attrib['target'])#getnode_edge_target(edge)
         #print(scene.edges_list[em_list_index_ema].id_node)
         #print(scene.edges_list[em_list_index_ema].target)
         em_list_index_ema += 1
@@ -433,76 +482,45 @@ def read_edge_db(context, tree):
 def stream_properties(self, context):
     scene = context.scene
     if scene.prop_paradata_streaming_mode:
+        #print("qui ci arrivo")
+        selected_property_node = scene.em_v_properties_list[scene.em_v_properties_list_index]
+        #print("il nodo che voglio inseguire: "+selected_property_node.name)
+        is_combiner = create_derived_combiners_list(selected_property_node)
+        if not is_combiner:
+            create_derived_extractors_list(selected_property_node)
+    else:
+        for v_list_property in scene.em_v_properties_list:
+            is_combiner = create_derived_combiners_list(v_list_property)
+            if not is_combiner:
+                create_derived_extractors_list(v_list_property)       
+
         create_derived_extractors_list(scene.em_v_properties_list[scene.em_v_properties_list_index])
+
+    return
+
+def stream_combiners(self, context):
+    scene = context.scene
+    if scene.comb_paradata_streaming_mode:
+        create_derived_extractors_list(scene.em_v_combiners_list[scene.em_v_combiners_list_index])
     else:
         pass
     return
 
-def stream_combiners(self, context):
-    pass
-    return
-
 def stream_extractors(self, context):
-    pass
-    return
-
-
-def create_derived_extractors_list(property_item):
-    context = bpy.context
     scene = context.scene
-    extr_index = 0
-    sour_index = 0
-    EM_list_clear(context, "em_v_extractors_list")
-    EM_list_clear(context, "em_v_sources_list")
-    print(property_item.name+" eccolo qua ! ha id_nodo: "+property_item.id_node)
-    #scene.em_v_extractors_list_index = 0
-
-    for edge_item in scene.edges_list:
-        #print(property_item.id_node)
-        #controlliamo se troviamo un edge che parte da questa proprietà
-        if edge_item.source == property_item.id_node:
-            #print("trovato arco in uscita dalla proprietà "+property_item.name+" con id: "+property_item.id_node)
-            # una volta trovato l'edge, faccio un pass degli estrattori 
-            for extractor_item in scene.em_extractors_list:
-                pass
-                # controlliamo se troviamo un estrattore di arrivo compatibile con l'edge
-                if edge_item.target == extractor_item.id_node:
-                    print("trovata proprietà: "+ property_item.name+" con estrattore: "+ extractor_item.name)
-                    scene.em_v_extractors_list.add()
-                    scene.em_v_extractors_list[extr_index].name = extractor_item.name
-                    scene.em_v_extractors_list[extr_index].description = extractor_item.description
-                    scene.em_v_extractors_list[extr_index].url = extractor_item.url
-                    # trovato l'estrattore connesso ora riparto dal pass degli edges
-                    for edge_item in scene.edges_list:
-                        pass
-                        #controlliamo se troviamo un edge che parte da questo estrattore
-                        if edge_item.source == extractor_item.id_node:
-                            pass
-                            # una volta trovato l'edge, faccio un pass delle sources
-                            for source_item in scene.em_sources_list:
-                                pass
-                                # controlliamo se troviamo un estrattore di arrivo compatibile con l'edge
-                                if edge_item.target == source_item.id_node:
-                                    #print("trovato nodo estrattore: "+extractor_item.name+" con source: "+source_item.name)
-                                    scene.em_v_sources_list.add()
-                                    scene.em_v_sources_list[sour_index].name = source_item.name
-                                    scene.em_v_sources_list[sour_index].description = source_item.description
-                                    scene.em_v_sources_list[sour_index].url = source_item.url
-                                    sour_index += 1
-                    
-                    extr_index += 1
-
-    print("extractors: "+ str(extr_index))
-    print("sources: "+ str(sour_index))
+    if scene.extr_paradata_streaming_mode:
+        create_derived_sources_list(scene.em_v_extractors_list[scene.em_v_extractors_list_index])
+    else:
+        pass
+    return
 
 def create_derived_lists(node):
     context = bpy.context
     scene = context.scene
     prop_index = 0
-
     EM_list_clear(context, "em_v_properties_list")
 
-    #scene.em_v_properties_list_index = 0
+    is_property = False
 
     # pass degli edges
     for edge_item in scene.edges_list:
@@ -513,26 +531,157 @@ def create_derived_lists(node):
             for property_item in scene.em_properties_list:
                 #controlliamo se troviamo una proprietà di arrivo compatibile con l'edge
                 if edge_item.target == property_item.id_node:
-                    print("trovato nodo: "+ node.name+" con proprieta: "+ property_item.name)
+                   # print("trovato nodo: "+ node.name+" con proprieta: "+ property_item.name)
                     scene.em_v_properties_list.add()
                     scene.em_v_properties_list[prop_index].name = property_item.name
                     scene.em_v_properties_list[prop_index].description = property_item.description
                     scene.em_v_properties_list[prop_index].url = property_item.url
+                    scene.em_v_properties_list[prop_index].id_node = property_item.id_node
+                    prop_index += 1
+                    is_property = True
+                    #if not scene.prop_paradata_streaming_mode:
+                        
+    if is_property:
+        if scene.prop_paradata_streaming_mode:
+            #print("qui ci arrivo")
+            selected_property_node = scene.em_v_properties_list[scene.em_v_properties_list_index]
+            #print("il nodo che voglio inseguire: "+selected_property_node.name)
+            is_combiner = create_derived_combiners_list(selected_property_node)
+            if not is_combiner:
+                create_derived_extractors_list(selected_property_node)
+        else:
+            for v_list_property in scene.em_v_properties_list:
+                is_combiner = create_derived_combiners_list(v_list_property)
+                if not is_combiner:
+                    create_derived_extractors_list(v_list_property)                
 
-                    if scene.prop_paradata_streaming_mode:
-                        #print("qui ci arrivo")
-                        selected_property_node = scene.em_properties_list[scene.em_properties_list_index]
-                        #selected_property_node = scene.em_v_properties_list[0]
-                        print("il nodo che voglio inseguire: "+selected_property_node.name)
-                        create_derived_extractors_list(selected_property_node)
-                    else:
-                        create_derived_extractors_list(property_item)
+    else:
+        EM_list_clear(context, "em_v_extractors_list")
+        EM_list_clear(context, "em_v_sources_list")
+        EM_list_clear(context, "em_v_combiners_list")
 
-                    prop_index += 1 
-    print("property: "+ str(prop_index))
-
-                            
+    #print("property: "+ str(prop_index))     
     return
+
+def create_derived_combiners_list(passed_property_item):
+    context = bpy.context
+    scene = context.scene
+    comb_index = 0
+    is_combiner = False
+    EM_list_clear(context, "em_v_combiners_list")
+
+    #print("La proprieta: "+passed_property_item.name+" ha id_nodo: "+passed_property_item.id_node)
+    #scene.em_v_combiners_list_index = 0
+
+    for edge_item in scene.edges_list:
+        #print(property_item.id_node)
+        #controlliamo se troviamo un edge che parte da questa proprietà
+        if edge_item.source == passed_property_item.id_node:
+            #print("trovato arco in uscita dalla proprietà "+property_item.name+" con id: "+property_item.id_node)
+            # una volta trovato l'edge, faccio un pass degli estrattori 
+            for combiner_item in scene.em_combiners_list:
+                # controlliamo se troviamo un estrattore di arrivo compatibile con l'edge
+                if edge_item.target == combiner_item.id_node:
+                    #print("trovato estrattore: "+ combiner_item.name+ " per la proprietà: "+ passed_property_item.name)
+                    scene.em_v_combiners_list.add()
+                    scene.em_v_combiners_list[comb_index].name = combiner_item.name
+                    scene.em_v_combiners_list[comb_index].description = combiner_item.description
+                    scene.em_v_combiners_list[comb_index].url = combiner_item.url
+                    scene.em_v_combiners_list[comb_index].id_node = combiner_item.id_node
+                    # trovato l'estrattore connesso ora riparto dal pass degli edges
+                    is_combiner = True
+                    #if not scene.extr_paradata_streaming_mode:
+                    comb_index += 1
+    if is_combiner:
+        if scene.comb_paradata_streaming_mode:
+            #print("qui ci arrivo")
+            selected_combiner_node = scene.em_v_combiners_list[scene.em_v_combiners_list_index]
+            #selected_property_node = scene.em_v_properties_list[0]
+            #print("il nodo che voglio inseguire: "+selected_combiner_node.name)
+            create_derived_sources_list(selected_combiner_node)
+        else:
+            for v_list_combiner in scene.em_v_combiners_list:
+                create_derived_sources_list(v_list_combiner)
+
+    else:
+        EM_list_clear(context, "em_v_sources_list")
+        EM_list_clear(context, "em_v_extractors_list")
+
+   # print("combiners: "+ str(comb_index))
+
+    return is_combiner
+
+def create_derived_extractors_list(passed_property_item):
+    context = bpy.context
+    scene = context.scene
+    extr_index = 0
+    is_extractor = False
+    EM_list_clear(context, "em_v_extractors_list")
+
+   # print("La proprieta: "+passed_property_item.name+" ha id_nodo: "+passed_property_item.id_node)
+    #scene.em_v_extractors_list_index = 0
+
+    for edge_item in scene.edges_list:
+        #print(property_item.id_node)
+        #controlliamo se troviamo un edge che parte da questa proprietà
+        if edge_item.source == passed_property_item.id_node:
+            #print("trovato arco in uscita dalla proprietà "+property_item.name+" con id: "+property_item.id_node)
+            # una volta trovato l'edge, faccio un pass degli estrattori 
+            for extractor_item in scene.em_extractors_list:
+                # controlliamo se troviamo un estrattore di arrivo compatibile con l'edge
+                if edge_item.target == extractor_item.id_node:
+                   # print("trovato estrattore: "+ extractor_item.name+ " per la proprietà: "+ passed_property_item.name)
+                    scene.em_v_extractors_list.add()
+                    scene.em_v_extractors_list[extr_index].name = extractor_item.name
+                    scene.em_v_extractors_list[extr_index].description = extractor_item.description
+                    scene.em_v_extractors_list[extr_index].url = extractor_item.url
+                    scene.em_v_extractors_list[extr_index].id_node = extractor_item.id_node
+                    # trovato l'estrattore connesso ora riparto dal pass degli edges
+                    is_extractor = True
+                    #if not scene.extr_paradata_streaming_mode:
+                    extr_index += 1
+    if is_extractor:
+        if scene.extr_paradata_streaming_mode:
+            #print("qui ci arrivo")
+            selected_extractor_node = scene.em_v_extractors_list[scene.em_v_extractors_list_index]
+            #selected_property_node = scene.em_v_properties_list[0]
+           # print("il nodo che voglio inseguire: "+selected_extractor_node.name)
+            create_derived_sources_list(selected_extractor_node)
+        else:
+            for v_list_extractor in scene.em_v_extractors_list:
+                create_derived_sources_list(v_list_extractor)
+
+    else:
+        EM_list_clear(context, "em_v_sources_list")
+
+    #print("extractors: "+ str(extr_index))
+
+
+def create_derived_sources_list(passed_extractor_item):
+    context = bpy.context
+    scene = context.scene
+    sour_index = 0
+    EM_list_clear(context, "em_v_sources_list")
+    #print("passed_extractor_item: "+passed_extractor_item.name+" con id: "+passed_extractor_item.id_node)
+    for edge_item in scene.edges_list:
+        
+        #controlliamo se troviamo un edge che parte da questo estrattore
+        if edge_item.source == passed_extractor_item.id_node:
+            #print("TROVATO arco in uscita ("+edge_item.id_node+")  dall'estrattore: "+passed_extractor_item.id_node+" e che porta al nodo: "+edge_item.target)
+            # una volta trovato l'edge, faccio un pass delle sources
+            for source_item in scene.em_sources_list:
+                #print(source_item.id_node+ " con nome: "+source_item.name)
+                # controlliamo se troviamo un estrattore di arrivo compatibile con l'edge
+                if edge_item.target == source_item.id_node:
+                    #print("trovato nodo source: "+source_item.name+" che parte dall'estrattore: "+passed_extractor_item.name)
+                    scene.em_v_sources_list.add()
+                    scene.em_v_sources_list[sour_index].name = source_item.name
+                    scene.em_v_sources_list[sour_index].description = source_item.description
+                    scene.em_v_sources_list[sour_index].url = source_item.url
+                    scene.em_v_sources_list[sour_index].id_node = source_item.id_node
+                    sour_index += 1
+
+    #print("sources: "+ str(sour_index))
 
 def switch_paradata_lists(self, context):
     scene = context.scene
