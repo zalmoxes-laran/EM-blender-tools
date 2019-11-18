@@ -124,6 +124,7 @@ class EM_import_GraphML(bpy.types.Operator):
         EM_list_clear(context, "em_sources_list")
         EM_list_clear(context, "em_properties_list")
         EM_list_clear(context, "em_extractors_list")
+        EM_list_clear(context, "em_combiners_list")
         em_list_index_ema = 0
         em_reused_index = 0
         em_sources_index_ema = 0
