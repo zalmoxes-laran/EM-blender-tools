@@ -432,7 +432,10 @@ def read_edge_db(context, tree):
 
 def stream_properties(self, context):
     scene = context.scene
-    create_derived_extractors_list(scene.em_v_properties_list[scene.em_v_properties_list_index])
+    if scene.prop_paradata_streaming_mode:
+        create_derived_extractors_list(scene.em_v_properties_list[scene.em_v_properties_list_index])
+    else:
+        pass
     return
 
 def stream_combiners(self, context):
@@ -451,14 +454,14 @@ def create_derived_extractors_list(property_item):
     sour_index = 0
     EM_list_clear(context, "em_v_extractors_list")
     EM_list_clear(context, "em_v_sources_list")
-
+    print(property_item.name+" eccolo qua ! ha id_nodo: "+property_item.id_node)
     #scene.em_v_extractors_list_index = 0
 
     for edge_item in scene.edges_list:
         #print(property_item.id_node)
         #controlliamo se troviamo un edge che parte da questa proprietà
         if edge_item.source == property_item.id_node:
-            print("trovato arco in uscita dalla proprietà "+property_item.name+" con id: "+property_item.id_node)
+            #print("trovato arco in uscita dalla proprietà "+property_item.name+" con id: "+property_item.id_node)
             # una volta trovato l'edge, faccio un pass degli estrattori 
             for extractor_item in scene.em_extractors_list:
                 pass
@@ -480,7 +483,7 @@ def create_derived_extractors_list(property_item):
                                 pass
                                 # controlliamo se troviamo un estrattore di arrivo compatibile con l'edge
                                 if edge_item.target == source_item.id_node:
-                                    print("trovato nodo estrattore: "+extractor_item.name+" con source: "+source_item.name)
+                                    #print("trovato nodo estrattore: "+extractor_item.name+" con source: "+source_item.name)
                                     scene.em_v_sources_list.add()
                                     scene.em_v_sources_list[sour_index].name = source_item.name
                                     scene.em_v_sources_list[sour_index].description = source_item.description
@@ -534,6 +537,7 @@ def create_derived_lists(node):
 def switch_paradata_lists(self, context):
     scene = context.scene
     if scene.paradata_streaming_mode:
+        #print("sto lanciano dil comando again")
         node = scene.em_list[scene.em_list_index]
         create_derived_lists(node)
     else:
