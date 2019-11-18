@@ -10,11 +10,11 @@ from bpy.types import Operator
 from bpy.types import Menu, Panel, UIList, PropertyGroup
 from bpy.props import StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
 from bpy.app.handlers import persistent
-
 from .epoch_manager import *
 from .EM_list import *
 
-
+#####################################################################
+#SETUP MENU
 class Display_mode_menu(bpy.types.Menu):
     bl_label = "Custom Menu"
     bl_idname = "OBJECT_MT_Display_mode_menu"
@@ -56,8 +56,9 @@ class EM_SetupPanel:
         col = split.column(align=True)
         col.operator("import.em_graphml", icon="FILE_REFRESH", text='(Re)Load')
         #row = layout.row()
-        #col = split.column(align=True)
-        #col.operator("uslist_icon.update", icon="PRESET", text='Refresh')
+        col = split.column(align=True)
+        op = col.operator("list_icon.update", icon="PRESET", text='Refresh')
+        op.list_type = "all"
 
         row = layout.row(align=True)
         row.prop(context.scene, 'EM_file', toggle = True, text ="")
@@ -75,6 +76,16 @@ class EM_SetupPanel:
         #col = split.column()
         col.prop(scene, "epoch_list", text='')
 
+        col = split.column()
+        col.label(text="Properties")
+        #col = split.column()
+        col.prop(scene, "em_properties_list", text='')
+
+        col = split.column()
+        col.label(text="Sources")
+        #col = split.column()
+        col.prop(scene, "em_sources_list", text='')
+
         row = layout.row(align=True)
         split = row.split()
         col = split.column()
@@ -84,17 +95,18 @@ class EM_SetupPanel:
         col.menu(Display_mode_menu.bl_idname, text=current_proxy_display_mode, icon='COLOR')
  
         row = layout.row()
-        split = row.split()
+        #split = row.split()
         
-        col = split.column(align=True)
-        col.prop(scene, "proxy_display_alpha")
+        #col = split.column(align=True)
+        row.prop(scene, "proxy_display_alpha")
 
-        col = split.column(align=True)
-        col.prop(scene, "proxy_shader_mode", text='', icon="NODE_MATERIAL")
+        #col = split.column(align=True)
+        row.prop(scene, "proxy_shader_mode", text='', icon="NODE_MATERIAL")
 
-        row = layout.row(align=True)
+        #row = layout.row(align=True)
+        #col = split.column(align=True)
 
-        row.label(text="On selected:")
+        #col.label(text="On selected:")
         op = row.operator(
             "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_BBOX')
         op.sg_objects_changer = 'BOUND_SHADE'
@@ -118,7 +130,11 @@ class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_SetupPanel"
     bl_context = "objectmode"
+#SETUP MENU
+#####################################################################
 
+#####################################################################
+#US/USV Manager
 class EM_ToolsPanel:
     bl_label = "US/USV Manager"
     bl_space_type = 'VIEW_3D'
@@ -143,7 +159,8 @@ class EM_ToolsPanel:
             row.prop(item, "name", text="")
             split = row.split()
             col = split.column()
-            col.operator("usname.toproxy", icon="PASTEDOWN", text='')
+            op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
+            op.list_type = "em_list"
             #row = layout.row()
             #row.label(text="Description:")
             row = box.row()
@@ -151,12 +168,23 @@ class EM_ToolsPanel:
             row.prop(item, "description", text="", slider=True, emboss=True)
 
         split = layout.split()
-        col = split.column()
-        col.operator("select.fromlistitem", text='Proxy', icon="MESH_CUBE")
-        col = split.column(align=True)
-        col.operator("select.listitem", text='EM', icon="LONGDISPLAY")
+        if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
+            col = split.column()
+            op = col.operator("select.fromlistitem", text='', icon="MESH_CUBE")
+            op.list_type = "em_list"
+        else:
+            col = split.column()
+            col.label(text="", icon='MESH_CUBE') 
+        if obj:
+            if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
+                col = split.column(align=True)
+                op = col.operator("select.listitem", text='', icon="LONGDISPLAY")
+                op.list_type = "em_list"
+            else:
+                col = split.column()
+                col.label(text="", icon='LONGDISPLAY')             
 
-        split = layout.split()
+        #split = layout.split()
         col = split.column(align=True)
         col.label(text="Sync:")
 
@@ -169,10 +197,13 @@ class EM_ToolsPanel:
         col = split.column(align=True)
         col.prop(em_settings, "em_proxy_sync", text='', icon="LONGDISPLAY")
 
+        col = split.column(align=True)
+        col.prop(scene, "paradata_streaming_mode", text='', icon="SHORTDISPLAY")
+
         if scene.em_settings.em_proxy_sync is True:
             if obj is not None:
-                if check_if_current_obj_has_brother_inlist(obj.name):
-                        select_list_element_from_obj_proxy(obj)
+                if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
+                        select_list_element_from_obj_proxy(obj, "em_list")
                 
         if scene.em_settings.em_proxy_sync2 is True:
             if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
@@ -187,12 +218,17 @@ class EM_ToolsPanel:
                                     ctx['area'] = area
                                     ctx['region'] = area.regions[-1]
                                     bpy.ops.view3d.view_selected(ctx)
-            
+
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_ToolsPanel"
     bl_context = "objectmode"
 
+#US/USV Manager
+#####################################################################
+
+#####################################################################
+#Periods Manager
 class EM_BasePanel:
     bl_label = "Periods Manager"
     bl_space_type = 'VIEW_3D'
@@ -262,10 +298,249 @@ class EM_UL_named_epoch_managers(UIList):
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
+#Periods Manager
+#####################################################################
+
+#####################################################################
+#Paradata Section
+
+class EM_ParadataPanel:
+    bl_label = "Paradata Manager"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        em_settings = scene.em_settings
+        obj = context.object
+        row = layout.row()
+
+        # define variables 
+        if scene.paradata_streaming_mode:
+            property_list_var = "em_v_properties_list"
+            property_list_index_var = "em_v_properties_list_index"
+            property_list_cmd = "scene.em_v_properties_list"
+            property_list_index_cmd = "scene.em_v_properties_list_index"
+
+            combiner_list_var = "em_v_combiners_list"
+            combiner_list_index_var = "em_v_combiners_list_index"
+            combiner_list_cmd = "scene.em_v_combiners_list"
+            combiner_list_index_cmd = "scene.em_v_combiners_list_index"
+
+            extractor_list_var = "em_v_extractors_list"
+            extractor_list_index_var = "em_v_extractors_list_index"
+            extractor_list_cmd = "scene.em_v_extractors_list"
+            extractor_list_index_cmd = "scene.em_v_extractors_list_index"
+
+            source_list_var = "em_v_sources_list"
+            source_list_index_var = "em_v_sources_list_index"
+            source_list_cmd = "scene.em_v_sources_list"
+            source_list_index_cmd = "scene.em_v_sources_list_index"
+
+        else:
+            property_list_var = "em_properties_list"
+            property_list_index_var = "em_properties_list_index"
+            property_list_cmd = "scene.em_properties_list"
+            property_list_index_cmd = "scene.em_properties_list_index"
+
+            combiner_list_var = "em_combiners_list"
+            combiner_list_index_var = "em_combiners_list_index"
+            combiner_list_cmd = "scene.em_combiners_list"
+            combiner_list_index_cmd = "scene.em_combiners_list_index"
+
+            extractor_list_var = "em_extractors_list"
+            extractor_list_index_var = "em_extractors_list_index"
+            extractor_list_cmd = "scene.em_extractors_list"
+            extractor_list_index_cmd = "scene.em_extractors_list_index"  
+
+            source_list_var = "em_sources_list"
+            source_list_index_var = "em_sources_list_index"
+            source_list_cmd = "scene.em_sources_list"
+            source_list_index_cmd = "scene.em_sources_list_index"           
+
+    ###############################################################################
+    ##          Properties
+    ###############################################################################
+
+        len_property_var = "len("+property_list_cmd+")"
+        if eval(property_list_index_cmd) >= 0 and eval(len_property_var) > 0:
+
+            # layout.row().separator()
+
+            row.label(text="Properties: ("+str(eval(len_property_var))+")")
+            row.prop(scene, "prop_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
+            row = layout.row()
+            row.template_list("EM_UL_properties_managers", "", scene, property_list_var, scene, property_list_index_var, rows=2)
+
+            #item_source = scene.em_properties_list[scene.em_properties_list_index]
+            item_property = eval(property_list_cmd)[eval(property_list_index_cmd)]
+            box = layout.box()
+            row = box.row(align=True)
+            row = box.row()
+            row.prop(item_property, "name", text="", icon='FILE_TEXT')
+            row = box.row()
+            row.prop(item_property, "description", text="", slider=True, emboss=True, icon='TEXT')
+        else:
+            row.label(text="No paradata here :-(")
+    ###############################################################################
+    ##          Combiners
+    ###############################################################################
+
+        len_combiner_var = "len("+combiner_list_cmd+")"
+        if eval(combiner_list_index_cmd) >= 0 and eval(len_combiner_var) > 0:
+
+            # layout.row().separator()
+
+            row = layout.row()
+            row.label(text="Combiners: ("+str(eval(len_combiner_var))+")")
+            row.prop(scene, "comb_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
+            row = layout.row()
+            row.template_list("EM_UL_combiners_managers", "", scene, combiner_list_var, scene, combiner_list_index_var, rows=1)
+        
+            item_property = eval(combiner_list_cmd)[eval(combiner_list_index_cmd)]
+            box = layout.box()
+            row = box.row(align=True)
+            row = box.row()
+            row.prop(item_property, "name", text="", icon='FILE_TEXT')
+            row = box.row()
+            row.prop(item_property, "description", text="", slider=True, emboss=True, icon='TEXT')
+            
+    ###############################################################################
+    ##          Extractors
+    ###############################################################################
+
+        len_source_var = "len("+extractor_list_cmd+")"
+        if eval(extractor_list_index_cmd) >= 0 and eval(len_source_var) > 0:
+
+            # layout.row().separator()
+
+            row = layout.row()
+            row.label(text="Extractors: ("+str(eval(len_source_var))+")")
+            row.prop(scene, "extr_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
+            row = layout.row()
+            row.template_list("EM_UL_extractors_managers", "", scene, extractor_list_var, scene, extractor_list_index_var, rows=2)
 
 
-#########################################################################################################
+            item_source = eval(extractor_list_cmd)[eval(extractor_list_index_cmd)]
+            box = layout.box()
+            row = box.row(align=True)
+            row = box.row()
+            row.prop(item_source, "name", text="", icon='FILE_TEXT')
+            op = row.operator("listitem.toobj", icon="PASTEDOWN", text='')
+            op.list_type = extractor_list_var
+            
+            if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
+                op = row.operator("select.fromlistitem", text='', icon="MESH_CUBE")
+                op.list_type = extractor_list_var
+            else:
+                row.label(text="", icon='MESH_CUBE')
+            if obj:
+                if check_if_current_obj_has_brother_inlist(obj.name, extractor_list_var):
+                    op = row.operator("select.listitem", text='', icon="LONGDISPLAY")
+                    op.list_type = extractor_list_var
+                else:
+                    row.label(text="", icon='LONGDISPLAY')   
+            
+            row = box.row()
+            row.prop(item_source, "description", text="", slider=True, emboss=True, icon='TEXT')
+            row = box.row()
+            row.prop(item_source, "url", text="", slider=True, emboss=True, icon='URL')
 
+ 
+
+    ###############################################################################
+    ##          Sources
+    ###############################################################################
+
+        len_source_var = "len("+source_list_cmd+")"
+        if eval(source_list_index_cmd) >= 0 and eval(len_source_var) > 0:
+
+            # layout.row().separator()
+
+            row = layout.row()
+            row.label(text="Sources: ("+str(eval(len_source_var))+")")
+            row = layout.row()
+            row.template_list("EM_UL_sources_managers", "", scene, source_list_var, scene, source_list_index_var, rows=2)
+
+
+            item_source = eval(source_list_cmd)[eval(source_list_index_cmd)]
+            box = layout.box()
+            row = box.row()
+            row.prop(item_source, "name", text="", icon='FILE_TEXT')
+            split = row.split()
+            op = row.operator("listitem.toobj", icon="PASTEDOWN", text='')
+            op.list_type = source_list_var
+            
+            #split = layout.split()
+            if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
+                #col = split.column()
+                op = row.operator("select.fromlistitem", text='', icon="MESH_CUBE")
+                op.list_type = source_list_var
+            else:
+                #col = split.column()
+                row.label(text="", icon='MESH_CUBE')
+            if obj:
+                if check_if_current_obj_has_brother_inlist(obj.name, source_list_var):
+                    #col = split.column(align=True)
+                    op = row.operator("select.listitem", text='', icon="LONGDISPLAY")
+                    op.list_type = source_list_var
+                else:
+                    #col = split.column()
+                    row.label(text="", icon='LONGDISPLAY')              
+            
+            row = box.row()
+            row.prop(item_source, "description", text="", slider=True, emboss=True, icon='TEXT')
+            row = box.row()
+            row.prop(item_source, "url", text="", slider=True, emboss=True, icon='URL')
+            row = box.row()
+
+class VIEW3D_PT_ParadataPanel(Panel, EM_ParadataPanel):
+    bl_category = "EM"
+    bl_idname = "VIEW3D_PT_ParadataPanel"
+    bl_context = "objectmode"
+
+class EM_UL_sources_managers(UIList):
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        icons_style = 'OUTLINER'
+        scene = context.scene
+        layout = layout.split(factor =0.22, align = True)
+        layout.label(text = item.name, icon = item.icon)
+        layout.label(text = item.description, icon=item.icon_url)
+
+class EM_UL_properties_managers(UIList):
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        icons_style = 'OUTLINER'
+        scene = context.scene
+        layout = layout.split(factor =0.4, align = True)
+        layout.label(text = item.name)
+        layout.label(text = item.description)
+
+class EM_UL_combiners_managers(UIList):
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        icons_style = 'OUTLINER'
+        scene = context.scene
+        layout = layout.split(factor =0.25, align = True)
+        layout.label(text = item.name)
+        layout.label(text = item.description)
+
+class EM_UL_extractors_managers(UIList):
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        icons_style = 'OUTLINER'
+        scene = context.scene
+        layout = layout.split(factor =0.25, align = True)
+        layout.label(text = item.name, icon = item.icon)
+        layout.label(text = item.description, icon=item.icon_url)
+
+# Paradata section 
+#####################################################################
+
+#####################################################################
+#Representation models
 class RM_BasePanel:
     bl_label = "Representation models"
     bl_space_type = 'VIEW_3D'
@@ -303,8 +578,6 @@ class RM_BasePanel:
             "repmod_manager.repmod_remove_from_group", text="Remove")
         row.operator("repmod_manager.clean_object_ids", text="Clean")
 
-
-
         layout.label(text="Selection Settings:")
         row = layout.row(align=True)
         #row.prop(rm_settings, "select_all_layers", text='Layers')
@@ -312,12 +585,10 @@ class RM_BasePanel:
         row.prop(rm_settings, "unhide_obj", text='Unhide')
         row = layout.row(align=True)
 
-
 class VIEW3D_RM_BasePanel(Panel, RM_BasePanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_RM_BasePanel"
     bl_context = "objectmode"
-
 
 class RM_UL_named_repmod_managers(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -351,55 +622,5 @@ class RM_UL_named_repmod_managers(UIList):
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
-
-###########################################################################################################################################•
-class EM_SourcesPanel:
-    bl_label = "Sources Manager"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        em_settings = scene.em_settings
-        row = layout.row()
-        row.template_list(
-            "EM_UL_sources_managers", "", scene, "em_sources_list", scene, "em_sources_list_index")
-
-        if scene.em_sources_list_index >= 0 and len(scene.em_sources_list) > 0:
-            item_source = scene.em_sources_list[scene.em_sources_list_index]
-            box = layout.box()
-            row = box.row(align=True)
-            row.label(text="Source name, description, and url:")
-            row = box.row()
-            split = row.split()
-            col = split.column()
-            row.prop(item_source, "name", text="")
-            split = row.split()
-            col = split.column()
-            col.operator("nodename.to3dsource", icon="PASTEDOWN", text='')
-            row = box.row()
-            row.prop(item_source, "description", text="", slider=True, emboss=True)
-            row = box.row()
-            row.prop(item_source, "url", text="", slider=True, emboss=True)
-
-        split = layout.split()
-        col = split.column()
-        col.operator("select.fromsourcelistitem", text='3D source', icon="MESH_CUBE")
-
-        col = split.column(align=True)
-        col.operator("select.sourcelistitem", text='Source node', icon="LONGDISPLAY")
-
-class VIEW3D_PT_SourcesPanel(Panel, EM_SourcesPanel):
-    bl_category = "EM"
-    bl_idname = "VIEW3D_PT_SourcesPanel"
-    bl_context = "objectmode"
-
-class EM_UL_sources_managers(UIList):
-
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        icons_style = 'OUTLINER'
-        scene = context.scene
-        layout = layout.split(factor =0.22, align = True)
-        layout.label(text = item.name, icon = item.icon)
-        layout.label(text = item.description, icon=item.icon_url)
+#Representation models
+#####################################################################
