@@ -132,7 +132,6 @@ class EM_import_GraphML(bpy.types.Operator):
         em_extractors_index_ema = 0
         em_combiners_index_ema = 0
 
-
         allnodes = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
 
         for node_element in allnodes:
@@ -144,7 +143,7 @@ class EM_import_GraphML(bpy.types.Operator):
                     scene.em_list[em_list_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(my_nodename)
                     scene.em_list[em_list_index_ema].y_pos = float(my_node_y_pos)
                     scene.em_list[em_list_index_ema].description = my_node_description
-                    if my_nodename == "USV317":
+
                         #print(my_node_shape)
                     if my_node_shape == "ellipse":
                         if my_node_fill_color == '#FFFFFF':
