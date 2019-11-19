@@ -499,7 +499,6 @@ class EM_ParadataPanel:
             #split = row.split(110 / (context.region.width - 45))
             #row.template_preview(bpy.data.textures['mao'], show_buttons=True)
 
-
 class VIEW3D_PT_ParadataPanel(Panel, EM_ParadataPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_ParadataPanel"
