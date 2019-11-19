@@ -145,7 +145,7 @@ class EM_import_GraphML(bpy.types.Operator):
                     scene.em_list[em_list_index_ema].y_pos = float(my_node_y_pos)
                     scene.em_list[em_list_index_ema].description = my_node_description
                     if my_nodename == "USV317":
-                        print(my_node_shape)
+                        #print(my_node_shape)
                     if my_node_shape == "ellipse":
                         if my_node_fill_color == '#FFFFFF':
                             scene.em_list[em_list_index_ema].shape = my_node_shape+"_white"
