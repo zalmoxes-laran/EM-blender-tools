@@ -461,7 +461,6 @@ def extract_epochs(node_element):
                 scene.epoch_list[i].epoch_color = e_color
                 scene.epoch_list[i].epoch_RGB_color = hex_to_rgb(e_color)
 
-
 def read_edge_db(context, tree):
     alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
     scene = context.scene
@@ -655,7 +654,6 @@ def create_derived_extractors_list(passed_property_item):
         EM_list_clear(context, "em_v_sources_list")
 
     #print("extractors: "+ str(extr_index))
-
 
 def create_derived_sources_list(passed_extractor_item):
     context = bpy.context
@@ -875,3 +873,4 @@ def set_materials_using_epoch_list(context):
                     obj = bpy.data.objects[em_element.name]
                     obj.data.materials.clear()
                     obj.data.materials.append(mat)
+

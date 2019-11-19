@@ -446,8 +446,8 @@ class EM_ParadataPanel:
             row.prop(item_source, "description", text="", slider=True, emboss=True, icon='TEXT')
             row = box.row()
             row.prop(item_source, "url", text="", slider=True, emboss=True, icon='URL')
-
- 
+            op = row.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
+            op.node_type = extractor_list_var
 
     ###############################################################################
     ##          Sources
@@ -462,7 +462,6 @@ class EM_ParadataPanel:
             row.label(text="Sources: ("+str(eval(len_source_var))+")")
             row = layout.row()
             row.template_list("EM_UL_sources_managers", "", scene, source_list_var, scene, source_list_index_var, rows=2)
-
 
             item_source = eval(source_list_cmd)[eval(source_list_index_cmd)]
             box = layout.box()
@@ -493,7 +492,13 @@ class EM_ParadataPanel:
             row.prop(item_source, "description", text="", slider=True, emboss=True, icon='TEXT')
             row = box.row()
             row.prop(item_source, "url", text="", slider=True, emboss=True, icon='URL')
+            op = row.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
+            op.node_type = source_list_var
             row = box.row()
+
+            #split = row.split(110 / (context.region.width - 45))
+            #row.template_preview(bpy.data.textures['mao'], show_buttons=True)
+
 
 class VIEW3D_PT_ParadataPanel(Panel, EM_ParadataPanel):
     bl_category = "EM"
