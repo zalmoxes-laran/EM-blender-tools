@@ -53,12 +53,23 @@ class EM_SetupPanel:
         split = row.split()
         col = split.column()
         col.label(text="EM file")
-        col = split.column(align=True)
-        col.operator("import.em_graphml", icon="FILE_REFRESH", text='(Re)Load')
+        
+        if scene.EM_file:
+            col = split.column(align=True)
+            if len(scene.em_list) > 0:
+                button_load_text = 'Reload'
+                button_load_icon = 'FILE_REFRESH'
+            else:
+                button_load_text = 'Load'
+                button_load_icon = 'IMPORT'
+            col.operator("import.em_graphml", icon= button_load_icon, text=button_load_text)
+        else:
+            col.label(text="Select a GraphML file below", icon='SORT_ASC')
         #row = layout.row()
-        col = split.column(align=True)
-        op = col.operator("list_icon.update", icon="PRESET", text='Refresh')
-        op.list_type = "all"
+        if len(scene.em_list) > 0:
+            col = split.column(align=True)
+            op = col.operator("list_icon.update", icon="PRESET", text='Refresh')
+            op.list_type = "all"
 
         row = layout.row(align=True)
         row.prop(context.scene, 'EM_file', toggle = True, text ="")
@@ -168,7 +179,7 @@ class EM_ToolsPanel:
             row.prop(item, "description", text="", slider=True, emboss=True)
 
         split = layout.split()
-        if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
+        if len(scene.em_list) > 0 and scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
             col = split.column()
             op = col.operator("select.fromlistitem", text='', icon="MESH_CUBE")
             op.list_type = "em_list"
