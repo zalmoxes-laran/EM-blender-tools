@@ -116,6 +116,7 @@ class EPOCHListItem(bpy.types.PropertyGroup):
        is_locked: BoolProperty(name="", default=True)
        is_selected: BoolProperty(name="", default=False)
        epoch_soloing: BoolProperty(name="", default=False)
+       rm_models: BoolProperty(name="", default=False)
 
        unique_id: StringProperty(default="")
 
@@ -245,7 +246,6 @@ classes = (
     UI.VIEW3D_PT_ToolsPanel,
     UI.VIEW3D_PT_BasePanel,
     UI.EM_UL_named_epoch_managers,
-    UI.RM_UL_named_repmod_managers,
     UI.Display_mode_menu,
     UI.VIEW3D_PT_ParadataPanel,
     UI.EM_UL_properties_managers,
@@ -283,7 +283,6 @@ def register():
        bpy.types.Scene.epoch_list_index = prop.IntProperty(name = "Index for epoch_list", default = 0)
 
        bpy.types.Scene.edges_list = prop.CollectionProperty(type = EDGESListItem)
-       #bpy.types.Scene.em_sources_list_index = prop.IntProperty(name = "Index for sources list", default = 0)
 
        bpy.types.Scene.em_sources_list = prop.CollectionProperty(type = EMListParadata)
        bpy.types.Scene.em_sources_list_index = prop.IntProperty(name = "Index for sources list", default = 0)

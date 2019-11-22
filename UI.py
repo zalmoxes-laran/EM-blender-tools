@@ -47,6 +47,11 @@ class EM_SetupPanel:
         em_settings = scene.em_settings
         obj = context.object
         current_proxy_display_mode = context.scene.proxy_display_mode
+
+        if len(scene.em_list) > 0:
+            is_em_list = True
+        else:
+            is_em_list = False
         #box = layout.box()
 
         row = layout.row(align=True)
@@ -56,7 +61,7 @@ class EM_SetupPanel:
         
         if scene.EM_file:
             col = split.column(align=True)
-            if len(scene.em_list) > 0:
+            if is_em_list:
                 button_load_text = 'Reload'
                 button_load_icon = 'FILE_REFRESH'
             else:
@@ -66,7 +71,7 @@ class EM_SetupPanel:
         else:
             col.label(text="Select a GraphML file below", icon='SORT_ASC')
         #row = layout.row()
-        if len(scene.em_list) > 0:
+        if is_em_list:
             col = split.column(align=True)
             op = col.operator("list_icon.update", icon="PRESET", text='Refresh')
             op.list_type = "all"
@@ -158,8 +163,9 @@ class EM_ToolsPanel:
         obj = context.object
         #layout.alignment = 'LEFT'
         row = layout.row()
-        row.template_list("EM_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
+
         if scene.em_list_index >= 0 and len(scene.em_list) > 0:
+            row.template_list("EM_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
             item = scene.em_list[scene.em_list_index]
             box = layout.box()
             row = box.row(align=True)
@@ -178,57 +184,60 @@ class EM_ToolsPanel:
             #layout.alignment = 'LEFT'
             row.prop(item, "description", text="", slider=True, emboss=True)
 
-        split = layout.split()
-        if len(scene.em_list) > 0 and scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
-            col = split.column()
-            op = col.operator("select.fromlistitem", text='', icon="MESH_CUBE")
-            op.list_type = "em_list"
-        else:
-            col = split.column()
-            col.label(text="", icon='MESH_CUBE') 
-        if obj:
-            if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
-                col = split.column(align=True)
-                op = col.operator("select.listitem", text='', icon="LONGDISPLAY")
+            split = layout.split()
+            if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
+                col = split.column()
+                op = col.operator("select.fromlistitem", text='', icon="MESH_CUBE")
                 op.list_type = "em_list"
             else:
                 col = split.column()
-                col.label(text="", icon='LONGDISPLAY')             
-
-        #split = layout.split()
-        col = split.column(align=True)
-        col.label(text="Sync:")
-
-        col = split.column(align=True)
-        col.prop(em_settings, "em_proxy_sync2", text='', icon="MESH_CUBE")
-
-        col = split.column(align=True)
-        col.prop(em_settings, "em_proxy_sync2_zoom", text='', icon="ZOOM_SELECTED")
-
-        col = split.column(align=True)
-        col.prop(em_settings, "em_proxy_sync", text='', icon="LONGDISPLAY")
-
-        col = split.column(align=True)
-        col.prop(scene, "paradata_streaming_mode", text='', icon="SHORTDISPLAY")
-
-        if scene.em_settings.em_proxy_sync is True:
-            if obj is not None:
+                col.label(text="", icon='MESH_CUBE') 
+            if obj:
                 if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
-                        select_list_element_from_obj_proxy(obj, "em_list")
-                
-        if scene.em_settings.em_proxy_sync2 is True:
-            if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
-                list_item = scene.em_list[scene.em_list_index]
+                    col = split.column(align=True)
+                    op = col.operator("select.listitem", text='', icon="LONGDISPLAY")
+                    op.list_type = "em_list"
+                else:
+                    col = split.column()
+                    col.label(text="", icon='LONGDISPLAY')             
+
+            #split = layout.split()
+            col = split.column(align=True)
+            col.label(text="Sync:")
+
+            col = split.column(align=True)
+            col.prop(em_settings, "em_proxy_sync2", text='', icon="MESH_CUBE")
+
+            col = split.column(align=True)
+            col.prop(em_settings, "em_proxy_sync2_zoom", text='', icon="ZOOM_SELECTED")
+
+            col = split.column(align=True)
+            col.prop(em_settings, "em_proxy_sync", text='', icon="LONGDISPLAY")
+
+            col = split.column(align=True)
+            col.prop(scene, "paradata_streaming_mode", text='', icon="SHORTDISPLAY")
+
+            if scene.em_settings.em_proxy_sync is True:
                 if obj is not None:
-                    if list_item.name != obj.name:
-                        select_3D_obj(list_item.name)
-                        if scene.em_settings.em_proxy_sync2_zoom is True:
-                            for area in bpy.context.screen.areas:
-                                if area.type == 'VIEW_3D':
-                                    ctx = bpy.context.copy()
-                                    ctx['area'] = area
-                                    ctx['region'] = area.regions[-1]
-                                    bpy.ops.view3d.view_selected(ctx)
+                    if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
+                            select_list_element_from_obj_proxy(obj, "em_list")
+                    
+            if scene.em_settings.em_proxy_sync2 is True:
+                if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
+                    list_item = scene.em_list[scene.em_list_index]
+                    if obj is not None:
+                        if list_item.name != obj.name:
+                            select_3D_obj(list_item.name)
+                            if scene.em_settings.em_proxy_sync2_zoom is True:
+                                for area in bpy.context.screen.areas:
+                                    if area.type == 'VIEW_3D':
+                                        ctx = bpy.context.copy()
+                                        ctx['area'] = area
+                                        ctx['region'] = area.regions[-1]
+                                        bpy.ops.view3d.view_selected(ctx)
+
+        else:
+            row.label(text="No US/USV here :-(")
 
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_category = "EM"
@@ -248,15 +257,20 @@ class EM_BasePanel:
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        em_settings = scene.em_settings
         row = layout.row()
-        row.template_list(
-            "EM_UL_named_epoch_managers", "", scene, "epoch_list", scene, "epoch_list_index")
-        #layout.label(text="Selection Settings:")
-        #row = layout.row(align=True)
-        #row.prop(em_settings, "unlock_obj", text='UnLock')
-        #row.prop(em_settings, "unhide_obj", text='Unhide')
-        #row = layout.row(align=True)
+
+        if len(scene.em_list) > 0:
+            
+            row.template_list(
+                "EM_UL_named_epoch_managers", "", scene, "epoch_list", scene, "epoch_list_index")
+            # row = layout.row()
+            # op = layout.operator("epoch_manager.toggle_selectable", text="", emboss=False, icon='ADD')
+            # op.rm_epoch = scene.epoch_list[scene.epoch_list_index]
+            # op = layout.operator("epoch_manager.toggle_selectable", text="", emboss=False, icon='REMOVE')
+            # op.rm_epoch = scene.epoch_list[scene.epoch_list_index]
+
+        else:
+            row.label(text="No periods here :-(")
 
 class VIEW3D_PT_BasePanel(Panel, EM_BasePanel):
     bl_category = "EM"
@@ -307,6 +321,9 @@ class EM_UL_named_epoch_managers(UIList):
                 "epoch_manager.toggle_soloing", text="", emboss=False, icon=icon)
             op.group_em_idx = index
 
+            icon = 'KEYTYPE_KEYFRAME_VEC' if epoch_list.rm_models else 'HANDLETYPE_FREE_VEC'
+            layout.label(icon=icon)
+
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
 #Periods Manager
@@ -323,7 +340,6 @@ class EM_ParadataPanel:
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        em_settings = scene.em_settings
         obj = context.object
         row = layout.row()
 
@@ -548,90 +564,4 @@ class EM_UL_extractors_managers(UIList):
         layout.label(text = item.description, icon=item.icon_url)
 
 # Paradata section 
-#####################################################################
-
-#####################################################################
-#Representation models
-class RM_BasePanel:
-    bl_label = "Representation models"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        rm_settings = scene.rm_settings
-
-        row = layout.row(align=True)
-        row.operator(
-            "repmod_manager.repmod_manager_add", icon='ADD', text="")
-        op = row.operator(
-            "repmod_manager.repmod_manager_remove", icon='REMOVE', text="")
-        op.group_rm_idx = scene.repmod_managers_index
-
-        op = row.operator(
-            "repmod_manager.repmod_manager_move", icon='TRIA_UP', text="")
-        op.do_move = 'UP'
-
-        op = row.operator(
-            "repmod_manager.repmod_manager_move", icon='TRIA_DOWN', text="")
-        op.do_move = 'DOWN'
-
-        row = layout.row()
-        row.template_list(
-            "RM_UL_named_repmod_managers", "", scene, "repmod_managers", scene, "repmod_managers_index")
-
-        row = layout.row()
-        op = row.operator("repmod_manager.repmod_add_to_group", text="Add")
-        op.group_rm_idx = scene.repmod_managers_index
-
-        row.operator(
-            "repmod_manager.repmod_remove_from_group", text="Remove")
-        row.operator("repmod_manager.clean_object_ids", text="Clean")
-
-        layout.label(text="Selection Settings:")
-        row = layout.row(align=True)
-        #row.prop(rm_settings, "select_all_layers", text='Layers')
-        row.prop(rm_settings, "unlock_obj", text='UnLock')
-        row.prop(rm_settings, "unhide_obj", text='Unhide')
-        row = layout.row(align=True)
-
-class VIEW3D_RM_BasePanel(Panel, RM_BasePanel):
-    bl_category = "EM"
-    bl_idname = "VIEW3D_RM_BasePanel"
-    bl_context = "objectmode"
-
-class RM_UL_named_repmod_managers(UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        repmod_manager = item
-        #user_preferences = context.user_preferences
-        icons_style = 'OUTLINER'
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            layout.prop(repmod_manager, "name", text="", emboss=False)
-            # select operator
-            icon = 'RESTRICT_SELECT_OFF' if repmod_manager.use_toggle else 'RESTRICT_SELECT_ON'
-            #if icons_style == 'OUTLINER':
-            icon = 'VIEWZOOM' if repmod_manager.use_toggle else 'VIEWZOOM'
-            op = layout.operator(
-                "repmod_manager.toggle_select", text="", emboss=False, icon=icon)
-            op.group_rm_idx = index
-            op.is_menu = False
-            op.is_select = True
-            # lock operator
-            icon = 'LOCKED' if repmod_manager.is_locked else 'UNLOCKED'
-            #if icons_style == 'OUTLINER':
-            icon = 'RESTRICT_SELECT_ON' if repmod_manager.is_locked else 'RESTRICT_SELECT_OFF'
-            op = layout.operator(
-                "repmod_manager.rmchange_grouped_objects", text="", emboss=False, icon=icon)
-            op.rm_group_changer = 'LOCKING'
-            op.group_rm_idx = index
-            # view operator
-            icon = 'RESTRICT_VIEW_OFF' if repmod_manager.use_toggle else 'RESTRICT_VIEW_ON'
-            op = layout.operator(
-                "repmod_manager.toggle_visibility", text="", emboss=False, icon=icon)
-            op.group_rm_idx = index
-
-        elif self.layout_type in {'GRID'}:
-            layout.alignment = 'CENTER'
-#Representation models
 #####################################################################
