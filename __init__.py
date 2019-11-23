@@ -57,6 +57,7 @@ from . import (
         EM_list,
         epoch_manager,
         functions,
+        paradata_manager,
         )
 
 from .functions import *
@@ -265,6 +266,7 @@ classes = (
     epoch_manager.EM_change_selected_objects,
     epoch_manager.EM_toggle_selectable,
     epoch_manager.EM_toggle_soloing,
+    paradata_manager.EM_files_opener,
     EMListItem,
     EM_Other_Settings,
     EPOCHListItem,
@@ -315,9 +317,9 @@ def register():
               subtype = 'FILE_PATH'
        )
 
-######################################################################################################
-#per epoch manager
-##################
+       ######################################################################################################
+       #per epoch manager
+       ##################
 
        bpy.types.Scene.em_settings = PointerProperty(type=EM_Other_Settings)
        bpy.types.Scene.rm_settings = PointerProperty(type=EM_Other_Settings)
@@ -344,14 +346,13 @@ def register():
 
 ######################################################################################################
 
-
 def unregister():
        for cls in classes:
               bpy.utils.unregister_class(cls)
 
-######################################################################################################
-#per epoch manager
-##################
+       ######################################################################################################
+       #per epoch manager
+       ##################
        del bpy.types.Scene.em_settings
        del bpy.types.Scene.em_list
        del bpy.types.Scene.em_list_index
@@ -389,4 +390,6 @@ def unregister():
        del bpy.types.Scene.prop_paradata_streaming_mode
        del bpy.types.Scene.comb_paradata_streaming_mode
        del bpy.types.Scene.extr_paradata_streaming_mode
+
 ######################################################################################################
+
