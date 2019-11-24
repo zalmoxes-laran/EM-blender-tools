@@ -239,6 +239,13 @@ class EMListParadata(bpy.types.PropertyGroup):
            description="The id node of this item",
            default="Empty")
 
+class EM_epochs_belonging_ob(bpy.types.PropertyGroup):
+
+    epoch: prop.StringProperty(
+           name="epoch",
+           description="Epoch",
+           default="Untitled")
+
 # register
 ##################################
 
@@ -253,6 +260,7 @@ classes = (
     UI.EM_UL_sources_managers,
     UI.EM_UL_extractors_managers,
     UI.EM_UL_combiners_managers,
+    UI.EM_UL_belongob,
     EM_list.EM_listitem_OT_to3D,
     EM_list.EM_update_icon_list,
     EM_list.EM_select_from_list_item,
@@ -266,13 +274,15 @@ classes = (
     epoch_manager.EM_change_selected_objects,
     epoch_manager.EM_toggle_selectable,
     epoch_manager.EM_toggle_soloing,
+    epoch_manager.EM_add_remove_epoch_models,
     paradata_manager.EM_files_opener,
     EMListItem,
     EM_Other_Settings,
     EPOCHListItem,
     EMreusedUS,
     EMListParadata,
-    EDGESListItem
+    EDGESListItem,
+    EM_epochs_belonging_ob
     )
 
 def register():
@@ -344,6 +354,9 @@ def register():
 
        bpy.types.VIEW3D_MT_mesh_add.append(menu_func)
 
+       bpy.types.Object.EM_ep_belong_ob = CollectionProperty(type=EM_epochs_belonging_ob)
+       bpy.types.Object.EM_ep_belong_ob_index = IntProperty()
+
 ######################################################################################################
 
 def unregister():
@@ -390,6 +403,8 @@ def unregister():
        del bpy.types.Scene.prop_paradata_streaming_mode
        del bpy.types.Scene.comb_paradata_streaming_mode
        del bpy.types.Scene.extr_paradata_streaming_mode
+       del bpy.types.Object.EM_ep_belong_ob
+       del bpy.types.Object.EM_ep_belong_ob_index
 
 ######################################################################################################
 

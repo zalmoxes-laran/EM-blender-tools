@@ -258,19 +258,32 @@ class EM_BasePanel:
         layout = self.layout
         scene = context.scene
         row = layout.row()
+        ob = context.object
 
-        if len(scene.em_list) > 0:
+        if len(scene.em_list) >= 0:
             
             row.template_list(
                 "EM_UL_named_epoch_managers", "", scene, "epoch_list", scene, "epoch_list_index")
-            # row = layout.row()
-            # op = layout.operator("epoch_manager.toggle_selectable", text="", emboss=False, icon='ADD')
-            # op.rm_epoch = scene.epoch_list[scene.epoch_list_index]
-            # op = layout.operator("epoch_manager.toggle_selectable", text="", emboss=False, icon='REMOVE')
-            # op.rm_epoch = scene.epoch_list[scene.epoch_list_index]
-
+            row = layout.row()
+            op = row.operator("epoch_models.add_remove", text="", emboss=False, icon='ADD')
+            op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
+            op.rm_add = True
+            op = row.operator("epoch_models.add_remove", text="", emboss=False, icon='REMOVE')
+            op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
+            op.rm_add = False
+        
         else:
             row.label(text="No periods here :-(")
+        
+        row = layout.row()
+        row.label(text="Active object is: "+ob.name)
+        row = layout.row()
+
+        if len(ob.EM_ep_belong_ob) > 0:
+            row.template_list(
+                "EM_UL_belongob", "", ob, "EM_ep_belong_ob", ob, "EM_ep_belong_ob_index", rows=2)
+        else:
+            row.label(text="No periods for active object")
 
 class VIEW3D_PT_BasePanel(Panel, EM_BasePanel):
     bl_category = "EM"
@@ -326,6 +339,14 @@ class EM_UL_named_epoch_managers(UIList):
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
+
+class EM_UL_belongob(UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        split = layout.split()
+        #split.label(text=str(item.epoch))
+        split.prop(item, "epoch", text="", emboss=False, translate=False, icon='SORTTIME')
+
+
 #Periods Manager
 #####################################################################
 

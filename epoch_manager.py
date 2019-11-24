@@ -145,6 +145,38 @@ class EM_toggle_soloing(bpy.types.Operator):
                             
         return {'FINISHED'}
 
+class EM_add_remove_epoch_models(bpy.types.Operator):
+    """Add and remove models from epochs"""
+    bl_idname = "epoch_models.add_remove"
+    bl_label = "Add and remove models from epochs"
+    bl_description = "Add and remove models from epochs"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    rm_epoch : StringProperty()
+    rm_add : BoolProperty()
+
+    def execute(self, context):
+        scene = context.scene
+        selected_objects = context.selected_objects
+
+        for ob in selected_objects:
+            if len(ob.EM_ep_belong_ob) >= 0:
+                if self.rm_add:
+                    if not self.rm_epoch in ob.EM_ep_belong_ob:
+                        local_counter = len(ob.EM_ep_belong_ob)
+                        ob.EM_ep_belong_ob.add()
+                        ob.EM_ep_belong_ob[local_counter].epoch = self.rm_epoch
+                else:
+                    counter = 0
+                    for ob_list in ob.EM_ep_belong_ob:
+                        if ob_list.epoch == self.rm_epoch:
+                            ob.EM_ep_belong_ob.remove(counter)  
+                        counter +=1
+            else:
+                ob.EM_ep_belong_ob.add()
+                ob.EM_ep_belong_ob[0].epoch = self.rm_epoch                   
+        return {'FINISHED'}
+
 class EM_set_EM_materials(bpy.types.Operator):
     bl_idname = "emset.emmaterial"
     bl_label = "Change proxy materials EM"
