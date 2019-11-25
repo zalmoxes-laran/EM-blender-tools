@@ -469,7 +469,6 @@ class EM_ParadataPanel:
             row = layout.row()
             row.template_list("EM_UL_extractors_managers", "", scene, extractor_list_var, scene, extractor_list_index_var, rows=2)
 
-
             item_source = eval(extractor_list_cmd)[eval(extractor_list_index_cmd)]
             box = layout.box()
             row = box.row(align=True)
