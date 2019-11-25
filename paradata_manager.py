@@ -32,12 +32,14 @@ class EM_files_opener(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         
-        basedir, graphml_file = os.path.split(scene.EM_file)
+        basedir = os.path.dirname(scene.EM_file)
+        print(basedir)
+
         file_res_path = eval("scene."+self.node_type+"[scene."+self.node_type+"_index].url")
         path_to_file = os.path.join(basedir,file_res_path)
         print(path_to_file)
         if os.path.exists(path_to_file):
-            print(path_to_file)
+            #print(path_to_file)
             bpy.ops.wm.url_open(url=path_to_file)
             #os.open(path_to_file)
         return {'FINISHED'}

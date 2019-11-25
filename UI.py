@@ -261,22 +261,23 @@ class EM_BasePanel:
         ob = context.object
 
         if len(scene.em_list) >= 0:
-            
             row.template_list(
                 "EM_UL_named_epoch_managers", "", scene, "epoch_list", scene, "epoch_list_index")
             row = layout.row()
+            row.label(text="Representation Models (RM):")
             op = row.operator("epoch_models.add_remove", text="", emboss=False, icon='ADD')
             op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
             op.rm_add = True
             op = row.operator("epoch_models.add_remove", text="", emboss=False, icon='REMOVE')
             op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
             op.rm_add = False
-        
+            op = row.operator("select_rm.given_epoch", text="", emboss=False, icon='SELECT_SET')
+            op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
         else:
             row.label(text="No periods here :-(")
         
         row = layout.row()
-        row.label(text="Active object is: "+ob.name)
+        row.label(text="Active object: "+ob.name)
         row = layout.row()
 
         if len(ob.EM_ep_belong_ob) > 0:
@@ -334,8 +335,8 @@ class EM_UL_named_epoch_managers(UIList):
                 "epoch_manager.toggle_soloing", text="", emboss=False, icon=icon)
             op.group_em_idx = index
 
-            icon = 'KEYTYPE_KEYFRAME_VEC' if epoch_list.rm_models else 'HANDLETYPE_FREE_VEC'
-            layout.label(icon=icon)
+            #icon = 'KEYTYPE_KEYFRAME_VEC' if epoch_list.rm_models else 'HANDLETYPE_FREE_VEC'
+            #layout.label(icon=icon)
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
@@ -345,7 +346,6 @@ class EM_UL_belongob(UIList):
         split = layout.split()
         #split.label(text=str(item.epoch))
         split.prop(item, "epoch", text="", emboss=False, translate=False, icon='SORTTIME')
-
 
 #Periods Manager
 #####################################################################
@@ -589,4 +589,33 @@ class EM_UL_extractors_managers(UIList):
         layout.label(text = item.description, icon=item.icon_url)
 
 # Paradata section 
+#####################################################################
+
+#####################################################################
+#Export Section
+
+class EM_ExportPanel:
+    bl_label = "Export Manager"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        row = layout.row()
+
+        row.label(text="Export Models:")
+        row = layout.row()
+
+        op = row.operator("export_manager.export", text="Proxies", emboss=True, icon='SHADING_SOLID')
+        op.em_export_type = 'Proxies'
+        op = row.operator("export_manager.export", text="RM", emboss=True, icon='SHADING_TEXTURE')
+        op.em_export_type = 'RM'
+
+class VIEW3D_PT_ExportPanel(Panel, EM_ExportPanel):
+    bl_category = "EM"
+    bl_idname = "VIEW3D_PT_ExportPanel"
+    bl_context = "objectmode"
+
+#Export Section
 #####################################################################

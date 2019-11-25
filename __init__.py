@@ -2,7 +2,7 @@
 Copyright (C) 2018 Emanuel Demetrescu
 
 Created by EMANUEL DEMETRESCU 2018-2019
-emanuel.demetrescu@gmail.com
+emanuel.demetrescu@cnr.it
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -58,6 +58,7 @@ from . import (
         epoch_manager,
         functions,
         paradata_manager,
+        export_manager,
         )
 
 from .functions import *
@@ -261,6 +262,7 @@ classes = (
     UI.EM_UL_extractors_managers,
     UI.EM_UL_combiners_managers,
     UI.EM_UL_belongob,
+    UI.VIEW3D_PT_ExportPanel,
     EM_list.EM_listitem_OT_to3D,
     EM_list.EM_update_icon_list,
     EM_list.EM_select_from_list_item,
@@ -275,6 +277,8 @@ classes = (
     epoch_manager.EM_toggle_selectable,
     epoch_manager.EM_toggle_soloing,
     epoch_manager.EM_add_remove_epoch_models,
+    epoch_manager.EM_select_epoch_rm,
+    export_manager.EM_export,
     paradata_manager.EM_files_opener,
     EMListItem,
     EM_Other_Settings,

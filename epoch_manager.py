@@ -145,6 +145,24 @@ class EM_toggle_soloing(bpy.types.Operator):
                             
         return {'FINISHED'}
 
+class EM_select_epoch_rm(bpy.types.Operator):
+    """Select RM for a given epoch"""
+    bl_idname = "select_rm.given_epoch"
+    bl_label = "Select RM for a given epoch"
+    bl_description = "Select RM for a given epoch"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    rm_epoch : StringProperty()
+
+    def execute(self, context):
+        #scene = context.scene
+        for ob in bpy.data.objects:
+            if len(ob.EM_ep_belong_ob) >= 0:
+                for ob_tagged in ob.EM_ep_belong_ob:
+                    if ob_tagged.epoch == self.rm_epoch:
+                        ob.select_set(True)
+        return {'FINISHED'}
+
 class EM_add_remove_epoch_models(bpy.types.Operator):
     """Add and remove models from epochs"""
     bl_idname = "epoch_models.add_remove"
