@@ -10,7 +10,6 @@ from .functions import *
 import random
 
 class EM_export(bpy.types.Operator):
-
     """Export manager"""
     bl_idname = "export_manager.export"
     bl_label = "Export manager"

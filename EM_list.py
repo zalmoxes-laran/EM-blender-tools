@@ -254,4 +254,8 @@ class EM_import_GraphML(bpy.types.Operator):
         read_edge_db(context,tree)
         node_send = scene.em_list[scene.em_list_index]
         create_derived_lists(node_send)
+        if context.scene.proxy_display_mode == "EM":
+            bpy.ops.emset.emmaterial()
+        else:
+            bpy.ops.emset.epochmaterial()
         return {'FINISHED'}
