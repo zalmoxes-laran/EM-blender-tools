@@ -874,3 +874,19 @@ def set_materials_using_epoch_list(context):
                     obj.data.materials.clear()
                     obj.data.materials.append(mat)
 
+
+class OBJECT_OT_CenterMass(bpy.types.Operator):
+    bl_idname = "center.mass"
+    bl_label = "Center Mass"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+
+        selection = context.selected_objects
+#        bpy.ops.object.select_all(action='DESELECT')
+
+        # translate objects in SCS coordinate
+        for obj in selection:
+            obj.select_set(True)
+            bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
+        return {'FINISHED'}

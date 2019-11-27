@@ -123,6 +123,8 @@ class EM_SetupPanel:
         #col = split.column(align=True)
 
         #col.label(text="On selected:")
+        row.operator("center.mass", text="", icon='PIVOT_BOUNDBOX')
+
         op = row.operator(
             "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_BBOX')
         op.sg_objects_changer = 'BOUND_SHADE'
