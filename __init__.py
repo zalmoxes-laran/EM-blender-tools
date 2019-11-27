@@ -280,6 +280,8 @@ classes = (
     epoch_manager.EM_select_epoch_rm,
     export_manager.EM_export,
     paradata_manager.EM_files_opener,
+    functions.OBJECT_OT_CenterMass,
+    functions.OBJECT_OT_labelonoff,
     EMListItem,
     EM_Other_Settings,
     EPOCHListItem,

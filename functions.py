@@ -880,13 +880,33 @@ class OBJECT_OT_CenterMass(bpy.types.Operator):
     bl_label = "Center Mass"
     bl_options = {"REGISTER", "UNDO"}
 
+    center_to: StringProperty()
+
     def execute(self, context):
+    #        bpy.ops.object.select_all(action='DESELECT')
+        if self.center_to == "mass":
+            selection = context.selected_objects
+            # translate objects in SCS coordinate
+            for obj in selection:
+                obj.select_set(True)
+                bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
+        elif self.center_to == "cursor":
+            ob_active = context.active_object
+            bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
 
+        return {'FINISHED'}
+
+
+class OBJECT_OT_labelonoff(bpy.types.Operator):
+    bl_idname = "label.onoff"
+    bl_label = "Label on / off"
+    bl_options = {"REGISTER", "UNDO"}
+
+    onoff: BoolProperty()
+
+    def execute(self, context):
         selection = context.selected_objects
-#        bpy.ops.object.select_all(action='DESELECT')
-
-        # translate objects in SCS coordinate
         for obj in selection:
             obj.select_set(True)
-            bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
+            obj.show_name = self.onoff
         return {'FINISHED'}

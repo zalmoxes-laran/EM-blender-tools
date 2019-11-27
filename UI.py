@@ -123,7 +123,6 @@ class EM_SetupPanel:
         #col = split.column(align=True)
 
         #col.label(text="On selected:")
-        row.operator("center.mass", text="", icon='PIVOT_BOUNDBOX')
 
         op = row.operator(
             "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_BBOX')
@@ -143,7 +142,22 @@ class EM_SetupPanel:
 
         #op = row.operator(
         #    "emset.emmaterial", text="", emboss=False, icon='SHADING_TEXTURE')
-        
+        row = layout.row()
+        row.label(text="Labels:")
+
+        op = row.operator("label.onoff", text="", emboss=False, icon='RADIOBUT_ON')
+        op.onoff = True
+
+        op = row.operator("label.onoff", text="", emboss=False, icon='RADIOBUT_OFF')
+        op.onoff = False
+
+        op = row.operator("center.mass", text="", emboss=False, icon='CURSOR')
+        op.center_to = "cursor"
+
+        op = row.operator("center.mass", text="", emboss=False, icon='SNAP_FACE_CENTER')
+        op.center_to = "mass"
+
+
 class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_SetupPanel"
