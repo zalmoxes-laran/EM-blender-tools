@@ -325,7 +325,7 @@ def register():
        bpy.types.Scene.comb_paradata_streaming_mode = BoolProperty(name="Combiners Paradata streaming mode", description = "Enable/disable combiner table streaming mode",default=True, update = functions.stream_combiners)
        bpy.types.Scene.extr_paradata_streaming_mode = BoolProperty(name="Extractors Paradata streaming mode", description = "Enable/disable extractor table streaming mode",default=True, update = functions.stream_extractors)
 
-       bpy.types.Scene.proxy_shader_mode = BoolProperty(name="Proxy shader mode", description = "Enable additive shader for proxies",default=False, update = functions.proxy_shader_mode_function)
+       bpy.types.Scene.proxy_shader_mode = BoolProperty(name="Proxy shader mode", description = "Enable additive shader for proxies",default=True, update = functions.proxy_shader_mode_function)
        bpy.types.Scene.EM_file = StringProperty(
               name = "EM GraphML file",
               default = "",

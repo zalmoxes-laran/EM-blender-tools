@@ -117,7 +117,9 @@ class EM_SetupPanel:
         row.prop(scene, "proxy_display_alpha")
 
         #col = split.column(align=True)
-        row.prop(scene, "proxy_shader_mode", text='', icon="NODE_MATERIAL")
+
+        # function sadly disabled because of the lack of support of 'ADD' Blend Mode in Blender 2.81
+        #row.prop(scene, "proxy_shader_mode", text='', icon="NODE_MATERIAL")
 
         #row = layout.row(align=True)
         #col = split.column(align=True)
@@ -276,7 +278,7 @@ class EM_BasePanel:
         row = layout.row()
         ob = context.object
 
-        if len(scene.em_list) >= 0:
+        if len(scene.em_list) > 0:
             row.template_list(
                 "EM_UL_named_epoch_managers", "", scene, "epoch_list", scene, "epoch_list_index")
             row = layout.row()
@@ -293,14 +295,19 @@ class EM_BasePanel:
             row.label(text="No periods here :-(")
         
         row = layout.row()
-        row.label(text="Active object: "+ob.name)
-        row = layout.row()
 
-        if len(ob.EM_ep_belong_ob) > 0:
-            row.template_list(
-                "EM_UL_belongob", "", ob, "EM_ep_belong_ob", ob, "EM_ep_belong_ob_index", rows=2)
+        if ob is None:
+            pass
         else:
-            row.label(text="No periods for active object")
+            if ob.type in ['MESH']:
+                row.label(text="Active object: "+ob.name)
+                row = layout.row()
+
+            if len(ob.EM_ep_belong_ob) > 0:
+                row.template_list(
+                    "EM_UL_belongob", "", ob, "EM_ep_belong_ob", ob, "EM_ep_belong_ob_index", rows=2)
+            else:
+                row.label(text="No periods for active object")
 
 class VIEW3D_PT_BasePanel(Panel, EM_BasePanel):
     bl_category = "EM"
