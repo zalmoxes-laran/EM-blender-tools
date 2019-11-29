@@ -157,7 +157,7 @@ def EM_extract_combiner_node(node_element):
                     #print(nodename)
                 for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}SVGContent'):
                     attrib2 = nodetype.attrib
-                    if attrib2 == {'refid': '2'}:
+                    if attrib2 == {'refid': '3'}:
                         subnode_is_combiner = True
                         
         for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):

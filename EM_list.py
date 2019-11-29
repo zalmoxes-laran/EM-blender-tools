@@ -219,8 +219,6 @@ class EM_import_GraphML(bpy.types.Operator):
                         scene.em_combiners_list[em_combiners_index_ema].icon_url = "CHECKBOX_HLT"
                     scene.em_combiners_list[em_combiners_index_ema].description = ext_node_description
                     em_combiners_index_ema += 1
-
-
                 else:
                     pass
 

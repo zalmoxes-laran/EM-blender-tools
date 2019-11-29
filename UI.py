@@ -476,6 +476,10 @@ class EM_ParadataPanel:
             row.prop(item_property, "name", text="", icon='FILE_TEXT')
             row = box.row()
             row.prop(item_property, "description", text="", slider=True, emboss=True, icon='TEXT')
+            row = box.row()
+            row.prop(item_property, "url", text="", slider=True, emboss=True, icon='URL')
+            op = row.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
+            op.node_type = combiner_list_var
             
     ###############################################################################
     ##          Extractors
