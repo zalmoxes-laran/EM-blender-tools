@@ -154,11 +154,13 @@ def EM_extract_combiner_node(node_element):
             if attrib1 == {'key': 'd6'}:
                 for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
                     nodename = check_if_empty(USname.text)
+                if nodename.startswith("C."):
+                    subnode_is_combiner = True
                     #print(nodename)
-                for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}SVGContent'):
-                    attrib2 = nodetype.attrib
-                    if attrib2 == {'refid': '3'}:
-                        subnode_is_combiner = True
+                # for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}SVGContent'):
+                #     attrib2 = nodetype.attrib
+                #     if attrib2 == {'refid': '3'}:
+                #         subnode_is_combiner = True
                         
         for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
             attrib1 = subnode.attrib                        
@@ -195,10 +197,12 @@ def EM_extract_extractor_node(node_element):
                 for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
                     nodename = check_if_empty(USname.text)
                     #print(nodename)
-                for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}SVGContent'):
-                    attrib2 = nodetype.attrib
-                    if attrib2 == {'refid': '1'}:
-                        subnode_is_extractor = True
+                if nodename.startswith("D."):
+                    subnode_is_extractor
+                # for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}SVGContent'):
+                #     attrib2 = nodetype.attrib
+                #     if attrib2 == {'refid': '1'}:
+                #         subnode_is_extractor = True
                         
         for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
             attrib1 = subnode.attrib                        
