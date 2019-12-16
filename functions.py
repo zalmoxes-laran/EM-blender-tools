@@ -190,15 +190,20 @@ def EM_extract_extractor_node(node_element):
         nodeurl = " "
         nodename = " "
         node_description = " "
+        is_document = False
         for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
             attrib1 = subnode.attrib
             #print(subnode.tag)
             if attrib1 == {'key': 'd6'}:
                 for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
                     nodename = check_if_empty(USname.text)
-                    #print(nodename)
                 if nodename.startswith("D."):
-                    subnode_is_extractor
+                    for elem in bpy.context.scene.em_sources_list:
+                        if nodename == elem.name:
+                            is_document = True
+                    if not is_document:
+                        print(nodename)
+                        subnode_is_extractor = True
                 # for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}SVGContent'):
                 #     attrib2 = nodetype.attrib
                 #     if attrib2 == {'refid': '1'}:
