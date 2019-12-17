@@ -55,6 +55,20 @@ class EM_export(bpy.types.Operator):
                                 os.rmdir(export_sub_folder)
         return {'FINISHED'}
 
+class EM_export_csv(bpy.types.Operator):
+    """Export UUSS"""
+    bl_idname = "export_UUSS.export"
+    bl_label = "Export UUSS"
+    bl_description = "Export UUSS"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        scene = context.scene
+        
+
+        return {'FINISHED'}
+
+
 def createfolder(base_dir, foldername):
     
     if not base_dir:
