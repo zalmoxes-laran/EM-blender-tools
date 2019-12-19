@@ -85,23 +85,21 @@ def convert_shape2type(shape):
         node_type = "Special Find"
     return node_type
 
-def write_UUSS_data(context, filepath, name, description, epoch, type_node):
+def write_UUSS_data(context, filepath, only_UUSS, header):
     print("running write some data...")
     
     f = open(filepath, 'w', encoding='utf-8')
 
-    f.write("Nome; Descrizione; Epoca; Tipo \n")
+    if header:
+        f.write("Name; Description; Epoch; Type \n")
 
     for US in context.scene.em_list:
-        
-        #if name == True:
-            
-        f.write("%s; %s; %s; %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)))
-        
+        if only_UUSS:
+            if US.icon == "RESTRICT_INSTANCED_ON":
+                f.write("%s; %s; %s; %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)))
+        else:
+            f.write("%s; %s; %s; %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)))
     f.close()    
-    
-#    f.write("Hello World %s" % use_some_setting)
-#    f.close()
 
     return {'FINISHED'}
 
@@ -122,37 +120,49 @@ class ExportuussData(Operator, ExportHelper):
     # List of operator properties, the attributes will be assigned
     # to the class instance from the operator settings before calling.
 
-    name: BoolProperty(
-            name="Add names of UUSS",
-            description="This tool includes name",
-            default=True,
+    # name: BoolProperty(
+    #         name="Names of UUSS",
+    #         description="This tool includes name",
+    #         default=True,
+    #         )
+
+    # description: BoolProperty(
+    #         name="Description",
+    #         description="This tool includes description",
+    #         default=True,
+    #         )
+
+    # epoch: BoolProperty(
+    #         name="Epoch",
+    #         description="This tool includes epoch",
+    #         default=True,
+    #         )
+
+    # type_node: BoolProperty(
+    #         name="Node type",
+    #         description="This includes node type",
+    #         default=True,
+    #         )
+
+    only_UUSS_with_proxies: BoolProperty(
+            name="Only UUSS with proxies",
+            description="Only UUSS with proxies",
+            default=False,
             )
 
-    description: BoolProperty(
-            name="Add description",
-            description="This tool includes description",
-            default=True,
-            )
-
-    epoch: BoolProperty(
-            name="Export epoch",
-            description="This tool includes epoch",
-            default=True,
-            )
-
-    type_node: BoolProperty(
-            name="Node type",
-            description="This includes node type",
+    header_line: BoolProperty(
+            name="Header line",
+            description="Header line with description of the columns",
             default=True,
             )
 
     def execute(self, context):
-        return write_UUSS_data(context, self.filepath, self.name, self.description, self.epoch, self.type_node)
+        return write_UUSS_data(context, self.filepath, self.only_UUSS_with_proxies, self.header_line)
+        #return write_UUSS_data(context, self.filepath, self.name, self.description, self.epoch, self.type_node, self.only_UUSS_with_proxies, self.header_line)
 
 # Only needed if you want to add into a dynamic menu
 #def menu_func_export(self, context):
 #    self.layout.operator(ExportCoordinates.bl_idname, text="Text Export Operator")
-
 
 def createfolder(base_dir, foldername):
     

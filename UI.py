@@ -637,7 +637,7 @@ class EM_ExportPanel:
         op.em_export_type = 'Proxies'
         op = row.operator("export_manager.export", text="RM", emboss=True, icon='SHADING_TEXTURE')
         op.em_export_type = 'RM'
-        op = row.operator("export.uuss_export", text="EM", emboss=True, icon='SHADING_TEXTURE')
+        op = row.operator("export.uuss_export", text="EM (csv)", emboss=True, icon='LONGDISPLAY')
         #op.em_export_type = 'RM'
         
 
