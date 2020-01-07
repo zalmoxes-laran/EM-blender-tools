@@ -145,6 +145,9 @@ class EM_SetupPanel:
         #op = row.operator(
         #    "emset.emmaterial", text="", emboss=False, icon='SHADING_TEXTURE')
         row = layout.row()
+
+        row.operator("notinthematrix.material", icon="MOD_MASK", text='')
+
         row.label(text="Labels:")
 
         op = row.operator("label.onoff", text="", emboss=False, icon='RADIOBUT_ON')
@@ -158,7 +161,6 @@ class EM_SetupPanel:
 
         op = row.operator("center.mass", text="", emboss=False, icon='SNAP_FACE_CENTER')
         op.center_to = "mass"
-
 
 class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):
     bl_category = "EM"

@@ -268,6 +268,7 @@ classes = (
     EM_list.EM_select_from_list_item,
     EM_list.EM_import_GraphML,
     EM_list.EM_select_list_item,
+    EM_list.EM_not_in_matrix,
     epoch_manager.EM_UL_List,
     epoch_manager.EM_toggle_select,
     epoch_manager.EM_toggle_visibility,

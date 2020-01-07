@@ -109,6 +109,41 @@ class EM_select_from_list_item(bpy.types.Operator):
         select_3D_obj(list_item.name)
         return {'FINISHED'}
 
+class EM_not_in_matrix(bpy.types.Operator):
+    bl_idname = "notinthematrix.material"
+    bl_label = "Helper for proxies visualization"
+    bl_description = "Apply a custom material to proxies not yet present in the matrix"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF']
+        EM_mat_name = "mat_NotInTheMatrix"
+        R = 1.0
+        G = 0.0
+        B = 1.0
+        if not check_material_presence(EM_mat_name):
+            newmat = bpy.data.materials.new(EM_mat_name)
+            em_setup_mat_cycles(EM_mat_name,R,G,B)
+
+        for ob in bpy.data.objects:
+            if ob.type == 'MESH':
+                if ob.data.materials:
+                    if ob.material_slots[0].material.name in EM_mat_list or ob.material_slots[0].material.name.startswith('ep_'):
+                        matrix_mat = True
+                    else:
+                        matrix_mat = False
+                    not_in_matrix = True
+                    for item in context.scene.em_list:
+                        if item.name == ob.name:
+                            not_in_matrix = False
+                    if matrix_mat and not_in_matrix:
+                        ob.data.materials.clear()
+                        notinmatrix_mat = bpy.data.materials[EM_mat_name]
+                        ob.data.materials.append(notinmatrix_mat)
+
+        return {'FINISHED'}
+
+
 class EM_import_GraphML(bpy.types.Operator):
     bl_idname = "import.em_graphml"
     bl_label = "Import the EM GraphML"
