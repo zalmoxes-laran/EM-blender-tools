@@ -640,6 +640,9 @@ class EM_ExportPanel:
         op = row.operator("export_manager.export", text="RM", emboss=True, icon='SHADING_TEXTURE')
         op.em_export_type = 'RM'
         op = row.operator("export.uuss_export", text="EM (csv)", emboss=True, icon='LONGDISPLAY')
+        row = layout.row()
+        op = row.operator("export_manager.export", text="EMviq", emboss=True, icon='LONGDISPLAY')
+        op.em_export_type = 'EMviq'
         #op.em_export_type = 'RM'
         
 

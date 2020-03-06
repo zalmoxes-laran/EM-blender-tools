@@ -1,5 +1,6 @@
 import bpy
 import string
+import json
 import os
 from bpy_extras.io_utils import ExportHelper
 from bpy.types import Operator
@@ -10,6 +11,85 @@ import bpy.props as prop
 from .functions import *
 
 import random
+
+def rws(sentence):
+    sentence.replace(" ", "_")
+    sentence.replace(".", "")
+    return sentence
+
+def export_proxies(scene, export_folder):
+    for proxy in bpy.data.objects:
+        for em in scene.em_list:
+            if proxy.name == em.name:
+                proxy.select_set(True)
+                name = bpy.path.clean_name(em.name)
+                export_file = os.path.join(export_folder, name)
+                bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
+                proxy.select_set(False)
+
+def export_rm(scene, export_folder, EMviq, nodes):
+    for ob in bpy.data.objects:
+        if len(ob.EM_ep_belong_ob) == 0:
+            pass
+        if len(ob.EM_ep_belong_ob) == 1:
+            ob_tagged = ob.EM_ep_belong_ob[0]
+            for epoch in scene.epoch_list:
+                if ob_tagged.epoch == epoch.name:
+
+                    epochname1_var = epoch.name.replace(" ", "_")
+                    epochname_var = epochname1_var.replace(".", "")
+
+                    export_sub_folder = createfolder(export_folder, epochname_var)
+                    ob.select_set(True)
+                    #name = bpy.path.clean_name(ob.name)
+                    export_file = os.path.join(export_sub_folder, ob.name)
+                    bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
+                    
+                    if EMviq:
+                        try:
+                            exec(epochname_var+'_node')
+                        except NameError:
+                            print("well, it WASN'T defined after all!")
+                            exec(epochname_var + '_node' + ' = {}')
+                            exec(epochname_var + '_urls = []')
+                            exec(epochname_var + "_node['urls'] = "+ epochname_var +"_urls")
+                            exec("nodes['"+epoch.name+"'] = "+ epochname_var + '_node')
+                        else:
+                            print("sure, it was defined.")
+
+                        exec(epochname_var + '_urls.append("' + epochname_var +'/'+ ob.name +'.obj")')
+                    
+                    ob.select_set(False)
+
+        if len(ob.EM_ep_belong_ob) >= 2:
+            for ob_tagged in ob.EM_ep_belong_ob:
+                for epoch in scene.epoch_list:
+                    if ob_tagged.epoch == epoch.name:
+                        epochname1_var = epoch.name.replace(" ", "_")
+                        epochname_var = epochname1_var.replace(".", "")
+                        export_sub_folder = createfolder(export_folder, "shared")
+                        ob.select_set(True)
+                        #name = bpy.path.clean_name(ob.name)
+                        export_file = os.path.join(export_sub_folder, ob.name)
+                        bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
+
+                        if EMviq:
+                            try:
+                                exec(epochname_var+'_node')
+                            except NameError:
+                                print("well, it WASN'T defined after all!")
+                                exec(epochname_var + '_node' + ' = {}')
+                                exec(epochname_var + '_urls = []')
+                                exec(epochname_var + "_node['urls'] = "+ epochname_var +"_urls")
+                                exec("nodes['"+epoch.name+"'] = "+ epochname_var + '_node')
+                            else:
+                                print("sure, it was defined.")
+                            
+                            exec(epochname_var + "_urls.append('shared/"+ ob.name +".obj')")
+                        
+                        ob.select_set(False)
+    return nodes
+
 
 class EM_export(bpy.types.Operator):
     """Export manager"""
@@ -28,33 +108,45 @@ class EM_export(bpy.types.Operator):
         print(scene.EM_file)
         base_dir = os.path.dirname(scene.EM_file)
         print("la base_dir is:"+base_dir)
-        foldername = self.em_export_type
-        export_folder = createfolder(base_dir, foldername)
-        if foldername == 'Proxies':
-            for proxy in bpy.data.objects:
-                for em in scene.em_list:
-                    if proxy.name == em.name:
-                        proxy.select_set(True)
-                        name = bpy.path.clean_name(em.name)
-                        export_file = os.path.join(export_folder, name)
-                        bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
-                        proxy.select_set(False)
-        elif foldername == 'RM':
-            for ob in bpy.data.objects:
-                if len(ob.EM_ep_belong_ob) >= 0:
-                    for ob_tagged in ob.EM_ep_belong_ob:
-                        for epoch in scene.epoch_list:
-                            has_epoch = False
-                            export_sub_folder = createfolder(export_folder, epoch.name)
-                            if ob_tagged.epoch == epoch.name:
-                                ob.select_set(True)
-                                name = bpy.path.clean_name(ob.name)
-                                export_file = os.path.join(export_sub_folder, name)
-                                bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
-                                ob.select_set(False)
-                                has_epoch = True
-                            if not has_epoch:
-                                os.rmdir(export_sub_folder)
+        
+        if self.em_export_type == 'Proxies':
+            proxies_folder = createfolder(base_dir, 'Proxies')
+            export_proxies(scene, proxies_folder)
+
+        if self.em_export_type == 'RM':
+            RM_folder = createfolder(base_dir, 'RM')
+            export_rm(scene, RM_folder, False)
+
+        if self.em_export_type == "EMviq":
+            
+            #setup json variables
+            emviq_scene = {}
+            scenegraph = {}
+            nodes = {}
+            edges = {}
+            
+            emviq_scene['scenegraph'] = scenegraph
+            export_folder = createfolder(base_dir, 'EMviq')
+            proxies_folder = createfolder(export_folder, 'proxies')
+            nodes = export_rm(scene, export_folder, True, nodes)
+            export_proxies(scene, proxies_folder)
+
+            scenegraph['nodes'] = nodes
+
+            scenegraph['edges'] = edges
+
+            # encode dict as JSON 
+            data = json.dumps(emviq_scene, indent=4, ensure_ascii=True)
+
+            # set output path and file name (set your own)
+            save_path = export_folder
+            #'/users/emanueldemetrescu/Desktop/'
+            file_name = os.path.join(save_path, "scene.json")
+
+            # write JSON file
+            with open(file_name, 'w') as outfile:
+                outfile.write(data + '\n')
+
         return {'FINISHED'}
 
 
@@ -177,3 +269,55 @@ def createfolder(base_dir, foldername):
         print('Found previously created '+foldername+' folder. I will use it')
 
     return export_folder
+
+class EMviq_export(bpy.types.Operator):
+    """Export EMviq"""
+    bl_idname = "export_emviq.export"
+    bl_label = "Export EMviq"
+    bl_description = "Export EMviq"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    #emviq_export_type : StringProperty()
+
+    def execute(self, context):
+        scene = context.scene
+
+        #selection = bpy.context.selected_objects
+        #bpy.ops.object.select_all(action='DESELECT')
+        #print(scene.EM_file) 
+
+        # 1 - Export data as JSON file
+
+        # dict with all your data
+
+        emviq_scene = {}
+        scenegraph = {}
+        nodes = {}
+        epochs = {}
+        edges = {}
+
+        scenegraph['nodes'] = nodes
+        scenegraph['edges'] = edges
+
+        urls = []
+        
+        for ob in bpy.data.objects:
+            urls.append(ob.name)
+
+        nodes['urls'] = urls
+        #nodes[ob.name] = ob.name
+
+        emviq_scene['scenegraph'] = scenegraph
+
+        # encode dict as JSON 
+        data = json.dumps(emviq_scene, indent=4, ensure_ascii=True)
+
+        # set output path and file name (set your own)
+        save_path = '/users/emanueldemetrescu/Desktop/'
+        file_name = os.path.join(save_path, "scene.json")
+
+        # write JSON file
+        with open(file_name, 'w') as outfile:
+            outfile.write(data + '\n')
+        
+        return {'FINISHED'}
