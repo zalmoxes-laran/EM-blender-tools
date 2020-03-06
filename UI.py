@@ -641,8 +641,9 @@ class EM_ExportPanel:
         op.em_export_type = 'RM'
         op = row.operator("export.uuss_export", text="EM (csv)", emboss=True, icon='LONGDISPLAY')
         row = layout.row()
-        op = row.operator("export_manager.export", text="EMviq", emboss=True, icon='LONGDISPLAY')
+        op = row.operator("export_manager.export", text="Generate EMviq Folder", emboss=True, icon='LONGDISPLAY')
         op.em_export_type = 'EMviq'
+        op.em_export_format = 'gltf'
         #op.em_export_type = 'RM'
         
 

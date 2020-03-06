@@ -282,7 +282,6 @@ classes = (
     export_manager.EM_export,
     export_manager.ExportuussData,
     export_manager.OBJECT_OT_ExportUUSS,
-    export_manager.EMviq_export,
     paradata_manager.EM_files_opener,
     functions.OBJECT_OT_CenterMass,
     functions.OBJECT_OT_labelonoff,

@@ -27,7 +27,7 @@ def export_proxies(scene, export_folder):
                 bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
                 proxy.select_set(False)
 
-def export_rm(scene, export_folder, EMviq, nodes):
+def export_rm(scene, export_folder, EMviq, nodes, format_file):
     for ob in bpy.data.objects:
         if len(ob.EM_ep_belong_ob) == 0:
             pass
@@ -43,8 +43,10 @@ def export_rm(scene, export_folder, EMviq, nodes):
                     ob.select_set(True)
                     #name = bpy.path.clean_name(ob.name)
                     export_file = os.path.join(export_sub_folder, ob.name)
-                    bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
-                    
+                    if format_file == "obj":
+                        bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
+                    if format_file == "gltf":
+                        bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright="Extended Matrix", export_image_format='NAME', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=False, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials=True, export_colors=True, export_cameras=False, export_selected=True, export_extras=False, export_yup=True, export_apply=False, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False, export_displacement=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")                    
                     if EMviq:
                         try:
                             exec(epochname_var+'_node')
@@ -57,7 +59,7 @@ def export_rm(scene, export_folder, EMviq, nodes):
                         else:
                             print("sure, it was defined.")
 
-                        exec(epochname_var + '_urls.append("' + epochname_var +'/'+ ob.name +'.obj")')
+                        exec(epochname_var + '_urls.append("' + epochname_var +'/'+ ob.name + '.' + format_file +'")')
                     
                     ob.select_set(False)
 
@@ -71,8 +73,10 @@ def export_rm(scene, export_folder, EMviq, nodes):
                         ob.select_set(True)
                         #name = bpy.path.clean_name(ob.name)
                         export_file = os.path.join(export_sub_folder, ob.name)
-                        bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
-
+                        if format_file == "obj":
+                            bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
+                        if format_file == "gltf":
+                            bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright="Extended Matrix", export_image_format='NAME', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=False, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials=True, export_colors=True, export_cameras=False, export_selected=True, export_extras=False, export_yup=True, export_apply=False, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False, export_displacement=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")                    
                         if EMviq:
                             try:
                                 exec(epochname_var+'_node')
@@ -85,11 +89,10 @@ def export_rm(scene, export_folder, EMviq, nodes):
                             else:
                                 print("sure, it was defined.")
                             
-                            exec(epochname_var + "_urls.append('shared/"+ ob.name +".obj')")
+                            exec(epochname_var + "_urls.append('shared/"+ ob.name + '.' + format_file +"')")
                         
                         ob.select_set(False)
     return nodes
-
 
 class EM_export(bpy.types.Operator):
     """Export manager"""
@@ -99,6 +102,7 @@ class EM_export(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     em_export_type : StringProperty()
+    em_export_format : StringProperty()
 
     def execute(self, context):
         scene = context.scene
@@ -116,7 +120,7 @@ class EM_export(bpy.types.Operator):
         if self.em_export_type == 'RM':
             RM_folder = createfolder(base_dir, 'RM')
             nodes = None
-            export_rm(scene, RM_folder, False, nodes)
+            export_rm(scene, RM_folder, False, nodes, self.em_export_format)
 
         if self.em_export_type == "EMviq":
             
@@ -129,7 +133,7 @@ class EM_export(bpy.types.Operator):
             emviq_scene['scenegraph'] = scenegraph
             export_folder = createfolder(base_dir, 'EMviq')
             proxies_folder = createfolder(export_folder, 'proxies')
-            nodes = export_rm(scene, export_folder, True, nodes)
+            nodes = export_rm(scene, export_folder, True, nodes, self.em_export_format)
             export_proxies(scene, proxies_folder)
 
             scenegraph['nodes'] = nodes
@@ -270,55 +274,3 @@ def createfolder(base_dir, foldername):
         print('Found previously created '+foldername+' folder. I will use it')
 
     return export_folder
-
-class EMviq_export(bpy.types.Operator):
-    """Export EMviq"""
-    bl_idname = "export_emviq.export"
-    bl_label = "Export EMviq"
-    bl_description = "Export EMviq"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    #emviq_export_type : StringProperty()
-
-    def execute(self, context):
-        scene = context.scene
-
-        #selection = bpy.context.selected_objects
-        #bpy.ops.object.select_all(action='DESELECT')
-        #print(scene.EM_file) 
-
-        # 1 - Export data as JSON file
-
-        # dict with all your data
-
-        emviq_scene = {}
-        scenegraph = {}
-        nodes = {}
-        epochs = {}
-        edges = {}
-
-        scenegraph['nodes'] = nodes
-        scenegraph['edges'] = edges
-
-        urls = []
-        
-        for ob in bpy.data.objects:
-            urls.append(ob.name)
-
-        nodes['urls'] = urls
-        #nodes[ob.name] = ob.name
-
-        emviq_scene['scenegraph'] = scenegraph
-
-        # encode dict as JSON 
-        data = json.dumps(emviq_scene, indent=4, ensure_ascii=True)
-
-        # set output path and file name (set your own)
-        save_path = '/users/emanueldemetrescu/Desktop/'
-        file_name = os.path.join(save_path, "scene.json")
-
-        # write JSON file
-        with open(file_name, 'w') as outfile:
-            outfile.write(data + '\n')
-        
-        return {'FINISHED'}
