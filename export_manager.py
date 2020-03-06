@@ -115,7 +115,8 @@ class EM_export(bpy.types.Operator):
 
         if self.em_export_type == 'RM':
             RM_folder = createfolder(base_dir, 'RM')
-            export_rm(scene, RM_folder, False)
+            nodes = None
+            export_rm(scene, RM_folder, False, nodes)
 
         if self.em_export_type == "EMviq":
             
