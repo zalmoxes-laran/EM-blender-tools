@@ -247,6 +247,17 @@ class EM_epochs_belonging_ob(bpy.types.PropertyGroup):
            description="Epoch",
            default="Untitled")
 
+
+class ExportVars(bpy.types.PropertyGroup):
+       format_file : bpy.props.EnumProperty(
+              items=[
+              ('gltf','gltf','gltf','', 0),
+              ('obj','obj','obj','', 1),
+              ('fbx','fbx','fbx','', 2),
+              ],
+              default='gltf'
+    )
+
 # register
 ##################################
 
@@ -291,12 +302,16 @@ classes = (
     EMreusedUS,
     EMListParadata,
     EDGESListItem,
-    EM_epochs_belonging_ob
+    EM_epochs_belonging_ob,
+    ExportVars
     )
 
 def register():
        for cls in classes:
               bpy.utils.register_class(cls)
+       
+       bpy.types.WindowManager.export_vars = bpy.props.PointerProperty(type = ExportVars)
+
        bpy.types.Scene.em_list = prop.CollectionProperty(type = EMListItem)
        bpy.types.Scene.em_list_index = prop.IntProperty(name = "Index for my_list", default = 0, update = functions.switch_paradata_lists)
        bpy.types.Scene.em_reused = prop.CollectionProperty(type = EMreusedUS)
@@ -375,6 +390,7 @@ def unregister():
        ######################################################################################################
        #per epoch manager
        ##################
+       del bpy.types.WindowManager.export_vars
        del bpy.types.Scene.em_settings
        del bpy.types.Scene.em_list
        del bpy.types.Scene.em_list_index

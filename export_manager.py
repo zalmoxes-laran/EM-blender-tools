@@ -2,6 +2,8 @@ import bpy
 import string
 import json
 import os
+import shutil
+
 from bpy_extras.io_utils import ExportHelper
 from bpy.types import Operator
 
@@ -27,7 +29,7 @@ def export_proxies(scene, export_folder):
                 bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
                 proxy.select_set(False)
 
-def export_rm(scene, export_folder, EMviq, nodes, format_file):
+def export_rm(scene, export_folder, EMviq, nodes, format_file, edges):
     for ob in bpy.data.objects:
         if len(ob.EM_ep_belong_ob) == 0:
             pass
@@ -47,6 +49,8 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file):
                         bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
                     if format_file == "gltf":
                         bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright="Extended Matrix", export_image_format='NAME', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=False, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials=True, export_colors=True, export_cameras=False, export_selected=True, export_extras=False, export_yup=True, export_apply=False, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False, export_displacement=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")                    
+                    if format_file == "fbx":
+                        bpy.ops.export_scene.fbx(filepath = export_file + ".fbx", check_existing=True, filter_glob="*.fbx", use_selection=True, use_active_collection=False, global_scale=1.0, apply_unit_scale=True, apply_scale_options='FBX_SCALE_NONE', bake_space_transform=False, object_types={'MESH'}, use_mesh_modifiers=True, use_mesh_modifiers_render=True, mesh_smooth_type='OFF', use_mesh_edges=False, use_tspace=False, use_custom_props=False, add_leaf_bones=True, primary_bone_axis='Y', secondary_bone_axis='X', use_armature_deform_only=False, armature_nodetype='NULL', bake_anim=False, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=True, bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True, bake_anim_step=1.0, bake_anim_simplify_factor=1.0, path_mode='AUTO', embed_textures=False, batch_mode='OFF', use_batch_own_dir=True, use_metadata=True, axis_forward='-Z', axis_up='Y')
                     if EMviq:
                         try:
                             exec(epochname_var+'_node')
@@ -56,6 +60,13 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file):
                             exec(epochname_var + '_urls = []')
                             exec(epochname_var + "_node['urls'] = "+ epochname_var +"_urls")
                             exec("nodes['"+epoch.name+"'] = "+ epochname_var + '_node')
+
+                            exec(epochname_var + '_edge = []')
+                            exec(epochname_var + '_edge.append(".")')
+                            exec(epochname_var + '_edge.append("'+ epoch.name +'")')
+
+                            exec('edges.append('+epochname_var + '_edge)')
+
                         else:
                             print("sure, it was defined.")
 
@@ -77,6 +88,8 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file):
                             bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
                         if format_file == "gltf":
                             bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright="Extended Matrix", export_image_format='NAME', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=False, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials=True, export_colors=True, export_cameras=False, export_selected=True, export_extras=False, export_yup=True, export_apply=False, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False, export_displacement=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")                    
+                        if format_file == "fbx":
+                            bpy.ops.export_scene.fbx(filepath = export_file + ".fbx", check_existing=True, filter_glob="*.fbx", use_selection=True, use_active_collection=False, global_scale=1.0, apply_unit_scale=True, apply_scale_options='FBX_SCALE_NONE', bake_space_transform=False, object_types={'MESH'}, use_mesh_modifiers=True, use_mesh_modifiers_render=True, mesh_smooth_type='OFF', use_mesh_edges=False, use_tspace=False, use_custom_props=False, add_leaf_bones=True, primary_bone_axis='Y', secondary_bone_axis='X', use_armature_deform_only=False, armature_nodetype='NULL', bake_anim=False, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=True, bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True, bake_anim_step=1.0, bake_anim_simplify_factor=1.0, path_mode='AUTO', embed_textures=False, batch_mode='OFF', use_batch_own_dir=True, use_metadata=True, axis_forward='-Z', axis_up='Y')
                         if EMviq:
                             try:
                                 exec(epochname_var+'_node')
@@ -86,13 +99,20 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file):
                                 exec(epochname_var + '_urls = []')
                                 exec(epochname_var + "_node['urls'] = "+ epochname_var +"_urls")
                                 exec("nodes['"+epoch.name+"'] = "+ epochname_var + '_node')
+
+                                exec(epochname_var + '_edge = []')
+                                exec(epochname_var + '_edge.append(".")')
+                                exec(epochname_var + '_edge.append("'+ epoch.name +'")')
+
+                                exec('edges.append('+epochname_var + '_edge)')
+
                             else:
                                 print("sure, it was defined.")
                             
                             exec(epochname_var + "_urls.append('shared/"+ ob.name + '.' + format_file +"')")
                         
                         ob.select_set(False)
-    return nodes
+    return nodes, edges
 
 class EM_export(bpy.types.Operator):
     """Export manager"""
@@ -120,7 +140,8 @@ class EM_export(bpy.types.Operator):
         if self.em_export_type == 'RM':
             RM_folder = createfolder(base_dir, 'RM')
             nodes = None
-            export_rm(scene, RM_folder, False, nodes, self.em_export_format)
+            edges = None
+            export_rm(scene, RM_folder, False, nodes, self.em_export_format, edges)
 
         if self.em_export_type == "EMviq":
             
@@ -128,12 +149,12 @@ class EM_export(bpy.types.Operator):
             emviq_scene = {}
             scenegraph = {}
             nodes = {}
-            edges = {}
+            edges = []
             
             emviq_scene['scenegraph'] = scenegraph
             export_folder = createfolder(base_dir, 'EMviq')
             proxies_folder = createfolder(export_folder, 'proxies')
-            nodes = export_rm(scene, export_folder, True, nodes, self.em_export_format)
+            nodes, edges = export_rm(scene, export_folder, True, nodes, self.em_export_format, edges)
             export_proxies(scene, proxies_folder)
 
             scenegraph['nodes'] = nodes
@@ -143,14 +164,16 @@ class EM_export(bpy.types.Operator):
             # encode dict as JSON 
             data = json.dumps(emviq_scene, indent=4, ensure_ascii=True)
 
-            # set output path and file name (set your own)
-            save_path = export_folder
             #'/users/emanueldemetrescu/Desktop/'
-            file_name = os.path.join(save_path, "scene.json")
+            file_name = os.path.join(export_folder, "scene.json")
 
             # write JSON file
             with open(file_name, 'w') as outfile:
                 outfile.write(data + '\n')
+
+            em_file_4_emviq = os.path.join(export_folder, "em.graphml")
+
+            shutil.copyfile(scene.EM_file, em_file_4_emviq)
 
         return {'FINISHED'}
 
