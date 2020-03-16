@@ -40,8 +40,8 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges):
 
                     epochname1_var = epoch.name.replace(" ", "_")
                     epochname_var = epochname1_var.replace(".", "")
-
-                    export_sub_folder = createfolder(export_folder, epochname_var)
+                    rm_folder = createfolder(export_folder, "rm")
+                    export_sub_folder = createfolder(rm_folder, epochname_var)
                     ob.select_set(True)
                     #name = bpy.path.clean_name(ob.name)
                     export_file = os.path.join(export_sub_folder, ob.name)
@@ -80,7 +80,8 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges):
                     if ob_tagged.epoch == epoch.name:
                         epochname1_var = epoch.name.replace(" ", "_")
                         epochname_var = epochname1_var.replace(".", "")
-                        export_sub_folder = createfolder(export_folder, "shared")
+                        rm_folder = createfolder(export_folder, "rm")
+                        export_sub_folder = createfolder(rm_folder, epochname_var)
                         ob.select_set(True)
                         #name = bpy.path.clean_name(ob.name)
                         export_file = os.path.join(export_sub_folder, ob.name)
@@ -138,10 +139,11 @@ class EM_export(bpy.types.Operator):
             export_proxies(scene, proxies_folder)
 
         if self.em_export_type == 'RM':
-            RM_folder = createfolder(base_dir, 'RM')
+            #RM_folder = createfolder(base_dir, 'RM')
             nodes = None
             edges = None
-            export_rm(scene, RM_folder, False, nodes, self.em_export_format, edges)
+            export_rm(scene, base_dir, False, nodes,
+                      self.em_export_format, edges)
 
         if self.em_export_type == "EMviq":
             
