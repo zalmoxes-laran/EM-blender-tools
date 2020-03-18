@@ -258,6 +258,16 @@ class ExportVars(bpy.types.PropertyGroup):
               default='gltf'
     )
 
+class ExportTablesVars(bpy.types.PropertyGroup):
+       table_type : bpy.props.EnumProperty(
+              items=[
+              ('US/USV','US/USV','US/USV','', 0),
+              ('Sources','Sources','Sources','', 1),
+              ('Extractors','Extractors','Extractors','', 2),
+              ],
+              default='US/USV'
+    )
+
 # register
 ##################################
 
@@ -303,7 +313,8 @@ classes = (
     EMListParadata,
     EDGESListItem,
     EM_epochs_belonging_ob,
-    ExportVars
+    ExportVars,
+    ExportTablesVars
     )
 
 def register():
@@ -311,6 +322,7 @@ def register():
               bpy.utils.register_class(cls)
        
        bpy.types.WindowManager.export_vars = bpy.props.PointerProperty(type = ExportVars)
+       bpy.types.WindowManager.export_tables_vars = bpy.props.PointerProperty(type = ExportTablesVars)
 
        bpy.types.Scene.em_list = prop.CollectionProperty(type = EMListItem)
        bpy.types.Scene.em_list_index = prop.IntProperty(name = "Index for my_list", default = 0, update = functions.switch_paradata_lists)

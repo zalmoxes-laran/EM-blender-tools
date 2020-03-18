@@ -212,15 +212,36 @@ def write_UUSS_data(context, filepath, only_UUSS, header):
     
     f = open(filepath, 'w', encoding='utf-8')
 
-    if header:
-        f.write("Name; Description; Epoch; Type \n")
 
-    for US in context.scene.em_list:
-        if only_UUSS:
-            if US.icon == "RESTRICT_INSTANCED_ON":
+
+    if  context.window_manager.export_tables_vars.table_type == 'US/USV':
+        if header:
+            f.write("Name; Description; Epoch; Type \n")
+        for US in context.scene.em_list:
+            if only_UUSS:
+                if US.icon == "RESTRICT_INSTANCED_ON":
+                    f.write("%s; %s; %s; %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)))
+            else:
                 f.write("%s; %s; %s; %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)))
-        else:
-            f.write("%s; %s; %s; %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)))
+    if  context.window_manager.export_tables_vars.table_type == 'Sources':
+        if header:
+            f.write("Name; Description \n")
+        for source in context.scene.em_sources_list:
+            if only_UUSS:
+                if source.icon == "RESTRICT_INSTANCED_ON":
+                    f.write("%s; %s\n" % (source.name, source.description))
+            else:
+                f.write("%s; %s\n" % (source.name, source.description))
+
+    if  context.window_manager.export_tables_vars.table_type == 'Extractors':
+        if header:
+            f.write("Name; Description \n")
+        for extractor in context.scene.em_extractors_list:
+            if only_UUSS:
+                if extractor.icon == "RESTRICT_INSTANCED_ON":
+                    f.write("%s; %s\n" % (extractor.name, extractor.description))
+            else:
+                f.write("%s; %s\n" % (extractor.name, extractor.description))
     f.close()    
 
     return {'FINISHED'}
@@ -267,8 +288,8 @@ class ExportuussData(Operator, ExportHelper):
     #         )
 
     only_UUSS_with_proxies: BoolProperty(
-            name="Only UUSS with proxies",
-            description="Only UUSS with proxies",
+            name="Only elements with proxies",
+            description="Only elements with proxies",
             default=False,
             )
 

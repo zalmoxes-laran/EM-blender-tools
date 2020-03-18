@@ -634,13 +634,19 @@ class EM_ExportPanel:
 
         row.label(text="Export Models:")
         row = layout.row()
-        
         op = row.operator("export_manager.export", text="Proxies", emboss=True, icon='SHADING_SOLID')
         op.em_export_type = 'Proxies'
         op = row.operator("export_manager.export", text="RM", emboss=True, icon='SHADING_TEXTURE')
         op.em_export_type = 'RM'
+        row = layout.row()
+
+        row.label(text="Export Tables:")
+        row = layout.row()
         op = row.operator("export.uuss_export", text="EM (csv)", emboss=True, icon='LONGDISPLAY')
         row = layout.row()
+        row.prop(context.window_manager.export_tables_vars, 'table_type', expand=True)
+        row = layout.row()
+
         row.label(text="EMviq:")
         row = layout.row()
         op = row.operator("export_manager.export", text="Generate EMviq Folder", emboss=True, icon='LONGDISPLAY')
