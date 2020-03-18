@@ -131,7 +131,8 @@ class EM_export(bpy.types.Operator):
         #selection = bpy.context.selected_objects
         bpy.ops.object.select_all(action='DESELECT')
         print(scene.EM_file)
-        base_dir = os.path.dirname(scene.EM_file)
+        #base_dir = os.path.dirname(scene.EM_file)
+        base_dir = os.path.dirname(scene.EMviq_folder)
         print("la base_dir is:"+base_dir)
         
         if self.em_export_type == 'Proxies':
@@ -154,7 +155,8 @@ class EM_export(bpy.types.Operator):
             edges = []
             
             emviq_scene['scenegraph'] = scenegraph
-            export_folder = createfolder(base_dir, 'EMviq')
+            #export_folder = createfolder(base_dir, 'EMviq')
+            export_folder = base_dir
             proxies_folder = createfolder(export_folder, 'proxies')
             nodes, edges = export_rm(scene, export_folder, True, nodes, self.em_export_format, edges)
             export_proxies(scene, proxies_folder)

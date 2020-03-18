@@ -648,6 +648,9 @@ class EM_ExportPanel:
         row = layout.row()
 
         row.label(text="EMviq:")
+        row = layout.row()#(align=True)
+        row.prop(context.scene, 'EMviq_folder', toggle=True, text="")
+        row.label(text="<-- folder export path")
         row = layout.row()
         op = row.operator("export_manager.export", text="Generate EMviq Folder", emboss=True, icon='LONGDISPLAY')
         op.em_export_type = 'EMviq'
