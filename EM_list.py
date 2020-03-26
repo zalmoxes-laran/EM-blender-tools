@@ -152,7 +152,7 @@ class EM_import_GraphML(bpy.types.Operator):
 
     def execute(self, context):
         scene = context.scene
-        graphml_file = scene.EM_file
+        graphml_file = bpy.path.abspath(scene.EM_file)
         tree = ET.parse(graphml_file)
         EM_list_clear(context, "em_list")
         EM_list_clear(context, "em_reused")

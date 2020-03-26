@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ET
 import bpy
 import os
+import shutil
 import bpy.props as prop
 from bpy.props import (BoolProperty,
                        FloatProperty,
@@ -736,10 +737,9 @@ def em_setup_mat_cycles(matname, R, G, B):
     mat.diffuse_color[1] = G
     mat.diffuse_color[2] = B
     mat.show_transparent_back = False
-    mat.use_backface_culling = True
+    mat.use_backface_culling = False
     mat.use_nodes = True
     mat.node_tree.nodes.clear()
-    mat.use_backface_culling = True
     mat.blend_method = scene.proxy_blend_mode
     links = mat.node_tree.links
     nodes = mat.node_tree.nodes
@@ -919,3 +919,74 @@ class OBJECT_OT_labelonoff(bpy.types.Operator):
             obj.select_set(True)
             obj.show_name = self.onoff
         return {'FINISHED'}
+
+#############################################
+## funzioni per esportare obj e textures 
+#############################################
+
+def get_principled_node(mat):
+    for node in mat.node_tree.nodes:
+        if node.name == 'Principled BSDF':
+            return node
+
+def get_connected_input_node(node, input_link):
+    node_input = node.inputs[input_link].links[0].from_node
+    return node_input
+
+def extract_image_paths_from_mat(mat):
+    node = get_principled_node(mat)
+    relevant_input_links = ['Base Color', 'Roughness', 'Metallic', 'Normal']
+    found_paths = []
+    image_path = ''
+    error_list = []
+    for input_link in relevant_input_links:
+        if node.inputs[input_link].is_linked:
+            node_input = get_connected_input_node(node, input_link)
+            if node_input.type == 'TEX_IMAGE':
+                image_path = node_input.image.filepath_from_user() 
+                found_paths.append(image_path)
+            else:
+                # in case of normal map
+                if input_link == 'Normal' and node_input.type == 'NORMAL_MAP':
+                    if node_input.inputs['Color'].is_linked:
+                        node_input_input = get_connected_input_node(node_input, 'Color')
+                        image_path = node_input_input.image.filepath_from_user() 
+                        found_paths.append(image_path)
+                    else:
+                        found_paths.append('None')
+                        error_list.append('Missing image node "normal" in material: ' + mat.name)
+                else:
+                    found_paths.append('None')
+                    error_list.append('Missing image node "'+ input_link +'" in material: ' + mat.name)                  
+        else:
+            found_paths.append('None')
+            error_list.append('Missing image node "'+ input_link +'" in material: ' + mat.name)
+    for error in error_list:
+        print(error)
+    return found_paths
+
+def copy_tex_ob(ob, destination_path):
+    for mat in ob.material_slots:
+        image_file_path = extract_image_paths_from_mat(mat.material)
+        number_type = 0
+        for current_file_path in image_file_path:
+            if current_file_path != 'None':
+                current_path_splitted = os.path.split(current_file_path)
+                suffix = set_tex_type_name(number_type)
+                current_image_file = os.path.splitext(current_path_splitted[1])
+                #current_image_file_with_suffix = (current_image_file[0] + '_' + suffix + current_image_file[1])
+                current_image_file_with_suffix = (mat.name + '_' + suffix + current_image_file[1])
+                destination_file = os.path.join(destination_path, current_image_file_with_suffix)
+                shutil.copyfile(current_file_path, destination_file)
+            number_type += 1
+        
+def set_tex_type_name(number_type):
+    if number_type == 0:
+        string_type = 'ALB'
+    if number_type == 1:
+        string_type = 'ROU'
+    if number_type == 2:
+        string_type = 'MET'
+    if number_type == 3:
+        string_type = 'NOR'
+    return string_type

@@ -47,6 +47,8 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges):
                     export_file = os.path.join(export_sub_folder, ob.name)
                     if format_file == "obj":
                         bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
+                        copy_tex_ob(ob, export_sub_folder)
+                    
                     if format_file == "gltf":
                         bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright="Extended Matrix", export_image_format='NAME', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=False, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials=True, export_colors=True, export_cameras=False, export_selected=True, export_extras=False, export_yup=True, export_apply=False, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False, export_displacement=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")                    
                     if format_file == "fbx":
@@ -132,7 +134,9 @@ class EM_export(bpy.types.Operator):
         bpy.ops.object.select_all(action='DESELECT')
         print(scene.EM_file)
         #base_dir = os.path.dirname(scene.EM_file)
-        base_dir = os.path.dirname(scene.EMviq_folder)
+        fix_if_relative_folder = bpy.path.abspath(scene.EMviq_folder)
+        base_dir = os.path.dirname(fix_if_relative_folder)
+        #base_dir = os.path.dirname(scene.EMviq_folder)
         print("la base_dir is:"+base_dir)
         
         if self.em_export_type == 'Proxies':
@@ -177,7 +181,8 @@ class EM_export(bpy.types.Operator):
 
             em_file_4_emviq = os.path.join(export_folder, "em.graphml")
 
-            shutil.copyfile(scene.EM_file, em_file_4_emviq)
+            em_file_fixed_path = bpy.path.abspath(scene.EM_file)
+            shutil.copyfile(em_file_fixed_path, em_file_4_emviq)
 
         return {'FINISHED'}
 
