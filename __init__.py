@@ -207,6 +207,29 @@ class EMreusedUS(bpy.types.PropertyGroup):
            description="",
            default="Empty")
 
+class EMviqListErrors(bpy.types.PropertyGroup):
+    """ Group of properties representing list of errors in exporting the RM """
+
+    name: prop.StringProperty( 
+           name="Object",
+           description="The object with an error",
+           default="Empty")
+
+    description: prop.StringProperty(
+           name="Description",
+           description="A description of the error",
+           default="Empty")
+
+    material: prop.StringProperty(
+           name="material",
+           description="",
+           default="Empty")
+
+    texture_type: prop.StringProperty(
+           name="texture_type",
+           description="",
+           default="Empty")
+
 class EMListParadata(bpy.types.PropertyGroup):
     """ Group of properties representing a paradata element in the list """
 
@@ -284,6 +307,7 @@ classes = (
     UI.EM_UL_combiners_managers,
     UI.EM_UL_belongob,
     UI.VIEW3D_PT_ExportPanel,
+    UI.ER_UL_List,
     EM_list.EM_listitem_OT_to3D,
     EM_list.EM_update_icon_list,
     EM_list.EM_select_from_list_item,
@@ -314,7 +338,8 @@ classes = (
     EDGESListItem,
     EM_epochs_belonging_ob,
     ExportVars,
-    ExportTablesVars
+    ExportTablesVars,
+    EMviqListErrors
     )
 
 def register():
@@ -323,6 +348,9 @@ def register():
        
        bpy.types.WindowManager.export_vars = bpy.props.PointerProperty(type = ExportVars)
        bpy.types.WindowManager.export_tables_vars = bpy.props.PointerProperty(type = ExportTablesVars)
+
+       bpy.types.Scene.emviq_error_list = prop.CollectionProperty(type = EMviqListErrors)
+       bpy.types.Scene.emviq_error_list_index = prop.IntProperty(name = "Index for my_list", default = 0, update = functions.switch_paradata_lists)
 
        bpy.types.Scene.em_list = prop.CollectionProperty(type = EMListItem)
        bpy.types.Scene.em_list_index = prop.IntProperty(name = "Index for my_list", default = 0, update = functions.switch_paradata_lists)
@@ -411,6 +439,8 @@ def unregister():
        #per epoch manager
        ##################
        del bpy.types.WindowManager.export_vars
+       del bpy.types.Scene.emviq_error_list
+       del bpy.types.Scene.emviq_error_list_index
        del bpy.types.Scene.em_settings
        del bpy.types.Scene.em_list
        del bpy.types.Scene.em_list_index

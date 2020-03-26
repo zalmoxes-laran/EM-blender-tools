@@ -657,6 +657,27 @@ class EM_ExportPanel:
         op.em_export_format = context.window_manager.export_vars.format_file
         row = layout.row()
         row.prop(context.window_manager.export_vars, 'format_file', expand=True)
+        row = layout.row()
+        if scene.emviq_error_list_index >= 0 and len(scene.emviq_error_list) > 0:
+            row.template_list("ER_UL_List", "EM nodes", scene, "emviq_error_list", scene, "emviq_error_list_index")
+            item = scene.emviq_error_list[scene.emviq_error_list_index]
+            box = layout.box()
+            row = box.row(align=True)
+
+            split = row.split()
+            col = split.column()
+            row.prop(item, "name", text="")
+            split = row.split()
+            col = split.column()
+            op = col.operator("select.fromlistitem", text='', icon="MESH_CUBE")
+            op.list_type = "emviq_error_list"
+            #op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
+            #op.list_type = "emviq_error_list"
+            #row = layout.row()
+            #row.label(text="Description:")
+            row = box.row()
+            #layout.alignment = 'LEFT'
+            row.prop(item, "description", text="", slider=True, emboss=True)
 
         #op.em_export_format = 'gltf'
         #op.em_export_type = 'RM'
@@ -666,6 +687,15 @@ class VIEW3D_PT_ExportPanel(Panel, EM_ExportPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_ExportPanel"
     bl_context = "objectmode"
+
+
+class ER_UL_List(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        icons_style = 'OUTLINER'
+        scene = context.scene
+        layout = layout.split(factor =0.30, align = True)
+        layout.label(text = item.texture_type, icon = 'ERROR')
+        layout.label(text = item.material, icon='NONE', icon_value=0)
 
 #Export Section
 #####################################################################

@@ -30,6 +30,7 @@ def export_proxies(scene, export_folder):
                 proxy.select_set(False)
 
 def export_rm(scene, export_folder, EMviq, nodes, format_file, edges):
+    EM_list_clear(bpy.context, "emviq_error_list")
     for ob in bpy.data.objects:
         if len(ob.EM_ep_belong_ob) == 0:
             pass
@@ -183,6 +184,10 @@ class EM_export(bpy.types.Operator):
 
             em_file_fixed_path = bpy.path.abspath(scene.EM_file)
             shutil.copyfile(em_file_fixed_path, em_file_4_emviq)
+
+            #for error_num in range(len(scene.emviq_error_list)):
+            #    error = scene.emviq_error_list[error_num]
+            #    print("Material " + error.material + ": " + error.description + " " + error.texture_type + " (in object " + error.oggetto + ")")
 
         return {'FINISHED'}
 

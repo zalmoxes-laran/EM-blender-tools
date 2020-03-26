@@ -933,12 +933,12 @@ def get_connected_input_node(node, input_link):
     node_input = node.inputs[input_link].links[0].from_node
     return node_input
 
-def extract_image_paths_from_mat(mat):
+def extract_image_paths_from_mat(ob, mat):
     node = get_principled_node(mat)
     relevant_input_links = ['Base Color', 'Roughness', 'Metallic', 'Normal']
     found_paths = []
     image_path = ''
-    error_list = []
+    context = bpy.context
     for input_link in relevant_input_links:
         if node.inputs[input_link].is_linked:
             node_input = get_connected_input_node(node, input_link)
@@ -954,20 +954,31 @@ def extract_image_paths_from_mat(mat):
                         found_paths.append(image_path)
                     else:
                         found_paths.append('None')
-                        error_list.append('Missing image node "normal" in material: ' + mat.name)
+                        emviq_error_record_creator(ob, "missing image node", mat, input_link)
+
                 else:
                     found_paths.append('None')
-                    error_list.append('Missing image node "'+ input_link +'" in material: ' + mat.name)                  
+                    emviq_error_record_creator(ob, "missing image node", mat, input_link)
+                                      
         else:
             found_paths.append('None')
-            error_list.append('Missing image node "'+ input_link +'" in material: ' + mat.name)
-    for error in error_list:
-        print(error)
+            emviq_error_record_creator(ob, "missing image node", mat, input_link)
+    
     return found_paths
+
+def emviq_error_record_creator(ob, description, mat, tex_type):
+    scene = bpy.context.scene
+    scene.emviq_error_list.add()
+    ultimorecord = len(scene.emviq_error_list)-1
+    scene.emviq_error_list[ultimorecord].name = ob.name
+    scene.emviq_error_list[ultimorecord].description = description
+    scene.emviq_error_list[ultimorecord].material = mat.name
+    scene.emviq_error_list[ultimorecord].texture_type = tex_type
+
 
 def copy_tex_ob(ob, destination_path):
     for mat in ob.material_slots:
-        image_file_path = extract_image_paths_from_mat(mat.material)
+        image_file_path = extract_image_paths_from_mat(ob, mat.material)
         number_type = 0
         for current_file_path in image_file_path:
             if current_file_path != 'None':
