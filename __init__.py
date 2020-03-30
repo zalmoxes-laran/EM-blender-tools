@@ -433,7 +433,10 @@ def register():
 
 def unregister():
        for cls in classes:
-              bpy.utils.unregister_class(cls)
+              try:
+                     bpy.utils.unregister_class(cls)
+              except RuntimeError:
+                     pass
 
        ######################################################################################################
        #per epoch manager
