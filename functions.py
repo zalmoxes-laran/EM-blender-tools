@@ -977,7 +977,13 @@ def emviq_error_record_creator(ob, description, mat, tex_type):
 
 
 def copy_tex_ob(ob, destination_path):
+    # remove old mtl files
+    mtl_file = os.path.join(destination_path, ob.name+".mtl")
+    os.remove(mtl_file)
+    #creating a new custom mtl file
+    f = open(mtl_file, 'w', encoding='utf-8')     
     for mat in ob.material_slots:
+        f.write("%s %s\n" % ("newmtl", mat.material.name))
         image_file_path = extract_image_paths_from_mat(ob, mat.material)
         number_type = 0
         for current_file_path in image_file_path:
@@ -987,10 +993,13 @@ def copy_tex_ob(ob, destination_path):
                 current_image_file = os.path.splitext(current_path_splitted[1])
                 #current_image_file_with_suffix = (current_image_file[0] + '_' + suffix + current_image_file[1])
                 current_image_file_with_suffix = (mat.name + '_' + suffix + current_image_file[1])
+                if number_type == 0:
+                    f.write("%s %s\n" % ("map_Kd", current_image_file_with_suffix))
                 destination_file = os.path.join(destination_path, current_image_file_with_suffix)
                 shutil.copyfile(current_file_path, destination_file)
             number_type += 1
-        
+    f.close()
+
 def set_tex_type_name(number_type):
     if number_type == 0:
         string_type = 'ALB'
@@ -1001,3 +1010,18 @@ def set_tex_type_name(number_type):
     if number_type == 3:
         string_type = 'NOR'
     return string_type
+
+
+def substitue_with_custom_mtl(ob, export_sub_folder):
+    mtl_file = os.path.join(export_sub_folder+ob.name+".mtl")
+    os.remove(mtl_file)
+    f = open(mtl_file, 'w', encoding='utf-8')
+    for mat in ob.material_slots:
+        f.write("%s %s\n" % ("newmtl", mat.material.name))
+        f.write("%s %s\n" % ("map_Kd", mat.material.name+"_ALB"))
+        mat.material.name
+    
+    f.close() 
+
+
+
