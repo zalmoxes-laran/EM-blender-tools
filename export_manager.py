@@ -52,7 +52,6 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges):
                         bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
                         copy_tex_ob(ob, export_sub_folder)
 
-                    
                     if format_file == "gltf":
                         bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright="Extended Matrix", export_image_format='NAME', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=False, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials=True, export_colors=True, export_cameras=False, export_selected=True, export_extras=False, export_yup=True, export_apply=False, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False, export_displacement=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")                    
                     if format_file == "fbx":
@@ -76,8 +75,9 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges):
                         else:
                             print("sure, it was defined.")
 
-                        exec(epochname_var + '_urls.append("' + epochname_var +'/'+ ob.name + '.' + format_file +'")')
-                    
+                        #exec(epochname_var + '_urls.append("' + epochname_var +'/'+ ob.name + '.' + format_file +'")')
+                        #but here we want to set the osgjs file format (the emviq server will convert the obj to osgjs)
+                        exec(epochname_var + '_urls.append("rm/' + epochname_var +'/'+ ob.name + '.osgjs")')
                     ob.select_set(False)
 
         if len(ob.EM_ep_belong_ob) >= 2:
@@ -120,7 +120,9 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges):
                             else:
                                 print("sure, it was defined.")
                             
-                            exec(epochname_var + "_urls.append('shared/"+ ob.name + '.' + format_file +"')")
+                            #exec(epochname_var + '_urls.append("' + epochname_var +'/'+ ob.name + '.' + format_file +'")')
+                            #but here we want to set the osgjs file format (the emviq server will convert the obj to osgjs)
+                            exec(epochname_var + '_urls.append("rm/' + epochname_var + '/' + ob.name + '.osgjs")')
                         
                         ob.select_set(False)
     return nodes, edges
