@@ -122,8 +122,7 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges):
                             
                             #exec(epochname_var + '_urls.append("' + epochname_var +'/'+ ob.name + '.' + format_file +'")')
                             #but here we want to set the osgjs file format (the emviq server will convert the obj to osgjs)
-                            exec(epochname_var + '_urls.append("rm/' + epochname_var + '/' + ob.name + '.osgjs")')
-                        
+                            exec(epochname_var + '_urls.append("rm/shared/' + ob.name + '.osgjs")')
                         ob.select_set(False)
     return nodes, edges
 
