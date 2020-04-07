@@ -178,7 +178,7 @@ class EM_ToolsPanel:
     bl_region_type = 'UI'
 
     def draw(self, context):
-        addon_updater_ops.check_for_update_background(context)
+        #addon_updater_ops.check_for_update_background(context)
         layout = self.layout
         scene = context.scene
         em_settings = scene.em_settings
@@ -261,7 +261,7 @@ class EM_ToolsPanel:
         else:
             row.label(text="No US/USV here :-(")
 
-        addon_updater_ops.update_notice_box_ui(self, context)
+        #addon_updater_ops.update_notice_box_ui(self, context)
 
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_category = "EM"
