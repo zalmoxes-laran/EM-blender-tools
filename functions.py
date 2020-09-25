@@ -1011,7 +1011,6 @@ def set_tex_type_name(number_type):
         string_type = 'NOR'
     return string_type
 
-
 def substitue_with_custom_mtl(ob, export_sub_folder):
     mtl_file = os.path.join(export_sub_folder+ob.name+".mtl")
     os.remove(mtl_file)
@@ -1022,6 +1021,3 @@ def substitue_with_custom_mtl(ob, export_sub_folder):
         mat.material.name
     
     f.close() 
-
-
-
