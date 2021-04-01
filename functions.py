@@ -833,10 +833,14 @@ def EM_mat_get_RGB_values(matname):
         R = 0.018
         G = 0.275
         B = 0.799
-    elif matname == "VSF" or matname == "SF":
+    elif matname == "VSF":
         R = 0.799
         G = 0.753
         B = 0.347
+    elif matname == "SF":
+        R = 0.356
+        G = 0.296
+        B = 0.036
     return R, G, B
 
 def hex_to_rgb(value):
