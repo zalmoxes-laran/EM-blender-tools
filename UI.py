@@ -653,10 +653,17 @@ class EM_ExportPanel:
 
         row.label(text="EMviq:")
         row = layout.row()#(align=True)
+        
+        row.prop(context.scene, 'EMviq_project_name', toggle=True, text="")
+        row.label(text="<-- Project's name")
+        row = layout.row()#(align=True)
         row.prop(context.scene, 'EMviq_folder', toggle=True, text="")
-        row.label(text="<-- folder export path")
+        row.label(text="<-- Collection folder export path")
+        row = layout.row()#(align=True)
+        row.prop(context.scene, 'EMviq_scene_folder', toggle=True, text="")
+        row.label(text="<-- Scene folder export path")
         row = layout.row()
-        op = row.operator("export_manager.export", text="Generate EMviq Folder", emboss=True, icon='LONGDISPLAY')
+        op = row.operator("export_manager.export", text="Generate EMviq Project", emboss=True, icon='LONGDISPLAY')
         op.em_export_type = 'EMviq'
         op.em_export_format = context.window_manager.export_vars.format_file
         row = layout.row()

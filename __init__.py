@@ -22,7 +22,7 @@ bl_info = {
     "name": "EM tools",
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
-    "version": (1, 1, 75),
+    "version": (1, 1, 76),
     "blender": (2, 92, 0),
 #     "location": "3D View > Toolbox",
 #    "warning": "This addon is still in development.",
@@ -460,12 +460,25 @@ def register():
        )
 
        bpy.types.Scene.EMviq_folder = StringProperty(
-           name="EMviq export folder",
+           name="EMviq collection export folder",
            default="",
-           description="Define the path to export the EMviq dataset",
+           description="Define the path to export the EMviq collection",
            subtype='DIR_PATH'
        )
 
+       bpy.types.Scene.EMviq_scene_folder = StringProperty(
+           name="EMviq scene export folder",
+           default="",
+           description="Define the path to export the EMviq scene",
+           subtype='DIR_PATH'
+       )
+
+       bpy.types.Scene.EMviq_project_name = StringProperty(
+           name="EMviq project name",
+           default="",
+           description="Define the name of the EMviq project"#,
+           #subtype='DIR_PATH'
+       )
 
        ######################################################################################################
        #per epoch manager
