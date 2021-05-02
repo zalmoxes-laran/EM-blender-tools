@@ -480,6 +480,20 @@ def register():
            #subtype='DIR_PATH'
        )
 
+       bpy.types.Scene.EMviq_user_name = StringProperty(
+           name="EMviq user name",
+           default="",
+           description="Define the name of the EMviq user"#,
+           #subtype='DIR_PATH'
+       )
+
+       bpy.types.Scene.EMviq_user_name = StringProperty(
+           name="EMviq user name",
+           default="",
+           description="Define the name of the EMviq user",
+           subtype='PASSWORD'
+       )
+
        ######################################################################################################
        #per epoch manager
        ##################
@@ -568,6 +582,11 @@ def unregister():
        del bpy.types.Scene.extr_paradata_streaming_mode
        del bpy.types.Object.EM_ep_belong_ob
        del bpy.types.Object.EM_ep_belong_ob_index
+
+       del bpy.types.Scene.EMviq_user_name
+       del bpy.types.Scene.EMviq_project_name
+       del bpy.types.Scene.EMviq_scene_folder
+
 
 ######################################################################################################
 
