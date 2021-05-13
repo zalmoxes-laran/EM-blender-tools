@@ -146,7 +146,7 @@ class EM_export(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         utente_aton = "edemetrescu"
-        progetto_aton = "Montebelluna2"
+        progetto_aton = scene.EMviq_project_name #"Montebelluna2"
 
         #selection = bpy.context.selected_objects
         bpy.ops.object.select_all(action='DESELECT')

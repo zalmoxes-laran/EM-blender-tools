@@ -487,7 +487,7 @@ def register():
            #subtype='DIR_PATH'
        )
 
-       bpy.types.Scene.EMviq_user_name = StringProperty(
+       bpy.types.Scene.EMviq_user_password = StringProperty(
            name="EMviq user name",
            default="",
            description="Define the name of the EMviq user",
