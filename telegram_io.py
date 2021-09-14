@@ -1,7 +1,3 @@
-# segni chatid = 529577985
-# recuperato da:
-# https://api.telegram.org/bot125374616:AAHEmFIlqfL3fuY9OCOAwwnOEDbiOB0dyBk/getUpdates
-
 # per installare queste librerie:
 # 
 
@@ -12,7 +8,7 @@ import time
 #import os
 
 # IMPORTANTE: inserire il token fornito dal BotFather nella seguente stringa
-TOKEN="125374616:AAEfz30RGnvr1jkU0PC-YsgXX1eXzKjO_DI"
+TOKEN="pippo"
 
 def func_call(filename):
   exec(open(filename).read(), globals(), globals())
