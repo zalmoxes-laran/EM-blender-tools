@@ -284,7 +284,11 @@ class EM_import_GraphML(bpy.types.Operator):
                                        #print("All'epoca "+scene.em_reused[em_reused_index].epoch+ " appartiene : "+ scene.em_reused[em_reused_index].em_element)
                                         em_reused_index += 1
         read_edge_db(context,tree)
-        node_send = scene.em_list[scene.em_list_index]
+        try:
+            node_send = scene.em_list[scene.em_list_index]
+        except IndexError as error:
+            scene.em_list_index = 0
+            node_send = scene.em_list[scene.em_list_index]
         create_derived_lists(node_send)
         if context.scene.proxy_display_mode == "EM":
             bpy.ops.emset.emmaterial()

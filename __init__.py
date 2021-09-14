@@ -22,8 +22,8 @@ bl_info = {
     "name": "EM tools",
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
-    "version": (1, 1, 77),
-    "blender": (2, 93, 0),
+    "version": (1, 1, 78),
+    "blender": (2, 93, 4),
 #     "location": "3D View > Toolbox",
 #    "warning": "This addon is still in development.",
     "wiki_url": "",
@@ -58,7 +58,8 @@ from . import (
         epoch_manager,
         functions,
         paradata_manager,
-        export_manager,
+        export_manager#,
+        #telegram_io
         )
 
 from .functions import *
@@ -66,8 +67,10 @@ from bpy.utils import register_class, unregister_class
 
 from . import addon_updater_ops
 
-# demo bare-bones preferences
+# demo bare-bones preferences 
 @addon_updater_ops.make_annotations
+#@telegram_io.main()
+
 class EmPreferences(bpy.types.AddonPreferences):
 	bl_idname = __package__
 
@@ -126,7 +129,6 @@ class EmPreferences(bpy.types.AddonPreferences):
 		# col = mainrow.column()
 		# col.scale_y = 2
 		# col.operator("wm.url_open","Open webpage ").url=addon_updater_ops.updater.website
-
 
 class EDGESListItem(bpy.types.PropertyGroup):
        """ Group of properties an item in the list """
@@ -524,6 +526,8 @@ def register():
        bpy.types.Object.EM_ep_belong_ob = CollectionProperty(type=EM_epochs_belonging_ob)
        bpy.types.Object.EM_ep_belong_ob_index = IntProperty()
 
+       
+
 ######################################################################################################
 
 def unregister():
@@ -589,4 +593,3 @@ def unregister():
 
 
 ######################################################################################################
-
