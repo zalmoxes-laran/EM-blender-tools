@@ -42,7 +42,6 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges, utente_ato
             ob_tagged = ob.EM_ep_belong_ob[0]
             for epoch in scene.epoch_list:
                 if ob_tagged.epoch == epoch.name:
-
                     epochname1_var = epoch.name.replace(" ", "_")
                     epochname_var = epochname1_var.replace(".", "")
                     #rm_folder = createfolder(export_folder, "rm")
