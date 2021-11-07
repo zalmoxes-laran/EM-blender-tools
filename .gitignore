@@ -58,3 +58,4 @@ docs/_build/
 target/
 .vscode/launch.json
 em-blender-tools_updater/EM-blender-tools_updater_status.json
+telegram_credentials.py

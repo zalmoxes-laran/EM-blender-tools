@@ -2,13 +2,14 @@
 # 
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
-#import subprocess
+import subprocess
 import exchange
 import time
 #import os
+from .telegram_credentials import *
 
 # IMPORTANTE: inserire il token fornito dal BotFather nella seguente stringa
-TOKEN="pippo"
+TOKEN=get_token()
 
 def func_call(filename):
   exec(open(filename).read(), globals(), globals())
