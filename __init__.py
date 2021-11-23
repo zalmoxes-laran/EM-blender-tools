@@ -22,8 +22,8 @@ bl_info = {
     "name": "EM tools",
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
-    "version": (1, 1, 79),
-    "blender": (2, 93, 4),
+    "version": (1, 2, 00),
+    "blender": (2, 93, 5),
 #     "location": "3D View > Toolbox",
 #    "warning": "This addon is still in development.",
     "wiki_url": "",
@@ -496,6 +496,13 @@ def register():
            subtype='PASSWORD'
        )
 
+       bpy.types.Scene.EMviq_model_author_name = StringProperty(
+           name="Name of the author(s) of the models",
+           default="",
+           description="Define the nameof the author(s) of the models"#,
+           #subtype='DIR_PATH'
+       )
+
        ######################################################################################################
        #per epoch manager
        ##################
@@ -590,6 +597,7 @@ def unregister():
        del bpy.types.Scene.EMviq_user_name
        del bpy.types.Scene.EMviq_project_name
        del bpy.types.Scene.EMviq_scene_folder
+       del bpy.types.Scene.EMviq_model_author_name
 
 
 ######################################################################################################

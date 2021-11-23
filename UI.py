@@ -654,9 +654,16 @@ class EM_ExportPanel:
         row.label(text="EMviq:")
         row = layout.row()#(align=True)
         
+        
         row.prop(context.scene, 'EMviq_project_name', toggle=True, text="")
         row.label(text="<-- Project's name")
         row = layout.row()#(align=True)
+        row.prop(context.scene, 'EMviq_model_author_name', toggle=True, text="")
+        row.label(text="<-- Model's author(s)")
+        row = layout.row()#(align=True)
+        row.prop(context.scene, 'EMviq_user_name', toggle=True, text="")
+        row.label(text="<-- ATON user's name")
+        row = layout.row()  # (align=True)
         row.prop(context.scene, 'EMviq_folder', toggle=True, text="")
         row.label(text="<-- Collection folder export path")
         row = layout.row()#(align=True)
