@@ -116,7 +116,7 @@ class EM_not_in_matrix(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF']
+        EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD']
         EM_mat_name = "mat_NotInTheMatrix"
         R = 1.0
         G = 0.0
@@ -179,8 +179,8 @@ class EM_import_GraphML(bpy.types.Operator):
                     scene.em_list[em_list_index_ema].y_pos = float(my_node_y_pos)
                     scene.em_list[em_list_index_ema].description = my_node_description
                         #print(my_node_shape)
-                    if my_node_shape == "ellipse":
-                        if my_node_fill_color == '#FFFFFF':
+                    if my_node_fill_color == '#FFFFFF':
+                        if my_node_shape == "ellipse" or my_node_shape == "octagon":
                             scene.em_list[em_list_index_ema].shape = my_node_shape+"_white"
                         else:
                             scene.em_list[em_list_index_ema].shape = my_node_shape

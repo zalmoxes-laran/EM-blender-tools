@@ -378,7 +378,8 @@ def EM_check_node_type(node_element):
     return node_type
 
 def EM_check_node_us(node_element):
-    US_nodes_list = ['rectangle', 'parallelogram', 'ellipse', 'hexagon', 'octagon']
+    US_nodes_list = ['rectangle', 'parallelogram',
+                     'ellipse', 'hexagon', 'octagon', 'roundrectangle']
     my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos, my_node_fill_color = EM_extract_node_name(node_element)
     #print(my_node_shape)
     if my_node_shape in US_nodes_list:
@@ -773,7 +774,7 @@ def check_material_presence(matname):
 #  #### #### #### #### #### #### ####
 
 def consolidate_EM_material_presence(overwrite_mats):
-    EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF']
+    EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD']
     for EM_mat_name in EM_mat_list:
         if not check_material_presence(EM_mat_name):
             EM_mat = bpy.data.materials.new(name=EM_mat_name)
@@ -806,7 +807,11 @@ def set_materials_using_EM_list(context):
             if current_ob_em_list.shape ==  'hexagon':
                 ob_material_name = 'USVn'
             if current_ob_em_list.shape ==  'octagon':
+                ob_material_name = 'VSF'
+            if current_ob_em_list.shape ==  'octagon_white':
                 ob_material_name = 'SF'
+            if current_ob_em_list.shape == 'roundrectangle':
+                ob_material_name = 'USD'
             mat = bpy.data.materials[ob_material_name]
             current_ob_scene.data.materials.clear()
             current_ob_scene.data.materials.append(mat)
@@ -834,13 +839,25 @@ def EM_mat_get_RGB_values(matname):
         G = 0.275
         B = 0.799
     elif matname == "VSF":
-        R = 0.799
-        G = 0.753
-        B = 0.347
+        #errati su articolo five steps
+        #R = 0.694
+        #G = 0.623
+        #B = 0.380
+        R = 0.439
+        G = 0.346
+        B = 0.119
     elif matname == "SF":
-        R = 0.356
-        G = 0.296
-        B = 0.036
+        #errati su articolo five steps
+        #R = 0.847
+        #G = 0.741
+        #B = 0.188
+        R = 0.686
+        G = 0.508
+        B = 0.029
+    elif matname == "USD":
+        R = 0.549
+        G = 0.103
+        B = 0.000
     return R, G, B
 
 def hex_to_rgb(value):

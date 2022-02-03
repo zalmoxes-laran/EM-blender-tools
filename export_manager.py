@@ -236,6 +236,8 @@ def convert_shape2type(shape):
         node_type = "USVn"
     elif shape == "octagon":
         node_type = "Special Find"
+    elif shape == "roundrectangle":
+        node_type = "USD"
     return node_type
 
 def write_UUSS_data(context, filepath, only_UUSS, header):
