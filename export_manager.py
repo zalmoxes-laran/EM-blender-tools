@@ -81,7 +81,7 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges, utente_ato
 
                         #exec(epochname_var + '_urls.append("' + epochname_var +'/'+ ob.name + '.' + format_file +'")')
                         #but here we want to set the osgjs file format (the emviq server will convert the obj to osgjs)
-                        exec(epochname_var + '_urls.append("'+utente_aton+'/models/'+progetto_aton+'/' + epochname_var +'/'+ ob.name + '.gltf")')
+                        exec(epochname_var + '_urls.append("'+utente_aton+'/'+progetto_aton+'/' + epochname_var +'/'+ ob.name + '.gltf")')
                     ob.select_set(False)
         if len(ob.EM_ep_belong_ob) >= 2:
             for ob_tagged in ob.EM_ep_belong_ob:
@@ -147,22 +147,25 @@ class EM_export(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         utente_aton = scene.EMviq_user_name
-        progetto_aton = scene.EMviq_project_name #"Montebelluna2"
+        progetto_aton = scene.EMviq_project_name 
 
-        #selection = bpy.context.selected_objects
         bpy.ops.object.select_all(action='DESELECT')
-        print(scene.EM_file)
-        #base_dir = os.path.dirname(scene.EM_file)
-        fix_if_relative_folder = bpy.path.abspath(scene.EMviq_folder)
+
+        fix_if_relative_folder = bpy.path.abspath(scene.ATON_path)
+
         base_dir = os.path.dirname(fix_if_relative_folder)
-        #base_dir = os.path.dirname(scene.EMviq_folder)
+        print(base_dir)
+        if os.path.exists(os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)):
+            base_dir_scenes = os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)
+        else:
+            base_dir_scenes = createfolder(os.path.join(base_dir,"data","scenes",utente_aton), progetto_aton)
 
-        fix_if_relative_folder_scene = bpy.path.abspath(scene.EMviq_scene_folder)
-        base_dir_scene = os.path.dirname(fix_if_relative_folder_scene)        
-
-        print("la base_dir per la collection è:"+base_dir)
-        print("la base_dir per la scena è:"+base_dir_scene)
-                
+        if os.path.exists(os.path.join(base_dir,"data","collections",utente_aton,progetto_aton)):
+            base_dir_collections = os.path.join(base_dir,"data","collections",utente_aton,progetto_aton)
+        else:
+            base_dir_collections = createfolder(os.path.join(base_dir,"data","collections",utente_aton), progetto_aton)
+    
+        '''        
         if self.em_export_type == 'Proxies':
             proxies_folder = createfolder(base_dir_scene, 'Proxies')
             export_proxies(scene, proxies_folder)
@@ -173,7 +176,7 @@ class EM_export(bpy.types.Operator):
             edges = {}
             export_rm(scene, base_dir, False, nodes,
                       self.em_export_format, edges, utente_aton, progetto_aton)
-
+        '''
         if self.em_export_type == "EMviq":
             
             #setup json variables
@@ -184,9 +187,9 @@ class EM_export(bpy.types.Operator):
             
             emviq_scene['scenegraph'] = scenegraph
             #export_folder = createfolder(base_dir, 'EMviq')
-            export_folder = base_dir_scene
+            export_folder = base_dir_scenes
             proxies_folder = createfolder(export_folder, 'proxies')
-            nodes, edges = export_rm(scene, base_dir, True, nodes, self.em_export_format, edges, utente_aton, progetto_aton)
+            nodes, edges = export_rm(scene, base_dir_collections, True, nodes, self.em_export_format, edges, utente_aton, progetto_aton)
             export_proxies(scene, proxies_folder)
 
             scenegraph['nodes'] = nodes

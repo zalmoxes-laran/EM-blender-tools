@@ -496,6 +496,13 @@ def register():
            subtype='PASSWORD'
        )
 
+       bpy.types.Scene.ATON_path = StringProperty(
+           name="ATON path",
+           default="",
+           description="Define the path to the ATON framework (root folder)",
+           subtype='DIR_PATH'
+       )
+
        bpy.types.Scene.EMviq_model_author_name = StringProperty(
            name="Name of the author(s) of the models",
            default="",
@@ -598,6 +605,7 @@ def unregister():
        del bpy.types.Scene.EMviq_project_name
        del bpy.types.Scene.EMviq_scene_folder
        del bpy.types.Scene.EMviq_model_author_name
+       del bpy.types.Scene.ATON_path
 
 
 ######################################################################################################
