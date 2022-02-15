@@ -203,7 +203,7 @@ def EM_extract_extractor_node(node_element):
                         if nodename == elem.name:
                             is_document = True
                     if not is_document:
-                        print(nodename)
+                        #print(f"il nodo non è un documento e si chiama: {nodename}")
                         subnode_is_extractor = True
                 # for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}SVGContent'):
                 #     attrib2 = nodetype.attrib

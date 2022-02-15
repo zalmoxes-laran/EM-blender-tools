@@ -38,7 +38,7 @@ class Display_mode_menu(bpy.types.Menu):
         #layout.operator("wm.call_menu", text="Unwrap").name = "VIEW3D_MT_uv_map"
 
 class EM_SetupPanel:
-    bl_label = "EM setup"
+    bl_label = "EM setup (v1.2.90 dev)"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
 

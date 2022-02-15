@@ -18,7 +18,7 @@ def extract_number(text):
      return text.split()[1].strip()
 
 def nulla():
-     print("attivo")
+     #print("attivo")
      return False
 
 #def telegram_idle():
