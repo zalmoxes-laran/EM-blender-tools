@@ -29,6 +29,7 @@ def image_compression(dir_path):
     temp_image_quality = scene.render.image_settings.quality
     scene.render.image_settings.file_format = 'JPEG'
     scene.render.image_settings.quality = scene.EM_gltf_export_quality
+    print(f'Cerco nella directory {dir_path}')
     for entry in os.listdir(dir_path):
         if os.path.isfile(os.path.join(dir_path, entry)):
             if entry.lower().endswith('.jpg') or entry.lower().endswith('.png'):
@@ -62,9 +63,7 @@ def export_proxies(scene, export_folder):
                 export_file = os.path.join(export_folder, name)
                 bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=False, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='NONE', export_colors=True,
                                           export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=False, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False, export_displacement=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
-                #bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
-                #mtl_file = str(export_file + '.mtl')
-                #os.remove(mtl_file)
+
                 proxy.select_set(False)
 
 def export_rm(scene, export_folder, EMviq, nodes, format_file, edges, utente_aton, progetto_aton):
@@ -92,7 +91,7 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges, utente_ato
                         copy_tex_ob(ob, export_sub_folder)
 
                     if format_file == "gltf":
-                        bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', ui_tab='GENERAL', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_colors=True, export_cameras=False,export_selected=True, use_selection=False, export_extras=False, export_yup=True, export_apply=False, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_morph_normal=False, export_morph_tangent=False, export_lights=False, export_displacement=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
+                        bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', ui_tab='GENERAL', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_colors=True, export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=False, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_morph_normal=False, export_morph_tangent=False, export_lights=False, export_displacement=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
                     if format_file == "fbx":
                         bpy.ops.export_scene.fbx(filepath = export_file + ".fbx", check_existing=True, filter_glob="*.fbx", use_selection=True, use_active_collection=False, global_scale=1.0, apply_unit_scale=True, apply_scale_options='FBX_SCALE_NONE', bake_space_transform=False, object_types={'MESH'}, use_mesh_modifiers=True, use_mesh_modifiers_render=True, mesh_smooth_type='OFF', use_mesh_edges=False, use_tspace=False, use_custom_props=False, add_leaf_bones=True, primary_bone_axis='Y', secondary_bone_axis='X', use_armature_deform_only=False, armature_nodetype='NULL', bake_anim=False, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=True, bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True, bake_anim_step=1.0, bake_anim_simplify_factor=1.0, path_mode='AUTO', embed_textures=False, batch_mode='OFF', use_batch_own_dir=True, use_metadata=True, axis_forward='-Z', axis_up='Y')
                     if EMviq:
@@ -161,10 +160,14 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges, utente_ato
                             exec(epochname_var + '_urls.append("'+utente_aton+'/models/'+progetto_aton+'/shared/'+ ob.name + '.gltf")')
                             #exec(epochname_var + '_urls.append("rm/shared/' + ob.name + '.osgjs")')
                         ob.select_set(False)
+    print(f'E ora di trovare le cartelle per compremere le immagini: parto dalla folder {export_folder}')
     if scene.enable_image_compression:
         for sub_folder in os.listdir(export_folder):
+            print(f'Ho trovato oggetto {sub_folder}')
+
             if os.path.isdir(os.path.join(export_folder, sub_folder)):
-                image_compression(sub_folder)
+                print(f'questa subfolder è una directory: {sub_folder}')
+                image_compression(os.path.join(export_folder, sub_folder))
 
     return nodes, edges
 
@@ -221,10 +224,11 @@ class EM_export(bpy.types.Operator):
             
             emviq_scene['scenegraph'] = scenegraph
             #export_folder = createfolder(base_dir, 'EMviq')
-            export_folder = base_dir_scenes
-            proxies_folder = createfolder(export_folder, 'proxies')
-            nodes, edges = export_rm(scene, base_dir_collections, True, nodes, self.em_export_format, edges, utente_aton, progetto_aton)
+            #export_folder = base_dir_scenes
+            proxies_folder = createfolder(base_dir_scenes, 'proxies')
             export_proxies(scene, proxies_folder)
+            nodes, edges = export_rm(scene, base_dir_collections, True, nodes, self.em_export_format, edges, utente_aton, progetto_aton)
+            
 
             scenegraph['nodes'] = nodes
 
@@ -234,13 +238,13 @@ class EM_export(bpy.types.Operator):
             data = json.dumps(emviq_scene, indent=4, ensure_ascii=True)
 
             #'/users/emanueldemetrescu/Desktop/'
-            file_name = os.path.join(export_folder, "scene.json")
+            file_name = os.path.join(base_dir_scenes, "scene.json")
 
             # write JSON file
             with open(file_name, 'w') as outfile:
                 outfile.write(data + '\n')
 
-            em_file_4_emviq = os.path.join(export_folder, "em.graphml")
+            em_file_4_emviq = os.path.join(base_dir_scenes, "em.graphml")
 
             em_file_fixed_path = bpy.path.abspath(scene.EM_file)
             shutil.copyfile(em_file_fixed_path, em_file_4_emviq)
