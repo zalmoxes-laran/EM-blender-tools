@@ -665,8 +665,9 @@ class EM_ExportPanel:
         row.prop(context.window_manager.export_vars, 'format_file', expand=True)
         #box = layout.box()
         row = box.row()
-        row.prop(context.scene, 'EM_gltf_export_maxres', toggle = True, text='Max resolution of jpg images')
-        row.prop(context.scene, 'EM_gltf_export_quality', toggle = True, text='Quality of jpg images')
+        row.prop(context.scene, 'enable_image_compression', toggle = True, text='Use tex compression')
+        row.prop(context.scene, 'EM_gltf_export_maxres', toggle = True, text='Max res')
+        row.prop(context.scene, 'EM_gltf_export_quality', toggle = True, text='Size')
         row = box.row()
         op = row.operator("export_manager.export", text="Generate EMviq Project", emboss=True, icon='LONGDISPLAY')
         op.em_export_type = 'EMviq'
@@ -695,10 +696,6 @@ class EM_ExportPanel:
             row = box.row()
             #layout.alignment = 'LEFT'
             row.prop(item, "description", text="", slider=True, emboss=True)
-
-        #op.em_export_format = 'gltf'
-        #op.em_export_type = 'RM'
-        
 
 class VIEW3D_PT_ExportPanel(Panel, EM_ExportPanel):
     bl_category = "EM"

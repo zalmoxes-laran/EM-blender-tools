@@ -72,7 +72,9 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges, utente_ato
     edges["."] = []
     for ob in bpy.data.objects:
         if len(ob.EM_ep_belong_ob) == 0:
+            # in case the object does not have an epoch it belogs to, do nothing (=0)
             pass
+        # in case the object belogs to ONE epoch, I manage it accordingly
         if len(ob.EM_ep_belong_ob) == 1:
             ob_tagged = ob.EM_ep_belong_ob[0]
             for epoch in scene.epoch_list:
@@ -90,7 +92,6 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges, utente_ato
                         copy_tex_ob(ob, export_sub_folder)
 
                     if format_file == "gltf":
-                        #bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', ui_tab='GENERAL', export_copyright=copyright, export_image_format='AUTO', export_texture_dir='', export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=draco_compression, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_colors=False, export_cameras=False, export_selected=True, use_selection=True, export_extras=False, export_yup=True, export_apply=False, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=False, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=False, export_all_influences=False, export_morph=True, export_morph_normal=False, export_morph_tangent=False, export_lights=False, export_displacement=False, will_save_settings=False, filepath=file_path, check_existing=False)#, filter_glob='*.glb;*.gltf')
                         bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', ui_tab='GENERAL', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_colors=True, export_cameras=False,export_selected=True, use_selection=False, export_extras=False, export_yup=True, export_apply=False, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_morph_normal=False, export_morph_tangent=False, export_lights=False, export_displacement=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
                     if format_file == "fbx":
                         bpy.ops.export_scene.fbx(filepath = export_file + ".fbx", check_existing=True, filter_glob="*.fbx", use_selection=True, use_active_collection=False, global_scale=1.0, apply_unit_scale=True, apply_scale_options='FBX_SCALE_NONE', bake_space_transform=False, object_types={'MESH'}, use_mesh_modifiers=True, use_mesh_modifiers_render=True, mesh_smooth_type='OFF', use_mesh_edges=False, use_tspace=False, use_custom_props=False, add_leaf_bones=True, primary_bone_axis='Y', secondary_bone_axis='X', use_armature_deform_only=False, armature_nodetype='NULL', bake_anim=False, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=True, bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True, bake_anim_step=1.0, bake_anim_simplify_factor=1.0, path_mode='AUTO', embed_textures=False, batch_mode='OFF', use_batch_own_dir=True, use_metadata=True, axis_forward='-Z', axis_up='Y')
@@ -117,55 +118,54 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges, utente_ato
                         #but here we want to set the osgjs file format (the emviq server will convert the obj to osgjs)
                         exec(epochname_var + '_urls.append("'+utente_aton+'/'+progetto_aton+'/' + epochname_var +'/'+ ob.name + '.gltf")')
                     ob.select_set(False)
+        # in case the object is in different epochs, I set up a "shared" folder instead of a folder for each epoch
         if len(ob.EM_ep_belong_ob) >= 2:
             for ob_tagged in ob.EM_ep_belong_ob:
                 for epoch in scene.epoch_list:
                     if ob_tagged.epoch == epoch.name:
                         epochname1_var = epoch.name.replace(" ", "_")
                         epochname_var = epochname1_var.replace(".", "")
-                        #rm_folder = createfolder(export_folder, "rm")
                         rm_folder = export_folder
-                        #export_sub_folder = createfolder(rm_folder, epochname_var)
+                        # create a shared folder for all the epochs
                         export_sub_folder = createfolder(rm_folder, "shared")
                         
                         ob.select_set(True)
-                        #name = bpy.path.clean_name(ob.name)
                         export_file = os.path.join(export_sub_folder, ob.name)
                         if format_file == "obj":
                             bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
                             copy_tex_ob(ob, export_sub_folder)
-
                         if format_file == "gltf":
-                            #bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', ui_tab='GENERAL', export_copyright=copyright, export_image_format='AUTO', export_texture_dir='', export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=draco_compression, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_colors=False, export_cameras=False, export_selected=True, use_selection=True, export_extras=False, export_yup=True, export_apply=False, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=False, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=False, export_all_influences=False, export_morph=True, export_morph_normal=False, export_morph_tangent=False, export_lights=False, export_displacement=False, will_save_settings=False, filepath=str(export_file), check_existing=False)#, filter_glob='*.glb;*.gltf')
-                            bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=False, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_colors=True,
+                            bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_colors=True,
                                                       export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=False, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False, export_displacement=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
                         if format_file == "fbx":
                             bpy.ops.export_scene.fbx(filepath = export_file + ".fbx", check_existing=True, filter_glob="*.fbx", use_selection=True, use_active_collection=False, global_scale=1.0, apply_unit_scale=True, apply_scale_options='FBX_SCALE_NONE', bake_space_transform=False, object_types={'MESH'}, use_mesh_modifiers=True, use_mesh_modifiers_render=True, mesh_smooth_type='OFF', use_mesh_edges=False, use_tspace=False, use_custom_props=False, add_leaf_bones=True, primary_bone_axis='Y', secondary_bone_axis='X', use_armature_deform_only=False, armature_nodetype='NULL', bake_anim=False, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=True, bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True, bake_anim_step=1.0, bake_anim_simplify_factor=1.0, path_mode='AUTO', embed_textures=False, batch_mode='OFF', use_batch_own_dir=True, use_metadata=True, axis_forward='-Z', axis_up='Y')
+
+                        # if EMviq export is required, also the metadata are exported
                         if EMviq:
+                            # I check if the epoch variable is already present, otherwise I create it
                             try:
                                 exec(epochname_var+'_node')
                             except NameError:
-                                print("well, it WASN'T defined after all!")
+                                #print("well, it WASN'T defined after all!")
                                 exec(epochname_var + '_node' + ' = {}')
                                 exec(epochname_var + '_urls = []')
                                 exec(epochname_var + "_node['urls'] = "+ epochname_var +"_urls")
                                 exec("nodes['"+epoch.name+"'] = "+ epochname_var + '_node')
 
-                                #exec(epochname_var + '_edge = []')
-                                #exec(epochname_var + '_edge.append(".")')
-                                #exec(epochname_var + '_edge.append("'+ epoch.name +'")')
-
-                                #exec('edges.append('+epochname_var + '_edge)')
                                 edges["."].append(epoch.name)
 
                             else:
-                                print("sure, it was defined.")
+                                pass
+                                #print("sure, it was defined.")
                             
-                            #exec(epochname_var + '_urls.append("' + epochname_var +'/'+ ob.name + '.' + format_file +'")')
-                            #but here we want to set the osgjs file format (the emviq server will convert the obj to osgjs)
                             exec(epochname_var + '_urls.append("'+utente_aton+'/models/'+progetto_aton+'/shared/'+ ob.name + '.gltf")')
                             #exec(epochname_var + '_urls.append("rm/shared/' + ob.name + '.osgjs")')
                         ob.select_set(False)
+    if scene.enable_image_compression:
+        for sub_folder in os.listdir(export_folder):
+            if os.path.isdir(os.path.join(export_folder, sub_folder)):
+                image_compression(sub_folder)
+
     return nodes, edges
 
 class EM_export(bpy.types.Operator):

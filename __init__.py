@@ -448,6 +448,8 @@ def register():
        bpy.types.Scene.em_v_combiners_list = prop.CollectionProperty(type = EMListParadata)
        bpy.types.Scene.em_v_combiners_list_index = prop.IntProperty(name = "Index for combiners list", default = 0, update = functions.stream_combiners)
 
+       bpy.types.Scene.enable_image_compression = BoolProperty(name="Tex compression", description = "Use compression settings for textures. If disabled, original images (size and compression) will be used.",default=True)
+
        bpy.types.Scene.paradata_streaming_mode = BoolProperty(name="Paradata streaming mode", description = "Enable/disable tables streaming mode",default=True, update = functions.switch_paradata_lists)
        bpy.types.Scene.prop_paradata_streaming_mode = BoolProperty(name="Properties Paradata streaming mode", description = "Enable/disable property table streaming mode",default=True, update = functions.stream_properties)
        bpy.types.Scene.comb_paradata_streaming_mode = BoolProperty(name="Combiners Paradata streaming mode", description = "Enable/disable combiner table streaming mode",default=True, update = functions.stream_combiners)
@@ -543,13 +545,13 @@ def register():
        bpy.types.Scene.EM_gltf_export_quality = IntProperty(
        name="export quality",
        default=100,
-       description="Define the quality of the output images",
+       description="Define the quality of the output images. 100 is maximum quality but at a cost of bigger weight (no optimization); 80 is compressed with near lossless quality but still hight in weight; 60 is a good middle way; 40 is hardly optimized with some evident loss in quality (sometimes it can work).",
        )
 
        bpy.types.Scene.EM_gltf_export_maxres = IntProperty(
        name="export max resolution",
        default=4096,
-       description="Define the resolution of the output images",
+       description="Define the maximum resolution of the bigger side (it depends if it is a squared landscape or portrait image) of the output images",
        )
 
        
@@ -620,6 +622,7 @@ def unregister():
        del bpy.types.Scene.ATON_path
        del bpy.types.Scene.EM_gltf_export_maxres
        del bpy.types.Scene.EM_gltf_export_quality
+       del bpy.types.Scene.enable_image_compression
        
 
 
