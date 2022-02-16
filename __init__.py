@@ -22,7 +22,7 @@ bl_info = {
     "name": "EM tools",
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
-    "version": (1, 2, 90),
+    "version": (1, 2, 91),
     "blender": (3, 0, 1),
 #     "location": "3D View > Toolbox",
     "warning": "This addon is still in development.",
@@ -540,6 +540,18 @@ def register():
        bpy.types.Object.EM_ep_belong_ob = CollectionProperty(type=EM_epochs_belonging_ob)
        bpy.types.Object.EM_ep_belong_ob_index = IntProperty()
 
+       bpy.types.Scene.EM_gltf_export_quality = IntProperty(
+       name="export quality",
+       default=100,
+       description="Define the quality of the output images",
+       )
+
+       bpy.types.Scene.EM_gltf_export_maxres = IntProperty(
+       name="export max resolution",
+       default=4096,
+       description="Define the resolution of the output images",
+       )
+
        
 
 ######################################################################################################
@@ -606,6 +618,9 @@ def unregister():
        del bpy.types.Scene.EMviq_scene_folder
        del bpy.types.Scene.EMviq_model_author_name
        del bpy.types.Scene.ATON_path
+       del bpy.types.Scene.EM_gltf_export_maxres
+       del bpy.types.Scene.EM_gltf_export_quality
+       
 
 
 ######################################################################################################
