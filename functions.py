@@ -399,7 +399,7 @@ def EM_check_node_document(node_element):
 def EM_check_node_property(node_element):
     try:
         pro_nodename, pro_node_id, pro_node_description, pro_nodeurl, subnode_is_property = EM_extract_property_node(node_element)
-    except TypeError as e:
+    except UnboundLocalError as e:
         subnode_is_property = False
     return subnode_is_property
 
