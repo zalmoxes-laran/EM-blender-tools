@@ -389,7 +389,10 @@ def EM_check_node_us(node_element):
     return id_node_us
 
 def EM_check_node_document(node_element):
-    src_nodename, src_node_id, src_node_description, src_nodeurl, subnode_is_document = EM_extract_document_node(node_element)
+    try:
+        src_nodename, src_node_id, src_node_description, src_nodeurl, subnode_is_document = EM_extract_document_node(node_element)
+    except Exception as e:
+        print(f"Huston abbiamo un problema {e} al nodo {node_element}")
     return subnode_is_document
 
 def EM_check_node_property(node_element):
