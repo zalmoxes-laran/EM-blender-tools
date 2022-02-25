@@ -397,16 +397,25 @@ def EM_check_node_document(node_element):
     return subnode_is_document
 
 def EM_check_node_property(node_element):
-    pro_nodename, pro_node_id, pro_node_description, pro_nodeurl, subnode_is_property = EM_extract_property_node(node_element)
+    try:
+        pro_nodename, pro_node_id, pro_node_description, pro_nodeurl, subnode_is_property = EM_extract_property_node(node_element)
+    except TypeError as e:
+        subnode_is_property = False
     return subnode_is_property
 
 def EM_check_node_extractor(node_element):
-     ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_extractor = EM_extract_extractor_node(node_element)
-     return subnode_is_extractor
+    try:
+        ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_extractor = EM_extract_extractor_node(node_element)
+    except TypeError as e:
+        subnode_is_extractor = False
+    return subnode_is_extractor
 
 def EM_check_node_combiner(node_element):
-     com_nodename, com_node_id, com_node_description, com_nodeurl, subnode_is_combiner = EM_extract_combiner_node(node_element)
-     return subnode_is_combiner
+    try:
+        com_nodename, com_node_id, com_node_description, com_nodeurl, subnode_is_combiner = EM_extract_combiner_node(node_element)
+    except TypeError as e:
+        subnode_is_combiner = False
+    return subnode_is_combiner
 
 def EM_check_node_continuity(node_element):
     id_node_continuity = False
