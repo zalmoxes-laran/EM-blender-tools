@@ -1,7 +1,7 @@
 '''
-Copyright (C) 2018 Emanuel Demetrescu
+Copyright (C) 2022 Emanuel Demetrescu
 
-Created by EMANUEL DEMETRESCU 2018-2019
+Created by EMANUEL DEMETRESCU 2018-2022
 emanuel.demetrescu@cnr.it
 
     This program is free software: you can redistribute it and/or modify

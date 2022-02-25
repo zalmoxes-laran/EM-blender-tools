@@ -249,7 +249,6 @@ class EM_export(bpy.types.Operator):
 
         return {'FINISHED'}
 
-
 class OBJECT_OT_ExportUUSS(bpy.types.Operator):
     bl_idname = "export.uuss_export"
     bl_label = "Export UUSS"
@@ -284,8 +283,6 @@ def write_UUSS_data(context, filepath, only_UUSS, header):
     
     f = open(filepath, 'w', encoding='utf-8')
 
-
-
     if  context.window_manager.export_tables_vars.table_type == 'US/USV':
         if header:
             f.write("Name; Description; Epoch; Type \n")
@@ -307,13 +304,13 @@ def write_UUSS_data(context, filepath, only_UUSS, header):
 
     if  context.window_manager.export_tables_vars.table_type == 'Extractors':
         if header:
-            f.write("Name; Description \n")
+            f.write("Name   Description \n")
         for extractor in context.scene.em_extractors_list:
             if only_UUSS:
                 if extractor.icon == "RESTRICT_INSTANCED_ON":
-                    f.write("%s; %s\n" % (extractor.name, extractor.description))
+                    f.write("%s %s\n" % (extractor.name, extractor.description))
             else:
-                f.write("%s; %s\n" % (extractor.name, extractor.description))
+                f.write("%s %s\n" % (extractor.name, extractor.description))
     f.close()    
 
     return {'FINISHED'}
