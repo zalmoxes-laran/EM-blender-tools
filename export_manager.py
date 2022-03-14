@@ -289,28 +289,28 @@ def write_UUSS_data(context, filepath, only_UUSS, header):
         for US in context.scene.em_list:
             if only_UUSS:
                 if US.icon == "RESTRICT_INSTANCED_ON":
-                    f.write("%s; %s; %s; %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)))
+                    f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)))
             else:
-                f.write("%s; %s; %s; %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)))
+                f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)))
     if  context.window_manager.export_tables_vars.table_type == 'Sources':
         if header:
             f.write("Name; Description \n")
         for source in context.scene.em_sources_list:
             if only_UUSS:
                 if source.icon == "RESTRICT_INSTANCED_ON":
-                    f.write("%s; %s\n" % (source.name, source.description))
+                    f.write("%s\t %s\n" % (source.name, source.description))
             else:
-                f.write("%s; %s\n" % (source.name, source.description))
+                f.write("%s\t %s\n" % (source.name, source.description))
 
     if  context.window_manager.export_tables_vars.table_type == 'Extractors':
         if header:
-            f.write("Name   Description \n")
+            f.write("Name\t Description \n")
         for extractor in context.scene.em_extractors_list:
             if only_UUSS:
                 if extractor.icon == "RESTRICT_INSTANCED_ON":
-                    f.write("%s %s\n" % (extractor.name, extractor.description))
+                    f.write("%s\t %s\n" % (extractor.name, extractor.description))
             else:
-                f.write("%s %s\n" % (extractor.name, extractor.description))
+                f.write("%s\t %s\n" % (extractor.name, extractor.description))
     f.close()    
 
     return {'FINISHED'}

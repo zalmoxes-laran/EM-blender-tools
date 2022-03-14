@@ -173,7 +173,7 @@ def EM_extract_combiner_node(node_element):
                         nodeurl = check_if_empty(subnode.text)
                 if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
                     is_d5 = True
-                    node_description = check_if_empty(subnode.text)
+                    node_description = clean_comments(check_if_empty(subnode.text))
 
         if not is_d4:
             nodeurl = '--None--'
@@ -220,7 +220,7 @@ def EM_extract_extractor_node(node_element):
                         nodeurl = check_if_empty(subnode.text)
                 if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
                     is_d5 = True
-                    node_description = check_if_empty(subnode.text)
+                    node_description = clean_comments(check_if_empty(subnode.text))
 
         if not is_d4:
             nodeurl = '--None--'
@@ -259,7 +259,7 @@ def EM_extract_document_node(node_element):
                         nodeurl = subnode.text
                 if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
                     is_d5 = True
-                    node_description = subnode.text
+                    node_description = clean_comments(subnode.text)
         if not is_d4:
             nodeurl = '--None--'
         if not is_d5:
@@ -300,7 +300,7 @@ def EM_extract_property_node(node_element):
                         nodeurl = subnode.text
                 if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
                     is_d5 = True
-                    node_description = subnode.text
+                    node_description = clean_comments(subnode.text)
 
         if not is_d4:
             nodeurl = '--None--'
@@ -309,6 +309,10 @@ def EM_extract_property_node(node_element):
 
 
     return nodename, node_id, node_description, nodeurl, subnode_is_property
+
+def clean_comments(text_to_clean):
+    clean_text = text_to_clean.split("##")[0].replace("\n","")
+    return clean_text
 
 def EM_extract_node_name(node_element):
     is_d4 = False
@@ -326,7 +330,7 @@ def EM_extract_node_name(node_element):
             nodeurl = subnode.text
         if attrib == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
             is_d5 = True
-            nodedescription = subnode.text
+            nodedescription = clean_comments(subnode.text)
         if attrib == {'key': 'd6'}:
             for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
                 nodename = check_if_empty(USname.text)

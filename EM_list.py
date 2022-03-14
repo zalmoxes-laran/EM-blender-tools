@@ -241,7 +241,6 @@ class EM_import_GraphML(bpy.types.Operator):
                         scene.em_extractors_list[em_extractors_index_ema].icon_url = "CHECKBOX_HLT"
                     scene.em_extractors_list[em_extractors_index_ema].description = ext_node_description
                     em_extractors_index_ema += 1
-
                 elif EM_check_node_combiner(node_element):
                     ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_combiner = EM_extract_combiner_node(node_element)
                     scene.em_combiners_list.add()
