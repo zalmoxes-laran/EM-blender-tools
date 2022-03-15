@@ -34,7 +34,7 @@ class EM_label_creation(bpy.types.Operator):
         #current_collection_layer_col = context.view_layer.active_layer_collection
         #current_collection = bpy.data.collections.get(current_collection_layer_col.name)
 
-        base_collection = context.scene.collection 
+        base_collection = context.scene.collection.name 
 
         # Pickup the collection layer if exists
 
@@ -45,8 +45,8 @@ class EM_label_creation(bpy.types.Operator):
             collection_generated_label = bpy.data.collections.new(
                 "generated_labels")
             collection_generated_label.name = "generated_labels"
-            bpy.data.collections[base_collection].children.link(
-                bpy.data.collections["Collection"])
+            bpy.data.collections[0].children.link(
+                bpy.data.collections["generated_labels"])
             context.scene.collection.children.link(collection_generated_label)
 
         # activate collection
