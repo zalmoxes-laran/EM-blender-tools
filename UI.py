@@ -146,6 +146,10 @@ class EM_SetupPanel:
         op = row.operator("label.onoff", text="", emboss=False, icon='RADIOBUT_OFF')
         op.onoff = False
 
+        op = row.operator("label.creation", text="",
+                          emboss=False, icon='CURSOR')
+        #op.onoff = False
+
         op = row.operator("center.mass", text="", emboss=False, icon='CURSOR')
         op.center_to = "cursor"
 

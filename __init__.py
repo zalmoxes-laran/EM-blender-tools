@@ -22,7 +22,7 @@ bl_info = {
     "name": "EM tools",
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
-    "version": (1, 2, 92),
+    "version": (1, 2, 93),
     "blender": (3, 0, 1),
 #     "location": "3D View > Toolbox",
     "warning": "This addon is still in development.",
@@ -59,6 +59,7 @@ from . import (
         functions,
         paradata_manager,
         export_manager,
+        visual_tools,
         #telegram_io
         )
 
@@ -407,6 +408,7 @@ classes = (
     ExportTablesVars,
     EMviqListErrors,
     EmPreferences,
+    visual_tools.EM_label_creation,
     )
 
 def register():
