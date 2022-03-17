@@ -72,7 +72,7 @@ class EM_label_creation(bpy.types.Operator):
             tobj = bpy.context.object
 
             # Set the name of the label to include the prefix so we can identify them and set the text
-            tobj.name = '_generated.'+obj.name
+            tobj.name = '_generated.'+cam.name+'.'+obj.name
             tobj.data.body = obj.name
 
             # Position the label between the camera and the object
