@@ -114,7 +114,7 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges, utente_ato
 
                         #exec(epochname_var + '_urls.append("' + epochname_var +'/'+ ob.name + '.' + format_file +'")')
                         #but here we want to set the osgjs file format (the emviq server will convert the obj to osgjs)
-                        exec(epochname_var + '_urls.append("'+utente_aton+'/models/'+progetto_aton+'/' + epochname_var +'/'+ ob.name + '.gltf")')
+                        exec(epochname_var + '_urls.append("'+utente_aton+'/'+progetto_aton+'/' + epochname_var +'/'+ ob.name + '.gltf")')
                     ob.select_set(False)
         # in case the object is in different epochs, I set up a "shared" folder instead of a folder for each epoch
         if len(ob.EM_ep_belong_ob) >= 2:
@@ -155,7 +155,7 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges, utente_ato
                                 pass
                                 #print("sure, it was defined.")
                             
-                            exec(epochname_var + '_urls.append("'+utente_aton+'/models/'+progetto_aton+'/shared/'+ ob.name + '.gltf")')
+                            exec(epochname_var + '_urls.append("'+utente_aton+'/'+progetto_aton+'/shared/'+ ob.name + '.gltf")')
                             #exec(epochname_var + '_urls.append("rm/shared/' + ob.name + '.osgjs")')
                         ob.select_set(False)
     print(f'E ora di trovare le cartelle per compremere le immagini: parto dalla folder {export_folder}')
