@@ -47,7 +47,6 @@ from bpy.props import (
         )
         
 from bpy.types import (
-        AddonPreferences,
         PropertyGroup,
         )
 
