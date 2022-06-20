@@ -27,7 +27,7 @@ class Display_mode_menu(bpy.types.Menu):
         layout.operator("emset.epochmaterial", text="Periods")
 
 class EM_SetupPanel:
-    bl_label = "EM setup (v1.2.92 dev)"
+    bl_label = "EM setup (v1.3.0 dev)"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
 
