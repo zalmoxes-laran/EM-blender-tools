@@ -173,7 +173,7 @@ def EM_extract_combiner_node(node_element):
                         nodeurl = check_if_empty(subnode.text)
                 if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
                     is_d5 = True
-                    node_description = check_if_empty(subnode.text)
+                    node_description = clean_comments(check_if_empty(subnode.text))
 
         if not is_d4:
             nodeurl = '--None--'
@@ -203,7 +203,7 @@ def EM_extract_extractor_node(node_element):
                         if nodename == elem.name:
                             is_document = True
                     if not is_document:
-                        print(nodename)
+                        #print(f"il nodo non è un documento e si chiama: {nodename}")
                         subnode_is_extractor = True
                 # for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}SVGContent'):
                 #     attrib2 = nodetype.attrib
@@ -220,7 +220,7 @@ def EM_extract_extractor_node(node_element):
                         nodeurl = check_if_empty(subnode.text)
                 if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
                     is_d5 = True
-                    node_description = check_if_empty(subnode.text)
+                    node_description = clean_comments(check_if_empty(subnode.text))
 
         if not is_d4:
             nodeurl = '--None--'
@@ -259,7 +259,7 @@ def EM_extract_document_node(node_element):
                         nodeurl = subnode.text
                 if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
                     is_d5 = True
-                    node_description = subnode.text
+                    node_description = clean_comments(subnode.text)
         if not is_d4:
             nodeurl = '--None--'
         if not is_d5:
@@ -300,7 +300,7 @@ def EM_extract_property_node(node_element):
                         nodeurl = subnode.text
                 if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
                     is_d5 = True
-                    node_description = subnode.text
+                    node_description = clean_comments(subnode.text)
 
         if not is_d4:
             nodeurl = '--None--'
@@ -309,6 +309,10 @@ def EM_extract_property_node(node_element):
 
 
     return nodename, node_id, node_description, nodeurl, subnode_is_property
+
+def clean_comments(text_to_clean):
+    clean_text = text_to_clean.split("##")[0].replace("\n","")
+    return clean_text
 
 def EM_extract_node_name(node_element):
     is_d4 = False
@@ -326,7 +330,7 @@ def EM_extract_node_name(node_element):
             nodeurl = subnode.text
         if attrib == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
             is_d5 = True
-            nodedescription = subnode.text
+            nodedescription = clean_comments(subnode.text)
         if attrib == {'key': 'd6'}:
             for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
                 nodename = check_if_empty(USname.text)
@@ -378,7 +382,8 @@ def EM_check_node_type(node_element):
     return node_type
 
 def EM_check_node_us(node_element):
-    US_nodes_list = ['rectangle', 'parallelogram', 'ellipse', 'hexagon', 'octagon']
+    US_nodes_list = ['rectangle', 'parallelogram',
+                     'ellipse', 'hexagon', 'octagon', 'roundrectangle']
     my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos, my_node_fill_color = EM_extract_node_name(node_element)
     #print(my_node_shape)
     if my_node_shape in US_nodes_list:
@@ -388,20 +393,33 @@ def EM_check_node_us(node_element):
     return id_node_us
 
 def EM_check_node_document(node_element):
-    src_nodename, src_node_id, src_node_description, src_nodeurl, subnode_is_document = EM_extract_document_node(node_element)
+    try:
+        src_nodename, src_node_id, src_node_description, src_nodeurl, subnode_is_document = EM_extract_document_node(node_element)
+    except TypeError as e:
+        subnode_is_document = False
+        #print(f"Huston abbiamo un problema {e} al nodo {node_element}")
     return subnode_is_document
 
 def EM_check_node_property(node_element):
-    pro_nodename, pro_node_id, pro_node_description, pro_nodeurl, subnode_is_property = EM_extract_property_node(node_element)
+    try:
+        pro_nodename, pro_node_id, pro_node_description, pro_nodeurl, subnode_is_property = EM_extract_property_node(node_element)
+    except UnboundLocalError as e:
+        subnode_is_property = False
     return subnode_is_property
 
 def EM_check_node_extractor(node_element):
-     ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_extractor = EM_extract_extractor_node(node_element)
-     return subnode_is_extractor
+    try:
+        ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_extractor = EM_extract_extractor_node(node_element)
+    except TypeError as e:
+        subnode_is_extractor = False
+    return subnode_is_extractor
 
 def EM_check_node_combiner(node_element):
-     com_nodename, com_node_id, com_node_description, com_nodeurl, subnode_is_combiner = EM_extract_combiner_node(node_element)
-     return subnode_is_combiner
+    try:
+        com_nodename, com_node_id, com_node_description, com_nodeurl, subnode_is_combiner = EM_extract_combiner_node(node_element)
+    except TypeError as e:
+        subnode_is_combiner = False
+    return subnode_is_combiner
 
 def EM_check_node_continuity(node_element):
     id_node_continuity = False
@@ -773,7 +791,7 @@ def check_material_presence(matname):
 #  #### #### #### #### #### #### ####
 
 def consolidate_EM_material_presence(overwrite_mats):
-    EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF']
+    EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD']
     for EM_mat_name in EM_mat_list:
         if not check_material_presence(EM_mat_name):
             EM_mat = bpy.data.materials.new(name=EM_mat_name)
@@ -806,7 +824,11 @@ def set_materials_using_EM_list(context):
             if current_ob_em_list.shape ==  'hexagon':
                 ob_material_name = 'USVn'
             if current_ob_em_list.shape ==  'octagon':
+                ob_material_name = 'VSF'
+            if current_ob_em_list.shape ==  'octagon_white':
                 ob_material_name = 'SF'
+            if current_ob_em_list.shape == 'roundrectangle':
+                ob_material_name = 'USD'
             mat = bpy.data.materials[ob_material_name]
             current_ob_scene.data.materials.clear()
             current_ob_scene.data.materials.append(mat)
@@ -834,13 +856,25 @@ def EM_mat_get_RGB_values(matname):
         G = 0.275
         B = 0.799
     elif matname == "VSF":
-        R = 0.799
-        G = 0.753
-        B = 0.347
+        #errati su articolo five steps
+        #R = 0.694
+        #G = 0.623
+        #B = 0.380
+        R = 0.439
+        G = 0.346
+        B = 0.119
     elif matname == "SF":
-        R = 0.356
-        G = 0.296
-        B = 0.036
+        #errati su articolo five steps
+        #R = 0.847
+        #G = 0.741
+        #B = 0.188
+        R = 0.686
+        G = 0.508
+        B = 0.029
+    elif matname == "USD":
+        R = 0.549
+        G = 0.103
+        B = 0.000
     return R, G, B
 
 def hex_to_rgb(value):

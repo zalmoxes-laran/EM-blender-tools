@@ -1,7 +1,7 @@
 '''
-Copyright (C) 2018 Emanuel Demetrescu
+Copyright (C) 2022 Emanuel Demetrescu
 
-Created by EMANUEL DEMETRESCU 2018-2019
+Created by EMANUEL DEMETRESCU 2018-2022
 emanuel.demetrescu@cnr.it
 
     This program is free software: you can redistribute it and/or modify
@@ -22,10 +22,10 @@ bl_info = {
     "name": "EM tools",
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
-    "version": (1, 2, 00),
-    "blender": (2, 93, 5),
+    "version": (1, 3, 00),
+    "blender": (3, 2, 0),
 #     "location": "3D View > Toolbox",
-#    "warning": "This addon is still in development.",
+    "warning": "This addon is still in development.",
     "wiki_url": "",
     "category": "Tools",
     }
@@ -40,7 +40,6 @@ from bpy.props import (
         StringProperty,
         BoolProperty,
         FloatProperty,
-        EnumProperty,
         IntProperty,
         PointerProperty,
         CollectionProperty,
@@ -48,7 +47,6 @@ from bpy.props import (
         )
         
 from bpy.types import (
-        AddonPreferences,
         PropertyGroup,
         )
 
@@ -59,6 +57,7 @@ from . import (
         functions,
         paradata_manager,
         export_manager,
+        visual_tools,
         #telegram_io
         )
 
@@ -407,6 +406,7 @@ classes = (
     ExportTablesVars,
     EMviqListErrors,
     EmPreferences,
+    visual_tools.EM_label_creation,
     )
 
 def register():
@@ -447,6 +447,8 @@ def register():
        bpy.types.Scene.em_v_extractors_list_index = prop.IntProperty(name = "Index for extractors list", default = 0, update = functions.stream_extractors)
        bpy.types.Scene.em_v_combiners_list = prop.CollectionProperty(type = EMListParadata)
        bpy.types.Scene.em_v_combiners_list_index = prop.IntProperty(name = "Index for combiners list", default = 0, update = functions.stream_combiners)
+
+       bpy.types.Scene.enable_image_compression = BoolProperty(name="Tex compression", description = "Use compression settings for textures. If disabled, original images (size and compression) will be used.",default=True)
 
        bpy.types.Scene.paradata_streaming_mode = BoolProperty(name="Paradata streaming mode", description = "Enable/disable tables streaming mode",default=True, update = functions.switch_paradata_lists)
        bpy.types.Scene.prop_paradata_streaming_mode = BoolProperty(name="Properties Paradata streaming mode", description = "Enable/disable property table streaming mode",default=True, update = functions.stream_properties)
@@ -496,6 +498,13 @@ def register():
            subtype='PASSWORD'
        )
 
+       bpy.types.Scene.ATON_path = StringProperty(
+           name="ATON path",
+           default="",
+           description="Define the path to the ATON framework (root folder)",
+           subtype='DIR_PATH'
+       )
+
        bpy.types.Scene.EMviq_model_author_name = StringProperty(
            name="Name of the author(s) of the models",
            default="",
@@ -532,6 +541,18 @@ def register():
 
        bpy.types.Object.EM_ep_belong_ob = CollectionProperty(type=EM_epochs_belonging_ob)
        bpy.types.Object.EM_ep_belong_ob_index = IntProperty()
+
+       bpy.types.Scene.EM_gltf_export_quality = IntProperty(
+       name="export quality",
+       default=100,
+       description="Define the quality of the output images. 100 is maximum quality but at a cost of bigger weight (no optimization); 80 is compressed with near lossless quality but still hight in weight; 60 is a good middle way; 40 is hardly optimized with some evident loss in quality (sometimes it can work).",
+       )
+
+       bpy.types.Scene.EM_gltf_export_maxres = IntProperty(
+       name="export max resolution",
+       default=4096,
+       description="Define the maximum resolution of the bigger side (it depends if it is a squared landscape or portrait image) of the output images",
+       )
 
        
 
@@ -598,6 +619,11 @@ def unregister():
        del bpy.types.Scene.EMviq_project_name
        del bpy.types.Scene.EMviq_scene_folder
        del bpy.types.Scene.EMviq_model_author_name
+       del bpy.types.Scene.ATON_path
+       del bpy.types.Scene.EM_gltf_export_maxres
+       del bpy.types.Scene.EM_gltf_export_quality
+       del bpy.types.Scene.enable_image_compression
+       
 
 
 ######################################################################################################

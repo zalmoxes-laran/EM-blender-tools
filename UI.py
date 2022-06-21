@@ -26,19 +26,8 @@ class Display_mode_menu(bpy.types.Menu):
         layout.operator("emset.emmaterial", text="EM")
         layout.operator("emset.epochmaterial", text="Periods")
 
-        #layout.label(text="Hello world!", icon='WORLD_DATA')
-
-        # use an operator enum property to populate a sub-menu
-        # layout.operator_menu_enum("object.select_by_type",
-        #                           property="type",
-        #                           text="Select All by Type...",
-        #                           )
-
-        # call another menu
-        #layout.operator("wm.call_menu", text="Unwrap").name = "VIEW3D_MT_uv_map"
-
 class EM_SetupPanel:
-    bl_label = "EM setup"
+    bl_label = "EM setup (v1.3.0 dev)"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
 
@@ -157,6 +146,10 @@ class EM_SetupPanel:
         op = row.operator("label.onoff", text="", emboss=False, icon='RADIOBUT_OFF')
         op.onoff = False
 
+        op = row.operator("label.creation", text="",
+                          emboss=False, icon='CURSOR')
+        #op.onoff = False
+
         op = row.operator("center.mass", text="", emboss=False, icon='CURSOR')
         op.center_to = "cursor"
 
@@ -260,8 +253,6 @@ class EM_ToolsPanel:
 
         else:
             row.label(text="No US/USV here :-(")
-
-        #addon_updater_ops.update_notice_box_ui(self, context)
 
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_category = "EM"
@@ -576,9 +567,6 @@ class EM_ParadataPanel:
             op.node_type = source_list_var
             row = box.row()
 
-            #split = row.split(110 / (context.region.width - 45))
-            #row.template_preview(bpy.data.textures['mao'], show_buttons=True)
-
 class VIEW3D_PT_ParadataPanel(Panel, EM_ParadataPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_ParadataPanel"
@@ -634,48 +622,64 @@ class EM_ExportPanel:
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        row = layout.row()
-
-        row.label(text="Export Models:")
-        row = layout.row()
+ 
+        box = layout.box()
+        row = box.row()
+        row.label(text="Models export:")
+        row = box.row()
         op = row.operator("export_manager.export", text="Proxies", emboss=True, icon='SHADING_SOLID')
         op.em_export_type = 'Proxies'
         op = row.operator("export_manager.export", text="RM", emboss=True, icon='SHADING_TEXTURE')
         op.em_export_type = 'RM'
         row = layout.row()
-
-        row.label(text="Export Tables:")
-        row = layout.row()
+        box = layout.box()
+        row = box.row()
+        row.label(text="Tables export:")
+        row = box.row()
         op = row.operator("export.uuss_export", text="EM (csv)", emboss=True, icon='LONGDISPLAY')
-        row = layout.row()
+        row = box.row()
         row.prop(context.window_manager.export_tables_vars, 'table_type', expand=True)
         row = layout.row()
-
-        row.label(text="EMviq:")
-        row = layout.row()#(align=True)
-        
-        
+        box = layout.box()
+        row = box.row()
+        row.label(text="EMviq export:")
+        row = box.row()
         row.prop(context.scene, 'EMviq_project_name', toggle=True, text="")
         row.label(text="<-- Project's name")
-        row = layout.row()#(align=True)
+        row = box.row()#(align=True)
         row.prop(context.scene, 'EMviq_model_author_name', toggle=True, text="")
         row.label(text="<-- Model's author(s)")
-        row = layout.row()#(align=True)
+        row = box.row()
         row.prop(context.scene, 'EMviq_user_name', toggle=True, text="")
         row.label(text="<-- ATON user's name")
+        row = box.row()
+        row.prop(context.scene, 'ATON_path', toggle=True, text="")
+        row.label(text="<-- path to ATON")
+
+        '''
         row = layout.row()  # (align=True)
         row.prop(context.scene, 'EMviq_folder', toggle=True, text="")
         row.label(text="<-- Collection folder export path")
         row = layout.row()#(align=True)
         row.prop(context.scene, 'EMviq_scene_folder', toggle=True, text="")
         row.label(text="<-- Scene folder export path")
-        row = layout.row()
+        '''
+
+        row = box.row()
+        row.prop(context.window_manager.export_vars, 'format_file', expand=True)
+        #box = layout.box()
+        row = box.row()
+        row.prop(context.scene, 'enable_image_compression', toggle = True, text='Use tex compression')
+        row.prop(context.scene, 'EM_gltf_export_maxres', toggle = True, text='Max res')
+        row.prop(context.scene, 'EM_gltf_export_quality', toggle = True, text='Size')
+        row = box.row()
         op = row.operator("export_manager.export", text="Generate EMviq Project", emboss=True, icon='LONGDISPLAY')
         op.em_export_type = 'EMviq'
         op.em_export_format = context.window_manager.export_vars.format_file
+        row = box.row()
+
         row = layout.row()
-        row.prop(context.window_manager.export_vars, 'format_file', expand=True)
-        row = layout.row()
+
         if scene.emviq_error_list_index >= 0 and len(scene.emviq_error_list) > 0:
             row.template_list("ER_UL_List", "EM nodes", scene, "emviq_error_list", scene, "emviq_error_list_index")
             item = scene.emviq_error_list[scene.emviq_error_list_index]
@@ -696,10 +700,6 @@ class EM_ExportPanel:
             row = box.row()
             #layout.alignment = 'LEFT'
             row.prop(item, "description", text="", slider=True, emboss=True)
-
-        #op.em_export_format = 'gltf'
-        #op.em_export_type = 'RM'
-        
 
 class VIEW3D_PT_ExportPanel(Panel, EM_ExportPanel):
     bl_category = "EM"
