@@ -41,7 +41,8 @@ class EM_toggle_select(bpy.types.Operator):
                         object_to_select = bpy.data.objects[us.name]
                         object_to_select.select_set(True)
         return {'FINISHED'}
-
+#["rectangle", "ellipse_white", "roundrectangle", "octagon_white"]
+#["parallelogram", "ellipse", "hexagon", "octagon"]
 class EM_toggle_visibility(bpy.types.Operator):
     """Draw a line with the mouse"""
     bl_idname = "epoch_manager.toggle_visibility"
