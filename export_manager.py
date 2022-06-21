@@ -260,6 +260,8 @@ class OBJECT_OT_ExportUUSS(bpy.types.Operator):
             
         return {'FINISHED'}
 
+
+
 def convert_shape2type(shape):
     node_type = "None"
     if shape == "rectangle":
@@ -272,8 +274,10 @@ def convert_shape2type(shape):
         node_type = "Series of US"
     elif shape == "hexagon":
         node_type = "USVn"
-    elif shape == "octagon":
+    elif shape == "octagon_white":
         node_type = "Special Find"
+    elif shape == "octagon":
+        node_type = "Virtual Special Find"
     elif shape == "roundrectangle":
         node_type = "USD"
     return node_type
