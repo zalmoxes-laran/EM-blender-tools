@@ -184,6 +184,7 @@ class EPOCHListItem(bpy.types.PropertyGroup):
        is_selected: BoolProperty(name="", default=False)
        epoch_soloing: BoolProperty(name="", default=False)
        rm_models: BoolProperty(name="", default=False)
+       reconstruction_on: BoolProperty(name="", default=False)
 
        unique_id: StringProperty(default="")
 
@@ -380,6 +381,7 @@ classes = (
     EM_list.EM_select_list_item,
     EM_list.EM_not_in_matrix,
     epoch_manager.EM_UL_List,
+    epoch_manager.EM_toggle_reconstruction,
     epoch_manager.EM_toggle_select,
     epoch_manager.EM_toggle_visibility,
     epoch_manager.EM_set_EM_materials,

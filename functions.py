@@ -14,6 +14,13 @@ from bpy.props import (BoolProperty,
 def menu_func(self, context):
     self.layout.separator()
 
+def is_reconstruction_us(node):
+    is_rec = False
+    if node.shape in ["parallelogram", "ellipse", "hexagon", "octagon"]:
+        is_rec = True
+
+    return is_rec
+
 ### #### #### #### #### #### #### #### ####
 ##### functions to switch menus in UI  ####
 ### #### #### #### #### #### #### #### ####
