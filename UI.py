@@ -349,6 +349,12 @@ class EM_UL_named_epoch_managers(UIList):
                 "epoch_manager.toggle_visibility", text="", emboss=False, icon=icon)
             op.group_em_vis_idx = index
 
+            # view reconstruction
+            icon = 'MESH_CUBE' if not epoch_list.reconstruction_on else 'SNAP_VOLUME'
+            op = layout.operator(
+                "epoch_manager.toggle_reconstruction", text="", emboss=False, icon=icon)
+            op.group_em_vis_idx = index
+
             # soloing operator
             icon = 'RADIOBUT_ON' if epoch_list.epoch_soloing else 'RADIOBUT_OFF'
             op = layout.operator(

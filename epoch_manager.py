@@ -43,6 +43,48 @@ class EM_toggle_select(bpy.types.Operator):
         return {'FINISHED'}
 #["rectangle", "ellipse_white", "roundrectangle", "octagon_white"]
 #["parallelogram", "ellipse", "hexagon", "octagon"]
+class EM_toggle_reconstruction(bpy.types.Operator):
+    """Draw a line with the mouse"""
+    bl_idname = "epoch_manager.toggle_reconstruction"
+    bl_label = "Toggle Reconstruction"
+    bl_description = "Toggle Reconstruction"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    group_em_vis_idx : IntProperty()
+    soloing_epoch: StringProperty()
+
+
+    def execute(self, context):
+        scene = context.scene
+        if self.group_em_vis_idx < len(scene.epoch_list):
+            # check_same_ids()  # check scene ids
+            current_e_manager = scene.epoch_list[self.group_em_vis_idx]
+            #parsing the em list
+            for us in scene.em_list:
+                #selecting only in-scene em elements
+                if us.icon == "RESTRICT_INSTANCED_OFF":
+                    # check if the us is in epoch
+                    if current_e_manager.name == us.epoch:
+                        if is_reconstruction_us(us):
+
+                            # identify object to be turned on/off
+                            object_to_set_visibility = bpy.data.objects[us.name]
+                            # before to turn on/off elements in scene, check if we are in soloing mode
+                            if scene.em_settings.soloing_mode == True:
+                                found_reused = False
+                                # parsing the re_used element list
+                                for em_reused in scene.em_reused:
+                                    if found_reused is False:
+                                        if em_reused.em_element == us.name and em_reused.epoch == self.soloing_epoch:
+                                            object_to_set_visibility.hide_viewport = False
+                                            found_reused = True
+                                        else:
+                                            object_to_set_visibility.hide_viewport = current_e_manager.reconstruction_on
+                            else:
+                                object_to_set_visibility.hide_viewport = current_e_manager.reconstruction_on
+        current_e_manager.reconstruction_on = not current_e_manager.reconstruction_on
+        return {'FINISHED'}
+
 class EM_toggle_visibility(bpy.types.Operator):
     """Draw a line with the mouse"""
     bl_idname = "epoch_manager.toggle_visibility"
@@ -52,6 +94,7 @@ class EM_toggle_visibility(bpy.types.Operator):
 
     group_em_vis_idx : IntProperty()
     soloing_epoch: StringProperty()
+    
 
     def execute(self, context):
         scene = context.scene
@@ -81,6 +124,7 @@ class EM_toggle_visibility(bpy.types.Operator):
                             object_to_set_visibility.hide_viewport = current_e_manager.use_toggle
         current_e_manager.use_toggle = not current_e_manager.use_toggle
         return {'FINISHED'}
+
 
 class EM_toggle_selectable(bpy.types.Operator):
     """Toggle select"""
