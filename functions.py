@@ -965,6 +965,7 @@ class OBJECT_OT_labelonoff(bpy.types.Operator):
             obj.show_name = self.onoff
         return {'FINISHED'}
 
+
 #############################################
 ## funzioni per esportare obj e textures 
 #############################################
@@ -1064,5 +1065,23 @@ def substitue_with_custom_mtl(ob, export_sub_folder):
         f.write("%s %s\n" % ("newmtl", mat.material.name))
         f.write("%s %s\n" % ("map_Kd", mat.material.name+"_ALB"))
         mat.material.name
-    
+
+
     f.close() 
+
+#create_collection
+
+class em_create_collection(bpy.types.Operator):
+    bl_idname = "create.collection"
+    bl_label = "Create Collection"
+    bl_description = "Create Collection"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def create_collection(target_collection):
+        context = bpy.context
+        if bpy.data.collections.get(target_collection) is None:
+            currentCol = bpy.context.blend_data.collections.new(name= target_collection)
+            bpy.context.scene.collection.children.link(currentCol)
+        else:
+            currentCol = bpy.data.collections.get(target_collection)
+        return currentCol

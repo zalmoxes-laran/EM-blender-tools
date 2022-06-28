@@ -43,6 +43,7 @@ class EM_toggle_select(bpy.types.Operator):
         return {'FINISHED'}
 #["rectangle", "ellipse_white", "roundrectangle", "octagon_white"]
 #["parallelogram", "ellipse", "hexagon", "octagon"]
+
 class EM_toggle_reconstruction(bpy.types.Operator):
     """Draw a line with the mouse"""
     bl_idname = "epoch_manager.toggle_reconstruction"
@@ -189,6 +190,7 @@ class EM_toggle_soloing(bpy.types.Operator):
                         bpy.ops.epoch_manager.toggle_visibility("INVOKE_DEFAULT", group_em_vis_idx = ep_idx, soloing_epoch = current_e_manager.name)
                             
         return {'FINISHED'}
+
 
 class EM_select_epoch_rm(bpy.types.Operator):
     """Select RM for a given epoch"""

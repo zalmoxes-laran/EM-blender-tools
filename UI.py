@@ -16,15 +16,6 @@ from . import addon_updater_ops
 
 #####################################################################
 #SETUP MENU
-class Display_mode_menu(bpy.types.Menu):
-    bl_label = "Custom Menu"
-    bl_idname = "OBJECT_MT_Display_mode_menu"
-
-    def draw(self, context):
-        layout = self.layout
-
-        layout.operator("emset.emmaterial", text="EM")
-        layout.operator("emset.epochmaterial", text="Periods")
 
 class EM_SetupPanel:
     bl_label = "EM setup (v1.3.0 dev)"
@@ -36,7 +27,7 @@ class EM_SetupPanel:
         scene = context.scene
         em_settings = scene.em_settings
         obj = context.object
-        current_proxy_display_mode = context.scene.proxy_display_mode
+        
 
         if len(scene.em_list) > 0:
             is_em_list = True
@@ -92,69 +83,8 @@ class EM_SetupPanel:
         #col = split.column()
         col.prop(scene, "em_sources_list", text='')
 
-        row = layout.row(align=True)
-        split = row.split()
-        col = split.column()
-        col.label(text="Display mode")
-        col = split.column(align=True)
         
-        col.menu(Display_mode_menu.bl_idname, text=current_proxy_display_mode, icon='COLOR')
- 
-        row = layout.row()
-        #split = row.split()
-        
-        #col = split.column(align=True)
-        row.prop(scene, "proxy_display_alpha")
-
-        #col = split.column(align=True)
-
-        # function sadly disabled because of the lack of support of 'ADD' Blend Mode in Blender 2.81
-        #row.prop(scene, "proxy_shader_mode", text='', icon="NODE_MATERIAL")
-
-        #row = layout.row(align=True)
-        #col = split.column(align=True)
-
-        #col.label(text="On selected:")
-
-        op = row.operator(
-            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_BBOX')
-        op.sg_objects_changer = 'BOUND_SHADE'
-
-        op = row.operator(
-            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_WIRE')
-        op.sg_objects_changer = 'WIRE_SHADE'
-
-        op = row.operator(
-            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SHADING_SOLID')
-        op.sg_objects_changer = 'MATERIAL_SHADE'
-
-        op = row.operator(
-            "epoch_manager.change_selected_objects", text="", emboss=False, icon='SPHERE')
-        op.sg_objects_changer = 'SHOW_WIRE'
-
-        #op = row.operator(
-        #    "emset.emmaterial", text="", emboss=False, icon='SHADING_TEXTURE')
-        row = layout.row()
-
-        row.operator("notinthematrix.material", icon="MOD_MASK", text='')
-
-        row.label(text="Labels:")
-
-        op = row.operator("label.onoff", text="", emboss=False, icon='RADIOBUT_ON')
-        op.onoff = True
-
-        op = row.operator("label.onoff", text="", emboss=False, icon='RADIOBUT_OFF')
-        op.onoff = False
-
-        op = row.operator("label.creation", text="",
-                          emboss=False, icon='CURSOR')
-        #op.onoff = False
-
-        op = row.operator("center.mass", text="", emboss=False, icon='CURSOR')
-        op.center_to = "cursor"
-
-        op = row.operator("center.mass", text="", emboss=False, icon='SNAP_FACE_CENTER')
-        op.center_to = "mass"
+       
 
 class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):
     bl_category = "EM"
@@ -360,6 +290,8 @@ class EM_UL_named_epoch_managers(UIList):
             op = layout.operator(
                 "epoch_manager.toggle_soloing", text="", emboss=False, icon=icon)
             op.group_em_idx = index
+
+
 
             #icon = 'KEYTYPE_KEYFRAME_VEC' if epoch_list.rm_models else 'HANDLETYPE_FREE_VEC'
             #layout.label(icon=icon)
