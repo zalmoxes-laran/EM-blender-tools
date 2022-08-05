@@ -23,6 +23,7 @@ class EM_label_creation(bpy.types.Operator):
         context = bpy.context
         scn = bpy.context.scene
         cam = scn.camera
+        label_collection = "generated_labels_"+cam.name
 
         # Pickup the label material if it exists
         mat = bpy.data.materials.get("_generated.Label")
@@ -34,23 +35,27 @@ class EM_label_creation(bpy.types.Operator):
         #current_collection_layer_col = context.view_layer.active_layer_collection
         #current_collection = bpy.data.collections.get(current_collection_layer_col.name)
 
-        base_collection = context.scene.collection.name 
+        base_collection = context.scene.collection#.name 
 
         # Pickup the collection layer if exists
 
-        collection_generated_label = bpy.data.collections.get("generated_labels")
+        collection_generated_label = bpy.data.collections.get(label_collection)
 
         if collection_generated_label is None:
             # Collection doesn't exist, create it
             collection_generated_label = bpy.data.collections.new(
-                "generated_labels")
-            collection_generated_label.name = "generated_labels"
-            bpy.data.collections[0].children.link(
-                bpy.data.collections["generated_labels"])
+                label_collection)
+            collection_generated_label.name = label_collection
+#            bpy.data.collections[0].children.link(
+#                bpy.data.collections["generated_labels"])
+
+            base_collection.children.link(
+                bpy.data.collections[label_collection])
+
             context.scene.collection.children.link(collection_generated_label)
 
         # activate collection
-        context.view_layer.active_layer_collection = bpy.context.scene.view_layers[0].layer_collection.children['generated_labels']
+        context.view_layer.active_layer_collection = bpy.context.scene.view_layers[0].layer_collection.children[label_collection]
 
         selection = context.selected_objects
         #bpy.ops.object.select_all(action='DESELECT')
@@ -62,7 +67,7 @@ class EM_label_creation(bpy.types.Operator):
                 ob_in_scene.append(ob_generated.name)
 
         for obj in selection:
-            obj_generated = '_generated.'+obj.name
+            obj_generated = '_generated.'+cam.name+'.'+obj.name
             if obj_generated in ob_in_scene:
                 # Delete the old label
                 obj_label_to_remove = bpy.data.objects[obj_generated]
