@@ -50,6 +50,7 @@ from bpy.types import (
         PropertyGroup,
         )
 
+
 from . import (
         UI,
         EM_list,
@@ -58,6 +59,7 @@ from . import (
         paradata_manager,
         export_manager,
         visual_tools,
+        visualisation_mode,
         #telegram_io
         )
 
@@ -185,7 +187,8 @@ class EPOCHListItem(bpy.types.PropertyGroup):
        epoch_soloing: BoolProperty(name="", default=False)
        rm_models: BoolProperty(name="", default=False)
        reconstruction_on: BoolProperty(name="", default=False)
-
+       #line_art: BoolProperty(name="", default=False) 
+       
        unique_id: StringProperty(default="")
 
        epoch_RGB_color: FloatVectorProperty(
@@ -365,7 +368,6 @@ classes = (
     UI.VIEW3D_PT_ToolsPanel,
     UI.VIEW3D_PT_BasePanel,
     UI.EM_UL_named_epoch_managers,
-    UI.Display_mode_menu,
     UI.VIEW3D_PT_ParadataPanel,
     UI.EM_UL_properties_managers,
     UI.EM_UL_sources_managers,
@@ -409,6 +411,7 @@ classes = (
     EMviqListErrors,
     EmPreferences,
     visual_tools.EM_label_creation,
+    em_create_collection,
     )
 
 def register():
@@ -556,7 +559,7 @@ def register():
        description="Define the maximum resolution of the bigger side (it depends if it is a squared landscape or portrait image) of the output images",
        )
 
-       
+       visualisation_mode.register()
 
 ######################################################################################################
 
@@ -627,5 +630,6 @@ def unregister():
        del bpy.types.Scene.enable_image_compression
        
 
+       visualisation_mode.unregister()
 
 ######################################################################################################
