@@ -47,8 +47,8 @@ class VISUALToolsPanel:
         scene = context.scene
         current_proxy_display_mode = context.scene.proxy_display_mode
         layout.alignment = 'LEFT'
-        row_epoch = layout.row()
-        row_epoch.label(text="List of visualisation tools:")
+        #row_epoch = layout.row()
+        #row_epoch.label(text="List of visualisation tools:")
         row = layout.row(align=True)
         split = row.split()
         col = split.column()
