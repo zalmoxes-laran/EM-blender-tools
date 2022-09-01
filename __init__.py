@@ -22,7 +22,7 @@ bl_info = {
     "name": "EM tools",
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
-    "version": (1, 3, 0),
+    "version": (1, 2, 0),
     "blender": (3, 2, 0),
 #     "location": "3D View > Toolbox",
     "warning": "This addon is still in development.",
