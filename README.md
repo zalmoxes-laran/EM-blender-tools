@@ -16,7 +16,7 @@
 * Export full dataset to ATON 3 (EMviq app)
 
 ## Getting started (quick)
-1) Preferably install the addon using the [last stable version](https://github.com/zalmoxes-laran/ExtendedMatrix/raw/version-1.3.0/04_EMF/EM-blender-tools_1.2stable.zip) from the [EM site](https://www.extendedmatrix.org/download). Please use directly the github version here only if you know how to handle it (more for developers..).
+1) Preferably install the addon using the [last stable version](https://github.com/zalmoxes-laran/ExtendedMatrix/raw/main/03_EMF/EM-blender-tools_1.2stable.zip) from the [EM site](https://www.extendedmatrix.org/download). Please use directly the github version here only if you know how to handle it (more for developers..).
 
 2) Quickstart (to come..) 
 
