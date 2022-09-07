@@ -200,11 +200,11 @@ class EM_export(bpy.types.Operator):
         else:
             base_dir_collections = createfolder(os.path.join(base_dir,"data","collections",utente_aton), progetto_aton)
     
-        '''        
+                
         if self.em_export_type == 'Proxies':
-            proxies_folder = createfolder(base_dir_scene, 'Proxies')
+            proxies_folder = createfolder(base_dir_scenes, 'proxies')
             export_proxies(scene, proxies_folder)
-
+        '''
         if self.em_export_type == 'RM':
             #RM_folder = createfolder(base_dir, 'RM')
             nodes = {}

@@ -561,14 +561,7 @@ class EM_ExportPanel:
         layout = self.layout
         scene = context.scene
  
-        box = layout.box()
-        row = box.row()
-        row.label(text="Models export:")
-        row = box.row()
-        op = row.operator("export_manager.export", text="Proxies", emboss=True, icon='SHADING_SOLID')
-        op.em_export_type = 'Proxies'
-        op = row.operator("export_manager.export", text="RM", emboss=True, icon='SHADING_TEXTURE')
-        op.em_export_type = 'RM'
+
         row = layout.row()
         box = layout.box()
         row = box.row()
@@ -594,6 +587,8 @@ class EM_ExportPanel:
         row.prop(context.scene, 'ATON_path', toggle=True, text="")
         row.label(text="<-- path to ATON")
 
+
+
         '''
         row = layout.row()  # (align=True)
         row.prop(context.scene, 'EMviq_folder', toggle=True, text="")
@@ -614,9 +609,21 @@ class EM_ExportPanel:
         op = row.operator("export_manager.export", text="Generate EMviq Project", emboss=True, icon='LONGDISPLAY')
         op.em_export_type = 'EMviq'
         op.em_export_format = context.window_manager.export_vars.format_file
+        #row = box.row()
+        #row = layout.row()
+
+        #box = layout.box()
         row = box.row()
+        row.label(text="Selective export:")
+        row = box.row()
+        op = row.operator("export_manager.export", text="Proxies", emboss=True, icon='SHADING_SOLID')
+        op.em_export_type = 'Proxies'
+        op = row.operator("export_manager.export", text="RM", emboss=True, icon='SHADING_TEXTURE')
+        op.em_export_type = 'RM'
 
         row = layout.row()
+
+
 
         if scene.emviq_error_list_index >= 0 and len(scene.emviq_error_list) > 0:
             row.template_list("ER_UL_List", "EM nodes", scene, "emviq_error_list", scene, "emviq_error_list_index")
