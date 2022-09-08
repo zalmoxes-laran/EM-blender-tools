@@ -183,13 +183,13 @@ class EM_export(bpy.types.Operator):
         scene = context.scene
         utente_aton = scene.EMviq_user_name
         progetto_aton = scene.EMviq_project_name 
-
+        
         bpy.ops.object.select_all(action='DESELECT')
 
+        # prepare folder paths
         fix_if_relative_folder = bpy.path.abspath(scene.ATON_path)
-
         base_dir = os.path.dirname(fix_if_relative_folder)
-        print(base_dir)
+        
         if os.path.exists(os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)):
             base_dir_scenes = os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)
         else:
@@ -199,53 +199,47 @@ class EM_export(bpy.types.Operator):
             base_dir_collections = os.path.join(base_dir,"data","collections",utente_aton,progetto_aton)
         else:
             base_dir_collections = createfolder(os.path.join(base_dir,"data","collections",utente_aton), progetto_aton)
-    
-                
-        if self.em_export_type == 'Proxies':
+
+        # Export proxies
+        if self.em_export_type == 'Proxies' or self.em_export_type == "EMviq":
+            bpy.context.scene.view_layers['ViewLayer'].layer_collection.children['Proxy'].exclude = False
             proxies_folder = createfolder(base_dir_scenes, 'proxies')
             export_proxies(scene, proxies_folder)
-        '''
-        if self.em_export_type == 'RM':
-            #RM_folder = createfolder(base_dir, 'RM')
-            nodes = {}
-            edges = {}
-            export_rm(scene, base_dir, False, nodes,
-                      self.em_export_format, edges, utente_aton, progetto_aton)
-        '''
-        if self.em_export_type == "EMviq":
-            
-            #setup json variables
+
+        # Export GraphML
+        if self.em_export_type == "GraphML" or self.em_export_type == "EMviq":
+    
+            em_file_4_emviq = os.path.join(base_dir_scenes, "em.graphml")
+            em_file_fixed_path = bpy.path.abspath(scene.EM_file)
+            shutil.copyfile(em_file_fixed_path, em_file_4_emviq)
+
+        # Export Representation Models and Scene JSON file
+        if self.em_export_type == "RM" or self.em_export_type == "EMviq":
+            bpy.context.scene.view_layers['ViewLayer'].layer_collection.children['SB'].exclude = False
+            bpy.context.scene.view_layers['ViewLayer'].layer_collection.children['RB'].exclude = False
+
+            #setup JSON variables
             emviq_scene = {}
             scenegraph = {}
             nodes = {}
             edges = {}
             
             emviq_scene['scenegraph'] = scenegraph
-            #export_folder = createfolder(base_dir, 'EMviq')
-            #export_folder = base_dir_scenes
-            proxies_folder = createfolder(base_dir_scenes, 'proxies')
-            export_proxies(scene, proxies_folder)
+
+            #Prepare node graph for the JSON
             nodes, edges = export_rm(scene, base_dir_collections, True, nodes, self.em_export_format, edges, utente_aton, progetto_aton)
-            
-
             scenegraph['nodes'] = nodes
-
             scenegraph['edges'] = edges
 
             # encode dict as JSON 
             data = json.dumps(emviq_scene, indent=4, ensure_ascii=True)
 
-            #'/users/emanueldemetrescu/Desktop/'
+            # generate the JSON file path
             file_name = os.path.join(base_dir_scenes, "scene.json")
 
             # write JSON file
             with open(file_name, 'w') as outfile:
                 outfile.write(data + '\n')
-
-            em_file_4_emviq = os.path.join(base_dir_scenes, "em.graphml")
-
-            em_file_fixed_path = bpy.path.abspath(scene.EM_file)
-            shutil.copyfile(em_file_fixed_path, em_file_4_emviq)
 
         return {'FINISHED'}
 

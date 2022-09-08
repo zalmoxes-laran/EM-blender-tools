@@ -606,7 +606,7 @@ class EM_ExportPanel:
         row.prop(context.scene, 'EM_gltf_export_maxres', toggle = True, text='Max res')
         row.prop(context.scene, 'EM_gltf_export_quality', toggle = True, text='Size')
         row = box.row()
-        op = row.operator("export_manager.export", text="Generate EMviq Project", emboss=True, icon='LONGDISPLAY')
+        op = row.operator("export_manager.export", text="Generate full EMviq Project", emboss=True, icon='LONGDISPLAY')
         op.em_export_type = 'EMviq'
         op.em_export_format = context.window_manager.export_vars.format_file
         #row = box.row()
@@ -614,10 +614,12 @@ class EM_ExportPanel:
 
         #box = layout.box()
         row = box.row()
-        row.label(text="Selective export:")
+        row.label(text="Export partial Emviq project's components:")
         row = box.row()
         op = row.operator("export_manager.export", text="Proxies", emboss=True, icon='SHADING_SOLID')
         op.em_export_type = 'Proxies'
+        op = row.operator("export_manager.export", text="GraphML", emboss=True, icon='SHADING_SOLID')
+        op.em_export_type = 'GraphML'
         op = row.operator("export_manager.export", text="RM", emboss=True, icon='SHADING_TEXTURE')
         op.em_export_type = 'RM'
 
