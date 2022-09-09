@@ -225,7 +225,14 @@ class EM_export(bpy.types.Operator):
             edges = {}
             
             emviq_scene['scenegraph'] = scenegraph
-
+            '''
+            section to activate light and background to make better visual effect
+            "environment":{
+                "mainpano":{"url":"samples/pano/defsky-grass.jpg"},
+                "lightprobes":{"auto":true},
+                "mainlight":{"direction":[-0.0846315900906896,-0.7511136796681608,-0.6547256938398531]}
+            },
+            '''
             #Prepare node graph for the JSON
             nodes, edges = export_rm(scene, base_dir_collections, True, nodes, self.em_export_format, edges, utente_aton, progetto_aton)
             scenegraph['nodes'] = nodes
