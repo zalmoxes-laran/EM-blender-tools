@@ -83,9 +83,6 @@ class EM_SetupPanel:
         #col = split.column()
         col.prop(scene, "em_sources_list", text='')
 
-        
-       
-
 class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_SetupPanel"
