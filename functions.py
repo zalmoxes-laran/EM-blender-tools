@@ -722,8 +722,14 @@ def switch_paradata_lists(self, context):
         #print("sto lanciano dil comando again")
         node = scene.em_list[scene.em_list_index]
         create_derived_lists(node)
-    else:
-        pass
+
+    if scene.em_list[scene.em_list_index].icon_db == 'DECORATE_KEYFRAME':
+        index_to_find = 0
+        while index_to_find < len(scene.emdb_list):
+            if scene.emdb_list[index_to_find].name == scene.em_list[scene.em_list_index].name:
+                print("Ho trovato il record giusto")
+                scene.emdb_list_index = index_to_find
+            index_to_find +=1
     return
 
 ## #### #### #### #### #### #### #### #### #### #### #### ####

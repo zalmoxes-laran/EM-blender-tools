@@ -23,7 +23,7 @@ bl_info = {
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
     "version": (1, 3, 0),
-    "blender": (3, 2, 2),
+    "blender": (3, 3, 0),
 #     "location": "3D View > Toolbox",
     "warning": "This addon is still in development.",
     "wiki_url": "",
@@ -59,8 +59,9 @@ from . import (
         paradata_manager,
         export_manager,
         visual_tools,
-        visualisation_mode,
-        #telegram_io
+        visual_manager,
+        em_setup,
+        sqlite_io,
         )
 
 from .functions import *
@@ -238,6 +239,11 @@ class EMListItem(bpy.types.PropertyGroup):
            description="",
            default="RESTRICT_INSTANCED_ON")
 
+    icon_db: prop.StringProperty(
+           name="code for icon db",
+           description="",
+           default="DECORATE_ANIMATE") # nel caso di punto pieno sarà 'DECORATE_KEYFRAME'
+
     url: prop.StringProperty(
            name="url",
            description="An url behind this item",
@@ -364,7 +370,6 @@ class ExportTablesVars(bpy.types.PropertyGroup):
 ##################################
 
 classes = (
-    UI.VIEW3D_PT_SetupPanel,
     UI.VIEW3D_PT_ToolsPanel,
     UI.VIEW3D_PT_BasePanel,
     UI.EM_UL_named_epoch_managers,
@@ -415,6 +420,10 @@ classes = (
     )
 
 def register():
+
+       em_setup.register()
+
+       visual_manager.register()
 
        addon_updater_ops.register(bl_info)
 
@@ -559,7 +568,8 @@ def register():
        description="Define the maximum resolution of the bigger side (it depends if it is a squared landscape or portrait image) of the output images",
        )
 
-       visualisation_mode.register()
+
+       sqlite_io.register()
 
 ######################################################################################################
 
@@ -630,6 +640,7 @@ def unregister():
        del bpy.types.Scene.enable_image_compression
        
 
-       visualisation_mode.unregister()
+       visual_manager.unregister()
+       em_setup.unregister()
 
 ######################################################################################################

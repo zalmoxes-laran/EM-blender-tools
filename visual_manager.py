@@ -100,11 +100,10 @@ class VISUALToolsPanel:
         op = row.operator("create.collection", text="", emboss=False, icon='OUTLINER_COLLECTION')
 
         """ 
-    
-
         op = row.operator("label.onoff", text="", emboss=False, icon='RADIOBUT_OFF')
         op.onoff = False
- """
+        """
+
         op = row.operator("label.creation", text="",
                           emboss=False, icon='SYNTAX_OFF')
         #op.onoff = False
