@@ -62,6 +62,8 @@ from . import (
         visual_manager,
         em_setup,
         sqlite_io,
+        external_modules_install,
+        google_credentials
         )
 
 from .functions import *
@@ -425,7 +427,11 @@ def register():
 
        visual_manager.register()
 
+       external_modules_install.register()
+
        addon_updater_ops.register(bl_info)
+
+       google_credentials.register()
 
        for cls in classes:
               bpy.utils.register_class(cls)
@@ -642,5 +648,7 @@ def unregister():
 
        visual_manager.unregister()
        em_setup.unregister()
+       external_modules_install.unregister()
+       google_credentials.unregister()
 
 ######################################################################################################
