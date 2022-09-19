@@ -15,6 +15,85 @@ from .EM_list import *
 from . import addon_updater_ops
 
 #####################################################################
+#SETUP MENU
+
+class EM_SetupPanel:
+    bl_label = "EM setup (v1.3.0 dev)"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        em_settings = scene.em_settings
+        obj = context.object
+        
+
+        if len(scene.em_list) > 0:
+            is_em_list = True
+        else:
+            is_em_list = False
+        #box = layout.box()
+
+        row = layout.row(align=True)
+        split = row.split()
+        col = split.column()
+        col.label(text="EM file")
+        
+        if scene.EM_file:
+            col = split.column(align=True)
+            if is_em_list:
+                button_load_text = 'Reload'
+                button_load_icon = 'FILE_REFRESH'
+            else:
+                button_load_text = 'Load'
+                button_load_icon = 'IMPORT'
+            col.operator("import.em_graphml", icon= button_load_icon, text=button_load_text)
+        else:
+            col.label(text="Select a GraphML file below", icon='SORT_ASC')
+        #row = layout.row()
+        if is_em_list:
+            col = split.column(align=True)
+            op = col.operator("list_icon.update", icon="PRESET", text='Refresh')
+            op.list_type = "all"
+
+        row = layout.row(align=True)
+        row.prop(context.scene, 'EM_file', toggle = True, text ="")
+
+        box = layout.box()
+        row = box.row(align=True)
+        #row = layout.row(align=True)
+        split = row.split()
+        col = split.column()
+        col.label(text="US/USV")
+        #col = split.column()
+        col.prop(scene, "em_list", text='')
+        col = split.column()
+        col.label(text="Periods")
+        #col = split.column()
+        col.prop(scene, "epoch_list", text='')
+
+        col = split.column()
+        col.label(text="Properties")
+        #col = split.column()
+        col.prop(scene, "em_properties_list", text='')
+
+        col = split.column()
+        col.label(text="Sources")
+        #col = split.column()
+        col.prop(scene, "em_sources_list", text='')
+
+        
+       
+
+class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):
+    bl_category = "EM"
+    bl_idname = "VIEW3D_PT_SetupPanel"
+    bl_context = "objectmode"
+#SETUP MENU
+#####################################################################
+
+#####################################################################
 #US/USV Manager
 class EM_ToolsPanel:
     bl_label = "US/USV Manager"
@@ -66,7 +145,7 @@ class EM_ToolsPanel:
                 else:
                     col = split.column()
                     col.label(text="", icon='LONGDISPLAY')             
-
+                    
             #split = layout.split()
             col = split.column(align=True)
             col.label(text="Sync:")
@@ -102,6 +181,36 @@ class EM_ToolsPanel:
                                         ctx['region'] = area.regions[-1]
                                         bpy.ops.view3d.view_selected(ctx)
 
+                    row = layout.row(align=True)
+                    split = row.split()
+                    col = split.column()
+                    col.label(text="EMdb file")
+                    col = split.column(align=True)
+                    col.operator("import.emdb_sqlite", icon= 'IMPORT', text='Import')
+
+                    row = layout.row(align=True)
+                    row.prop(context.scene, 'EMdb_file', toggle = True, text ="")
+
+                    #row = layout.row(align=True)
+                    box = layout.box()
+                    row = box.row(align=True)
+                    split = row.split()
+                    col = split.column()
+                    col.label(text="Name:")
+                    col = split.column(align=True)
+                    col.label(text=scene.emdb_list[scene.emdb_list_index].name)
+                    box = layout.box()
+                    row = box.row(align=True)
+                    split = row.split()
+                    col = split.column()
+                    col.label(text="Description:")
+                    col = split.column(align=True)
+                    col.label(text=scene.emdb_list[scene.emdb_list_index].description)
+                    #col.prop(scene, "emdb_list_index", text='')
+
+                    #col.prop(scene, "emdb_list[scene.emdb_list_index].name", text='')
+
+        
         else:
             row.label(text="No US/USV here :-(")
 
@@ -112,7 +221,47 @@ class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
 
 #US/USV Manager
 #####################################################################
+#EMdb
+class EMdbPanel:
+    bl_label = "EMdb"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        row = layout.row()
+        ob = context.object
+        
+        if len(scene.em_list) > 0:
+            is_em_list = True
+        else:
+            is_em_list = False
+            row = layout.row(align=True)
+        
+        #row = layout.row(align=True)
+        box = layout.box()
+        row = box.row(align=True)
+        split = row.split()
+        col = split.column()
+        col.label(text="Name:")
+        col = split.column(align=True)
+        col.label(text=scene.emdb_list[scene.emdb_list_index].name)
+        box = layout.box()
+        row = box.row(align=True)
+        split = row.split()
+        col = split.column()
+        col.label(text="Description:")
+        col = split.column(align=True)
+        col.label(text=scene.emdb_list[scene.emdb_list_index].description)
+        #col.prop(scene, "emdb_list_index", text='')
 
+        #col.prop(scene, "emdb_list[scene.emdb_list_index].name", text='')
+
+class VIEW3D_PT_EMdbPanel(Panel, EMdbPanel):
+    bl_category = "EM"
+    bl_idname = "VIEW3D_PT_EMdbPanel"
+    bl_context = "objectmode"
 #####################################################################
 #Periods Manager
 class EM_BasePanel:

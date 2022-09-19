@@ -372,6 +372,7 @@ class ExportTablesVars(bpy.types.PropertyGroup):
 classes = (
     UI.VIEW3D_PT_ToolsPanel,
     UI.VIEW3D_PT_BasePanel,
+    UI.VIEW3D_PT_EMdbPanel,
     UI.EM_UL_named_epoch_managers,
     UI.VIEW3D_PT_ParadataPanel,
     UI.EM_UL_properties_managers,
@@ -642,5 +643,4 @@ def unregister():
 
        visual_manager.unregister()
        em_setup.unregister()
-
 ######################################################################################################

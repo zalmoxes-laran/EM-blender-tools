@@ -85,29 +85,6 @@ class EM_SetupPanel:
         row = layout.row(align=True)
         row.prop(context.scene, 'EMdb_file', toggle = True, text ="")
 
-        #row = layout.row(align=True)
-        box = layout.box()
-        row = box.row(align=True)
-        split = row.split()
-        col = split.column()
-        col.label(text="Name:")
-        col = split.column(align=True)
-        col.label(text=scene.emdb_list[scene.emdb_list_index].name)
-        box = layout.box()
-        row = box.row(align=True)
-        split = row.split()
-        col = split.column()
-        col.label(text="Description:")
-        col = split.column(align=True)
-        col.label(text=scene.emdb_list[scene.emdb_list_index].description)
-        #col.prop(scene, "emdb_list_index", text='')
-
-        #col.prop(scene, "emdb_list[scene.emdb_list_index].name", text='')
-
-
-
-        
-
 
 class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):
     bl_category = "EM"
