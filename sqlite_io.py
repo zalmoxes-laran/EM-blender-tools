@@ -99,8 +99,11 @@ def register():
     bpy.types.Scene.emdb_list_index = prop.IntProperty(name = "Index for EMdb list", default = 0)
 
 def unregister():
-    for cls in classes:
-        bpy.utils.unregister_class(cls)
 
     del bpy.types.Scene.emdb_list
     del bpy.types.Scene.emdb_list_index
+    
+    for cls in classes:
+        bpy.utils.unregister_class(cls)
+
+
