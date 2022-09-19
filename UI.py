@@ -530,10 +530,7 @@ class EM_ExportPanel:
         op = row.operator("export_manager.export", text="Generate full EMviq Project", emboss=True, icon='LONGDISPLAY')
         op.em_export_type = 'EMviq'
         op.em_export_format = context.window_manager.export_vars.format_file
-        #row = box.row()
-        #row = layout.row()
 
-        #box = layout.box()
         row = box.row()
         row.label(text="Export partial Emviq project's components:")
         row = box.row()
