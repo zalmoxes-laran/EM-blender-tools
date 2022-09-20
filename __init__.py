@@ -62,8 +62,8 @@ from . import (
         visual_manager,
         em_setup,
         sqlite_io,
-        external_modules_install,
-        google_credentials
+        #external_modules_install,
+        #google_credentials
         )
 
 from .functions import *
@@ -347,7 +347,6 @@ class EM_epochs_belonging_ob(bpy.types.PropertyGroup):
            description="Epoch",
            default="Untitled")
 
-
 class ExportVars(bpy.types.PropertyGroup):
        format_file : bpy.props.EnumProperty(
               items=[
@@ -428,11 +427,11 @@ def register():
 
        visual_manager.register()
 
-       external_modules_install.register()
+       #external_modules_install.register()
 
        addon_updater_ops.register(bl_info)
 
-       google_credentials.register()
+       #google_credentials.register()
 
        for cls in classes:
               bpy.utils.register_class(cls)
@@ -646,10 +645,9 @@ def unregister():
        del bpy.types.Scene.EM_gltf_export_quality
        del bpy.types.Scene.enable_image_compression
        
-
        visual_manager.unregister()
        em_setup.unregister()
-       external_modules_install.unregister()
-       google_credentials.unregister()
+       #external_modules_install.unregister()
+       #google_credentials.unregister()
 
 ######################################################################################################
