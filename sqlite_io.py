@@ -17,6 +17,12 @@ class EMdbListItem(bpy.types.PropertyGroup):
            description="A description for this item",
            default="Empty")
 
+    technics: prop.StringProperty(
+           name="Tecnica_Muraria",
+           description="A description for this item",
+           default="Empty")
+
+
     icon: prop.StringProperty(
            name="code for icon",
            description="",
@@ -62,19 +68,20 @@ class EMdb_import_sqlite(bpy.types.Operator):
         emdb_list_index = 0
         EM_list_clear(context, "emdb_list")
         #nome_db = 'Schede_US.db'
-        nome_tabella = 'Scheda_US'   
+        nome_tabella = 'USM_sheet'   
 
         conn = sqlite3.connect(nome_db)
         documento = conn.cursor()
 
         for row in documento.execute('SELECT * FROM '+nome_tabella):
-                nome_scheda = row[2]+str(row[0]) 
+                nome_scheda = row[0]
                 
                 
                 scene.emdb_list.add()
                 scene.emdb_list[emdb_list_index].name = nome_scheda
-                scene.emdb_list[emdb_list_index].description = row[3]
-                print("l'unità "+nome_scheda+ " ha descrizione: "+row[3])
+                scene.emdb_list[emdb_list_index].description = str(row[19])
+                scene.emdb_list[emdb_list_index].technics = row[20]
+                print("l'unità "+nome_scheda+ " ha descrizione: "+str(row[3]))
 
                 for us_item in scene.em_list:
                         if us_item.name == nome_scheda:
