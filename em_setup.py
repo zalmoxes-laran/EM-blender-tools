@@ -2,6 +2,7 @@ import bpy
 from .functions import *
 from bpy.types import Operator
 from bpy.types import Menu, Panel, UIList, PropertyGroup
+from . import sqlite_io
 
 
 #####################################################################
@@ -76,12 +77,15 @@ class EM_SetupPanel:
         ################ da qui porzione di pannello per EMdb #####################
 
         row = layout.row(align=True)
+        db_type_current = scene.current_db_type
         split = row.split()
         col = split.column()
         col.label(text="EMdb file")
         col = split.column(align=True)
-        col.operator("import.emdb_sqlite", icon= 'IMPORT', text='Import')
-
+        op = col.operator("import.emdb_sqlite", icon= 'IMPORT', text='Import')
+        op.db_type = db_type_current
+        col = split.column(align=True)
+        col.menu(sqlite_io.EMdb_type_menu.bl_idname, text=db_type_current, icon='COLOR')
         row = layout.row(align=True)
         row.prop(context.scene, 'EMdb_file', toggle = True, text ="")
 

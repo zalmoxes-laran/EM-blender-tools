@@ -127,8 +127,6 @@ classes = [
     VIEW3D_PT_VisualPanel,
     Display_mode_menu]
 
-
-
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)

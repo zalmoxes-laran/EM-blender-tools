@@ -423,6 +423,8 @@ classes = (
 
 def register():
 
+       sqlite_io.register()
+
        em_setup.register()
 
        visual_manager.register()
@@ -575,13 +577,16 @@ def register():
        )
 
 
-       sqlite_io.register()
+       
 
 ######################################################################################################
 
 def unregister():
 
        addon_updater_ops.unregister(bl_info)
+       sqlite_io.unregister()
+       visual_manager.unregister()
+       em_setup.unregister()
 
        for cls in classes:
               try:
@@ -645,8 +650,8 @@ def unregister():
        del bpy.types.Scene.EM_gltf_export_quality
        del bpy.types.Scene.enable_image_compression
        
-       visual_manager.unregister()
-       em_setup.unregister()
+
+       
        #external_modules_install.unregister()
        #google_credentials.unregister()
 
