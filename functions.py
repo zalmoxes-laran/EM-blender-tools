@@ -326,8 +326,10 @@ def clean_comments(multiline_str):
     newstring = ""
     for line in multiline_str.splitlines():
         #print(line)
-        if not line.startswith("«") or line.startswith("#"):
-            newstring = newstring+"\n"+line
+        if line.startswith("«") or line.startswith("#"):
+            pass
+        else:
+            newstring = newstring+line+" "
     return newstring
 
 def EM_extract_node_name(node_element):
