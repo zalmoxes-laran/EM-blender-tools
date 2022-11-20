@@ -317,9 +317,18 @@ def EM_extract_property_node(node_element):
 
     return nodename, node_id, node_description, nodeurl, subnode_is_property
 
-def clean_comments(text_to_clean):
+#oldversion of clean comments
+def remove_comments(text_to_clean):
     clean_text = text_to_clean.split("##")[0].replace("\n","")
     return clean_text
+
+def clean_comments(multiline_str):
+    newstring = ""
+    for line in multiline_str.splitlines():
+        #print(line)
+        if not line.startswith("«") or line.startswith("#"):
+            newstring = newstring+"\n"+line
+    return newstring
 
 def EM_extract_node_name(node_element):
     is_d4 = False
