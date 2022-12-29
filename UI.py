@@ -14,8 +14,6 @@ from .epoch_manager import *
 from .EM_list import *
 from . import addon_updater_ops
 
-
-
 #####################################################################
 #US/USV Manager
 class EM_ToolsPanel:
@@ -104,7 +102,6 @@ class EM_ToolsPanel:
                                         ctx['region'] = area.regions[-1]
                                         bpy.ops.view3d.view_selected(ctx)
 
-            
         else:
             row.label(text="No US/USV here :-(")
 
@@ -153,12 +150,6 @@ class EMdbPanel:
             row = layout.row(align=True)
             row.label(text="Missing sqlite data")
         
-        #row = layout.row(align=True)
-        
-        #col.prop(scene, "emdb_list_index", text='')
-
-        #col.prop(scene, "emdb_list[scene.emdb_list_index].name", text='')
-
 class VIEW3D_PT_EMdbPanel(Panel, EMdbPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_EMdbPanel"
