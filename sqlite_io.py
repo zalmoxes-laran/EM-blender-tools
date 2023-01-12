@@ -24,6 +24,20 @@ class EMdbListItem(bpy.types.PropertyGroup):
            description="A description for this item",
            default="Empty")
 
+    chronology: prop.StringProperty(
+           name="Chronology",
+           description="A chronology for this item",
+           default="Empty")
+
+    period: prop.StringProperty(
+           name="period ",
+           description="A period for this item",
+           default="Empty")
+
+    level_knowledge: prop.StringProperty(
+           name="level_knowledge ",
+           description="A level of knowledge for this item",
+           default="Empty")
 
     icon: prop.StringProperty(
            name="code for icon",
@@ -106,6 +120,25 @@ class EMdb_import_sqlite(bpy.types.Operator):
                                    us_item.icon_db = "DECORATE_KEYFRAME"
                      emdb_list_index += 1
 
+       if self.db_type == "EMdb-usv":
+              nome_tabella = 'USV_sheet'
+              
+              for row in documento.execute('SELECT * FROM '+nome_tabella):
+                     nome_scheda = row[1]+str(row[0])
+                     scene.emdb_list.add()
+                     scene.emdb_list[emdb_list_index].name = nome_scheda
+                     scene.emdb_list[emdb_list_index].description = str(row[4])
+                     scene.emdb_list[emdb_list_index].chronology = str(row[4])+" - "+str(row[4])
+                     scene.emdb_list[emdb_list_index].period = str(row[4])
+                     scene.emdb_list[emdb_list_index].level_knowledge = str(row[4])
+                     #scene.emdb_list[emdb_list_index].technics = row[20]
+                     #print("l'unità "+nome_scheda+ " ha descrizione: "+str(row[3]))
+
+                     for us_item in scene.em_list:
+                            if us_item.name == nome_scheda:
+                                   us_item.icon_db = "DECORATE_KEYFRAME"
+                     emdb_list_index += 1
+
        elif self.db_type == "Pyarchinit":
               nome_tabella = 'us_table'
               for row in documento.execute('SELECT * FROM '+nome_tabella):
@@ -134,6 +167,8 @@ class EMdb_type_menu(bpy.types.Menu):
         layout = self.layout
         op = layout.operator("dbtype.set", text="EMdb")
         op.db_type = "EMdb"
+        op = layout.operator("dbtype.set", text="EMdb-usv")
+        op.db_type = "EMdb-usv"
         op = layout.operator("dbtype.set", text="Pyarchinit")
         op.db_type = "Pyarchinit"
        

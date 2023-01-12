@@ -143,9 +143,22 @@ class EMdbPanel:
             row = box.row(align=True)
             split = row.split()
             col = split.column()
-            col.label(text="Tecnica Costruttiva:")
-            col = split.column(align=True)
-            col.label(text=scene.emdb_list[scene.emdb_list_index].technics)
+            if scene.emdb_list[scene.emdb_list_index].technics != "Empty":
+                col.label(text="Building technique:")
+                col = split.column(align=True)
+                col.label(text=scene.emdb_list[scene.emdb_list_index].technics)
+            if scene.emdb_list[scene.emdb_list_index].chronology != "Empty":
+                col.label(text="Chronology:")
+                col = split.column(align=True)
+                col.label(text=scene.emdb_list[scene.emdb_list_index].chronology)
+            if scene.emdb_list[scene.emdb_list_index].period != "Empty":
+                col.label(text="period:")
+                col = split.column(align=True)
+                col.label(text=scene.emdb_list[scene.emdb_list_index].period)
+            if scene.emdb_list[scene.emdb_list_index].level_knowledge != "Empty":
+                col.label(text="Level of knowledge:")
+                col = split.column(align=True)
+                col.label(text=scene.emdb_list[scene.emdb_list_index].level_knowledge)
         else:
             row = layout.row(align=True)
             row.label(text="Missing sqlite data")
