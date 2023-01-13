@@ -20,7 +20,7 @@ class EMdbListItem(bpy.types.PropertyGroup):
            default="Empty")
 
     technics: prop.StringProperty(
-           name="Tecnica_Muraria",
+           name="Building Technique",
            description="A description for this item",
            default="Empty")
 
@@ -127,10 +127,10 @@ class EMdb_import_sqlite(bpy.types.Operator):
                      nome_scheda = row[1]+str(row[0])
                      scene.emdb_list.add()
                      scene.emdb_list[emdb_list_index].name = nome_scheda
-                     scene.emdb_list[emdb_list_index].description = str(row[4])
-                     scene.emdb_list[emdb_list_index].chronology = str(row[4])+" - "+str(row[4])
-                     scene.emdb_list[emdb_list_index].period = str(row[4])
-                     scene.emdb_list[emdb_list_index].level_knowledge = str(row[4])
+                     scene.emdb_list[emdb_list_index].description = str(row[6])
+                     scene.emdb_list[emdb_list_index].chronology = str(row[2])+" - "+str(row[3])
+                     scene.emdb_list[emdb_list_index].period = str(row[4])+" - "+str(row[5])
+                     scene.emdb_list[emdb_list_index].level_knowledge = str(row[7])
                      #scene.emdb_list[emdb_list_index].technics = row[20]
                      #print("l'unità "+nome_scheda+ " ha descrizione: "+str(row[3]))
 
