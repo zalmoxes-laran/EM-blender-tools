@@ -22,8 +22,8 @@ bl_info = {
     "name": "EM tools",
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
-    "version": (1, 2, 0),
-    "blender": (3, 2, 0),
+    "version": (1, 3, 2),
+    "blender": (3, 3, 4),
 #     "location": "3D View > Toolbox",
     "warning": "This addon is still in development.",
     "wiki_url": "",
@@ -50,6 +50,7 @@ from bpy.types import (
         PropertyGroup,
         )
 
+
 from . import (
         UI,
         EM_list,
@@ -58,7 +59,11 @@ from . import (
         paradata_manager,
         export_manager,
         visual_tools,
-        #telegram_io
+        visual_manager,
+        em_setup,
+        sqlite_io,
+        #external_modules_install,
+        #google_credentials
         )
 
 from .functions import *
@@ -185,7 +190,8 @@ class EPOCHListItem(bpy.types.PropertyGroup):
        epoch_soloing: BoolProperty(name="", default=False)
        rm_models: BoolProperty(name="", default=False)
        reconstruction_on: BoolProperty(name="", default=False)
-
+       #line_art: BoolProperty(name="", default=False) 
+       
        unique_id: StringProperty(default="")
 
        epoch_RGB_color: FloatVectorProperty(
@@ -234,6 +240,11 @@ class EMListItem(bpy.types.PropertyGroup):
            name="code for icon",
            description="",
            default="RESTRICT_INSTANCED_ON")
+
+    icon_db: prop.StringProperty(
+           name="code for icon db",
+           description="",
+           default="DECORATE_ANIMATE") # nel caso di punto pieno sarà 'DECORATE_KEYFRAME'
 
     url: prop.StringProperty(
            name="url",
@@ -336,7 +347,6 @@ class EM_epochs_belonging_ob(bpy.types.PropertyGroup):
            description="Epoch",
            default="Untitled")
 
-
 class ExportVars(bpy.types.PropertyGroup):
        format_file : bpy.props.EnumProperty(
               items=[
@@ -361,11 +371,10 @@ class ExportTablesVars(bpy.types.PropertyGroup):
 ##################################
 
 classes = (
-    UI.VIEW3D_PT_SetupPanel,
     UI.VIEW3D_PT_ToolsPanel,
     UI.VIEW3D_PT_BasePanel,
+    UI.VIEW3D_PT_EMdbPanel,
     UI.EM_UL_named_epoch_managers,
-    UI.Display_mode_menu,
     UI.VIEW3D_PT_ParadataPanel,
     UI.EM_UL_properties_managers,
     UI.EM_UL_sources_managers,
@@ -409,11 +418,22 @@ classes = (
     EMviqListErrors,
     EmPreferences,
     visual_tools.EM_label_creation,
+    em_create_collection,
     )
 
 def register():
 
+       sqlite_io.register()
+
+       em_setup.register()
+
+       visual_manager.register()
+
+       #external_modules_install.register()
+
        addon_updater_ops.register(bl_info)
+
+       #google_credentials.register()
 
        for cls in classes:
               bpy.utils.register_class(cls)
@@ -556,6 +576,7 @@ def register():
        description="Define the maximum resolution of the bigger side (it depends if it is a squared landscape or portrait image) of the output images",
        )
 
+
        
 
 ######################################################################################################
@@ -563,6 +584,9 @@ def register():
 def unregister():
 
        addon_updater_ops.unregister(bl_info)
+       sqlite_io.unregister()
+       visual_manager.unregister()
+       em_setup.unregister()
 
        for cls in classes:
               try:
@@ -627,5 +651,8 @@ def unregister():
        del bpy.types.Scene.enable_image_compression
        
 
+       
+       #external_modules_install.unregister()
+       #google_credentials.unregister()
 
 ######################################################################################################

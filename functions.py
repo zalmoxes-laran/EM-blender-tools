@@ -317,9 +317,20 @@ def EM_extract_property_node(node_element):
 
     return nodename, node_id, node_description, nodeurl, subnode_is_property
 
-def clean_comments(text_to_clean):
+#oldversion of clean comments
+def remove_comments(text_to_clean):
     clean_text = text_to_clean.split("##")[0].replace("\n","")
     return clean_text
+
+def clean_comments(multiline_str):
+    newstring = ""
+    for line in multiline_str.splitlines():
+        #print(line)
+        if line.startswith("«") or line.startswith("#"):
+            pass
+        else:
+            newstring = newstring+line+" "
+    return newstring
 
 def EM_extract_node_name(node_element):
     is_d4 = False
@@ -722,8 +733,14 @@ def switch_paradata_lists(self, context):
         #print("sto lanciano dil comando again")
         node = scene.em_list[scene.em_list_index]
         create_derived_lists(node)
-    else:
-        pass
+
+    if scene.em_list[scene.em_list_index].icon_db == 'DECORATE_KEYFRAME':
+        index_to_find = 0
+        while index_to_find < len(scene.emdb_list):
+            if scene.emdb_list[index_to_find].name == scene.em_list[scene.em_list_index].name:
+                print("Ho trovato il record giusto")
+                scene.emdb_list_index = index_to_find
+            index_to_find +=1
     return
 
 ## #### #### #### #### #### #### #### #### #### #### #### ####
@@ -965,6 +982,7 @@ class OBJECT_OT_labelonoff(bpy.types.Operator):
             obj.show_name = self.onoff
         return {'FINISHED'}
 
+
 #############################################
 ## funzioni per esportare obj e textures 
 #############################################
@@ -1064,5 +1082,23 @@ def substitue_with_custom_mtl(ob, export_sub_folder):
         f.write("%s %s\n" % ("newmtl", mat.material.name))
         f.write("%s %s\n" % ("map_Kd", mat.material.name+"_ALB"))
         mat.material.name
-    
+
+
     f.close() 
+
+#create_collection
+
+class em_create_collection(bpy.types.Operator):
+    bl_idname = "create.collection"
+    bl_label = "Create Collection"
+    bl_description = "Create Collection"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def create_collection(target_collection):
+        context = bpy.context
+        if bpy.data.collections.get(target_collection) is None:
+            currentCol = bpy.context.blend_data.collections.new(name= target_collection)
+            bpy.context.scene.collection.children.link(currentCol)
+        else:
+            currentCol = bpy.data.collections.get(target_collection)
+        return currentCol

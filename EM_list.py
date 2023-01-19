@@ -147,6 +147,8 @@ def togli_a_capo(stringa):
     stringa_pulita = stringa.replace("/n","")
     return stringa_pulita
 
+
+
 class EM_import_GraphML(bpy.types.Operator):
     bl_idname = "import.em_graphml"
     bl_label = "Import the EM GraphML"

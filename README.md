@@ -22,6 +22,7 @@
 
 # Citation
 You can cite Extended Matrix using with the following BibTeX entry:
+
 ```
 @article{demetrescu_archaeological_2015,
 	title = {Archaeological {Stratigraphy} as a formal language for virtual reconstruction. {Theory} and practice},
@@ -30,7 +31,6 @@ You can cite Extended Matrix using with the following BibTeX entry:
 	issn = {0305-4403},
 	url = {http://www.sciencedirect.com/science/article/pii/S0305440315000382},
 	doi = {10.1016/j.jas.2015.02.004},
-	abstract = {Abstract In recent years there has been a growing interest in 3D acquisition techniques in the field of cultural heritage, yet, at the same time, only a small percentage of case studies have been conducted on the virtual reconstruction of archaeological sites that are no longer in existence. Such reconstructions are, at times, considered âartisticâ or âaestheticâ endeavors, as the complete list of sources used is not necessarily provided as a reference along with the 3D representation. One of the reasons for this is likely the lack of a shared language in which to store and communicate the steps in the reconstruction process. This paper proposes the use of a formal language with which to keep track of the entire virtual reconstruction process. The proposal is based on the stratigraphic reading approach and aims to create a common framework connecting archaeological documentation and virtual reconstruction in the earliest stages of the survey. To this end, some of the tools and standards used in archaeological research have been âextendedâ to taxonomically annotate both the validation of the hypothesis and the sources involved.},
 	journal = {Journal of Archaeological Science},
 	author = {Demetrescu, Emanuel},
 	year = {2015},

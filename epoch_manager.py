@@ -14,6 +14,8 @@ class EM_UL_List(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         icons_style = 'OUTLINER'
         scene = context.scene
+        layout = layout.split(factor =0.03, align = True)
+        layout.label(text = "", icon = item.icon_db)
         layout = layout.split(factor =0.30, align = True)
         layout.label(text = item.name, icon = item.icon)
         layout.label(text = item.description, icon='NONE', icon_value=0)
@@ -43,6 +45,7 @@ class EM_toggle_select(bpy.types.Operator):
         return {'FINISHED'}
 #["rectangle", "ellipse_white", "roundrectangle", "octagon_white"]
 #["parallelogram", "ellipse", "hexagon", "octagon"]
+
 class EM_toggle_reconstruction(bpy.types.Operator):
     """Draw a line with the mouse"""
     bl_idname = "epoch_manager.toggle_reconstruction"
@@ -189,6 +192,7 @@ class EM_toggle_soloing(bpy.types.Operator):
                         bpy.ops.epoch_manager.toggle_visibility("INVOKE_DEFAULT", group_em_vis_idx = ep_idx, soloing_epoch = current_e_manager.name)
                             
         return {'FINISHED'}
+
 
 class EM_select_epoch_rm(bpy.types.Operator):
     """Select RM for a given epoch"""
