@@ -131,8 +131,6 @@ class EMdb_import_sqlite(bpy.types.Operator):
                      scene.emdb_list[emdb_list_index].chronology = str(row[9])+" - "+str(row[10])
                      scene.emdb_list[emdb_list_index].period = str(row[11])+" - "+str(row[12])
                      scene.emdb_list[emdb_list_index].level_knowledge = str(row[34])
-                     #scene.emdb_list[emdb_list_index].technics = row[20]
-                     #print("l'unità "+nome_scheda+ " ha descrizione: "+str(row[3]))
 
                      for us_item in scene.em_list:
                             if us_item.name == nome_scheda:
