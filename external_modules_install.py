@@ -5,9 +5,7 @@ import bpy
 import site
 import pkg_resources
 
-from bpy.props import BoolProperty
-
-from .google_credentials import check_google_modules
+from bpy.props import BoolProperty, StringProperty
 
 from .blender_pip import Pip
 Pip._ensure_user_site_package()
@@ -15,19 +13,40 @@ Pip._ensure_user_site_package()
 import logging
 log = logging.getLogger(__name__)
 
+def check_external_modules():
+    addon_prefs = bpy.context.preferences.addons.get(__package__, None)
+    try:
+        #for module in list_modules:
+        #    import module
+        import pandas
+        import openpyxl 
+        #import googleapiclient
+        #import google_auth_oauthlib
+        #import google_auth_httplib2
+        addon_prefs.preferences.is_external_module = True
+        #print("ci sono")
+    except ImportError:
+        addon_prefs.preferences.is_external_module = False
+        #print("Non ci sono")
+
 class OBJECT_OT_install_missing_modules(bpy.types.Operator):
     bl_idname = "install_missing.modules"
     bl_label = "missing modules"
     bl_options = {"REGISTER", "UNDO"}
 
     is_install : BoolProperty()
+    list_modules_to_install: StringProperty()
 
     def execute(self, context):
+        if self.list_modules_to_install == "Google":
+            list_modules = google_list_modules()
+        elif self.list_modules_to_install == "EMdb_xlsx":
+            list_modules = EMdb_xlsx_modules()
         if self.is_install:
-            install_modules()
+            install_modules(list_modules)
         else:
-            uninstall_modules()
-        check_google_modules()
+            uninstall_modules(list_modules)
+        check_external_modules()
         return {'FINISHED'}
 
 def google_list_modules():
@@ -60,14 +79,19 @@ def google_list_modules():
         ]
     return list_of_modules
 
-def install_modules():
+def EMdb_xlsx_modules():
+    list_of_modules =[
+        "pandas",
+        "openpyxl"
+    ]
+    return list_of_modules
+
+def install_modules(list_of_modules):
     Pip.upgrade_pip()
-    list_of_modules = google_list_modules()
     for module_istall in list_of_modules:
         Pip.install(module_istall)
 
-def uninstall_modules():
-    list_of_modules = google_list_modules()
+def uninstall_modules(list_of_modules):
     for module_istall in list_of_modules:
         Pip.uninstall(module_istall)
 
@@ -84,9 +108,11 @@ def register():
 			bpy.utils.unregister_class(cls)
 			bpy.utils.register_class(cls)
 
+
 def unregister():
 	for cls in classes:
 		bpy.utils.unregister_class(cls)
 
 if __name__ == '__main__':
-    install_modules()
+    install_modules(google_list_modules())
+    install_modules(EMdb_xlsx_modules())    

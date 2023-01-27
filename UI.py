@@ -457,6 +457,17 @@ class EM_ParadataPanel:
             row = layout.row()
             row.label(text="Sources: ("+str(eval(len_source_var))+")")
             row = layout.row()
+            box = layout.box()
+            row = box.row()
+            row.label(text="Load external xlsx source list")
+            row.operator("load.emdb_xlsx", icon="STICKY_UVS_DISABLE", text='')
+            row.operator("open_prefs_panel.em_tools", icon="SETTINGS", text="")
+            row = box.row()
+
+            
+            row.prop(scene, "EMdb_xlsx_filepath", text="")
+            row = layout.row()
+
             row.template_list("EM_UL_sources_managers", "", scene, source_list_var, scene, source_list_index_var, rows=2)
 
             item_source = eval(source_list_cmd)[eval(source_list_index_cmd)]

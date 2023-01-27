@@ -24,8 +24,8 @@ bl_info = {
     "author": "E. Demetrescu",
     "version": (1, 3, 2),
     "blender": (3, 3, 4),
-#     "location": "3D View > Toolbox",
-    "warning": "This addon is still in development.",
+    "location": "3D View > Toolbox",
+    #"warning": "This addon is still in development.",
     "wiki_url": "",
     "category": "Tools",
     }
@@ -62,7 +62,8 @@ from . import (
         visual_manager,
         em_setup,
         sqlite_io,
-        #external_modules_install,
+        EMdb_excel,
+        external_modules_install,
         #google_credentials
         )
 
@@ -77,9 +78,14 @@ from . import addon_updater_ops
 
 class EmPreferences(bpy.types.AddonPreferences):
 	bl_idname = __package__
+       #bl_idname = __name__
+
+	is_external_module : bpy.props.BoolProperty(
+              name="Pandas module (to read xlsx files) is present",
+              default=False
+              )
 
 	# addon updater preferences
-
 	auto_check_update : bpy.props.BoolProperty(
 		name="Auto-check for Update",
 		description="If enabled, auto-check for updates using an interval",
@@ -114,25 +120,44 @@ class EmPreferences(bpy.types.AddonPreferences):
 		)
 
 	def draw(self, context):
-		layout = self.layout
-		# col = layout.column() # works best if a column, or even just self.layout
-		mainrow = layout.row()
-		col = mainrow.column()
+              layout = self.layout
+              # col = layout.column() # works best if a column, or even just self.layout
+              mainrow = layout.row()
+              col = mainrow.column()
 
-		# updater draw function
-		# could also pass in col as third arg
-		addon_updater_ops.update_settings_ui(self, context)
+              # updater draw function
+              # could also pass in col as third arg
+              addon_updater_ops.update_settings_ui(self, context)
 
-		# Alternate draw function, which is more condensed and can be
-		# placed within an existing draw function. Only contains:
-		#   1) check for update/update now buttons
-		#   2) toggle for auto-check (interval will be equal to what is set above)
-		# addon_updater_ops.update_settings_ui_condensed(self, context, col)
+              # Alternate draw function, which is more condensed and can be
+              # placed within an existing draw function. Only contains:
+              #   1) check for update/update now buttons
+              #   2) toggle for auto-check (interval will be equal to what is set above)
+              # addon_updater_ops.update_settings_ui_condensed(self, context, col)
 
-		# Adding another column to help show the above condensed ui as one column
-		# col = mainrow.column()
-		# col.scale_y = 2
-		# col.operator("wm.url_open","Open webpage ").url=addon_updater_ops.updater.website
+              # Adding another column to help show the above condensed ui as one column
+              # col = mainrow.column()
+              # col.scale_y = 2
+              # col.operator("wm.url_open","Open webpage ").url=addon_updater_ops.updater.website
+
+              layout = self.layout
+              layout.label(text="xlsx setup")
+              #layout.prop(self, "filepath", text="Credentials path:")
+              if self.is_external_module:
+                     layout.label(text="Pandas module (to read xlsx files) is correctly installed")
+              else:
+                     layout.label(text="Pandas module is missing: install with the button below")
+                     row = layout.row()
+                     #row.label(text="")
+              row = layout.row()              
+              op = row.operator("install_missing.modules", icon="STICKY_UVS_DISABLE", text='Install pandas modules (waiting some minutes is normal)')
+              op.is_install = True
+              op.list_modules_to_install = "EMdb_xlsx"
+              row = layout.row()
+              op = row.operator("install_missing.modules", icon="STICKY_UVS_DISABLE", text='Uninstall pandas modules (waiting some minutes is normal)')
+              op.is_install = False
+              op.list_modules_to_install = "EMdb_xlsx"
+              
 
 class EDGESListItem(bpy.types.PropertyGroup):
        """ Group of properties an item in the list """
@@ -429,11 +454,12 @@ def register():
 
        visual_manager.register()
 
-       #external_modules_install.register()
+       external_modules_install.register()
 
        addon_updater_ops.register(bl_info)
 
        #google_credentials.register()
+       EMdb_excel.register()
 
        for cls in classes:
               bpy.utils.register_class(cls)
@@ -576,8 +602,8 @@ def register():
        description="Define the maximum resolution of the bigger side (it depends if it is a squared landscape or portrait image) of the output images",
        )
 
-
-       
+       from .external_modules_install import check_external_modules
+       check_external_modules()
 
 ######################################################################################################
 
@@ -587,6 +613,7 @@ def unregister():
        sqlite_io.unregister()
        visual_manager.unregister()
        em_setup.unregister()
+       EMdb_excel.unregister()
 
        for cls in classes:
               try:
@@ -652,7 +679,7 @@ def unregister():
        
 
        
-       #external_modules_install.unregister()
+       external_modules_install.unregister()
        #google_credentials.unregister()
 
 ######################################################################################################
