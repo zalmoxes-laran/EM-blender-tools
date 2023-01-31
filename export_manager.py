@@ -247,6 +247,134 @@ class EM_export(bpy.types.Operator):
             # write JSON file
             with open(file_name, 'w') as outfile:
                 outfile.write(data + '\n')
+        bpy.ops.export.emjson('INVOKE_DEFAULT')
+        return {'FINISHED'}
+
+def export_emjson(scene, nodes, edges): #scene, base_dir_collections, True, nodes, self.em_export_format, edges, utente_aton, progetto_aton
+    #passo i nodi UUSS:
+    #edges["."] = []
+    index_nodes = 0
+    
+    for uuss in scene.em_list:
+        uuss_node = {}
+        uuss_node["name"] =uuss.name
+        uuss_node["description"]=uuss.description
+        uuss_node["epoch"]=uuss.epoch
+        uuss_node["shape"]=uuss.shape
+        uuss_node["url"]=uuss.url
+        uuss_node["icon"]=uuss.icon
+        uuss_node["y_pos"]=uuss.y_pos
+        nodes[uuss.id_node] = uuss_node
+        index_nodes +=1
+
+    for extractor in scene.em_extractors_list:
+        extractor_node = {}
+        extractor_node["name"] =extractor.name
+        extractor_node["description"]=extractor.description
+        extractor_node["icon"]=extractor.icon
+        extractor_node["icon_url"]=extractor.description
+        extractor_node["url"]=extractor.description
+        
+        nodes[extractor.id_node] = extractor_node
+        index_nodes +=1
+
+
+    for source in scene.em_sources_list:
+        source_node = {}
+        source_node["name"] =source.name
+        source_node["description"]=source.description
+        source_node["icon"]=source.icon
+        source_node["icon_url"]=source.icon_url
+        source_node["url"]=source.url
+        
+        nodes[source.id_node] = source_node
+        index_nodes +=1
+
+    for combiner in scene.em_combiners_list:
+        combiner_node = {}
+        combiner_node["name"] =combiner.name
+        combiner_node["description"]=combiner.description
+        combiner_node["icon"]=combiner.icon
+        combiner_node["icon_url"]=combiner.icon_url
+        combiner_node["url"]=combiner.url
+        
+        nodes[combiner.id_node] = combiner_node
+        index_nodes +=1
+
+    for property in scene.em_properties_list:
+        property_node = {}
+        property_node["name"] =property.name
+        property_node["description"]=property.description
+        property_node["icon"]=property.icon
+        property_node["icon_url"]=property.icon_url
+        property_node["url"]=property.url
+        
+        nodes[property.id_node] = property_node
+        index_nodes +=1
+
+    for edge in scene.edges_list:
+        edge_edge = {}
+        edge_edge["source"]=edge.source
+        edge_edge["target"]=edge.target
+        
+        edges[edge.id_node] = edge_edge
+        index_nodes +=1
+
+    return nodes, edges
+
+class JSON_OT_exportEMformat(bpy.types.Operator):
+    bl_idname = "export.emjson"
+    bl_label = "Export emjson"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        scene = context.scene
+        utente_aton = scene.EMviq_user_name
+        progetto_aton = scene.EMviq_project_name 
+        
+        bpy.ops.object.select_all(action='DESELECT')
+
+        # prepare folder paths
+        fix_if_relative_folder = bpy.path.abspath(scene.ATON_path)
+        base_dir = os.path.dirname(fix_if_relative_folder)
+        
+        if os.path.exists(os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)):
+            base_dir_scenes = os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)
+        else:
+            base_dir_scenes = createfolder(os.path.join(base_dir,"data","scenes",utente_aton), progetto_aton)
+
+        bpy.context.scene.view_layers['ViewLayer'].layer_collection.children['RM'].exclude = False
+        bpy.context.scene.view_layers['ViewLayer'].layer_collection.children['RB'].exclude = False
+
+        #setup JSON variables
+        emviq_metadata = {}
+        semanticgraph = {}
+        nodes = {}
+        edges = {}
+        
+        emviq_metadata['semanticgraph'] = semanticgraph
+        '''
+        section to activate light and background to make better visual effect
+        "environment":{
+            "mainpano":{"url":"samples/pano/defsky-grass.jpg"},
+            "lightprobes":{"auto":true},
+            "mainlight":{"direction":[-0.0846315900906896,-0.7511136796681608,-0.6547256938398531]}
+        },
+        '''
+        #Prepare node graph for the JSON
+        nodes, edges = export_emjson(scene, nodes, edges)
+        semanticgraph['nodes'] = nodes
+        semanticgraph['edges'] = edges
+        print(nodes)
+        # encode dict as JSON 
+        data = json.dumps(emviq_metadata, indent=4, ensure_ascii=True)
+
+        # generate the JSON file path
+        file_name = os.path.join(base_dir_scenes, "metadata.json")
+
+        # write JSON file
+        with open(file_name, 'w') as outfile:
+            outfile.write(data + '\n')
 
         return {'FINISHED'}
 
@@ -258,6 +386,7 @@ class OBJECT_OT_ExportUUSS(bpy.types.Operator):
     def execute(self, context):
 
         bpy.ops.export.uuss_data('INVOKE_DEFAULT')
+        
             
         return {'FINISHED'}
 

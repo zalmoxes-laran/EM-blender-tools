@@ -158,7 +158,6 @@ class EmPreferences(bpy.types.AddonPreferences):
               op.is_install = False
               op.list_modules_to_install = "EMdb_xlsx"
               
-
 class EDGESListItem(bpy.types.PropertyGroup):
        """ Group of properties an item in the list """
 
@@ -428,6 +427,7 @@ classes = (
     export_manager.EM_export,
     export_manager.ExportuussData,
     export_manager.OBJECT_OT_ExportUUSS,
+    export_manager.JSON_OT_exportEMformat,
     paradata_manager.EM_files_opener,
     functions.OBJECT_OT_CenterMass,
     functions.OBJECT_OT_labelonoff,
