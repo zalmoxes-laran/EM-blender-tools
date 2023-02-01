@@ -250,21 +250,32 @@ class EM_export(bpy.types.Operator):
         bpy.ops.export.emjson('INVOKE_DEFAULT')
         return {'FINISHED'}
 
-def export_emjson(scene, nodes, edges): #scene, base_dir_collections, True, nodes, self.em_export_format, edges, utente_aton, progetto_aton
+def extract_epochs(scene,epochs):
+    for epoch in scene.epoch_list:
+        epoch_node = {}
+        #epoch_node['description'] = epoch.description
+        epoch_node['start'] = epoch.min_y
+        epoch_node['end'] = epoch.max_y
+        epoch_node['color'] = epoch.epoch_color
+
+        epochs[epoch.name] = epoch_node
+    return epochs
+
+def export_emjson(scene, nodes, edges):
     #passo i nodi UUSS:
     #edges["."] = []
     index_nodes = 0
     
     for uuss in scene.em_list:
         uuss_node = {}
-        uuss_node["name"] =uuss.name
+        #uuss_node["name"] =uuss.name
         uuss_node["description"]=uuss.description
-        uuss_node["epoch"]=uuss.epoch
-        uuss_node["shape"]=uuss.shape
+        uuss_node["epochs"]=[uuss.epoch]
+        uuss_node["type"]=uuss.shape
         uuss_node["url"]=uuss.url
-        uuss_node["icon"]=uuss.icon
-        uuss_node["y_pos"]=uuss.y_pos
-        nodes[uuss.id_node] = uuss_node
+        uuss_node["hasproxy"]=uuss.icon
+        uuss_node["time"]=uuss.y_pos
+        nodes[uuss.name] = uuss_node
         index_nodes +=1
 
     for extractor in scene.em_extractors_list:
@@ -343,6 +354,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
         else:
             base_dir_scenes = createfolder(os.path.join(base_dir,"data","scenes",utente_aton), progetto_aton)
 
+        # eventually reactivate collections RM and RB
         bpy.context.scene.view_layers['ViewLayer'].layer_collection.children['RM'].exclude = False
         bpy.context.scene.view_layers['ViewLayer'].layer_collection.children['RB'].exclude = False
 
@@ -351,20 +363,21 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
         semanticgraph = {}
         nodes = {}
         edges = {}
+        epochs = {}
+        emlist = {}
+        site1 = {}
         
         emviq_metadata['semanticgraph'] = semanticgraph
-        '''
-        section to activate light and background to make better visual effect
-        "environment":{
-            "mainpano":{"url":"samples/pano/defsky-grass.jpg"},
-            "lightprobes":{"auto":true},
-            "mainlight":{"direction":[-0.0846315900906896,-0.7511136796681608,-0.6547256938398531]}
-        },
-        '''
+        epochs = extract_epochs(scene,epochs)
+        
+        semanticgraph['epochs'] = epochs
+        semanticgraph['EMlist'] = emlist
+        emlist['site1'] = site1
+
         #Prepare node graph for the JSON
         nodes, edges = export_emjson(scene, nodes, edges)
-        semanticgraph['nodes'] = nodes
-        semanticgraph['edges'] = edges
+        site1['nodes'] = nodes
+        site1['edges'] = edges
         print(nodes)
         # encode dict as JSON 
         data = json.dumps(emviq_metadata, indent=4, ensure_ascii=True)
