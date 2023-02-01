@@ -263,7 +263,7 @@ def extract_epochs(scene,epochs):
 
 def export_emjson(scene, nodes, edges):
     #passo i nodi UUSS:
-    #edges["."] = []
+
     index_nodes = 0
     
     for uuss in scene.em_list:
@@ -273,65 +273,76 @@ def export_emjson(scene, nodes, edges):
         uuss_node["epochs"]=[uuss.epoch]
         uuss_node["type"]=uuss.shape
         uuss_node["url"]=uuss.url
-        uuss_node["hasproxy"]=uuss.icon
+        uuss_node["hasproxy"]= set_has_proxy_value(uuss.icon)
         uuss_node["time"]=uuss.y_pos
         nodes[uuss.name] = uuss_node
-        index_nodes +=1
-
-    for extractor in scene.em_extractors_list:
-        extractor_node = {}
-        extractor_node["name"] =extractor.name
-        extractor_node["description"]=extractor.description
-        extractor_node["icon"]=extractor.icon
-        extractor_node["icon_url"]=extractor.description
-        extractor_node["url"]=extractor.description
-        
-        nodes[extractor.id_node] = extractor_node
-        index_nodes +=1
-
-
-    for source in scene.em_sources_list:
-        source_node = {}
-        source_node["name"] =source.name
-        source_node["description"]=source.description
-        source_node["icon"]=source.icon
-        source_node["icon_url"]=source.icon_url
-        source_node["url"]=source.url
-        
-        nodes[source.id_node] = source_node
-        index_nodes +=1
-
-    for combiner in scene.em_combiners_list:
-        combiner_node = {}
-        combiner_node["name"] =combiner.name
-        combiner_node["description"]=combiner.description
-        combiner_node["icon"]=combiner.icon
-        combiner_node["icon_url"]=combiner.icon_url
-        combiner_node["url"]=combiner.url
-        
-        nodes[combiner.id_node] = combiner_node
-        index_nodes +=1
+        #index_nodes +=1
 
     for property in scene.em_properties_list:
         property_node = {}
         property_node["name"] =property.name
         property_node["description"]=property.description
-        property_node["icon"]=property.icon
-        property_node["icon_url"]=property.icon_url
+        property_node["icon"]=set_has_proxy_value(property.icon)
+        #property_node["icon_url"]=property.icon_url
         property_node["url"]=property.url
-        
+        property_node["type"]="Property"
         nodes[property.id_node] = property_node
         index_nodes +=1
 
+    for combiner in scene.em_combiners_list:
+        combiner_node = {}
+        #combiner_node["name"] =combiner.name
+        combiner_node["description"]=combiner.description
+        combiner_node["icon"]=set_has_proxy_value(combiner.icon)
+        combiner_node["icon_url"]=combiner.icon_url
+        combiner_node["url"]=combiner.url
+        combiner_node["type"]="Combiner"
+        nodes[combiner.name] = combiner_node
+        index_nodes +=1
+
+    for extractor in scene.em_extractors_list:
+        extractor_node = {}
+        #extractor_node["name"] =extractor.name
+        extractor_node["description"]=extractor.description
+        extractor_node["icon"]=set_has_proxy_value(extractor.icon)
+        #extractor_node["icon_url"]=extractor.description
+        extractor_node["url"]=extractor.url
+        extractor_node["type"]="Extractor"
+        extractor_node["src"]=""
+        
+        nodes[extractor.name] = extractor_node
+        #index_nodes +=1
+
+
+    for source in scene.em_sources_list:
+        source_node = {}
+        #source_node["name"] =source.name
+        source_node["description"]=source.description
+        source_node["icon"]=set_has_proxy_value(source.icon)
+        source_node["icon_url"]=source.icon_url
+        source_node["url"]=source.url
+        source_node["type"]="Document"
+        
+        nodes[source.name] = source_node
+        #index_nodes +=1
+
     for edge in scene.edges_list:
         edge_edge = {}
-        edge_edge["source"]=edge.source
-        edge_edge["target"]=edge.target
+        edge_edge["start"]=edge.source
+        edge_edge["end"]=edge.target
+        edge_edge["type"]=edge.edge_type
         
-        edges[edge.id_node] = edge_edge
+        edges[index_nodes] = edge_edge
         index_nodes +=1
 
     return nodes, edges
+
+def set_has_proxy_value(string):
+    hasproxy = False
+    if string == "RESTRICT_INSTANCED_OFF":
+        hasproxy = True
+
+    return hasproxy
 
 class JSON_OT_exportEMformat(bpy.types.Operator):
     bl_idname = "export.emjson"
@@ -530,7 +541,7 @@ def createfolder(base_dir, foldername):
 
     export_folder = os.path.join(base_dir, foldername)
     if not os.path.exists(export_folder):
-        os.mkdir(export_folder)
+        os.makedirs(export_folder)
         print('There is no '+ foldername +' folder. Creating one...')
     else:
         print('Found previously created '+foldername+' folder. I will use it')

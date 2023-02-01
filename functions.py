@@ -110,6 +110,21 @@ def add_sceneobj_to_epochs():
 #### Functions to extract data from GraphML file ####
 ### #### #### #### #### #### #### #### #### #### ####
 
+def EM_extract_edge_type(edge_element):
+    edge_type = "Empty"
+    for subedge in edge_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+        #print(subedge.attrib)
+        attrib1 = subedge.attrib
+        #print(subnode.tag)
+        if attrib1 == {'key': 'd10'}:
+            for property in subedge.findall('.//{http://www.yworks.com/xml/graphml}LineStyle'):
+                print(property.attrib)
+                if property.tag =="type":
+                     edge_type = check_if_empty(property.attrib)
+
+
+    return edge_type   
+
 def get_edge_target(tree, node_element):
     alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
     id_node = getnode_id(node_element)
@@ -164,11 +179,6 @@ def EM_extract_combiner_node(node_element):
                     nodename = check_if_empty(USname.text)
                 if nodename.startswith("C."):
                     subnode_is_combiner = True
-                    #print(nodename)
-                # for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}SVGContent'):
-                #     attrib2 = nodetype.attrib
-                #     if attrib2 == {'refid': '3'}:
-                #         subnode_is_combiner = True
                         
         for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
             attrib1 = subnode.attrib                        
@@ -518,9 +528,8 @@ def read_edge_db(context, tree):
         scene.edges_list.add()
         scene.edges_list[em_list_index_ema].id_node = str(edge.attrib['id'])
         scene.edges_list[em_list_index_ema].source = str(edge.attrib['source'])#getnode_edge_source(edge)
-        scene.edges_list[em_list_index_ema].target = str(edge.attrib['target'])#getnode_edge_target(edge)
-        #print(scene.edges_list[em_list_index_ema].id_node)
-        #print(scene.edges_list[em_list_index_ema].target)
+        scene.edges_list[em_list_index_ema].target = str(edge.attrib['target'])
+        scene.edges_list[em_list_index_ema].edge_type = EM_extract_edge_type(edge)
         em_list_index_ema += 1
     return
 

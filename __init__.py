@@ -176,6 +176,11 @@ class EDGESListItem(bpy.types.PropertyGroup):
               description="A description for this item",
               default="Empty")
 
+       edge_type: prop.StringProperty(
+              name="type",
+              description="A description for this item",
+              default="Empt")
+
 class EPOCHListItem(bpy.types.PropertyGroup):
        """ Group of properties representing an item in the list """
        name: prop.StringProperty(
