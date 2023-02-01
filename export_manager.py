@@ -328,8 +328,8 @@ def export_emjson(scene, nodes, edges):
 
     for edge in scene.edges_list:
         edge_edge = {}
-        edge_edge["start"]=edge.source
-        edge_edge["end"]=edge.target
+        edge_edge["start"]=original_id_to_new_name(scene,edge.source)
+        edge_edge["end"]=original_id_to_new_name(scene,edge.target)
         edge_edge["type"]=edge.edge_type
         
         edges[index_nodes] = edge_edge
@@ -389,7 +389,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
         nodes, edges = export_emjson(scene, nodes, edges)
         site1['nodes'] = nodes
         site1['edges'] = edges
-        print(nodes)
+        #print(nodes)
         # encode dict as JSON 
         data = json.dumps(emviq_metadata, indent=4, ensure_ascii=True)
 

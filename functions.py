@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ET
 import bpy
 import os
+import json
 import shutil
 import bpy.props as prop
 from bpy.props import (BoolProperty,
@@ -117,13 +118,30 @@ def EM_extract_edge_type(edge_element):
         attrib1 = subedge.attrib
         #print(subnode.tag)
         if attrib1 == {'key': 'd10'}:
+            type_vocab={}
             for property in subedge.findall('.//{http://www.yworks.com/xml/graphml}LineStyle'):
-                print(property.attrib)
-                if property.tag =="type":
-                     edge_type = check_if_empty(property.attrib)
-
-
+                type_vocab = property.attrib #json.loads(property.attrib)
+                #print(type_vocab["type"])
+                edge_type = check_if_empty(type_vocab["type"])
+                
     return edge_type   
+
+def original_id_to_new_name(scene,id_node):
+    for UUSS in scene.em_list:
+        if UUSS.id_node == id_node:
+            return UUSS.name
+    for property in scene.em_properties_list:
+        if property.id_node == id_node:
+            return property.id_node
+    for combiner in scene.em_combiners_list:
+        if combiner.id_node == id_node:
+            return combiner.id_node
+    for extractor in scene.em_extractors_list:
+        if extractor.id_node == id_node:
+            return extractor.id_node
+    for source in scene.em_sources_list:
+        if source.id_node == id_node:
+            return source.id_node
 
 def get_edge_target(tree, node_element):
     alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
@@ -455,8 +473,7 @@ def EM_check_node_continuity(node_element):
     if my_node_description == "_continuity":
         id_node_continuity = True
         #print("found node continuity")
-    else:
-        id_node_continuity = False
+
     return id_node_continuity
 
 def EM_list_clear(context, list_type):
