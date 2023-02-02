@@ -67,7 +67,7 @@ class EM_ToolsPanel:
                     col = split.column()
                     col.label(text="", icon='LONGDISPLAY')             
                     
-            #split = layout.split()
+            '''
             col = split.column(align=True)
             col.label(text="Sync:")
 
@@ -79,7 +79,7 @@ class EM_ToolsPanel:
 
             col = split.column(align=True)
             col.prop(em_settings, "em_proxy_sync", text='', icon="LONGDISPLAY")
-
+            '''
             col = split.column(align=True)
             col.prop(scene, "paradata_streaming_mode", text='', icon="SHORTDISPLAY")
 
@@ -585,8 +585,6 @@ class EM_ExportPanel:
         row.prop(context.scene, 'ATON_path', toggle=True, text="")
         row.label(text="<-- path to ATON")
 
-
-
         '''
         row = layout.row()  # (align=True)
         row.prop(context.scene, 'EMviq_folder', toggle=True, text="")
@@ -619,8 +617,6 @@ class EM_ExportPanel:
         op.em_export_type = 'RM'
 
         row = layout.row()
-
-
 
         if scene.emviq_error_list_index >= 0 and len(scene.emviq_error_list) > 0:
             row.template_list("ER_UL_List", "EM nodes", scene, "emviq_error_list", scene, "emviq_error_list_index")

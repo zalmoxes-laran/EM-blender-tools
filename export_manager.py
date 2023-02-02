@@ -414,8 +414,6 @@ class OBJECT_OT_ExportUUSS(bpy.types.Operator):
             
         return {'FINISHED'}
 
-
-
 def convert_shape2type(shape):
     node_type = "None"
     if shape == "rectangle":

@@ -41,7 +41,7 @@ class OBJECT_OT_load_EMdb_xlsx(Operator):
         newfile_name = scene.EMdb_xlsx_filepath
         data = pandas.read_excel(newfile_name, sheet_name ='sources')
         df = pandas.DataFrame(data, columns=['Name', 'Description']) 
-        print(df)
+        #print(df)
         for index, row in df.iterrows():
             #print(row['c1'], row['c2'])
             for source_item in scene.em_sources_list:

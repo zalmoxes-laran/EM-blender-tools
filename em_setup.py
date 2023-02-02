@@ -9,7 +9,7 @@ from . import sqlite_io
 #SETUP MENU
 
 class EM_SetupPanel:
-    bl_label = "EM setup (v1.3.2)"
+    bl_label = "EM setup (v1.4.0)"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
 
@@ -74,6 +74,11 @@ class EM_SetupPanel:
         #col = split.column()
         col.prop(scene, "em_sources_list", text='')
 
+        ################ da qui setto la cartella DosCo ##################
+
+        row = layout.row(align=True)
+        row.prop(context.scene, 'EMDosCo_dir', toggle = True, text ="DosCo")        
+
         ################ da qui porzione di pannello per EMdb #####################
 
         row = layout.row(align=True)
@@ -88,7 +93,6 @@ class EM_SetupPanel:
         col.menu(sqlite_io.EMdb_type_menu.bl_idname, text=db_type_current, icon='COLOR')
         row = layout.row(align=True)
         row.prop(context.scene, 'EMdb_file', toggle = True, text ="")
-
 
 class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):
     bl_category = "EM"
@@ -112,8 +116,15 @@ def register():
         subtype = 'FILE_PATH'
     )   
 
+    bpy.types.Scene.EMDosCo_dir = StringProperty(
+        name = "EM DosCo folder",
+        default = "",
+        description = "Define the path to the EM DosCo folder",
+        subtype = 'DIR_PATH'
+    )   
 
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
     del bpy.types.Scene.EMdb_file
+    del bpy.types.Scene.EMDosCo_dir

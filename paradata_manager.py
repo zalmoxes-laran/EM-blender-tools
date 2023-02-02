@@ -43,3 +43,5 @@ class EM_files_opener(bpy.types.Operator):
             bpy.ops.wm.url_open(url=path_to_file)
             #os.open(path_to_file)
         return {'FINISHED'}
+
+# aggiungere icona con presenza autori: 'COMMUNITY' oppure assenza 'QUESTION'
