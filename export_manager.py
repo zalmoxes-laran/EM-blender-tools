@@ -343,6 +343,23 @@ def set_has_proxy_value(string):
         hasproxy = True
 
     return hasproxy
+'''
+def nodetype_by_yed_type(yedtype):
+
+    SUseries
+    US
+    USVs
+    USVn
+    SF
+
+    combiner
+    extractor
+    document
+    property
+    continuity
+
+    return nodetype
+'''
 
 class JSON_OT_exportEMformat(bpy.types.Operator):
     bl_idname = "export.emjson"
@@ -378,12 +395,12 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
         emlist = {}
         site1 = {}
         
-        emviq_metadata['semanticgraph'] = semanticgraph
+        emviq_metadata['EM'] = semanticgraph
         epochs = extract_epochs(scene,epochs)
         
         semanticgraph['epochs'] = epochs
         semanticgraph['EMlist'] = emlist
-        emlist['site1'] = site1
+        emlist['site1'] = site1 # questo sarà sostituito dal nome del sito
 
         #Prepare node graph for the JSON
         nodes, edges = export_emjson(scene, nodes, edges)
