@@ -384,7 +384,7 @@ class ExportVars(bpy.types.PropertyGroup):
               ('fbx','fbx','fbx','', 2),
               ],
               default='gltf'
-    )
+       )
 
 class ExportTablesVars(bpy.types.PropertyGroup):
        table_type : bpy.props.EnumProperty(
