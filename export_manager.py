@@ -178,7 +178,16 @@ class EM_export(bpy.types.Operator):
 
     em_export_type : StringProperty()
     em_export_format : StringProperty()
-
+    '''
+    @classmethod
+    def poll(cls, context):
+        scene = context.scene
+        is_active_button = False
+        prefs = context.preferences.addons.get(__package__, None)
+        if prefs.preferences.is_external_module:# and scene.EMdb_xlsx_filepath is not None:
+            is_active_button = True
+        return is_active_button
+    '''
     def execute(self, context):
         scene = context.scene
         utente_aton = scene.EMviq_user_name
@@ -271,7 +280,7 @@ def export_emjson(scene, nodes, edges):
         #uuss_node["name"] =uuss.name
         uuss_node["description"]=uuss.description
         uuss_node["epochs"]=[uuss.epoch]
-        uuss_node["type"]=uuss.shape
+        uuss_node["type"]=convert_shape2type(uuss.shape)[0]
         uuss_node["url"]=uuss.url
         uuss_node["hasproxy"]= set_has_proxy_value(uuss.icon)
         uuss_node["time"]=uuss.y_pos
@@ -285,7 +294,7 @@ def export_emjson(scene, nodes, edges):
         property_node["icon"]=set_has_proxy_value(property.icon)
         #property_node["icon_url"]=property.icon_url
         property_node["url"]=property.url
-        property_node["type"]="Property"
+        property_node["type"]="property"
         nodes[property.id_node] = property_node
         index_nodes +=1
 
@@ -296,7 +305,7 @@ def export_emjson(scene, nodes, edges):
         combiner_node["icon"]=set_has_proxy_value(combiner.icon)
         combiner_node["icon_url"]=combiner.icon_url
         combiner_node["url"]=combiner.url
-        combiner_node["type"]="Combiner"
+        combiner_node["type"]="combiner"
         nodes[combiner.name] = combiner_node
         index_nodes +=1
 
@@ -307,7 +316,7 @@ def export_emjson(scene, nodes, edges):
         extractor_node["icon"]=set_has_proxy_value(extractor.icon)
         #extractor_node["icon_url"]=extractor.description
         extractor_node["url"]=extractor.url
-        extractor_node["type"]="Extractor"
+        extractor_node["type"]="extractor"
         extractor_node["src"]=""
         
         nodes[extractor.name] = extractor_node
@@ -321,7 +330,7 @@ def export_emjson(scene, nodes, edges):
         source_node["icon"]=set_has_proxy_value(source.icon)
         source_node["icon_url"]=source.icon_url
         source_node["url"]=source.url
-        source_node["type"]="Document"
+        source_node["type"]="document"
         
         nodes[source.name] = source_node
         #index_nodes +=1
@@ -343,23 +352,6 @@ def set_has_proxy_value(string):
         hasproxy = True
 
     return hasproxy
-'''
-def nodetype_by_yed_type(yedtype):
-
-    SUseries
-    US
-    USVs
-    USVn
-    SF
-
-    combiner
-    extractor
-    document
-    property
-    continuity
-
-    return nodetype
-'''
 
 class JSON_OT_exportEMformat(bpy.types.Operator):
     bl_idname = "export.emjson"
@@ -411,7 +403,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
         data = json.dumps(emviq_metadata, indent=4, ensure_ascii=True)
 
         # generate the JSON file path
-        file_name = os.path.join(base_dir_scenes, "metadata.json")
+        file_name = os.path.join(base_dir_scenes, "em.json")
 
         # write JSON file
         with open(file_name, 'w') as outfile:
@@ -431,25 +423,29 @@ class OBJECT_OT_ExportUUSS(bpy.types.Operator):
             
         return {'FINISHED'}
 
-def convert_shape2type(shape):
-    node_type = "None"
-    if shape == "rectangle":
-        node_type = "US"
-    elif shape == "parallelogram":
-        node_type = "USVs"
-    elif shape == "ellipse":
-        node_type = "Series of USVs"
-    elif shape == "ellipse_white":
-        node_type = "Series of US"
-    elif shape == "hexagon":
-        node_type = "USVn"
-    elif shape == "octagon_white":
-        node_type = "Special Find"
-    elif shape == "octagon":
-        node_type = "Virtual Special Find"
-    elif shape == "roundrectangle":
-        node_type = "USD"
-    return node_type
+def convert_shape2type(yedtype): 
+    # restituisce una coppia di info: short e verbose
+    nodetype = []
+    if yedtype == "rectangle":
+        nodetype = ["US","Stratigraphic Unit"]
+    elif yedtype == "parallelogram":
+        nodetype = ["USVs","Structural Virtual Stratigrafic Units"]
+    elif yedtype == "ellipse":
+        #nodetype = ["SUseries","Series of USVs"]
+        nodetype = ["serSU","Series of USVs"] 
+    elif yedtype == "white_ellipse":
+        nodetype = ["serUSV", "Series of US"]        
+    elif yedtype == "hexagon":
+        nodetype = ["USVn","Structural Virtual Stratigrafic Units"]
+    elif yedtype == "octagon":
+        nodetype = ["SF","Special Find"]
+    elif yedtype == "black_octagon": #da verificare
+        nodetype = ["VSF","Virtual Special Find"]
+    elif yedtype == "roundrectangle":
+        node_type = ["USD","Documentary Stratigraphic Unit"]
+    return nodetype
+
+
 
 def write_UUSS_data(context, filepath, only_UUSS, header):
     print("running write some data...")
@@ -462,9 +458,9 @@ def write_UUSS_data(context, filepath, only_UUSS, header):
         for US in context.scene.em_list:
             if only_UUSS:
                 if US.icon == "RESTRICT_INSTANCED_ON":
-                    f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)))
+                    f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)[1]))
             else:
-                f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)))
+                f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)[1]))
     if  context.window_manager.export_tables_vars.table_type == 'Sources':
         if header:
             f.write("Name; Description \n")
@@ -562,3 +558,26 @@ def createfolder(base_dir, foldername):
         print('Found previously created '+foldername+' folder. I will use it')
 
     return export_folder
+
+classes = [
+    EM_export,
+    ExportuussData,
+    OBJECT_OT_ExportUUSS,
+    JSON_OT_exportEMformat
+    ]
+
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+    bpy.types.Scene.password = bpy.props.StringProperty(
+        name = "password Aton user",
+        default = "",
+        description = "Set here your password to access an Aton instance"
+        subtype='PASSWORD'
+    )
+
+def unregister():
+    for cls in classes:
+        bpy.utils.unregister_class(cls)
+    del bpy.types.Scene.password

@@ -429,10 +429,7 @@ classes = (
     epoch_manager.EM_toggle_soloing,
     epoch_manager.EM_add_remove_epoch_models,
     epoch_manager.EM_select_epoch_rm,
-    export_manager.EM_export,
-    export_manager.ExportuussData,
-    export_manager.OBJECT_OT_ExportUUSS,
-    export_manager.JSON_OT_exportEMformat,
+
     paradata_manager.EM_files_opener,
     functions.OBJECT_OT_CenterMass,
     functions.OBJECT_OT_labelonoff,

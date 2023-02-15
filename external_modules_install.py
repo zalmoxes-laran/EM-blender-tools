@@ -20,6 +20,7 @@ def check_external_modules():
         #    import module
         import pandas
         import openpyxl 
+        import webdavclient3
         #import googleapiclient
         #import google_auth_oauthlib
         #import google_auth_httplib2
@@ -82,7 +83,8 @@ def google_list_modules():
 def EMdb_xlsx_modules():
     list_of_modules =[
         "pandas",
-        "openpyxl"
+        "openpyxl",
+        "webdavclient3"
     ]
     return list_of_modules
 
