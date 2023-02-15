@@ -69,7 +69,7 @@ def check_if_current_obj_has_brother_inlist(obj_name, list_type):
     return is_brother
 
 def select_3D_obj(name):
-    scene = bpy.context.scene
+    #scene = bpy.context.scene
     bpy.ops.object.select_all(action="DESELECT")
     object_to_select = bpy.data.objects[name]
     object_to_select.select_set(True)

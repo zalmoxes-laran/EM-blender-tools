@@ -410,8 +410,6 @@ classes = (
     UI.EM_UL_extractors_managers,
     UI.EM_UL_combiners_managers,
     UI.EM_UL_belongob,
-    UI.VIEW3D_PT_ExportPanel,
-    UI.ER_UL_List,
     EM_list.EM_listitem_OT_to3D,
     EM_list.EM_update_icon_list,
     EM_list.EM_select_from_list_item,
@@ -462,6 +460,8 @@ def register():
 
        #google_credentials.register()
        EMdb_excel.register()
+
+       export_manager.register()
 
        for cls in classes:
               bpy.utils.register_class(cls)
@@ -616,6 +616,7 @@ def unregister():
        visual_manager.unregister()
        em_setup.unregister()
        EMdb_excel.unregister()
+       export_manager.unregister()
 
        for cls in classes:
               try:
