@@ -44,11 +44,11 @@ or - as software - using the Zenodo DOI [![DOI](https://zenodo.org/badge/DOI/10.
 ```
 @software{emanuel_demetrescu_2022_5957495,
   author       = {Emanuel Demetrescu},
-  title        = {zalmoxes-laran/ExtendedMatrix: v.1.2.0},
+  title        = {zalmoxes-laran/ExtendedMatrix: v.1.3.2},
   month        = feb,
   year         = 2022,
   publisher    = {Zenodo},
-  version      = {v.1.2.0},
+  version      = {v.1.3.2},
   doi          = {10.5281/zenodo.5957495},
   url          = {https://doi.org/10.5281/zenodo.5957495}
 }
