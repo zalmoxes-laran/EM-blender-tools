@@ -16,7 +16,7 @@
 * Export full dataset to ATON 3 (EMviq app)
 
 ## Getting started (quick)
-1) Preferably install the addon using the [last stable version](https://github.com/zalmoxes-laran/ExtendedMatrix/raw/main/03_EMF/EM-blender-tools_1.2stable.zip) from the [EM site](https://www.extendedmatrix.org/download). Please use directly the github version here only if you know how to handle it (more for developers..).
+1) Preferably install the addon using the last stable version from the [EM site](https://www.extendedmatrix.org/download). Please use directly the github version here only if you know how to handle it (more for developers..).
 
 2) Quickstart (to come..) 
 
@@ -55,7 +55,7 @@ or - as software - using the Zenodo DOI [![DOI](https://zenodo.org/badge/DOI/10.
 ```
 
 # Publications
-Main bibliographical reference (open access) of the current version of the EM (1.2) is:
+Main bibliographical reference (open access) of the current version of the EM (1.3) is:
 
 *Demetrescu, Emanuel, e Daniele Ferdani. 2021. «From Field Archaeology to Virtual Reconstruction: A Five Steps Method Using the Extended Matrix». Applied Sciences 11 (11). https://doi.org/10.3390/app11115206.*
 
@@ -69,16 +69,12 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
 # TODO list
 
 ## EM
-- [ ] Coloured nodes in the EM layout
 - [ ] Alternative hypothesis formalization
-- [ ] Fusion of epoch and reconstructive epoch
 - [ ] New metaphors of visualization for anastylosis and virtual restoration
 - [ ] Formalization of color maps to visualize statistical data about the reconstruction (volumes, typo of sources, property density)
 
 ## EMF
 
-- [ ] Adding support to switch on and off the reconstructin per single epoch
 - [ ] Statistical tools for the reconstrucion (volumes, typo of sources, property density)
 - [ ] New label system
-- [ ] New section for visual tools
 - [ ] Simplified proxy generation
