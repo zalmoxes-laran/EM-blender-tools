@@ -386,7 +386,7 @@ class EM_ParadataPanel:
             # layout.row().separator()
 
             row = layout.row()
-            row.label(text="Reasoning - Combiners: ("+str(eval(len_combiner_var))+")")
+            row.label(text="Combiners: ("+str(eval(len_combiner_var))+")")
             row.prop(scene, "comb_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
             row = layout.row()
             row.template_list("EM_UL_combiners_managers", "", scene, combiner_list_var, scene, combiner_list_index_var, rows=1)
@@ -413,7 +413,7 @@ class EM_ParadataPanel:
             # layout.row().separator()
 
             row = layout.row()
-            row.label(text="Interpretation - Extractors: ("+str(eval(len_source_var))+")")
+            row.label(text="Extractors: ("+str(eval(len_source_var))+")")
             row.prop(scene, "extr_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
             row = layout.row()
             row.template_list("EM_UL_extractors_managers", "", scene, extractor_list_var, scene, extractor_list_index_var, rows=2)
@@ -455,7 +455,7 @@ class EM_ParadataPanel:
             # layout.row().separator()
 
             row = layout.row()
-            row.label(text="Sources: ("+str(eval(len_source_var))+")")
+            row.label(text="Docs: ("+str(eval(len_source_var))+")")
             row = layout.row()
             box = layout.box()
             row = box.row()
