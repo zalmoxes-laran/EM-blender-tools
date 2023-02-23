@@ -13,26 +13,25 @@ Pip._ensure_user_site_package()
 import logging
 log = logging.getLogger(__name__)
 
+
 def check_external_modules():
     addon_prefs = bpy.context.preferences.addons.get(__package__, None)
     try:
-        #for module in list_modules:
-        #    import module
         import pandas
-        import openpyxl 
-        import webdavclient3
-        import lxml
+        #import openpyxl 
+        #import webdavclient3
+        #import lxml
         #import googleapiclient
         #import google_auth_oauthlib
         #import google_auth_httplib2
         addon_prefs.preferences.is_external_module = True
-        #print("ci sono")
+        print("emdb ci sono")
     except ImportError:
         addon_prefs.preferences.is_external_module = False
-        #print("Non ci sono")
+        print("emdb Non ci sono")
 
-class OBJECT_OT_install_missing_modules(bpy.types.Operator):
-    bl_idname = "install_missing.modules"
+class OBJECT_OT_install_em_missing_modules(bpy.types.Operator):
+    bl_idname = "install_em_missing.modules"
     bl_label = "missing modules"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -100,7 +99,7 @@ def uninstall_modules(list_of_modules):
         Pip.uninstall(module_istall)
 
 classes = [
-    OBJECT_OT_install_missing_modules,
+    OBJECT_OT_install_em_missing_modules,
     ]
 
 def register():
@@ -118,5 +117,5 @@ def unregister():
 		bpy.utils.unregister_class(cls)
 
 if __name__ == '__main__':
-    install_modules(google_list_modules())
+    #install_modules(google_list_modules())
     install_modules(EMdb_xlsx_modules())    

@@ -25,7 +25,7 @@ class OBJECT_OT_load_EMdb_xlsx(Operator):
     
     @classmethod
     def poll(cls, context):
-        scene = context.scene
+        #scene = context.scene
         is_active_button = False
         prefs = context.preferences.addons.get(__package__, None)
         if prefs.preferences.is_external_module:# and scene.EMdb_xlsx_filepath is not None:

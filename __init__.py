@@ -72,6 +72,8 @@ from bpy.utils import register_class, unregister_class
 
 from . import addon_updater_ops
 
+from .external_modules_install import check_external_modules
+
 # demo bare-bones preferences 
 @addon_updater_ops.make_annotations
 #@telegram_io.main()
@@ -150,11 +152,11 @@ class EmPreferences(bpy.types.AddonPreferences):
                      row = layout.row()
                      #row.label(text="")
               row = layout.row()              
-              op = row.operator("install_missing.modules", icon="STICKY_UVS_DISABLE", text='Install pandas modules (waiting some minutes is normal)')
+              op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Install pandas modules (waiting some minutes is normal)')
               op.is_install = True
               op.list_modules_to_install = "EMdb_xlsx"
               row = layout.row()
-              op = row.operator("install_missing.modules", icon="STICKY_UVS_DISABLE", text='Uninstall pandas modules (waiting some minutes is normal)')
+              op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Uninstall pandas modules (waiting some minutes is normal)')
               op.is_install = False
               op.list_modules_to_install = "EMdb_xlsx"
               
@@ -448,6 +450,9 @@ classes = (
 
 def register():
 
+       for cls in classes:
+              bpy.utils.register_class(cls)
+
        sqlite_io.register()
 
        em_setup.register()
@@ -457,15 +462,14 @@ def register():
        external_modules_install.register()
 
        addon_updater_ops.register(bl_info)
-
-       #google_credentials.register()
+       
        EMdb_excel.register()
 
        export_manager.register()
 
-       for cls in classes:
-              bpy.utils.register_class(cls)
-       
+       check_external_modules() 
+
+
        bpy.types.WindowManager.export_vars = bpy.props.PointerProperty(type = ExportVars)
        bpy.types.WindowManager.export_tables_vars = bpy.props.PointerProperty(type = ExportTablesVars)
 
@@ -604,8 +608,8 @@ def register():
        description="Define the maximum resolution of the bigger side (it depends if it is a squared landscape or portrait image) of the output images",
        )
 
-       from .external_modules_install import check_external_modules
-       check_external_modules()
+       
+       
 
 ######################################################################################################
 

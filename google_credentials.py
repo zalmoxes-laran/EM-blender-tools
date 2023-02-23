@@ -39,10 +39,10 @@ class uNveil_GoogleCredentialsPreferences(AddonPreferences):
             layout.label(text="Google modules are missing: install with the button below")
         row = layout.row()
         #row.label(text="")
-        op = row.operator("install_missing.modules", icon="STICKY_UVS_DISABLE", text='Install google modules (waiting some minutes is normal)')
+        op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Install google modules (waiting some minutes is normal)')
         op.is_install = True
         row = layout.row()
-        op = row.operator("install_missing.modules", icon="STICKY_UVS_DISABLE", text='Uninstall google modules (waiting some minutes is normal)')
+        op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Uninstall google modules (waiting some minutes is normal)')
         op.is_install = False
         
 class OBJECT_OT_uNveil_prefs_googlecreds(Operator):
