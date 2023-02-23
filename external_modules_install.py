@@ -83,6 +83,10 @@ def google_list_modules():
 def EMdb_xlsx_modules():
     list_of_modules =[
         "pandas",
+        "pytz",
+        "python-dateutil",
+        "numpy",
+        "six",
         "openpyxl",
         "webdavclient3",
         "lxml"
