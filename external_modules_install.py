@@ -81,6 +81,8 @@ def google_list_modules():
     return list_of_modules
 
 def EMdb_xlsx_modules():
+    # https://pypi.org/project/optimize-images/
+    # da aggiungere per ottimizzare le immagini in export
     list_of_modules =[
         "pandas",
         "pytz",
