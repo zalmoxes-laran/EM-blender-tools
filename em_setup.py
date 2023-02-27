@@ -9,7 +9,7 @@ from . import sqlite_io
 #SETUP MENU
 
 class EM_SetupPanel:
-    bl_label = "EM setup (v1.4.0) dev1"
+    bl_label = "EM setup (v1.4.0) dev3"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
 
