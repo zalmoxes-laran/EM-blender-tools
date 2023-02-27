@@ -550,12 +550,14 @@ def convert_shape2type(yedtype):
         nodetype = ["serUSV", "Series of US"]        
     elif yedtype == "hexagon":
         nodetype = ["USVn","Structural Virtual Stratigrafic Units"]
-    elif yedtype == "octagon":
+    elif yedtype == "octagon_white":
         nodetype = ["SF","Special Find"]
-    elif yedtype == "black_octagon": #da verificare
+    elif yedtype == "octagon": #da verificare
         nodetype = ["VSF","Virtual Special Find"]
     elif yedtype == "roundrectangle":
-        node_type = ["USD","Documentary Stratigraphic Unit"]
+        nodetype = ["USD","Documentary Stratigraphic Unit"]
+    #else:
+    #    nodetype = ["unknow","unrecognisized node"]
     return nodetype
 
 def write_UUSS_data(context, filepath, only_UUSS, header):
