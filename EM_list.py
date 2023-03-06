@@ -174,6 +174,8 @@ class EM_import_GraphML(bpy.types.Operator):
 
         allnodes = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
 
+        read_edge_db(context,tree)
+
         for node_element in allnodes:
             if EM_check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
                 if EM_check_node_us(node_element): # Check if the node is an US, SU, USV, USM or USR node
@@ -202,20 +204,25 @@ class EM_import_GraphML(bpy.types.Operator):
                         for source_item in scene.em_sources_list:
                             if source_item.name == src_nodename:
                                 source_already_in_list = True
-                    if source_already_in_list:
-                        src_nodename = src_nodename+"_"+str(source_number)
-                        source_number +=1
-                    scene.em_sources_list.add()
-                    scene.em_sources_list[em_sources_index_ema].name = src_nodename
-                    scene.em_sources_list[em_sources_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(src_nodename_safe)
-                    scene.em_sources_list[em_sources_index_ema].id_node = src_node_id
-                    scene.em_sources_list[em_sources_index_ema].url = src_nodeurl
-                    if src_nodeurl == "--None--":
-                        scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_DEHLT"
-                    else:
-                        scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_HLT"
-                    scene.em_sources_list[em_sources_index_ema].description = src_node_description
-                    em_sources_index_ema += 1
+                                #finding the node in the edges list
+                                for id_doc_node in scene.edges_list:
+                                    if id_doc_node.target == src_node_id:
+                                        id_doc_node.target = source_item.id_node
+
+                    if not source_already_in_list:
+                        #src_nodename = src_nodename+"_"+str(source_number)
+                        #source_number +=1
+                        scene.em_sources_list.add()
+                        scene.em_sources_list[em_sources_index_ema].name = src_nodename
+                        scene.em_sources_list[em_sources_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(src_nodename_safe)
+                        scene.em_sources_list[em_sources_index_ema].id_node = src_node_id
+                        scene.em_sources_list[em_sources_index_ema].url = src_nodeurl
+                        if src_nodeurl == "--None--":
+                            scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_DEHLT"
+                        else:
+                            scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_HLT"
+                        scene.em_sources_list[em_sources_index_ema].description = src_node_description
+                        em_sources_index_ema += 1
                 elif EM_check_node_property(node_element):
                     pro_nodename, pro_node_id, pro_node_description, pro_nodeurl, subnode_is_property = EM_extract_property_node(node_element)
                     scene.em_properties_list.add()
@@ -287,7 +294,6 @@ class EM_import_GraphML(bpy.types.Operator):
                                         scene.em_reused[em_reused_index].em_element = EM_item.name
                                        #print("All'epoca "+scene.em_reused[em_reused_index].epoch+ " appartiene : "+ scene.em_reused[em_reused_index].em_element)
                                         em_reused_index += 1
-        read_edge_db(context,tree)
         try:
             node_send = scene.em_list[scene.em_list_index]
         except IndexError as error:

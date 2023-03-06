@@ -47,6 +47,9 @@ class OBJECT_OT_load_EMdb_xlsx(Operator):
             for source_item in scene.em_sources_list:
                 if source_item.name == row['Name']:
                     source_item.description = row['Description']
+            for source_v_item in scene.em_v_sources_list:
+                if source_v_item.name == row['Name']:
+                    source_v_item.description = row['Description']
 
         return {'FINISHED'}
 '''
