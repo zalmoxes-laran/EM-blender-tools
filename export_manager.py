@@ -90,6 +90,9 @@ class EM_ExportPanel:
 
         row = layout.row()
 
+        row.operator("open.emviq", text="Open on EMviq", emboss=True, icon='SHADING_TEXTURE')
+        #op.em_export_type = 'Open EMviq'
+
         if scene.emviq_error_list_index >= 0 and len(scene.emviq_error_list) > 0:
             row.template_list("ER_UL_List", "EM nodes", scene, "emviq_error_list", scene, "emviq_error_list_index")
             item = scene.emviq_error_list[scene.emviq_error_list_index]
@@ -370,6 +373,38 @@ class EM_export(bpy.types.Operator):
             with open(file_name, 'w') as outfile:
                 outfile.write(data + '\n')
         bpy.ops.export.emjson('INVOKE_DEFAULT')
+        return {'FINISHED'}
+
+class EM_openemviq(bpy.types.Operator):
+    """Open EMviq"""
+    bl_idname = "open.emviq"
+    bl_label = "Open EMviq"
+    bl_description = "Open EMviq"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    #em_export_type : StringProperty()
+    #em_export_format : StringProperty()
+    '''
+    @classmethod
+    def poll(cls, context):
+        scene = context.scene
+        is_active_button = False
+        prefs = context.preferences.addons.get(__package__, None)
+        if prefs.preferences.is_external_module:# and scene.EMdb_xlsx_filepath is not None:
+            is_active_button = True
+        return is_active_button
+    '''
+    
+    def execute(self, context):
+        scene = context.scene
+        utente_aton = scene.EMviq_user_name
+        progetto_aton = scene.EMviq_project_name 
+        
+        import webbrowser
+        url_emviq = "http://localhost:8080/a/emviq/?s="+utente_aton+"/"+progetto_aton
+        webbrowser.open(url_emviq)  # Go to example.com
+
+
         return {'FINISHED'}
 
 def extract_epochs(scene,epochs):
@@ -676,6 +711,7 @@ classes = [
     ER_UL_List,
     VIEW3D_PT_ExportPanel,
     EM_export,
+    EM_openemviq,
     ExportuussData,
     OBJECT_OT_ExportUUSS,
     JSON_OT_exportEMformat
