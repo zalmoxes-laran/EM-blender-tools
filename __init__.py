@@ -1,7 +1,5 @@
 '''
-Copyright (C) 2022 Emanuel Demetrescu
-
-Created by EMANUEL DEMETRESCU 2018-2022
+Created by EMANUEL DEMETRESCU 2018-2023
 emanuel.demetrescu@cnr.it
 
     This program is free software: you can redistribute it and/or modify
@@ -23,7 +21,7 @@ bl_info = {
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
     "version": (1, 4, 0),
-    "blender": (3, 3, 4),
+    "blender": (3, 5, 0),
     "location": "3D View > Toolbox",
     "warning": "This addon is in alpha stage.",
     "wiki_url": "",

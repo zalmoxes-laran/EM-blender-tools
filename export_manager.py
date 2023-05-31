@@ -91,8 +91,8 @@ class EM_ExportPanel:
         row = layout.row()
 
         row.operator("open.emviq", text="Open on EMviq", emboss=True, icon='SHADING_TEXTURE')
-        #op.em_export_type = 'Open EMviq'
-
+        #row.operator("run.aton", text="Run Aton", emboss=True, icon='SHADING_TEXTURE')
+        
         if scene.emviq_error_list_index >= 0 and len(scene.emviq_error_list) > 0:
             row.template_list("ER_UL_List", "EM nodes", scene, "emviq_error_list", scene, "emviq_error_list_index")
             item = scene.emviq_error_list[scene.emviq_error_list_index]
@@ -285,6 +285,27 @@ def export_rm(scene, export_folder, EMviq, nodes, format_file, edges, utente_ato
 
     return nodes, edges
 
+class EM_runaton(bpy.types.Operator):
+    """Run Aton"""
+    bl_idname = "run.aton"
+    bl_label = "Run Aton"
+    bl_description = "Run Aton"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        scene = context.scene
+        utente_aton = scene.EMviq_user_name
+        path_aton = scene.ATON_path 
+        aton_exe = path_aton+"quickstart.sh"
+        
+        import subprocess
+        subprocess.run([aton_exe])
+    
+        #import os
+        #os.system(aton_exe)
+
+        return {'FINISHED'}
+
 class EM_export(bpy.types.Operator):
     """Export manager"""
     bl_idname = "export_manager.export"
@@ -425,47 +446,56 @@ def export_emjson(scene, nodes, edges):
     
     for uuss in scene.em_list:
         uuss_node = {}
-        #uuss_node["name"] =uuss.name
-        uuss_node["description"]=uuss.description
-        uuss_node["epochs"]=[uuss.epoch]
+        uuss_data = {}
         uuss_node["type"]=convert_shape2type(uuss.shape)[0]
-        uuss_node["url"]=uuss.url
-        uuss_node["hasproxy"]= set_has_proxy_value(uuss.icon)
-        uuss_node["time"]=uuss.y_pos
+        uuss_node["data"] = uuss_data 
+        #uuss_node["name"] =uuss.name
+        uuss_data["description"]=uuss.description
+        uuss_data["epochs"]=[uuss.epoch]
+        uuss_data["url"]=uuss.url
+        uuss_data["hasproxy"]= set_has_proxy_value(uuss.icon)
+        uuss_data["time"]=uuss.y_pos
         nodes[uuss.name] = uuss_node
         #index_nodes +=1
 
     for property in scene.em_properties_list:
         property_node = {}
-        property_node["name"] =property.name
-        property_node["description"]=property.description
-        property_node["icon"]=set_has_proxy_value(property.icon)
-        #property_node["icon_url"]=property.icon_url
-        property_node["url"]=property.url
+        property_data = {}
         property_node["type"]="property"
+        property_node["data"]=property_data
+        property_data["name"] =property.name
+        property_data["description"]=property.description
+        property_data["icon"]=set_has_proxy_value(property.icon)
+        #property_node["icon_url"]=property.icon_url
+        property_data["url"]=property.url
         nodes[property.id_node] = property_node
         index_nodes +=1
 
     for combiner in scene.em_combiners_list:
         combiner_node = {}
-        #combiner_node["name"] =combiner.name
-        combiner_node["description"]=combiner.description
-        combiner_node["icon"]=set_has_proxy_value(combiner.icon)
-        combiner_node["icon_url"]=combiner.icon_url
-        combiner_node["url"]=combiner.url
+        combiner_data = {}
         combiner_node["type"]="combiner"
+        combiner_node["data"]=combiner_data
+        #combiner_node["name"] =combiner.name
+        combiner_data["description"]=combiner.description
+        combiner_data["icon"]=set_has_proxy_value(combiner.icon)
+        combiner_data["icon_url"]=combiner.icon_url
+        combiner_data["url"]=combiner.url
         nodes[combiner.name] = combiner_node
         index_nodes +=1
 
     for extractor in scene.em_extractors_list:
         extractor_node = {}
-        #extractor_node["name"] =extractor.name
-        extractor_node["description"]=extractor.description
-        extractor_node["icon"]=set_has_proxy_value(extractor.icon)
-        #extractor_node["icon_url"]=extractor.description
-        extractor_node["url"]=extractor.url
+        extractor_data = {}
         extractor_node["type"]="extractor"
-        extractor_node["src"]=""
+        extractor_node["data"]=extractor_data
+
+        #extractor_node["name"] =extractor.name
+        extractor_data["description"]=extractor.description
+        extractor_data["icon"]=set_has_proxy_value(extractor.icon)
+        #extractor_node["icon_url"]=extractor.description
+        extractor_data["url"]=extractor.url
+        extractor_data["src"]=""
         
         nodes[extractor.name] = extractor_node
         #index_nodes +=1
@@ -473,21 +503,24 @@ def export_emjson(scene, nodes, edges):
 
     for source in scene.em_sources_list:
         source_node = {}
-        #source_node["name"] =source.name
-        source_node["description"]=source.description
-        source_node["icon"]=set_has_proxy_value(source.icon)
-        source_node["icon_url"]=source.icon_url
-        source_node["url"]=source.url
+        source_data = {}
         source_node["type"]="document"
+        source_node["data"]=source_data
+
+        #source_node["name"] =source.name
+        source_data["description"]=source.description
+        source_data["icon"]=set_has_proxy_value(source.icon)
+        source_data["icon_url"]=source.icon_url
+        source_data["url"]=source.url
         
         nodes[source.name] = source_node
         #index_nodes +=1
 
     for edge in scene.edges_list:
         edge_edge = {}
-        edge_edge["start"]=original_id_to_new_name(scene,edge.source)
-        edge_edge["end"]=original_id_to_new_name(scene,edge.target)
         edge_edge["type"]=edge.edge_type
+        edge_edge["from"]=original_id_to_new_name(scene,edge.source)
+        edge_edge["to"]=original_id_to_new_name(scene,edge.target)
         
         edges[index_nodes] = edge_edge
         index_nodes +=1
@@ -527,7 +560,8 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
         bpy.context.scene.view_layers['ViewLayer'].layer_collection.children['RB'].exclude = False
 
         #setup JSON variables
-        emviq_metadata = {}
+        root = {}
+        contextgraph = {}
         semanticgraph = {}
         nodes = {}
         edges = {}
@@ -535,12 +569,14 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
         emlist = {}
         site1 = {}
         
-        emviq_metadata['EM'] = semanticgraph
+        root["context"] = contextgraph
+        root["graph"] = emlist
+        contextgraph['epochs'] = epochs
         epochs = extract_epochs(scene,epochs)
         
-        semanticgraph['epochs'] = epochs
+        #semanticgraph['epochs'] = epochs
         semanticgraph['EMlist'] = emlist
-        emlist['site1'] = site1 # questo sarà sostituito dal nome del sito
+        emlist['graph1'] = site1 # questo sarà sostituito dal nome del sito
 
         #Prepare node graph for the JSON
         nodes, edges = export_emjson(scene, nodes, edges)
@@ -548,7 +584,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
         site1['edges'] = edges
         #print(nodes)
         # encode dict as JSON 
-        data = json.dumps(emviq_metadata, indent=4, ensure_ascii=True)
+        data = json.dumps(root, indent=4, ensure_ascii=True)
 
         # generate the JSON file path
         file_name = os.path.join(base_dir_scenes, "em.json")
@@ -710,6 +746,7 @@ def createfolder(base_dir, foldername):
 classes = [
     ER_UL_List,
     VIEW3D_PT_ExportPanel,
+    EM_runaton,
     EM_export,
     EM_openemviq,
     ExportuussData,
