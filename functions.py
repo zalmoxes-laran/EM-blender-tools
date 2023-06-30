@@ -813,8 +813,8 @@ def em_setup_mat_cycles(matname, R, G, B):
     nodes = mat.node_tree.nodes
     output = nodes.new('ShaderNodeOutputMaterial')
     output.location = (0, 0)
-    mainNode = nodes.new('ShaderNodeBsdfDiffuse')
-    mainNode.inputs['Color'].default_value = (R,G,B,scene.proxy_display_alpha)
+    mainNode = nodes.new('ShaderNodeBsdfPrincipled')
+    mainNode.inputs['Base Color'].default_value = (R,G,B,scene.proxy_display_alpha)
     mainNode.location = (-800, 50)
     mainNode.name = "diffuse"
     mixNode = nodes.new('ShaderNodeMixShader')
