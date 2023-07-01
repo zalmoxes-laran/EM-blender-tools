@@ -817,16 +817,19 @@ def em_setup_mat_cycles(matname, R, G, B):
     mainNode.inputs['Base Color'].default_value = (R,G,B,scene.proxy_display_alpha)
     mainNode.location = (-800, 50)
     mainNode.name = "diffuse"
-    mixNode = nodes.new('ShaderNodeMixShader')
-    mixNode.location = (-400,-50)
-    transpNode = nodes.new('ShaderNodeBsdfTransparent')
-    transpNode.location = (-800,-200)
-    mixNode.name = "mixnode"
-    mixNode.inputs[0].default_value = scene.proxy_display_alpha
+    #mixNode = nodes.new('ShaderNodeMixShader')
+    #mixNode.location = (-400,-50)
+    #transpNode = nodes.new('ShaderNodeBsdfTransparent')
+    #transpNode.location = (-800,-200)
+    #mixNode.name = "mixnode"
+    #mixNode.inputs[0].default_value = scene.proxy_display_alpha
+    mainNode.inputs['Alpha'].default_value = scene.proxy_display_alpha
 
-    links.new(mainNode.outputs[0], mixNode.inputs[1])
-    links.new(transpNode.outputs[0], mixNode.inputs[2])
-    links.new(mixNode.outputs[0], output.inputs[0])
+    links.new(mainNode.outputs[0], output.inputs[0])
+    
+    #links.new(mainNode.outputs[0], mixNode.inputs[1])
+    #links.new(transpNode.outputs[0], mixNode.inputs[2])
+    #links.new(mixNode.outputs[0], output.inputs[0])
     
 def check_material_presence(matname):
     mat_presence = False
