@@ -25,10 +25,10 @@ class OBJECT_OT_load_EMdb_xlsx(Operator):
     
     @classmethod
     def poll(cls, context):
-        #scene = context.scene
+        scene = context.scene
         is_active_button = False
         prefs = context.preferences.addons.get(__package__, None)
-        if prefs.preferences.is_external_module:# and scene.EMdb_xlsx_filepath is not None:
+        if prefs.preferences.is_external_module and scene.EMdb_xlsx_filepath :# and scene.EMdb_xlsx_filepath is not None:
             is_active_button = True
         return is_active_button
 	
@@ -38,7 +38,7 @@ class OBJECT_OT_load_EMdb_xlsx(Operator):
         import pandas
         import openpyxl
         scene = context.scene
-        newfile_name = scene.EMdb_xlsx_filepath
+        newfile_name = bpy.path.abspath(scene.EMdb_xlsx_filepath)
         data = pandas.read_excel(newfile_name, sheet_name ='sources')
         df = pandas.DataFrame(data, columns=['Name', 'Description']) 
         #print(df)

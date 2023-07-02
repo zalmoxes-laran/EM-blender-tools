@@ -299,6 +299,7 @@ class EM_import_GraphML(bpy.types.Operator):
         except IndexError as error:
             scene.em_list_index = 0
             node_send = scene.em_list[scene.em_list_index]
+        inspect_load_dosco_files()
         create_derived_lists(node_send)
         if context.scene.proxy_display_mode == "EM":
             bpy.ops.emset.emmaterial()

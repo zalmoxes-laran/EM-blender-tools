@@ -77,11 +77,28 @@ class EM_SetupPanel:
         ################ da qui setto la cartella DosCo ##################
 
         row = layout.row(align=True)
-        row.prop(context.scene, 'EMDosCo_dir', toggle = True, text ="DosCo")        
+        box = layout.box()
+        row = box.row()
+        row.prop(context.scene, 'EMDosCo_dir', toggle = True, text ="DosCo")  
+
+        ################ da qui setto la lista delle sources ##################
+
+        row = layout.row()
+        box = layout.box()
+        row = box.row()
+        row.label(text="Load external xlsx source file")
+        row.operator("load.emdb_xlsx", icon="STICKY_UVS_DISABLE", text='')
+        row.operator("open_prefs_panel.em_tools", icon="SETTINGS", text="")
+        row = box.row()
+
+        
+        row.prop(scene, "EMdb_xlsx_filepath", text="")      
 
         ################ da qui porzione di pannello per EMdb #####################
 
         row = layout.row(align=True)
+        box = layout.box()
+        row = box.row()
         db_type_current = scene.current_db_type
         split = row.split()
         col = split.column()
@@ -91,7 +108,8 @@ class EM_SetupPanel:
         op.db_type = db_type_current
         col = split.column(align=True)
         col.menu(sqlite_io.EMdb_type_menu.bl_idname, text=db_type_current, icon='COLOR')
-        row = layout.row(align=True)
+        row = box.row()
+        #row = layout.row(align=True)
         row.prop(context.scene, 'EMdb_file', toggle = True, text ="")
 
 class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):

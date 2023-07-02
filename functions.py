@@ -1131,3 +1131,32 @@ class em_create_collection(bpy.types.Operator):
         else:
             currentCol = bpy.data.collections.get(target_collection)
         return currentCol
+    
+def inspect_load_dosco_files():
+    context = bpy.context
+    scene = context.scene
+    if scene.EMDosCo_dir:
+        dir_path = scene.EMDosCo_dir
+        abs_dir_path = bpy.path.abspath(dir_path)
+        for entry in os.listdir(abs_dir_path):
+            if os.path.isfile:
+                if entry.startswith("D.") or entry.startswith("C."):
+                    #doc_file_path = bpy.path.abspath(os.path.join(dir_path, entry))
+                    doc_file_path = entry
+                    counter = 0
+                    for extractor_element in scene.em_extractors_list:
+                        if entry.startswith(extractor_element.name):
+                            scene.em_extractors_list[counter].url = doc_file_path
+                        counter =+1 
+                    counter = 0
+                    for combiner_element in scene.em_combiners_list:
+                        if entry.startswith(combiner_element.name):
+                            scene.em_combiners_list[counter].url = doc_file_path
+                        counter =+1 
+                    counter = 0
+                    for document_element in scene.em_sources_list:
+                        if entry.startswith(document_element.name):
+                            scene.em_sources_list[counter].url = doc_file_path
+                        counter =+1 
+
+    return 
