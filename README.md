@@ -57,7 +57,7 @@ or - as software - using the Zenodo DOI [![DOI](https://zenodo.org/badge/DOI/10.
 # Publications
 Main bibliographical reference (open access) of the current version of the EM (1.3) is:
 
-*Demetrescu, Emanuel, e Daniele Ferdani. 2021. «From Field Archaeology to Virtual Reconstruction: A Five Steps Method Using the Extended Matrix». Applied Sciences 11 (11). https://doi.org/10.3390/app11115206.*
+*Demetrescu, Emanuel, Bruno Fanini, e Enzo Cocca. 2023. «An Online Dissemination Workflow for the Scientific Process in CH through Semantic 3D: EMtools and EMviq Open Source Tools». Heritage 6 (2): 1264–76. https://doi.org/10.3390/heritage6020069.*
 
 <!---
 You can find [here](url) a complete list of publications where EM was employed in different national and international projects.
