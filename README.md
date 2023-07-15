@@ -24,13 +24,9 @@ For more details see the [EM-tools page](https://www.extendedmatrix.org/em-frame
 
 ## Changelog of EM-tools 1.3.2
 
-* full support of EM 1.3
-* a refactored export panel targeting Aton 3-based web apps (like EMviq) with tools to easily optimise models  for web visualisation;
+* Full support of EM 1.3
+* A refactored export panel targeting Aton 3-based web apps (like EMviq) with tools to easily optimise models  for web visualisation;
 * The original GitHub repository of the EM formal language can be found here
-
-Channel to join the community of users Telegram open-group
-
-For more details see the EM-tools page on the EM website
 
 ## Contribute to EM-tools
 
