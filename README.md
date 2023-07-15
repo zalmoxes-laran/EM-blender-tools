@@ -7,7 +7,7 @@
 ![Header](./public/res/header.jpg)
 -->
 
-[Extended Matrix 3D tools](http://extendedmatrix.org) - shortly EMBT, is an addon for Blender 3.x designed and developed by E. Demetrescu (CNR ISPC, ex ITABC) - EM 3D tools offers:
+[Extended Matrix 3D tools](https://www.extendedmatrix.org/discover/emf/emtools) - shortly EMBT, is an addon for Blender 3.x designed and developed by E. Demetrescu (CNR ISPC, ex ITABC) - EM 3D tools offers:
 
 * Integration of Extended Matrix language with Blender
 * Full support to create and visualize reconstruction hypotheses (EM reconstructive workflow)
