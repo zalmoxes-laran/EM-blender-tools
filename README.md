@@ -28,6 +28,12 @@ For more details see the [EM-tools page](https://www.extendedmatrix.org/em-frame
 * A refactored export panel targeting Aton 3-based web apps (like EMviq) with tools to easily optimise models  for web visualisation;
 * The original GitHub repository of the EM formal language can be found here
 
-## Contribute to EM-tools
+## Contribute
+You are more than welcome to contribute to the project by spotting bugs/issues and providing code or solutions through pull requests to fix or improve EM functionalities (see TODO list below). Get in touch here on github, through the [telegram open-group](https://t.me/UserGroupEM) or through the other channels.
 
-You are more than welcome to contribute to the project by spotting bugs/issues and providing code or solutions through pull requests to fix or improve EM-tools features. Use the aforementioned original Git Hub repository for collaborative editing.
+## TODO list
+
+- [ ] Statistical tools for the reconstrucion (volumes, typo of sources, property density)
+- [ ] New label system
+- [ ] New section for visual tools
+- [ ] Simplified proxy generation
