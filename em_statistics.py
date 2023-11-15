@@ -1,15 +1,102 @@
 import bpy
-from .functions import *
+import bmesh
+import math
 from bpy.types import Operator
 from bpy.types import Menu, Panel, UIList, PropertyGroup
-from . import sqlite_io
+import os
 
+def calcola_volume(obj):
+    #obj = bpy.context.active_object
+    
+    if obj == None or obj.type != 'MESH':
+        print("Nessun oggetto mesh selezionato.")
+        return
 
-#####################################################################
-#SETUP MENU
+    bpy.context.view_layer.update()
 
-class EM_SetupPanel:
-    bl_label = "EM setup (v1.4.0) dev6"
+    # Creazione di un nuovo oggetto BMesh
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bm.faces.ensure_lookup_table()
+
+    try:
+        volume = abs(bm.calc_volume())
+        print(f"Volume: {volume} metri cubi")
+    except ValueError:
+        print("Impossibile calcolare il volume. Assicurati che la mesh sia chiusa.")
+    finally:
+        bm.free()
+
+def calcola_superficie_totale(obj):
+    #obj = bpy.context.active_object
+    
+    if obj == None or obj.type != 'MESH':
+        print("Nessun oggetto mesh selezionato.")
+        return
+
+    bpy.context.view_layer.update()
+    
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bm.faces.ensure_lookup_table()
+
+    superficie = sum(f.calc_area() for f in bm.faces)
+    bm.free()
+
+    print(f"Superficie totale: {superficie} metri quadri")
+
+def calcola_superficie_verticale(obj, soglia_angolo=5):
+    #obj = bpy.context.active_object
+    
+    if obj == None or obj.type != 'MESH':
+        print("Nessun oggetto mesh selezionato.")
+        return
+
+    bpy.context.view_layer.update()
+    
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bm.faces.ensure_lookup_table()
+
+    superficie_verticale = 0
+    for f in bm.faces:
+        # Calcolare l'angolo tra il vettore normale del poligono e l'asse Z
+        angolo = f.normal.angle([0,0,1])
+        
+        # Convertire l'angolo in gradi
+        angolo_gradi = math.degrees(angolo)
+
+        # Verificare se l'angolo è inferiore alla soglia_angolo
+        if 90 - soglia_angolo <= angolo_gradi <= 90 + soglia_angolo:
+            superficie_verticale += f.calc_area()
+
+    print(f"Superficie verticale: {superficie_verticale} metri quadri")
+
+class EM_calculate_stats(bpy.types.Operator):
+    bl_idname = "calculate.emstats"
+    bl_label = "Calculate EM stats"
+    bl_options = {"REGISTER", "UNDO"}
+
+    #node_type: StringProperty()
+
+    def execute(self, context):
+        scene = context.scene
+        
+        obj = bpy.context.active_object
+
+        if obj == None or obj.type != 'MESH':
+            print("Nessun oggetto mesh selezionato.")
+
+        else: 
+            bpy.context.view_layer.update()
+            calcola_superficie_totale(obj)
+            #calcola_superficie_volume(obj)
+            calcola_superficie_verticale(obj)
+            calcola_volume(obj)
+        return {'FINISHED'}
+
+class EM_statistics:
+    bl_label = "EM statistics"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
 
@@ -28,8 +115,10 @@ class EM_SetupPanel:
         row = layout.row(align=True)
         split = row.split()
         col = split.column()
-        col.label(text="EM file")
-        
+        col.label(text="Calculate area and volume")
+        col.operator("calculate.emstats", icon= 'IMPORT', text="calculate")
+
+'''        
         if scene.EM_file:
             col = split.column(align=True)
             if is_em_list:
@@ -93,40 +182,23 @@ class EM_SetupPanel:
 
         
         row.prop(scene, "EMdb_xlsx_filepath", text="")      
-
-        ################ da qui porzione di pannello per EMdb #####################
-
-        row = layout.row(align=True)
-        box = layout.box()
-        row = box.row()
-        db_type_current = scene.current_db_type
-        split = row.split()
-        col = split.column()
-        col.label(text="EMdb file")
-        col = split.column(align=True)
-        op = col.operator("import.emdb_sqlite", icon= 'IMPORT', text='Import')
-        op.db_type = db_type_current
-        col = split.column(align=True)
-        col.menu(sqlite_io.EMdb_type_menu.bl_idname, text=db_type_current, icon='COLOR')
-        row = box.row()
-        #row = layout.row(align=True)
-        row.prop(context.scene, 'EMdb_file', toggle = True, text ="")
-
-class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):
+'''
+class VIEW3D_PT_Statistics(Panel, EM_statistics):
     bl_category = "EM"
-    bl_idname = "VIEW3D_PT_SetupPanel"
+    bl_idname = "VIEW3D_PT_Statistics"
     bl_context = "objectmode"
 
 #SETUP MENU
 #####################################################################
 
 classes = [
-    VIEW3D_PT_SetupPanel]
+    VIEW3D_PT_Statistics,
+    EM_calculate_stats]
 
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
-
+'''
     bpy.types.Scene.EMdb_file = StringProperty(
         name = "EM db file",
         default = "",
@@ -140,9 +212,9 @@ def register():
         description = "Define the path to the EM DosCo folder",
         subtype = 'DIR_PATH'
     )   
-
+'''
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
-    del bpy.types.Scene.EMdb_file
-    del bpy.types.Scene.EMDosCo_dir
+    #del bpy.types.Scene.EMdb_file
+    #del bpy.types.Scene.EMDosCo_dir

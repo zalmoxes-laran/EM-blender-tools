@@ -21,7 +21,7 @@ bl_info = {
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
     "version": (1, 4, 0),
-    "blender": (3, 6, 0),
+    "blender": (3, 6, 4),
     "location": "3D View > Toolbox",
     "warning": "This addon is in alpha stage.",
     "wiki_url": "",
@@ -62,6 +62,7 @@ from . import (
         sqlite_io,
         EMdb_excel,
         external_modules_install,
+        em_statistics
         #google_credentials
         )
 
@@ -465,6 +466,8 @@ def register():
 
        export_manager.register()
 
+       em_statistics.register()
+
        check_external_modules() 
 
 
@@ -619,6 +622,7 @@ def unregister():
        em_setup.unregister()
        EMdb_excel.unregister()
        export_manager.unregister()
+       em_statistics.unregister()
 
        for cls in classes:
               try:
