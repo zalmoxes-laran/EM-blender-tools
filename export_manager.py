@@ -15,7 +15,6 @@ from .functions import *
 
 import random
 
-
 #####################################################################
 #Export Section
 
@@ -371,25 +370,21 @@ class EM_export(bpy.types.Operator):
             edges = {}
             
             emviq_scene['scenegraph'] = scenegraph
-            '''
-            section to activate light and background to make better visual effect
-            "environment":{
-                "mainpano":{"url":"samples/pano/defsky-grass.jpg"},
-                "lightprobes":{"auto":true},
-                "mainlight":{"direction":[-0.0846315900906896,-0.7511136796681608,-0.6547256938398531]}
-            },
 
-            #section for the metadata
-            "backgroundColor": "red",
-            "backgroundColorType": "MatHub",
-            "mainPanorama": "samples/bg-welcome.jpg",
-            "homePOV": {
-                "position": {"x":-4,"y":1.5,"z":0.0},
-                "target": {"x":0,"y":1.5,"z":0}
-            }
-            '''
             #Prepare node graph for the JSON
             nodes, edges = export_rm(scene, base_dir_collections, True, nodes, self.em_export_format, edges, utente_aton, progetto_aton)
+
+            context = {}
+            
+            #section to activate light and background to make better visual effect
+            context['environment'] = {
+                "mainpano":{"url":"samples/pano/defsky-grass.jpg"},
+                "lightprobes":{"auto":True},
+                "mainlight":{"direction":[-0.0846315900906896,-0.7511136796681608,-0.6547256938398531]}
+            }
+            
+            scenegraph['context'] = context
+
             scenegraph['nodes'] = nodes
             scenegraph['edges'] = edges
 
@@ -468,7 +463,7 @@ def export_emjson(scene, nodes, edges):
         uuss_node["type"] = convert_shape2type(uuss.shape)[0]
         uuss_node["name"] = uuss.name
         uuss_node["scale"] = 10.0
-        uuss_node["visible"] = "false"
+        uuss_node["visible"] = False
         uuss_node["data"] = uuss_data 
         #uuss_node["name"] =uuss.name
         uuss_data["description"]=uuss.description
@@ -485,7 +480,7 @@ def export_emjson(scene, nodes, edges):
         property_node["type"]="property"
         property_node["name"] =property.name
         property_node["scale"] = 10.0
-        property_node["visible"] = "false"
+        property_node["visible"] = False
         property_node["data"]=property_data
         property_data["description"]=property.description
         property_data["icon"]=set_has_proxy_value(property.icon)
@@ -500,7 +495,7 @@ def export_emjson(scene, nodes, edges):
         combiner_node["type"]="combiner"
         combiner_node["name"] =combiner.name
         combiner_node["scale"] = 10.0
-        combiner_node["visible"] = "false"
+        combiner_node["visible"] = False
         combiner_node["data"]=combiner_data
         combiner_data["description"]=combiner.description
         combiner_data["icon"]=set_has_proxy_value(combiner.icon)
@@ -515,7 +510,7 @@ def export_emjson(scene, nodes, edges):
         extractor_node["type"]="extractor"
         extractor_node["name"] =extractor.name
         extractor_node["scale"] = 10.0
-        extractor_node["visible"] = "false"
+        extractor_node["visible"] = False
         extractor_node["data"]=extractor_data
         extractor_data["description"]=extractor.description
         extractor_data["icon"]=set_has_proxy_value(extractor.icon)
@@ -531,7 +526,7 @@ def export_emjson(scene, nodes, edges):
         source_data = {}
         source_node["type"]="document"
         source_node["name"] =source.name
-        source_node["visible"] = "false"
+        source_node["visible"] = False
         source_node["data"]=extractor_data
         source_node["data"]=source_data
         
@@ -599,7 +594,15 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
         epochs = {}
         emlist = {}
         site1 = {}
-        
+        #modifica per 3dgraph
+        contextgraph['backgroundColor'] = "red"
+        contextgraph['backgroundColorType'] = "MatHub"
+        contextgraph['mainPanorama'] = "samples/bg-welcome.jpg"
+        homePOV = {}
+        contextgraph['homePOV'] = homePOV
+        homePOV['position'] =  {"x":-10.4,"y":8,"z":4.2}
+        homePOV['target']=  {"x":0,"y":4,"z":-1}
+        #####################
         root["context"] = contextgraph
         root["graph"] = emlist
         contextgraph['epochs'] = epochs
