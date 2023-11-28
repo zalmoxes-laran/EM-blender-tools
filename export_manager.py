@@ -603,6 +603,9 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
         homePOV['position'] =  {"x":-10.4,"y":8,"z":4.2}
         homePOV['target']=  {"x":0,"y":4,"z":-1}
         #####################
+        #aggiunta landing nodes 
+        contextgraph['landingNodes'] = ["US","USVs","serSU","serUSV","USVn","SF","VSF","USD","TSU"]
+        
         root["context"] = contextgraph
         root["graph"] = emlist
         contextgraph['epochs'] = epochs
