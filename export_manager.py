@@ -501,7 +501,7 @@ def export_emjson(scene, nodes, edges):
         combiner_data["icon"]=set_has_proxy_value(combiner.icon)
         combiner_data["icon_url"]=combiner.icon_url
         combiner_data["url"]=combiner.url
-        nodes[combiner.name] = combiner_node
+        nodes[combiner.id_node] = combiner_node
         index_nodes +=1
 
     for extractor in scene.em_extractors_list:
@@ -518,7 +518,7 @@ def export_emjson(scene, nodes, edges):
         extractor_data["url"]=extractor.url
         extractor_data["src"]=""
         
-        nodes[extractor.name] = extractor_node
+        nodes[extractor.id_node] = extractor_node
         #index_nodes +=1
 
     for source in scene.em_sources_list:
@@ -535,7 +535,7 @@ def export_emjson(scene, nodes, edges):
         source_data["icon_url"]=source.icon_url
         source_data["url"]=source.url
         
-        nodes[source.name] = source_node
+        nodes[source.id_node] = source_node
         #index_nodes +=1
 
     for edge in scene.edges_list:
