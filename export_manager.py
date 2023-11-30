@@ -517,7 +517,7 @@ def export_emjson(scene, nodes, edges):
         combiner_layout["visible"] = False
         combiner_layout["icon_url"]=combiner.icon_url
 
-        nodes[combiner.name] = combiner_node
+        nodes[combiner.id_node] = combiner_node
         #index_nodes +=1
 
     for extractor in scene.em_extractors_list:
@@ -538,7 +538,7 @@ def export_emjson(scene, nodes, edges):
         extractor_layout["visible"] = False
         extractor_layout["icon_url"]=extractor.description
 
-        nodes[extractor.name] = extractor_node
+        nodes[extractor.id_node] = extractor_node
         #index_nodes +=1
 
     for source in scene.em_sources_list:
@@ -558,7 +558,7 @@ def export_emjson(scene, nodes, edges):
         source_layout["visible"] = False
         source_layout["icon_url"] = source.icon_url
 
-        nodes[source.name] = source_node
+        nodes[source.id_node] = source_node
         #index_nodes +=1
 
     for edge in scene.edges_list:
