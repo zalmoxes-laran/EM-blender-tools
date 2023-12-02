@@ -211,9 +211,9 @@ def EM_extract_combiner_node(node_element):
                     node_description = clean_comments(check_if_empty(subnode.text))
 
         if not is_d4:
-            nodeurl = '--None--'
+            nodeurl = ''
         if not is_d5:
-            nodedescription = '--None--'
+            nodedescription = ''
         return nodename, node_id, node_description, nodeurl, subnode_is_combiner
 
 def EM_extract_extractor_node(node_element):
@@ -258,9 +258,9 @@ def EM_extract_extractor_node(node_element):
                     node_description = clean_comments(check_if_empty(subnode.text))
 
         if not is_d4:
-            nodeurl = '--None--'
+            nodeurl = ''
         if not is_d5:
-            nodedescription = '--None--'
+            nodedescription = ''
         return nodename, node_id, node_description, nodeurl, subnode_is_extractor
 
 def EM_extract_document_node(node_element):
@@ -296,14 +296,14 @@ def EM_extract_document_node(node_element):
                     is_d5 = True
                     node_description = clean_comments(subnode.text)
         if not is_d4:
-            nodeurl = '--None--'
+            nodeurl = ''
         if not is_d5:
-            nodedescription = '--None--'
+            nodedescription = ''
         return nodename, node_id, node_description, nodeurl, subnode_is_document
 
 def check_if_empty(name):
     if name == None:
-        name = "--None--"
+        name = ""
     return name
 
 def EM_extract_property_node(node_element):
@@ -338,9 +338,9 @@ def EM_extract_property_node(node_element):
                     node_description = clean_comments(subnode.text)
 
         if not is_d4:
-            nodeurl = '--None--'
+            nodeurl = ''
         if not is_d5:
-            nodedescription = '--None--'        
+            nodedescription = ''        
 
 
     return nodename, node_id, node_description, nodeurl, subnode_is_property
@@ -388,9 +388,9 @@ def EM_extract_node_name(node_element):
             #for geometry in subnode.findall('./{http://www.yworks.com/xml/graphml}Geometry'):
                 node_y_pos = geometry.attrib['y']
     if not is_d4:
-        nodeurl = '--None--'
+        nodeurl = ''
     if not is_d5:
-        nodedescription = '--None--'
+        nodedescription = ''
     return nodename, nodedescription, nodeurl, nodeshape, node_y_pos, fillcolor 
 
 def EM_extract_continuity(node_element):
@@ -409,7 +409,7 @@ def EM_extract_continuity(node_element):
                 node_y_pos = float(geometry.attrib['y'])
                 #print("il valore y di nodo "+ str(nodedescription) +" = "+str(node_y_pos))
     if not is_d5:
-        nodedescription = '--None--'
+        nodedescription = ''
     return nodedescription, node_y_pos 
 
 def EM_check_node_type(node_element):
