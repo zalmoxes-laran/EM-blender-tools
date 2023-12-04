@@ -174,29 +174,6 @@ class EM_calculate_stats(bpy.types.Operator):
 
         return {'FINISHED'}
 
-
-# Pannello dell'UI
-class EMPanel(Panel):
-    bl_label = "Esporta Mesh in CSV"
-    bl_idname = "VIEW3D_PT_export_csv"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Esporta CSV"
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        em_csv_settings = scene.em_csv_settings
-        
-        # Pulsante per esportare il CSV
-        row = layout.row()
-        row.prop(em_csv_settings, "export_csv", text="Esporta CSV")
-
-        # Pulsante che attiva l'operatore del file browser se il booleano è vero
-        if em_csv_settings.export_csv:
-            row = layout.row()
-            row.operator("export_mesh.csv", text="Salva CSV")
-
 class EM_statistics:
     bl_label = "EM statistics"
     bl_space_type = 'VIEW_3D'
@@ -220,71 +197,19 @@ class EM_statistics:
         col.label(text="Calculate area and volume")
         col.operator("calculate.emstats", icon= 'IMPORT', text="calculate")
 
-'''        
-        if scene.EM_file:
-            col = split.column(align=True)
-            if is_em_list:
-                button_load_text = 'Reload'
-                button_load_icon = 'FILE_REFRESH'
-            else:
-                button_load_text = 'Load'
-                button_load_icon = 'IMPORT'
-            col.operator("import.em_graphml", icon= button_load_icon, text=button_load_text)
-        else:
-            col.label(text="Select a GraphML file below", icon='SORT_ASC')
-        #row = layout.row()
-        if is_em_list:
-            col = split.column(align=True)
-            op = col.operator("list_icon.update", icon="PRESET", text='Refresh')
-            op.list_type = "all"
-
-        row = layout.row(align=True)
-        row.prop(context.scene, 'EM_file', toggle = True, text ="")
+        layout = self.layout
+        scene = context.scene
+        em_csv_settings = scene.em_csv_settings
         
-        ############# box con le statistiche del file ##################
-        box = layout.box()
-        row = box.row(align=True)
-        #row = layout.row(align=True)
-        split = row.split()
-        col = split.column()
-        col.label(text="US/USV")
-        #col = split.column()
-        col.prop(scene, "em_list", text='')
-        col = split.column()
-        col.label(text="Periods")
-        #col = split.column()
-        col.prop(scene, "epoch_list", text='')
-
-        col = split.column()
-        col.label(text="Properties")
-        #col = split.column()
-        col.prop(scene, "em_properties_list", text='')
-
-        col = split.column()
-        col.label(text="Sources")
-        #col = split.column()
-        col.prop(scene, "em_sources_list", text='')
-
-        ################ da qui setto la cartella DosCo ##################
-
-        row = layout.row(align=True)
-        box = layout.box()
-        row = box.row()
-        row.prop(context.scene, 'EMDosCo_dir', toggle = True, text ="DosCo")  
-
-        ################ da qui setto la lista delle sources ##################
-
+        # Pulsante per esportare il CSV
         row = layout.row()
-        box = layout.box()
-        row = box.row()
-        row.label(text="Load external xlsx source file")
-        row.operator("load.emdb_xlsx", icon="STICKY_UVS_DISABLE", text='')
-        row.operator("open_prefs_panel.em_tools", icon="SETTINGS", text="")
-        row = box.row()
+        row.prop(em_csv_settings, "export_csv", text="Esporta CSV")
 
-        
-        row.prop(scene, "EMdb_xlsx_filepath", text="")      
-'''
+        # Pulsante che attiva l'operatore del file browser se il booleano è vero
+        if em_csv_settings.export_csv:
+            row = layout.row()
+            row.operator("export_mesh.csv", text="Salva CSV")
+
 class VIEW3D_PT_Statistics(Panel, EM_statistics):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_Statistics"
@@ -307,7 +232,7 @@ classes = [
 
 def register():
     bpy.utils.register_class(EMExportCSV)
-    bpy.utils.register_class(EMPanel)
+    #bpy.utils.register_class(EMPanel)
     bpy.utils.register_class(EMProperties)
 
     bpy.types.Scene.em_csv_settings = PointerProperty(type=EMProperties)
@@ -331,7 +256,7 @@ def register():
 '''
 def unregister():
     bpy.utils.unregister_class(EMExportCSV)
-    bpy.utils.unregister_class(EMPanel)
+    #bpy.utils.unregister_class(EMPanel)
     bpy.utils.unregister_class(EMProperties)
     del bpy.types.Scene.em_csv_settings
 
