@@ -397,7 +397,10 @@ class EM_export(bpy.types.Operator):
             # write JSON file
             with open(file_name, 'w') as outfile:
                 outfile.write(data + '\n')
+
+        # Export semantic descriptio in JSON file format 
         bpy.ops.export.emjson('INVOKE_DEFAULT')
+
         return {'FINISHED'}
 
 class EM_openemviq(bpy.types.Operator):
@@ -560,7 +563,7 @@ def export_emjson(scene, nodes, edges):
 
         nodes[source.id_node] = source_node
         #index_nodes +=1
-
+    '''
     for edge in scene.edges_list:
         edge_edge = {}
         edge_edge["type"]=edge.edge_type       
@@ -571,6 +574,28 @@ def export_emjson(scene, nodes, edges):
         #edge_edge["appareance"]= edge_appareance     
         edges[index_nodes] = edge_edge
         index_nodes +=1
+    '''
+
+    # Suppongo che 'scene.edges_list' sia una lista di edge disponibili
+    edges = {}
+    for edge in scene.edges_list:
+        edge_type = edge.edge_type
+        
+        # Crea la lista per questo tipo di edge se non esiste già
+        if edge_type not in edges:
+            edges[edge_type] = []
+
+        # Crea il dizionario per l'edge corrente
+        edge_dict = {
+            "from": original_id_to_new_name(scene, edge.source),
+            "to": original_id_to_new_name(scene, edge.target)
+        }
+
+        # Aggiungi l'edge alla lista corrispondente
+        edges[edge_type].append(edge_dict)
+
+        # Ora 'edges' contiene i tuoi edge raggruppati per tipo
+
 
     return nodes, edges
 
@@ -603,8 +628,13 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
             base_dir_scenes = createfolder(os.path.join(base_dir,"data","scenes",utente_aton), progetto_aton)
 
         # eventually reactivate collections RM and RB
-        bpy.context.scene.view_layers['ViewLayer'].layer_collection.children['RM'].exclude = False
-        bpy.context.scene.view_layers['ViewLayer'].layer_collection.children['RB'].exclude = False
+
+        collectionRM = scene.view_layers['ViewLayer'].layer_collection.children.get('RM')
+        if collectionRM:
+            collectionRM.exclude = False
+        collectionRB = scene.view_layers['ViewLayer'].layer_collection.children.get('RB')
+        if collectionRB:
+            collectionRB.exclude = False
 
         #setup JSON variables
         root = {}
