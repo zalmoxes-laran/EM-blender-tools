@@ -18,9 +18,9 @@ def esporta_in_csv(objs, file_path):
         writer.writeheader()
         for obj in objs:
             # Calcola le metriche per l'oggetto
-            volume = calcola_volume(obj)
-            superficie_totale = calcola_superficie_totale(obj)
-            superficie_verticale = calcola_superficie_verticale(obj)
+            volume = arrotonda_a_tre_decimali(calcola_volume(obj))
+            superficie_totale = arrotonda_a_tre_decimali(calcola_superficie_totale(obj))
+            superficie_verticale = arrotonda_a_tre_decimali(calcola_superficie_verticale(obj))
             
             # Scrivi le metriche nell'CSV
             writer.writerow({
@@ -59,6 +59,10 @@ def calcola_volume(obj):
         print("Nessun oggetto mesh selezionato.")
         return
 
+    # Verifica se il conteggio dei poligoni è zero
+    if len(obj.data.polygons) == 0:
+        return        
+    
     bpy.context.view_layer.update()
 
     # Creazione di un nuovo oggetto BMesh
@@ -83,6 +87,10 @@ def calcola_superficie_totale(obj):
         print("Nessun oggetto mesh selezionato.")
         return
 
+    # Verifica se il conteggio dei poligoni è zero
+    if len(obj.data.polygons) == 0:
+        return        
+
     bpy.context.view_layer.update()
     
     bm = bmesh.new()
@@ -97,10 +105,14 @@ def calcola_superficie_totale(obj):
 
 def calcola_superficie_verticale(obj, soglia_angolo=5):
     #obj = bpy.context.active_object
-    
+    print(obj.name)
     if obj == None or obj.type != 'MESH':
         print("Nessun oggetto mesh selezionato.")
         return
+
+    # Verifica se il conteggio dei poligoni è zero
+    if len(obj.data.polygons) == 0:
+        return        
 
     bpy.context.view_layer.update()
     
@@ -110,69 +122,23 @@ def calcola_superficie_verticale(obj, soglia_angolo=5):
 
     superficie_verticale = 0
     for f in bm.faces:
-        # Calcolare l'angolo tra il vettore normale del poligono e l'asse Z
-        angolo = f.normal.angle([0,0,1])
-        
-        # Convertire l'angolo in gradi
-        angolo_gradi = math.degrees(angolo)
+        # Controlla che la normale non sia un vettore di lunghezza zero
+        if f.normal.length > 0:  
+            # Calcolare l'angolo tra il vettore normale del poligono e l'asse Z
+            angolo = f.normal.angle([0,0,1])
+            
+            # Convertire l'angolo in gradi
+            angolo_gradi = math.degrees(angolo)
 
-        # Verificare se l'angolo è inferiore alla soglia_angolo
-        if 90 - soglia_angolo <= angolo_gradi <= 90 + soglia_angolo:
-            superficie_verticale += f.calc_area()
+            # Verificare se l'angolo è inferiore alla soglia_angolo
+            if 90 - soglia_angolo <= angolo_gradi <= 90 + soglia_angolo:
+                superficie_verticale += f.calc_area()
 
     print(f"Superficie verticale: {superficie_verticale} metri quadri")
     return superficie_verticale
 
 def arrotonda_a_tre_decimali(valore):
     return round(valore, 3)
-
-
-class EM_calculate_stats(bpy.types.Operator):
-    bl_idname = "calculate.emstats"
-    bl_label = "Calculate EM stats"
-    bl_options = {"REGISTER", "UNDO"}
-
-    #node_type: StringProperty()
-    '''
-    def execute(self, context):
-        scene = context.scene
-        
-        obj = bpy.context.active_object
-
-        if obj == None or obj.type != 'MESH':
-            print("Nessun oggetto mesh selezionato.")
-
-        else: 
-            bpy.context.view_layer.update()
-            calcola_superficie_totale(obj)
-            #calcola_superficie_volume(obj)
-            calcola_superficie_verticale(obj)
-            calcola_volume(obj)
-        return {'FINISHED'}
-        '''
-    def execute(self, context):
-        # Ottieni tutti gli oggetti selezionati di tipo 'MESH'
-        objs = [obj for obj in context.selected_objects if obj.type == 'MESH']
-
-        # Apri il file CSV per la scrittura
-        with open(self.filepath, 'w', newline='') as csvfile:
-            fieldnames = ['Nome Oggetto', 'Volume (m^3)', 'Superficie Totale (m^2)', 'Superficie Verticale (m^2)']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-
-            # Per ogni oggetto calcola i dati e scrivi nel CSV
-            for obj in objs:
-                volume = arrotonda_a_tre_decimali(calcola_volume(obj))
-                superficie_totale = arrotonda_a_tre_decimali(calcola_superficie_totale(obj))
-                superficie_verticale = arrotonda_a_tre_decimali(calcola_superficie_verticale(obj))
-                writer.writerow({
-                    'Nome Oggetto': obj.name,
-                    'Volume (m^3)': volume,
-                    'Superficie Totale (m^2)': superficie_totale,
-                    'Superficie Verticale (m^2)': superficie_verticale
-                })
-
-        return {'FINISHED'}
 
 class EM_statistics:
     bl_label = "EM statistics"
@@ -189,14 +155,7 @@ class EM_statistics:
             is_em_list = True
         else:
             is_em_list = False
-        #box = layout.box()
-
-        row = layout.row(align=True)
-        split = row.split()
-        col = split.column()
-        col.label(text="Calculate area and volume")
-        col.operator("calculate.emstats", icon= 'IMPORT', text="calculate")
-
+            
         layout = self.layout
         scene = context.scene
         em_csv_settings = scene.em_csv_settings
@@ -227,8 +186,8 @@ class EMProperties(PropertyGroup):
     )
 
 classes = [
-    VIEW3D_PT_Statistics,
-    EM_calculate_stats]
+    VIEW3D_PT_Statistics
+    ]
 
 def register():
     bpy.utils.register_class(EMExportCSV)
