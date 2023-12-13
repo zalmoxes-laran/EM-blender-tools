@@ -9,25 +9,40 @@ import csv
 from bpy_extras.io_utils import ExportHelper
 from bpy.props import BoolProperty, PointerProperty
 from bpy.types import Operator
+from .functions import *
 
 def esporta_in_csv(objs, file_path):
     with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
-        fieldnames = ['Nome Oggetto', 'Volume (m^3)', 'Superficie Totale (m^2)', 'Superficie Verticale (m^2)']
+        fieldnames = ['Name', 'EM node', 'Epoch', 'Description', 'Volume (m^3)', 'Measurement type', 'Total Surface (m^2)', 'Vertical surface (m^2)']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
         writer.writeheader()
         for obj in objs:
             # Calcola le metriche per l'oggetto
-            volume = arrotonda_a_tre_decimali(calcola_volume(obj))
+            misurazione = None
+            volume, misurazione = calcola_volume(obj)
             superficie_totale = arrotonda_a_tre_decimali(calcola_superficie_totale(obj))
             superficie_verticale = arrotonda_a_tre_decimali(calcola_superficie_verticale(obj))
-            
+            epoca = None
+            description = None
+            emnode = ["none","none"]
+
+            for i in bpy.context.scene.em_list:
+                if obj.name == i.name:
+                    epoca = i.epoch
+                    description = i.description
+                    emnode = convert_shape2type(i.shape) 
+
             # Scrivi le metriche nell'CSV
             writer.writerow({
-                'Nome Oggetto': obj.name,
-                'Volume (m^3)': volume,
-                'Superficie Totale (m^2)': superficie_totale,
-                'Superficie Verticale (m^2)': superficie_verticale
+                'Name': obj.name,
+                'EM node': emnode[0],
+                'Epoch': epoca,
+                'Description': description,
+                'Volume (m^3)': arrotonda_a_tre_decimali(volume),
+                'Measurement type': misurazione,
+                'Total Surface (m^2)': superficie_totale,
+                'Vertical surface (m^2)': superficie_verticale
             })
 
 # Operatore per esportare in CSV
@@ -54,7 +69,7 @@ class EMExportCSV(Operator, ExportHelper):
 
 def calcola_volume(obj):
     #obj = bpy.context.active_object
-    
+    misurazione = None
     if obj == None or obj.type != 'MESH':
         print("Nessun oggetto mesh selezionato.")
         return
@@ -62,23 +77,39 @@ def calcola_volume(obj):
     # Verifica se il conteggio dei poligoni è zero
     if len(obj.data.polygons) == 0:
         return        
-    
+
     bpy.context.view_layer.update()
 
-    # Creazione di un nuovo oggetto BMesh
+    # Crea una copia dell'oggetto con i modificatori applicati
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    obj_evaluated = obj.evaluated_get(depsgraph)
+    mesh_copy = obj_evaluated.to_mesh()
+
     bm = bmesh.new()
-    bm.from_mesh(obj.data)
+    bm.from_mesh(mesh_copy)
     bm.faces.ensure_lookup_table()
 
+    for edge in bm.edges:
+        # Se un bordo è condiviso da meno di 2 facce, la mesh è aperta
+        if len(edge.link_faces) < 2:
+            dimensions = obj.dimensions
+            volume = dimensions.x * dimensions.y * dimensions.z
+            misurazione = "Bounding box (open mesh)"
+            bm.free()
+            return volume, misurazione
     try:
-        volume = abs(bm.calc_volume())
-        #print(f"Volume: {volume} metri cubi")
+        # Calcola il volume
+        volume = bm.calc_volume(signed=False)
+        misurazione = "Closed Mesh"
     except ValueError:
         volume = -10
+        misurazione = "Not possible to calculate"
         #print("Impossibile calcolare il volume. Assicurati che la mesh sia chiusa.")
     finally:
+        # Rilascia il BMesh e rimuovi la copia della mesh
         bm.free()
-    return volume
+        obj_evaluated.to_mesh_clear()
+    return volume, misurazione
 
 def calcola_superficie_totale(obj):
     #obj = bpy.context.active_object
@@ -161,13 +192,15 @@ class EM_statistics:
         em_csv_settings = scene.em_csv_settings
         
         # Pulsante per esportare il CSV
-        row = layout.row()
-        row.prop(em_csv_settings, "export_csv", text="Esporta CSV")
+        #row = layout.row()
+        #row.prop(em_csv_settings, "export_csv", text="Esporta CSV")
 
         # Pulsante che attiva l'operatore del file browser se il booleano è vero
-        if em_csv_settings.export_csv:
-            row = layout.row()
-            row.operator("export_mesh.csv", text="Salva CSV")
+        #if em_csv_settings.export_csv:
+        row = layout.row()
+        row.label(text="Select proxies and export statistical data")
+        row = layout.row()
+        row.operator("export_mesh.csv", text="Export CSV")
 
 class VIEW3D_PT_Statistics(Panel, EM_statistics):
     bl_category = "EM"

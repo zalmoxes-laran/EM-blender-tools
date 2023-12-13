@@ -695,29 +695,7 @@ class OBJECT_OT_ExportUUSS(bpy.types.Operator):
             
         return {'FINISHED'}
 
-def convert_shape2type(yedtype): 
-    # restituisce una coppia di info: short e verbose
-    nodetype = []
-    if yedtype == "rectangle":
-        nodetype = ["US","Stratigraphic Unit"]
-    elif yedtype == "parallelogram":
-        nodetype = ["USVs","Structural Virtual Stratigrafic Units"]
-    elif yedtype == "ellipse":
-        #nodetype = ["SUseries","Series of USVs"]
-        nodetype = ["serSU","Series of USVs"] 
-    elif yedtype == "white_ellipse":
-        nodetype = ["serUSV", "Series of US"]        
-    elif yedtype == "hexagon":
-        nodetype = ["USVn","Structural Virtual Stratigrafic Units"]
-    elif yedtype == "octagon_white":
-        nodetype = ["SF","Special Find"]
-    elif yedtype == "octagon": #da verificare
-        nodetype = ["VSF","Virtual Special Find"]
-    elif yedtype == "roundrectangle":
-        nodetype = ["USD","Documentary Stratigraphic Unit"]
-    #else:
-    #    nodetype = ["unknow","unrecognisized node"]
-    return nodetype
+
 
 def write_UUSS_data(context, filepath, only_UUSS, header):
     print("running write some data...")

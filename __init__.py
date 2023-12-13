@@ -21,7 +21,7 @@ bl_info = {
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
     "version": (1, 4, 0),
-    "blender": (3, 6, 4),
+    "blender": (4, 0, 1),
     "location": "3D View > Toolbox",
     "warning": "This addon is in alpha stage.",
     "wiki_url": "",
@@ -76,6 +76,26 @@ from .external_modules_install import check_external_modules
 # demo bare-bones preferences 
 @addon_updater_ops.make_annotations
 #@telegram_io.main()
+
+
+class EMAddonSettings(bpy.types.PropertyGroup):
+    preserve_web_url: bpy.props.BoolProperty(
+        name="Preserve Web URL",
+        description="Preserve the web URL instead of overwriting",
+        default=True
+    )
+
+    overwrite_url_with_dosco_filepath: bpy.props.BoolProperty(
+        name="Overwrite URL with DosCo Filepath",
+        description="Overwrite the URL with DosCo Filepath",
+        default=False
+    )
+
+    dosco_advanced_options: bpy.props.BoolProperty(
+        name="Show advanced options ",
+        description="Catch more information from DosCo folder loading the GraphML",
+        default=False
+    )
 
 class EmPreferences(bpy.types.AddonPreferences):
 	bl_idname = __package__
@@ -432,6 +452,7 @@ classes = (
     paradata_manager.EM_files_opener,
     functions.OBJECT_OT_CenterMass,
     functions.OBJECT_OT_labelonoff,
+    EMAddonSettings,
     EMListItem,
     EM_Other_Settings,
     EPOCHListItem,
@@ -609,6 +630,7 @@ def register():
        description="Define the maximum resolution of the bigger side (it depends if it is a squared landscape or portrait image) of the output images",
        )
 
+       bpy.types.WindowManager.em_addon_settings = bpy.props.PointerProperty(type=EMAddonSettings)
        
        
 
@@ -685,7 +707,7 @@ def unregister():
        del bpy.types.Scene.EM_gltf_export_maxres
        del bpy.types.Scene.EM_gltf_export_quality
        del bpy.types.Scene.enable_image_compression
-       
+       del bpy.types.WindowManager.em_addon_settings
 
        
        external_modules_install.unregister()

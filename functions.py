@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ET
 import bpy
 import os
+import re
 import json
 import shutil
 import bpy.props as prop
@@ -11,6 +12,36 @@ from bpy.props import (BoolProperty,
                        CollectionProperty,
                        IntProperty
                        )
+
+from urllib.parse import urlparse
+
+def convert_shape2type(yedtype): 
+    # restituisce una coppia di info: short e verbose
+    nodetype = []
+    if yedtype == "rectangle":
+        nodetype = ["US","Stratigraphic Unit"]
+    elif yedtype == "parallelogram":
+        nodetype = ["USVs","Structural Virtual Stratigrafic Units"]
+    elif yedtype == "ellipse":
+        #nodetype = ["SUseries","Series of USVs"]
+        nodetype = ["serSU","Series of USVs"] 
+    elif yedtype == "white_ellipse":
+        nodetype = ["serUSV", "Series of US"]        
+    elif yedtype == "hexagon":
+        nodetype = ["USVn","Structural Virtual Stratigrafic Units"]
+    elif yedtype == "octagon_white":
+        nodetype = ["SF","Special Find"]
+    elif yedtype == "octagon": #da verificare
+        nodetype = ["VSF","Virtual Special Find"]
+    elif yedtype == "roundrectangle":
+        nodetype = ["USD","Documentary Stratigraphic Unit"]
+    #else:
+    #    nodetype = ["unknow","unrecognisized node"]
+    return nodetype
+
+def is_valid_url(url_string):
+    parsed_url = urlparse(url_string)
+    return bool(parsed_url.scheme) or bool(parsed_url.netloc)
 
 def menu_func(self, context):
     self.layout.separator()
@@ -1112,7 +1143,6 @@ def substitue_with_custom_mtl(ob, export_sub_folder):
         f.write("%s %s\n" % ("map_Kd", mat.material.name+"_ALB"))
         mat.material.name
 
-
     f.close() 
 
 #create_collection
@@ -1132,31 +1162,52 @@ class em_create_collection(bpy.types.Operator):
             currentCol = bpy.data.collections.get(target_collection)
         return currentCol
     
+
 def inspect_load_dosco_files():
     context = bpy.context
     scene = context.scene
+    em_settings = bpy.context.window_manager.em_addon_settings
     if scene.EMDosCo_dir:
         dir_path = scene.EMDosCo_dir
         abs_dir_path = bpy.path.abspath(dir_path)
+
+        # Regex per identificare gli estrattori
+        extractor_pattern = re.compile(r"D\.\d+\.\d+")
+
         for entry in os.listdir(abs_dir_path):
-            if os.path.isfile:
-                if entry.startswith("D.") or entry.startswith("C."):
-                    #doc_file_path = bpy.path.abspath(os.path.join(dir_path, entry))
-                    doc_file_path = entry
+            file_path = os.path.join(abs_dir_path, entry)
+            if os.path.isfile(file_path):
+                # Verifica se è un estrattore
+                if extractor_pattern.match(entry):
                     counter = 0
                     for extractor_element in scene.em_extractors_list:
                         if entry.startswith(extractor_element.name):
-                            scene.em_extractors_list[counter].url = doc_file_path
-                        counter =+1 
+                            if  em_settings.preserve_web_url and is_valid_url(scene.em_extractors_list[counter].url):
+                                pass
+                            else:
+                                scene.em_extractors_list[counter].url = entry
+                                scene.em_extractors_list[counter].icon_url = "CHECKBOX_HLT"
+                        counter += 1 
+
+                # Verifica se è un combiner
+                elif entry.startswith("C."):
                     counter = 0
                     for combiner_element in scene.em_combiners_list:
                         if entry.startswith(combiner_element.name):
-                            scene.em_combiners_list[counter].url = doc_file_path
-                        counter =+1 
+                            if not em_settings.preserve_web_url and not is_valid_url(scene.em_combiners_list[counter].url):
+                                scene.em_combiners_list[counter].url = entry
+                                scene.em_combiners_list[counter].icon_url = "CHECKBOX_HLT"
+                        counter += 1
+
+                # Verifica se è un documento
+                elif entry.startswith("D."):
                     counter = 0
                     for document_element in scene.em_sources_list:
                         if entry.startswith(document_element.name):
-                            scene.em_sources_list[counter].url = doc_file_path
-                        counter =+1 
-
-    return 
+                            if em_settings.preserve_web_url and is_valid_url(scene.em_sources_list[counter].url):
+                                pass
+                            else:
+                                scene.em_sources_list[counter].url = entry
+                                scene.em_sources_list[counter].icon_url = "CHECKBOX_HLT"
+                        counter += 1 
+    return

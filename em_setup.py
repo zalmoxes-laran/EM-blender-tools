@@ -9,7 +9,7 @@ from . import sqlite_io
 #SETUP MENU
 
 class EM_SetupPanel:
-    bl_label = "EM setup (v1.4.0) dev7"
+    bl_label = "EM setup (v1.4.0) dev8"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
 
@@ -79,14 +79,28 @@ class EM_SetupPanel:
         row = layout.row(align=True)
         box = layout.box()
         row = box.row()
-        row.prop(context.scene, 'EMDosCo_dir', toggle = True, text ="DosCo")  
+        row.prop(context.scene, 'EMDosCo_dir', toggle = True, text ="DosCo") 
+        em_settings = bpy.context.window_manager.em_addon_settings
+        row.prop(em_settings, "dosco_advanced_options", text="advanced options")
+
+        if em_settings.dosco_advanced_options:
+            row = box.row()
+            row.label(text="Populate extractors, documents and combiners using DosCo files:")
+            row = box.row()
+            row.prop(em_settings, 'overwrite_url_with_dosco_filepath', text = "Overwrite paths")
+            row.prop(em_settings, 'preserve_web_url', text = "Preserve web urls (if any)")
+        #preserve_web_url = settings.preserve_web_url
+        #overwrite_url_with_dosco_filepath = settings.overwrite_url_with_dosco_filepath
+
+# Ora puoi utilizzare `preserve_web_url` e `overwrite_url_with_dosco_filepath` nel tuo addon
+ 
 
         ################ da qui setto la lista delle sources ##################
 
         row = layout.row()
         box = layout.box()
         row = box.row()
-        row.label(text="Load external xlsx source file")
+        row.label(text="Source file (xlsx)")
         row.operator("load.emdb_xlsx", icon="STICKY_UVS_DISABLE", text='')
         row.operator("open_prefs_panel.em_tools", icon="SETTINGS", text="")
         row = box.row()
