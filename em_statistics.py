@@ -14,7 +14,7 @@ from .functions import *
 def esporta_in_csv(objs, file_path):
     with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
         fieldnames = ['Name', 'EM node', 'Epoch', 'Description', 'Volume (m^3)', 'Measurement type', 'Total Surface (m^2)', 'Vertical surface (m^2)']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=';')
 
         writer.writeheader()
         for obj in objs:
@@ -31,19 +31,22 @@ def esporta_in_csv(objs, file_path):
                 if obj.name == i.name:
                     epoca = i.epoch
                     description = i.description
-                    emnode = convert_shape2type(i.shape) 
-
-            # Scrivi le metriche nell'CSV
-            writer.writerow({
-                'Name': obj.name,
-                'EM node': emnode[0],
-                'Epoch': epoca,
-                'Description': description,
-                'Volume (m^3)': arrotonda_a_tre_decimali(volume),
-                'Measurement type': misurazione,
-                'Total Surface (m^2)': superficie_totale,
-                'Vertical surface (m^2)': superficie_verticale
-            })
+                    emnode = convert_shape2type(i.shape)
+                    pass 
+            print(obj.name)
+            if emnode:
+                # Scrivi le metriche nel CSV
+                
+                writer.writerow({
+                    'Name': obj.name,
+                    'EM node': emnode[0],
+                    'Epoch': epoca,
+                    'Description': description,
+                    'Volume (m^3)': arrotonda_a_tre_decimali(volume),
+                    'Measurement type': misurazione,
+                    'Total Surface (m^2)': superficie_totale,
+                    'Vertical surface (m^2)': superficie_verticale
+                })
 
 # Operatore per esportare in CSV
 class EMExportCSV(Operator, ExportHelper):
@@ -54,17 +57,17 @@ class EMExportCSV(Operator, ExportHelper):
     filename_ext = ".csv"
 
     filter_glob: bpy.props.StringProperty(
-        default='*.csv',
-        options={'HIDDEN'},
-        maxlen=255,
-    )
+            default='*.csv',
+            options={'HIDDEN'},
+            maxlen=255,
+            ) # type: ignore
 
     def execute(self, context):
         # Accedi alle impostazioni della scena per vedere se esportare il CSV
-        em_csv_settings = context.scene.em_csv_settings
-        if em_csv_settings.export_csv:
-            esporta_in_csv(context.selected_objects, self.filepath)
-            self.report({'INFO'}, f"Dati esportati in {self.filepath}")
+        #em_csv_settings = context.scene.em_csv_settings
+        #if em_csv_settings.export_csv:
+        esporta_in_csv(context.selected_objects, self.filepath)
+        self.report({'INFO'}, f"Dati esportati in {self.filepath}")
         return {'FINISHED'}
 
 def calcola_volume(obj):
@@ -169,7 +172,7 @@ def calcola_superficie_verticale(obj, soglia_angolo=5):
     return superficie_verticale
 
 def arrotonda_a_tre_decimali(valore):
-    return round(valore, 3)
+    return round(valore, 2)
 
 class EM_statistics:
     bl_label = "EM statistics"

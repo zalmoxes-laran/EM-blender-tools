@@ -147,6 +147,34 @@ def togli_a_capo(stringa):
     stringa_pulita = stringa.replace("/n","")
     return stringa_pulita
 
+def extract_nodenamefather_for_a_property_old(scene):
+    counternode = -1
+    counteredge = -1
+    counterproperty = -1
+
+    while counterproperty <= len(scene.em_properties_list):
+        counterproperty +=1
+        while counteredge <= len(scene.edges_list):
+            counteredge =+1
+            if scene.edges_list[counteredge].target == scene.em_properties_list[counterproperty].id_node:
+                while counternode <= len(scene.nodes_list):
+                    counternode =+1
+                    if scene.edges_list[counteredge].source == scene.nodes_list[counternode].id_node:
+                        scene.em_properties_list[counterproperty].name = scene.nodes_list[counternode].name +"."+scene.em_properties_list[counterproperty].name
+                        pass
+                pass
+
+
+def extract_nodenamefather_for_a_property(scene):
+    for property in scene.em_properties_list:
+        for edge in scene.edges_list:
+            if edge.target == property.id_node:
+                for node in scene.em_list:
+                    if edge.source == node.id_node:
+                        property.name = node.name + "." + property.name
+                        break # Interrompe il ciclo una volta trovata la corrispondenza
+                break
+        
 
 
 class EM_import_GraphML(bpy.types.Operator):
@@ -303,7 +331,8 @@ class EM_import_GraphML(bpy.types.Operator):
 
         if em_settings.overwrite_url_with_dosco_filepath:
             inspect_load_dosco_files()
-            
+        #per aggiornare i nomi delle proprietà usando come prefisso in nome del nodo padre
+        extract_nodenamefather_for_a_property(scene)
         create_derived_lists(node_send)
         if context.scene.proxy_display_mode == "EM":
             bpy.ops.emset.emmaterial()
