@@ -166,14 +166,25 @@ def extract_nodenamefather_for_a_property_old(scene):
 
 
 def extract_nodenamefather_for_a_property(scene):
+    poly_property_counter = 1
     for property in scene.em_properties_list:
+        node_list = []
+
         for edge in scene.edges_list:
             if edge.target == property.id_node:
                 for node in scene.em_list:
                     if edge.source == node.id_node:
-                        property.name = node.name + "." + property.name
+                        node_list.append(node.name)
+                        #property.name = node.name + "." + property.name
                         break # Interrompe il ciclo una volta trovata la corrispondenza
-                break
+                #break
+                    
+        if len(node_list) == 1:
+            property.name = node_list[0] + "." + property.name
+        elif len(node_list) > 1:
+            property.name = "poly"+ str(poly_property_counter)+"." + property.name
+            poly_property_counter +=1
+        
         
 
 
