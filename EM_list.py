@@ -165,7 +165,7 @@ def extract_nodenamefather_for_a_property_old(scene):
                 pass
 
 
-def extract_nodenamefather_for_a_property(scene):
+def newnames_forproperties_from_fathernodes(scene):
     poly_property_counter = 1
     for property in scene.em_properties_list:
         node_list = []
@@ -175,10 +175,8 @@ def extract_nodenamefather_for_a_property(scene):
                 for node in scene.em_list:
                     if edge.source == node.id_node:
                         node_list.append(node.name)
-                        #property.name = node.name + "." + property.name
                         break # Interrompe il ciclo una volta trovata la corrispondenza
-                #break
-                    
+        #una volta fatto un pass generale è il momento di cambiare la label alla property
         if len(node_list) == 1:
             property.name = node_list[0] + "." + property.name
         elif len(node_list) > 1:
@@ -343,8 +341,10 @@ class EM_import_GraphML(bpy.types.Operator):
         if em_settings.overwrite_url_with_dosco_filepath:
             inspect_load_dosco_files()
         #per aggiornare i nomi delle proprietà usando come prefisso in nome del nodo padre
-        extract_nodenamefather_for_a_property(scene)
+        newnames_forproperties_from_fathernodes(scene)
+        #crea liste derivate per lo streaming dei paradati
         create_derived_lists(node_send)
+        
         if context.scene.proxy_display_mode == "EM":
             bpy.ops.emset.emmaterial()
         else:

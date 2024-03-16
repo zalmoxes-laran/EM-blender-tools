@@ -35,8 +35,8 @@ def convert_shape2type(yedtype):
         nodetype = ["VSF","Virtual Special Find"]
     elif yedtype == "roundrectangle":
         nodetype = ["USD","Documentary Stratigraphic Unit"]
-    #else:
-    #    nodetype = ["unknow","unrecognisized node"]
+    else:
+        nodetype = ["unknow","unrecognisized node"]
     return nodetype
 
 def is_valid_url(url_string):

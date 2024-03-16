@@ -314,22 +314,21 @@ class EM_export(bpy.types.Operator):
 
     em_export_type : StringProperty()
     em_export_format : StringProperty()
-    '''
-    @classmethod
-    def poll(cls, context):
-        scene = context.scene
-        is_active_button = False
-        prefs = context.preferences.addons.get(__package__, None)
-        if prefs.preferences.is_external_module:# and scene.EMdb_xlsx_filepath is not None:
-            is_active_button = True
-        return is_active_button
-    '''
+
+    def __init__(self):
+        self.stato_collezioni = {}
+
     def execute(self, context):
+        #init general variables
         scene = context.scene
         utente_aton = scene.EMviq_user_name
-        progetto_aton = scene.EMviq_project_name 
-        
+        progetto_aton = scene.EMviq_project_name
+
+        # deselect everything in the scene
         bpy.ops.object.select_all(action='DESELECT')
+
+        # Salva lo stato delle collezioni prima di procedere con l'export
+        self.salva_stato_collezioni()
 
         # prepare folder paths
         fix_if_relative_folder = bpy.path.abspath(scene.ATON_path)
@@ -347,7 +346,8 @@ class EM_export(bpy.types.Operator):
 
         # Export proxies
         if self.em_export_type == 'Proxies' or self.em_export_type == "EMviq":
-            bpy.context.scene.view_layers['ViewLayer'].layer_collection.children['Proxy'].exclude = False
+            bpy.context.view_layer.layer_collection.children['Proxy'].exclude = False
+
             proxies_folder = createfolder(base_dir_scenes, 'proxies')
             export_proxies(scene, proxies_folder)
 
@@ -360,8 +360,8 @@ class EM_export(bpy.types.Operator):
 
         # Export Representation Models and Scene JSON file
         if self.em_export_type == "RM" or self.em_export_type == "EMviq":
-            bpy.context.scene.view_layers['ViewLayer'].layer_collection.children['RM'].exclude = False
-            bpy.context.scene.view_layers['ViewLayer'].layer_collection.children['RB'].exclude = False
+            bpy.context.view_layer.layer_collection.children['RM'].exclude = False
+            #bpy.context.view_layer.layer_collection.children['RB'].exclude = False
 
             #setup JSON variables
             emviq_scene = {}
@@ -398,10 +398,34 @@ class EM_export(bpy.types.Operator):
             with open(file_name, 'w') as outfile:
                 outfile.write(data + '\n')
 
+        # Ripristina lo stato delle collezioni dopo l'export
+        self.ripristina_stato_collezioni()        
+
         # Export semantic descriptio in JSON file format 
         bpy.ops.export.emjson('INVOKE_DEFAULT')
 
         return {'FINISHED'}
+
+    def salva_stato_collezioni(self):
+        layer_collections = bpy.context.view_layer.layer_collection.children
+        self._salva_stato_ricorsivo(layer_collections)
+
+    def _salva_stato_ricorsivo(self, layer_collections):
+        for collection in layer_collections:
+            self.stato_collezioni[collection.name] = collection.exclude
+            if collection.children:
+                self._salva_stato_ricorsivo(collection.children)
+
+    def ripristina_stato_collezioni(self):
+        layer_collections = bpy.context.view_layer.layer_collection.children
+        self._ripristina_stato_ricorsivo(layer_collections)
+
+    def _ripristina_stato_ricorsivo(self, layer_collections):
+        for collection in layer_collections:
+            if collection.name in self.stato_collezioni:
+                collection.exclude = self.stato_collezioni[collection.name]
+            if collection.children:
+                self._ripristina_stato_ricorsivo(collection.children)
 
 class EM_openemviq(bpy.types.Operator):
     """Open EMviq"""
@@ -695,8 +719,6 @@ class OBJECT_OT_ExportUUSS(bpy.types.Operator):
             
         return {'FINISHED'}
 
-
-
 def write_UUSS_data(context, filepath, only_UUSS, header):
     print("running write some data...")
     
@@ -746,7 +768,7 @@ class ExportuussData(Operator, ExportHelper):
             default="*.csv",
             options={'HIDDEN'},
             maxlen=255,  # Max internal buffer length, longer would be clamped.
-            )
+            ) # type: ignore
 
     # List of operator properties, the attributes will be assigned
     # to the class instance from the operator settings before calling.
@@ -779,13 +801,13 @@ class ExportuussData(Operator, ExportHelper):
             name="Only elements with proxies",
             description="Only elements with proxies",
             default=False,
-            )
+            ) # type: ignore
 
     header_line: BoolProperty(
             name="Header line",
             description="Header line with description of the columns",
             default=True,
-            )
+            ) # type: ignore
 
     def execute(self, context):
         return write_UUSS_data(context, self.filepath, self.only_UUSS_with_proxies, self.header_line)
