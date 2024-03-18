@@ -184,8 +184,6 @@ def newnames_forproperties_from_fathernodes(scene):
             poly_property_counter +=1
         
         
-
-
 class EM_import_GraphML(bpy.types.Operator):
     bl_idname = "import.em_graphml"
     bl_label = "Import the EM GraphML"

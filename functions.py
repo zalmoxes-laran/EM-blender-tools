@@ -1161,7 +1161,19 @@ class em_create_collection(bpy.types.Operator):
         else:
             currentCol = bpy.data.collections.get(target_collection)
         return currentCol
+
+def identify_node(name):
+    #import re
+    extractor_pattern = re.compile(r"D\.\d+\.\d+")
+    node_type = ""
+    if  name.match(extractor_pattern):
+        node_type = "Extractor"
+    elif name.startswith("C."):
+        node_type = "Combiner"
+    elif name.startswith("D."):
+        node_type = "Document"
     
+    return node_type
 
 def inspect_load_dosco_files():
     context = bpy.context
