@@ -147,24 +147,6 @@ def togli_a_capo(stringa):
     stringa_pulita = stringa.replace("/n","")
     return stringa_pulita
 
-def extract_nodenamefather_for_a_property_old(scene):
-    counternode = -1
-    counteredge = -1
-    counterproperty = -1
-
-    while counterproperty <= len(scene.em_properties_list):
-        counterproperty +=1
-        while counteredge <= len(scene.edges_list):
-            counteredge =+1
-            if scene.edges_list[counteredge].target == scene.em_properties_list[counterproperty].id_node:
-                while counternode <= len(scene.nodes_list):
-                    counternode =+1
-                    if scene.edges_list[counteredge].source == scene.nodes_list[counternode].id_node:
-                        scene.em_properties_list[counterproperty].name = scene.nodes_list[counternode].name +"."+scene.em_properties_list[counterproperty].name
-                        pass
-                pass
-
-
 def newnames_forproperties_from_fathernodes(scene):
     poly_property_counter = 1
     for property in scene.em_properties_list:
@@ -182,8 +164,7 @@ def newnames_forproperties_from_fathernodes(scene):
         elif len(node_list) > 1:
             property.name = "poly"+ str(poly_property_counter)+"." + property.name
             poly_property_counter +=1
-        
-        
+             
 class EM_import_GraphML(bpy.types.Operator):
     bl_idname = "import.em_graphml"
     bl_label = "Import the EM GraphML"
