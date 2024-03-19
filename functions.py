@@ -142,21 +142,6 @@ def add_sceneobj_to_epochs():
 #### Functions to extract data from GraphML file ####
 ### #### #### #### #### #### #### #### #### #### ####
 
-def EM_extract_edge_type(edge_element):
-    edge_type = "Empty"
-    for subedge in edge_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
-        #print(subedge.attrib)
-        attrib1 = subedge.attrib
-        #print(subnode.tag)
-        if attrib1 == {'key': 'd10'}:
-            type_vocab={}
-            for property in subedge.findall('.//{http://www.yworks.com/xml/graphml}LineStyle'):
-                type_vocab = property.attrib #json.loads(property.attrib)
-                #print(type_vocab["type"])
-                edge_type = check_if_empty(type_vocab["type"])
-                
-    return edge_type   
-
 def original_id_to_new_name(scene,id_node):
     for UUSS in scene.em_list:
         if UUSS.id_node == id_node:
@@ -443,20 +428,7 @@ def EM_extract_continuity(node_element):
         nodedescription = ''
     return nodedescription, node_y_pos 
 
-def EM_check_node_type(node_element):
-    id_node = str(node_element.attrib)
-    if "yfiles.foldertype" in id_node:
-        tablenode = node_element.find('.//{http://www.yworks.com/xml/graphml}TableNode')
-        if tablenode is not None:
-            #print(' un nodo swimlane: ' + id_node)
-            node_type = 'node_swimlane'
-        else:
-            #print(' un nodo group: ' + id_node)
-            node_type = 'node_group'
-    else:
-        #print(' un semplice nodo: ' + id_node)
-        node_type = 'node_simple'
-    return node_type
+
 
 def EM_check_node_us(node_element):
     US_nodes_list = ['rectangle', 'parallelogram',
@@ -564,22 +536,6 @@ def extract_epochs(node_element):
                 scene.epoch_list[i].name = str(label_node)
                 scene.epoch_list[i].epoch_color = e_color
                 scene.epoch_list[i].epoch_RGB_color = hex_to_rgb(e_color)
-
-def read_edge_db(context, tree):
-    alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
-    scene = context.scene
-    EM_list_clear(context, "edges_list")
-    em_list_index_ema = 0
-
-    for edge in alledges:
-        #print(str(edge.attrib['id']))
-        scene.edges_list.add()
-        scene.edges_list[em_list_index_ema].id_node = str(edge.attrib['id'])
-        scene.edges_list[em_list_index_ema].source = str(edge.attrib['source'])#getnode_edge_source(edge)
-        scene.edges_list[em_list_index_ema].target = str(edge.attrib['target'])
-        scene.edges_list[em_list_index_ema].edge_type = EM_extract_edge_type(edge)
-        em_list_index_ema += 1
-    return
 
 def stream_properties(self, context):
     scene = context.scene

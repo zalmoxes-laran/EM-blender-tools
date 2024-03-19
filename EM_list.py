@@ -164,7 +164,14 @@ def newnames_forproperties_from_fathernodes(scene):
         elif len(node_list) > 1:
             property.name = "poly"+ str(poly_property_counter)+"." + property.name
             poly_property_counter +=1
-             
+
+
+
+
+
+
+
+
 class EM_import_GraphML(bpy.types.Operator):
     bl_idname = "import.em_graphml"
     bl_label = "Import the EM GraphML"
@@ -172,6 +179,11 @@ class EM_import_GraphML(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
+        self.import_graphml(context)
+        return {'FINISHED'}
+
+    def import_graphml(self, context):
+
         scene = context.scene
         graphml_file = bpy.path.abspath(scene.EM_file)
         tree = ET.parse(graphml_file)
@@ -190,10 +202,10 @@ class EM_import_GraphML(bpy.types.Operator):
 
         allnodes = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
 
-        read_edge_db(context,tree)
+        self.read_edge_db(context,tree)
 
         for node_element in allnodes:
-            if EM_check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
+            if self._check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
                 if EM_check_node_us(node_element): # Check if the node is an US, SU, USV, USM or USR node
                     my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos, my_node_fill_color = EM_extract_node_name(node_element)
                     scene.em_list.add()
@@ -283,7 +295,7 @@ class EM_import_GraphML(bpy.types.Operator):
                 else:
                     pass
 
-            if EM_check_node_type(node_element) == 'node_swimlane':
+            if self._check_node_type(node_element) == 'node_swimlane':
                 extract_epochs(node_element)
 
         for em_i in range(len(scene.em_list)):
@@ -293,7 +305,7 @@ class EM_import_GraphML(bpy.types.Operator):
 
         #porzione di codice per estrarre le continuità
         for node_element in allnodes:
-            if EM_check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
+            if self._check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
                 if EM_check_node_continuity(node_element):
                     #print("found continuity node")
                     EM_us_target, continuity_y = get_edge_target(tree, node_element)
@@ -329,3 +341,49 @@ class EM_import_GraphML(bpy.types.Operator):
         else:
             bpy.ops.emset.epochmaterial()
         return {'FINISHED'}
+
+    def read_edge_db(self, context, tree):
+        alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
+        scene = context.scene
+        EM_list_clear(context, "edges_list")  # Assumendo che EM_list_clear() sia ora un metodo
+        em_list_index_ema = 0
+
+        for edge in alledges:
+            scene.edges_list.add()
+            edge_item = scene.edges_list[em_list_index_ema]
+            edge_item.id_node = str(edge.attrib['id'])
+            edge_item.source = str(edge.attrib['source'])
+            edge_item.target = str(edge.attrib['target'])
+            edge_item.edge_type = self.EM_extract_edge_type(edge)  # Assumendo che EM_extract_edge_type() sia un altro metodo integrato
+            em_list_index_ema += 1
+
+    def EM_extract_edge_type(self, edge_element):
+        edge_type = "Empty"
+        for subedge in edge_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+            #print(subedge.attrib)
+            attrib1 = subedge.attrib
+            #print(subnode.tag)
+            if attrib1 == {'key': 'd10'}:
+                type_vocab={}
+                for property in subedge.findall('.//{http://www.yworks.com/xml/graphml}LineStyle'):
+                    type_vocab = property.attrib #json.loads(property.attrib)
+                    #print(type_vocab["type"])
+                    edge_type = check_if_empty(type_vocab["type"])
+                    
+        return edge_type  
+
+    def _check_node_type(self, node_element):
+        id_node = str(node_element.attrib)
+        if "yfiles.foldertype" in id_node:
+            tablenode = node_element.find('.//{http://www.yworks.com/xml/graphml}TableNode')
+            if tablenode is not None:
+                return 'node_swimlane'
+            else:
+                return 'node_group'
+        else:
+            return 'node_simple'
+    
+    #def check if empty: verifico se metterla qui o meno (prima importo altre cose)
+
+
+
