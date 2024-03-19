@@ -479,6 +479,23 @@ def edge_type_to_color(type):
         type == "black"
     return color
 
+def original_id_to_new_name(scene,id_node):
+    for UUSS in scene.em_list:
+        if UUSS.id_node == id_node:
+            return UUSS.name
+    for property in scene.em_properties_list:
+        if property.id_node == id_node:
+            return property.id_node
+    for combiner in scene.em_combiners_list:
+        if combiner.id_node == id_node:
+            return combiner.id_node
+    for extractor in scene.em_extractors_list:
+        if extractor.id_node == id_node:
+            return extractor.id_node
+    for source in scene.em_sources_list:
+        if source.id_node == id_node:
+            return source.id_node
+
 def export_emjson(scene, nodes, edges):
     #passo i nodi UUSS:
 

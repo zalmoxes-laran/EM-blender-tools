@@ -167,11 +167,6 @@ def newnames_forproperties_from_fathernodes(scene):
 
 
 
-
-
-
-
-
 class EM_import_GraphML(bpy.types.Operator):
     bl_idname = "import.em_graphml"
     bl_label = "Import the EM GraphML"
@@ -179,11 +174,32 @@ class EM_import_GraphML(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
+        #setup scene variable
+        scene = context.scene
+
+        #execute import
         self.import_graphml(context)
+
+        # verifica post importazione: controlla che il contatore della lista delle UUSS sia nel range (può succedere di ricaricare ed avere una lista più corta di UUSS). In caso di necessità porta a 0 l'indice
+        self.check_index_coherence(scene)
+        
+        # Integrazione di dati esterni: aggiunta dei percorsi effettivi di documenti estrattori e combiners dal DosCo
+        em_settings = bpy.context.window_manager.em_addon_settings
+        if em_settings.overwrite_url_with_dosco_filepath:
+            inspect_load_dosco_files()
+        
+        #per aggiornare i nomi delle proprietà usando come prefisso in nome del nodo padre
+        newnames_forproperties_from_fathernodes(scene)
+        
+        #crea liste derivate per lo streaming dei paradati
+        create_derived_lists(scene.em_list[scene.em_list_index])
+        
+        #setup dei materiali di scena dopo l'importazione del graphml
+        self.post_import_material_setup(context)
+
         return {'FINISHED'}
 
     def import_graphml(self, context):
-
         scene = context.scene
         graphml_file = bpy.path.abspath(scene.EM_file)
         tree = ET.parse(graphml_file)
@@ -206,8 +222,8 @@ class EM_import_GraphML(bpy.types.Operator):
 
         for node_element in allnodes:
             if self._check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
-                if EM_check_node_us(node_element): # Check if the node is an US, SU, USV, USM or USR node
-                    my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos, my_node_fill_color = EM_extract_node_name(node_element)
+                if self.EM_check_node_us(node_element): # Check if the node is an US, SU, USV, USM or USR node
+                    my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos, my_node_fill_color = self.EM_extract_node_name(node_element)
                     scene.em_list.add()
                     scene.em_list[em_list_index_ema].name = my_nodename
                     scene.em_list[em_list_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(my_nodename)
@@ -221,12 +237,12 @@ class EM_import_GraphML(bpy.types.Operator):
                             scene.em_list[em_list_index_ema].shape = my_node_shape
                     else:
                         scene.em_list[em_list_index_ema].shape = my_node_shape
-                    scene.em_list[em_list_index_ema].id_node = getnode_id(node_element)
+                    scene.em_list[em_list_index_ema].id_node = self.getnode_id(node_element)
                     em_list_index_ema += 1
-                elif EM_check_node_document(node_element):
+                elif self.EM_check_node_document(node_element):
                     source_already_in_list = False
                     source_number = 2
-                    src_nodename, src_node_id, src_node_description, src_nodeurl, subnode_is_document = EM_extract_document_node(node_element)
+                    src_nodename, src_node_id, src_node_description, src_nodeurl, subnode_is_document = self.EM_extract_document_node(node_element)
                     src_nodename_safe = src_nodename
                     if em_sources_index_ema > 0: 
                         for source_item in scene.em_sources_list:
@@ -251,8 +267,8 @@ class EM_import_GraphML(bpy.types.Operator):
                             scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_HLT"
                         scene.em_sources_list[em_sources_index_ema].description = src_node_description
                         em_sources_index_ema += 1
-                elif EM_check_node_property(node_element):
-                    pro_nodename, pro_node_id, pro_node_description, pro_nodeurl, subnode_is_property = EM_extract_property_node(node_element)
+                elif self.EM_check_node_property(node_element):
+                    pro_nodename, pro_node_id, pro_node_description, pro_nodeurl, subnode_is_property = self.EM_extract_property_node(node_element)
                     scene.em_properties_list.add()
                     scene.em_properties_list[em_properties_index_ema].name = pro_nodename
                     scene.em_properties_list[em_properties_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(pro_nodename)
@@ -264,8 +280,8 @@ class EM_import_GraphML(bpy.types.Operator):
                         scene.em_properties_list[em_properties_index_ema].icon_url = "CHECKBOX_HLT"
                     scene.em_properties_list[em_properties_index_ema].description = pro_node_description
                     em_properties_index_ema += 1
-                elif EM_check_node_extractor(node_element):
-                    ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_extractor = EM_extract_extractor_node(node_element)
+                elif self.EM_check_node_extractor(node_element):
+                    ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_extractor = self.EM_extract_extractor_node(node_element)
                     scene.em_extractors_list.add()
                     scene.em_extractors_list[em_extractors_index_ema].name = ext_nodename
                     scene.em_extractors_list[em_extractors_index_ema].id_node = ext_node_id                   
@@ -278,8 +294,8 @@ class EM_import_GraphML(bpy.types.Operator):
                         scene.em_extractors_list[em_extractors_index_ema].icon_url = "CHECKBOX_HLT"
                     scene.em_extractors_list[em_extractors_index_ema].description = ext_node_description
                     em_extractors_index_ema += 1
-                elif EM_check_node_combiner(node_element):
-                    ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_combiner = EM_extract_combiner_node(node_element)
+                elif self.EM_check_node_combiner(node_element):
+                    ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_combiner = self.EM_extract_combiner_node(node_element)
                     scene.em_combiners_list.add()
                     scene.em_combiners_list[em_combiners_index_ema].name = ext_nodename
                     scene.em_combiners_list[em_combiners_index_ema].id_node = ext_node_id                   
@@ -306,9 +322,9 @@ class EM_import_GraphML(bpy.types.Operator):
         #porzione di codice per estrarre le continuità
         for node_element in allnodes:
             if self._check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
-                if EM_check_node_continuity(node_element):
+                if self.EM_check_node_continuity(node_element):
                     #print("found continuity node")
-                    EM_us_target, continuity_y = get_edge_target(tree, node_element)
+                    EM_us_target, continuity_y = self.get_edge_target(tree, node_element)
                     #print(EM_us_target+" has y value: "+str(continuity_y))
                     for EM_item in bpy.context.scene.em_list:
                         if EM_item.icon == "RESTRICT_INSTANCED_OFF":
@@ -322,24 +338,8 @@ class EM_import_GraphML(bpy.types.Operator):
                                         scene.em_reused[em_reused_index].em_element = EM_item.name
                                        #print("All'epoca "+scene.em_reused[em_reused_index].epoch+ " appartiene : "+ scene.em_reused[em_reused_index].em_element)
                                         em_reused_index += 1
-        try:
-            node_send = scene.em_list[scene.em_list_index]
-        except IndexError as error:
-            scene.em_list_index = 0
-            node_send = scene.em_list[scene.em_list_index]
-        em_settings = bpy.context.window_manager.em_addon_settings
-
-        if em_settings.overwrite_url_with_dosco_filepath:
-            inspect_load_dosco_files()
-        #per aggiornare i nomi delle proprietà usando come prefisso in nome del nodo padre
-        newnames_forproperties_from_fathernodes(scene)
-        #crea liste derivate per lo streaming dei paradati
-        create_derived_lists(node_send)
         
-        if context.scene.proxy_display_mode == "EM":
-            bpy.ops.emset.emmaterial()
-        else:
-            bpy.ops.emset.epochmaterial()
+
         return {'FINISHED'}
 
     def read_edge_db(self, context, tree):
@@ -368,7 +368,7 @@ class EM_import_GraphML(bpy.types.Operator):
                 for property in subedge.findall('.//{http://www.yworks.com/xml/graphml}LineStyle'):
                     type_vocab = property.attrib #json.loads(property.attrib)
                     #print(type_vocab["type"])
-                    edge_type = check_if_empty(type_vocab["type"])
+                    edge_type = self.check_if_empty(type_vocab["type"])
                     
         return edge_type  
 
@@ -383,7 +383,328 @@ class EM_import_GraphML(bpy.types.Operator):
         else:
             return 'node_simple'
     
-    #def check if empty: verifico se metterla qui o meno (prima importo altre cose)
+    # UUSS NODE
+    def EM_check_node_us(self, node_element):
+        US_nodes_list = ['rectangle', 'parallelogram',
+                        'ellipse', 'hexagon', 'octagon', 'roundrectangle']
+        my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos, my_node_fill_color = self.EM_extract_node_name(node_element)
+        if my_node_shape in US_nodes_list:
+            id_node_us = True
+        else:
+            id_node_us = False
+        return id_node_us
+    
+    def EM_extract_node_name(self, node_element):
+        is_d4 = False
+        is_d5 = False
+        node_y_pos = None
+        nodeshape = None
+        nodeurl = None
+        nodedescription = None
+        nodename = None
+        fillcolor = None
+        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+            attrib = subnode.attrib
+            if attrib == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
+                is_d4 = True
+                nodeurl = subnode.text
+            if attrib == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
+                is_d5 = True
+                nodedescription = self.clean_comments(subnode.text)
+            if attrib == {'key': 'd6'}:
+                for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
+                    nodename = self.check_if_empty(USname.text)
+                for fill_color in subnode.findall('.//{http://www.yworks.com/xml/graphml}Fill'):
+                    fillcolor = fill_color.attrib['color']
+                for USshape in subnode.findall('.//{http://www.yworks.com/xml/graphml}Shape'):
+                    nodeshape = USshape.attrib['type']
+                for geometry in subnode.findall('./{http://www.yworks.com/xml/graphml}ShapeNode/{http://www.yworks.com/xml/graphml}Geometry'):
+                #for geometry in subnode.findall('./{http://www.yworks.com/xml/graphml}Geometry'):
+                    node_y_pos = geometry.attrib['y']
+        if not is_d4:
+            nodeurl = ''
+        if not is_d5:
+            nodedescription = ''
+        return nodename, nodedescription, nodeurl, nodeshape, node_y_pos, fillcolor     
+    
+    # DOCUMENT NODE
+    def EM_check_node_document(self, node_element):
+        try:
+            src_nodename, src_node_id, src_node_description, src_nodeurl, subnode_is_document = self.EM_extract_document_node(node_element)
+        except TypeError as e:
+            subnode_is_document = False
+        return subnode_is_document
 
+    def EM_extract_document_node(self, node_element):
+        is_d4 = False
+        is_d5 = False
+        node_id = node_element.attrib['id']
+        if len(node_id) > 2:
+            subnode_is_document = False
+            nodeurl = " "
+            nodename = " "
+            node_description = " "
+            for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+                attrib1 = subnode.attrib
+                #print(subnode.tag)
+                if attrib1 == {'key': 'd6'}:
+                    for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
+                        nodename = USname.text
+                    for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}Property'):
+                        attrib2 = nodetype.attrib
+                        if attrib2 == {'class': 'com.yworks.yfiles.bpmn.view.DataObjectTypeEnum', 'name': 'com.yworks.bpmn.dataObjectType', 'value': 'DATA_OBJECT_TYPE_PLAIN'}:
+                            subnode_is_document = True
 
+            for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+                attrib1 = subnode.attrib                        
+                if subnode_is_document is True:
 
+                    if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
+                        if subnode.text is not None:
+                            is_d4 = True
+                            nodeurl = subnode.text
+                    if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
+                        is_d5 = True
+                        node_description = self.clean_comments(subnode.text)
+            if not is_d4:
+                nodeurl = ''
+            if not is_d5:
+                nodedescription = ''
+            return nodename, node_id, node_description, nodeurl, subnode_is_document
+    
+    # PROPERTY NODE
+    def EM_check_node_property(self, node_element):
+        try:
+            pro_nodename, pro_node_id, pro_node_description, pro_nodeurl, subnode_is_property = self.EM_extract_property_node(node_element)
+        except UnboundLocalError as e:
+            subnode_is_property = False
+        return subnode_is_property
+
+    def EM_extract_property_node(self, node_element):
+        is_d4 = False
+        is_d5 = False
+        node_id = node_element.attrib['id']
+        if len(node_id) > 2:
+            subnode_is_property = False
+            nodeurl = " "
+            nodename = " "
+            node_description = " "
+            for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+                attrib1 = subnode.attrib
+                if attrib1 == {'key': 'd6'}:
+                    for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
+                        nodename = self.check_if_empty(USname.text)
+                    for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}Property'):
+                        attrib2 = nodetype.attrib
+                        if attrib2 == {'class': 'com.yworks.yfiles.bpmn.view.BPMNTypeEnum', 'name': 'com.yworks.bpmn.type', 'value': 'ARTIFACT_TYPE_ANNOTATION'}:
+                            subnode_is_property = True
+
+            for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+                attrib1 = subnode.attrib                        
+                if subnode_is_property is True:
+
+                    if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
+                        if subnode.text is not None:
+                            is_d4 = True
+                            nodeurl = subnode.text
+                    if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
+                        is_d5 = True
+                        node_description = self.clean_comments(subnode.text)
+
+            if not is_d4:
+                nodeurl = ''
+            if not is_d5:
+                nodedescription = ''        
+        return nodename, node_id, node_description, nodeurl, subnode_is_property
+
+    # EXTRACTOR NODE
+    def EM_check_node_extractor(self, node_element):
+        try:
+            ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_extractor = self.EM_extract_extractor_node(node_element)
+        except TypeError as e:
+            subnode_is_extractor = False
+        return subnode_is_extractor
+    
+    def EM_extract_extractor_node(self, node_element):
+
+        is_d4 = False
+        is_d5 = False
+        node_id = node_element.attrib['id']
+        if len(node_id) > 2:
+            subnode_is_extractor = False
+            nodeurl = " "
+            nodename = " "
+            node_description = " "
+            is_document = False
+            for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+                attrib1 = subnode.attrib
+                #print(subnode.tag)
+                if attrib1 == {'key': 'd6'}:
+                    for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
+                        nodename = self.check_if_empty(USname.text)
+                    if nodename.startswith("D."):
+                        for elem in bpy.context.scene.em_sources_list:
+                            if nodename == elem.name:
+                                is_document = True
+                        if not is_document:
+                            #print(f"il nodo non è un documento e si chiama: {nodename}")
+                            subnode_is_extractor = True
+                    # for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}SVGContent'):
+                    #     attrib2 = nodetype.attrib
+                    #     if attrib2 == {'refid': '1'}:
+                    #         subnode_is_extractor = True
+                            
+            for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+                attrib1 = subnode.attrib                        
+                if subnode_is_extractor is True:
+
+                    if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
+                        if subnode.text is not None:
+                            is_d4 = True
+                            nodeurl = self.check_if_empty(subnode.text)
+                    if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
+                        is_d5 = True
+                        node_description = self.clean_comments(self.check_if_empty(subnode.text))
+
+            if not is_d4:
+                nodeurl = ''
+            if not is_d5:
+                nodedescription = ''
+            return nodename, node_id, node_description, nodeurl, subnode_is_extractor
+
+    # COMBINER NODE
+    def EM_check_node_combiner(self, node_element):
+        try:
+            com_nodename, com_node_id, com_node_description, com_nodeurl, subnode_is_combiner = self.EM_extract_combiner_node(node_element)
+        except TypeError as e:
+            subnode_is_combiner = False
+        return subnode_is_combiner
+
+    def EM_extract_combiner_node(self, node_element):
+        is_d4 = False
+        is_d5 = False
+        node_id = node_element.attrib['id']
+        if len(node_id) > 2:
+            subnode_is_combiner = False
+            nodeurl = " "
+            nodename = " "
+            node_description = " "
+            for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+                attrib1 = subnode.attrib
+                #print(subnode.tag)
+                if attrib1 == {'key': 'd6'}:
+                    for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
+                        nodename = self.check_if_empty(USname.text)
+                    if nodename.startswith("C."):
+                        subnode_is_combiner = True
+                            
+            for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+                attrib1 = subnode.attrib                        
+                if subnode_is_combiner is True:
+
+                    if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
+                        if subnode.text is not None:
+                            is_d4 = True
+                            nodeurl = self.check_if_empty(subnode.text)
+                    if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
+                        is_d5 = True
+                        node_description = self.clean_comments(self.check_if_empty(subnode.text))
+
+            if not is_d4:
+                nodeurl = ''
+            if not is_d5:
+                nodedescription = ''
+            return nodename, node_id, node_description, nodeurl, subnode_is_combiner
+
+    #CONTINUITY NODE
+    def EM_check_node_continuity(self, node_element):
+        id_node_continuity = False
+        my_node_description, my_node_y_pos = self.EM_extract_continuity(node_element)
+        if my_node_description == "_continuity":
+            id_node_continuity = True
+
+        return id_node_continuity
+
+    def EM_extract_continuity(self, node_element):
+        is_d5 = False
+        node_y_pos = 0.0
+        nodedescription = None
+        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+            attrib = subnode.attrib
+            #print(attrib)
+            if attrib == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
+                is_d5 = True
+                nodedescription = subnode.text
+                #print(nodedescription)
+            if attrib == {'key': 'd6'}:
+                for geometry in subnode.findall('./{http://www.yworks.com/xml/graphml}SVGNode/{http://www.yworks.com/xml/graphml}Geometry'):
+                    node_y_pos = float(geometry.attrib['y'])
+                    #print("il valore y di nodo "+ str(nodedescription) +" = "+str(node_y_pos))
+        if not is_d5:
+            nodedescription = ''
+        return nodedescription, node_y_pos 
+    
+    # GESTIONE EDGES
+    def get_edge_target(self, tree, node_element):
+        alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
+        id_node = self.getnode_id(node_element)
+        EM_us_target = "" 
+        node_y_pos = 0.0
+        
+        for edge in alledges:
+            id_node_edge_source = self.getnode_edge_source(edge) 
+            if id_node_edge_source == id_node:
+                my_continuity_node_description, node_y_pos = self.EM_extract_continuity(node_element)
+                id_node_edge_target = self.getnode_edge_target(edge)
+                EM_us_target = self.find_node_us_by_id(id_node_edge_target)
+                #print("edge with id: "+ self.getnode_id(edge)+" with target US_node "+ id_node_edge_target+" which is the US "+ EM_us_target)
+        #print("edge with id: "+ self.getnode_id(edge)+" with target US_node "+ id_node_edge_target+" which is the US "+ EM_us_target)
+        return EM_us_target, node_y_pos
+
+    # SEMPLICI FUNZIONI PER ESTRARRE DATI PUNTUALI
+    def getnode_id(self, node_element):
+        id_node = str(node_element.attrib['id'])
+        return id_node
+
+    def getnode_edge_target(self, node_element):
+        id_node_edge_target = str(node_element.attrib['target'])
+        return id_node_edge_target
+
+    def getnode_edge_source(self, node_element):
+        id_node_edge_source = str(node_element.attrib['source'])
+        return id_node_edge_source
+
+    def find_node_us_by_id(self, id_node):
+        us_node = ""
+        for us in bpy.context.scene.em_list:
+            if id_node == us.id_node:
+                us_node = us.name
+        return us_node
+
+    def check_if_empty(self, name):
+        if name == None:
+            name = ""
+        return name
+
+    # FUNZIONE PER ELIMINARE COMMENTI NELLE DESCRIZIONI DEI NODI (laddove ci siano)
+    def clean_comments(self, multiline_str):
+        newstring = ""
+        for line in multiline_str.splitlines():
+            if line.startswith("«") or line.startswith("#"):
+                pass
+            else:
+                newstring = newstring+line+" "
+        return newstring    
+    
+    def check_index_coherence(self, scene):
+        try:
+            node_send = scene.em_list[scene.em_list_index]
+        except IndexError as error:
+            scene.em_list_index = 0
+            node_send = scene.em_list[scene.em_list_index]
+
+    def post_import_material_setup(self, context):
+        if context.scene.proxy_display_mode == "EM":
+            bpy.ops.emset.emmaterial()
+        else:
+            bpy.ops.emset.epochmaterial()
