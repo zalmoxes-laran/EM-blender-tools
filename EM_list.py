@@ -30,7 +30,7 @@ class EM_listitem_OT_to3D(bpy.types.Operator):
     bl_label = "Use element's name from the list above to rename selected 3D object"
     bl_options = {"REGISTER", "UNDO"}
 
-    list_type: StringProperty()
+    list_type: StringProperty() # type: ignore
 
     @classmethod
     def poll(cls, context):
@@ -43,12 +43,11 @@ class EM_listitem_OT_to3D(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         item_name_picker_cmd = "scene."+self.list_type+"[scene."+self.list_type+"_index]"
-        #item = scene.em_list[scene.em_list_index]
         item = eval(item_name_picker_cmd)
         context.active_object.name = item.name
         update_icons(context, self.list_type)
         if self.list_type == "em_list":
-            if context.scene.proxy_display_mode == "EM":
+            if scene.proxy_display_mode == "EM":
                 bpy.ops.emset.emmaterial()
             else:
                 bpy.ops.emset.epochmaterial()
@@ -59,7 +58,7 @@ class EM_update_icon_list(bpy.types.Operator):
     bl_label = "Update only the icons"
     bl_options = {"REGISTER", "UNDO"}
 
-    list_type: StringProperty()
+    list_type: StringProperty() # type: ignore
 
     def execute(self, context):
         if self.list_type == "all":
@@ -75,19 +74,7 @@ class EM_select_list_item(bpy.types.Operator):
     bl_label = "Select element in the list above from a 3D proxy"
     bl_options = {"REGISTER", "UNDO"}
 
-    list_type: StringProperty()
-
-    # questa via mi sembrava più pulita ma non è praticabile perché non si può passare una variabile alla funzione di pool (novembre 2019)
-    # @classmethod
-    # def poll(cls, context):
-    #     global list_type
-    #     scene = context.scene
-    #     obj = context.object 
-    #     list_cmd = ("scene."+ list_type)
-    #     if obj is None:
-    #         pass
-    #     else:
-    #         return (check_if_current_obj_has_brother_inlist(obj.name, eval(list_cmd)))
+    list_type: StringProperty() # type: ignore
 
     def execute(self, context):
         scene = context.scene
@@ -100,7 +87,7 @@ class EM_select_from_list_item(bpy.types.Operator):
     bl_label = "Select 3D obj from the list above"
     bl_options = {"REGISTER", "UNDO"}
 
-    list_type: StringProperty()
+    list_type: StringProperty() # type: ignore
 
     def execute(self, context):
         scene = context.scene
@@ -143,30 +130,6 @@ class EM_not_in_matrix(bpy.types.Operator):
 
         return {'FINISHED'}
 
-def togli_a_capo(stringa):
-    stringa_pulita = stringa.replace("/n","")
-    return stringa_pulita
-
-def newnames_forproperties_from_fathernodes(scene):
-    poly_property_counter = 1
-    for property in scene.em_properties_list:
-        node_list = []
-
-        for edge in scene.edges_list:
-            if edge.target == property.id_node:
-                for node in scene.em_list:
-                    if edge.source == node.id_node:
-                        node_list.append(node.name)
-                        break # Interrompe il ciclo una volta trovata la corrispondenza
-        #una volta fatto un pass generale è il momento di cambiare la label alla property
-        if len(node_list) == 1:
-            property.name = node_list[0] + "." + property.name
-        elif len(node_list) > 1:
-            property.name = "poly"+ str(poly_property_counter)+"." + property.name
-            poly_property_counter +=1
-
-
-
 class EM_import_GraphML(bpy.types.Operator):
     bl_idname = "import.em_graphml"
     bl_label = "Import the EM GraphML"
@@ -189,7 +152,7 @@ class EM_import_GraphML(bpy.types.Operator):
             inspect_load_dosco_files()
         
         #per aggiornare i nomi delle proprietà usando come prefisso in nome del nodo padre
-        newnames_forproperties_from_fathernodes(scene)
+        self.newnames_forproperties_from_fathernodes(scene)
         
         #crea liste derivate per lo streaming dei paradati
         create_derived_lists(scene.em_list[scene.em_list_index])
@@ -708,3 +671,21 @@ class EM_import_GraphML(bpy.types.Operator):
             bpy.ops.emset.emmaterial()
         else:
             bpy.ops.emset.epochmaterial()
+
+    def newnames_forproperties_from_fathernodes(self, scene):
+        poly_property_counter = 1
+        for property in scene.em_properties_list:
+            node_list = []
+
+            for edge in scene.edges_list:
+                if edge.target == property.id_node:
+                    for node in scene.em_list:
+                        if edge.source == node.id_node:
+                            node_list.append(node.name)
+                            break # Interrompe il ciclo una volta trovata la corrispondenza
+            #una volta fatto un pass generale è il momento di cambiare la label alla property
+            if len(node_list) == 1:
+                property.name = node_list[0] + "." + property.name
+            elif len(node_list) > 1:
+                property.name = "poly"+ str(poly_property_counter)+"." + property.name
+                poly_property_counter +=1

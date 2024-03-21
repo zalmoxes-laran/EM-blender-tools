@@ -35,8 +35,8 @@ class OBJECT_OT_install_em_missing_modules(bpy.types.Operator):
     bl_label = "missing modules"
     bl_options = {"REGISTER", "UNDO"}
 
-    is_install : BoolProperty()
-    list_modules_to_install: StringProperty()
+    is_install : BoolProperty() # type: ignore
+    list_modules_to_install: StringProperty() # type: ignore
 
     def execute(self, context):
         if self.list_modules_to_install == "Google":

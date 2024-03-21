@@ -22,11 +22,15 @@ bl_info = {
     "author": "E. Demetrescu",
     "version": (1, 4, 0),
     "blender": (4, 0, 1),
+    "devel_version": "v1.4.0 dev8",  # Aggiunto campo devel_version
     "location": "3D View > Toolbox",
     "warning": "This addon is in alpha stage.",
     "wiki_url": "",
     "category": "Tools",
     }
+
+def get_bl_info():
+    return bl_info
 
 # load and reload submodules
 ##################################
@@ -83,19 +87,19 @@ class EMAddonSettings(bpy.types.PropertyGroup):
         name="Preserve Web URL",
         description="Preserve the web URL instead of overwriting",
         default=True
-    )
+    ) # type: ignore
 
     overwrite_url_with_dosco_filepath: bpy.props.BoolProperty(
         name="Overwrite URL with DosCo Filepath",
         description="Overwrite the URL with DosCo Filepath",
         default=False
-    )
+    ) # type: ignore
 
     dosco_advanced_options: bpy.props.BoolProperty(
         name="Show advanced options ",
         description="Catch more information from DosCo folder loading the GraphML",
         default=False
-    )
+    ) # type: ignore
 
 class EmPreferences(bpy.types.AddonPreferences):
 	bl_idname = __package__
@@ -104,41 +108,45 @@ class EmPreferences(bpy.types.AddonPreferences):
 	is_external_module : bpy.props.BoolProperty(
               name="Pandas module (to read xlsx files) is present",
               default=False
-              )
+              ) # type: ignore
 
 	# addon updater preferences
 	auto_check_update : bpy.props.BoolProperty(
 		name="Auto-check for Update",
 		description="If enabled, auto-check for updates using an interval",
 		default=False
-		)
+		) # type: ignore
+      
 	updater_intrval_months : bpy.props.IntProperty(
 		name='Months',
 		description="Number of months between checking for updates",
 		default=0,
 		min=0
-		)
+		) # type: ignore
+      
 	updater_intrval_days : bpy.props.IntProperty(
 		name='Days',
 		description="Number of days between checking for updates",
 		default=7,
 		min=0,
 		max=31
-		)
+		) # type: ignore
+      
 	updater_intrval_hours : bpy.props.IntProperty(
 		name='Hours',
 		description="Number of hours between checking for updates",
 		default=0,
 		min=0,
 		max=23
-		)
+		) # type: ignore
+      
 	updater_intrval_minutes : bpy.props.IntProperty(
 		name='Minutes',
 		description="Number of minutes between checking for updates",
 		default=0,
 		min=0,
 		max=59
-		)
+		) # type: ignore
 
 	def draw(self, context):
               layout = self.layout
@@ -185,64 +193,64 @@ class EDGESListItem(bpy.types.PropertyGroup):
        id_node: prop.StringProperty(
               name="id",
               description="A description for this item",
-              default="Empty")
+              default="Empty") # type: ignore
 
        source: prop.StringProperty(
               name="source",
               description="A description for this item",
-              default="Empty")
+              default="Empty") # type: ignore
 
        target: prop.StringProperty(
               name="target",
               description="A description for this item",
-              default="Empty")
+              default="Empty") # type: ignore
 
        edge_type: prop.StringProperty(
               name="type",
               description="A description for this item",
-              default="Empt")
+              default="Empt") # type: ignore
 
 class EPOCHListItem(bpy.types.PropertyGroup):
        """ Group of properties representing an item in the list """
        name: prop.StringProperty(
               name="Name",
               description="A name for this item",
-              default="Untitled")
+              default="Untitled") # type: ignore
 
        id: prop.StringProperty(
               name="id",
               description="A description for this item",
-              default="Empty")
+              default="Empty") # type: ignore
 
        min_y: prop.FloatProperty(
               name="code for icon",
               description="",
-              default=0.0)
+              default=0.0) # type: ignore
 
        max_y: prop.FloatProperty(
               name="code for icon",
               description="",
-              default=0.0)
+              default=0.0) # type: ignore
 
        height: prop.FloatProperty(
               name="height of epoch row",
               description="",
-              default=0.0)
+              default=0.0) # type: ignore
        
        epoch_color: prop.StringProperty(
               name="color of epoch row",
               description="",
-              default="Empty")       
+              default="Empty")  # type: ignore      
 
-       use_toggle: BoolProperty(name="", default=True)
-       is_locked: BoolProperty(name="", default=True)
-       is_selected: BoolProperty(name="", default=False)
-       epoch_soloing: BoolProperty(name="", default=False)
-       rm_models: BoolProperty(name="", default=False)
-       reconstruction_on: BoolProperty(name="", default=False)
+       use_toggle: BoolProperty(name="", default=True) # type: ignore
+       is_locked: BoolProperty(name="", default=True) # type: ignore
+       is_selected: BoolProperty(name="", default=False) # type: ignore
+       epoch_soloing: BoolProperty(name="", default=False) # type: ignore
+       rm_models: BoolProperty(name="", default=False) # type: ignore
+       reconstruction_on: BoolProperty(name="", default=False) # type: ignore
        #line_art: BoolProperty(name="", default=False) 
        
-       unique_id: StringProperty(default="")
+       unique_id: StringProperty(default="") # type: ignore
 
        epoch_RGB_color: FloatVectorProperty(
               name="epoch_color",
@@ -251,7 +259,7 @@ class EPOCHListItem(bpy.types.PropertyGroup):
               min=0.0,
               max=1.0,
               default=(0.5, 0.5, 0.5)
-       )
+       ) # type: ignore
 
        wire_color: FloatVectorProperty(
               name="wire",
@@ -259,17 +267,17 @@ class EPOCHListItem(bpy.types.PropertyGroup):
               default=(0.2, 0.2, 0.2),
               min=0.0, max=1.0,
               description="wire color of the group"
-       )
+       ) # type: ignore
 
 class EM_Other_Settings(PropertyGroup):
        contex = bpy.context
-       select_all_layers: BoolProperty(name="Select Visible Layers", default=True)
-       unlock_obj: BoolProperty(name="Unlock Objects", default=False)
-       unhide_obj: BoolProperty(name="Unhide Objects", default=True)
-       em_proxy_sync: BoolProperty(name="Selecting a proxy you select the corresponding EM", default=False, update = functions.sync_Switch_em)
-       em_proxy_sync2: BoolProperty(name="Selecting an EM you select the corresponding proxy", default=False, update = functions.sync_Switch_proxy)
-       em_proxy_sync2_zoom: BoolProperty(name="Option to zoom to proxy", default=False, update = functions.sync_Switch_proxy)
-       soloing_mode: BoolProperty(name="Soloing mode", default=False)
+       select_all_layers: BoolProperty(name="Select Visible Layers", default=True) # type: ignore
+       unlock_obj: BoolProperty(name="Unlock Objects", default=False) # type: ignore
+       unhide_obj: BoolProperty(name="Unhide Objects", default=True) # type: ignore
+       em_proxy_sync: BoolProperty(name="Selecting a proxy you select the corresponding EM", default=False, update = functions.sync_Switch_em) # type: ignore
+       em_proxy_sync2: BoolProperty(name="Selecting an EM you select the corresponding proxy", default=False, update = functions.sync_Switch_proxy) # type: ignore
+       em_proxy_sync2_zoom: BoolProperty(name="Option to zoom to proxy", default=False, update = functions.sync_Switch_proxy) # type: ignore
+       soloing_mode: BoolProperty(name="Soloing mode", default=False) # type: ignore
 
 #######################################################################################################################
 
@@ -279,47 +287,47 @@ class EMListItem(bpy.types.PropertyGroup):
     name: prop.StringProperty(
            name="Name",
            description="A name for this item",
-           default="Untitled")
+           default="Untitled") # type: ignore
 
     description: prop.StringProperty(
            name="Description",
            description="A description for this item",
-           default="Empty")
+           default="Empty") # type: ignore
 
     icon: prop.StringProperty(
            name="code for icon",
            description="",
-           default="RESTRICT_INSTANCED_ON")
+           default="RESTRICT_INSTANCED_ON") # type: ignore
 
     icon_db: prop.StringProperty(
            name="code for icon db",
            description="",
-           default="DECORATE_ANIMATE") # nel caso di punto pieno sarà 'DECORATE_KEYFRAME'
+           default="DECORATE_ANIMATE") # nel caso di punto pieno sarà 'DECORATE_KEYFRAME'  # type: ignore
 
     url: prop.StringProperty(
            name="url",
            description="An url behind this item",
-           default="Empty")
+           default="Empty") # type: ignore
 
     shape: prop.StringProperty(
            name="shape",
            description="The shape of this item",
-           default="Empty")
+           default="Empty") # type: ignore
 
     y_pos: prop.FloatProperty(
            name="y_pos",
            description="The y_pos of this item",
-           default=0.0)
+           default=0.0) # type: ignore
 
     epoch: prop.StringProperty(
            name="code for epoch",
            description="",
-           default="Empty")
+           default="Empty") # type: ignore
 
     id_node: prop.StringProperty(
            name="id node",
            description="",
-           default="Empty")
+           default="Empty") # type: ignore
 
 class EMreusedUS(bpy.types.PropertyGroup):
     """ Group of properties representing an item in the list """
@@ -327,12 +335,12 @@ class EMreusedUS(bpy.types.PropertyGroup):
     epoch: prop.StringProperty(
            name="epoch",
            description="Epoch",
-           default="Untitled")
+           default="Untitled") # type: ignore
 
     em_element: prop.StringProperty(
            name="em_element",
            description="",
-           default="Empty")
+           default="Empty") # type: ignore
 
 class EMviqListErrors(bpy.types.PropertyGroup):
     """ Group of properties representing list of errors in exporting the RM """
@@ -340,22 +348,22 @@ class EMviqListErrors(bpy.types.PropertyGroup):
     name: prop.StringProperty( 
            name="Object",
            description="The object with an error",
-           default="Empty")
+           default="Empty") # type: ignore
 
     description: prop.StringProperty(
            name="Description",
            description="A description of the error",
-           default="Empty")
+           default="Empty") # type: ignore
 
     material: prop.StringProperty(
            name="material",
            description="",
-           default="Empty")
+           default="Empty") # type: ignore
 
     texture_type: prop.StringProperty(
            name="texture_type",
            description="",
-           default="Empty")
+           default="Empty") # type: ignore
 
 class EMListParadata(bpy.types.PropertyGroup):
     """ Group of properties representing a paradata element in the list """
@@ -363,39 +371,39 @@ class EMListParadata(bpy.types.PropertyGroup):
     name: prop.StringProperty(
            name="Name",
            description="A name for this item",
-           default="Untitled")
+           default="Untitled") # type: ignore
 
     description: prop.StringProperty(
            name="Description",
            description="A description for this item",
-           default="Empty")
+           default="Empty") # type: ignore
 
     icon: prop.StringProperty(
            name="code for icon",
            description="",
-           default="RESTRICT_INSTANCED_ON")
+           default="RESTRICT_INSTANCED_ON") # type: ignore
 
     icon_url: prop.StringProperty(
            name="code for icon url",
            description="",
-           default="CHECKBOX_DEHLT")
+           default="CHECKBOX_DEHLT") # type: ignore
 
     url: prop.StringProperty(
            name="url",
            description="An url behind this item",
-           default="Empty")
+           default="Empty") # type: ignore
 
     id_node: prop.StringProperty(
            name="id_node",
            description="The id node of this item",
-           default="Empty")
+           default="Empty") # type: ignore
 
 class EM_epochs_belonging_ob(bpy.types.PropertyGroup):
 
     epoch: prop.StringProperty(
            name="epoch",
            description="Epoch",
-           default="Untitled")
+           default="Untitled") # type: ignore
 
 class ExportVars(bpy.types.PropertyGroup):
        format_file : bpy.props.EnumProperty(
@@ -405,7 +413,7 @@ class ExportVars(bpy.types.PropertyGroup):
               ('fbx','fbx','fbx','', 2),
               ],
               default='gltf'
-       )
+       ) # type: ignore
 
 class ExportTablesVars(bpy.types.PropertyGroup):
        table_type : bpy.props.EnumProperty(
@@ -415,7 +423,7 @@ class ExportTablesVars(bpy.types.PropertyGroup):
               ('Extractors','Extractors','Extractors','', 2),
               ],
               default='US/USV'
-    )
+    ) # type: ignore
 
 # register
 ##################################

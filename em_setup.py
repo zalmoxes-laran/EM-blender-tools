@@ -3,13 +3,19 @@ from .functions import *
 from bpy.types import Operator
 from bpy.types import Menu, Panel, UIList, PropertyGroup
 from . import sqlite_io
+from .__init__ import get_bl_info
 
 
 #####################################################################
 #SETUP MENU
 
 class EM_SetupPanel:
-    bl_label = "EM setup (v1.4.0) dev8"
+    #devel_version = bpy.context.preferences.addons["EM-blender-tools"].bl_info.get('devel_version', 'Unknown version')
+    #bl_label = f"EM setup {devel_version}"
+    bl_info = get_bl_info()
+    devel_version = bl_info.get('devel_version', 'Unknown version')
+
+    bl_label = "EM setup " + devel_version
     bl_space_type = 'VIEW_3D' 
     bl_region_type = 'UI'
 

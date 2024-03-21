@@ -312,8 +312,8 @@ class EM_export(bpy.types.Operator):
     bl_description = "Export manager"
     bl_options = {'REGISTER', 'UNDO'}
 
-    em_export_type : StringProperty()
-    em_export_format : StringProperty()
+    em_export_type : StringProperty() # type: ignore
+    em_export_format : StringProperty() # type: ignore
 
     def __init__(self):
         self.stato_collezioni = {}
@@ -496,149 +496,7 @@ def original_id_to_new_name(scene,id_node):
         if source.id_node == id_node:
             return source.id_node
 
-def export_emjson(scene, nodes, edges):
-    #passo i nodi UUSS:
 
-    index_nodes = 0
-    
-    for uuss in scene.em_list:
-        uuss_node = {}
-        uuss_data = {}
-        uuss_layout = {}
-
-        uuss_node["type"] = convert_shape2type(uuss.shape)[0]
-        uuss_node["name"] = uuss.name
-
-        uuss_node["data"] = uuss_data 
-        uuss_data["description"]=uuss.description
-        uuss_data["epochs"]=[uuss.epoch]
-        uuss_data["url"]=uuss.url
-        uuss_data["time"]=uuss.y_pos
-
-        uuss_node["layout"] = uuss_layout
-        uuss_layout["scale"] = 10.0
-        uuss_layout["visible"] = False
-        uuss_layout["hasproxy"]= set_has_proxy_value(uuss.icon)
-
-        nodes[uuss.name] = uuss_node
-        #index_nodes +=1
-
-    for property in scene.em_properties_list:
-        property_node = {}
-        property_data = {}
-        property_layout = {}
-        property_node["type"]="property"
-        property_node["name"] =property.name
-
-        property_node["data"]=property_data
-        property_data["description"]=property.description
-        property_data["icon"]=set_has_proxy_value(property.icon)
-
-        property_node["layout"] = property_layout
-        property_layout["scale"] = 10.0
-        property_layout["visible"] = False
-        property_layout["icon_url"] = property.icon_url
-
-        property_data["url"]=property.url
-
-        nodes[property.id_node] = property_node
-        #index_nodes +=1
-
-    for combiner in scene.em_combiners_list:
-        combiner_node = {}
-        combiner_data = {}
-        combiner_layout = {}
-        combiner_node["type"]="combiner"
-        combiner_node["name"] =combiner.name
-
-        combiner_node["data"]=combiner_data
-        combiner_data["description"]=combiner.description
-        combiner_data["icon"]=set_has_proxy_value(combiner.icon)
-        combiner_data["url"]=combiner.url
-
-        combiner_layout["layout"] = combiner_layout
-        combiner_layout["scale"] = 10.0
-        combiner_layout["visible"] = False
-        combiner_layout["icon_url"]=combiner.icon_url
-
-        nodes[combiner.id_node] = combiner_node
-        #index_nodes +=1
-
-    for extractor in scene.em_extractors_list:
-        extractor_node = {}
-        extractor_data = {}
-        extractor_layout = {}
-        extractor_node["type"]= "extractor"
-        extractor_node["name"] = extractor.name
-
-        extractor_node["data"]=extractor_data
-        extractor_data["description"]=extractor.description
-        extractor_data["icon"]=set_has_proxy_value(extractor.icon)
-        extractor_data["url"]=extractor.url
-        extractor_data["src"]=""
-
-        extractor_node["layout"] = extractor_layout
-        extractor_layout["scale"] = 10.0
-        extractor_layout["visible"] = False
-        extractor_layout["icon_url"]=extractor.description
-
-        nodes[extractor.id_node] = extractor_node
-        #index_nodes +=1
-
-    for source in scene.em_sources_list:
-        source_node = {}
-        source_data = {}
-        source_layout = {}
-        source_node["type"] = "document"
-        source_node["name"] = source.name
-
-        source_node["data"]=source_data
-        source_data["description"]=source.description
-        source_data["icon"]=set_has_proxy_value(source.icon)
-        source_data["url"]=source.url
-
-        source_node["layout"] = source_layout
-        source_layout["scale"] = 10.0
-        source_layout["visible"] = False
-        source_layout["icon_url"] = source.icon_url
-
-        nodes[source.id_node] = source_node
-        #index_nodes +=1
-    '''
-    for edge in scene.edges_list:
-        edge_edge = {}
-        edge_edge["type"]=edge.edge_type       
-        edge_edge["from"]=original_id_to_new_name(scene,edge.source)
-        edge_edge["to"]=original_id_to_new_name(scene,edge.target)
-        #edge_appareance = {}
-        #edge_appareance["color"] = edge_type_to_color(edge.edge_type)
-        #edge_edge["appareance"]= edge_appareance     
-        edges[index_nodes] = edge_edge
-        index_nodes +=1
-    '''
-
-    # Suppongo che 'scene.edges_list' sia una lista di edge disponibili
-    edges = {}
-    for edge in scene.edges_list:
-        edge_type = edge.edge_type
-        
-        # Crea la lista per questo tipo di edge se non esiste già
-        if edge_type not in edges:
-            edges[edge_type] = []
-
-        # Crea il dizionario per l'edge corrente
-        edge_dict = {
-            "from": original_id_to_new_name(scene, edge.source),
-            "to": original_id_to_new_name(scene, edge.target)
-        }
-
-        # Aggiungi l'edge alla lista corrispondente
-        edges[edge_type].append(edge_dict)
-
-        # Ora 'edges' contiene i tuoi edge raggruppati per tipo
-
-
-    return nodes, edges
 
 def set_has_proxy_value(string):
     hasproxy = False
@@ -653,6 +511,11 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
+        self.export_emjson(context)
+
+        return {'FINISHED'}
+    
+    def export_emjson(self, context):
         scene = context.scene
         utente_aton = scene.EMviq_user_name
         progetto_aton = scene.EMviq_project_name 
@@ -708,7 +571,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
         emlist['graph1'] = site1 # questo sarà sostituito dal nome del sito
 
         #Prepare node graph for the JSON
-        nodes, edges = export_emjson(scene, nodes, edges)
+        nodes, edges = self.extract_nodes_edges_for_emjson(scene, nodes, edges)
         site1['nodes'] = nodes
         site1['edges'] = edges
         #print(nodes)
@@ -723,6 +586,150 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
             outfile.write(data + '\n')
 
         return {'FINISHED'}
+    
+    def extract_nodes_edges_for_emjson(self, scene, nodes, edges):
+        #passo i nodi UUSS:
+
+        index_nodes = 0
+        
+        for uuss in scene.em_list:
+            uuss_node = {}
+            uuss_data = {}
+            uuss_layout = {}
+
+            uuss_node["type"] = convert_shape2type(uuss.shape)[0]
+            uuss_node["name"] = uuss.name
+
+            uuss_node["data"] = uuss_data 
+            uuss_data["description"]=uuss.description
+            uuss_data["epochs"]=[uuss.epoch]
+            uuss_data["url"]=uuss.url
+            uuss_data["time"]=uuss.y_pos
+
+            uuss_node["layout"] = uuss_layout
+            uuss_layout["scale"] = 10.0
+            uuss_layout["visible"] = False
+            uuss_layout["hasproxy"]= set_has_proxy_value(uuss.icon)
+
+            nodes[uuss.name] = uuss_node
+            #index_nodes +=1
+
+        for property in scene.em_properties_list:
+            property_node = {}
+            property_data = {}
+            property_layout = {}
+            property_node["type"]="property"
+            property_node["name"] =property.name
+
+            property_node["data"]=property_data
+            property_data["description"]=property.description
+            property_data["icon"]=set_has_proxy_value(property.icon)
+
+            property_node["layout"] = property_layout
+            property_layout["scale"] = 10.0
+            property_layout["visible"] = False
+            property_layout["icon_url"] = property.icon_url
+
+            property_data["url"]=property.url
+
+            nodes[property.id_node] = property_node
+            #index_nodes +=1
+
+        for combiner in scene.em_combiners_list:
+            combiner_node = {}
+            combiner_data = {}
+            combiner_layout = {}
+            combiner_node["type"]="combiner"
+            combiner_node["name"] =combiner.name
+
+            combiner_node["data"]=combiner_data
+            combiner_data["description"]=combiner.description
+            combiner_data["icon"]=set_has_proxy_value(combiner.icon)
+            combiner_data["url"]=combiner.url
+
+            combiner_layout["layout"] = combiner_layout
+            combiner_layout["scale"] = 10.0
+            combiner_layout["visible"] = False
+            combiner_layout["icon_url"]=combiner.icon_url
+
+            nodes[combiner.id_node] = combiner_node
+            #index_nodes +=1
+
+        for extractor in scene.em_extractors_list:
+            extractor_node = {}
+            extractor_data = {}
+            extractor_layout = {}
+            extractor_node["type"]= "extractor"
+            extractor_node["name"] = extractor.name
+
+            extractor_node["data"]=extractor_data
+            extractor_data["description"]=extractor.description
+            extractor_data["icon"]=set_has_proxy_value(extractor.icon)
+            extractor_data["url"]=extractor.url
+            extractor_data["src"]=""
+
+            extractor_node["layout"] = extractor_layout
+            extractor_layout["scale"] = 10.0
+            extractor_layout["visible"] = False
+            extractor_layout["icon_url"]=extractor.description
+
+            nodes[extractor.id_node] = extractor_node
+            #index_nodes +=1
+
+        for source in scene.em_sources_list:
+            source_node = {}
+            source_data = {}
+            source_layout = {}
+            source_node["type"] = "document"
+            source_node["name"] = source.name
+
+            source_node["data"]=source_data
+            source_data["description"]=source.description
+            source_data["icon"]=set_has_proxy_value(source.icon)
+            source_data["url"]=source.url
+
+            source_node["layout"] = source_layout
+            source_layout["scale"] = 10.0
+            source_layout["visible"] = False
+            source_layout["icon_url"] = source.icon_url
+
+            nodes[source.id_node] = source_node
+            #index_nodes +=1
+        '''
+        for edge in scene.edges_list:
+            edge_edge = {}
+            edge_edge["type"]=edge.edge_type       
+            edge_edge["from"]=original_id_to_new_name(scene,edge.source)
+            edge_edge["to"]=original_id_to_new_name(scene,edge.target)
+            #edge_appareance = {}
+            #edge_appareance["color"] = edge_type_to_color(edge.edge_type)
+            #edge_edge["appareance"]= edge_appareance     
+            edges[index_nodes] = edge_edge
+            index_nodes +=1
+        '''
+
+        # Suppongo che 'scene.edges_list' sia una lista di edge disponibili
+        edges = {}
+        for edge in scene.edges_list:
+            edge_type = edge.edge_type
+            
+            # Crea la lista per questo tipo di edge se non esiste già
+            if edge_type not in edges:
+                edges[edge_type] = []
+
+            # Crea il dizionario per l'edge corrente
+            edge_dict = {
+                "from": original_id_to_new_name(scene, edge.source),
+                "to": original_id_to_new_name(scene, edge.target)
+            }
+
+            # Aggiungi l'edge alla lista corrispondente
+            edges[edge_type].append(edge_dict)
+
+            # Ora 'edges' contiene i tuoi edge raggruppati per tipo
+
+
+        return nodes, edges
 
 class OBJECT_OT_ExportUUSS(bpy.types.Operator):
     bl_idname = "export.uuss_export"
