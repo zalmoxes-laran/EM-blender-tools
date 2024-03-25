@@ -142,7 +142,6 @@ def add_sceneobj_to_epochs():
 #### Functions to extract data from GraphML file ####
 ### #### #### #### #### #### #### #### #### #### ####
 
-
 def EM_list_clear(context, list_type):
     scene = context.scene
     list_cmd1 = "scene."+list_type+".update()"
@@ -153,53 +152,6 @@ def EM_list_clear(context, list_type):
     for x in range(list_lenght):
         eval(list_cmd3)
     return
-
-def extract_epochs(node_element):
-    geometry = node_element.find('.//{http://www.yworks.com/xml/graphml}Geometry')
-    y_start = float(geometry.attrib['y'])
-    context = bpy.context
-    scene = context.scene    
-    EM_list_clear(context, "epoch_list")  
-    epoch_list_index_ema = 0
-    y_min = y_start
-    y_max = y_start
-
-    for row in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}Table/{http://www.yworks.com/xml/graphml}Rows/{http://www.yworks.com/xml/graphml}Row'):
-        id_row = row.attrib['id']
-        h_row = float(row.attrib['height'])
-        
-        scene.epoch_list.add()
-        scene.epoch_list[epoch_list_index_ema].id = str(id_row)
-        scene.epoch_list[epoch_list_index_ema].height = h_row
-        
-        y_min = y_max
-        y_max += h_row
-        scene.epoch_list[epoch_list_index_ema].min_y = y_min
-        scene.epoch_list[epoch_list_index_ema].max_y = y_max
-        #print(str(id_row))
-        epoch_list_index_ema += 1        
-
-    for nodelabel in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
-        RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
-        if RowNodeLabelModelParameter is not None:
-            label_node = nodelabel.text
-            id_node = str(RowNodeLabelModelParameter.attrib['id'])
-            # read the color of the epoch from the title of the row, if no color is provided, a default color is used
-            if 'backgroundColor' in nodelabel.attrib:
-                e_color = str(nodelabel.attrib['backgroundColor'])
-                #print(e_color)
-            else:
-                e_color = "#BCBCBC"
-            #print(e_color)
-        else:
-            id_node = "null"
-            
-        for i in range(len(scene.epoch_list)):
-            id_key = scene.epoch_list[i].id
-            if id_node == id_key:
-                scene.epoch_list[i].name = str(label_node)
-                scene.epoch_list[i].epoch_color = e_color
-                scene.epoch_list[i].epoch_RGB_color = hex_to_rgb(e_color)
 
 def stream_properties(self, context):
     scene = context.scene

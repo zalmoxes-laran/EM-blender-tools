@@ -129,161 +129,6 @@ class ER_UL_List(bpy.types.UIList):
 #Export Section
 #####################################################################
 
-def check_if_scalable(image_block):
-    is_scalable = False
-    if image_block.size[0] > bpy.context.scene.EM_gltf_export_maxres and image_block.size[1] > bpy.context.scene.EM_gltf_export_maxres:
-        is_scalable =True
-    if bpy.context.scene.EM_gltf_export_quality < 100:
-        is_scalable =True
-    return is_scalable
-
-def image_compression(dir_path):
-    # create new image or just find your image in bpy.data
-    scene = bpy.context.scene
-    temp_image_format = scene.render.image_settings.file_format
-    temp_image_quality = scene.render.image_settings.quality
-    scene.render.image_settings.file_format = 'JPEG'
-    scene.render.image_settings.quality = scene.EM_gltf_export_quality
-    print(f'Cerco nella directory {dir_path}')
-    for entry in os.listdir(dir_path):
-        if os.path.isfile(os.path.join(dir_path, entry)):
-            if entry.lower().endswith('.jpg') or entry.lower().endswith('.png'):
-                print(f'inizio a comprimere {entry}')
-                image_file_path = bpy.path.abspath(os.path.join(dir_path, entry))
-                image_dblock = bpy.data.images.load(image_file_path)
-                print(f"l'immagine importata ha lato {str(image_dblock.size[0])}")
-                if check_if_scalable(image_dblock):
-                    image_dblock.scale(scene.EM_gltf_export_maxres,scene.EM_gltf_export_maxres)
-                    print(f"l'immagine importata ha ora lato {str(image_dblock.size[0])}")
-                    print(f"ho compresso {image_dblock.name} con path {image_dblock.filepath}")
-                    #image_dblock.filepath = image_file_path
-                    image_dblock.update()
-                    image_dblock.save_render(image_file_path,scene= bpy.context.scene)
-
-    scene.render.image_settings.file_format = temp_image_format 
-    scene.render.image_settings.quality = temp_image_quality 
-    return 
-
-def rws(sentence):
-    sentence.replace(" ", "_")
-    sentence.replace(".", "")
-    return sentence
-
-def export_proxies(scene, export_folder):
-    for proxy in bpy.data.objects:
-        for em in scene.em_list:
-            if proxy.name == em.name:
-                proxy.select_set(True)
-                name = bpy.path.clean_name(em.name)
-                export_file = os.path.join(export_folder, name)
-                bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=False, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='NONE', export_colors=True, export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False,  will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
-
-                proxy.select_set(False)
-
-def export_rm(scene, export_folder, EMviq, nodes, format_file, edges, utente_aton, progetto_aton):
-    EM_list_clear(bpy.context, "emviq_error_list")
-    edges["."] = []
-    for ob in bpy.data.objects:
-        if len(ob.EM_ep_belong_ob) == 0:
-            # in case the object does not have an epoch it belogs to, do nothing (=0)
-            pass
-        # in case the object belogs to ONE epoch, I manage it accordingly
-        if len(ob.EM_ep_belong_ob) == 1:
-            ob_tagged = ob.EM_ep_belong_ob[0]
-            for epoch in scene.epoch_list:
-                if ob_tagged.epoch == epoch.name:
-                    epochname1_var = epoch.name.replace(" ", "_")
-                    epochname_var = epochname1_var.replace(".", "")
-                    #rm_folder = createfolder(export_folder, "rm")
-                    rm_folder = export_folder
-                    export_sub_folder = createfolder(rm_folder, epochname_var)
-                    ob.select_set(True)
-                    #name = bpy.path.clean_name(ob.name)
-                    export_file = os.path.join(export_sub_folder, ob.name)
-                    if format_file == "obj":
-                        bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
-                        copy_tex_ob(ob, export_sub_folder)
-
-                    if format_file == "gltf":
-                        bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', ui_tab='GENERAL', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_colors=True, export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_morph_normal=False, export_morph_tangent=False, export_lights=False,  will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
-                    if format_file == "fbx":
-                        bpy.ops.export_scene.fbx(filepath = export_file + ".fbx", check_existing=True, filter_glob="*.fbx", use_selection=True, use_active_collection=False, global_scale=1.0, apply_unit_scale=True, apply_scale_options='FBX_SCALE_NONE', bake_space_transform=False, object_types={'MESH'}, use_mesh_modifiers=True, use_mesh_modifiers_render=True, mesh_smooth_type='OFF', use_mesh_edges=False, use_tspace=False, use_custom_props=False, add_leaf_bones=True, primary_bone_axis='Y', secondary_bone_axis='X', use_armature_deform_only=False, armature_nodetype='NULL', bake_anim=False, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=True, bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True, bake_anim_step=1.0, bake_anim_simplify_factor=1.0, path_mode='AUTO', embed_textures=False, batch_mode='OFF', use_batch_own_dir=True, use_metadata=True, axis_forward='-Z', axis_up='Y')
-                    if EMviq:
-                        try:
-                            exec(epochname_var+'_node')
-                        except NameError:
-                            print("well, it WASN'T defined after all!")
-                            exec(epochname_var + '_node' + ' = {}')
-                            exec(epochname_var + '_urls = []')
-                            exec(epochname_var + "_node['urls'] = "+ epochname_var +"_urls")
-                            exec("nodes['"+epoch.name+"'] = "+ epochname_var + '_node')
-
-                            #exec(epochname_var + '_edge = []')
-                            #exec(epochname_var + '_edge.append(".")')
-                            #exec(epochname_var + '_edge.append("'+ epoch.name +'")')
-
-                            #exec('edges["."].append('+epochname_var + '_edge)')
-                            edges["."].append(epoch.name)
-                        else:
-                            print("sure, it was defined.")
-
-                        #exec(epochname_var + '_urls.append("' + epochname_var +'/'+ ob.name + '.' + format_file +'")')
-                        #but here we want to set the osgjs file format (the emviq server will convert the obj to osgjs)
-                        exec(epochname_var + '_urls.append("'+utente_aton+'/'+progetto_aton+'/' + epochname_var +'/'+ ob.name + '.gltf")')
-                    ob.select_set(False)
-        # in case the object is in different epochs, I set up a "shared" folder instead of a folder for each epoch
-        if len(ob.EM_ep_belong_ob) >= 2:
-            for ob_tagged in ob.EM_ep_belong_ob:
-                for epoch in scene.epoch_list:
-                    if ob_tagged.epoch == epoch.name:
-                        epochname1_var = epoch.name.replace(" ", "_")
-                        epochname_var = epochname1_var.replace(".", "")
-                        rm_folder = export_folder
-                        # create a shared folder for all the epochs
-                        export_sub_folder = createfolder(rm_folder, "shared")
-                        
-                        ob.select_set(True)
-                        export_file = os.path.join(export_sub_folder, ob.name)
-                        if format_file == "obj":
-                            bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
-                            copy_tex_ob(ob, export_sub_folder)
-                        if format_file == "gltf":
-                            bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_colors=True, export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
-                        if format_file == "fbx":
-                            bpy.ops.export_scene.fbx(filepath = export_file + ".fbx", check_existing=True, filter_glob="*.fbx", use_selection=True, use_active_collection=False, global_scale=1.0, apply_unit_scale=True, apply_scale_options='FBX_SCALE_NONE', bake_space_transform=False, object_types={'MESH'}, use_mesh_modifiers=True, use_mesh_modifiers_render=True, mesh_smooth_type='OFF', use_mesh_edges=False, use_tspace=False, use_custom_props=False, add_leaf_bones=True, primary_bone_axis='Y', secondary_bone_axis='X', use_armature_deform_only=False, armature_nodetype='NULL', bake_anim=False, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=True, bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True, bake_anim_step=1.0, bake_anim_simplify_factor=1.0, path_mode='AUTO', embed_textures=False, batch_mode='OFF', use_batch_own_dir=True, use_metadata=True, axis_forward='-Z', axis_up='Y')
-
-                        # if EMviq export is required, also the metadata are exported
-                        if EMviq:
-                            # I check if the epoch variable is already present, otherwise I create it
-                            try:
-                                exec(epochname_var+'_node')
-                            except NameError:
-                                #print("well, it WASN'T defined after all!")
-                                exec(epochname_var + '_node' + ' = {}')
-                                exec(epochname_var + '_urls = []')
-                                exec(epochname_var + "_node['urls'] = "+ epochname_var +"_urls")
-                                exec("nodes['"+epoch.name+"'] = "+ epochname_var + '_node')
-
-                                edges["."].append(epoch.name)
-
-                            else:
-                                pass
-                                #print("sure, it was defined.")
-                            
-                            exec(epochname_var + '_urls.append("'+utente_aton+'/'+progetto_aton+'/shared/'+ ob.name + '.gltf")')
-                            #exec(epochname_var + '_urls.append("rm/shared/' + ob.name + '.osgjs")')
-                        ob.select_set(False)
-    print(f'E ora di trovare le cartelle per comprimere le immagini: parto dalla folder {export_folder}')
-    if scene.enable_image_compression:
-        for sub_folder in os.listdir(export_folder):
-            print(f'Ho trovato oggetto {sub_folder}')
-
-            if os.path.isdir(os.path.join(export_folder, sub_folder)):
-                print(f'questa subfolder è una directory: {sub_folder}')
-                image_compression(os.path.join(export_folder, sub_folder))
-
-    return nodes, edges
-
 class EM_runaton(bpy.types.Operator):
     """Run Aton"""
     bl_idname = "run.aton"
@@ -337,19 +182,19 @@ class EM_export(bpy.types.Operator):
         if os.path.exists(os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)):
             base_dir_scenes = os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)
         else:
-            base_dir_scenes = createfolder(os.path.join(base_dir,"data","scenes",utente_aton), progetto_aton)
+            base_dir_scenes = self.createfolder(os.path.join(base_dir,"data","scenes",utente_aton), progetto_aton)
 
         if os.path.exists(os.path.join(base_dir,"data","collections",utente_aton,progetto_aton)):
             base_dir_collections = os.path.join(base_dir,"data","collections",utente_aton,progetto_aton)
         else:
-            base_dir_collections = createfolder(os.path.join(base_dir,"data","collections",utente_aton), progetto_aton)
+            base_dir_collections = self.createfolder(os.path.join(base_dir,"data","collections",utente_aton), progetto_aton)
 
         # Export proxies
         if self.em_export_type == 'Proxies' or self.em_export_type == "EMviq":
             bpy.context.view_layer.layer_collection.children['Proxy'].exclude = False
 
-            proxies_folder = createfolder(base_dir_scenes, 'proxies')
-            export_proxies(scene, proxies_folder)
+            proxies_folder = self.createfolder(base_dir_scenes, 'proxies')
+            self.export_proxies(scene, proxies_folder)
 
         # Export GraphML
         if self.em_export_type == "GraphML" or self.em_export_type == "EMviq":
@@ -372,7 +217,7 @@ class EM_export(bpy.types.Operator):
             emviq_scene['scenegraph'] = scenegraph
 
             #Prepare node graph for the JSON
-            nodes, edges = export_rm(scene, base_dir_collections, True, nodes, self.em_export_format, edges, utente_aton, progetto_aton)
+            nodes, edges = self.export_rm(scene, base_dir_collections, True, nodes, self.em_export_format, edges, utente_aton, progetto_aton)
 
             context = {}
             
@@ -427,6 +272,170 @@ class EM_export(bpy.types.Operator):
             if collection.children:
                 self._ripristina_stato_ricorsivo(collection.children)
 
+    def export_rm(self, scene, export_folder, EMviq, nodes, format_file, edges, utente_aton, progetto_aton):
+        EM_list_clear(bpy.context, "emviq_error_list")
+        edges["."] = []
+        for ob in bpy.data.objects:
+            if len(ob.EM_ep_belong_ob) == 0:
+                # in case the object does not have an epoch it belogs to, do nothing (=0)
+                pass
+            # in case the object belogs to ONE epoch, I manage it accordingly
+            if len(ob.EM_ep_belong_ob) == 1:
+                ob_tagged = ob.EM_ep_belong_ob[0]
+                for epoch in scene.epoch_list:
+                    if ob_tagged.epoch == epoch.name:
+                        epochname1_var = epoch.name.replace(" ", "_")
+                        epochname_var = epochname1_var.replace(".", "")
+                        #rm_folder = self.createfolder(export_folder, "rm")
+                        rm_folder = export_folder
+                        export_sub_folder = self.createfolder(rm_folder, epochname_var)
+                        ob.select_set(True)
+                        #name = bpy.path.clean_name(ob.name)
+                        export_file = os.path.join(export_sub_folder, ob.name)
+                        if format_file == "obj":
+                            bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
+                            copy_tex_ob(ob, export_sub_folder)
+
+                        if format_file == "gltf":
+                            bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', ui_tab='GENERAL', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_colors=True, export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_morph_normal=False, export_morph_tangent=False, export_lights=False,  will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
+                        if format_file == "fbx":
+                            bpy.ops.export_scene.fbx(filepath = export_file + ".fbx", check_existing=True, filter_glob="*.fbx", use_selection=True, use_active_collection=False, global_scale=1.0, apply_unit_scale=True, apply_scale_options='FBX_SCALE_NONE', bake_space_transform=False, object_types={'MESH'}, use_mesh_modifiers=True, use_mesh_modifiers_render=True, mesh_smooth_type='OFF', use_mesh_edges=False, use_tspace=False, use_custom_props=False, add_leaf_bones=True, primary_bone_axis='Y', secondary_bone_axis='X', use_armature_deform_only=False, armature_nodetype='NULL', bake_anim=False, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=True, bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True, bake_anim_step=1.0, bake_anim_simplify_factor=1.0, path_mode='AUTO', embed_textures=False, batch_mode='OFF', use_batch_own_dir=True, use_metadata=True, axis_forward='-Z', axis_up='Y')
+                        if EMviq:
+                            try:
+                                exec(epochname_var+'_node')
+                            except NameError:
+                                print("well, it WASN'T defined after all!")
+                                exec(epochname_var + '_node' + ' = {}')
+                                exec(epochname_var + '_urls = []')
+                                exec(epochname_var + "_node['urls'] = "+ epochname_var +"_urls")
+                                exec("nodes['"+epoch.name+"'] = "+ epochname_var + '_node')
+
+                                #exec(epochname_var + '_edge = []')
+                                #exec(epochname_var + '_edge.append(".")')
+                                #exec(epochname_var + '_edge.append("'+ epoch.name +'")')
+
+                                #exec('edges["."].append('+epochname_var + '_edge)')
+                                edges["."].append(epoch.name)
+                            else:
+                                print("sure, it was defined.")
+
+                            #exec(epochname_var + '_urls.append("' + epochname_var +'/'+ ob.name + '.' + format_file +'")')
+                            #but here we want to set the osgjs file format (the emviq server will convert the obj to osgjs)
+                            exec(epochname_var + '_urls.append("'+utente_aton+'/'+progetto_aton+'/' + epochname_var +'/'+ ob.name + '.gltf")')
+                        ob.select_set(False)
+            # in case the object is in different epochs, I set up a "shared" folder instead of a folder for each epoch
+            if len(ob.EM_ep_belong_ob) >= 2:
+                for ob_tagged in ob.EM_ep_belong_ob:
+                    for epoch in scene.epoch_list:
+                        if ob_tagged.epoch == epoch.name:
+                            epochname1_var = epoch.name.replace(" ", "_")
+                            epochname_var = epochname1_var.replace(".", "")
+                            rm_folder = export_folder
+                            # create a shared folder for all the epochs
+                            export_sub_folder = self.createfolder(rm_folder, "shared")
+                            
+                            ob.select_set(True)
+                            export_file = os.path.join(export_sub_folder, ob.name)
+                            if format_file == "obj":
+                                bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
+                                copy_tex_ob(ob, export_sub_folder)
+                            if format_file == "gltf":
+                                bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_colors=True, export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
+                            if format_file == "fbx":
+                                bpy.ops.export_scene.fbx(filepath = export_file + ".fbx", check_existing=True, filter_glob="*.fbx", use_selection=True, use_active_collection=False, global_scale=1.0, apply_unit_scale=True, apply_scale_options='FBX_SCALE_NONE', bake_space_transform=False, object_types={'MESH'}, use_mesh_modifiers=True, use_mesh_modifiers_render=True, mesh_smooth_type='OFF', use_mesh_edges=False, use_tspace=False, use_custom_props=False, add_leaf_bones=True, primary_bone_axis='Y', secondary_bone_axis='X', use_armature_deform_only=False, armature_nodetype='NULL', bake_anim=False, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=True, bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True, bake_anim_step=1.0, bake_anim_simplify_factor=1.0, path_mode='AUTO', embed_textures=False, batch_mode='OFF', use_batch_own_dir=True, use_metadata=True, axis_forward='-Z', axis_up='Y')
+
+                            # if EMviq export is required, also the metadata are exported
+                            if EMviq:
+                                # I check if the epoch variable is already present, otherwise I create it
+                                try:
+                                    exec(epochname_var+'_node')
+                                except NameError:
+                                    #print("well, it WASN'T defined after all!")
+                                    exec(epochname_var + '_node' + ' = {}')
+                                    exec(epochname_var + '_urls = []')
+                                    exec(epochname_var + "_node['urls'] = "+ epochname_var +"_urls")
+                                    exec("nodes['"+epoch.name+"'] = "+ epochname_var + '_node')
+
+                                    edges["."].append(epoch.name)
+
+                                else:
+                                    pass
+                                    #print("sure, it was defined.")
+                                
+                                exec(epochname_var + '_urls.append("'+utente_aton+'/'+progetto_aton+'/shared/'+ ob.name + '.gltf")')
+                                #exec(epochname_var + '_urls.append("rm/shared/' + ob.name + '.osgjs")')
+                            ob.select_set(False)
+        print(f'E ora di trovare le cartelle per comprimere le immagini: parto dalla folder {export_folder}')
+        if scene.enable_image_compression:
+            for sub_folder in os.listdir(export_folder):
+                print(f'Ho trovato oggetto {sub_folder}')
+
+                if os.path.isdir(os.path.join(export_folder, sub_folder)):
+                    print(f'questa subfolder è una directory: {sub_folder}')
+                    self.image_compression(os.path.join(export_folder, sub_folder))
+
+        return nodes, edges
+
+    def image_compression(self, dir_path):
+        # create new image or just find your image in bpy.data
+        scene = bpy.context.scene
+        temp_image_format = scene.render.image_settings.file_format
+        temp_image_quality = scene.render.image_settings.quality
+        scene.render.image_settings.file_format = 'JPEG'
+        scene.render.image_settings.quality = scene.EM_gltf_export_quality
+        print(f'Cerco nella directory {dir_path}')
+        for entry in os.listdir(dir_path):
+            if os.path.isfile(os.path.join(dir_path, entry)):
+                if entry.lower().endswith('.jpg') or entry.lower().endswith('.png'):
+                    print(f'inizio a comprimere {entry}')
+                    image_file_path = bpy.path.abspath(os.path.join(dir_path, entry))
+                    image_dblock = bpy.data.images.load(image_file_path)
+                    print(f"l'immagine importata ha lato {str(image_dblock.size[0])}")
+                    if self.check_if_scalable(image_dblock):
+                        image_dblock.scale(scene.EM_gltf_export_maxres,scene.EM_gltf_export_maxres)
+                        print(f"l'immagine importata ha ora lato {str(image_dblock.size[0])}")
+                        print(f"ho compresso {image_dblock.name} con path {image_dblock.filepath}")
+                        #image_dblock.filepath = image_file_path
+                        image_dblock.update()
+                        image_dblock.save_render(image_file_path,scene= bpy.context.scene)
+
+        scene.render.image_settings.file_format = temp_image_format 
+        scene.render.image_settings.quality = temp_image_quality 
+        return 
+
+    def check_if_scalable(self, image_block):
+        is_scalable = False
+        if image_block.size[0] > bpy.context.scene.EM_gltf_export_maxres and image_block.size[1] > bpy.context.scene.EM_gltf_export_maxres:
+            is_scalable =True
+        if bpy.context.scene.EM_gltf_export_quality < 100:
+            is_scalable =True
+        return is_scalable
+
+    def export_proxies(self, scene, export_folder):
+        for proxy in bpy.data.objects:
+            for em in scene.em_list:
+                if proxy.name == em.name:
+                    proxy.select_set(True)
+                    name = bpy.path.clean_name(em.name)
+                    export_file = os.path.join(export_folder, name)
+                    bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=False, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='NONE', export_colors=True, export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False,  will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
+
+                    proxy.select_set(False)
+
+    def createfolder(self, base_dir, foldername):
+        
+        if not base_dir:
+            raise Exception("Set again the GraphML file path in the first panel above before to export")
+
+        export_folder = os.path.join(base_dir, foldername)
+        if not os.path.exists(export_folder):
+            os.makedirs(export_folder)
+            print('There is no '+ foldername +' folder. Creating one...')
+        else:
+            print('Found previously created '+foldername+' folder. I will use it')
+
+        return export_folder
+
 class EM_openemviq(bpy.types.Operator):
     """Open EMviq"""
     bl_idname = "open.emviq"
@@ -459,52 +468,6 @@ class EM_openemviq(bpy.types.Operator):
 
         return {'FINISHED'}
 
-def extract_epochs(scene,epochs):
-    for epoch in scene.epoch_list:
-        epoch_node = {}
-        #epoch_node['description'] = epoch.description
-        epoch_node['start'] = epoch.min_y
-        epoch_node['end'] = epoch.max_y
-        epoch_node['color'] = epoch.epoch_color
-
-        epochs[epoch.name] = epoch_node
-    return epochs
-
-def edge_type_to_color(type):
-    if type == "line":
-        color = "red"
-    elif type == "dashed":
-        color = "blue"
-    else:
-        type == "black"
-    return color
-
-def original_id_to_new_name(scene,id_node):
-    for UUSS in scene.em_list:
-        if UUSS.id_node == id_node:
-            return UUSS.name
-    for property in scene.em_properties_list:
-        if property.id_node == id_node:
-            return property.id_node
-    for combiner in scene.em_combiners_list:
-        if combiner.id_node == id_node:
-            return combiner.id_node
-    for extractor in scene.em_extractors_list:
-        if extractor.id_node == id_node:
-            return extractor.id_node
-    for source in scene.em_sources_list:
-        if source.id_node == id_node:
-            return source.id_node
-
-
-
-def set_has_proxy_value(string):
-    hasproxy = False
-    if string == "RESTRICT_INSTANCED_OFF":
-        hasproxy = True
-
-    return hasproxy
-
 class JSON_OT_exportEMformat(bpy.types.Operator):
     bl_idname = "export.emjson"
     bl_label = "Export emjson"
@@ -529,7 +492,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
         if os.path.exists(os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)):
             base_dir_scenes = os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)
         else:
-            base_dir_scenes = createfolder(os.path.join(base_dir,"data","scenes",utente_aton), progetto_aton)
+            base_dir_scenes = self.createfolder(os.path.join(base_dir,"data","scenes",utente_aton), progetto_aton)
 
         # eventually reactivate collections RM and RB
 
@@ -564,7 +527,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
         root["context"] = contextgraph
         root["graphs"] = emlist
         contextgraph['epochs'] = epochs
-        epochs = extract_epochs(scene,epochs)
+        epochs = self.extract_epochs_from_epoch_list(scene,epochs)
         
         #semanticgraph['epochs'] = epochs
         semanticgraph['EMlist'] = emlist
@@ -609,7 +572,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
             uuss_node["layout"] = uuss_layout
             uuss_layout["scale"] = 10.0
             uuss_layout["visible"] = False
-            uuss_layout["hasproxy"]= set_has_proxy_value(uuss.icon)
+            uuss_layout["hasproxy"]= self.set_has_proxy_value(uuss.icon)
 
             nodes[uuss.name] = uuss_node
             #index_nodes +=1
@@ -623,7 +586,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
 
             property_node["data"]=property_data
             property_data["description"]=property.description
-            property_data["icon"]=set_has_proxy_value(property.icon)
+            property_data["icon"]=self.set_has_proxy_value(property.icon)
 
             property_node["layout"] = property_layout
             property_layout["scale"] = 10.0
@@ -644,7 +607,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
 
             combiner_node["data"]=combiner_data
             combiner_data["description"]=combiner.description
-            combiner_data["icon"]=set_has_proxy_value(combiner.icon)
+            combiner_data["icon"]=self.set_has_proxy_value(combiner.icon)
             combiner_data["url"]=combiner.url
 
             combiner_layout["layout"] = combiner_layout
@@ -664,7 +627,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
 
             extractor_node["data"]=extractor_data
             extractor_data["description"]=extractor.description
-            extractor_data["icon"]=set_has_proxy_value(extractor.icon)
+            extractor_data["icon"]=self.set_has_proxy_value(extractor.icon)
             extractor_data["url"]=extractor.url
             extractor_data["src"]=""
 
@@ -685,7 +648,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
 
             source_node["data"]=source_data
             source_data["description"]=source.description
-            source_data["icon"]=set_has_proxy_value(source.icon)
+            source_data["icon"]=self.set_has_proxy_value(source.icon)
             source_data["url"]=source.url
 
             source_node["layout"] = source_layout
@@ -699,10 +662,10 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
         for edge in scene.edges_list:
             edge_edge = {}
             edge_edge["type"]=edge.edge_type       
-            edge_edge["from"]=original_id_to_new_name(scene,edge.source)
-            edge_edge["to"]=original_id_to_new_name(scene,edge.target)
+            edge_edge["from"]=self.original_id_to_new_name(scene,edge.source)
+            edge_edge["to"]=self.original_id_to_new_name(scene,edge.target)
             #edge_appareance = {}
-            #edge_appareance["color"] = edge_type_to_color(edge.edge_type)
+            #edge_appareance["color"] = self.edge_type_to_color(edge.edge_type)
             #edge_edge["appareance"]= edge_appareance     
             edges[index_nodes] = edge_edge
             index_nodes +=1
@@ -719,8 +682,8 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
 
             # Crea il dizionario per l'edge corrente
             edge_dict = {
-                "from": original_id_to_new_name(scene, edge.source),
-                "to": original_id_to_new_name(scene, edge.target)
+                "from": self.original_id_to_new_name(scene, edge.source),
+                "to": self.original_id_to_new_name(scene, edge.target)
             }
 
             # Aggiungi l'edge alla lista corrispondente
@@ -730,6 +693,49 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
 
 
         return nodes, edges
+
+    def extract_epochs_from_epoch_list(scene, epochs):
+        for epoch in scene.epoch_list:
+            epoch_node = {}
+            #epoch_node['description'] = epoch.description
+            epoch_node['start'] = epoch.min_y
+            epoch_node['end'] = epoch.max_y
+            epoch_node['color'] = epoch.epoch_color
+            epochs[epoch.name] = epoch_node
+        return epochs
+
+    def edge_type_to_color(self, type):
+        if type == "line":
+            color = "red"
+        elif type == "dashed":
+            color = "blue"
+        else:
+            type == "black"
+        return color
+
+    def original_id_to_new_name(self, scene, id_node):
+        for UUSS in scene.em_list:
+            if UUSS.id_node == id_node:
+                return UUSS.name
+        for property in scene.em_properties_list:
+            if property.id_node == id_node:
+                return property.id_node
+        for combiner in scene.em_combiners_list:
+            if combiner.id_node == id_node:
+                return combiner.id_node
+        for extractor in scene.em_extractors_list:
+            if extractor.id_node == id_node:
+                return extractor.id_node
+        for source in scene.em_sources_list:
+            if source.id_node == id_node:
+                return source.id_node
+
+    def set_has_proxy_value(self, string):
+        hasproxy = False
+        if string == "RESTRICT_INSTANCED_OFF":
+            hasproxy = True
+
+        return hasproxy
 
 class OBJECT_OT_ExportUUSS(bpy.types.Operator):
     bl_idname = "export.uuss_export"
@@ -742,43 +748,6 @@ class OBJECT_OT_ExportUUSS(bpy.types.Operator):
         
             
         return {'FINISHED'}
-
-def write_UUSS_data(context, filepath, only_UUSS, header):
-    print("running write some data...")
-    
-    f = open(filepath, 'w', encoding='utf-8')
-
-    if  context.window_manager.export_tables_vars.table_type == 'US/USV':
-        if header:
-            f.write("Name; Description; Epoch; Type \n")
-        for US in context.scene.em_list:
-            if only_UUSS:
-                if US.icon == "RESTRICT_INSTANCED_ON":
-                    f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)[1]))
-            else:
-                f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)[1]))
-    if  context.window_manager.export_tables_vars.table_type == 'Sources':
-        if header:
-            f.write("Name; Description \n")
-        for source in context.scene.em_sources_list:
-            if only_UUSS:
-                if source.icon == "RESTRICT_INSTANCED_ON":
-                    f.write("%s\t %s\n" % (source.name, source.description))
-            else:
-                f.write("%s\t %s\n" % (source.name, source.description))
-
-    if  context.window_manager.export_tables_vars.table_type == 'Extractors':
-        if header:
-            f.write("Name\t Description \n")
-        for extractor in context.scene.em_extractors_list:
-            if only_UUSS:
-                if extractor.icon == "RESTRICT_INSTANCED_ON":
-                    f.write("%s\t %s\n" % (extractor.name, extractor.description))
-            else:
-                f.write("%s\t %s\n" % (extractor.name, extractor.description))
-    f.close()    
-
-    return {'FINISHED'}
 
 class ExportuussData(Operator, ExportHelper):
     """Export UUSS data into a csv file"""
@@ -834,26 +803,49 @@ class ExportuussData(Operator, ExportHelper):
             ) # type: ignore
 
     def execute(self, context):
-        return write_UUSS_data(context, self.filepath, self.only_UUSS_with_proxies, self.header_line)
-        #return write_UUSS_data(context, self.filepath, self.name, self.description, self.epoch, self.type_node, self.only_UUSS_with_proxies, self.header_line)
+        return self.write_UUSS_data(context, self.filepath, self.only_UUSS_with_proxies, self.header_line)
+        #return self.write_UUSS_data(context, self.filepath, self.name, self.description, self.epoch, self.type_node, self.only_UUSS_with_proxies, self.header_line)
+
+    def write_UUSS_data(self, context, filepath, only_UUSS, header):
+        print("running write some data...")
+        
+        f = open(filepath, 'w', encoding='utf-8')
+
+        if  context.window_manager.export_tables_vars.table_type == 'US/USV':
+            if header:
+                f.write("Name; Description; Epoch; Type \n")
+            for US in context.scene.em_list:
+                if only_UUSS:
+                    if US.icon == "RESTRICT_INSTANCED_ON":
+                        f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)[1]))
+                else:
+                    f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)[1]))
+        if  context.window_manager.export_tables_vars.table_type == 'Sources':
+            if header:
+                f.write("Name; Description \n")
+            for source in context.scene.em_sources_list:
+                if only_UUSS:
+                    if source.icon == "RESTRICT_INSTANCED_ON":
+                        f.write("%s\t %s\n" % (source.name, source.description))
+                else:
+                    f.write("%s\t %s\n" % (source.name, source.description))
+
+        if  context.window_manager.export_tables_vars.table_type == 'Extractors':
+            if header:
+                f.write("Name\t Description \n")
+            for extractor in context.scene.em_extractors_list:
+                if only_UUSS:
+                    if extractor.icon == "RESTRICT_INSTANCED_ON":
+                        f.write("%s\t %s\n" % (extractor.name, extractor.description))
+                else:
+                    f.write("%s\t %s\n" % (extractor.name, extractor.description))
+        f.close()    
+
+        return {'FINISHED'}
 
 # Only needed if you want to add into a dynamic menu
 #def menu_func_export(self, context):
 #    self.layout.operator(ExportCoordinates.bl_idname, text="Text Export Operator")
-
-def createfolder(base_dir, foldername):
-    
-    if not base_dir:
-        raise Exception("Set again the GraphML file path in the first panel above before to export")
-
-    export_folder = os.path.join(base_dir, foldername)
-    if not os.path.exists(export_folder):
-        os.makedirs(export_folder)
-        print('There is no '+ foldername +' folder. Creating one...')
-    else:
-        print('Found previously created '+foldername+' folder. I will use it')
-
-    return export_folder
 
 classes = [
     ER_UL_List,
@@ -877,7 +869,13 @@ def register():
         subtype='PASSWORD'
     )
 
+    bpy.types.Scene.enable_image_compression = BoolProperty(name="Tex compression", description = "Use compression settings for textures. If disabled, original images (size and compression) will be used.",default=True)
+
+
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
+
     del bpy.types.Scene.password
+    del bpy.types.Scene.enable_image_compression
+

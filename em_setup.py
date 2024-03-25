@@ -5,7 +5,6 @@ from bpy.types import Menu, Panel, UIList, PropertyGroup
 from . import sqlite_io
 from .__init__ import get_bl_info
 
-
 #####################################################################
 #SETUP MENU
 
@@ -29,7 +28,6 @@ class EM_SetupPanel:
             is_em_list = True
         else:
             is_em_list = False
-        #box = layout.box()
 
         row = layout.row(align=True)
         split = row.split()

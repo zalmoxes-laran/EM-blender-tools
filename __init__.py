@@ -439,24 +439,6 @@ classes = (
     UI.EM_UL_extractors_managers,
     UI.EM_UL_combiners_managers,
     UI.EM_UL_belongob,
-    EM_list.EM_listitem_OT_to3D,
-    EM_list.EM_update_icon_list,
-    EM_list.EM_select_from_list_item,
-    EM_list.EM_import_GraphML,
-    EM_list.EM_select_list_item,
-    EM_list.EM_not_in_matrix,
-    epoch_manager.EM_UL_List,
-    epoch_manager.EM_toggle_reconstruction,
-    epoch_manager.EM_toggle_select,
-    epoch_manager.EM_toggle_visibility,
-    epoch_manager.EM_set_EM_materials,
-    epoch_manager.EM_set_epoch_materials,
-    epoch_manager.EM_change_selected_objects,
-    epoch_manager.EM_toggle_selectable,
-    epoch_manager.EM_toggle_soloing,
-    epoch_manager.EM_add_remove_epoch_models,
-    epoch_manager.EM_select_epoch_rm,
-
     paradata_manager.EM_files_opener,
     functions.OBJECT_OT_CenterMass,
     functions.OBJECT_OT_labelonoff,
@@ -492,6 +474,8 @@ def register():
        addon_updater_ops.register(bl_info)
        
        EMdb_excel.register()
+
+       EM_list.register()
 
        export_manager.register()
 
@@ -532,7 +516,6 @@ def register():
        bpy.types.Scene.em_v_combiners_list = prop.CollectionProperty(type = EMListParadata)
        bpy.types.Scene.em_v_combiners_list_index = prop.IntProperty(name = "Index for combiners list", default = 0, update = functions.stream_combiners)
 
-       bpy.types.Scene.enable_image_compression = BoolProperty(name="Tex compression", description = "Use compression settings for textures. If disabled, original images (size and compression) will be used.",default=True)
 
        bpy.types.Scene.paradata_streaming_mode = BoolProperty(name="Paradata streaming mode", description = "Enable/disable tables streaming mode",default=True, update = functions.switch_paradata_lists)
        bpy.types.Scene.prop_paradata_streaming_mode = BoolProperty(name="Properties Paradata streaming mode", description = "Enable/disable property table streaming mode",default=True, update = functions.stream_properties)
@@ -640,8 +623,6 @@ def register():
 
        bpy.types.WindowManager.em_addon_settings = bpy.props.PointerProperty(type=EMAddonSettings)
        
-       
-
 ######################################################################################################
 
 def unregister():
@@ -653,6 +634,7 @@ def unregister():
        EMdb_excel.unregister()
        export_manager.unregister()
        em_statistics.unregister()
+       EM_list.unregister()
 
        for cls in classes:
               try:
@@ -714,7 +696,6 @@ def unregister():
        del bpy.types.Scene.ATON_path
        del bpy.types.Scene.EM_gltf_export_maxres
        del bpy.types.Scene.EM_gltf_export_quality
-       del bpy.types.Scene.enable_image_compression
        del bpy.types.WindowManager.em_addon_settings
 
        

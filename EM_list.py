@@ -275,7 +275,7 @@ class EM_import_GraphML(bpy.types.Operator):
                     pass
 
             if self._check_node_type(node_element) == 'node_swimlane':
-                extract_epochs(node_element)
+                self.extract_epochs(node_element)
 
         for em_i in range(len(scene.em_list)):
             for epoch_in in range(len(scene.epoch_list)):
@@ -304,6 +304,53 @@ class EM_import_GraphML(bpy.types.Operator):
         
 
         return {'FINISHED'}
+
+    def extract_epochs(self, node_element):
+        geometry = node_element.find('.//{http://www.yworks.com/xml/graphml}Geometry')
+        y_start = float(geometry.attrib['y'])
+        context = bpy.context
+        scene = context.scene    
+        EM_list_clear(context, "epoch_list")  
+        epoch_list_index_ema = 0
+        y_min = y_start
+        y_max = y_start
+
+        for row in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}Table/{http://www.yworks.com/xml/graphml}Rows/{http://www.yworks.com/xml/graphml}Row'):
+            id_row = row.attrib['id']
+            h_row = float(row.attrib['height'])
+            
+            scene.epoch_list.add()
+            scene.epoch_list[epoch_list_index_ema].id = str(id_row)
+            scene.epoch_list[epoch_list_index_ema].height = h_row
+            
+            y_min = y_max
+            y_max += h_row
+            scene.epoch_list[epoch_list_index_ema].min_y = y_min
+            scene.epoch_list[epoch_list_index_ema].max_y = y_max
+            #print(str(id_row))
+            epoch_list_index_ema += 1        
+
+        for nodelabel in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
+            RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
+            if RowNodeLabelModelParameter is not None:
+                label_node = nodelabel.text
+                id_node = str(RowNodeLabelModelParameter.attrib['id'])
+                # read the color of the epoch from the title of the row, if no color is provided, a default color is used
+                if 'backgroundColor' in nodelabel.attrib:
+                    e_color = str(nodelabel.attrib['backgroundColor'])
+                    #print(e_color)
+                else:
+                    e_color = "#BCBCBC"
+                #print(e_color)
+            else:
+                id_node = "null"
+                
+            for i in range(len(scene.epoch_list)):
+                id_key = scene.epoch_list[i].id
+                if id_node == id_key:
+                    scene.epoch_list[i].name = str(label_node)
+                    scene.epoch_list[i].epoch_color = e_color
+                    scene.epoch_list[i].epoch_RGB_color = hex_to_rgb(e_color)
 
     def read_edge_db(self, context, tree):
         alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
@@ -689,3 +736,24 @@ class EM_import_GraphML(bpy.types.Operator):
             elif len(node_list) > 1:
                 property.name = "poly"+ str(poly_property_counter)+"." + property.name
                 poly_property_counter +=1
+
+
+#SETUP MENU
+#####################################################################
+
+classes = [
+    EM_listitem_OT_to3D,
+    EM_update_icon_list,
+    EM_select_from_list_item,
+    EM_import_GraphML,
+    EM_select_list_item,
+    EM_not_in_matrix
+    ]
+
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+def unregister():
+    for cls in classes:
+        bpy.utils.unregister_class(cls)

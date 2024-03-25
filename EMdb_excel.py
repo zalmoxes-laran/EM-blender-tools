@@ -52,6 +52,7 @@ class OBJECT_OT_load_EMdb_xlsx(Operator):
                     source_v_item.description = row['Description']
 
         return {'FINISHED'}
+
 '''
 class ToolsPanelEMdbsources:
     bl_label = "EMdb sources list"
@@ -80,6 +81,7 @@ class VIEW3D_PT_EMDB_panel(Panel, ToolsPanelEMdbsources):
     bl_idname = "VIEW3D_PT_EMDB_panel"
     #bl_context = "objectmode"
 '''
+
 classes = [
     OBJECT_OT_EM_open_prefs,
     OBJECT_OT_load_EMdb_xlsx,
