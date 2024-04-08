@@ -101,7 +101,6 @@ class EM_ToolsPanel:
                                         ctx['area'] = area
                                         ctx['region'] = area.regions[-1]
                                         bpy.ops.view3d.view_selected(ctx)
-
         else:
             row.label(text="No US/USV here :-(")
 
