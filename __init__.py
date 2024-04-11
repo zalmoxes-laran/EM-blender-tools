@@ -481,8 +481,9 @@ def register():
 
        em_statistics.register()
 
-       check_external_modules() 
+       epoch_manager.register()
 
+       check_external_modules() 
 
        bpy.types.WindowManager.export_vars = bpy.props.PointerProperty(type = ExportVars)
        bpy.types.WindowManager.export_tables_vars = bpy.props.PointerProperty(type = ExportTablesVars)

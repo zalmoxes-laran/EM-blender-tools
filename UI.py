@@ -204,6 +204,7 @@ class EM_BasePanel:
             op.rm_add = False
             op = row.operator("select_rm.given_epoch", text="", emboss=False, icon='SELECT_SET')
             op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
+        
         else:
             row.label(text="No periods here :-(")
         

@@ -217,8 +217,8 @@ class EM_add_remove_epoch_models(bpy.types.Operator):
     bl_description = "Add and remove models from epochs"
     bl_options = {'REGISTER', 'UNDO'}
 
-    rm_epoch : StringProperty()
-    rm_add : BoolProperty()
+    rm_epoch : StringProperty() # type: ignore
+    rm_add : BoolProperty() # type: ignore
 
     def execute(self, context):
         scene = context.scene
