@@ -31,11 +31,12 @@ class EM_ExportPanel:
         row = layout.row()
         box = layout.box()
         row = box.row()
-        row.label(text="Tables export:")
+        row.label(text="Export:")
         row = box.row()
         op = row.operator("export.uuss_export", text="EM (csv)", emboss=True, icon='LONGDISPLAY')
         row = box.row()
         row.prop(context.window_manager.export_tables_vars, 'table_type', expand=True)
+        row.operator(JSON_OT_exportEMformat.bl_idname, text="EMjson").use_file_dialog = True
         row = layout.row()
         box = layout.box()
         row = box.row()
@@ -247,7 +248,8 @@ class EM_export(bpy.types.Operator):
         self.ripristina_stato_collezioni()        
 
         # Export semantic descriptio in JSON file format 
-        bpy.ops.export.emjson('INVOKE_DEFAULT')
+        # Avvia senza mostrare la finestra di dialogo
+        bpy.ops.export.emjson('INVOKE_DEFAULT', use_file_dialog=False)          
 
         return {'FINISHED'}
 
@@ -468,31 +470,47 @@ class EM_openemviq(bpy.types.Operator):
 
         return {'FINISHED'}
 
-class JSON_OT_exportEMformat(bpy.types.Operator):
+class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
     bl_idname = "export.emjson"
     bl_label = "Export emjson"
     bl_options = {"REGISTER", "UNDO"}
 
+    # Proprietà per controllare se mostrare la finestra di dialogo
+    use_file_dialog: BoolProperty(
+        name="Use File Dialog",
+        description="Use the file dialog to choose where to save the JSON",
+        default=True
+    ) # type: ignore
+
+    filename_ext = ".json"
+
     def execute(self, context):
-        self.export_emjson(context)
-
-        return {'FINISHED'}
-    
-    def export_emjson(self, context):
-        scene = context.scene
-        utente_aton = scene.EMviq_user_name
-        progetto_aton = scene.EMviq_project_name 
-        
-        bpy.ops.object.select_all(action='DESELECT')
-
-        # prepare folder paths
-        fix_if_relative_folder = bpy.path.abspath(scene.ATON_path)
-        base_dir = os.path.dirname(fix_if_relative_folder)
-        
-        if os.path.exists(os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)):
-            base_dir_scenes = os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)
+        if self.use_file_dialog:
+            return self.export_emjson(context, self.filepath)
         else:
-            base_dir_scenes = self.createfolder(os.path.join(base_dir,"data","scenes",utente_aton), progetto_aton)
+            return self.export_emjson(context, None)
+    
+    def export_emjson(self, context, file_path):
+        scene = context.scene
+        if not file_path:
+            
+            utente_aton = scene.EMviq_user_name
+            progetto_aton = scene.EMviq_project_name 
+            
+            bpy.ops.object.select_all(action='DESELECT')
+
+            # prepare folder paths
+            fix_if_relative_folder = bpy.path.abspath(scene.ATON_path)
+            base_dir = os.path.dirname(fix_if_relative_folder)
+            
+            if os.path.exists(os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)):
+                base_dir_scenes = os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)
+            else:
+                base_dir_scenes = self.createfolder(os.path.join(base_dir,"data","scenes",utente_aton), progetto_aton)
+
+
+            # generate the JSON file path
+            file_path = os.path.join(base_dir_scenes, "em.json")
 
         # eventually reactivate collections RM and RB
 
@@ -541,11 +559,9 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
         # encode dict as JSON 
         data = json.dumps(root, indent=4, ensure_ascii=True)
 
-        # generate the JSON file path
-        file_name = os.path.join(base_dir_scenes, "em.json")
-
+        
         # write JSON file
-        with open(file_name, 'w') as outfile:
+        with open(file_path, 'w') as outfile:
             outfile.write(data + '\n')
 
         return {'FINISHED'}
@@ -694,7 +710,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator):
 
         return nodes, edges
 
-    def extract_epochs_from_epoch_list(scene, epochs):
+    def extract_epochs_from_epoch_list(self, scene, epochs):
         for epoch in scene.epoch_list:
             epoch_node = {}
             #epoch_node['description'] = epoch.description
