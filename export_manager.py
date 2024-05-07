@@ -508,7 +508,6 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
             else:
                 base_dir_scenes = self.createfolder(os.path.join(base_dir,"data","scenes",utente_aton), progetto_aton)
 
-
             # generate the JSON file path
             file_path = os.path.join(base_dir_scenes, "em.json")
 
@@ -531,16 +530,16 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
         emlist = {}
         site1 = {}
         #modifica per 3dgraph
-        contextgraph['backgroundColor'] = "red"
-        contextgraph['backgroundColorType'] = "MatHub"
-        contextgraph['mainPanorama'] = "samples/bg-welcome.jpg"
-        homePOV = {}
-        contextgraph['homePOV'] = homePOV
-        homePOV['position'] =  {"x":-10.4,"y":8,"z":4.2}
-        homePOV['target']=  {"x":0,"y":4,"z":-1}
+        #contextgraph['backgroundColor'] = "red"
+        #contextgraph['backgroundColorType'] = "MatHub"
+        #contextgraph['mainPanorama'] = "samples/bg-welcome.jpg"
+        #homePOV = {}
+        #contextgraph['homePOV'] = homePOV
+        #homePOV['position'] =  {"x":-10.4,"y":8,"z":4.2}
+        #homePOV['target']=  {"x":0,"y":4,"z":-1}
         #####################
         #aggiunta landing nodes 
-        contextgraph['landingNodes'] = ["US","USVs","serSU","serUSV","USVn","SF","VSF","USD","TSU"]
+        #contextgraph['landingNodes'] = ["US","USVs","serSU","serUSV","USVn","SF","VSF","USD","TSU"]
         
         root["context"] = contextgraph
         root["graphs"] = emlist
@@ -551,6 +550,18 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
         semanticgraph['EMlist'] = emlist
         emlist['graph1'] = site1 # questo sarà sostituito dal nome del sito
 
+        #preparo le proprietà del grafo1
+        site1['name'] = "Acropoli"
+        site1['description'] = "Modello 3D Acropoli di Segni"
+        site1_data = {}
+        site1['data'] = site1_data
+        geo_position = {}
+        site1_data['geo_position'] = geo_position
+        geo_position['epsg'] = 3004
+        geo_position['shift_x'] = 0
+        geo_position['shift_y'] = 0
+        geo_position['shift_z'] = 0
+
         #Prepare node graph for the JSON
         nodes, edges = self.extract_nodes_edges_for_emjson(scene, nodes, edges)
         site1['nodes'] = nodes
@@ -558,7 +569,6 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
         #print(nodes)
         # encode dict as JSON 
         data = json.dumps(root, indent=4, ensure_ascii=True)
-
         
         # write JSON file
         with open(file_path, 'w') as outfile:
@@ -583,12 +593,15 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
             uuss_data["description"]=uuss.description
             uuss_data["epochs"]=[uuss.epoch]
             uuss_data["url"]=uuss.url
-            uuss_data["time"]=uuss.y_pos
+            uuss_data["rel_time"]=uuss.y_pos
+            uuss_data["time"]= 0 ### DA DEFINIRE MEGLIO CON VARIABILE
+            uuss_data["end_rel_time"]= 2024 ### DA DEFINIRE MEGLIO CON VARIABILE
+            uuss_data["end_time"]= 0 ### DA DEFINIRE MEGLIO CON VARIABILE
 
-            uuss_node["layout"] = uuss_layout
-            uuss_layout["scale"] = 10.0
-            uuss_layout["visible"] = False
-            uuss_layout["hasproxy"]= self.set_has_proxy_value(uuss.icon)
+            #uuss_node["layout"] = uuss_layout
+            #uuss_layout["scale"] = 10.0
+            #uuss_layout["visible"] = False
+            #uuss_layout["hasproxy"]= self.set_has_proxy_value(uuss.icon)
 
             nodes[uuss.name] = uuss_node
             #index_nodes +=1
@@ -603,13 +616,14 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
             property_node["data"]=property_data
             property_data["description"]=property.description
             property_data["icon"]=self.set_has_proxy_value(property.icon)
-
+            '''
             property_node["layout"] = property_layout
             property_layout["scale"] = 10.0
             property_layout["visible"] = False
             property_layout["icon_url"] = property.icon_url
-
+            '''
             property_data["url"]=property.url
+            property_data["url_type"]= "External link" ## DA DEFINIRE MEGLIO
 
             nodes[property.id_node] = property_node
             #index_nodes +=1
@@ -623,13 +637,14 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
 
             combiner_node["data"]=combiner_data
             combiner_data["description"]=combiner.description
-            combiner_data["icon"]=self.set_has_proxy_value(combiner.icon)
+            #combiner_data["icon"]=self.set_has_proxy_value(combiner.icon)
             combiner_data["url"]=combiner.url
-
+            '''
             combiner_layout["layout"] = combiner_layout
             combiner_layout["scale"] = 10.0
             combiner_layout["visible"] = False
             combiner_layout["icon_url"]=combiner.icon_url
+            '''
 
             nodes[combiner.id_node] = combiner_node
             #index_nodes +=1
@@ -646,11 +661,12 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
             extractor_data["icon"]=self.set_has_proxy_value(extractor.icon)
             extractor_data["url"]=extractor.url
             extractor_data["src"]=""
-
+            '''
             extractor_node["layout"] = extractor_layout
             extractor_layout["scale"] = 10.0
             extractor_layout["visible"] = False
             extractor_layout["icon_url"]=extractor.description
+            '''
 
             nodes[extractor.id_node] = extractor_node
             #index_nodes +=1
@@ -666,11 +682,13 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
             source_data["description"]=source.description
             source_data["icon"]=self.set_has_proxy_value(source.icon)
             source_data["url"]=source.url
+            '''
 
             source_node["layout"] = source_layout
             source_layout["scale"] = 10.0
             source_layout["visible"] = False
             source_layout["icon_url"] = source.icon_url
+            '''
 
             nodes[source.id_node] = source_node
             #index_nodes +=1
@@ -714,8 +732,10 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
         for epoch in scene.epoch_list:
             epoch_node = {}
             #epoch_node['description'] = epoch.description
-            epoch_node['start'] = epoch.min_y
-            epoch_node['end'] = epoch.max_y
+            epoch_node['min'] = epoch.min_y
+            epoch_node['max'] = epoch.max_y
+            epoch_node['start'] = -1000
+            epoch_node['end'] = 2024
             epoch_node['color'] = epoch.epoch_color
             epochs[epoch.name] = epoch_node
         return epochs
