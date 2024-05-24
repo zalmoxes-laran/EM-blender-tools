@@ -43,6 +43,7 @@ class TCPServerThread(threading.Thread):
         self.host = host
         self.port = port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.settimeout(1.0)  # Timeout di 1 secondo
         self.sock.bind((self.host, self.port))
         self.sock.listen(5)
         self.running = True
@@ -50,15 +51,20 @@ class TCPServerThread(threading.Thread):
     def run(self):
         print("Server TCP in esecuzione su {}:{}".format(self.host, self.port))
         while self.running:
-            client, address = self.sock.accept()
-            print("Connessione da", address)
-            data = client.recv(1024).decode('utf-8')
-            if data:
-                print("Ricevuto:", data)
-                # Esegui un'azione in Blender
-                self.execute_command(data)
-                client.sendall("Comando ricevuto".encode('utf-8'))
-            client.close()
+            try:
+                client, address = self.sock.accept()
+                print("Connessione da", address)
+                data = client.recv(1024).decode('utf-8')
+                if data:
+                    print("Ricevuto:", data)
+                    # Esegui un'azione in Blender
+                    self.execute_command(data)
+                    client.sendall("Comando ricevuto".encode('utf-8'))
+                client.close()
+            except socket.timeout:
+                continue  # Ritorna al loop se il timeout scade
+            except ConnectionAbortedError:
+                break  # Uscire dal loop se la connessione è stata abortita
 
     def execute_command(self, command):
         if command == "run_function":
