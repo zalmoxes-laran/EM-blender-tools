@@ -66,7 +66,8 @@ from . import (
         sqlite_io,
         EMdb_excel,
         external_modules_install,
-        em_statistics
+        em_statistics,
+        server
         #google_credentials
         )
 
@@ -483,6 +484,8 @@ def register():
 
        epoch_manager.register()
 
+       server.register()
+
        check_external_modules() 
 
        bpy.types.WindowManager.export_vars = bpy.props.PointerProperty(type = ExportVars)
@@ -636,6 +639,7 @@ def unregister():
        export_manager.unregister()
        em_statistics.unregister()
        EM_list.unregister()
+       server.register()
 
        for cls in classes:
               try:
