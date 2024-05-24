@@ -464,10 +464,8 @@ def register():
        for cls in classes:
               bpy.utils.register_class(cls)
 
-       sqlite_io.register()
-
        em_setup.register()
-
+       sqlite_io.register()
        visual_manager.register()
 
        external_modules_install.register()
@@ -639,7 +637,7 @@ def unregister():
        export_manager.unregister()
        em_statistics.unregister()
        EM_list.unregister()
-       server.register()
+       server.unregister()
 
        for cls in classes:
               try:
