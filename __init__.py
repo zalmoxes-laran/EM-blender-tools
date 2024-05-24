@@ -1,5 +1,5 @@
 '''
-Created by EMANUEL DEMETRESCU 2018-2023
+Created by EMANUEL DEMETRESCU 2018-2024
 emanuel.demetrescu@cnr.it
 
     This program is free software: you can redistribute it and/or modify
@@ -638,6 +638,7 @@ def unregister():
        em_statistics.unregister()
        EM_list.unregister()
        server.unregister()
+       epoch_manager.unregister()
 
        for cls in classes:
               try:
