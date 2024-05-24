@@ -1,7 +1,7 @@
 import bpy
 import socket
 import threading
-from bpy.props import BoolProperty
+from bpy.props import BoolProperty, StringProperty, IntProperty
 from bpy.types import Panel
 
 # Variabile globale per conservare il thread del server
@@ -16,19 +16,26 @@ class EM_ServerPanel:
         layout = self.layout
         scene = context.scene
 
+        row = layout.row()
+        if scene.EM_server_status:
+            row.label(text="Status: ON", icon='KEYTYPE_JITTER_VEC')
+        else:
+            row.label(text="Status: OFF", icon='HANDLETYPE_FREE_VEC')
+
+        row = layout.row()
+        layout.prop(scene, "server_host", text="Host")
+        layout.prop(scene, "server_port", text="Port")
+
         row = layout.row(align=True)
         split = row.split()
 
         col = split.column()
-        op = row.operator("start.server", text="Start", emboss=True, icon='KEYTYPE_JITTER_VEC')
+        op = col.operator("start.server", text="Start", emboss=True, icon='KEYTYPE_JITTER_VEC')
         col = split.column()
-        op = row.operator("stop.server", text="Stop", emboss=True, icon='HANDLETYPE_FREE_VEC')
-        col = split.column()
+        op = col.operator("stop.server", text="Stop", emboss=True, icon='HANDLETYPE_FREE_VEC')
+        #col = split.column()
 
-        if scene.EM_server_status:
-            col.label(text="Status", icon='KEYTYPE_JITTER_VEC')
-        else:
-            col.label(text="Status", icon='HANDLETYPE_FREE_VEC')
+
 
 
 class VIEW3D_PT_ServerPanel(Panel, EM_ServerPanel):
@@ -38,7 +45,7 @@ class VIEW3D_PT_ServerPanel(Panel, EM_ServerPanel):
 
 
 class TCPServerThread(threading.Thread):
-    def __init__(self, host='localhost', port=9999):
+    def __init__(self, host, port):
         super().__init__()
         self.host = host
         self.port = port
@@ -86,11 +93,14 @@ class EM_server_start(bpy.types.Operator):
         global server_thread
         scene = context.scene
 
+        host = scene.server_host
+        port = scene.server_port
+
         if server_thread is None or not server_thread.is_alive():
-            server_thread = TCPServerThread()
+            server_thread = TCPServerThread(host=host, port=port)
             server_thread.start()
             scene.EM_server_status = True
-            self.report({'INFO'}, "Server started")
+            self.report({'INFO'}, f"Server started at {host}:{port}")
         else:
             self.report({'INFO'}, "Server is already running")
         return {'FINISHED'}
@@ -130,6 +140,8 @@ def register():
         bpy.utils.register_class(cls)
 
     bpy.types.Scene.EM_server_status = BoolProperty(name="Server status", description="This indicates if the server is on or off", default=False)
+    bpy.types.Scene.server_host = StringProperty(name="Server Host", description="The host address for the server", default="localhost")
+    bpy.types.Scene.server_port = IntProperty(name="Server Port", description="The port number for the server", default=9001)
 
 
 def unregister():
@@ -137,3 +149,5 @@ def unregister():
         bpy.utils.unregister_class(cls)
 
     del bpy.types.Scene.EM_server_status
+    del bpy.types.Scene.server_host
+    del bpy.types.Scene.server_port
