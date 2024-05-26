@@ -22,7 +22,7 @@ bl_info = {
     "author": "E. Demetrescu",
     "version": (1, 4, 0),
     "blender": (4, 1, 0),
-    "devel_version": "v1.4.0 dev9",  # Aggiunto campo devel_version
+    "devel_version": "v1.4.0 dev10",  # Aggiunto campo devel_version
     "location": "3D View > Toolbox",
     "warning": "This addon is in beta stage.",
     "wiki_url": "",
