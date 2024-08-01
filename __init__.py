@@ -21,8 +21,8 @@ bl_info = {
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
     "version": (1, 4, 0),
-    "blender": (4, 1, 0),
-    "devel_version": "v1.4.0 dev10",  # Aggiunto campo devel_version
+    "blender": (4, 2, 0),
+    "devel_version": "v1.4.0 dev11",  # Aggiunto campo devel_version
     "location": "3D View > Toolbox",
     "warning": "This addon is in beta stage.",
     "wiki_url": "",
@@ -52,7 +52,6 @@ from bpy.types import (
         PropertyGroup,
         )
 
-
 from . import (
         UI,
         EM_list,
@@ -81,7 +80,6 @@ from .external_modules_install import check_external_modules
 # demo bare-bones preferences 
 @addon_updater_ops.make_annotations
 #@telegram_io.main()
-
 
 class EMAddonSettings(bpy.types.PropertyGroup):
     preserve_web_url: bpy.props.BoolProperty(

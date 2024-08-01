@@ -145,9 +145,6 @@ class EM_runaton(bpy.types.Operator):
         
         import subprocess
         subprocess.run([aton_exe])
-    
-        #import os
-        #os.system(aton_exe)
 
         return {'FINISHED'}
 
