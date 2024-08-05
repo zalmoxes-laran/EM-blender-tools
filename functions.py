@@ -143,7 +143,7 @@ def add_sceneobj_to_epochs():
 ### #### #### #### #### #### #### #### #### #### ####
 
 def EM_list_clear(context, list_type):
-    scene = context.scene
+    scene = bpy.context.scene
     list_cmd1 = "scene."+list_type+".update()"
     list_cmd2 = "len(scene."+list_type+")"
     list_cmd3 = "scene."+list_type+".remove(0)"
