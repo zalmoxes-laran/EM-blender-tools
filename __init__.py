@@ -22,7 +22,7 @@ bl_info = {
     "author": "E. Demetrescu",
     "version": (1, 4, 0),
     "blender": (4, 2, 0),
-    "devel_version": "v1.4.0 dev11",  # Aggiunto campo devel_version
+    "devel_version": "v1.4.0 dev12",  # Aggiunto campo devel_version
     "location": "3D View > Toolbox",
     "warning": "This addon is in beta stage.",
     "wiki_url": "",
@@ -36,9 +36,9 @@ def get_bl_info():
 ##################################
 
 import math
-import bpy
-import bpy.props as prop
-from bpy.props import (
+import bpy  # type: ignore
+import bpy.props as prop # type: ignore
+from bpy.props import ( # type: ignore
         StringProperty,
         BoolProperty,
         FloatProperty,
@@ -48,7 +48,7 @@ from bpy.props import (
         FloatVectorProperty,
         )
         
-from bpy.types import (
+from bpy.types import (  # type: ignore
         PropertyGroup,
         )
 
