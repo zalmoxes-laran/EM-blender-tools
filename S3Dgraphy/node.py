@@ -90,7 +90,7 @@ class StratigraphicNode(Node):
 
     def validate_stratigraphic_type(self):
         # Verifica se il tipo stratigrafico è valido
-        print(f"Validating stratigraphic type: {self.stratigraphic_type}")
+        print(f"Validating stratigraphic type for {self.name}: {self.stratigraphic_type}")
         if self.stratigraphic_type not in self.STRATIGRAPHIC_TYPES:
             raise ValueError(f"Invalid stratigraphic type: {self.stratigraphic_type}")
 

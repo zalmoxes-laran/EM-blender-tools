@@ -189,8 +189,6 @@ class EM_import_GraphML(bpy.types.Operator):
                 em_item.id_node = node.node_id
                 
 
-
-
     def import_graphml(self, context):
         scene = context.scene
         graphml_file = bpy.path.abspath(scene.EM_file)
@@ -213,7 +211,6 @@ class EM_import_GraphML(bpy.types.Operator):
         #self.read_edge_db(graph, tree)
         # Parse edges first
         self.read_edge_db(context,tree)
-
 
         # Parse nodes and add them to the graph
         for node_element in allnodes:
@@ -472,8 +469,7 @@ class EM_import_GraphML(bpy.types.Operator):
     
     # UUSS NODE
     def EM_check_node_us(self, node_element):
-        US_nodes_list = ['rectangle', 'parallelogram',
-                        'ellipse', 'hexagon', 'octagon', 'roundrectangle']
+        US_nodes_list = ['rectangle', 'parallelogram', 'ellipse', 'hexagon', 'octagon', 'roundrectangle']
         my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos, my_node_fill_color, my_node_border_style = self.EM_extract_node_name(node_element)
         if my_node_shape in US_nodes_list:
             id_node_us = True
