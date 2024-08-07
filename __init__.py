@@ -71,7 +71,7 @@ from . import (
         )
 
 from .functions import *
-from bpy.utils import register_class, unregister_class
+from bpy.utils import register_class, unregister_class  # type: ignore
 
 from . import addon_updater_ops
 
