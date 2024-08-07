@@ -173,6 +173,14 @@ class EM_import_GraphML(bpy.types.Operator):
 
     def populate_blender_lists_from_graph(self, context, graph):
         scene = context.scene
+
+        # Inizializza gli indici delle liste
+        em_list_index_ema = 0
+        em_reused_index = 0
+        em_sources_index_ema = 0
+        em_properties_index_ema = 0
+        em_extractors_index_ema = 0
+        em_combiners_index_ema = 0
         
         # Clear existing lists in Blender
         EM_list_clear(context, "em_list")
@@ -187,7 +195,31 @@ class EM_import_GraphML(bpy.types.Operator):
                 em_item.y_pos = node.y_pos
                 em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
                 em_item.id_node = node.node_id
-                
+
+            elif isinstance(node, DocumentNode):
+                source_already_in_list = False
+                if em_sources_index_ema > 0: 
+                    for source_item in scene.em_sources_list:
+                        if source_item.name == node.name:
+                            source_already_in_list = True
+                            #finding the node in the edges list
+                            for id_doc_node in scene.edges_list:
+                                if id_doc_node.target == node.node_id:
+                                    id_doc_node.target = source_item.id_node
+
+                if not source_already_in_list:
+                    scene.em_sources_list.add()
+                    scene.em_sources_list[em_sources_index_ema].name = node.name
+                    scene.em_sources_list[em_sources_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+                    scene.em_sources_list[em_sources_index_ema].id_node = node.node_id
+                    scene.em_sources_list[em_sources_index_ema].url = node.url
+                    if node.url == "":
+                        scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_DEHLT"
+                    else:
+                        scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_HLT"
+                    scene.em_sources_list[em_sources_index_ema].description = node.description
+                    em_sources_index_ema += 1
+
 
     def import_graphml(self, context):
         scene = context.scene
@@ -230,6 +262,18 @@ class EM_import_GraphML(bpy.types.Operator):
                         stratigraphic_type = convert_shape2type(nodeshape, borderstyle)[0]
                     )
                     graph.add_node(stratigraphic_node)
+
+            elif self.EM_check_node_document(node_element):
+                src_nodename, src_node_id, src_node_description, src_nodeurl, subnode_is_document = self.EM_extract_document_node(node_element)
+
+                # Crea un nuovo DocumentNode e aggiungilo al grafo
+                document_node = DocumentNode(
+                    node_id=src_node_id,
+                    name=src_nodename,
+                    url=src_nodeurl,
+                    description=src_node_description
+                )
+                graph.add_node(document_node)
 
                 '''
                 elif self.EM_check_node_document(node_element):
@@ -526,38 +570,40 @@ class EM_import_GraphML(bpy.types.Operator):
         is_d4 = False
         is_d5 = False
         node_id = node_element.attrib['id']
-        if len(node_id) > 2:
-            subnode_is_document = False
-            nodeurl = " "
-            nodename = " "
-            node_description = " "
+        nodename = ""
+        node_description = ""
+        nodeurl = ""
+        subnode_is_document = False
+
+        # Prima iterazione per determinare se il nodo è un documento
+        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+            attrib1 = subnode.attrib
+            if attrib1 == {'key': 'd6'}:
+                for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
+                    nodename = USname.text
+                for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}Property'):
+                    attrib2 = nodetype.attrib
+                    if attrib2 == {'class': 'com.yworks.yfiles.bpmn.view.DataObjectTypeEnum', 'name': 'com.yworks.bpmn.dataObjectType', 'value': 'DATA_OBJECT_TYPE_PLAIN'}:
+                        subnode_is_document = True
+
+        # Seconda iterazione per estrarre URL e descrizione se il nodo è un documento
+        if subnode_is_document:
             for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
                 attrib1 = subnode.attrib
-                #print(subnode.tag)
-                if attrib1 == {'key': 'd6'}:
-                    for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
-                        nodename = USname.text
-                    for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}Property'):
-                        attrib2 = nodetype.attrib
-                        if attrib2 == {'class': 'com.yworks.yfiles.bpmn.view.DataObjectTypeEnum', 'name': 'com.yworks.bpmn.dataObjectType', 'value': 'DATA_OBJECT_TYPE_PLAIN'}:
-                            subnode_is_document = True
+                if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
+                    if subnode.text is not None:
+                        is_d4 = True
+                        nodeurl = subnode.text
+                if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
+                    is_d5 = True
+                    node_description = self.clean_comments(subnode.text)
 
-            for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
-                attrib1 = subnode.attrib                        
-                if subnode_is_document is True:
+        if not is_d4:
+            nodeurl = ''
+        if not is_d5:
+            node_description = ''
+        return nodename, node_id, node_description, nodeurl, subnode_is_document
 
-                    if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
-                        if subnode.text is not None:
-                            is_d4 = True
-                            nodeurl = subnode.text
-                    if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
-                        is_d5 = True
-                        node_description = self.clean_comments(subnode.text)
-            if not is_d4:
-                nodeurl = ''
-            if not is_d5:
-                nodedescription = ''
-            return nodename, node_id, node_description, nodeurl, subnode_is_document
     
     # PROPERTY NODE
     def EM_check_node_property(self, node_element):

@@ -1,17 +1,16 @@
 # 3dgraphy/node.py
 
 class Node:
-    def __init__(self, node_id, name, shape, y_pos, fill_color, border_style, description):
+    def __init__(self, node_id, name, shape="", y_pos=0.0, fill_color="", border_style="", description=""):
         self.node_id = node_id
         self.name = name
+        # Parametri opzionali per supportare nodi con informazioni diverse
         self.shape = shape
         self.y_pos = y_pos
         self.fill_color = fill_color
         self.border_style = border_style
         self.description = description
-        self.has_continuity = False
         self.attributes = {}
-
 
     def add_attribute(self, key, value):
         self.attributes[key] = value
@@ -82,37 +81,30 @@ class StratigraphicNode(Node):
         }
     }
 
-    def __init__(self, node_id, name, stratigraphic_type, shape, y_pos, fill_color, border_style, description=""):
+
+    def __init__(self, node_id, name, stratigraphic_type, description="", shape="", y_pos=0.0, fill_color="", border_style=""):
         super().__init__(node_id, name, shape, y_pos, fill_color, border_style, description)
         self.stratigraphic_type = stratigraphic_type
         self.validate_stratigraphic_type()
 
-
     def validate_stratigraphic_type(self):
-        # Verifica se il tipo stratigrafico è valido
-        print(f"Validating stratigraphic type for {self.name}: {self.stratigraphic_type}")
         if self.stratigraphic_type not in self.STRATIGRAPHIC_TYPES:
             raise ValueError(f"Invalid stratigraphic type: {self.stratigraphic_type}")
 
-
     def get_stratigraphic_info(self):
-        # Restituisce le informazioni sul tipo stratigrafico
         return self.STRATIGRAPHIC_TYPES.get(self.stratigraphic_type)
-
-
-
 
 
 # ParadataNode Class - Subclass of Node
 class ParadataNode(Node):
     def __init__(self, node_id, name, description="", paradata_type=""):
-        super().__init__(node_id, name, description)
-        self.paradata_type = paradata_type  # Specific type of paradata
+        super().__init__(node_id, name, description=description)
+        self.paradata_type = paradata_type
 
 # DocumentNode Class - Subclass of ParadataNode
 class DocumentNode(ParadataNode):
     def __init__(self, node_id, name, url, description=""):
-        super().__init__(node_id, name, description, paradata_type="document")
+        super().__init__(node_id, name, description=description, paradata_type="document")
         self.url = url
 
 # CombinerNode Class - Subclass of ParadataNode
