@@ -583,7 +583,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
             uuss_data = {}
             uuss_layout = {}
 
-            uuss_node["type"] = convert_shape2type(uuss.shape)[0]
+            uuss_node["type"] = convert_shape2type(uuss.shape,uuss.border_style)[0]
             uuss_node["name"] = uuss.name
 
             uuss_node["data"] = uuss_data 
@@ -850,9 +850,9 @@ class ExportuussData(Operator, ExportHelper):
             for US in context.scene.em_list:
                 if only_UUSS:
                     if US.icon == "RESTRICT_INSTANCED_ON":
-                        f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)[1]))
+                        f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape,US.border_style)[1]))
                 else:
-                    f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)[1]))
+                    f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape,US.border_style)[1]))
         if  context.window_manager.export_tables_vars.table_type == 'Sources':
             if header:
                 f.write("Name; Description \n")

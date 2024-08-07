@@ -1,12 +1,12 @@
-import bpy
+import bpy # type: ignore
 import xml.etree.ElementTree as ET
 import os
-import bpy.props as prop
+import bpy.props as prop # type: ignore
 
 
 #from bpy.props import StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
 
-from bpy.props import (BoolProperty,
+from bpy.props import (BoolProperty, # type: ignore
                        FloatProperty,
                        StringProperty,
                        EnumProperty,
@@ -16,13 +16,18 @@ from bpy.props import (BoolProperty,
                        FloatVectorProperty,
                        )
 
-from bpy.types import (
+from bpy.types import ( # type: ignore
         AddonPreferences,
         PropertyGroup,
         )
 
 from .functions import *
 from .epoch_manager import *
+
+from .s3Dgraphy import *
+from .s3Dgraphy.node import StratigraphicNode  # Import diretto
+
+
 
 #### da qui si definiscono le funzioni e gli operatori
 class EM_listitem_OT_to3D(bpy.types.Operator):
@@ -143,6 +148,9 @@ class EM_import_GraphML(bpy.types.Operator):
         #execute import
         self.import_graphml(context)
 
+        #ora esplora tutte le liste per cercare tutti i nodi rectangle e white_ellipse che NON sono connessi ad un continuity node in modo tale da dargli continuità fino all'ultima epoca dello swimlane
+        self.find_and_add_us_nodes_without_continuity(context)
+
         # verifica post importazione: controlla che il contatore della lista delle UUSS sia nel range (può succedere di ricaricare ed avere una lista più corta di UUSS). In caso di necessità porta a 0 l'indice
         self.check_index_coherence(scene)
         
@@ -161,47 +169,72 @@ class EM_import_GraphML(bpy.types.Operator):
         self.post_import_material_setup(context)
 
         return {'FINISHED'}
+    
+
+    def populate_blender_lists_from_graph(self, context, graph):
+        scene = context.scene
+        
+        # Clear existing lists in Blender
+        EM_list_clear(context, "em_list")
+        
+        for node in graph.nodes:
+            if isinstance(node, StratigraphicNode):
+                scene.em_list.add()
+                em_item = scene.em_list[-1]
+                em_item.name = node.name
+                em_item.description = node.description
+                em_item.shape = node.shape
+                em_item.y_pos = node.y_pos
+                em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+                em_item.id_node = node.node_id
+                
+
+
 
     def import_graphml(self, context):
         scene = context.scene
         graphml_file = bpy.path.abspath(scene.EM_file)
         tree = ET.parse(graphml_file)
+        
+        # Clear existing lists in Blender
         EM_list_clear(context, "em_list")
         EM_list_clear(context, "em_reused")
         EM_list_clear(context, "em_sources_list")
         EM_list_clear(context, "em_properties_list")
         EM_list_clear(context, "em_extractors_list")
         EM_list_clear(context, "em_combiners_list")
-        em_list_index_ema = 0
-        em_reused_index = 0
-        em_sources_index_ema = 0
-        em_properties_index_ema = 0
-        em_extractors_index_ema = 0
-        em_combiners_index_ema = 0
-
+        
         allnodes = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
 
+        # Initialize an empty graph
+        graph = Graph()
+
+        #futura funzione
+        #self.read_edge_db(graph, tree)
+        # Parse edges first
         self.read_edge_db(context,tree)
 
+
+        # Parse nodes and add them to the graph
         for node_element in allnodes:
-            if self._check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
-                if self.EM_check_node_us(node_element): # Check if the node is an US, SU, USV, USM or USR node
-                    my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos, my_node_fill_color = self.EM_extract_node_name(node_element)
-                    scene.em_list.add()
-                    scene.em_list[em_list_index_ema].name = my_nodename
-                    scene.em_list[em_list_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(my_nodename)
-                    scene.em_list[em_list_index_ema].y_pos = float(my_node_y_pos)
-                    scene.em_list[em_list_index_ema].description = my_node_description
-                        #print(my_node_shape)
-                    if my_node_fill_color == '#FFFFFF':
-                        if my_node_shape == "ellipse" or my_node_shape == "octagon":
-                            scene.em_list[em_list_index_ema].shape = my_node_shape+"_white"
-                        else:
-                            scene.em_list[em_list_index_ema].shape = my_node_shape
-                    else:
-                        scene.em_list[em_list_index_ema].shape = my_node_shape
-                    scene.em_list[em_list_index_ema].id_node = self.getnode_id(node_element)
-                    em_list_index_ema += 1
+            if self._check_node_type(node_element) == 'node_simple':
+                if self.EM_check_node_us(node_element):
+                    nodename, nodedescription, nodeurl, nodeshape, node_y_pos, fillcolor, borderstyle = self.EM_extract_node_name(node_element)
+                    
+                    # Create a new StratigraphicNode and add to the graph
+                    stratigraphic_node = StratigraphicNode(
+                        node_id=self.getnode_id(node_element),
+                        name=nodename,
+                        description=nodedescription,
+                        shape=nodeshape,
+                        y_pos=float(node_y_pos),
+                        fill_color=fillcolor,
+                        border_style=borderstyle,
+                        stratigraphic_type = convert_shape2type(nodeshape, borderstyle)[0]
+                    )
+                    graph.add_node(stratigraphic_node)
+
+                '''
                 elif self.EM_check_node_document(node_element):
                     source_already_in_list = False
                     source_number = 2
@@ -273,14 +306,7 @@ class EM_import_GraphML(bpy.types.Operator):
                     em_combiners_index_ema += 1
                 else:
                     pass
-
-            if self._check_node_type(node_element) == 'node_swimlane':
-                self.extract_epochs(node_element)
-
-        for em_i in range(len(scene.em_list)):
-            for epoch_in in range(len(scene.epoch_list)):
-                if scene.epoch_list[epoch_in].min_y < scene.em_list[em_i].y_pos < scene.epoch_list[epoch_in].max_y:
-                    scene.em_list[em_i].epoch = scene.epoch_list[epoch_in].name
+                    '''
 
         #porzione di codice per estrarre le continuità
         for node_element in allnodes:
@@ -299,12 +325,15 @@ class EM_import_GraphML(bpy.types.Operator):
                                         scene.em_reused.add()
                                         scene.em_reused[em_reused_index].epoch = scene.epoch_list[ep_i].name
                                         scene.em_reused[em_reused_index].em_element = EM_item.name
-                                       #print("All'epoca "+scene.em_reused[em_reused_index].epoch+ " appartiene : "+ scene.em_reused[em_reused_index].em_element)
+                                    #print("All'epoca "+scene.em_reused[em_reused_index].epoch+ " appartiene : "+ scene.em_reused[em_reused_index].em_element)
                                         em_reused_index += 1
         
-        self.find_and_add_us_nodes_without_continuity(context)
+
+        # Now populate the Blender lists from the graph
+        self.populate_blender_lists_from_graph(context, graph)
 
         return {'FINISHED'}
+
 
     def find_and_add_us_nodes_without_continuity(self, context):
         scene = context.scene
@@ -445,7 +474,7 @@ class EM_import_GraphML(bpy.types.Operator):
     def EM_check_node_us(self, node_element):
         US_nodes_list = ['rectangle', 'parallelogram',
                         'ellipse', 'hexagon', 'octagon', 'roundrectangle']
-        my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos, my_node_fill_color = self.EM_extract_node_name(node_element)
+        my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos, my_node_fill_color, my_node_border_style = self.EM_extract_node_name(node_element)
         if my_node_shape in US_nodes_list:
             id_node_us = True
         else:
@@ -461,6 +490,8 @@ class EM_import_GraphML(bpy.types.Operator):
         nodedescription = None
         nodename = None
         fillcolor = None
+        borderstyle = None
+
         for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
             attrib = subnode.attrib
             if attrib == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
@@ -474,6 +505,8 @@ class EM_import_GraphML(bpy.types.Operator):
                     nodename = self.check_if_empty(USname.text)
                 for fill_color in subnode.findall('.//{http://www.yworks.com/xml/graphml}Fill'):
                     fillcolor = fill_color.attrib['color']
+                for border_style in subnode.findall('.//{http://www.yworks.com/xml/graphml}BorderStyle'):
+                    borderstyle = border_style.attrib['color']
                 for USshape in subnode.findall('.//{http://www.yworks.com/xml/graphml}Shape'):
                     nodeshape = USshape.attrib['type']
                 for geometry in subnode.findall('./{http://www.yworks.com/xml/graphml}ShapeNode/{http://www.yworks.com/xml/graphml}Geometry'):
@@ -483,7 +516,7 @@ class EM_import_GraphML(bpy.types.Operator):
             nodeurl = ''
         if not is_d5:
             nodedescription = ''
-        return nodename, nodedescription, nodeurl, nodeshape, node_y_pos, fillcolor     
+        return nodename, nodedescription, nodeurl, nodeshape, node_y_pos, fillcolor, borderstyle     
     
     # DOCUMENT NODE
     def EM_check_node_document(self, node_element):

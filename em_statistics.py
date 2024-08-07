@@ -53,7 +53,7 @@ class EMExportCSV(Operator, ExportHelper):
                     if obj.name == i.name:
                         epoca = i.epoch
                         description = i.description
-                        emnode = convert_shape2type(i.shape)
+                        emnode = convert_shape2type(i.shape,i.border_style)
                         pass 
                 print(obj.name)
                 if emnode:

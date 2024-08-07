@@ -1,4 +1,4 @@
- # s3dgraphy/__init__.py
-from .graph import Graph
-from .node import Node
-from .edge import Edge
+# s3Dgraphy/__init__.py
+from .graph import *
+from .node import *
+from .edge import *

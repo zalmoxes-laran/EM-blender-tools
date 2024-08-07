@@ -1,18 +1,17 @@
 # 3dgraphy/graph.py
-from .node import Node
-from .edge import Edge
+from .node import *
+from .edge import *
 
 class Graph:
     def __init__(self):
         self.nodes = []
         self.edges = []
 
-    def add_node(self, id, name, description="", shape="", y_pos=0.0, fill_color=""):
+    def add_node(self, node):
         # Verifica se il nodo esiste già
-        if self.find_node_by_id(id):
-            raise ValueError(f"Un nodo con ID '{id}' esiste già.")
+        if self.find_node_by_id(node.node_id):
+            raise ValueError(f"Un nodo con ID '{node.node_id}' esiste già.")
         # Aggiungi il nuovo nodo
-        node = Node(id, name, description, shape, y_pos, fill_color)
         self.nodes.append(node)
         return node
 
@@ -32,10 +31,10 @@ class Graph:
         self.edges.append(edge)
         return edge
 
-    def find_node_by_id(self, id):
+    def find_node_by_id(self, node_id):
         # Ricerca un nodo per ID
         for node in self.nodes:
-            if node.id == id:
+            if node.node_id == node_id:
                 return node
         return None
 
