@@ -207,10 +207,15 @@ class EM_import_GraphML(bpy.types.Operator):
         em_item = scene.em_list[-1]
         em_item.name = node.name
         em_item.description = node.description
-        em_item.shape = node.shape
-        em_item.y_pos = node.y_pos
+        em_item.shape = node.attributes.get('shape', "")
+        em_item.y_pos = node.attributes.get('y_pos', 0.0)
+        em_item.fill_color = node.attributes.get('fill_color', "")
+        em_item.border_style = node.attributes.get('border_style', "")
         em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
         em_item.id_node = node.node_id
+        em_item.epoch = node.epoch if node.epoch else ""
+        
+        return index + 1
 
     def _populate_document_node(self, scene, node, index):
         source_already_in_list = False
@@ -229,44 +234,41 @@ class EM_import_GraphML(bpy.types.Operator):
             em_item.icon_url = "CHECKBOX_HLT" if node.url else "CHECKBOX_DEHLT"
             em_item.description = node.description
             index += 1
-        return index
 
-    def _populate_property_node(self, scene, node, em_properties_index_ema):
+        return index
+    
+    def _populate_property_node(self, scene, node, index):
         scene.em_properties_list.add()
         em_item = scene.em_properties_list[-1]
         em_item.name = node.name
         em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
         em_item.id_node = node.node_id
-        em_item.url = node.url if node.url is not None else ""
-        em_item.icon_url = "CHECKBOX_HLT" if node.url else "CHECKBOX_DEHLT"
+        em_item.url = node.value if node.value is not None else ""
+        em_item.icon_url = "CHECKBOX_HLT" if node.value else "CHECKBOX_DEHLT"
         em_item.description = node.description
-        em_properties_index_ema += 1
-        return em_properties_index_ema
+        return index + 1
 
     def _populate_extractor_node(self, scene, node, index):
         scene.em_extractors_list.add()
         em_item = scene.em_extractors_list[-1]
         em_item.name = node.name
-        em_item.id_node = node.node_id                   
         em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
-        em_item.url = node.url if node.url is not None else ""
-        em_item.icon_url = "CHECKBOX_HLT" if node.url else "CHECKBOX_DEHLT"
+        em_item.id_node = node.node_id
+        em_item.url = node.source if node.source is not None else ""
+        em_item.icon_url = "CHECKBOX_HLT" if node.source else "CHECKBOX_DEHLT"
         em_item.description = node.description
-        index += 1
-        return index
+        return index + 1
 
     def _populate_combiner_node(self, scene, node, index):
         scene.em_combiners_list.add()
         em_item = scene.em_combiners_list[-1]
         em_item.name = node.name
-        em_item.id_node = node.node_id                   
         em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
-        em_item.url = node.url if node.url is not None else ""
-        em_item.icon_url = "CHECKBOX_HLT" if node.url else "CHECKBOX_DEHLT"
+        em_item.id_node = node.node_id
+        em_item.url = node.sources[0] if node.sources else ""
+        em_item.icon_url = "CHECKBOX_HLT" if node.sources else "CHECKBOX_DEHLT"
         em_item.description = node.description
-        index += 1
-        return index
-
+        return index + 1
 
     def import_graphml(self, context):
         scene = context.scene
@@ -296,18 +298,22 @@ class EM_import_GraphML(bpy.types.Operator):
             if self._check_node_type(node_element) == 'node_simple':
                 if self.EM_check_node_us(node_element):
                     nodename, nodedescription, nodeurl, nodeshape, node_y_pos, fillcolor, borderstyle = self.EM_extract_node_name(node_element)
-                    
-                    # Create a new StratigraphicNode and add to the graph
+                        
+                    # Creazione del nodo stratigrafico e aggiunta al grafo
                     stratigraphic_node = StratigraphicNode(
                         node_id=self.getnode_id(node_element),
                         name=nodename,
-                        description=nodedescription,
-                        shape=nodeshape,
-                        y_pos=float(node_y_pos),
-                        fill_color=fillcolor,
-                        border_style=borderstyle,
-                        stratigraphic_type = convert_shape2type(nodeshape, borderstyle)[0]
+                        stratigraphic_type=convert_shape2type(nodeshape, borderstyle)[0],
+                        description=nodedescription
                     )
+
+                    # Aggiunta di runtime properties
+                    stratigraphic_node.attributes['shape'] = nodeshape
+                    stratigraphic_node.attributes['y_pos'] = float(node_y_pos)
+                    stratigraphic_node.attributes['fill_color'] = fillcolor
+                    stratigraphic_node.attributes['border_style'] = borderstyle
+
+                    # Aggiunta del nodo al grafo
                     graph.add_node(stratigraphic_node)
 
                 elif self.EM_check_node_document(node_element):
@@ -317,29 +323,22 @@ class EM_import_GraphML(bpy.types.Operator):
                     document_node = DocumentNode(
                         node_id=src_node_id,
                         name=src_nodename,
-                        url=src_nodeurl,
-                        description=src_node_description
+                        description=src_node_description,
+                        url=src_nodeurl  # Aggiungi l'url come argomento opzionale
                     )
                     graph.add_node(document_node)
 
-
                 elif self.EM_check_node_property(node_element):
                     pro_nodename, pro_node_id, pro_node_description, pro_nodeurl, subnode_is_property = self.EM_extract_property_node(node_element)
-                    
-                    # Crea un PropertyNode e aggiungilo al grafo
                     property_node = PropertyNode(
                         node_id=pro_node_id,
                         name=pro_nodename,
                         description=pro_node_description,
-                        url=pro_nodeurl
+                        value=pro_nodeurl
                     )
                     graph.add_node(property_node)
-
-
                 elif self.EM_check_node_extractor(node_element):
                     ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_extractor = self.EM_extract_extractor_node(node_element)
-                    
-                    # Crea un ExtractorNode e aggiungilo al grafo
                     extractor_node = ExtractorNode(
                         node_id=ext_node_id,
                         name=ext_nodename,
@@ -347,16 +346,13 @@ class EM_import_GraphML(bpy.types.Operator):
                         source=ext_nodeurl
                     )
                     graph.add_node(extractor_node)
-
                 elif self.EM_check_node_combiner(node_element):
-                    ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_combiner = self.EM_extract_combiner_node(node_element)
-                    
-                    # Crea un CombinerNode e aggiungilo al grafo
+                    com_nodename, com_node_id, com_node_description, com_nodeurl, subnode_is_combiner = self.EM_extract_combiner_node(node_element)
                     combiner_node = CombinerNode(
-                        node_id=ext_node_id,
-                        name=ext_nodename,
-                        description=ext_node_description,
-                        sources=[ext_nodeurl]  # Aggiungi il source alla lista dei sources
+                        node_id=com_node_id,
+                        name=com_nodename,
+                        description=com_node_description,
+                        sources=[com_nodeurl]  # Assumendo che sources sia una lista di URL o ID
                     )
                     graph.add_node(combiner_node)
 

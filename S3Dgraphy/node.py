@@ -1,17 +1,12 @@
 # 3dgraphy/node.py
 
 class Node:
-    def __init__(self, node_id, name, shape="", y_pos=0.0, fill_color="", border_style="", description=""):
+    def __init__(self, node_id, name, node_type, description=""):
         self.node_id = node_id
         self.name = name
-        # Parametri opzionali per supportare nodi con informazioni diverse
-        self.shape = shape
-        self.y_pos = y_pos
-        self.fill_color = fill_color
-        self.border_style = border_style
+        self.node_type = node_type
         self.description = description
         self.attributes = {}
-        self.epoch = None  # Aggiungi questa proprietà per l'epoca
 
     def add_attribute(self, key, value):
         self.attributes[key] = value
@@ -82,47 +77,47 @@ class StratigraphicNode(Node):
         }
     }
 
-
-    def __init__(self, node_id, name, stratigraphic_type, description="", shape="", y_pos=0.0, fill_color="", border_style=""):
-        super().__init__(node_id, name, shape, y_pos, fill_color, border_style, description)
-        self.stratigraphic_type = stratigraphic_type
+    def __init__(self, node_id, name, stratigraphic_type, description="", epoch=None):
+        super().__init__(node_id, name, node_type=stratigraphic_type, description=description)
+        self.epoch = epoch  # Aggiunge la proprietà epoch specifica per i nodi stratigrafici
         self.validate_stratigraphic_type()
 
     def validate_stratigraphic_type(self):
-        if self.stratigraphic_type not in self.STRATIGRAPHIC_TYPES:
-            raise ValueError(f"Invalid stratigraphic type: {self.stratigraphic_type}")
+        if self.node_type not in self.STRATIGRAPHIC_TYPES:
+            raise ValueError(f"Invalid stratigraphic type: {self.node_type}")
 
     def get_stratigraphic_info(self):
-        return self.STRATIGRAPHIC_TYPES.get(self.stratigraphic_type)
+        return self.STRATIGRAPHIC_TYPES.get(self.node_type)
+
+
 
 # ParadataNode Class - Subclass of Node
 class ParadataNode(Node):
-    def __init__(self, node_id, name, description="", paradata_type="", url=None):
-        super().__init__(node_id, name, description)
-        self.paradata_type = paradata_type  # Specific type of paradata
+    def __init__(self, node_id, name, node_type, description="", url=None):
+        super().__init__(node_id, name, node_type, description)
         self.url = url  # Aggiungi l'attributo url
 
 # DocumentNode Class - Subclass of ParadataNode
 class DocumentNode(ParadataNode):
-    def __init__(self, node_id, name, description="", url=None):
-        super().__init__(node_id, name, description, paradata_type="document", url=url)
+    def __init__(self, node_id, name, node_type="document", description="", url=None):
+        super().__init__(node_id, name, node_type=node_type, description=description, url=url)
 
 # CombinerNode Class - Subclass of ParadataNode
 class CombinerNode(ParadataNode):
     def __init__(self, node_id, name, description="", sources=[], url=None):
-        super().__init__(node_id, name, description, paradata_type="combiner", url=url)
+        super().__init__(node_id, name, "combiner", description, url)
         self.sources = sources
 
 # ExtractorNode Class - Subclass of ParadataNode
 class ExtractorNode(ParadataNode):
     def __init__(self, node_id, name, description="", source=None, url=None):
-        super().__init__(node_id, name, description, paradata_type="extractor", url=url)
+        super().__init__(node_id, name, "extractor", description, url)
         self.source = source
 
 # PropertyNode Class - Subclass of ParadataNode
 class PropertyNode(ParadataNode):
     def __init__(self, node_id, name, description="", value=None, url=None):
-        super().__init__(node_id, name, description, paradata_type="property", url=url)
+        super().__init__(node_id, name, "property", description, url)
         self.value = value
 
 # Epoch Node
