@@ -11,6 +11,7 @@ class Node:
         self.border_style = border_style
         self.description = description
         self.attributes = {}
+        self.epoch = None  # Aggiungi questa proprietà per l'epoca
 
     def add_attribute(self, key, value):
         self.attributes[key] = value
@@ -94,36 +95,35 @@ class StratigraphicNode(Node):
     def get_stratigraphic_info(self):
         return self.STRATIGRAPHIC_TYPES.get(self.stratigraphic_type)
 
-
 # ParadataNode Class - Subclass of Node
 class ParadataNode(Node):
-    def __init__(self, node_id, name, description="", paradata_type=""):
-        super().__init__(node_id, name, description=description)
-        self.paradata_type = paradata_type
+    def __init__(self, node_id, name, description="", paradata_type="", url=None):
+        super().__init__(node_id, name, description)
+        self.paradata_type = paradata_type  # Specific type of paradata
+        self.url = url  # Aggiungi l'attributo url
 
 # DocumentNode Class - Subclass of ParadataNode
 class DocumentNode(ParadataNode):
-    def __init__(self, node_id, name, url, description=""):
-        super().__init__(node_id, name, description=description, paradata_type="document")
-        self.url = url
+    def __init__(self, node_id, name, description="", url=None):
+        super().__init__(node_id, name, description, paradata_type="document", url=url)
 
 # CombinerNode Class - Subclass of ParadataNode
 class CombinerNode(ParadataNode):
-    def __init__(self, node_id, name, description="", sources=[]):
-        super().__init__(node_id, name, description, paradata_type="combiner")
-        self.sources = sources  # List of nodes or documents this combiner node combines
+    def __init__(self, node_id, name, description="", sources=[], url=None):
+        super().__init__(node_id, name, description, paradata_type="combiner", url=url)
+        self.sources = sources
 
 # ExtractorNode Class - Subclass of ParadataNode
 class ExtractorNode(ParadataNode):
-    def __init__(self, node_id, name, description="", source=None):
-        super().__init__(node_id, name, description, paradata_type="extractor")
-        self.source = source  # The document or node from which data is extracted
+    def __init__(self, node_id, name, description="", source=None, url=None):
+        super().__init__(node_id, name, description, paradata_type="extractor", url=url)
+        self.source = source
 
 # PropertyNode Class - Subclass of ParadataNode
 class PropertyNode(ParadataNode):
-    def __init__(self, node_id, name, description="", value=None):
-        super().__init__(node_id, name, description, paradata_type="property")
-        self.value = value  # The value or information of the property
+    def __init__(self, node_id, name, description="", value=None, url=None):
+        super().__init__(node_id, name, description, paradata_type="property", url=url)
+        self.value = value
 
 # Epoch Node
 class EpochNode(Node):

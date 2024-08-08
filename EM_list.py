@@ -174,51 +174,98 @@ class EM_import_GraphML(bpy.types.Operator):
     def populate_blender_lists_from_graph(self, context, graph):
         scene = context.scene
 
+        # Clear existing lists in Blender
+        EM_list_clear(context, "em_list")
+        EM_list_clear(context, "em_sources_list")
+        EM_list_clear(context, "em_properties_list")
+        EM_list_clear(context, "em_extractors_list")
+        EM_list_clear(context, "em_combiners_list")
+
         # Inizializza gli indici delle liste
         em_list_index_ema = 0
-        em_reused_index = 0
         em_sources_index_ema = 0
         em_properties_index_ema = 0
         em_extractors_index_ema = 0
         em_combiners_index_ema = 0
-        
-        # Clear existing lists in Blender
-        EM_list_clear(context, "em_list")
-        
+
+        # Popolamento delle liste
         for node in graph.nodes:
             if isinstance(node, StratigraphicNode):
-                scene.em_list.add()
-                em_item = scene.em_list[-1]
-                em_item.name = node.name
-                em_item.description = node.description
-                em_item.shape = node.shape
-                em_item.y_pos = node.y_pos
-                em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
-                em_item.id_node = node.node_id
-
+                self._populate_stratigraphic_node(scene, node, em_list_index_ema)
+                em_list_index_ema += 1
             elif isinstance(node, DocumentNode):
-                source_already_in_list = False
-                if em_sources_index_ema > 0: 
-                    for source_item in scene.em_sources_list:
-                        if source_item.name == node.name:
-                            source_already_in_list = True
-                            #finding the node in the edges list
-                            for id_doc_node in scene.edges_list:
-                                if id_doc_node.target == node.node_id:
-                                    id_doc_node.target = source_item.id_node
+                em_sources_index_ema = self._populate_document_node(scene, node, em_sources_index_ema)
+            elif isinstance(node, PropertyNode):
+                em_properties_index_ema = self._populate_property_node(scene, node, em_properties_index_ema)
+            elif isinstance(node, ExtractorNode):
+                em_extractors_index_ema = self._populate_extractor_node(scene, node, em_extractors_index_ema)
+            elif isinstance(node, CombinerNode):
+                em_combiners_index_ema = self._populate_combiner_node(scene, node, em_combiners_index_ema)
 
-                if not source_already_in_list:
-                    scene.em_sources_list.add()
-                    scene.em_sources_list[em_sources_index_ema].name = node.name
-                    scene.em_sources_list[em_sources_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
-                    scene.em_sources_list[em_sources_index_ema].id_node = node.node_id
-                    scene.em_sources_list[em_sources_index_ema].url = node.url
-                    if node.url == "":
-                        scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_DEHLT"
-                    else:
-                        scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_HLT"
-                    scene.em_sources_list[em_sources_index_ema].description = node.description
-                    em_sources_index_ema += 1
+    def _populate_stratigraphic_node(self, scene, node, index):
+        scene.em_list.add()
+        em_item = scene.em_list[-1]
+        em_item.name = node.name
+        em_item.description = node.description
+        em_item.shape = node.shape
+        em_item.y_pos = node.y_pos
+        em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+        em_item.id_node = node.node_id
+
+    def _populate_document_node(self, scene, node, index):
+        source_already_in_list = False
+        for source_item in scene.em_sources_list:
+            if source_item.name == node.name:
+                source_already_in_list = True
+                break
+
+        if not source_already_in_list:
+            scene.em_sources_list.add()
+            em_item = scene.em_sources_list[-1]
+            em_item.name = node.name
+            em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+            em_item.id_node = node.node_id
+            em_item.url = node.url if node.url is not None else ""
+            em_item.icon_url = "CHECKBOX_HLT" if node.url else "CHECKBOX_DEHLT"
+            em_item.description = node.description
+            index += 1
+        return index
+
+    def _populate_property_node(self, scene, node, em_properties_index_ema):
+        scene.em_properties_list.add()
+        em_item = scene.em_properties_list[-1]
+        em_item.name = node.name
+        em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+        em_item.id_node = node.node_id
+        em_item.url = node.url if node.url is not None else ""
+        em_item.icon_url = "CHECKBOX_HLT" if node.url else "CHECKBOX_DEHLT"
+        em_item.description = node.description
+        em_properties_index_ema += 1
+        return em_properties_index_ema
+
+    def _populate_extractor_node(self, scene, node, index):
+        scene.em_extractors_list.add()
+        em_item = scene.em_extractors_list[-1]
+        em_item.name = node.name
+        em_item.id_node = node.node_id                   
+        em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+        em_item.url = node.url if node.url is not None else ""
+        em_item.icon_url = "CHECKBOX_HLT" if node.url else "CHECKBOX_DEHLT"
+        em_item.description = node.description
+        index += 1
+        return index
+
+    def _populate_combiner_node(self, scene, node, index):
+        scene.em_combiners_list.add()
+        em_item = scene.em_combiners_list[-1]
+        em_item.name = node.name
+        em_item.id_node = node.node_id                   
+        em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+        em_item.url = node.url if node.url is not None else ""
+        em_item.icon_url = "CHECKBOX_HLT" if node.url else "CHECKBOX_DEHLT"
+        em_item.description = node.description
+        index += 1
+        return index
 
 
     def import_graphml(self, context):
@@ -263,91 +310,65 @@ class EM_import_GraphML(bpy.types.Operator):
                     )
                     graph.add_node(stratigraphic_node)
 
-            elif self.EM_check_node_document(node_element):
-                src_nodename, src_node_id, src_node_description, src_nodeurl, subnode_is_document = self.EM_extract_document_node(node_element)
-
-                # Crea un nuovo DocumentNode e aggiungilo al grafo
-                document_node = DocumentNode(
-                    node_id=src_node_id,
-                    name=src_nodename,
-                    url=src_nodeurl,
-                    description=src_node_description
-                )
-                graph.add_node(document_node)
-
-                '''
                 elif self.EM_check_node_document(node_element):
-                    source_already_in_list = False
-                    source_number = 2
                     src_nodename, src_node_id, src_node_description, src_nodeurl, subnode_is_document = self.EM_extract_document_node(node_element)
-                    src_nodename_safe = src_nodename
-                    if em_sources_index_ema > 0: 
-                        for source_item in scene.em_sources_list:
-                            if source_item.name == src_nodename:
-                                source_already_in_list = True
-                                #finding the node in the edges list
-                                for id_doc_node in scene.edges_list:
-                                    if id_doc_node.target == src_node_id:
-                                        id_doc_node.target = source_item.id_node
 
-                    if not source_already_in_list:
-                        #src_nodename = src_nodename+"_"+str(source_number)
-                        #source_number +=1
-                        scene.em_sources_list.add()
-                        scene.em_sources_list[em_sources_index_ema].name = src_nodename
-                        scene.em_sources_list[em_sources_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(src_nodename_safe)
-                        scene.em_sources_list[em_sources_index_ema].id_node = src_node_id
-                        scene.em_sources_list[em_sources_index_ema].url = src_nodeurl
-                        if src_nodeurl == "":
-                            scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_DEHLT"
-                        else:
-                            scene.em_sources_list[em_sources_index_ema].icon_url = "CHECKBOX_HLT"
-                        scene.em_sources_list[em_sources_index_ema].description = src_node_description
-                        em_sources_index_ema += 1
+                    # Crea un nuovo DocumentNode e aggiungilo al grafo
+                    document_node = DocumentNode(
+                        node_id=src_node_id,
+                        name=src_nodename,
+                        url=src_nodeurl,
+                        description=src_node_description
+                    )
+                    graph.add_node(document_node)
+
+
                 elif self.EM_check_node_property(node_element):
                     pro_nodename, pro_node_id, pro_node_description, pro_nodeurl, subnode_is_property = self.EM_extract_property_node(node_element)
-                    scene.em_properties_list.add()
-                    scene.em_properties_list[em_properties_index_ema].name = pro_nodename
-                    scene.em_properties_list[em_properties_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(pro_nodename)
-                    scene.em_properties_list[em_properties_index_ema].id_node = pro_node_id
-                    scene.em_properties_list[em_properties_index_ema].url = pro_nodeurl
-                    if pro_nodeurl == "":
-                        scene.em_properties_list[em_properties_index_ema].icon_url = "CHECKBOX_DEHLT"
-                    else:
-                        scene.em_properties_list[em_properties_index_ema].icon_url = "CHECKBOX_HLT"
-                    scene.em_properties_list[em_properties_index_ema].description = pro_node_description
-                    em_properties_index_ema += 1
+                    
+                    # Crea un PropertyNode e aggiungilo al grafo
+                    property_node = PropertyNode(
+                        node_id=pro_node_id,
+                        name=pro_nodename,
+                        description=pro_node_description,
+                        url=pro_nodeurl
+                    )
+                    graph.add_node(property_node)
+
+
                 elif self.EM_check_node_extractor(node_element):
                     ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_extractor = self.EM_extract_extractor_node(node_element)
-                    scene.em_extractors_list.add()
-                    scene.em_extractors_list[em_extractors_index_ema].name = ext_nodename
-                    scene.em_extractors_list[em_extractors_index_ema].id_node = ext_node_id                   
-                    scene.em_extractors_list[em_extractors_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(ext_nodename)
-                    scene.em_extractors_list[em_extractors_index_ema].url = ext_nodeurl
-                   #print(ext_nodeurl)
-                    if ext_nodeurl == "":
-                        scene.em_extractors_list[em_extractors_index_ema].icon_url = "CHECKBOX_DEHLT"
-                    else:
-                        scene.em_extractors_list[em_extractors_index_ema].icon_url = "CHECKBOX_HLT"
-                    scene.em_extractors_list[em_extractors_index_ema].description = ext_node_description
-                    em_extractors_index_ema += 1
+                    
+                    # Crea un ExtractorNode e aggiungilo al grafo
+                    extractor_node = ExtractorNode(
+                        node_id=ext_node_id,
+                        name=ext_nodename,
+                        description=ext_node_description,
+                        source=ext_nodeurl
+                    )
+                    graph.add_node(extractor_node)
+
                 elif self.EM_check_node_combiner(node_element):
                     ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_combiner = self.EM_extract_combiner_node(node_element)
-                    scene.em_combiners_list.add()
-                    scene.em_combiners_list[em_combiners_index_ema].name = ext_nodename
-                    scene.em_combiners_list[em_combiners_index_ema].id_node = ext_node_id                   
-                    scene.em_combiners_list[em_combiners_index_ema].icon = check_objs_in_scene_and_provide_icon_for_list_element(ext_nodename)
-                    scene.em_combiners_list[em_combiners_index_ema].url = ext_nodeurl
-                   #print(ext_nodeurl)
-                    if ext_nodeurl == "":
-                        scene.em_combiners_list[em_combiners_index_ema].icon_url = "CHECKBOX_DEHLT"
-                    else:
-                        scene.em_combiners_list[em_combiners_index_ema].icon_url = "CHECKBOX_HLT"
-                    scene.em_combiners_list[em_combiners_index_ema].description = ext_node_description
-                    em_combiners_index_ema += 1
+                    
+                    # Crea un CombinerNode e aggiungilo al grafo
+                    combiner_node = CombinerNode(
+                        node_id=ext_node_id,
+                        name=ext_nodename,
+                        description=ext_node_description,
+                        sources=[ext_nodeurl]  # Aggiungi il source alla lista dei sources
+                    )
+                    graph.add_node(combiner_node)
+
                 else:
                     pass
-                    '''
+        
+            elif self._check_node_type(node_element) == 'node_swimlane':
+                # Parsing dei nodi EpochNode
+                graph = self.extract_epochs(node_element, graph)
+
+
+
 
         #porzione di codice per estrarre le continuità
         for node_element in allnodes:
@@ -422,14 +443,13 @@ class EM_import_GraphML(bpy.types.Operator):
         return None
 
 
-
-    def extract_epochs(self, node_element):
+    def extract_epochs(self, node_element, graph):
         geometry = node_element.find('.//{http://www.yworks.com/xml/graphml}Geometry')
         y_start = float(geometry.attrib['y'])
-        context = bpy.context
-        scene = context.scene    
-        EM_list_clear(context, "epoch_list")  
-        epoch_list_index_ema = 0
+        
+        # Lista delle epoche
+        epochs = []
+
         y_min = y_start
         y_max = y_start
 
@@ -437,38 +457,43 @@ class EM_import_GraphML(bpy.types.Operator):
             id_row = row.attrib['id']
             h_row = float(row.attrib['height'])
             
-            scene.epoch_list.add()
-            scene.epoch_list[epoch_list_index_ema].id = str(id_row)
-            scene.epoch_list[epoch_list_index_ema].height = h_row
-            
             y_min = y_max
             y_max += h_row
-            scene.epoch_list[epoch_list_index_ema].min_y = y_min
-            scene.epoch_list[epoch_list_index_ema].max_y = y_max
-            #print(str(id_row))
-            epoch_list_index_ema += 1        
+
+            # Aggiungi l'epoca alla lista delle epoche
+            epochs.append({
+                "id": id_row,
+                "min_y": y_min,
+                "max_y": y_max
+            })
 
         for nodelabel in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
             RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
             if RowNodeLabelModelParameter is not None:
                 label_node = nodelabel.text
                 id_node = str(RowNodeLabelModelParameter.attrib['id'])
-                # read the color of the epoch from the title of the row, if no color is provided, a default color is used
                 if 'backgroundColor' in nodelabel.attrib:
                     e_color = str(nodelabel.attrib['backgroundColor'])
-                    #print(e_color)
                 else:
                     e_color = "#BCBCBC"
-                #print(e_color)
             else:
                 id_node = "null"
-                
-            for i in range(len(scene.epoch_list)):
-                id_key = scene.epoch_list[i].id
-                if id_node == id_key:
-                    scene.epoch_list[i].name = str(label_node)
-                    scene.epoch_list[i].epoch_color = e_color
-                    scene.epoch_list[i].epoch_RGB_color = hex_to_rgb(e_color)
+                    
+            for epoch in epochs:
+                if epoch["id"] == id_node:
+                    epoch["name"] = label_node
+                    epoch["color"] = e_color
+                    break
+
+        # Assegna le epoche ai nodi nel grafo in base alla posizione Y
+        for node in graph.nodes:
+            for epoch in epochs:
+                if epoch["min_y"] < node.y_pos < epoch["max_y"]:
+                    node.epoch = epoch["name"]
+                    break
+
+        return graph
+
 
     def read_edge_db(self, context, tree):
         alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
