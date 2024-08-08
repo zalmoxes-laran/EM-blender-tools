@@ -46,3 +46,38 @@ class Graph:
         return None
 
     # Qui puoi aggiungere ulteriori metodi per gestire ricerche, rimozioni e manipolazioni
+
+'''
+class MultiGraph:
+    def __init__(self):
+        self.graphs = []
+
+    def add_graph(self, graph):
+        self.graphs.append(graph)
+
+    def import_graphml(self, filepaths):
+        # Importa più grafi da una lista di file GraphML
+        for filepath in filepaths:
+            graph = import_graphml(filepath)
+            self.add_graph(graph)
+
+            
+COME SI USA:
+
+from s3Dgraphy import MultiGraph
+
+multi_graph = MultiGraph()
+multi_graph.import_graphml(['file1.graphml', 'file2.graphml'])
+
+LA STRUTTURA A CUI VOGLIO ARRIVARE E' QUESTA, la sviluppo appena ho finito il porting di tutto il parser
+s3Dgraphy/
+│
+├── __init__.py          # Importazioni principali
+├── graph.py             # Classi Graph e MultiGraph
+├── node.py              # Classe Node e sottoclassi
+├── edge.py              # Classe Edge e sottoclassi
+├── import_graphml.py    # Funzioni per l'importazione del GraphML
+└── utils.py             # Funzioni di supporto comuni (opzionale)
+
+
+'''
