@@ -29,20 +29,25 @@ For more details see the [EM-tools page](https://www.extendedmatrix.org/em-frame
 * Adding tools to load xlsx files
 
 ## Contribute
+
 You are more than welcome to contribute to the project by spotting bugs/issues and providing code or solutions through pull requests to fix or improve EM functionalities (see TODO list below). Get in touch here on github, through the [telegram open-group](https://t.me/UserGroupEM) or through the other channels.
 
 ## TODO list for the upcoming EM-tools 1.4.x dev
 
 ### specific task for the s3Dgraphy project
 
-- [ ] check if I can maintain the root Node class cleaner, putting specific properties to subclassess
-- [ ] check if some GraphML data can be put into a runtime property (y_position for instance) focusing more into a clean and abstract EM graph
-- [ ] continuity node
+- [x] check if I can maintain the root Node class cleaner, putting specific properties to subclassess
+- [x] check if some GraphML data can be put into a runtime property (y_position for instance) focusing more into a clean and abstract EM graph
+- [ ] complete the porting of the graphml parser: 
+    - [ ] continuity node
+    - [ ] epochs
+- [ ] move import_graphml into the s3Dgraphy library
 - [ ] add node and populated lists for Activities
 - [ ] move duplication controllers to parsers and nodes constructors
 - [ ] add to parser and node constructors the ability to parse new propertes like author, time_Start, time_emd etc...
 
 ### other general tools
+
 - [ ] Statistical tools for the reconstrucion (volumes, typo of sources, property density)
 - [ ] New label system
 - [ ] New section for visual tools
