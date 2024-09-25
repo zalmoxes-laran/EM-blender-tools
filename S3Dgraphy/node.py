@@ -11,7 +11,6 @@ class Node:
     def add_attribute(self, key, value):
         self.attributes[key] = value
 
-
 # StratigraphicNode Class
 class StratigraphicNode(Node):
     STRATIGRAPHIC_TYPES = {
@@ -88,8 +87,6 @@ class StratigraphicNode(Node):
 
     def get_stratigraphic_info(self):
         return self.STRATIGRAPHIC_TYPES.get(self.node_type)
-
-
 
 # ParadataNode Class - Subclass of Node
 class ParadataNode(Node):

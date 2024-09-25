@@ -15,31 +15,6 @@ from bpy.props import (BoolProperty,
 
 from urllib.parse import urlparse
 
-def convert_shape2type(yedtype, border_style): 
-    # restituisce una coppia di info: short e verbose
-    nodetype = []
-    if yedtype == "rectangle":
-        nodetype = ["US","Stratigraphic Unit"]
-    elif yedtype == "parallelogram":
-        nodetype = ["USVs","Structural Virtual Stratigrafic Units"]
-    elif yedtype == "ellipse" and border_style=="#31792D":
-        nodetype = ["serUSVn","Series of USVn"]
-    elif yedtype == "ellipse" and border_style=="#248FE7":        
-        nodetype = ["serUSVs","Series of USVs"]         
-    elif yedtype == "ellipse" and border_style=="#9B3333":
-        nodetype = ["serSU", "Series of US"]        
-    elif yedtype == "hexagon":
-        nodetype = ["USVn","Structural Virtual Stratigrafic Units"]
-    elif yedtype == "octagon" and border_style=="#D8BD30":
-        nodetype = ["SF","Special Find"]
-    elif yedtype == "octagon" and border_style=="#B19F61":
-        nodetype = ["VSF","Virtual Special Find"]
-    elif yedtype == "roundrectangle":
-        nodetype = ["USD","Documentary Stratigraphic Unit"]
-    else:
-        print(f'non trovo {nodetype}')
-        nodetype = ["unknow","unrecognisized node"]
-    return nodetype
 
 def is_valid_url(url_string):
     parsed_url = urlparse(url_string)

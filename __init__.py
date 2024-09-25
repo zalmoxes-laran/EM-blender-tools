@@ -7,7 +7,7 @@ emanuel.demetrescu@cnr.it
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
+    This program is distributed in the hope that it will be us eful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
@@ -22,7 +22,7 @@ bl_info = {
     "author": "E. Demetrescu",
     "version": (1, 4, 0),
     "blender": (4, 2, 0),
-    "devel_version": "v1.4.0 dev12",  # Aggiunto campo devel_version
+    "devel_version": "v1.4.0 dev13",  # Aggiunto campo devel_version
     "location": "3D View > Toolbox",
     "warning": "This addon is in beta stage.",
     "wiki_url": "",

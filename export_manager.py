@@ -15,6 +15,9 @@ from .functions import *
 
 import random
 
+from .S3Dgraphy import convert_shape2type
+
+
 #####################################################################
 #Export Section
 
