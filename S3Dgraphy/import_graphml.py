@@ -106,6 +106,16 @@ class GraphMLImporter:
                     )
                     self.graph.add_node(combiner_node)
 
+                elif self.EM_check_node_continuity(node_element):
+                    continuity_node_id, y_pos = self.EM_extract_continuity(node_element)
+                    continuity_node = Node(
+                        node_id = continuity_node_id,
+                        name = "continuity_node",
+                        node_type= "_continuity",
+                        description=y_pos
+                    )
+                    self.graph.add_node(continuity_node)
+
                 else:
                     pass
         
@@ -154,7 +164,7 @@ class GraphMLImporter:
             id_node_us = True
         else:
             id_node_us = False
-        return id_node_us    
+        return id_node_us
 
     def EM_extract_node_name(self, node_element):
         is_d4 = False
@@ -192,7 +202,6 @@ class GraphMLImporter:
         if not is_d5:
             nodedescription = ''
         return nodename, nodedescription, nodeurl, nodeshape, node_y_pos, fillcolor, borderstyle     
-
 
     # DOCUMENT NODE
     def EM_check_node_document(self, node_element):
@@ -418,9 +427,6 @@ class GraphMLImporter:
         geometry = node_element.find('.//{http://www.yworks.com/xml/graphml}Geometry')
         y_start = float(geometry.attrib['y'])
         
-        # Lista delle epoche
-        epochs = []
-
         y_min = y_start
         y_max = y_start
 
@@ -432,11 +438,22 @@ class GraphMLImporter:
             y_max += h_row
 
             # Aggiungi l'epoca alla lista delle epoche
+            '''
             epochs.append({
                 "id": id_row,
                 "min_y": y_min,
                 "max_y": y_max
             })
+            '''
+            epoch_node = EpochNode(
+                node_id=id_row,
+                name="temp",
+                start_time = 0,
+                end_time = 2000
+            )
+            epoch_node.min_y = y_min
+            epoch_node.max_y = y_max
+            self.graph.add_node(epoch_node)
 
         for nodelabel in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
             RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
@@ -450,20 +467,21 @@ class GraphMLImporter:
             else:
                 id_node = "null"
                     
-            for epoch in epochs:
-                if epoch["id"] == id_node:
-                    epoch["name"] = label_node
-                    epoch["color"] = e_color
-                    break
-
-        # Assegna le epoche ai nodi nel grafo in base alla posizione Y
-        for node in graph.nodes:
-            for epoch in epochs:
-                if epoch["min_y"] < node.y_pos < epoch["max_y"]:
-                    node.epoch = epoch["name"]
-                    break
-
+            epoch_node = graph.find_node_by_id(id_node)
+            if epoch_node:
+                epoch_node.set_name = label_node
+                epoch_node.set_color = e_color
+                break
         return graph
+
+    def assign_epochs_to_nodes(self):
+        # Assegna le epoche ai nodi nel grafo in base alla posizione Y
+        for node in (node for node in self.graph.nodes if isinstance(node, StratigraphicNode)):
+            for epoch in (node for node in self.graph.nodes if isinstance(node, EpochNode)):
+                # Il tuo codice qui
+                if epoch.min_y < node.attributes['y_pos'] < epoch.max_y:
+                    node.epoch = epoch.name
+                    break
 
     def EM_extract_edge_type(self, edge_element):
         edge_type = "Empty"

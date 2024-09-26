@@ -56,6 +56,37 @@ class Graph:
                 return edge
         return None
 
+    def filter_nodes_by_connection_to_type(self, target_node_type, connected=True):
+        """
+        Filtra i nodi in base al fatto che siano collegati o meno ad almeno un nodo di un tipo specifico.
+
+        :param target_node_type: Il tipo di nodo a cui verificare la connessione.
+        :param connected: Se True, restituisce nodi collegati ad almeno un nodo del tipo specificato.
+                          Se False, restituisce nodi non collegati a nodi del tipo specificato.
+        :return: Una lista di oggetti Node.
+        """
+        # Ottieni l'insieme degli ID dei nodi del tipo target
+        target_node_ids = set(node.node_id for node in self.nodes if node.node_type == target_node_type)
+
+        # Crea una mappatura dei nodi alle loro connessioni
+        node_connections = {node.node_id: set() for node in self.nodes}
+        for edge in self.edges:
+            # Considera sia sorgente che destinazione per grafi non diretti
+            node_connections[edge.edge_source].add(edge.edge_target)
+            node_connections[edge.edge_target].add(edge.edge_source)
+
+        # Filtra i nodi in base alle connessioni
+        filtered_nodes = []
+        for node in self.nodes:
+            connections = node_connections[node.node_id]
+            # Verifica se il nodo è collegato ad almeno un nodo del tipo target
+            is_connected = any(conn_node_id in target_node_ids for conn_node_id in connections)
+            if connected and is_connected:
+                filtered_nodes.append(node)
+            elif not connected and not is_connected:
+                filtered_nodes.append(node)
+
+        return filtered_nodes
 
     # Qui puoi aggiungere ulteriori metodi per gestire ricerche, rimozioni e manipolazioni
 

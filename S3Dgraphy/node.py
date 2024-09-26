@@ -125,10 +125,24 @@ class EpochNode(Node):
         self.end_time = end_time
         self.color = color
 
+    def set_name(self, name):
+        self.name = name
+
+    def set_start_time(self, start_time):
+        # Aggiungi validazione se necessario
+        self.start_time = start_time
+
+    def set_end_time(self, end_time):
+        # Aggiungi validazione se necessario
+        self.end_time = end_time
+
+    def set_color(self, color):
+        # Aggiungi validazione del colore se necessario
+        self.color = color
+
 # Activity Node
 class ActivityNode(Node):
     def __init__(self, node_id, name, activity_type, duration, description=""):
         super().__init__(node_id, name, description)
         self.activity_type = activity_type
         self.duration = duration
-

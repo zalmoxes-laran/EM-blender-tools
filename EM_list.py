@@ -155,6 +155,13 @@ class EM_import_GraphML(bpy.types.Operator):
         # Esegui il parsing e ottieni il grafo
         graph = importer.parse()
 
+        # Assegna le epoche corrispondenti ai nodi
+        importer.assign_epochs_to_nodes()
+
+        # aggiorna le cronologie dei nodi che non hanno continuity
+        connected_nodes = graph.filter_nodes_by_connection_to_type("_continuity", connected=False)
+
+
         # Now populate the Blender lists from the graph
         self.populate_blender_lists_from_graph(context, graph)
 
@@ -305,6 +312,8 @@ class EM_import_GraphML(bpy.types.Operator):
         EM_list_clear(context, "em_combiners_list")
 
         EM_list_clear(context, "edges_list")
+        EM_list_clear(context, "epoch_list")
+        
         #context.scene.em_list_index_ema = 0
 
         return None
