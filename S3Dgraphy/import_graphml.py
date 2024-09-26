@@ -249,7 +249,6 @@ class GraphMLImporter:
             node_description = ''
         return nodename, node_id, node_description, nodeurl, subnode_is_document
 
-    
     # PROPERTY NODE
     def EM_check_node_property(self, node_element):
         try:
