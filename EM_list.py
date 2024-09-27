@@ -155,17 +155,11 @@ class EM_import_GraphML(bpy.types.Operator):
         # Esegui il parsing e ottieni il grafo
         graph = importer.parse()
 
-        # Assegna le epoche corrispondenti ai nodi
-        importer.assign_epochs_to_nodes()
-
-        # aggiorna le cronologie dei nodi che non hanno continuity
-        connected_nodes = graph.filter_nodes_by_connection_to_type("_continuity", connected=False)
-
         # Now populate the Blender lists from the graph
         self.populate_blender_lists_from_graph(context, graph)
 
         #ora esplora tutte le liste per cercare tutti i nodi rectangle e white_ellipse che NON sono connessi ad un continuity node in modo tale da dargli continuità fino all'ultima epoca dello swimlane
-        self.find_and_add_us_nodes_without_continuity(context)
+        #DEPRECATO self.find_and_add_us_nodes_without_continuity(context)
 
         # verifica post importazione: controlla che il contatore della lista delle UUSS sia nel range (può succedere di ricaricare ed avere una lista più corta di UUSS). In caso di necessità porta a 0 l'indice
         self.check_index_coherence(scene)
@@ -189,16 +183,6 @@ class EM_import_GraphML(bpy.types.Operator):
     def populate_blender_lists_from_graph(self, context, graph):
         scene = context.scene
 
-        ## QUESTA PARTE FORSE E' DOPPIA
-        # Clear existing lists in Blender
-        '''
-        EM_list_clear(context, "em_list")
-        EM_list_clear(context, "em_sources_list")
-        EM_list_clear(context, "em_properties_list")
-        EM_list_clear(context, "em_extractors_list")
-        EM_list_clear(context, "em_combiners_list")
-        '''
-
         # Inizializza gli indici delle liste
         em_list_index_ema = 0
         em_sources_index_ema = 0
@@ -206,6 +190,7 @@ class EM_import_GraphML(bpy.types.Operator):
         em_extractors_index_ema = 0
         em_combiners_index_ema = 0
         em_edges_index_ema = 0
+        em_epoch_list_ema = 0
 
         # Popolamento delle liste
         for node in graph.nodes:
@@ -220,7 +205,8 @@ class EM_import_GraphML(bpy.types.Operator):
                 em_extractors_index_ema = self._populate_extractor_node(scene, node, em_extractors_index_ema)
             elif isinstance(node, CombinerNode):
                 em_combiners_index_ema = self._populate_combiner_node(scene, node, em_combiners_index_ema)
-
+            elif isinstance(node, EpochNode):
+                em_epoch_list_ema = self._populate_epoch_node(scene, node, em_epoch_list_ema)
         for edge in graph.edges:
             self._populate_edges(scene, edge, em_edges_index_ema)
 
@@ -292,6 +278,21 @@ class EM_import_GraphML(bpy.types.Operator):
         em_item.description = node.description
         return index + 1
 
+    def _populate_epoch_node(self, scene, node, index):
+        scene.epoch_list.add()
+        epoch_item = scene.epoch_list[-1]
+        epoch_item.name = node.name
+        epoch_item.id = node.node_id
+        epoch_item.min_y = node.min_y
+        epoch_item.max_y = node.max_y
+        epoch_item.start_time = node.start_time
+        epoch_item.end_time = node.end_time
+        epoch_item.epoch_color = node.color
+
+        epoch_item.description = node.description
+        return index + 1
+
+
     def _populate_edges(self, scene, edge, index):
         scene.edges_list.add()
         edge_item = scene.edges_list[index]
@@ -316,6 +317,7 @@ class EM_import_GraphML(bpy.types.Operator):
 
         return None
 
+    '''
     def find_and_add_us_nodes_without_continuity(self, context):
         scene = context.scene
         em_reused_index = len(scene.em_reused)
@@ -351,6 +353,7 @@ class EM_import_GraphML(bpy.types.Operator):
                             scene.em_reused[em_reused_index].epoch = scene.epoch_list[ep_i].name
                             scene.em_reused[em_reused_index].em_element = em_item.name
                             em_reused_index += 1
+    '''
 
     def find_node_element_by_id(self, context, node_id):
         tree = ET.parse(bpy.path.abspath(context.scene.EM_file))
@@ -409,6 +412,12 @@ class EM_import_GraphML(bpy.types.Operator):
                 property.name = "poly"+ str(poly_property_counter)+"." + property.name
                 poly_property_counter +=1
 
+    def find_node_us_by_id(self, id_node):
+        us_node = ""
+        for us in bpy.context.scene.em_list:
+            if id_node == us.id_node:
+                us_node = us.name
+        return us_node
 
 #SETUP MENU
 #####################################################################

@@ -88,6 +88,37 @@ class Graph:
 
         return filtered_nodes
 
+    def get_connected_node_by_type(self, node, target_node_type):
+        """
+        Verifica se il nodo dato è collegato ad almeno un nodo con una data proprietà node_type.
+        Se sì, restituisce il primo nodo trovato con il node_type specificato.
+        Altrimenti, restituisce None.
+
+        :param node: Istanza di Node da verificare.
+        :param target_node_type: Il valore di node_type da cercare nei nodi collegati.
+        :return: Istanza di Node con node_type corrispondente, o None se non esiste.
+        """
+        # Ottieni tutti gli archi in cui il nodo è coinvolto
+        connected_edges = [edge for edge in self.edges if edge.edge_source == node.node_id or edge.edge_target == node.node_id]
+
+        # Itera attraverso gli archi per trovare nodi collegati con il node_type specificato
+        for edge in connected_edges:
+            # Trova l'ID dell'altro nodo connesso
+            if edge.edge_source == node.node_id:
+                other_node_id = edge.edge_target
+            else:
+                other_node_id = edge.edge_source
+
+            # Trova l'oggetto Node corrispondente
+            other_node = self.find_node_by_id(other_node_id)
+
+            # Verifica se l'altro nodo esiste e ha il node_type specificato
+            if other_node and other_node.node_type == target_node_type:
+                return other_node  # Restituisce il primo nodo trovato con il node_type specificato
+
+        # Se nessun nodo con il node_type specificato è trovato
+        return None
+
     # Qui puoi aggiungere ulteriori metodi per gestire ricerche, rimozioni e manipolazioni
 
 '''

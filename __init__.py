@@ -239,7 +239,17 @@ class EPOCHListItem(bpy.types.PropertyGroup):
        epoch_color: prop.StringProperty(
               name="color of epoch row",
               description="",
-              default="Empty")  # type: ignore      
+              default="Empty")  # type: ignore   
+
+       start_time: prop.FloatProperty(
+              name="Start time",
+              description="",
+              default=0.0) # type: ignore
+
+       end_time:  prop.FloatProperty(
+              name="End time",
+              description="",
+              default=0.0) # type: ignore 
 
        use_toggle: BoolProperty(name="", default=True) # type: ignore
        is_locked: BoolProperty(name="", default=True) # type: ignore
