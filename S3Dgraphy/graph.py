@@ -22,14 +22,19 @@ class Graph:
         source_node = self.find_node_by_id(start_node_id)
         target_node = self.find_node_by_id(end_node_id)
         if not source_node or not target_node:
+            return None
             raise ValueError(f"Entrambi i nodi con ID '{start_node_id}' e '{end_node_id}' devono esistere.")
 
         # Verifica se un arco identico esiste già
         if self.find_edge_by_nodes(start_node_id, end_node_id):
+            return None
+
             raise ValueError(f"Un arco tra '{start_node_id}' e '{end_node_id}' esiste già.")
 
         # Verifica se un arco con stesso id esiste già
         if self.find_edge_by_id(edge_id):
+            return None
+
             raise ValueError(f"Un arco tra con id '{edge_id}' esiste già.")
 
         # Aggiungi il nuovo arco
@@ -116,8 +121,9 @@ class Graph:
 
             # Verifica se l'altro nodo esiste e ha il node_type specificato
             if other_node and other_node.node_type == target_node_type:
+                print("Ho trovato un nodo continuity")
                 return other_node  # Restituisce il primo nodo trovato con il node_type specificato
-
+        print("Non ho trovato nodi continuity !!!!")
         # Se nessun nodo con il node_type specificato è trovato
         return None
 
@@ -132,6 +138,74 @@ class Graph:
                     epoch_names.append(self.nodes[to_node_id].name)
 
         return epoch_names
+
+    def get_connected_epoch_node_by_edge_type(self, node, edge_type):
+        """
+        Restituisce il primo nodo di tipo EpochNode collegato al nodo dato attraverso un arco del tipo specificato.
+
+        :param node: Istanza di Node da cui partire la ricerca.
+        :param edge_type: Il tipo di arco da considerare nella ricerca.
+        :return: Istanza di EpochNode se trovato, altrimenti None.
+        """
+        # Ottieni tutti gli archi collegati al nodo dato che hanno il tipo specificato
+        connected_edges = [
+            edge for edge in self.edges
+            if edge.edge_type == edge_type and (edge.edge_source == node.node_id or edge.edge_target == node.node_id)
+        ]
+
+        #print("ciao")
+        # Itera attraverso questi archi per trovare nodi EpochNode collegati
+        for edge in connected_edges:
+            # Determina l'ID dell'altro nodo collegato dall'arco
+            if edge.edge_source == node.node_id:
+                other_node_id = edge.edge_target
+            else:
+                other_node_id = edge.edge_source
+
+            # Recupera l'altro nodo
+            other_node = self.find_node_by_id(other_node_id)
+
+            # Verifica se l'altro nodo è un'istanza di EpochNode
+            if isinstance(other_node, EpochNode):
+                return other_node  # Restituisce il primo EpochNode trovato
+
+        # Se nessun EpochNode collegato è trovato, restituisce None
+        return None
+
+    def print_connected_epoch_nodes_and_edge_types(self, node):
+        """
+        Stampa tutti i nodi EpochNode connessi al nodo dato e il tipo di edge che li collega.
+
+        :param node: Istanza di Node da cui partire la ricerca.
+        """
+        # Ottieni tutti gli archi collegati al nodo dato
+        connected_edges = [
+            edge for edge in self.edges
+            if edge.edge_source == node.node_id or edge.edge_target == node.node_id
+        ]
+
+        # Flag per verificare se sono stati trovati EpochNode collegati
+        found_epoch_nodes = False
+
+        # Itera attraverso gli archi collegati
+        for edge in connected_edges:
+            # Determina l'ID dell'altro nodo collegato dall'arco
+            if edge.edge_source == node.node_id:
+                other_node_id = edge.edge_target
+            else:
+                other_node_id = edge.edge_source
+
+            # Recupera l'altro nodo
+            other_node = self.find_node_by_id(other_node_id)
+
+            # Verifica se l'altro nodo è un'istanza di EpochNode
+            if isinstance(other_node, EpochNode):
+                found_epoch_nodes = True
+                print(f"EpochNode trovato: ID={other_node.node_id}, Nome={other_node.name}, Tipo di nodo={other_node.node_type} Edge Type={edge.edge_type}")
+        
+        if not found_epoch_nodes:
+            print("Nessun EpochNode collegato trovato per il nodo specificato.")
+
 
 
     # Qui puoi aggiungere ulteriori metodi per gestire ricerche, rimozioni e manipolazioni

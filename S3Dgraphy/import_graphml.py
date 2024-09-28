@@ -23,7 +23,7 @@ class GraphMLImporter:
 
         self.parse_edges(tree)
 
-        self.connect_nodes_to_epochs
+        self.connect_nodes_to_epochs()
 
         return self.graph
 
@@ -57,6 +57,7 @@ class GraphMLImporter:
                     # Aggiunta di runtime properties
                     stratigraphic_node.attributes['shape'] = nodeshape
                     stratigraphic_node.attributes['y_pos'] = float(node_y_pos)
+                    #print(f"Il nodo {stratigraphic_node.name} ha y pos {str(stratigraphic_node.attributes['y_pos'])}")
                     stratigraphic_node.attributes['fill_color'] = fillcolor
                     stratigraphic_node.attributes['border_style'] = borderstyle
 
@@ -107,13 +108,17 @@ class GraphMLImporter:
 
                 elif self.EM_check_node_continuity(node_element):
                     continuity_node_id, y_pos = self.EM_extract_continuity(node_element)
-                    continuity_node = Node(
+
+                    continuity_node = StratigraphicNode(
                         node_id = continuity_node_id,
                         name = "continuity_node",
-                        node_type= "_continuity",
-                        description=y_pos
+                        stratigraphic_type= "BR",
+                        description=""
                     )
+                    continuity_node.attributes['y_pos'] = float(y_pos)
+
                     self.graph.add_node(continuity_node)
+                    print(f"Ho trovato un nodo continuity in pos {str(continuity_node.description)} con tipo {continuity_node.node_type}")
 
                 else:
                     pass
@@ -134,7 +139,7 @@ class GraphMLImporter:
             id_row = row.attrib['id']
             h_row = float(row.attrib['height'])
             #print(str(y_min))
-            print(id_row)
+            #print(id_row)
             
             y_min = y_max
             y_max += h_row
@@ -148,6 +153,7 @@ class GraphMLImporter:
             epoch_node.min_y = y_min
             epoch_node.max_y = y_max
             self.graph.add_node(epoch_node)
+            
 
         for nodelabel in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
             RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
@@ -155,7 +161,7 @@ class GraphMLImporter:
                 label_node = nodelabel.text
                 
                 id_node = str(RowNodeLabelModelParameter.attrib['id'])
-                print("il nome del nodo trovato è "+label_node+" ed appartiene alla row: "+ id_node)
+                #print("il nome del nodo trovato è "+label_node+" ed appartiene alla row: "+ id_node)
                 if 'backgroundColor' in nodelabel.attrib:
                     e_color = str(nodelabel.attrib['backgroundColor'])
                 else:
@@ -163,58 +169,53 @@ class GraphMLImporter:
             else:
                 id_node = "null"
             
-            print(id_node)
+            #print(id_node)
             epoch_node = graph.find_node_by_id(id_node)
 
             if epoch_node:
-                print("trovato nodo "+epoch_node.node_id)
-                print("sto per settare come nome del nodo: "+label_node)
+                #print("trovato nodo "+epoch_node.node_id)
+                #print("sto per settare come nome del nodo: "+label_node)
                 epoch_node.set_name(label_node)
                 epoch_node.set_color(e_color)
-                print(epoch_node.color)
-                print(epoch_node.name)
+                #print(f"Il min dell'epoca {epoch_node.name} è {epoch_node.min_y}")
+                #print(epoch_node.color)
+                #print(epoch_node.name)
+                #print(str(epoch_node.min_y))
                 
         return graph
 
     def connect_nodes_to_epochs(self):
         #define here a list of StratigraphicNode types that should be filled with a continuity node in the last epoch even if they do not have one. If no continuity node was set (end of life) we suppose that the US survives untill the last epoch
-        list_of_surviving_stratigrafic_nodes = ["US", "serSU"]
+        list_of_phisical_stratigraphic_nodes = ["US", "serSU"]
 
         # Assegna le epoche ai nodi nel grafo in base alla posizione Y e tenendo in considerazione i nodi continuity
         for node in (node for node in self.graph.nodes if isinstance(node, StratigraphicNode)):
-            connected_continuity_node = self.get_connected_node_by_type(self, node, "_continuity")
-            # da qui in poi ho y_pos del nodo US e y_pos del nodo continuity
-            # e per ogni epoca ho min e max
-            # aggiungo il nodo all'epoca per ogni epoca che "contiene" le due y_pos
-            # quindi if epoca_max >= intervallo_inizio e epoca_min <= intervallo_fine
+            #print(f"Inizio ad occuparmi di {node.name}")
+            connected_continuity_node = self.graph.get_connected_node_by_type(node, "BR")
 
-            ## qui si affrontano i nodi che SONO connessi a nodi continuity, per cui si bisogna iterare su tutte le epoche pertinenti per associarle al nodo
-            if connected_continuity_node:
-                for epoch in (node for node in self.graph.nodes if isinstance(node, EpochNode)):
-
-                    if epoch.max_y >= node.pos_y and epoch.min_y <= connected_continuity_node.pos_y:
+            for epoch in (node for node in self.graph.nodes if isinstance(node, EpochNode)):
+                if epoch.min_y < node.attributes['y_pos'] < epoch.max_y:
+                    edge_id = node.node_id + "_" + epoch.name
+                    self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "has_first_epoch")
+                    print("ho trovato la prima epoca: "+ epoch.name)
+                elif connected_continuity_node: ## qui si affrontano i nodi che SONO connessi a nodi continuity, per cui si bisogna iterare su tutte le epoche pertinenti per associarle al nodo
+                    if epoch.max_y >= node.attributes['y_pos'] and epoch.min_y <= connected_continuity_node.attributes['y_pos']:
                         edge_id = node.node_id + "_" + epoch.name
-                        self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "has_epoch")                        
-            
+                        self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch") 
+                        print(f"Il nodo {node.name} con pos_y {str(node.attributes['y_pos'])} è connesso ad un continuity node con y_pos {str(connected_continuity_node.attributes['y_pos'])}")
+
+                                              
+            '''
             ## qui è il caso di nodi che NON sono connessi ad alcun nodo continuity
             else:
                 # qui si filtrano nodi che inoltre appartengono ai resti fisici
-                if node.node_type in list_of_surviving_stratigrafic_nodes:
+                if node.node_type in list_of_phisical_stratigraphic_nodes:
                         
                     for epoch in (node for node in self.graph.nodes if isinstance(node, EpochNode)):
                         if node.attributes['y_pos'] < epoch.max_y:
                             edge_id = node.node_id + "_" + epoch.name
-                            self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "has_epoch")
-
-                # qui si filtrano nodi che inoltre non appartengono ai resti fisici
-                # in questo caso possiamo fermare il loop appena troviamo 
-                else: 
-                    for epoch in (node for node in self.graph.nodes if isinstance(node, EpochNode)):
-                        if epoch.min_y < node.attributes['y_pos'] < epoch.max_y:
-                            edge_id = node.node_id + "_" + epoch.name
-                            self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "has_epoch")
-                            break
-
+                            self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch")
+            '''
     def EM_extract_edge_type(self, edge_element):
         edge_type = "Empty"
         for subedge in edge_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):

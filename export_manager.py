@@ -1,15 +1,15 @@
-import bpy
+import bpy # type: ignore
 import string
 import json
 import os
 import shutil
 
-from bpy_extras.io_utils import ExportHelper
-from bpy.types import Operator
-from bpy.types import Panel, UIList
+from bpy_extras.io_utils import ExportHelper # type: ignore
+from bpy.types import Operator # type: ignore
+from bpy.types import Panel, UIList # type: ignore
 
-from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
-import bpy.props as prop
+from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty # type: ignore
+import bpy.props as prop # type: ignore
 
 from .functions import *
 
@@ -30,7 +30,6 @@ class EM_ExportPanel:
         layout = self.layout
         scene = context.scene
  
-
         row = layout.row()
         box = layout.box()
         row = box.row()

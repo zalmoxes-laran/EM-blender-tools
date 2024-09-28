@@ -188,24 +188,43 @@ class EM_import_GraphML(bpy.types.Operator):
         em_combiners_index_ema = 0
         em_edges_index_ema = 0
         em_epoch_list_ema = 0
+        em_reused_index_ema = 0
 
         # Popolamento delle liste
         for node in graph.nodes:
             if isinstance(node, StratigraphicNode):
                 self._populate_stratigraphic_node(scene, node, em_list_index_ema, graph)
                 em_list_index_ema += 1
+                em_reused_index_ema = self._populate_reuse_US_table(scene, node, em_reused_index_ema, graph)
             elif isinstance(node, DocumentNode):
                 em_sources_index_ema = self._populate_document_node(scene, node, em_sources_index_ema)
+                em_sources_index_ema +=1
             elif isinstance(node, PropertyNode):
                 em_properties_index_ema = self._populate_property_node(scene, node, em_properties_index_ema)
+                em_properties_index_ema +=1
             elif isinstance(node, ExtractorNode):
                 em_extractors_index_ema = self._populate_extractor_node(scene, node, em_extractors_index_ema)
+                em_extractors_index_ema +=1
             elif isinstance(node, CombinerNode):
                 em_combiners_index_ema = self._populate_combiner_node(scene, node, em_combiners_index_ema)
+                em_combiners_index_ema +=1
             elif isinstance(node, EpochNode):
                 em_epoch_list_ema = self._populate_epoch_node(scene, node, em_epoch_list_ema)
         for edge in graph.edges:
             self._populate_edges(scene, edge, em_edges_index_ema)
+
+    def _populate_reuse_US_table(self, scene, node, index, graph):
+        survived_in_epoch = graph.get_connected_epoch_node_by_edge_type(node, "survive_in_epoch")
+        print(f"Per il nodo {node.name}:")
+        graph.print_connected_epoch_nodes_and_edge_types(node)
+
+        if survived_in_epoch:
+            scene.em_reused.add()
+            em_item = scene.em_reused[-1]
+            em_item.epoch = survived_in_epoch.name
+            em_item.em_element = node.name
+            return index +1
+        return index
 
     def _populate_stratigraphic_node(self, scene, node, index, graph):
         scene.em_list.add()
@@ -220,7 +239,13 @@ class EM_import_GraphML(bpy.types.Operator):
         em_item.id_node = node.node_id
         
         #em_item.epoch = node.epoch if node.epoch else ""
-        em_item.epoch = graph.get_epochs_list_for_stratigraphicnode(node.node_id)
+        #graph.print_connected_epoch_nodes_and_edge_types(node)
+        first_epoch = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
+
+        em_item.epoch = first_epoch.name if first_epoch else ""
+
+        #print("Ho registrato l'epoca "+em_item.epoch+" per il nodo"+em_item.name)
+        #em_item.epoch = graph.get_epochs_list_for_stratigraphicnode(node.node_id)
         
         return index + 1
 
@@ -288,7 +313,7 @@ class EM_import_GraphML(bpy.types.Operator):
         epoch_item.end_time = node.end_time
         epoch_item.epoch_color = node.color
         epoch_item.epoch_RGB_color = hex_to_rgb(node.color)
-        print("il colore è:" +epoch_item.epoch_color)
+        #print("il colore è:" +epoch_item.epoch_color)
 
         epoch_item.description = node.description
         return index + 1

@@ -1,12 +1,10 @@
-import bpy
+import bpy # type: ignore
 import string
 
-from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
-import bpy.props as prop
+from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty # type: ignore
+import bpy.props as prop # type: ignore
 
 from .functions import *
-
-import random
 
 ########################
 
@@ -34,6 +32,7 @@ class EM_toggle_select(bpy.types.Operator):
 
     def execute(self, context):
         scene = context.scene
+        missing_objects = []
         if self.group_em_idx < len(scene.epoch_list):
             # check_same_ids()  # check scene ids
             current_e_manager = scene.epoch_list[self.group_em_idx]
@@ -41,8 +40,28 @@ class EM_toggle_select(bpy.types.Operator):
                 if us.icon == "RESTRICT_INSTANCED_OFF":
                     if current_e_manager.name == us.epoch:
                         object_to_select = bpy.data.objects[us.name]
-                        object_to_select.select_set(True)
+                        try:
+                            object_to_select.select_set(True)
+                        except RuntimeError as e:
+                            if "can't be selected because it is not in View Layer" in str(e):
+                                missing_objects.append(object_to_select.name)
+                            else:
+                                self.report({'ERROR'}, f"Error selecting object '{object_to_select.name}': {e}")
+                                return {'CANCELLED'}
+
+        if missing_objects:
+            self.report({'WARNING'}, f"The following objects cannot be selected because they are in inactive layers: {', '.join(missing_objects)}")
+            self.show_message(", ".join(missing_objects))
+
         return {'FINISHED'}
+    
+    def show_message(self, missing_objects_str):
+        def draw(self, context):
+            self.layout.label(text="Some objects cannot be selected because they are in inactive layers:")
+            self.layout.label(text=missing_objects_str)
+        bpy.context.window_manager.popup_menu(draw, title="Warning", icon='INFO')
+
+
 #["rectangle", "ellipse_white", "roundrectangle", "octagon_white"]
 #["parallelogram", "ellipse", "hexagon", "octagon"]
 
