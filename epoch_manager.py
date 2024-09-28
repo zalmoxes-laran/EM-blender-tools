@@ -30,7 +30,7 @@ class EM_toggle_select(bpy.types.Operator):
     bl_description = "Toggle Select"
     bl_options = {'REGISTER', 'UNDO'}
 
-    group_em_idx : IntProperty()
+    group_em_idx : IntProperty() # type: ignore
 
     def execute(self, context):
         scene = context.scene
@@ -53,8 +53,8 @@ class EM_toggle_reconstruction(bpy.types.Operator):
     bl_description = "Toggle Reconstruction"
     bl_options = {'REGISTER', 'UNDO'}
 
-    group_em_vis_idx : IntProperty()
-    soloing_epoch: StringProperty()
+    group_em_vis_idx : IntProperty() # type: ignore
+    soloing_epoch: StringProperty() # type: ignore
 
 
     def execute(self, context):
@@ -95,10 +95,9 @@ class EM_toggle_visibility(bpy.types.Operator):
     bl_description = "Toggle Visibility"
     bl_options = {'REGISTER', 'UNDO'}
 
-    group_em_vis_idx : IntProperty()
-    soloing_epoch: StringProperty()
+    group_em_vis_idx : IntProperty() # type: ignore
+    soloing_epoch: StringProperty() # type: ignore
     
-
     def execute(self, context):
         scene = context.scene
         if self.group_em_vis_idx < len(scene.epoch_list):
@@ -135,7 +134,7 @@ class EM_toggle_selectable(bpy.types.Operator):
     bl_description = "Toggle Selectable"
     bl_options = {'REGISTER', 'UNDO'}
 
-    group_em_idx : IntProperty()
+    group_em_idx : IntProperty() # type: ignore
 
     def execute(self, context):
         scene = context.scene
@@ -157,7 +156,7 @@ class EM_toggle_soloing(bpy.types.Operator):
     bl_description = "Toggle epoch Soloing"
     bl_options = {'REGISTER', 'UNDO'}
 
-    group_em_idx : IntProperty()
+    group_em_idx : IntProperty() # type: ignore
 
     def execute(self, context):
         scene = context.scene
@@ -199,7 +198,7 @@ class EM_select_epoch_rm(bpy.types.Operator):
     bl_description = "Select RM for a given epoch"
     bl_options = {'REGISTER', 'UNDO'}
 
-    rm_epoch : StringProperty()
+    rm_epoch : StringProperty() # type: ignore
 
     def execute(self, context):
         #scene = context.scene

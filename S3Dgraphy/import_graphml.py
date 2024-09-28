@@ -25,10 +25,6 @@ class GraphMLImporter:
 
         self.connect_nodes_to_epochs
 
-
-        # aggiorna le cronologie dei nodi che non hanno continuity
-        connected_nodes = self.graph.filter_nodes_by_connection_to_type("_continuity", connected=False)
-
         return self.graph
 
     def parse_edges(self,tree):
@@ -126,122 +122,6 @@ class GraphMLImporter:
                 # Parsing dei nodi EpochNode
                 self.extract_epochs(node_element, self.graph)
 
-        '''
-        #porzione di codice per estrarre le continuità
-        for node_element in allnodes:
-            if self._check_node_type(node_element) == 'node_simple': # The node is not a group or a swimlane
-                if self.EM_check_node_continuity(node_element):
-                    #print("found continuity node")
-                    EM_us_target, continuity_y = self.get_edge_target(tree, node_element)
-                    #print(EM_us_target+" has y value: "+str(continuity_y))
-                    for EM_item in bpy.context.scene.em_list:
-                        if EM_item.icon == "RESTRICT_INSTANCED_OFF":
-                            if EM_item.name == EM_us_target:
-                                for ep_i in range(len(scene.epoch_list)):
-                                    #print("epoca "+epoch.name+" : min"+str(epoch.min_y)+" max: "+str(epoch.max_y)+" minore di "+str(continuity_y)+" e "+ str(epoch.min_y) +" minore di "+str(EM_item.y_pos))
-                                    if scene.epoch_list[ep_i].max_y > continuity_y and scene.epoch_list[ep_i].max_y < EM_item.y_pos:
-                                        #print("found")
-                                        scene.em_reused.add()
-                                        scene.em_reused[em_reused_index].epoch = scene.epoch_list[ep_i].name
-                                        scene.em_reused[em_reused_index].em_element = EM_item.name
-                                    #print("All'epoca "+scene.em_reused[em_reused_index].epoch+ " appartiene : "+ scene.em_reused[em_reused_index].em_element)
-                                        em_reused_index += 1
-        '''
-
-    def ver2_extract_epochs(self, node_element, graph):
-        geometry = node_element.find('.//{http://www.yworks.com/xml/graphml}Geometry')
-        y_start = float(geometry.attrib['y'])
-        
-        y_min = y_start
-        y_max = y_start
-
-        # Otteniamo tutte le Row
-        rows = node_element.findall('.//{http://www.yworks.com/xml/graphml}Row')
-        # Otteniamo tutte le NodeLabel
-        nodelabels = node_element.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel')
-
-        # Supponendo che la prima NodeLabel sia l'etichetta principale del nodo (ad esempio, "Soqotra - SHP200"), la escludiamo
-        main_label = nodelabels[0]
-        epoch_labels = nodelabels[1:]
-
-        # Controlliamo che il numero di Row e di NodeLabel (escluse le etichette principali) corrisponda
-        if len(rows) != len(epoch_labels):
-            print("Attenzione: il numero di Rows e NodeLabel non corrisponde.")
-            # Gestisci questo caso come preferisci, ad esempio lanciando un'eccezione o prendendo altre misure
-
-        # Iteriamo sulle Row e sulle NodeLabel corrispondenti
-        for row, nodelabel in zip(rows, epoch_labels):
-            id_row = row.attrib['id']
-            h_row = float(row.attrib['height'])
-            
-            y_min = y_max
-            y_max += h_row
-
-            label_node = nodelabel.text.strip()
-            e_color = nodelabel.attrib.get('backgroundColor', '#BCBCBC')
-
-            epoch_node = EpochNode(
-                node_id=id_row,
-                name=label_node,
-                start_time=0,
-                end_time=2000
-            )
-            epoch_node.min_y = y_min
-            epoch_node.max_y = y_max
-            epoch_node.set_color = e_color
-            self.graph.add_node(epoch_node)
-
-        print(f"Row ID: {id_row}, Label: {label_node}, Color: {e_color}")
-
-
-        return graph
-
-    def ver0_extract_epochs(self, node_element, graph):
-        geometry = node_element.find('.//{http://www.yworks.com/xml/graphml}Geometry')
-        y_start = float(geometry.attrib['y'])
-        
-        y_min = y_start
-        y_max = y_start
-
-        # Creiamo una mappatura tra gli ID delle righe e le rispettive etichette e colori
-        nodelabels_dict = {}
-        for nodelabel in node_element.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
-            RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
-            if RowNodeLabelModelParameter is not None:
-                label_node = nodelabel.text
-                id_node = str(RowNodeLabelModelParameter.attrib['id'])
-                e_color = str(nodelabel.attrib.get('backgroundColor', '#2C4187'))
-                nodelabels_dict[id_node] = {
-                    'name': label_node,
-                    'color': e_color
-                }
-
-        # Iteriamo attraverso le righe e creiamo gli EpochNode con nome e colore
-        for row in node_element.findall('.//{http://www.yworks.com/xml/graphml}Row'):
-            id_row = row.attrib['id']
-            h_row = float(row.attrib['height'])
-            
-            y_min = y_max
-            y_max += h_row
-
-            # Otteniamo il nome e il colore dalla mappatura, se disponibili
-            label_info = nodelabels_dict.get(id_row, {'name': 'temp', 'color': '#2C4187'})
-            name = label_info['name']
-            color = label_info['color']
-
-            epoch_node = EpochNode(
-                node_id=id_row,
-                name=name,
-                start_time=0,
-                end_time=2000
-            )
-            epoch_node.min_y = y_min
-            epoch_node.max_y = y_max
-            epoch_node.set_color = color
-            self.graph.add_node(epoch_node)
-
-        return graph
-
     #voglio ottimizzare questa funzione in modo che faccia un solo passaggio sui nodi
     def extract_epochs(self, node_element, graph):
         geometry = node_element.find('.//{http://www.yworks.com/xml/graphml}Geometry')
@@ -253,53 +133,11 @@ class GraphMLImporter:
         for row in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}Table/{http://www.yworks.com/xml/graphml}Rows/{http://www.yworks.com/xml/graphml}Row'):
             id_row = row.attrib['id']
             h_row = float(row.attrib['height'])
-            print(str(y_min))
+            #print(str(y_min))
+            print(id_row)
             
             y_min = y_max
             y_max += h_row
-            print(str(y_min))
-
-        for nodelabel in row.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
-            RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
-            if RowNodeLabelModelParameter is not None:
-                label_node = nodelabel.text
-                id_node = str(RowNodeLabelModelParameter.attrib['id'])
-                if 'backgroundColor' in nodelabel.attrib:
-                    e_color = str(nodelabel.attrib['backgroundColor'])
-                else:
-                    e_color = "#BCBCBC"
-            else:
-                id_node = "null"
-                    
-        epoch_node = EpochNode(
-            node_id=id_row,
-            name=label_node,
-            start_time = 0,
-            end_time = 2000,
-            color = e_color
-        )
-        epoch_node.min_y = y_min
-        epoch_node.max_y = y_max
-        self.graph.add_node(epoch_node)
-        
-        return graph
-
-    #voglio ottimizzare questa funzione in modo che faccia un solo passaggio sui nodi
-    def ver0_extract_epochs(self, node_element, graph):
-        geometry = node_element.find('.//{http://www.yworks.com/xml/graphml}Geometry')
-        y_start = float(geometry.attrib['y'])
-        
-        y_min = y_start
-        y_max = y_start
-
-        for row in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}Table/{http://www.yworks.com/xml/graphml}Rows/{http://www.yworks.com/xml/graphml}Row'):
-            id_row = row.attrib['id']
-            h_row = float(row.attrib['height'])
-            print(str(y_min))
-            
-            y_min = y_max
-            y_max += h_row
-            print(str(y_min))
             
             epoch_node = EpochNode(
                 node_id=id_row,
@@ -315,27 +153,33 @@ class GraphMLImporter:
             RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
             if RowNodeLabelModelParameter is not None:
                 label_node = nodelabel.text
+                
                 id_node = str(RowNodeLabelModelParameter.attrib['id'])
+                print("il nome del nodo trovato è "+label_node+" ed appartiene alla row: "+ id_node)
                 if 'backgroundColor' in nodelabel.attrib:
                     e_color = str(nodelabel.attrib['backgroundColor'])
                 else:
                     e_color = "#BCBCBC"
             else:
                 id_node = "null"
-                    
+            
+            print(id_node)
             epoch_node = graph.find_node_by_id(id_node)
 
             if epoch_node:
-                epoch_node.set_name = label_node
-                epoch_node.set_color = e_color
+                print("trovato nodo "+epoch_node.node_id)
+                print("sto per settare come nome del nodo: "+label_node)
+                epoch_node.set_name(label_node)
+                epoch_node.set_color(e_color)
                 print(epoch_node.color)
                 print(epoch_node.name)
-                break
+                
         return graph
 
     def connect_nodes_to_epochs(self):
         #define here a list of StratigraphicNode types that should be filled with a continuity node in the last epoch even if they do not have one. If no continuity node was set (end of life) we suppose that the US survives untill the last epoch
         list_of_surviving_stratigrafic_nodes = ["US", "serSU"]
+
         # Assegna le epoche ai nodi nel grafo in base alla posizione Y e tenendo in considerazione i nodi continuity
         for node in (node for node in self.graph.nodes if isinstance(node, StratigraphicNode)):
             connected_continuity_node = self.get_connected_node_by_type(self, node, "_continuity")
@@ -344,8 +188,7 @@ class GraphMLImporter:
             # aggiungo il nodo all'epoca per ogni epoca che "contiene" le due y_pos
             # quindi if epoca_max >= intervallo_inizio e epoca_min <= intervallo_fine
 
-            
-            # qui si affrontano i nodi che SONO connessi a nodi continuity, per cui si bisogna iterare su tutte le epoche pertinenti per associarle al nodo
+            ## qui si affrontano i nodi che SONO connessi a nodi continuity, per cui si bisogna iterare su tutte le epoche pertinenti per associarle al nodo
             if connected_continuity_node:
                 for epoch in (node for node in self.graph.nodes if isinstance(node, EpochNode)):
 
@@ -353,7 +196,7 @@ class GraphMLImporter:
                         edge_id = node.node_id + "_" + epoch.name
                         self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "has_epoch")                        
             
-            # qui è il caso di nodi che NON sono connessi ad alcun nodo continuity
+            ## qui è il caso di nodi che NON sono connessi ad alcun nodo continuity
             else:
                 # qui si filtrano nodi che inoltre appartengono ai resti fisici
                 if node.node_type in list_of_surviving_stratigrafic_nodes:

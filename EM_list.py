@@ -158,9 +158,6 @@ class EM_import_GraphML(bpy.types.Operator):
         # Now populate the Blender lists from the graph
         self.populate_blender_lists_from_graph(context, graph)
 
-        #ora esplora tutte le liste per cercare tutti i nodi rectangle e white_ellipse che NON sono connessi ad un continuity node in modo tale da dargli continuità fino all'ultima epoca dello swimlane
-        #DEPRECATO self.find_and_add_us_nodes_without_continuity(context)
-
         # verifica post importazione: controlla che il contatore della lista delle UUSS sia nel range (può succedere di ricaricare ed avere una lista più corta di UUSS). In caso di necessità porta a 0 l'indice
         self.check_index_coherence(scene)
         
@@ -195,7 +192,7 @@ class EM_import_GraphML(bpy.types.Operator):
         # Popolamento delle liste
         for node in graph.nodes:
             if isinstance(node, StratigraphicNode):
-                self._populate_stratigraphic_node(scene, node, em_list_index_ema)
+                self._populate_stratigraphic_node(scene, node, em_list_index_ema, graph)
                 em_list_index_ema += 1
             elif isinstance(node, DocumentNode):
                 em_sources_index_ema = self._populate_document_node(scene, node, em_sources_index_ema)
@@ -210,7 +207,7 @@ class EM_import_GraphML(bpy.types.Operator):
         for edge in graph.edges:
             self._populate_edges(scene, edge, em_edges_index_ema)
 
-    def _populate_stratigraphic_node(self, scene, node, index):
+    def _populate_stratigraphic_node(self, scene, node, index, graph):
         scene.em_list.add()
         em_item = scene.em_list[-1]
         em_item.name = node.name
@@ -221,7 +218,9 @@ class EM_import_GraphML(bpy.types.Operator):
         em_item.border_style = node.attributes.get('border_style', "")
         em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
         em_item.id_node = node.node_id
-        em_item.epoch = node.epoch if node.epoch else ""
+        
+        #em_item.epoch = node.epoch if node.epoch else ""
+        em_item.epoch = graph.get_epochs_list_for_stratigraphicnode(node.node_id)
         
         return index + 1
 
@@ -288,10 +287,11 @@ class EM_import_GraphML(bpy.types.Operator):
         epoch_item.start_time = node.start_time
         epoch_item.end_time = node.end_time
         epoch_item.epoch_color = node.color
+        epoch_item.epoch_RGB_color = hex_to_rgb(node.color)
+        print("il colore è:" +epoch_item.epoch_color)
 
         epoch_item.description = node.description
         return index + 1
-
 
     def _populate_edges(self, scene, edge, index):
         scene.edges_list.add()

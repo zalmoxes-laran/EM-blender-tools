@@ -1,6 +1,8 @@
 # 3dgraphy/graph.py
 from .node import *
 from .edge import *
+from typing import List
+
 
 class Graph:
     def __init__(self):
@@ -118,6 +120,19 @@ class Graph:
 
         # Se nessun nodo con il node_type specificato è trovato
         return None
+
+    def get_epochs_list_for_stratigraphicnode(self, node_id: str) -> List[str]:
+        if node_id not in self.nodes or not isinstance(self.nodes[node_id], StratigraphicNode):
+            return []
+
+        epoch_names = []
+        if node_id in self.edges:
+            for to_node_id, edge_type in self.edges[node_id].items():
+                if edge_type == "has_epoch" and isinstance(self.nodes[to_node_id], EpochNode):
+                    epoch_names.append(self.nodes[to_node_id].name)
+
+        return epoch_names
+
 
     # Qui puoi aggiungere ulteriori metodi per gestire ricerche, rimozioni e manipolazioni
 
