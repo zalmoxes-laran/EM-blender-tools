@@ -107,10 +107,10 @@ class GraphMLImporter:
                     self.graph.add_node(combiner_node)
 
                 elif self.EM_check_node_continuity(node_element):
-                    continuity_node_id, y_pos = self.EM_extract_continuity(node_element)
+                    continuity_node_id, y_pos, node_id = self.EM_extract_continuity(node_element)
 
                     continuity_node = StratigraphicNode(
-                        node_id = continuity_node_id,
+                        node_id = node_id,
                         name = "continuity_node",
                         stratigraphic_type= "BR",
                         description=""
@@ -118,7 +118,7 @@ class GraphMLImporter:
                     continuity_node.attributes['y_pos'] = float(y_pos)
 
                     self.graph.add_node(continuity_node)
-                    print(f"Ho trovato un nodo continuity in pos {str(continuity_node.description)} con tipo {continuity_node.node_type}")
+                    print(f"Ho trovato un nodo continuity in pos {str(continuity_node.attributes['y_pos'])} con tipo {continuity_node.node_type}")
 
                 else:
                     pass
@@ -194,28 +194,28 @@ class GraphMLImporter:
             connected_continuity_node = self.graph.get_connected_node_by_type(node, "BR")
 
             for epoch in (node for node in self.graph.nodes if isinstance(node, EpochNode)):
+                #print(epoch.name)
                 if epoch.min_y < node.attributes['y_pos'] < epoch.max_y:
                     edge_id = node.node_id + "_" + epoch.name
                     self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "has_first_epoch")
-                    print("ho trovato la prima epoca: "+ epoch.name)
+                    #print(f"ho trovato la prima epoca: {epoch.name} che ha ymin: {epoch.min_y} e ymax: {epoch.max_y} per un nodo {node.name} che ha y: {node.attributes['y_pos']}")
+                
+                
                 elif connected_continuity_node: ## qui si affrontano i nodi che SONO connessi a nodi continuity, per cui si bisogna iterare su tutte le epoche pertinenti per associarle al nodo
-                    if epoch.max_y >= node.attributes['y_pos'] and epoch.min_y <= connected_continuity_node.attributes['y_pos']:
+                    #print(f"C'è un continuity (id: {connected_continuity_node.node_id} e y_pos: {connected_continuity_node.attributes['y_pos']}) connesso a {node.name} con valore y_pos {node.attributes['y_pos']}. L'epoca {epoch.name} ha ymin: {epoch.min_y} e max: {epoch.max_y}")
+                    if epoch.max_y >= connected_continuity_node.attributes['y_pos'] and epoch.min_y <= node.attributes['y_pos']:
                         edge_id = node.node_id + "_" + epoch.name
                         self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch") 
-                        print(f"Il nodo {node.name} con pos_y {str(node.attributes['y_pos'])} è connesso ad un continuity node con y_pos {str(connected_continuity_node.attributes['y_pos'])}")
-
-                                              
-            '''
-            ## qui è il caso di nodi che NON sono connessi ad alcun nodo continuity
-            else:
+                        #print(f"Il nodo {node.name} con pos_y {str(node.attributes['y_pos'])} è connesso ad un continuity node con y_pos {str(connected_continuity_node.attributes['y_pos'])}")
+                
                 # qui si filtrano nodi che inoltre appartengono ai resti fisici
-                if node.node_type in list_of_phisical_stratigraphic_nodes:
-                        
-                    for epoch in (node for node in self.graph.nodes if isinstance(node, EpochNode)):
-                        if node.attributes['y_pos'] < epoch.max_y:
-                            edge_id = node.node_id + "_" + epoch.name
-                            self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch")
-            '''
+                elif not connected_continuity_node and node.node_type in list_of_phisical_stratigraphic_nodes:
+                    if node.attributes['y_pos'] < epoch.max_y:
+                        #print(f"Questo è un nodo {node.name} di tipo {node.node_type} che non ha un continuity")
+
+                        edge_id = node.node_id + "_" + epoch.name
+                        self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch")
+                
     def EM_extract_edge_type(self, edge_element):
         edge_type = "Empty"
         for subedge in edge_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
@@ -482,7 +482,7 @@ class GraphMLImporter:
     #CONTINUITY NODE
     def EM_check_node_continuity(self, node_element):
         id_node_continuity = False
-        my_node_description, my_node_y_pos = self.EM_extract_continuity(node_element)
+        my_node_description, my_node_y_pos, node_id = self.EM_extract_continuity(node_element)
         if my_node_description == "_continuity":
             id_node_continuity = True
 
@@ -492,8 +492,11 @@ class GraphMLImporter:
         is_d5 = False
         node_y_pos = 0.0
         nodedescription = None
+        node_id = node_element.attrib['id']
+        print(str(node_id))
         for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
             attrib = subnode.attrib
+            
             #print(attrib)
             if attrib == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
                 is_d5 = True
@@ -505,7 +508,7 @@ class GraphMLImporter:
                     #print("il valore y di nodo "+ str(nodedescription) +" = "+str(node_y_pos))
         if not is_d5:
             nodedescription = ''
-        return nodedescription, node_y_pos 
+        return nodedescription, node_y_pos, node_id
 
     # FUNZIONE PER ELIMINARE COMMENTI NELLE DESCRIZIONI DEI NODI (laddove ci siano)
     def clean_comments(self, multiline_str):

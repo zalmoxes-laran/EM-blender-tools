@@ -99,7 +99,7 @@ class Graph:
         """
         Verifica se il nodo dato è collegato ad almeno un nodo con una data proprietà node_type.
         Se sì, restituisce il primo nodo trovato con il node_type specificato.
-        Altrimenti, restituisce None.
+        Altrimenti, restituisce None.P
 
         :param node: Istanza di Node da verificare.
         :param target_node_type: Il valore di node_type da cercare nei nodi collegati.
@@ -121,9 +121,9 @@ class Graph:
 
             # Verifica se l'altro nodo esiste e ha il node_type specificato
             if other_node and other_node.node_type == target_node_type:
-                print("Ho trovato un nodo continuity")
+                #print("Ho trovato un nodo continuity")
                 return other_node  # Restituisce il primo nodo trovato con il node_type specificato
-        print("Non ho trovato nodi continuity !!!!")
+        #print("Non ho trovato nodi continuity !!!!")
         # Se nessun nodo con il node_type specificato è trovato
         return None
 
@@ -201,7 +201,7 @@ class Graph:
             # Verifica se l'altro nodo è un'istanza di EpochNode
             if isinstance(other_node, EpochNode):
                 found_epoch_nodes = True
-                print(f"EpochNode trovato: ID={other_node.node_id}, Nome={other_node.name}, Tipo di nodo={other_node.node_type} Edge Type={edge.edge_type}")
+                print(f"Nodo {node.name} (ID {node.node_id} e tipo {node.node_type}) ho trovato un EpochNode: ID={other_node.node_id}, Nome={other_node.name}, Tipo={other_node.node_type} Edge Type={edge.edge_type}")
         
         if not found_epoch_nodes:
             print("Nessun EpochNode collegato trovato per il nodo specificato.")

@@ -158,6 +158,9 @@ class EM_import_GraphML(bpy.types.Operator):
         # Now populate the Blender lists from the graph
         self.populate_blender_lists_from_graph(context, graph)
 
+        for reused in scene.em_reused:
+            print(f"Reused {reused.em_element} in {reused.epoch}")
+
         # verifica post importazione: controlla che il contatore della lista delle UUSS sia nel range (può succedere di ricaricare ed avere una lista più corta di UUSS). In caso di necessità porta a 0 l'indice
         self.check_index_coherence(scene)
         
@@ -215,7 +218,7 @@ class EM_import_GraphML(bpy.types.Operator):
 
     def _populate_reuse_US_table(self, scene, node, index, graph):
         survived_in_epoch = graph.get_connected_epoch_node_by_edge_type(node, "survive_in_epoch")
-        print(f"Per il nodo {node.name}:")
+        #print(f"Per il nodo {node.name}:")
         graph.print_connected_epoch_nodes_and_edge_types(node)
 
         if survived_in_epoch:
