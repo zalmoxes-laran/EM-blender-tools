@@ -206,7 +206,17 @@ class Graph:
         if not found_epoch_nodes:
             print("Nessun EpochNode collegato trovato per il nodo specificato.")
 
+    def find_node_by_name(self, node_name):
+        """
+        Cerca un nodo per nome.
 
+        :param node_name: Il nome del nodo da cercare.
+        :return: Istanza di Node se trovato, altrimenti None.
+        """
+        for node in self.nodes:
+            if node.name == node_name:
+                return node
+        return None
 
     # Qui puoi aggiungere ulteriori metodi per gestire ricerche, rimozioni e manipolazioni
 

@@ -6,6 +6,13 @@ import bpy.props as prop # type: ignore
 
 from .functions import *
 
+from .S3Dgraphy import *
+from .S3Dgraphy.graph import Graph
+from .S3Dgraphy.node import StratigraphicNode  # Import diretto
+
+from . import graph_manager
+
+
 ########################
 
 class EM_UL_List(bpy.types.UIList):
@@ -327,6 +334,71 @@ class EM_change_selected_objects(bpy.types.Operator):
 
         return {'FINISHED'}
     
+class EM_UpdateUSListOperator(bpy.types.Operator):
+    bl_idname = "epoch_manager.update_us_list"
+    bl_label = "Update US List"
+
+    def execute(self, context):
+        scene = context.scene
+
+        # Clear existing US list
+        scene.selected_epoch_us_list.clear()
+
+        # Accedi al grafo
+        graph_instance = graph_manager.graph_instance
+        if not graph_instance:
+            self.report({'ERROR'}, "Grafo non caricato.")
+            return {'CANCELLED'}
+
+        # Get the selected epoch
+        if scene.epoch_list_index >= 0 and scene.epoch_list_index < len(scene.epoch_list):
+            selected_epoch = scene.epoch_list[scene.epoch_list_index]
+
+            # Access the graph (ensure it's stored in scene.em_graph)
+            #graph = scene.em_graph
+
+            if graph_instance:
+                # Find the epoch node in the graph
+                epoch_node = graph_instance.find_node_by_name(selected_epoch.name)
+
+                if epoch_node:
+                    # Iterate over edges connected to the epoch node
+                    for edge in graph_instance.edges:
+                        if edge.edge_source == epoch_node.node_id or edge.edge_target == epoch_node.node_id:
+                            # Determine the other node connected by the edge
+                            if edge.edge_source == epoch_node.node_id:
+                                other_node_id = edge.edge_target
+                            else:
+                                other_node_id = edge.edge_source
+
+                            # Retrieve the other node
+                            other_node = graph_instance.find_node_by_id(other_node_id)
+
+                            # Check if the other node is a StratigraphicNode
+                            if other_node and isinstance(other_node, StratigraphicNode):
+                                # Determine status based on edge type
+                                if edge.edge_type == "has_first_epoch":
+                                    status = "was born"
+                                elif edge.edge_type == "survive_in_epoch":
+                                    status = "survived"
+                                else:
+                                    continue  # Skip other edge types
+
+                                # Add US element to the list
+                                item = scene.selected_epoch_us_list.add()
+                                item.name = other_node.name
+                                item.description = other_node.description
+                                item.status = status
+                else:
+                    self.report({'WARNING'}, f"Epoch node '{selected_epoch.name}' not found in the graph.")
+            else:
+                self.report({'ERROR'}, "Graph not loaded. Please ensure the graph is available as 'scene.em_graph'.")
+        else:
+            self.report({'WARNING'}, "No epoch selected.")
+
+        return {'FINISHED'}
+
+
 classes = [
     EM_UL_List,
     EM_toggle_reconstruction,
@@ -338,7 +410,8 @@ classes = [
     EM_toggle_selectable,
     EM_toggle_soloing,
     EM_add_remove_epoch_models,
-    EM_select_epoch_rm
+    EM_select_epoch_rm,
+    EM_UpdateUSListOperator
     ]
 
 # Registration

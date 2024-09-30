@@ -110,6 +110,47 @@ class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_context = "objectmode"
 
 #US/USV Manager
+
+class EM_UL_US_List(bpy.types.UIList):
+    bl_idname = "EM_UL_US_List"
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        split = layout.split(factor=0.5)
+        split.label(text=item.name)
+        split.label(text=item.status)
+
+
+class VIEW3D_PT_USListPanel(bpy.types.Panel):
+    bl_label = "US List for Selected Epoch"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'EM'
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+
+        if len(scene.selected_epoch_us_list) > 0:
+            row = layout.row()
+            row.template_list(
+                "EM_UL_US_List",
+                "",
+                scene,
+                "selected_epoch_us_list",
+                scene,
+                "selected_epoch_us_list_index"
+            )
+
+            if scene.selected_epoch_us_list_index >= 0 and scene.selected_epoch_us_list_index < len(scene.selected_epoch_us_list):
+                item = scene.selected_epoch_us_list[scene.selected_epoch_us_list_index]
+                box = layout.box()
+                box.label(text=f"Name: {item.name}")
+                box.label(text=f"Description: {item.description}")
+                box.label(text=f"Status: {item.status}")
+        else:
+            layout.label(text="No US elements in this epoch.")
+
+
 #####################################################################
 #EMdb
 class EMdbPanel:

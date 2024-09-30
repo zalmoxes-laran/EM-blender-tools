@@ -191,6 +191,7 @@ class GraphMLImporter:
         # Assegna le epoche ai nodi nel grafo in base alla posizione Y e tenendo in considerazione i nodi continuity
         for node in (node for node in self.graph.nodes if isinstance(node, StratigraphicNode)):
             #print(f"Inizio ad occuparmi di {node.name}")
+            
             connected_continuity_node = self.graph.get_connected_node_by_type(node, "BR")
 
             for epoch in (node for node in self.graph.nodes if isinstance(node, EpochNode)):
@@ -202,16 +203,16 @@ class GraphMLImporter:
                 
                 
                 elif connected_continuity_node: ## qui si affrontano i nodi che SONO connessi a nodi continuity, per cui si bisogna iterare su tutte le epoche pertinenti per associarle al nodo
-                    #print(f"C'è un continuity (id: {connected_continuity_node.node_id} e y_pos: {connected_continuity_node.attributes['y_pos']}) connesso a {node.name} con valore y_pos {node.attributes['y_pos']}. L'epoca {epoch.name} ha ymin: {epoch.min_y} e max: {epoch.max_y}")
+                    print(f"C'è un continuity (id: {connected_continuity_node.node_id} e y_pos: {connected_continuity_node.attributes['y_pos']}) connesso a {node.name} con valore y_pos {node.attributes['y_pos']}. L'epoca {epoch.name} ha ymin: {epoch.min_y} e max: {epoch.max_y}")
                     if epoch.max_y >= connected_continuity_node.attributes['y_pos'] and epoch.min_y <= node.attributes['y_pos']:
                         edge_id = node.node_id + "_" + epoch.name
                         self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch") 
                         #print(f"Il nodo {node.name} con pos_y {str(node.attributes['y_pos'])} è connesso ad un continuity node con y_pos {str(connected_continuity_node.attributes['y_pos'])}")
                 
                 # qui si filtrano nodi che inoltre appartengono ai resti fisici
-                elif not connected_continuity_node and node.node_type in list_of_phisical_stratigraphic_nodes:
-                    if node.attributes['y_pos'] < epoch.max_y:
-                        #print(f"Questo è un nodo {node.name} di tipo {node.node_type} che non ha un continuity")
+                elif (not connected_continuity_node) and (node.node_type in list_of_phisical_stratigraphic_nodes):
+                    if node.attributes['y_pos'] > epoch.min_y:
+                        print(f"Questo è un nodo che non ha un continuity {node.name} di tipo {node.node_type}con {node.attributes['y_pos']} da confrontare con una epoca {epoch.name} con min {epoch.min_y} e max {epoch.max_y}  ")
 
                         edge_id = node.node_id + "_" + epoch.name
                         self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch")

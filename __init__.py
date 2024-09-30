@@ -434,6 +434,16 @@ class ExportTablesVars(bpy.types.PropertyGroup):
               default='US/USV'
     ) # type: ignore
 
+class EMUSItem(bpy.types.PropertyGroup):
+    name: bpy.props.StringProperty(name="Name", default="") # type: ignore
+    description: bpy.props.StringProperty(name="Description", default="") # type: ignore
+    status: bpy.props.StringProperty(name="Status", default="") # type: ignore
+
+
+def update_selected_epoch_us_list(self, context):
+       #if context.scene.em_graph:
+       bpy.ops.epoch_manager.update_us_list()
+
 # register
 ##################################
 
@@ -448,6 +458,8 @@ classes = (
     UI.EM_UL_extractors_managers,
     UI.EM_UL_combiners_managers,
     UI.EM_UL_belongob,
+    UI.VIEW3D_PT_USListPanel,
+    UI.EM_UL_US_List,
     paradata_manager.EM_files_opener,
     functions.OBJECT_OT_CenterMass,
     functions.OBJECT_OT_labelonoff,
@@ -465,9 +477,12 @@ classes = (
     EmPreferences,
     visual_tools.EM_label_creation,
     em_create_collection,
+    EMUSItem
     )
 
 def register():
+
+       bpy.types.Scene.em_graph = None
 
        for cls in classes:
               bpy.utils.register_class(cls)
@@ -494,6 +509,9 @@ def register():
 
        check_external_modules() 
 
+       bpy.types.Scene.selected_epoch_us_list = bpy.props.CollectionProperty(type=EMUSItem)
+       bpy.types.Scene.selected_epoch_us_list_index = bpy.props.IntProperty(name="Index for US list", default=0)
+
        bpy.types.WindowManager.export_vars = bpy.props.PointerProperty(type = ExportVars)
        bpy.types.WindowManager.export_tables_vars = bpy.props.PointerProperty(type = ExportTablesVars)
 
@@ -504,7 +522,12 @@ def register():
        bpy.types.Scene.em_list_index = prop.IntProperty(name = "Index for my_list", default = 0, update = functions.switch_paradata_lists)
        bpy.types.Scene.em_reused = prop.CollectionProperty(type = EMreusedUS)
        bpy.types.Scene.epoch_list = prop.CollectionProperty(type = EPOCHListItem)
-       bpy.types.Scene.epoch_list_index = prop.IntProperty(name = "Index for epoch_list", default = 0)
+
+       bpy.types.Scene.epoch_list_index = bpy.props.IntProperty(
+       name="Index for epoch_list",
+       default=0,
+       update=update_selected_epoch_us_list
+       )
 
        bpy.types.Scene.edges_list = prop.CollectionProperty(type = EDGESListItem)
 
@@ -636,7 +659,7 @@ def register():
 ######################################################################################################
 
 def unregister():
-
+       del bpy.types.Scene.em_graph 
        addon_updater_ops.unregister(bl_info)
        sqlite_io.unregister()
        visual_manager.unregister()
@@ -657,6 +680,8 @@ def unregister():
        ######################################################################################################
        #per epoch manager
        ##################
+       del bpy.types.Scene.selected_epoch_us_list 
+       del bpy.types.Scene.selected_epoch_us_list_index
        del bpy.types.WindowManager.export_vars
        del bpy.types.Scene.emviq_error_list
        del bpy.types.Scene.emviq_error_list_index

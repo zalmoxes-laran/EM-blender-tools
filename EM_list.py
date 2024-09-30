@@ -27,6 +27,9 @@ from .epoch_manager import *
 from .S3Dgraphy import *
 from .S3Dgraphy.node import StratigraphicNode  # Import diretto
 
+from . import graph_manager
+
+
 #### da qui si definiscono le funzioni e gli operatori
 class EM_listitem_OT_to3D(bpy.types.Operator):
     bl_idname = "listitem.toobj"
@@ -149,17 +152,16 @@ class EM_import_GraphML(bpy.types.Operator):
         #retrieve graphml_path
         graphml_file = bpy.path.abspath(scene.EM_file)
 
-        # Crea un'istanza dell'importatore
-        importer = GraphMLImporter(graphml_file)
+        graph_manager.load_graph(graphml_file)
 
-        # Esegui il parsing e ottieni il grafo
-        graph = importer.parse()
+        # Ora usa graph_manager.graph_instance per accedere al grafo
+        graph_instance = graph_manager.graph_instance
 
         # Now populate the Blender lists from the graph
-        self.populate_blender_lists_from_graph(context, graph)
+        self.populate_blender_lists_from_graph(context, graph_instance)
 
-        for reused in scene.em_reused:
-            print(f"Reused {reused.em_element} in {reused.epoch}")
+        #for reused in scene.em_reused:
+        #    print(f"Reused {reused.em_element} in {reused.epoch}")
 
         # verifica post importazione: controlla che il contatore della lista delle UUSS sia nel range (può succedere di ricaricare ed avere una lista più corta di UUSS). In caso di necessità porta a 0 l'indice
         self.check_index_coherence(scene)
@@ -177,6 +179,12 @@ class EM_import_GraphML(bpy.types.Operator):
         
         #setup dei materiali di scena dopo l'importazione del graphml
         self.post_import_material_setup(context)
+
+        bpy.ops.epoch_manager.update_us_list
+
+        # After loading the graph
+        #scene.em_graph = graph  # Replace 'loaded_graph' with your graph variable
+
 
         return {'FINISHED'}
     
@@ -219,7 +227,7 @@ class EM_import_GraphML(bpy.types.Operator):
     def _populate_reuse_US_table(self, scene, node, index, graph):
         survived_in_epoch = graph.get_connected_epoch_node_by_edge_type(node, "survive_in_epoch")
         #print(f"Per il nodo {node.name}:")
-        graph.print_connected_epoch_nodes_and_edge_types(node)
+        #graph.print_connected_epoch_nodes_and_edge_types(node)
 
         if survived_in_epoch:
             scene.em_reused.add()
