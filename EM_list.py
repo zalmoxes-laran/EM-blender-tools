@@ -225,16 +225,19 @@ class EM_import_GraphML(bpy.types.Operator):
             self._populate_edges(scene, edge, em_edges_index_ema)
 
     def _populate_reuse_US_table(self, scene, node, index, graph):
-        survived_in_epoch = graph.get_connected_epoch_node_by_edge_type(node, "survive_in_epoch")
+        survived_in_epoch = graph.get_connected_epoch_nodes_list_by_edge_type(node, "survive_in_epoch")
         #print(f"Per il nodo {node.name}:")
-        #graph.print_connected_epoch_nodes_and_edge_types(node)
 
         if survived_in_epoch:
-            scene.em_reused.add()
-            em_item = scene.em_reused[-1]
-            em_item.epoch = survived_in_epoch.name
-            em_item.em_element = node.name
-            return index +1
+            #graph.print_connected_epoch_nodes_and_edge_types(node)
+            for current_epoch in survived_in_epoch:
+                scene.em_reused.add()
+                em_item = scene.em_reused[-1]
+                em_item.epoch = current_epoch.name
+                em_item.em_element = node.name
+                print(f"Sto aggiungendo all'elenco dei reused il nodo {em_item.em_element} per l'epoca {em_item.epoch}")
+                index += 1
+                
         return index
 
     def _populate_stratigraphic_node(self, scene, node, index, graph):
@@ -352,44 +355,6 @@ class EM_import_GraphML(bpy.types.Operator):
         #context.scene.em_list_index_ema = 0
 
         return None
-
-    '''
-    def find_and_add_us_nodes_without_continuity(self, context):
-        scene = context.scene
-        em_reused_index = len(scene.em_reused)
-
-        # Scorri tutti i nodi US (rectangle) e serie di US (white_ellipse)
-        for em_item in scene.em_list:
-            if em_item.shape in ["rectangle", "white_ellipse"]:
-                has_continuity = False
-
-                # Scorri tutti gli archi per vedere se sono collegati a questo US
-                for edge in scene.edges_list:
-                    if edge.source == em_item.id_node:
-                        target_node_element = self.find_node_element_by_id(context, edge.target)
-                        if target_node_element and self.EM_check_node_continuity(target_node_element):
-                            has_continuity = True
-                            break
-
-                # Se il nodo non ha continuità, aggiungilo a em_reused per tutte le epoche pertinenti
-                if not has_continuity:
-                    current_epoch = em_item.epoch
-                    current_epoch_index = None
-
-                    # Trova l'indice dell'epoca corrente
-                    for ep_i, epoch in enumerate(scene.epoch_list):
-                        if epoch.name == current_epoch:
-                            current_epoch_index = ep_i
-                            break
-
-                    # Aggiungi il nodo a em_reused per tutte le epoche dalla corrente fino alla prima
-                    if current_epoch_index is not None:
-                        for ep_i in range(current_epoch_index, -1, -1):
-                            scene.em_reused.add()
-                            scene.em_reused[em_reused_index].epoch = scene.epoch_list[ep_i].name
-                            scene.em_reused[em_reused_index].em_element = em_item.name
-                            em_reused_index += 1
-    '''
 
     def find_node_element_by_id(self, context, node_id):
         tree = ET.parse(bpy.path.abspath(context.scene.EM_file))

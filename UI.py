@@ -2,14 +2,14 @@
 #    "name": "Super Grouper",
 #    "author": "Paul Geraskin, Aleksey Juravlev, BA Community",
 
-import bpy
+import bpy# type: ignore
 
 from .functions import *
-from bpy.props import *
-from bpy.types import Operator
-from bpy.types import Menu, Panel, UIList, PropertyGroup
-from bpy.props import StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
-from bpy.app.handlers import persistent
+from bpy.props import * # type: ignore
+from bpy.types import Operator# type: ignore
+from bpy.types import Menu, Panel, UIList, PropertyGroup# type: ignore
+from bpy.props import StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty# type: ignore
+from bpy.app.handlers import persistent# type: ignore
 from .epoch_manager import *
 from .EM_list import *
 from . import addon_updater_ops
@@ -118,6 +118,7 @@ class EM_UL_US_List(bpy.types.UIList):
         split = layout.split(factor=0.5)
         split.label(text=item.name)
         split.label(text=item.status)
+        #split.label(text=item.y_pos)
 
 
 class VIEW3D_PT_USListPanel(bpy.types.Panel):
@@ -276,8 +277,11 @@ class EM_UL_named_epoch_managers(UIList):
         #self.layout.prop(context.scene, "test_color", text='Detail Color')
         icons_style = 'OUTLINER'
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            layout = layout.split(factor=0.6, align=True)
+            #layout = layout.split(factor=0.6, align=True)
             layout.prop(epoch_list, "name", text="", emboss=False)
+            #layout.prop(epoch_list, "min_y", text="min", emboss=False)
+            #layout.prop(epoch_list, "max_y", text="max", emboss=False)
+
 
             # select operator
             icon = 'RESTRICT_SELECT_ON' if epoch_list.is_selected else 'RESTRICT_SELECT_OFF'
@@ -288,10 +292,7 @@ class EM_UL_named_epoch_managers(UIList):
             op = layout.operator(
                 "epoch_manager.toggle_select", text="", emboss=False, icon=icon)
 
-            #self.layout.prop(context.scene, "test_color", text='Detail Color')
             op.group_em_idx = index
-            # op.is_menu = False
-            # op.is_select = True
 
             # lock operator
             icon = 'LOCKED' if epoch_list.is_locked else 'UNLOCKED'
@@ -318,11 +319,6 @@ class EM_UL_named_epoch_managers(UIList):
             op = layout.operator(
                 "epoch_manager.toggle_soloing", text="", emboss=False, icon=icon)
             op.group_em_idx = index
-
-
-
-            #icon = 'KEYTYPE_KEYFRAME_VEC' if epoch_list.rm_models else 'HANDLETYPE_FREE_VEC'
-            #layout.label(icon=icon)
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'

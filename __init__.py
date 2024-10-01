@@ -438,6 +438,7 @@ class EMUSItem(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="Name", default="") # type: ignore
     description: bpy.props.StringProperty(name="Description", default="") # type: ignore
     status: bpy.props.StringProperty(name="Status", default="") # type: ignore
+    y_pos: bpy.props.StringProperty(name="y_pos", default="") # type: ignore
 
 
 def update_selected_epoch_us_list(self, context):

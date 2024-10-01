@@ -118,7 +118,7 @@ class GraphMLImporter:
                     continuity_node.attributes['y_pos'] = float(y_pos)
 
                     self.graph.add_node(continuity_node)
-                    print(f"Ho trovato un nodo continuity in pos {str(continuity_node.attributes['y_pos'])} con tipo {continuity_node.node_type}")
+                    #print(f"Ho trovato un nodo continuity in pos {str(continuity_node.attributes['y_pos'])} con tipo {continuity_node.node_type}")
 
                 else:
                     pass
@@ -211,8 +211,8 @@ class GraphMLImporter:
                 
                 # qui si filtrano nodi che inoltre appartengono ai resti fisici
                 elif (not connected_continuity_node) and (node.node_type in list_of_phisical_stratigraphic_nodes):
-                    if node.attributes['y_pos'] > epoch.min_y:
-                        print(f"Questo è un nodo che non ha un continuity {node.name} di tipo {node.node_type}con {node.attributes['y_pos']} da confrontare con una epoca {epoch.name} con min {epoch.min_y} e max {epoch.max_y}  ")
+                    if node.attributes['y_pos'] > epoch.max_y:
+                        #print(f"Questo è un nodo che non ha un continuity {node.name} di tipo {node.node_type}con {node.attributes['y_pos']} da confrontare con una epoca {epoch.name} con min {epoch.min_y} e max {epoch.max_y}  ")
 
                         edge_id = node.node_id + "_" + epoch.name
                         self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch")

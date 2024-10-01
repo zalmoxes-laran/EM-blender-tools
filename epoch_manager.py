@@ -24,6 +24,8 @@ class EM_UL_List(bpy.types.UIList):
         layout = layout.split(factor =0.30, align = True)
         layout.label(text = item.name, icon = item.icon)
         layout.label(text = item.description, icon='NONE', icon_value=0)
+        #layout.label(text = str(item.y_pos), icon='NONE', icon_value=0)
+
 
 ########################
 
@@ -67,7 +69,6 @@ class EM_toggle_select(bpy.types.Operator):
             self.layout.label(text="Some objects cannot be selected because they are in inactive layers:")
             self.layout.label(text=missing_objects_str)
         bpy.context.window_manager.popup_menu(draw, title="Warning", icon='INFO')
-
 
 #["rectangle", "ellipse_white", "roundrectangle", "octagon_white"]
 #["parallelogram", "ellipse", "hexagon", "octagon"]
@@ -378,9 +379,9 @@ class EM_UpdateUSListOperator(bpy.types.Operator):
                             if other_node and isinstance(other_node, StratigraphicNode):
                                 # Determine status based on edge type
                                 if edge.edge_type == "has_first_epoch":
-                                    status = "was born"
+                                    status = "created"
                                 elif edge.edge_type == "survive_in_epoch":
-                                    status = "survived"
+                                    status = "re-used"
                                 else:
                                     continue  # Skip other edge types
 
@@ -389,6 +390,7 @@ class EM_UpdateUSListOperator(bpy.types.Operator):
                                 item.name = other_node.name
                                 item.description = other_node.description
                                 item.status = status
+                                item.y_pos = str(other_node.attributes['y_pos'])
                 else:
                     self.report({'WARNING'}, f"Epoch node '{selected_epoch.name}' not found in the graph.")
             else:
@@ -397,7 +399,6 @@ class EM_UpdateUSListOperator(bpy.types.Operator):
             self.report({'WARNING'}, "No epoch selected.")
 
         return {'FINISHED'}
-
 
 classes = [
     EM_UL_List,
