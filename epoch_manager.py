@@ -26,7 +26,6 @@ class EM_UL_List(bpy.types.UIList):
         layout.label(text = item.description, icon='NONE', icon_value=0)
         #layout.label(text = str(item.y_pos), icon='NONE', icon_value=0)
 
-
 ########################
 
 class EM_toggle_select(bpy.types.Operator):

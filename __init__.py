@@ -20,7 +20,7 @@ bl_info = {
     "name": "EM tools",
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
-    "version": (1, 4, 0),
+    "version": (1, 4, 1),
     "blender": (4, 2, 0),
     "devel_version": "v1.4.0 dev13",  # Aggiunto campo devel_version
     "location": "3D View > Toolbox",
