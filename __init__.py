@@ -66,7 +66,8 @@ from . import (
         EMdb_excel,
         external_modules_install,
         em_statistics,
-        server
+        server,
+        graph2geometry
         #google_credentials
         )
 
@@ -185,7 +186,16 @@ class EmPreferences(bpy.types.AddonPreferences):
               op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Uninstall pandas modules (waiting some minutes is normal)')
               op.is_install = False
               op.list_modules_to_install = "EMdb_xlsx"
-              
+              row = layout.row()              
+              op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Install NetworkX modules (waiting some minutes is normal)')
+              op.is_install = True
+              op.list_modules_to_install = "NetworkX"
+              row = layout.row()
+              op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Uninstall NetworkX modules (waiting some minutes is normal)')
+              op.is_install = False
+              op.list_modules_to_install = "NetworkX"
+
+
 class EDGESListItem(bpy.types.PropertyGroup):
        """ Group of properties an item in the list """
 
@@ -508,7 +518,10 @@ def register():
 
        server.register()
 
+       graph2geometry.register()
+
        check_external_modules() 
+
 
        bpy.types.Scene.selected_epoch_us_list = bpy.props.CollectionProperty(type=EMUSItem)
        bpy.types.Scene.selected_epoch_us_list_index = bpy.props.IntProperty(name="Index for US list", default=0)
@@ -671,7 +684,7 @@ def unregister():
        EM_list.unregister()
        server.unregister()
        epoch_manager.unregister()
-
+       graph2geometry.unregister()
        for cls in classes:
               try:
                      bpy.utils.unregister_class(cls)

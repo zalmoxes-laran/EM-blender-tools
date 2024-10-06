@@ -27,8 +27,7 @@ from .epoch_manager import *
 from .S3Dgraphy import *
 from .S3Dgraphy.node import StratigraphicNode  # Import diretto
 
-from . import graph_manager
-
+from .graph_registry import load_graph, get_graph
 
 #### da qui si definiscono le funzioni e gli operatori
 class EM_listitem_OT_to3D(bpy.types.Operator):
@@ -152,10 +151,14 @@ class EM_import_GraphML(bpy.types.Operator):
         #retrieve graphml_path
         graphml_file = bpy.path.abspath(scene.EM_file)
 
-        graph_manager.load_graph(graphml_file)
+        # Carica il grafo la prima volta
+        load_graph(graphml_file)
 
-        # Ora usa graph_manager.graph_instance per accedere al grafo
-        graph_instance = graph_manager.graph_instance
+        # Ora puoi ottenere il grafo utilizzando `get_graph()`
+        graph_instance = get_graph()
+
+        if graph_instance is None:
+            raise RuntimeError("Errore: il grafo non è stato caricato correttamente.")
 
         # Now populate the Blender lists from the graph
         self.populate_blender_lists_from_graph(context, graph_instance)

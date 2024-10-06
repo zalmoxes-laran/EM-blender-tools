@@ -13,22 +13,16 @@ Pip._ensure_user_site_package()
 import logging
 log = logging.getLogger(__name__)
 
-
 def check_external_modules():
     addon_prefs = bpy.context.preferences.addons.get(__package__, None)
     try:
         import pandas
-        #import openpyxl 
-        #import webdavclient3
-        #import lxml
-        #import googleapiclient
-        #import google_auth_oauthlib
-        #import google_auth_httplib2
+        import networkx
         addon_prefs.preferences.is_external_module = True
-        print("emdb ci sono")
+        print("Tutti i moduli esterni sono presenti")
     except ImportError:
         addon_prefs.preferences.is_external_module = False
-        print("emdb Non ci sono")
+        print("Moduli esterni mancanti")
 
 class OBJECT_OT_install_em_missing_modules(bpy.types.Operator):
     bl_idname = "install_em_missing.modules"
@@ -43,6 +37,8 @@ class OBJECT_OT_install_em_missing_modules(bpy.types.Operator):
             list_modules = google_list_modules()
         elif self.list_modules_to_install == "EMdb_xlsx":
             list_modules = EMdb_xlsx_modules()
+        elif self.list_modules_to_install == "NetworkX":
+            list_modules = ["networkx","graphviz","pygraphviz"]
         if self.is_install:
             install_modules(list_modules)
         else:
@@ -52,7 +48,6 @@ class OBJECT_OT_install_em_missing_modules(bpy.types.Operator):
 
 def google_list_modules():
     list_of_modules =[
-        #"google-api-python-client==2.28.0",
         "google-auth-httplib2==0.1.0",
         "google-auth-oauthlib==0.4.6",
         "six==1.16.0",
@@ -60,7 +55,6 @@ def google_list_modules():
         "pyparsing==2.4.7",
         "uritemplate",
         "google==3.0.0",
-        #"googleapiclient"
         "google.auth==2.3.2",
         "google-api-core==2.2.2",
         "google-api-python-client==2.31.0",
@@ -77,7 +71,7 @@ def google_list_modules():
         "pytz-deprecation-shim==0.1.0.post0",
         "tornado==6.1",
         "exchange==0.3"
-        ]
+    ]
     return list_of_modules
 
 def EMdb_xlsx_modules():
@@ -106,22 +100,22 @@ def uninstall_modules(list_of_modules):
 
 classes = [
     OBJECT_OT_install_em_missing_modules,
-    ]
+]
 
 def register():
-	for cls in classes:
-		try:
-			bpy.utils.register_class(cls)
-		except ValueError as e:
-			log.warning('{} is already registered, now unregister and retry... '.format(cls))
-			bpy.utils.unregister_class(cls)
-			bpy.utils.register_class(cls)
-
+    for cls in classes:
+        try:
+            bpy.utils.register_class(cls)
+        except ValueError as e:
+            log.warning('{} is already registered, now unregister and retry... '.format(cls))
+            bpy.utils.unregister_class(cls)
+            bpy.utils.register_class(cls)
+    check_external_modules()  # Assicura che il controllo dei moduli sia eseguito al momento della registrazione dell'addon
 
 def unregister():
-	for cls in classes:
-		bpy.utils.unregister_class(cls)
+    for cls in classes:
+        bpy.utils.unregister_class(cls)
 
 if __name__ == '__main__':
-    #install_modules(google_list_modules())
-    install_modules(EMdb_xlsx_modules())    
+    check_external_modules()
+    install_modules(EMdb_xlsx_modules())

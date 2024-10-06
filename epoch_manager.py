@@ -10,7 +10,7 @@ from .S3Dgraphy import *
 from .S3Dgraphy.graph import Graph
 from .S3Dgraphy.node import StratigraphicNode  # Import diretto
 
-from . import graph_manager
+from .graph_registry import graph_manager
 
 
 ########################
@@ -345,7 +345,8 @@ class EM_UpdateUSListOperator(bpy.types.Operator):
         scene.selected_epoch_us_list.clear()
 
         # Accedi al grafo
-        graph_instance = graph_manager.graph_instance
+        graph_instance = graph_manager.get_graph()
+
         if not graph_instance:
             self.report({'ERROR'}, "Grafo non caricato.")
             return {'CANCELLED'}

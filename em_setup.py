@@ -130,6 +130,13 @@ class EM_SetupPanel:
         #row = layout.row(align=True)
         row.prop(context.scene, 'EMdb_file', toggle = True, text ="")
 
+
+        row = layout.row(align=True)
+        box = layout.box()
+        row = box.row()
+        row.label(text="Geometrie dal Grafo")
+        row.operator("object.create_graph_geometry", icon="MESH_UVSPHERE", text="Crea Geometrie dal Grafo")
+
 class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_SetupPanel"
