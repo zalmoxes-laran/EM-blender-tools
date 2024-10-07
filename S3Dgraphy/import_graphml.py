@@ -10,6 +10,8 @@ from .edge import Edge
 
 from .utils import convert_shape2type
 
+import re
+
 class GraphMLImporter:
     def __init__(self, filepath, graph=None):
         self.filepath = filepath
@@ -147,8 +149,8 @@ class GraphMLImporter:
             epoch_node = EpochNode(
                 node_id=id_row,
                 name="temp",
-                start_time = 0,
-                end_time = 2000
+                start_time = -10000,
+                end_time = 10000
             )
             epoch_node.min_y = y_min
             epoch_node.max_y = y_max
@@ -175,8 +177,19 @@ class GraphMLImporter:
             if epoch_node:
                 #print("trovato nodo "+epoch_node.node_id)
                 #print("sto per settare come nome del nodo: "+label_node)
-                epoch_node.set_name(label_node)
+
+                try:
+                    stringa_pulita, vocabolario = self.estrai_stringa_e_vocabolario(label_node)
+                    print("Stringa pulita:", stringa_pulita)
+                    print("Vocabolario:", vocabolario)
+                except ValueError as e:
+                    print("Errore:", e)
+
+                epoch_node.set_name(stringa_pulita)
                 epoch_node.set_color(e_color)
+                epoch_node.set_start_time(vocabolario['start'])
+                epoch_node.set_end_time(vocabolario['end'])
+
                 #print(f"Il min dell'epoca {epoch_node.name} è {epoch_node.min_y}")
                 #print(epoch_node.color)
                 #print(epoch_node.name)
@@ -216,7 +229,65 @@ class GraphMLImporter:
 
                         edge_id = node.node_id + "_" + epoch.name
                         self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch")
-                
+
+
+
+    def estrai_stringa_e_vocabolario(self,s):
+        # Trova il contenuto tra parentesi quadre
+        match = re.search(r'\[(.*?)\]', s)
+        vocabolario = {}
+        if match:
+            contenuto = match.group(1)
+            # Dividi il contenuto in coppie chiave:valore
+            coppie = contenuto.split(';')
+            for coppia in coppie:
+                coppia = coppia.strip()
+                if not coppia:
+                    continue  # Ignora coppie vuote
+                if ':' in coppia:
+                    parti = coppia.split(':', 1)
+                    if len(parti) != 2 or not parti[0] or not parti[1]:
+                        raise ValueError(f"Coppia chiave:valore malformata: '{coppia}'")
+                    chiave, valore = parti
+                    chiave = chiave.strip()
+                    valore = valore.strip()
+                    if not chiave or not valore:
+                        raise ValueError(f"Coppia chiave:valore malformata: '{coppia}'")
+                    # Prova a convertire il valore in intero, se possibile
+                    try:
+                        valore = int(valore)
+                    except ValueError:
+                        pass
+                    vocabolario[chiave] = valore
+                else:
+                    raise ValueError(f"Coppia senza separatore ':': '{coppia}'")
+            # Rimuovi il contenuto tra parentesi quadre dalla stringa originale
+            stringa_pulita = re.sub(r'\[.*?\]', '', s).strip()
+        else:
+            stringa_pulita = s.strip()
+        return stringa_pulita, vocabolario
+
+    # Esempi di utilizzo
+    '''
+    try:
+        stringa_di_esempio = "y2018 [start:100;end:199]"
+        stringa_pulita, vocabolario = estrai_stringa_e_vocabolario(stringa_di_esempio)
+        print("Stringa pulita:", stringa_pulita)
+        print("Vocabolario:", vocabolario)
+    except ValueError as e:
+        print("Errore:", e)
+
+    # Esempio con testo malformato
+    try:
+        stringa_malformata = "y2018 [start100;end:199]"
+        stringa_pulita, vocabolario = estrai_stringa_e_vocabolario(stringa_malformata)
+        print("Stringa pulita:", stringa_pulita)
+        print("Vocabolario:", vocabolario)
+    except ValueError as e:
+        print("Errore:", e)
+    '''
+
+
     def EM_extract_edge_type(self, edge_element):
         edge_type = "Empty"
         for subedge in edge_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):

@@ -279,8 +279,8 @@ class EM_UL_named_epoch_managers(UIList):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             #layout = layout.split(factor=0.6, align=True)
             layout.prop(epoch_list, "name", text="", emboss=False)
-            #layout.prop(epoch_list, "min_y", text="min", emboss=False)
-            #layout.prop(epoch_list, "max_y", text="max", emboss=False)
+            layout.prop(epoch_list, "start_time", text="min", emboss=False)
+            layout.prop(epoch_list, "end_time", text="max", emboss=False)
 
 
             # select operator
