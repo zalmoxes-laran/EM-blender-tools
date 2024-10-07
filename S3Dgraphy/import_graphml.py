@@ -131,6 +131,7 @@ class GraphMLImporter:
 
     #voglio ottimizzare questa funzione in modo che faccia un solo passaggio sui nodi
     def extract_epochs(self, node_element, graph):
+        e = None # iniziamo dicendo che non ci sono errori nel parser
         geometry = node_element.find('.//{http://www.yworks.com/xml/graphml}Geometry')
         y_start = float(geometry.attrib['y'])
         
@@ -183,12 +184,18 @@ class GraphMLImporter:
                     print("Stringa pulita:", stringa_pulita)
                     print("Vocabolario:", vocabolario)
                 except ValueError as e:
-                    print("Errore:", e)
+                    print("Error:", e)
 
-                epoch_node.set_name(stringa_pulita)
                 epoch_node.set_color(e_color)
-                epoch_node.set_start_time(vocabolario['start'])
-                epoch_node.set_end_time(vocabolario['end'])
+
+                try:
+                    epoch_node.set_name(stringa_pulita)
+                    epoch_node.set_start_time(vocabolario['start'])
+                    epoch_node.set_end_time(vocabolario['end'])
+                except UnboundLocalError as e:
+                    print("Error:", e)
+                    epoch_node.set_name(label_node)
+
 
                 #print(f"Il min dell'epoca {epoch_node.name} è {epoch_node.min_y}")
                 #print(epoch_node.color)
