@@ -128,6 +128,17 @@ class Graph:
         # Se nessun nodo con il node_type specificato è trovato
         return None
 
+    def get_connected_epochs(self, node):
+        connected_epochs = []
+        for edge in self.edges:
+            if edge.edge_source == node.node_id or edge.edge_target == node.node_id:
+                other_node_id = edge.edge_target if edge.edge_source == node.node_id else edge.edge_source
+                other_node = self.find_node_by_id(other_node_id)
+                if isinstance(other_node, EpochNode):
+                    connected_epochs.append(other_node)
+        return connected_epochs
+
+
     def get_connected_epoch_node_by_edge_type(self, node, edge_type):
         """
         Restituisce il primo nodo di tipo EpochNode collegato al nodo dato attraverso un arco del tipo specificato.

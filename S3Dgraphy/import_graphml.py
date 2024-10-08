@@ -156,28 +156,32 @@ class GraphMLImporter:
         group_name = self.EM_extract_group_node_name(node_element)
         group_description = self.EM_extract_group_node_description(node_element)
         group_background_color = self.EM_extract_group_node_background_color(node_element)
+        group_y_pos = self.EM_extract_group_node_y_pos(node_element)
+
 
         # Determinare il tipo di nodo gruppo basandoci sul background color
         group_node_type = self.determine_group_node_type_by_color(group_background_color)
 
-        # Creare l'istanza appropriata del nodo gruppo
         if group_node_type == 'ActivityNodeGroup':
             group_node = ActivityNodeGroup(
                 node_id=group_id,
                 name=group_name,
-                description=group_description
+                description=group_description,
+                y_pos=group_y_pos
             )
         elif group_node_type == 'ParadataNodeGroup':
             group_node = ParadataNodeGroup(
                 node_id=group_id,
                 name=group_name,
-                description=group_description
+                description=group_description,
+                y_pos=group_y_pos
             )
         else:
             group_node = GroupNode(
                 node_id=group_id,
                 name=group_name,
-                description=group_description
+                description=group_description,
+                y_pos=group_y_pos
             )
 
         # Aggiungere il nodo gruppo al grafo
@@ -235,6 +239,14 @@ class GraphMLImporter:
             group_description = self.clean_comments(data_d5.text)
         return group_description
 
+    def EM_extract_group_node_y_pos(self, node_element):
+        y_pos = 0.0
+        data_d6 = node_element.find('./{http://graphml.graphdrawing.org/xmlns}data[@key="d6"]')
+        if data_d6 is not None:
+            geometry = data_d6.find('.//{http://www.yworks.com/xml/graphml}Geometry')
+            if geometry is not None:
+                y_pos = float(geometry.attrib.get('y', 0.0))
+        return y_pos
 
     def EM_extract_group_node_name(self, node_element):
         group_name = ''
@@ -340,7 +352,8 @@ class GraphMLImporter:
         list_of_phisical_stratigraphic_nodes = ["US", "serSU"]
 
         # Assegna le epoche ai nodi nel grafo in base alla posizione Y e tenendo in considerazione i nodi continuity
-        for node in (node for node in self.graph.nodes if isinstance(node, StratigraphicNode)):
+        for node in (node for node in self.graph.nodes if isinstance(node, (StratigraphicNode, GroupNode))):
+        # codice per associare l'epoca al nodo
             #print(f"Inizio ad occuparmi di {node.name}")
             
             connected_continuity_node = self.graph.get_connected_node_by_type(node, "BR")
@@ -351,7 +364,6 @@ class GraphMLImporter:
                     edge_id = node.node_id + "_" + epoch.name
                     self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "has_first_epoch")
                     #print(f"ho trovato la prima epoca: {epoch.name} che ha ymin: {epoch.min_y} e ymax: {epoch.max_y} per un nodo {node.name} che ha y: {node.attributes['y_pos']}")
-                
                 
                 elif connected_continuity_node: ## qui si affrontano i nodi che SONO connessi a nodi continuity, per cui si bisogna iterare su tutte le epoche pertinenti per associarle al nodo
                     print(f"C'è un continuity (id: {connected_continuity_node.node_id} e y_pos: {connected_continuity_node.attributes['y_pos']}) connesso a {node.name} con valore y_pos {node.attributes['y_pos']}. L'epoca {epoch.name} ha ymin: {epoch.min_y} e max: {epoch.max_y}")

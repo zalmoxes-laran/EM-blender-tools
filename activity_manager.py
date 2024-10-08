@@ -1,11 +1,13 @@
-import bpy
-from bpy.props import (
+import bpy # type: ignore
+from bpy.props import ( # type: ignore
     StringProperty,
     CollectionProperty,
     IntProperty,
     PointerProperty,
+    FloatProperty,  # Aggiungi questo import
+
 )
-from bpy.types import (
+from bpy.types import (# type: ignore
     Panel,
     Operator,
     PropertyGroup,
@@ -24,30 +26,33 @@ class ActivityItem(PropertyGroup):
     name: StringProperty(
         name="Nome Attività",
         description="Nome dell'attività",
-    )
+    ) # type: ignore
     epoch_name: StringProperty(
         name="Nome Epoca",
         description="Nome dell'epoca",
-    )
+    ) # type: ignore
     description: StringProperty(
         name="Descrizione",
         description="Descrizione dell'attività",
-    )
+    ) # type: ignore
+    y_pos: FloatProperty(
+        name="Posizione Y",
+        description="Posizione Y del nodo",
+    ) # type: ignore
 
 class ACTIVITY_UL_list(UIList):
     def draw_item(
         self, context, layout, data, item, icon, active_data, active_propname, index
     ):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            row = layout.row()
-            row.label(text=item.name, icon='FILE_FOLDER')
-            row = layout.row()
-            row.label(text=f"Epoch: {item.epoch_name}")
-            row = layout.row()
-            row.label(text=f"{item.description}")
+            layout.label(text=item.name, icon='FILE_FOLDER')
+            layout.label(text=f"Epoch: {item.epoch_name}")
+            layout.label(text=f"{item.description}")
+            #layout.label(text=f"{item.y_pos}")
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
             layout.label(text="")
+
 
 class ACTIVITY_OT_refresh_list(Operator):
     bl_idname = "activity.refresh_list"
@@ -56,7 +61,7 @@ class ACTIVITY_OT_refresh_list(Operator):
 
     def execute(self, context):
         graph_data = graph_manager.get_graph()
-
+        print("Eseguo l'update della lista delle attività")
         context.scene.activity_manager.activities.clear()
 
         if graph_data is None:
@@ -69,20 +74,21 @@ class ACTIVITY_OT_refresh_list(Operator):
                 item.name = node.name
                 # Recupera gli EpochNode connessi all'attività
                 #connected_epochs = graph_data.get_connected_epochs(node)
-
+                print(f"Provo a cercare un nodo epoca per il nodo {node.name}")
                 epoch_node = graph_data.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
                 if epoch_node:
-                    print(epoch_node.name)
+                    #print(epoch_node.name)
                     item.epoch_name = epoch_node.name
                 else:
                     item.epoch_name = 'Sconosciuta'
                 item.description = node.description
+                item.y_pos = node.attributes.get('y_pos', 0.0)
 
         return {'FINISHED'}
 
 class ActivityManagerProperties(PropertyGroup):
-    activities: CollectionProperty(type=ActivityItem)
-    active_index: IntProperty()
+    activities: CollectionProperty(type=ActivityItem) # type: ignore
+    active_index: IntProperty() # type: ignore
 
 class VIEW3D_PT_activity_manager(Panel):
     bl_label = "Activity Manager"

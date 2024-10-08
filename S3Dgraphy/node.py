@@ -88,22 +88,23 @@ class StratigraphicNode(Node):
     def get_stratigraphic_info(self):
         return self.STRATIGRAPHIC_TYPES.get(self.node_type)
 
+
 class GroupNode(Node):
-    def __init__(self, node_id, name, description=""):
+    def __init__(self, node_id, name, description="", y_pos=0.0):
         super().__init__(node_id, name, node_type="Group", description=description)
-        # Altri attributi o metodi specifici per GroupNode
+        self.attributes['y_pos'] = y_pos
+
 
 class ActivityNodeGroup(GroupNode):
-    def __init__(self, node_id, name, description=""):
-        super().__init__(node_id, name, description)
+    def __init__(self, node_id, name, description="", y_pos=0.0):
+        super().__init__(node_id, name, description=description, y_pos=y_pos)
         self.node_type = "ActivityNodeGroup"
-        # Aggiungi attributi o metodi specifici per ActivityNodeGroup se necessario
 
 class ParadataNodeGroup(GroupNode):
-    def __init__(self, node_id, name, description=""):
-        super().__init__(node_id, name, description)
+    def __init__(self, node_id, name, description="", y_pos=0.0):
+        super().__init__(node_id, name, description=description, y_pos=y_pos)
         self.node_type = "ParadataNodeGroup"
-        # Aggiungi attributi o metodi specifici per ParadataNodeGroup se necessario
+
 
 
 # ParadataNode Class - Subclass of Node
