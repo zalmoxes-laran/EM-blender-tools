@@ -88,6 +88,12 @@ class StratigraphicNode(Node):
     def get_stratigraphic_info(self):
         return self.STRATIGRAPHIC_TYPES.get(self.node_type)
 
+class GroupNode(Node):
+    def __init__(self, node_id, name, contained_node_ids, description=""):
+        super().__init__(node_id, name, description)
+        self.node_type = "Group"
+        self.contained_node_ids = contained_node_ids
+
 # ParadataNode Class - Subclass of Node
 class ParadataNode(Node):
     def __init__(self, node_id, name, node_type, description="", url=None):
@@ -140,7 +146,7 @@ class EpochNode(Node):
         # Aggiungi validazione del colore se necessario
         self.color = color
 
-# Activity Node
+# Activity Node # forse deprecato perché ora ho il GroupNode
 class ActivityNode(Node):
     def __init__(self, node_id, name, activity_type, duration, description=""):
         super().__init__(node_id, name, description)

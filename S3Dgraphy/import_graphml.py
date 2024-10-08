@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 from .graph import Graph
 from .node import (
     Node, StratigraphicNode, ParadataNode, DocumentNode,
-    CombinerNode, ExtractorNode, PropertyNode, EpochNode, ActivityNode
+    CombinerNode, ExtractorNode, PropertyNode, EpochNode, GroupNode
 )
 from .edge import Edge
 
@@ -129,6 +129,11 @@ class GraphMLImporter:
                 # Parsing dei nodi EpochNode
                 self.extract_epochs(node_element, self.graph)
 
+            elif self._check_node_type(node_element) == 'node_group':
+                # Parsing dei nodi Group
+                self.handle_group_node(node_element)
+
+ 
     #voglio ottimizzare questa funzione in modo che faccia un solo passaggio sui nodi
     def extract_epochs(self, node_element, graph):
         e = None # iniziamo dicendo che non ci sono errori nel parser
