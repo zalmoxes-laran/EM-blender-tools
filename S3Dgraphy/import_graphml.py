@@ -37,112 +37,112 @@ class GraphMLImporter:
             # Aggiunta del nodo al grafo
             self.graph.add_edge(str(edge.attrib['id']), str(edge.attrib['source']), str(edge.attrib['target']), self.EM_extract_edge_type(edge))
 
-    def parse_nodes(self,tree):
 
-        #extract nodes from GraphML
+    def parse_nodes(self, tree):
         allnodes = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
 
-        # Parse nodes and add them to the graph
         for node_element in allnodes:
-            if self._check_node_type(node_element) == 'node_simple':
-                if self.EM_check_node_us(node_element):
-                    nodename, nodedescription, nodeurl, nodeshape, node_y_pos, fillcolor, borderstyle = self.EM_extract_node_name(node_element)
-                        
-                    # Creazione del nodo stratigrafico e aggiunta al grafo
-                    stratigraphic_node = StratigraphicNode(
-                        node_id=self.getnode_id(node_element),
-                        name=nodename,
-                        stratigraphic_type=convert_shape2type(nodeshape, borderstyle)[0],
-                        description=nodedescription
-                    )
-
-                    # Aggiunta di runtime properties
-                    stratigraphic_node.attributes['shape'] = nodeshape
-                    stratigraphic_node.attributes['y_pos'] = float(node_y_pos)
-                    #print(f"Il nodo {stratigraphic_node.name} ha y pos {str(stratigraphic_node.attributes['y_pos'])}")
-                    stratigraphic_node.attributes['fill_color'] = fillcolor
-                    stratigraphic_node.attributes['border_style'] = borderstyle
-
-                    # Aggiunta del nodo al grafo
-                    self.graph.add_node(stratigraphic_node)
-
-                elif self.EM_check_node_document(node_element):
-                    src_nodename, src_node_id, src_node_description, src_nodeurl, subnode_is_document = self.EM_extract_document_node(node_element)
-
-                    # Crea un nuovo DocumentNode e aggiungilo al grafo
-                    document_node = DocumentNode(
-                        node_id=src_node_id,
-                        name=src_nodename,
-                        description=src_node_description,
-                        url=src_nodeurl  # Aggiungi l'url come argomento opzionale
-                    )
-                    self.graph.add_node(document_node)
-
-                elif self.EM_check_node_property(node_element):
-                    pro_nodename, pro_node_id, pro_node_description, pro_nodeurl, subnode_is_property = self.EM_extract_property_node(node_element)
-                    property_node = PropertyNode(
-                        node_id=pro_node_id,
-                        name=pro_nodename,
-                        description=pro_node_description,
-                        value=pro_nodeurl
-                    )
-                    self.graph.add_node(property_node)
-
-                elif self.EM_check_node_extractor(node_element):
-                    ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_extractor = self.EM_extract_extractor_node(node_element)
-                    extractor_node = ExtractorNode(
-                        node_id=ext_node_id,
-                        name=ext_nodename,
-                        description=ext_node_description,
-                        source=ext_nodeurl
-                    )
-                    self.graph.add_node(extractor_node)
-                    
-                elif self.EM_check_node_combiner(node_element):
-                    com_nodename, com_node_id, com_node_description, com_nodeurl, subnode_is_combiner = self.EM_extract_combiner_node(node_element)
-                    combiner_node = CombinerNode(
-                        node_id=com_node_id,
-                        name=com_nodename,
-                        description=com_node_description,
-                        sources=[com_nodeurl]  # Assumendo che sources sia una lista di URL o ID
-                    )
-                    self.graph.add_node(combiner_node)
-
-                elif self.EM_check_node_continuity(node_element):
-                    continuity_node_id, y_pos, node_id = self.EM_extract_continuity(node_element)
-
-                    continuity_node = StratigraphicNode(
-                        node_id = node_id,
-                        name = "continuity_node",
-                        stratigraphic_type= "BR",
-                        description=""
-                    )
-                    continuity_node.attributes['y_pos'] = float(y_pos)
-
-                    self.graph.add_node(continuity_node)
-                    #print(f"Ho trovato un nodo continuity in pos {str(continuity_node.attributes['y_pos'])} con tipo {continuity_node.node_type}")
-
-                else:
-                    # Creazione di un nodo generico per nodi che non soddisfano le condizioni precedenti
-                    node_id = self.getnode_id(node_element)
-                    node_name = self.EM_extract_generic_node_name(node_element)
-                    generic_node = Node(
-                        node_id=node_id,
-                        name=node_name,
-                        node_type="Generic",
-                        description=""
-                    )
-                    self.graph.add_node(generic_node)
-                    print(f"Aggiunto nodo generico con ID: {node_id} e nome: {node_name}")
-
-        
-            elif self._check_node_type(node_element) == 'node_swimlane':
+            node_type = self._check_node_type(node_element)
+            if node_type == 'node_simple':
+                self.process_node_element(node_element)
+            elif node_type == 'node_swimlane':
                 # Parsing dei nodi EpochNode
                 self.extract_epochs(node_element, self.graph)
-
-            elif self._check_node_type(node_element) == 'node_group':
+            elif node_type == 'node_group':
                 # Parsing dei nodi Group
                 self.handle_group_node(node_element)
+
+
+    def process_node_element(self, node_element):
+        node_type = self._check_node_type(node_element)
+        if node_type == 'node_simple':
+            if self.EM_check_node_us(node_element):
+                # Creazione del nodo stratigrafico e aggiunta al grafo
+                nodename, nodedescription, nodeurl, nodeshape, node_y_pos, fillcolor, borderstyle = self.EM_extract_node_name(node_element)
+                stratigraphic_node = StratigraphicNode(
+                    node_id=self.getnode_id(node_element),
+                    name=nodename,
+                    stratigraphic_type=convert_shape2type(nodeshape, borderstyle)[0],
+                    description=nodedescription
+                )
+                # Aggiunta di runtime properties
+                stratigraphic_node.attributes['shape'] = nodeshape
+                stratigraphic_node.attributes['y_pos'] = float(node_y_pos)
+                stratigraphic_node.attributes['fill_color'] = fillcolor
+                stratigraphic_node.attributes['border_style'] = borderstyle
+                self.graph.add_node(stratigraphic_node)
+
+            elif self.EM_check_node_document(node_element):
+                # Creazione del nodo documento e aggiunta al grafo
+                src_nodename, src_node_id, src_node_description, src_nodeurl, subnode_is_document = self.EM_extract_document_node(node_element)
+                document_node = DocumentNode(
+                    node_id=src_node_id,
+                    name=src_nodename,
+                    description=src_node_description,
+                    url=src_nodeurl
+                )
+                self.graph.add_node(document_node)
+
+            elif self.EM_check_node_property(node_element):
+                # Creazione del nodo proprietà e aggiunta al grafo
+                pro_nodename, pro_node_id, pro_node_description, pro_nodeurl, subnode_is_property = self.EM_extract_property_node(node_element)
+                property_node = PropertyNode(
+                    node_id=pro_node_id,
+                    name=pro_nodename,
+                    description=pro_node_description,
+                    value=pro_nodeurl
+                )
+                self.graph.add_node(property_node)
+
+            elif self.EM_check_node_extractor(node_element):
+                # Creazione del nodo extractor e aggiunta al grafo
+                ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_extractor = self.EM_extract_extractor_node(node_element)
+                extractor_node = ExtractorNode(
+                    node_id=ext_node_id,
+                    name=ext_nodename,
+                    description=ext_node_description,
+                    source=ext_nodeurl
+                )
+                self.graph.add_node(extractor_node)
+
+            elif self.EM_check_node_combiner(node_element):
+                # Creazione del nodo combiner e aggiunta al grafo
+                com_nodename, com_node_id, com_node_description, com_nodeurl, subnode_is_combiner = self.EM_extract_combiner_node(node_element)
+                combiner_node = CombinerNode(
+                    node_id=com_node_id,
+                    name=com_nodename,
+                    description=com_node_description,
+                    sources=[com_nodeurl]
+                )
+                self.graph.add_node(combiner_node)
+
+            elif self.EM_check_node_continuity(node_element):
+                # Creazione del nodo continuity e aggiunta al grafo
+                continuity_node_id, y_pos, node_id = self.EM_extract_continuity(node_element)
+                continuity_node = StratigraphicNode(
+                    node_id=node_id,
+                    name="continuity_node",
+                    stratigraphic_type="BR",
+                    description=""
+                )
+                continuity_node.attributes['y_pos'] = float(y_pos)
+                self.graph.add_node(continuity_node)
+
+            else:
+                # Creazione di un nodo generico
+                node_id = self.getnode_id(node_element)
+                node_name = self.EM_extract_generic_node_name(node_element)
+                generic_node = Node(
+                    node_id=node_id,
+                    name=node_name,
+                    node_type="Generic",
+                    description=""
+                )
+                self.graph.add_node(generic_node)
+        else:
+            # Se necessario, gestisci altri tipi di nodi qui
+            pass
+
 
 
     def EM_extract_generic_node_name(self, node_element):
@@ -156,10 +156,8 @@ class GraphMLImporter:
 
 
     def handle_group_node(self, node_element):
-        # Estrarre l'ID del gruppo
+        # Estrarre l'ID e il nome del gruppo
         group_id = self.getnode_id(node_element)
-
-        # Estrarre il nome del gruppo
         group_name = self.EM_extract_group_node_name(node_element)
 
         # Aggiungere il nodo gruppo al grafo
@@ -169,26 +167,41 @@ class GraphMLImporter:
         )
         self.graph.add_node(group_node)
 
-        # Estrarre gli ID dei nodi contenuti nel gruppo
-        node_ids_in_group = self.EM_extract_nodes_in_group(node_element)
-
-        # Creare archi di tipo 'is_grouped_in' tra i nodi contenuti e il gruppo
-        for contained_node_id in node_ids_in_group:
-            # Verifica se il nodo contenuto esiste già nel grafo
-            contained_node = self.graph.find_node_by_id(contained_node_id)
-            if contained_node is None:
-                # Se il nodo non esiste, potresti volerlo creare o ignorare
-                continue  # O gestire diversamente
-            # Creare l'arco
-            edge_id = f"{contained_node_id}_grouped_in_{group_id}"
-            self.graph.add_edge(
-                edge_id=edge_id,
-                edge_source=contained_node_id,
-                edge_target=group_id,
-                edge_type="is_grouped_in"
-            )
-
-
+        # Estrarre il sottografo del gruppo
+        subgraph = node_element.find('{http://graphml.graphdrawing.org/xmlns}graph')
+        if subgraph is not None:
+            subnodes = subgraph.findall('{http://graphml.graphdrawing.org/xmlns}node')
+            for subnode in subnodes:
+                subnode_id = self.getnode_id(subnode)
+                subnode_type = self._check_node_type(subnode)
+                if subnode_type == 'node_simple':
+                    # Processare e aggiungere il nodo semplice al grafo
+                    self.process_node_element(subnode)
+                    # Creare l'arco solo se non esiste già
+                    if not self.graph.find_edge_by_nodes(subnode_id, group_id):
+                        edge_id = f"{subnode_id}_grouped_in_{group_id}"
+                        self.graph.add_edge(
+                            edge_id=edge_id,
+                            edge_source=subnode_id,
+                            edge_target=group_id,
+                            edge_type="is_grouped_in"
+                        )
+                elif subnode_type == 'node_group':
+                    # Gestire ricorsivamente il sottogruppo
+                    self.handle_group_node(subnode)
+                    # Creare l'arco solo se non esiste già
+                    sub_group_id = self.getnode_id(subnode)
+                    if not self.graph.find_edge_by_nodes(sub_group_id, group_id):
+                        edge_id = f"{sub_group_id}_grouped_in_{group_id}"
+                        self.graph.add_edge(
+                            edge_id=edge_id,
+                            edge_source=sub_group_id,
+                            edge_target=group_id,
+                            edge_type="is_grouped_in"
+                        )
+                elif subnode_type == 'node_swimlane':
+                    # Gestire i nodi EpochNode se necessario
+                    self.extract_epochs(subnode, self.graph)
 
     def EM_extract_group_node_name(self, node_element):
         group_name = ''
@@ -199,18 +212,6 @@ class GraphMLImporter:
                 group_name = self._check_if_empty(node_label.text)
         return group_name
     
-    '''
-    def EM_extract_nodes_in_group(self, node_element):
-        node_ids_in_group = []
-        subgraph = node_element.find('{http://graphml.graphdrawing.org/xmlns}graph')
-        if subgraph is not None:
-            subnodes = subgraph.findall('{http://graphml.graphdrawing.org/xmlns}node')
-            for subnode in subnodes:
-                subnode_id = self.getnode_id(subnode)
-                node_ids_in_group.append(subnode_id)
-        return node_ids_in_group
-    '''
-
     def EM_extract_nodes_in_group(self, node_element):
         node_ids_in_group = []
         subgraph = node_element.find('{http://graphml.graphdrawing.org/xmlns}graph')
