@@ -22,7 +22,7 @@ bl_info = {
     "author": "E. Demetrescu",
     "version": (1, 4, 1),
     "blender": (4, 2, 0),
-    "devel_version": "v1.4.0 dev13",  # Aggiunto campo devel_version
+    "devel_version": "v1.4.0 dev14",  # Aggiunto campo devel_version
     "location": "3D View > Toolbox",
     "warning": "This addon is in beta stage.",
     "wiki_url": "",
@@ -67,7 +67,8 @@ from . import (
         external_modules_install,
         em_statistics,
         server,
-        graph2geometry
+        graph2geometry,
+        activity_manager
         #google_credentials
         )
 
@@ -520,6 +521,8 @@ def register():
 
        graph2geometry.register()
 
+       activity_manager.register()
+
        check_external_modules() 
 
 
@@ -685,6 +688,7 @@ def unregister():
        server.unregister()
        epoch_manager.unregister()
        graph2geometry.unregister()
+       activity_manager.unregister()
        for cls in classes:
               try:
                      bpy.utils.unregister_class(cls)

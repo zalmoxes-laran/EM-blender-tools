@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 from .graph import Graph
 from .node import (
     Node, StratigraphicNode, ParadataNode, DocumentNode,
-    CombinerNode, ExtractorNode, PropertyNode, EpochNode, GroupNode
+    CombinerNode, ExtractorNode, PropertyNode, EpochNode, GroupNode, ParadataNodeGroup, ActivityNodeGroup
 )
 from .edge import Edge
 
@@ -37,7 +37,6 @@ class GraphMLImporter:
             # Aggiunta del nodo al grafo
             self.graph.add_edge(str(edge.attrib['id']), str(edge.attrib['source']), str(edge.attrib['target']), self.EM_extract_edge_type(edge))
 
-
     def parse_nodes(self, tree):
         allnodes = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
 
@@ -51,7 +50,6 @@ class GraphMLImporter:
             elif node_type == 'node_group':
                 # Parsing dei nodi Group
                 self.handle_group_node(node_element)
-
 
     def process_node_element(self, node_element):
         node_type = self._check_node_type(node_element)
@@ -143,8 +141,6 @@ class GraphMLImporter:
             # Se necessario, gestisci altri tipi di nodi qui
             pass
 
-
-
     def EM_extract_generic_node_name(self, node_element):
         node_name = ''
         data_d6 = node_element.find('./{http://graphml.graphdrawing.org/xmlns}data[@key="d6"]')
@@ -153,21 +149,41 @@ class GraphMLImporter:
             if node_label is not None:
                 node_name = self._check_if_empty(node_label.text)
         return node_name
-
-
+    
     def handle_group_node(self, node_element):
-        # Estrarre l'ID e il nome del gruppo
+        # Estrarre l'ID, il nome e la descrizione del gruppo
         group_id = self.getnode_id(node_element)
         group_name = self.EM_extract_group_node_name(node_element)
+        group_description = self.EM_extract_group_node_description(node_element)
+        group_background_color = self.EM_extract_group_node_background_color(node_element)
+
+        # Determinare il tipo di nodo gruppo basandoci sul background color
+        group_node_type = self.determine_group_node_type_by_color(group_background_color)
+
+        # Creare l'istanza appropriata del nodo gruppo
+        if group_node_type == 'ActivityNodeGroup':
+            group_node = ActivityNodeGroup(
+                node_id=group_id,
+                name=group_name,
+                description=group_description
+            )
+        elif group_node_type == 'ParadataNodeGroup':
+            group_node = ParadataNodeGroup(
+                node_id=group_id,
+                name=group_name,
+                description=group_description
+            )
+        else:
+            group_node = GroupNode(
+                node_id=group_id,
+                name=group_name,
+                description=group_description
+            )
 
         # Aggiungere il nodo gruppo al grafo
-        group_node = GroupNode(
-            node_id=group_id,
-            name=group_name
-        )
         self.graph.add_node(group_node)
 
-        # Estrarre il sottografo del gruppo
+        # Processare i nodi contenuti come prima
         subgraph = node_element.find('{http://graphml.graphdrawing.org/xmlns}graph')
         if subgraph is not None:
             subnodes = subgraph.findall('{http://graphml.graphdrawing.org/xmlns}node')
@@ -175,33 +191,50 @@ class GraphMLImporter:
                 subnode_id = self.getnode_id(subnode)
                 subnode_type = self._check_node_type(subnode)
                 if subnode_type == 'node_simple':
-                    # Processare e aggiungere il nodo semplice al grafo
+                    # Processare e aggiungere il nodo al grafo
                     self.process_node_element(subnode)
-                    # Creare l'arco solo se non esiste già
-                    if not self.graph.find_edge_by_nodes(subnode_id, group_id):
-                        edge_id = f"{subnode_id}_grouped_in_{group_id}"
-                        self.graph.add_edge(
-                            edge_id=edge_id,
-                            edge_source=subnode_id,
-                            edge_target=group_id,
-                            edge_type="is_grouped_in"
-                        )
                 elif subnode_type == 'node_group':
                     # Gestire ricorsivamente il sottogruppo
                     self.handle_group_node(subnode)
-                    # Creare l'arco solo se non esiste già
-                    sub_group_id = self.getnode_id(subnode)
-                    if not self.graph.find_edge_by_nodes(sub_group_id, group_id):
-                        edge_id = f"{sub_group_id}_grouped_in_{group_id}"
-                        self.graph.add_edge(
-                            edge_id=edge_id,
-                            edge_source=sub_group_id,
-                            edge_target=group_id,
-                            edge_type="is_grouped_in"
-                        )
                 elif subnode_type == 'node_swimlane':
                     # Gestire i nodi EpochNode se necessario
                     self.extract_epochs(subnode, self.graph)
+
+                # Creare l'arco 'is_grouped_in' dopo aver aggiunto il nodo al grafo
+                if not self.graph.find_edge_by_nodes(subnode_id, group_id):
+                    edge_id = f"{subnode_id}_grouped_in_{group_id}"
+                    self.graph.add_edge(
+                        edge_id=edge_id,
+                        edge_source=subnode_id,
+                        edge_target=group_id,
+                        edge_type="is_grouped_in"
+                    )
+
+    def EM_extract_group_node_background_color(self, node_element):
+        background_color = None
+        data_d6 = node_element.find('./{http://graphml.graphdrawing.org/xmlns}data[@key="d6"]')
+        if data_d6 is not None:
+            # Naviga attraverso gli elementi per trovare il backgroundColor
+            node_label = data_d6.find('.//{http://www.yworks.com/xml/graphml}NodeLabel')
+            if node_label is not None:
+                background_color = node_label.attrib.get('backgroundColor')
+        return background_color
+
+    def determine_group_node_type_by_color(self, background_color):
+        if background_color == '#CCFFFF':
+            return 'ActivityNodeGroup'
+        elif background_color == '#EBEBEB':
+            return 'ParadataNodeGroup'
+        else:
+            return 'GroupNode'
+
+    def EM_extract_group_node_description(self, node_element):
+        group_description = ''
+        data_d5 = node_element.find('./{http://graphml.graphdrawing.org/xmlns}data[@key="d5"]')
+        if data_d5 is not None and data_d5.text is not None:
+            group_description = self.clean_comments(data_d5.text)
+        return group_description
+
 
     def EM_extract_group_node_name(self, node_element):
         group_name = ''
@@ -227,7 +260,6 @@ class GraphMLImporter:
                     node_ids_in_group.extend(subnode_ids_in_group)
         return node_ids_in_group
 
- 
     #voglio ottimizzare questa funzione in modo che faccia un solo passaggio sui nodi
     def extract_epochs(self, node_element, graph):
         e = None # iniziamo dicendo che non ci sono errori nel parser
@@ -336,8 +368,6 @@ class GraphMLImporter:
                         edge_id = node.node_id + "_" + epoch.name
                         self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch")
 
-
-
     def estrai_stringa_e_vocabolario(self,s):
         # Trova il contenuto tra parentesi quadre
         match = re.search(r'\[(.*?)\]', s)
@@ -372,27 +402,6 @@ class GraphMLImporter:
         else:
             stringa_pulita = s.strip()
         return stringa_pulita, vocabolario
-
-    # Esempi di utilizzo
-    '''
-    try:
-        stringa_di_esempio = "y2018 [start:100;end:199]"
-        stringa_pulita, vocabolario = estrai_stringa_e_vocabolario(stringa_di_esempio)
-        print("Stringa pulita:", stringa_pulita)
-        print("Vocabolario:", vocabolario)
-    except ValueError as e:
-        print("Errore:", e)
-
-    # Esempio con testo malformato
-    try:
-        stringa_malformata = "y2018 [start100;end:199]"
-        stringa_pulita, vocabolario = estrai_stringa_e_vocabolario(stringa_malformata)
-        print("Stringa pulita:", stringa_pulita)
-        print("Vocabolario:", vocabolario)
-    except ValueError as e:
-        print("Errore:", e)
-    '''
-
 
     def EM_extract_edge_type(self, edge_element):
         edge_type = "Empty"

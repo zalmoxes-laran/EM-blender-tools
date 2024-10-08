@@ -185,6 +185,8 @@ class EM_import_GraphML(bpy.types.Operator):
 
         bpy.ops.epoch_manager.update_us_list
 
+        bpy.ops.activity.refresh_list
+
         # After loading the graph
         #scene.em_graph = graph  # Replace 'loaded_graph' with your graph variable
 
