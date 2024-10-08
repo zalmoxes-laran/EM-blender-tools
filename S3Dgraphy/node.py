@@ -89,10 +89,10 @@ class StratigraphicNode(Node):
         return self.STRATIGRAPHIC_TYPES.get(self.node_type)
 
 class GroupNode(Node):
-    def __init__(self, node_id, name, contained_node_ids, description=""):
+    def __init__(self, node_id, name, description=""):
         super().__init__(node_id, name, description)
         self.node_type = "Group"
-        self.contained_node_ids = contained_node_ids
+        #self.contained_node_ids = contained_node_ids  # Lista degli ID dei nodi contenuti
 
 # ParadataNode Class - Subclass of Node
 class ParadataNode(Node):

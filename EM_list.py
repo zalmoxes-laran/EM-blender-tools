@@ -188,9 +188,30 @@ class EM_import_GraphML(bpy.types.Operator):
         # After loading the graph
         #scene.em_graph = graph  # Replace 'loaded_graph' with your graph variable
 
+        # Stampa tutti gli archi di tipo 'is_grouped_in'
+        self.print_groups_and_contents(graph_instance)
 
         return {'FINISHED'}
-    
+            
+    def print_groups_and_contents(self, graph):
+        """
+        Stampa tutti i gruppi nel grafo e i nodi contenuti in essi,
+        elencando l'ID, il nome e la descrizione di ciascun nodo.
+        """
+        for node in graph.nodes:
+            if isinstance(node, GroupNode):
+                print(f"Gruppo ID: {node.node_id}, Nome: {node.name}, Descrizione: {node.description}")
+                print("Nodi contenuti:")
+                # Trova tutti gli archi di tipo 'is_grouped_in' con target su questo gruppo
+                for edge in graph.edges:
+                    if edge.edge_type == "is_grouped_in" and edge.edge_target == node.node_id:
+                        # Ottieni il nodo sorgente (nodo contenuto nel gruppo)
+                        contained_node = graph.find_node_by_id(edge.edge_source)
+                        if contained_node:
+                            print(f"  Nodo ID: {contained_node.node_id}, Nome: {contained_node.name}, Descrizione: {contained_node.description}")
+                print("------")
+
+
     def populate_blender_lists_from_graph(self, context, graph):
         scene = context.scene
 
@@ -238,7 +259,7 @@ class EM_import_GraphML(bpy.types.Operator):
                 em_item = scene.em_reused[-1]
                 em_item.epoch = current_epoch.name
                 em_item.em_element = node.name
-                print(f"Sto aggiungendo all'elenco dei reused il nodo {em_item.em_element} per l'epoca {em_item.epoch}")
+                #print(f"Sto aggiungendo all'elenco dei reused il nodo {em_item.em_element} per l'epoca {em_item.epoch}")
                 index += 1
                 
         return index

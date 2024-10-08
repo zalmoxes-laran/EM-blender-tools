@@ -133,6 +133,85 @@ class GraphMLImporter:
                 # Parsing dei nodi Group
                 self.handle_group_node(node_element)
 
+    def handle_group_node(self, node_element):
+        # Estrarre l'ID del gruppo
+        group_id = self.getnode_id(node_element)
+
+        # Estrarre il nome del gruppo
+        group_name = self.EM_extract_group_node_name(node_element)
+
+        # Aggiungere il nodo gruppo al grafo
+        group_node = GroupNode(
+            node_id=group_id,
+            name=group_name
+        )
+        self.graph.add_node(group_node)
+
+        # Estrarre gli ID dei nodi contenuti nel gruppo
+        node_ids_in_group = self.EM_extract_nodes_in_group(node_element)
+
+        # Creare archi di tipo 'is_grouped_in' tra i nodi contenuti e il gruppo
+        for contained_node_id in node_ids_in_group:
+            # Verifica se il nodo contenuto esiste già nel grafo
+            contained_node = self.graph.find_node_by_id(contained_node_id)
+            if contained_node is None:
+                # Se il nodo non esiste, potresti volerlo creare o ignorare
+                continue  # O gestire diversamente
+            # Creare l'arco
+            edge_id = f"{contained_node_id}_grouped_in_{group_id}"
+            self.graph.add_edge(
+                edge_id=edge_id,
+                start_node_id=contained_node_id,
+                end_node_id=group_id,
+                edge_type="is_grouped_in"
+            )
+
+
+    def EM_extract_group_node_name(self, node_element):
+        group_name = ''
+        data_d6 = node_element.find('./{http://graphml.graphdrawing.org/xmlns}data[@key="d6"]')
+        if data_d6 is not None:
+            node_label = data_d6.find('.//{http://www.yworks.com/xml/graphml}NodeLabel')
+            if node_label is not None:
+                group_name = self._check_if_empty(node_label.text)
+        return group_name
+    
+    '''
+    def EM_extract_nodes_in_group(self, node_element):
+        node_ids_in_group = []
+        subgraph = node_element.find('{http://graphml.graphdrawing.org/xmlns}graph')
+        if subgraph is not None:
+            subnodes = subgraph.findall('{http://graphml.graphdrawing.org/xmlns}node')
+            for subnode in subnodes:
+                subnode_id = self.getnode_id(subnode)
+                node_ids_in_group.append(subnode_id)
+        return node_ids_in_group
+    '''
+
+    def EM_extract_nodes_in_group(self, node_element):
+        node_ids_in_group = []
+        subgraph = node_element.find('{http://graphml.graphdrawing.org/xmlns}graph')
+        if subgraph is not None:
+            subnodes = subgraph.findall('{http://graphml.graphdrawing.org/xmlns}node')
+            for subnode in subnodes:
+                subnode_id = self.getnode_id(subnode)
+                node_ids_in_group.append(subnode_id)
+                # Se il subnode è un gruppo, potresti voler creare un arco 'is_grouped_in' anche per esso
+                if self._check_node_type(subnode) == 'node_group':
+                    # Crea un arco tra il sottogruppo e il gruppo corrente
+                    edge_id = f"{subnode_id}_grouped_in_{self.getnode_id(node_element)}"
+                    self.graph.add_edge(
+                        edge_id=edge_id,
+                        start_node_id=subnode_id,
+                        end_node_id=self.getnode_id(node_element),
+                        edge_type="is_grouped_in"
+                    )
+                    # Gestire ricorsivamente i nodi contenuti nel sottogruppo
+                    self.handle_group_node(subnode)
+        return node_ids_in_group
+
+
+
  
     #voglio ottimizzare questa funzione in modo che faccia un solo passaggio sui nodi
     def extract_epochs(self, node_element, graph):

@@ -14,7 +14,8 @@ class Graph:
     def add_node(self, node):
         # Verifica se il nodo esiste già
         if self.find_node_by_id(node.node_id):
-            raise ValueError(f"Un nodo con ID '{node.node_id}' esiste già.")
+            #raise ValueError(f"Un nodo con ID '{node.node_id}' esiste già.")
+            return node
         # Aggiungi il nuovo nodo
         self.nodes.append(node)
         return node
