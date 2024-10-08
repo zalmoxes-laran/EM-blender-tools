@@ -20,28 +20,24 @@ class Graph:
         self.nodes.append(node)
         return node
 
-    def add_edge(self, edge_id, start_node_id, end_node_id, edge_type):
+
+    def add_edge(self, edge_id, edge_source, edge_target, edge_type):
         # Verifica se i nodi di sorgente e destinazione esistono
-        source_node = self.find_node_by_id(start_node_id)
-        target_node = self.find_node_by_id(end_node_id)
+        source_node = self.find_node_by_id(edge_source)
+        target_node = self.find_node_by_id(edge_target)
         if not source_node or not target_node:
-            return None
-            raise ValueError(f"Entrambi i nodi con ID '{start_node_id}' e '{end_node_id}' devono esistere.")
+            raise ValueError(f"Entrambi i nodi con ID '{edge_source}' e '{edge_target}' devono esistere.")
 
         # Verifica se un arco identico esiste già
-        if self.find_edge_by_nodes(start_node_id, end_node_id):
-            return None
-
-            raise ValueError(f"Un arco tra '{start_node_id}' e '{end_node_id}' esiste già.")
+        if self.find_edge_by_nodes(edge_source, edge_target):
+            raise ValueError(f"Un arco tra '{edge_source}' e '{edge_target}' esiste già.")
 
         # Verifica se un arco con stesso id esiste già
         if self.find_edge_by_id(edge_id):
-            return None
-
-            raise ValueError(f"Un arco tra con id '{edge_id}' esiste già.")
+            raise ValueError(f"Un arco con id '{edge_id}' esiste già.")
 
         # Aggiungi il nuovo arco
-        edge = Edge(edge_id, start_node_id, end_node_id, edge_type)
+        edge = Edge(edge_id, edge_source, edge_target, edge_type)
         self.edges.append(edge)
         return edge
 
@@ -59,12 +55,14 @@ class Graph:
                 return edge
         return None
 
+
     def find_edge_by_id(self, edge_id):
-        # Ricerca un arco per i nodi di sorgente e destinazione
+        # Ricerca un arco per edge_id
         for edge in self.edges:
-            if edge.edge_source == edge_id:
+            if edge.edge_id == edge_id:
                 return edge
         return None
+
 
     def filter_nodes_by_connection_to_type(self, target_node_type, connected=True):
         """

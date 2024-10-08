@@ -123,7 +123,18 @@ class GraphMLImporter:
                     #print(f"Ho trovato un nodo continuity in pos {str(continuity_node.attributes['y_pos'])} con tipo {continuity_node.node_type}")
 
                 else:
-                    pass
+                    # Creazione di un nodo generico per nodi che non soddisfano le condizioni precedenti
+                    node_id = self.getnode_id(node_element)
+                    node_name = self.EM_extract_generic_node_name(node_element)
+                    generic_node = Node(
+                        node_id=node_id,
+                        name=node_name,
+                        node_type="Generic",
+                        description=""
+                    )
+                    self.graph.add_node(generic_node)
+                    print(f"Aggiunto nodo generico con ID: {node_id} e nome: {node_name}")
+
         
             elif self._check_node_type(node_element) == 'node_swimlane':
                 # Parsing dei nodi EpochNode
@@ -132,6 +143,17 @@ class GraphMLImporter:
             elif self._check_node_type(node_element) == 'node_group':
                 # Parsing dei nodi Group
                 self.handle_group_node(node_element)
+
+
+    def EM_extract_generic_node_name(self, node_element):
+        node_name = ''
+        data_d6 = node_element.find('./{http://graphml.graphdrawing.org/xmlns}data[@key="d6"]')
+        if data_d6 is not None:
+            node_label = data_d6.find('.//{http://www.yworks.com/xml/graphml}NodeLabel')
+            if node_label is not None:
+                node_name = self._check_if_empty(node_label.text)
+        return node_name
+
 
     def handle_group_node(self, node_element):
         # Estrarre l'ID del gruppo
@@ -161,10 +183,11 @@ class GraphMLImporter:
             edge_id = f"{contained_node_id}_grouped_in_{group_id}"
             self.graph.add_edge(
                 edge_id=edge_id,
-                start_node_id=contained_node_id,
-                end_node_id=group_id,
+                edge_source=contained_node_id,
+                edge_target=group_id,
                 edge_type="is_grouped_in"
             )
+
 
 
     def EM_extract_group_node_name(self, node_element):
@@ -196,21 +219,12 @@ class GraphMLImporter:
             for subnode in subnodes:
                 subnode_id = self.getnode_id(subnode)
                 node_ids_in_group.append(subnode_id)
-                # Se il subnode è un gruppo, potresti voler creare un arco 'is_grouped_in' anche per esso
+                # Verifica se il subnode è un gruppo
                 if self._check_node_type(subnode) == 'node_group':
-                    # Crea un arco tra il sottogruppo e il gruppo corrente
-                    edge_id = f"{subnode_id}_grouped_in_{self.getnode_id(node_element)}"
-                    self.graph.add_edge(
-                        edge_id=edge_id,
-                        start_node_id=subnode_id,
-                        end_node_id=self.getnode_id(node_element),
-                        edge_type="is_grouped_in"
-                    )
                     # Gestire ricorsivamente i nodi contenuti nel sottogruppo
-                    self.handle_group_node(subnode)
+                    subnode_ids_in_group = self.EM_extract_nodes_in_group(subnode)
+                    node_ids_in_group.extend(subnode_ids_in_group)
         return node_ids_in_group
-
-
 
  
     #voglio ottimizzare questa funzione in modo che faccia un solo passaggio sui nodi
