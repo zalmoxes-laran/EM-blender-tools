@@ -4,7 +4,7 @@ import bpy # type: ignore
 from .external_modules_install import check_external_modules, install_modules
 import logging
 
-from .graph_registry import load_graph, get_graph
+from .S3Dgraphy.multigraph import load_graph, get_graph
 
 log = logging.getLogger(__name__)
 

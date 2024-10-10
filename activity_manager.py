@@ -19,7 +19,7 @@ from .S3Dgraphy.graph import Graph
 from .S3Dgraphy.node import ActivityNodeGroup, EpochNode
 from .S3Dgraphy.import_graphml import GraphMLImporter
 
-from .graph_registry import graph_manager
+from .S3Dgraphy.multigraph import load_graph, get_graph
 
 
 class ActivityItem(PropertyGroup):
@@ -60,7 +60,7 @@ class ACTIVITY_OT_refresh_list(Operator):
     bl_description = "Aggiorna la lista delle attività dai dati del grafo"
 
     def execute(self, context):
-        graph_data = graph_manager.get_graph()
+        graph_data = get_graph()
         print("Eseguo l'update della lista delle attività")
         context.scene.activity_manager.activities.clear()
 

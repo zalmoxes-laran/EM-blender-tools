@@ -1,6 +1,16 @@
 # 3dgraphy/node.py
-
 class Node:
+    """
+    Classe base per rappresentare un nodo nel grafo.
+
+    Attributes:
+        node_id (str): Identificatore univoco del nodo.
+        name (str): Nome del nodo.
+        node_type (str): Tipo di nodo.
+        description (str): Descrizione del nodo.
+        attributes (dict): Dizionario per attributi aggiuntivi.
+    """
+
     def __init__(self, node_id, name, node_type, description=""):
         self.node_id = node_id
         self.name = name
@@ -13,10 +23,17 @@ class Node:
 
 # StratigraphicNode Class
 class StratigraphicNode(Node):
+    """
+    Nodo che rappresenta un'unità stratigrafica.
+
+    Attributes:
+        epoch (optional): Epoca associata al nodo. Informazione deprecata da quando si usano i nodi epoca per associare le stratigrafie ad insiemi temporali oppure i nodi proprietà per dettagliare gli start end temporali dei singoli nodi. 
+    """
+
     STRATIGRAPHIC_TYPES = {
         "US": {
             "symbol": "white rectangle",
-            "label": "US (or US)",
+            "label": "US (or SU)",
             "description": "Stratigraphic Unit (SU) or negative stratigraphic unit."
         },
         "USVs": {
@@ -69,16 +86,16 @@ class StratigraphicNode(Node):
             "label": "continuity node",
             "description": "End of life of a US/USV."
         },
-        "unknow": {
+        "unknown": {
             "symbol": "question mark",
-            "label": "nodo sconosciuto",
-            "description": "nodo di fallback"
+            "label": "Unknown node",
+            "description": "Fallback node for unrecognized types."
         }
     }
 
     def __init__(self, node_id, name, stratigraphic_type, description="", epoch=None):
         super().__init__(node_id, name, node_type=stratigraphic_type, description=description)
-        self.epoch = epoch  # Aggiunge la proprietà epoch specifica per i nodi stratigrafici
+        self.epoch = epoch  # Proprietà specifica per i nodi stratigrafici
         self.validate_stratigraphic_type()
 
     def validate_stratigraphic_type(self):
@@ -88,58 +105,124 @@ class StratigraphicNode(Node):
     def get_stratigraphic_info(self):
         return self.STRATIGRAPHIC_TYPES.get(self.node_type)
 
-
+# GroupNode Class
 class GroupNode(Node):
+    """
+    Nodo che rappresenta un gruppo di nodi. Tali gruppi possono essere di vari tipi: vedi sottoclassi di seguito.
+
+    Attributes:
+        y_pos (float): Posizione verticale del nodo.
+    """
+
     def __init__(self, node_id, name, description="", y_pos=0.0):
         super().__init__(node_id, name, node_type="Group", description=description)
         self.attributes['y_pos'] = y_pos
 
-
 class ActivityNodeGroup(GroupNode):
+    """
+    Nodo gruppo per attività. Una attività è un gruppo logico di azioni che vengono tenute insieme per un fine narrativo e di ordine delle informazioni (es: costruzione di una stanza di un edificio nell'anno x, attività di restauro di varie parti di quella stanza 20 anni dopo)
+
+    """
+
     def __init__(self, node_id, name, description="", y_pos=0.0):
         super().__init__(node_id, name, description=description, y_pos=y_pos)
         self.node_type = "ActivityNodeGroup"
 
 class ParadataNodeGroup(GroupNode):
+    """
+    Nodo gruppo per paradata. Questo gruppo tiene insieme tutti i paradati relativi ad una unità stratigrafica: normalmente si chiama "[nome_US]_PD" (ParaData)
+
+    """
+
     def __init__(self, node_id, name, description="", y_pos=0.0):
         super().__init__(node_id, name, description=description, y_pos=y_pos)
         self.node_type = "ParadataNodeGroup"
 
-
-
 # ParadataNode Class - Subclass of Node
 class ParadataNode(Node):
+    """
+    Classe base per i nodi che rappresentano metadati o informazioni su come i dati sono stati generati.
+
+    Attributes:
+        url (str): URL associato al nodo.
+    """
+
     def __init__(self, node_id, name, node_type, description="", url=None):
         super().__init__(node_id, name, node_type, description)
-        self.url = url  # Aggiungi l'attributo url
+        self.url = url  # Aggiunge l'attributo url
+        self.data = {}  # Dizionario per dati aggiuntivi
 
 # DocumentNode Class - Subclass of ParadataNode
 class DocumentNode(ParadataNode):
-    def __init__(self, node_id, name, node_type="document", description="", url=None):
-        super().__init__(node_id, name, node_type=node_type, description=description, url=url)
+    """
+    Nodo che rappresenta un documento o una fonte.
+
+    Attributes:
+        data (dict): Metadati aggiuntivi, come 'url_type'.
+    """
+
+    def __init__(self, node_id, name, description="", url=None, data=None):
+        super().__init__(node_id, name, node_type="document", description=description, url=url)
+        self.data = data if data is not None else {}
 
 # CombinerNode Class - Subclass of ParadataNode
 class CombinerNode(ParadataNode):
-    def __init__(self, node_id, name, description="", sources=[], url=None):
+    """
+    Nodo che rappresenta un ragionamento che combina informazioni da più sorgenti.
+
+    Attributes:
+        sources (list): Lista di sorgenti combinate.
+        data (dict): Metadati aggiuntivi, come 'author'.
+    """
+
+    def __init__(self, node_id, name, description="", sources=None, data=None, url=None):
         super().__init__(node_id, name, "combiner", description, url)
-        self.sources = sources
+        self.sources = sources if sources is not None else []
+        self.data = data if data is not None else {}
 
 # ExtractorNode Class - Subclass of ParadataNode
 class ExtractorNode(ParadataNode):
-    def __init__(self, node_id, name, description="", source=None, url=None):
+    """
+    Nodo che rappresenta l'estrazione di informazioni da una fonte.
+
+    Attributes:
+        source (str): Fonte da cui è stata estratta l'informazione.
+        data (dict): Metadati aggiuntivi, come 'author', 'url_type', 'icon', ecc.
+    """
+
+    def __init__(self, node_id, name, description="", source=None, data=None, url=None):
         super().__init__(node_id, name, "extractor", description, url)
         self.source = source
+        self.data = data if data is not None else {}
 
 # PropertyNode Class - Subclass of ParadataNode
 class PropertyNode(ParadataNode):
-    def __init__(self, node_id, name, description="", value=None, url=None):
+    """
+    Nodo che rappresenta una proprietà associata a un altro nodo.
+
+    Attributes:
+        value (any): Valore della proprietà.
+        data (dict): Metadati aggiuntivi, come 'author', 'time_start', 'time_end'.
+    """
+
+    def __init__(self, node_id, name, description="", value=None, data=None, url=None):
         super().__init__(node_id, name, "property", description, url)
         self.value = value
+        self.data = data if data is not None else {}
 
-# Epoch Node
+# EpochNode Class
 class EpochNode(Node):
+    """
+    Nodo che rappresenta un'epoca temporale. Si tratta di un insieme di comodo che permette di attribuire d'ufficio una serie di azioni ad un delta temporale. Una volta che i dati puntuali sulla cronologia, espressi come proprietà start_time ed end_time delle singole US viene definito grazie ad elementi dtanti, tali nodi epoca vengono ignorati laddove ci sono i suddetti dati puntuali. 
+
+    Attributes:
+        start_time (float): Tempo di inizio dell'epoca.
+        end_time (float): Tempo di fine dell'epoca.
+        color (str): Colore associato all'epoca.
+    """
+
     def __init__(self, node_id, name, start_time, end_time, color="#FFFFFF", description=""):
-        super().__init__(node_id, name, description)
+        super().__init__(node_id, name, "epoch", description)
         self.start_time = start_time
         self.end_time = end_time
         self.color = color
@@ -148,20 +231,10 @@ class EpochNode(Node):
         self.name = name
 
     def set_start_time(self, start_time):
-        # Aggiungi validazione se necessario
         self.start_time = start_time
 
     def set_end_time(self, end_time):
-        # Aggiungi validazione se necessario
         self.end_time = end_time
 
     def set_color(self, color):
-        # Aggiungi validazione del colore se necessario
         self.color = color
-
-# Activity Node # forse deprecato perché ora ho il GroupNode
-class ActivityNode(Node):
-    def __init__(self, node_id, name, activity_type, duration, description=""):
-        super().__init__(node_id, name, description)
-        self.activity_type = activity_type
-        self.duration = duration

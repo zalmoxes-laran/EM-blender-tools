@@ -1,297 +1,380 @@
-# 3dgraphy/graph.py
-from .node import *
-from .edge import *
+# s3Dgraphy/graph.py
+
+from .node import Node, EpochNode, StratigraphicNode, PropertyNode
+from .edge import Edge
 from typing import List
+from .geo_position_node import GeoPositionNode
 
 
 class Graph:
-    def __init__(self, name="", description=""):
-        self.name = name
-        self.description = description
+    """
+    Classe per rappresentare un grafo contenente nodi ed archi.
+
+    Attributes:
+        graph_id (str): Identificatore univoco del grafo.
+        name (dict): Dizionario delle traduzioni del nome del grafo.
+        description (dict): Dizionario delle traduzioni della descrizione del grafo.
+        audio (dict): Dizionario delle liste di file audio per lingua.
+        video (dict): Dizionario delle liste di file video per lingua.
+        data (dict): Metadati aggiuntivi come la posizione geografica.
+        nodes (List[Node]): Lista dei nodi nel grafo.
+        edges (List[Edge]): Lista degli archi nel grafo.
+    """
+
+    def __init__(self, graph_id, name=None, description=None, audio=None, video=None, data=None):
+        self.graph_id = graph_id
+        self.name = name if name is not None else {}
+        self.description = description if description is not None else {}
+        self.audio = audio if audio is not None else {}
+        self.video = video if video is not None else {}
+        self.data = data if data is not None else {}
         self.nodes = []
         self.edges = []
 
-    def add_node(self, node):
-        # Verifica se il nodo esiste già
-        if self.find_node_by_id(node.node_id):
-            #raise ValueError(f"Un nodo con ID '{node.node_id}' esiste già.")
-            return node
-        # Aggiungi il nuovo nodo
+        # Inizializza e aggiungi il nodo geo_position se non è già presente
+        if not any(node.node_type == "geo_position" for node in self.nodes):
+            geo_node = GeoPositionNode(node_id=f"geo_{graph_id}")
+            self.add_node(geo_node, overwrite=True)
+
+
+    def add_node(self, node: Node, overwrite=False) -> Node:
+        """
+        Aggiunge un nodo al grafo.
+
+        Args:
+            node (Node): Il nodo da aggiungere.
+            overwrite (bool): Se True, sovrascrive il nodo esistente con lo stesso ID.
+
+        Returns:
+            Node: Il nodo aggiunto.
+
+        Raises:
+            ValueError: Se un nodo con lo stesso ID esiste già e overwrite è False.
+        """
+        print(f"Attempting to add node: {node.node_id}, overwrite: {overwrite}")
+        existing_node = self.find_node_by_id(node.node_id)
+        if existing_node:
+            if overwrite:
+                self.nodes.remove(existing_node)
+                print(f"Node '{node.node_id}' overwritten.")
+            else:
+                print(f"Node '{node.node_id}' already exists. Skipping addition.")
+                return existing_node  # Restituisce il nodo esistente senza aggiungerlo nuovamente
         self.nodes.append(node)
+        print(f"Node '{node.node_id}' added successfully.")
         return node
 
 
-    def add_edge(self, edge_id, edge_source, edge_target, edge_type):
-        # Verifica se i nodi di sorgente e destinazione esistono
+    def add_edge(self, edge_id: str, edge_source: str, edge_target: str, edge_type: str) -> Edge:
+        """
+        Aggiunge un arco al grafo.
+
+        Args:
+            edge_id (str): ID univoco dell'arco.
+            edge_source (str): ID del nodo sorgente.
+            edge_target (str): ID del nodo destinazione.
+            edge_type (str): Tipo di arco, deve essere uno dei tipi definiti in Edge.EDGE_TYPES.
+
+        Returns:
+            Edge: L'arco aggiunto.
+
+        Raises:
+            ValueError: Se i nodi sorgente o destinazione non esistono, o se l'arco è duplicato.
+        """
         source_node = self.find_node_by_id(edge_source)
         target_node = self.find_node_by_id(edge_target)
         if not source_node or not target_node:
             raise ValueError(f"Entrambi i nodi con ID '{edge_source}' e '{edge_target}' devono esistere.")
 
-        # Verifica se un arco identico esiste già
-        if self.find_edge_by_nodes(edge_source, edge_target):
-            raise ValueError(f"Un arco tra '{edge_source}' e '{edge_target}' esiste già.")
-
-        # Verifica se un arco con stesso id esiste già
         if self.find_edge_by_id(edge_id):
             raise ValueError(f"Un arco con id '{edge_id}' esiste già.")
 
-        # Aggiungi il nuovo arco
         edge = Edge(edge_id, edge_source, edge_target, edge_type)
         self.edges.append(edge)
         return edge
 
     def find_node_by_id(self, node_id):
-        # Ricerca un nodo per ID
+        """
+        Cerca un nodo per ID.
+
+        Args:
+            node_id (str): ID del nodo da cercare.
+
+        Returns:
+            Node: Il nodo trovato, o None se non esiste.
+        """
         for node in self.nodes:
             if node.node_id == node_id:
                 return node
         return None
 
-    def find_edge_by_nodes(self, start_node_id, end_node_id):
-        # Ricerca un arco per i nodi di sorgente e destinazione
-        for edge in self.edges:
-            if edge.edge_source == start_node_id and edge.edge_target == end_node_id:
-                return edge
+    def find_node_by_name(self, name):
+        """
+        Cerca un nodo per nome.
+
+        Args:
+            name (str): Nome del nodo da cercare.
+
+        Returns:
+            Node: Il nodo trovato, o None se non esiste.
+        """
+        for node in self.nodes:
+            if node.name == name:
+                return node
         return None
 
-
     def find_edge_by_id(self, edge_id):
-        # Ricerca un arco per edge_id
+        """
+        Cerca un arco per ID.
+
+        Args:
+            edge_id (str): ID dell'arco da cercare.
+
+        Returns:
+            Edge: L'arco trovato, o None se non esiste.
+        """
         for edge in self.edges:
             if edge.edge_id == edge_id:
                 return edge
         return None
 
-
-    def filter_nodes_by_connection_to_type(self, target_node_type, connected=True):
+    def find_edge_by_nodes(self, source_id, target_id):
         """
-        Filtra i nodi in base al fatto che siano collegati o meno ad almeno un nodo di un tipo specifico.
+        Cerca un arco basato sugli ID dei nodi sorgente e destinazione.
 
-        :param target_node_type: Il tipo di nodo a cui verificare la connessione.
-        :param connected: Se True, restituisce nodi collegati ad almeno un nodo del tipo specificato.
-                          Se False, restituisce nodi non collegati a nodi del tipo specificato.
-        :return: Una lista di oggetti Node.
+        Args:
+            source_id (str): ID del nodo sorgente.
+            target_id (str): ID del nodo destinazione.
+
+        Returns:
+            Edge: L'arco trovato, o None se non esiste.
         """
-        # Ottieni l'insieme degli ID dei nodi del tipo target
-        target_node_ids = set(node.node_id for node in self.nodes if node.node_type == target_node_type)
-
-        # Crea una mappatura dei nodi alle loro connessioni
-        node_connections = {node.node_id: set() for node in self.nodes}
         for edge in self.edges:
-            # Considera sia sorgente che destinazione per grafi non diretti
-            node_connections[edge.edge_source].add(edge.edge_target)
-            node_connections[edge.edge_target].add(edge.edge_source)
+            if edge.edge_source == source_id and edge.edge_target == target_id:
+                return edge
+        return None
 
-        # Filtra i nodi in base alle connessioni
-        filtered_nodes = []
-        for node in self.nodes:
-            connections = node_connections[node.node_id]
-            # Verifica se il nodo è collegato ad almeno un nodo del tipo target
-            is_connected = any(conn_node_id in target_node_ids for conn_node_id in connections)
-            if connected and is_connected:
-                filtered_nodes.append(node)
-            elif not connected and not is_connected:
-                filtered_nodes.append(node)
+    def get_connected_nodes(self, node_id):
+        """
+        Ottiene tutti i nodi collegati a un dato nodo.
 
+        Args:
+            node_id (str): ID del nodo per il quale trovare i nodi collegati.
+
+        Returns:
+            List[Node]: Lista dei nodi collegati.
+        """
+        connected_nodes = []
+        for edge in self.edges:
+            if edge.edge_source == node_id:
+                target_node = self.find_node_by_id(edge.edge_target)
+                if target_node:
+                    connected_nodes.append(target_node)
+            elif edge.edge_target == node_id:
+                source_node = self.find_node_by_id(edge.edge_source)
+                if source_node:
+                    connected_nodes.append(source_node)
+        return connected_nodes
+
+    def get_connected_edges(self, node_id):
+        """
+        Ottiene tutti gli archi collegati a un dato nodo.
+
+        Args:
+            node_id (str): ID del nodo per il quale trovare gli archi collegati.
+
+        Returns:
+            List[Edge]: Lista degli archi collegati.
+        """
+        connected_edges = []
+        for edge in self.edges:
+            if edge.edge_source == node_id or edge.edge_target == node_id:
+                connected_edges.append(edge)
+        return connected_edges
+
+    def filter_nodes_by_connection_to_type(self, node_id, node_type):
+        """
+        Filtra i nodi collegati a un dato nodo per tipo di nodo.
+
+        Args:
+            node_id (str): ID del nodo per il quale trovare i nodi collegati.
+            node_type (str): Tipo di nodo da filtrare.
+
+        Returns:
+            List[Node]: Lista dei nodi collegati che corrispondono al tipo specificato.
+        """
+        connected_nodes = self.get_connected_nodes(node_id)
+        filtered_nodes = [node for node in connected_nodes if node.node_type == node_type]
         return filtered_nodes
 
-    def get_connected_node_by_type(self, node, target_node_type):
+    def get_connected_node_by_type(self, node, node_type):
         """
-        Verifica se il nodo dato è collegato ad almeno un nodo con una data proprietà node_type.
-        Se sì, restituisce il primo nodo trovato con il node_type specificato.
-        Altrimenti, restituisce None.P
+        Ottiene un nodo collegato di un determinato tipo.
 
-        :param node: Istanza di Node da verificare.
-        :param target_node_type: Il valore di node_type da cercare nei nodi collegati.
-        :return: Istanza di Node con node_type corrispondente, o None se non esiste.
+        Args:
+            node (Node): Nodo di partenza.
+            node_type (str): Tipo di nodo da cercare.
+
+        Returns:
+            Node: Il nodo collegato del tipo specificato, o None se non trovato.
         """
-        # Ottieni tutti gli archi in cui il nodo è coinvolto
-        connected_edges = [edge for edge in self.edges if edge.edge_source == node.node_id or edge.edge_target == node.node_id]
-
-        # Itera attraverso gli archi per trovare nodi collegati con il node_type specificato
-        for edge in connected_edges:
-            # Trova l'ID dell'altro nodo connesso
-            if edge.edge_source == node.node_id:
-                other_node_id = edge.edge_target
-            else:
-                other_node_id = edge.edge_source
-
-            # Trova l'oggetto Node corrispondente
-            other_node = self.find_node_by_id(other_node_id)
-
-            # Verifica se l'altro nodo esiste e ha il node_type specificato
-            if other_node and other_node.node_type == target_node_type:
-                #print("Ho trovato un nodo continuity")
-                return other_node  # Restituisce il primo nodo trovato con il node_type specificato
-        #print("Non ho trovato nodi continuity !!!!")
-        # Se nessun nodo con il node_type specificato è trovato
-        return None
-
-    def get_connected_epochs(self, node):
-        connected_epochs = []
         for edge in self.edges:
-            if edge.edge_source == node.node_id or edge.edge_target == node.node_id:
-                other_node_id = edge.edge_target if edge.edge_source == node.node_id else edge.edge_source
-                other_node = self.find_node_by_id(other_node_id)
-                if isinstance(other_node, EpochNode):
-                    connected_epochs.append(other_node)
-        return connected_epochs
-
-
-    def get_connected_epoch_node_by_edge_type(self, node, edge_type):
-        """
-        Restituisce il primo nodo di tipo EpochNode collegato al nodo dato attraverso un arco del tipo specificato.
-
-        :param node: Istanza di Node da cui partire la ricerca.
-        :param edge_type: Il tipo di arco da considerare nella ricerca.
-        :return: Istanza di EpochNode se trovato, altrimenti None.
-        """
-        # Ottieni tutti gli archi collegati al nodo dato che hanno il tipo specificato
-        connected_edges = [
-            edge for edge in self.edges
-            if edge.edge_type == edge_type and (edge.edge_source == node.node_id or edge.edge_target == node.node_id)
-        ]
-
-        #print("ciao")
-        # Itera attraverso questi archi per trovare nodi EpochNode collegati
-        for edge in connected_edges:
-            # Determina l'ID dell'altro nodo collegato dall'arco
             if edge.edge_source == node.node_id:
-                other_node_id = edge.edge_target
-            else:
-                other_node_id = edge.edge_source
-
-            # Recupera l'altro nodo
-            other_node = self.find_node_by_id(other_node_id)
-
-            # Verifica se l'altro nodo è un'istanza di EpochNode
-            if isinstance(other_node, EpochNode):
-                return other_node  # Restituisce il primo EpochNode trovato
-
-        # Se nessun EpochNode collegato è trovato, restituisce None
+                target_node = self.find_node_by_id(edge.edge_target)
+                if target_node and target_node.node_type == node_type:
+                    return target_node
+            elif edge.edge_target == node.node_id:
+                source_node = self.find_node_by_id(edge.edge_source)
+                if source_node and source_node.node_type == node_type:
+                    return source_node
         return None
 
-    def get_connected_epoch_nodes_list_by_edge_type(self, node, edge_type):
+    # Puoi aggiungere qui altri metodi necessari per il tuo progetto.
+
+    def get_nodes_by_type(self, node_type):
         """
-        Restituisce una lista di nodi di tipo EpochNode collegati al nodo dato attraverso archi del tipo specificato.
-        Se non viene trovato alcun nodo EpochNode, restituisce None.
+        Ottiene tutti i nodi di un determinato tipo.
 
-        :param node: Istanza di Node da cui partire la ricerca.
-        :param edge_type: Il tipo di arco da considerare nella ricerca.
-        :return: Lista di istanze di EpochNode collegate attraverso archi del tipo specificato, o None se nessuna trovata.
+        Args:
+            node_type (str): Tipo di nodo da cercare.
+
+        Returns:
+            List[Node]: Lista dei nodi che corrispondono al tipo specificato.
         """
-        # Ottieni tutti gli archi collegati al nodo dato che hanno il tipo specificato
-        connected_edges = [
-            edge for edge in self.edges
-            if edge.edge_type == edge_type and (edge.edge_source == node.node_id or edge.edge_target == node.node_id)
-        ]
+        return [node for node in self.nodes if node.node_type == node_type]
 
-        # Lista per memorizzare i nodi EpochNode trovati
-        epoch_nodes = []
-
-        # Itera attraverso questi archi per trovare nodi EpochNode collegati
-        for edge in connected_edges:
-            # Determina l'ID dell'altro nodo collegato dall'arco
-            if edge.edge_source == node.node_id:
-                other_node_id = edge.edge_target
-            else:
-                other_node_id = edge.edge_source
-
-            # Recupera l'altro nodo
-            other_node = self.find_node_by_id(other_node_id)
-
-            # Verifica se l'altro nodo è un'istanza di EpochNode
-            if isinstance(other_node, EpochNode):
-                epoch_nodes.append(other_node)  # Aggiungi l'EpochNode alla lista
-
-        # Se la lista è vuota, restituisce None
-        if not epoch_nodes:
-            return None
-        else:
-            return epoch_nodes
-
-
-
-    def print_connected_epoch_nodes_and_edge_types(self, node):
+    def remove_node(self, node_id):
         """
-        Stampa tutti i nodi EpochNode connessi al nodo dato e il tipo di edge che li collega.
+        Rimuove un nodo e tutti gli archi ad esso collegati.
 
-        :param node: Istanza di Node da cui partire la ricerca.
+        Args:
+            node_id (str): ID del nodo da rimuovere.
         """
-        # Ottieni tutti gli archi collegati al nodo dato
-        connected_edges = [
-            edge for edge in self.edges
-            if edge.edge_source == node.node_id or edge.edge_target == node.node_id
-        ]
+        self.nodes = [node for node in self.nodes if node.node_id != node_id]
+        self.edges = [edge for edge in self.edges if edge.edge_source != node_id and edge.edge_target != node_id]
 
-        # Flag per verificare se sono stati trovati EpochNode collegati
-        found_epoch_nodes = False
-
-        # Itera attraverso gli archi collegati
-        for edge in connected_edges:
-            # Determina l'ID dell'altro nodo collegato dall'arco
-            if edge.edge_source == node.node_id:
-                other_node_id = edge.edge_target
-            else:
-                other_node_id = edge.edge_source
-
-            # Recupera l'altro nodo
-            other_node = self.find_node_by_id(other_node_id)
-
-            # Verifica se l'altro nodo è un'istanza di EpochNode
-            if isinstance(other_node, EpochNode):
-                found_epoch_nodes = True
-                print(f"Nodo {node.name} (ID {node.node_id} e tipo {node.node_type}) ho trovato un EpochNode: ID={other_node.node_id}, Nome={other_node.name}, Tipo={other_node.node_type} Edge Type={edge.edge_type}")
-        
-        if not found_epoch_nodes:
-            print("Nessun EpochNode collegato trovato per il nodo specificato.")
-
-    def find_node_by_name(self, node_name):
+    def remove_edge(self, edge_id):
         """
-        Cerca un nodo per nome.
+        Rimuove un arco dal grafo.
 
-        :param node_name: Il nome del nodo da cercare.
-        :return: Istanza di Node se trovato, altrimenti None.
+        Args:
+            edge_id (str): ID dell'arco da rimuovere.
         """
+        self.edges = [edge for edge in self.edges if edge.edge_id != edge_id]
+
+    def update_node(self, node_id, **kwargs):
+        """
+        Aggiorna gli attributi di un nodo esistente.
+
+        Args:
+            node_id (str): ID del nodo da aggiornare.
+            **kwargs: Attributi da aggiornare.
+        """
+        node = self.find_node_by_id(node_id)
+        if not node:
+            raise ValueError(f"Nodo con ID '{node_id}' non trovato.")
+        for key, value in kwargs.items():
+            setattr(node, key, value)
+
+    def update_edge(self, edge_id, **kwargs):
+        """
+        Aggiorna gli attributi di un arco esistente.
+
+        Args:
+            edge_id (str): ID dell'arco da aggiornare.
+            **kwargs: Attributi da aggiornare.
+        """
+        edge = self.find_edge_by_id(edge_id)
+        if not edge:
+            raise ValueError(f"Arco con ID '{edge_id}' non trovato.")
+        for key, value in kwargs.items():
+            setattr(edge, key, value)
+
+
+    def get_connected_epoch_node_by_edge_type(self, node, edge_type: str):
+        """
+        Ottiene il nodo EpochNode connesso tramite un arco di tipo specifico.
+
+        Args:
+            node (Node): Il nodo da cui partire.
+            edge_type (str): Il tipo di arco da filtrare.
+
+        Returns:
+            EpochNode | None: Il nodo EpochNode connesso, oppure None se non trovato.
+        """
+        for edge in self.edges:
+            if (edge.edge_source == node.node_id and edge.edge_type == edge_type):
+                target_node = self.find_node_by_id(edge.edge_target)
+                if target_node and target_node.node_type == "EpochNode":
+                    print(f"Found connected EpochNode '{target_node.node_id}' via edge type '{edge_type}'.")
+                    return target_node
+            elif (edge.edge_target == node.node_id and edge.edge_type == edge_type):
+                source_node = self.find_node_by_id(edge.edge_source)
+                if source_node and source_node.node_type == "EpochNode":
+                    print(f"Found connected EpochNode '{source_node.node_id}' via edge type '{edge_type}'.")
+                    return source_node
+        print(f"No connected EpochNode found for node '{node.node_id}' via edge type '{edge_type}'.")
+        return None
+
+    def get_nodes_by_type(self, node_type):
+        return [node for node in self.nodes if node.node_type == node_type]
+
+    def remove_node(self, node_id):
+        self.nodes = [node for node in self.nodes if node.node_id != node_id]
+        self.edges = [edge for edge in self.edges if edge.edge_source != node_id and edge.edge_target != node_id]
+        print(f"Node '{node_id}' and its edges removed successfully.")
+
+    def remove_edge(self, edge_id):
+        self.edges = [edge for edge in self.edges if edge.edge_id != edge_id]
+        print(f"Edge '{edge_id}' removed successfully.")
+
+    def update_node(self, node_id, **kwargs):
+        node = self.find_node_by_id(node_id)
+        if not node:
+            raise ValueError(f"Nodo con ID '{node_id}' non trovato.")
+        for key, value in kwargs.items():
+            setattr(node, key, value)
+        print(f"Node '{node_id}' updated successfully.")
+
+    def update_edge(self, edge_id, **kwargs):
+        edge = self.find_edge_by_id(edge_id)
+        if not edge:
+            raise ValueError(f"Arco con ID '{edge_id}' non trovato.")
+        for key, value in kwargs.items():
+            setattr(edge, key, value)
+        print(f"Edge '{edge_id}' updated successfully.")
+
+    def print_all_nodes(self):
+        print("Current nodes in the graph:")
         for node in self.nodes:
-            if node.name == node_name:
-                return node
-        return None
-
-    # Qui puoi aggiungere ulteriori metodi per gestire ricerche, rimozioni e manipolazioni
-
-'''
-class MultiGraph:
-    def __init__(self):
-        self.graphs = []
-
-    def add_graph(self, graph):
-        self.graphs.append(graph)
-
-    def import_graphml(self, filepaths):
-        # Importa più grafi da una lista di file GraphML
-        for filepath in filepaths:
-            graph = import_graphml(filepath)
-            self.add_graph(graph)
-
-            
-COME SI USA:
-
-from s3Dgraphy import MultiGraph
-
-multi_graph = MultiGraph()
-multi_graph.import_graphml(['file1.graphml', 'file2.graphml'])
-
-LA STRUTTURA A CUI VOGLIO ARRIVARE E' QUESTA, la sviluppo appena ho finito il porting di tutto il parser
-s3Dgraphy/
-│
-├── __init__.py          # Importazioni principali
-├── graph.py             # Classi Graph e MultiGraph
-├── node.py              # Classe Node e sottoclassi
-├── edge.py              # Classe Edge e sottoclassi
-├── import_graphml.py    # Funzioni per l'importazione del GraphML
-└── utils.py             # Funzioni di supporto comuni (opzionale)
+            print(f" - {node.node_id}")
 
 
-'''
+    def get_connected_epoch_nodes_list_by_edge_type(self, node, edge_type: str):
+        """
+        Ottiene una lista di nodi EpochNode connessi tramite un arco di tipo specifico.
+
+        Args:
+            node (Node): Il nodo da cui partire.
+            edge_type (str): Il tipo di arco da filtrare.
+
+        Returns:
+            List[EpochNode]: Lista di nodi EpochNode connessi.
+        """
+        connected_epoch_nodes = []
+        for edge in self.edges:
+            if (edge.edge_source == node.node_id and edge.edge_type == edge_type):
+                target_node = self.find_node_by_id(edge.edge_target)
+                if target_node and target_node.node_type == "EpochNode":
+                    print(f"Found connected EpochNode '{target_node.node_id}' via edge type '{edge_type}'.")
+                    connected_epoch_nodes.append(target_node)
+            elif (edge.edge_target == node.node_id and edge.edge_type == edge_type):
+                source_node = self.find_node_by_id(edge.edge_source)
+                if source_node and source_node.node_type == "EpochNode":
+                    print(f"Found connected EpochNode '{source_node.node_id}' via edge type '{edge_type}'.")
+                    connected_epoch_nodes.append(source_node)
+        if connected_epoch_nodes:
+            print(f"Found {len(connected_epoch_nodes)} connected EpochNode(s) via edge type '{edge_type}'.")
+        else:
+            print(f"No connected EpochNodes found for node '{node.node_id}' via edge type '{edge_type}'.")
+        return connected_epoch_nodes

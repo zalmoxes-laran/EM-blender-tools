@@ -27,7 +27,7 @@ from .epoch_manager import *
 from .S3Dgraphy import *
 from .S3Dgraphy.node import StratigraphicNode  # Import diretto
 
-from .graph_registry import load_graph, get_graph
+from .S3Dgraphy import load_graph, get_graph
 
 #### da qui si definiscono le funzioni e gli operatori
 class EM_listitem_OT_to3D(bpy.types.Operator):
@@ -142,23 +142,40 @@ class EM_import_GraphML(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        #setup scene variable
+        # Setup scene variable
         scene = context.scene
 
-        #clear Blender Lists
+        # Clear Blender Lists
         self._clear_lists(context)
 
-        #retrieve graphml_path
+        # Retrieve graphml_path
         graphml_file = bpy.path.abspath(scene.EM_file)
 
-        # Carica il grafo la prima volta
-        load_graph(graphml_file)
+        # Define a unique graph_id, e.g., based on the file name
+        graph_id = os.path.splitext(os.path.basename(graphml_file))[0]
 
-        # Ora puoi ottenere il grafo utilizzando `get_graph()`
-        graph_instance = get_graph()
+        # Rimuovi il grafo esistente se presente
+        try:
+            remove_graph(graph_id)
+            print(f"Existing graph '{graph_id}' removed successfully.")
+        except KeyError:
+            print(f"No existing graph with ID '{graph_id}' found to remove.")
+
+        try:
+            # Carica il grafo con overwrite=True
+            load_graph(graphml_file, graph_id=graph_id, overwrite=True)
+            print(f"Graph '{graph_id}' loaded successfully.")
+        except ValueError as e:
+            print(f"Error loading graph: {e}")
+            self.report({'ERROR'}, str(e))
+            return {'CANCELLED'}
+
+        # Ora ottieni il grafo utilizzando `get_graph(graph_id)`
+        graph_instance = get_graph(graph_id)
 
         if graph_instance is None:
-            raise RuntimeError("Errore: il grafo non è stato caricato correttamente.")
+            self.report({'ERROR'}, "Errore: il grafo non è stato caricato correttamente.")
+            return {'CANCELLED'}
 
         # Now populate the Blender lists from the graph
         self.populate_blender_lists_from_graph(context, graph_instance)
