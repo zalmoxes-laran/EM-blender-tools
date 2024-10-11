@@ -1,173 +1,120 @@
 import bpy
-from .functions import *
-from bpy.types import Operator
-from bpy.types import Menu, Panel, UIList, PropertyGroup
-from . import sqlite_io
-from .__init__ import get_bl_info
+from .S3Dgraphy import load_graph, get_graph
+from .S3Dgraphy import *
 
-#####################################################################
-#SETUP MENU
 
-class EM_SetupPanel:
-    #devel_version = bpy.context.preferences.addons["EM-blender-tools"].bl_info.get('devel_version', 'Unknown version')
-    #bl_label = f"EM setup {devel_version}"
-    bl_info = get_bl_info()
-    devel_version = bl_info.get('devel_version', 'Unknown version')
+class EMToolsProperties(bpy.types.PropertyGroup):
+    name: bpy.props.StringProperty(name="GraphML File")
+    expanded: bpy.props.BoolProperty(name="Auxiliary files", default=False)
+    graphml_path: bpy.props.StringProperty(name="GraphML Path", subtype='FILE_PATH')  # Aggiungiamo il campo per il percorso
+    dosco_dir: bpy.props.StringProperty(name="DosCo Directory", subtype='DIR_PATH')
+    xlsx_filepath: bpy.props.StringProperty(name="Source File (xlsx)", subtype='FILE_PATH')
+    emdb_filepath: bpy.props.StringProperty(name="EMdb File (sqlite)", subtype='FILE_PATH')
 
-    bl_label = "EM setup " + devel_version
-    bl_space_type = 'VIEW_3D' 
+class EMToolsSettings(bpy.types.PropertyGroup):
+    graphml_files: bpy.props.CollectionProperty(type=EMToolsProperties)
+    active_file_index: bpy.props.IntProperty()
+
+class EMTOOLS_UL_files(bpy.types.UIList):
+    """UIList to display the GraphML files"""
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        layout.label(text=item.name)
+
+class EM_SetupPanel(bpy.types.Panel):
+    bl_label = "EM Tools Setup"
+    bl_idname = "VIEW3D_PT_EM_Tools_Setup"
+    bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
+    bl_category = "EM"
 
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        em_settings = scene.em_settings
-        obj = context.object
-        
-        if len(scene.em_list) > 0:
-            is_em_list = True
-        else:
-            is_em_list = False
+        em_tools = scene.em_tools
 
-        row = layout.row(align=True)
-        split = row.split()
-        col = split.column()
-        col.label(text="EM file")
-        
-        if scene.EM_file:
-            col = split.column(align=True)
-            if is_em_list:
-                button_load_text = 'Reload'
-                button_load_icon = 'FILE_REFRESH'
-            else:
-                button_load_text = 'Load'
-                button_load_icon = 'IMPORT'
-            col.operator("import.em_graphml", icon= button_load_icon, text=button_load_text)
-        else:
-            col.label(text="Select a GraphML file below", icon='SORT_ASC')
-        #row = layout.row()
-        if is_em_list:
-            col = split.column(align=True)
-            op = col.operator("list_icon.update", icon="PRESET", text='Refresh')
-            op.list_type = "all"
-
-        row = layout.row(align=True)
-        row.prop(context.scene, 'EM_file', toggle = True, text ="")
-        
-        ############# box con le statistiche del file ##################
-        box = layout.box()
-        row = box.row(align=True)
-        #row = layout.row(align=True)
-        split = row.split()
-        col = split.column()
-        col.label(text="US/USV")
-        #col = split.column()
-        col.prop(scene, "em_list", text='')
-        col = split.column()
-        col.label(text="Periods")
-        #col = split.column()
-        col.prop(scene, "epoch_list", text='')
-
-        col = split.column()
-        col.label(text="Properties")
-        #col = split.column()
-        col.prop(scene, "em_properties_list", text='')
-
-        col = split.column()
-        col.label(text="Sources")
-        #col = split.column()
-        col.prop(scene, "em_sources_list", text='')
-
-        ################ da qui setto la cartella DosCo ##################
-
-        row = layout.row(align=True)
-        box = layout.box()
-        row = box.row()
-        row.prop(context.scene, 'EMDosCo_dir', toggle = True, text ="DosCo") 
-        em_settings = bpy.context.window_manager.em_addon_settings
-        row.prop(em_settings, "dosco_advanced_options", text="advanced options")
-
-        if em_settings.dosco_advanced_options:
-            row = box.row()
-            row.label(text="Populate extractors, documents and combiners using DosCo files:")
-            row = box.row()
-            row.prop(em_settings, 'overwrite_url_with_dosco_filepath', text = "Overwrite paths")
-            row.prop(em_settings, 'preserve_web_url', text = "Preserve web urls (if any)")
-        #preserve_web_url = settings.preserve_web_url
-        #overwrite_url_with_dosco_filepath = settings.overwrite_url_with_dosco_filepath
-
-# Ora puoi utilizzare `preserve_web_url` e `overwrite_url_with_dosco_filepath` nel tuo addon
- 
-
-        ################ da qui setto la lista delle sources ##################
-
+        # List of GraphML files
         row = layout.row()
-        box = layout.box()
-        row = box.row()
-        row.label(text="Source file (xlsx)")
-        row.operator("load.emdb_xlsx", icon="STICKY_UVS_DISABLE", text='')
-        row.operator("open_prefs_panel.em_tools", icon="SETTINGS", text="")
-        row = box.row()
 
-        
-        row.prop(scene, "EMdb_xlsx_filepath", text="")      
-
-        ################ da qui porzione di pannello per EMdb #####################
-
-        row = layout.row(align=True)
-        box = layout.box()
-        row = box.row()
-        db_type_current = scene.current_db_type
-        split = row.split()
-        col = split.column()
-        col.label(text="EMdb file")
-        col = split.column(align=True)
-        op = col.operator("import.emdb_sqlite", icon= 'IMPORT', text='Import')
-        op.db_type = db_type_current
-        col = split.column(align=True)
-        col.menu(sqlite_io.EMdb_type_menu.bl_idname, text=db_type_current, icon='COLOR')
-        row = box.row()
-        #row = layout.row(align=True)
-        row.prop(context.scene, 'EMdb_file', toggle = True, text ="")
+        row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=3)
 
 
         row = layout.row(align=True)
-        box = layout.box()
-        row = box.row()
-        row.label(text="Geometrie dal Grafo")
-        row.operator("object.create_graph_geometry", icon="MESH_UVSPHERE", text="Crea Geometrie dal Grafo")
+        row.operator('em_tools.add_file', text="Add GraphML", icon="ADD")
+        row.operator('em_tools.remove_file', text="Remove GraphML", icon="REMOVE")
 
-class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):
-    bl_category = "EM"
-    bl_idname = "VIEW3D_PT_SetupPanel"
-    bl_context = "objectmode"
+        # Details for selected GraphML file
+        if em_tools.active_file_index >= 0 and em_tools.graphml_files:
+            active_file = em_tools.graphml_files[em_tools.active_file_index]
 
-#SETUP MENU
-#####################################################################
 
+            # Path to GraphML
+            row = layout.row(align=True)
+            row.prop(active_file, "graphml_path", text="GraphML Path")
+
+            # Button to trigger the import
+            row = layout.row(align=True)
+            row.operator("import.em_graphml", text="Import GraphML").graphml_index = em_tools.active_file_index
+
+            box = layout.box()
+            box.prop(active_file, "expanded", icon="TRIA_DOWN" if active_file.expanded else "TRIA_RIGHT", emboss=False)
+
+            if active_file.expanded:
+
+                # Path to DosCo folder
+                box.prop(active_file, "dosco_dir", text="DosCo Directory")
+                # XLSX file
+                box.prop(active_file, "xlsx_filepath", text="Source File (xlsx)")
+                # EMdb file
+                box.prop(active_file, "emdb_filepath", text="EMdb File (sqlite)")
+
+
+class EMToolsAddFile(bpy.types.Operator):
+    bl_idname = "em_tools.add_file"
+    bl_label = "Add GraphML File"
+
+    def execute(self, context):
+        em_tools = context.scene.em_tools
+        new_file = em_tools.graphml_files.add()
+        new_file.name = "New GraphML File"
+        em_tools.active_file_index = len(em_tools.graphml_files) - 1
+        return {'FINISHED'}
+
+class EMToolsRemoveFile(bpy.types.Operator):
+    bl_idname = "em_tools.remove_file"
+    bl_label = "Remove GraphML File"
+
+    def execute(self, context):
+        em_tools = context.scene.em_tools
+        if em_tools.active_file_index >= 0:
+            em_tools.graphml_files.remove(em_tools.active_file_index)
+            em_tools.active_file_index = min(max(0, em_tools.active_file_index - 1), len(em_tools.graphml_files) - 1)
+            graphml = em_tools.graphml_files[self.graphml_index]
+            remove_graph(graphml.name)
+        return {'FINISHED'}
+
+# Lista delle classi da registrare
 classes = [
-    VIEW3D_PT_SetupPanel]
+    EMToolsProperties,
+    EMToolsSettings,
+    EMTOOLS_UL_files,
+    EM_SetupPanel,
+    EMToolsAddFile,
+    EMToolsRemoveFile
+]
 
 def register():
+    # Itera sulla lista per registrare le classi
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    bpy.types.Scene.EMdb_file = StringProperty(
-        name = "EM db file",
-        default = "",
-        description = "Define the path to the EM db (sqlite) file",
-        subtype = 'FILE_PATH'
-    )   
-
-    bpy.types.Scene.EMDosCo_dir = StringProperty(
-        name = "EM DosCo folder",
-        default = "",
-        description = "Define the path to the EM DosCo folder",
-        subtype = 'DIR_PATH'
-    )   
+    bpy.types.Scene.em_tools = bpy.props.PointerProperty(type=EMToolsSettings)
 
 def unregister():
-    for cls in classes:
+    # Itera sulla lista per cancellare la registrazione delle classi
+    for cls in reversed(classes):  # Usa reversed per evitare problemi di dipendenze
         bpy.utils.unregister_class(cls)
-    del bpy.types.Scene.EMdb_file
-    del bpy.types.Scene.EMDosCo_dir
+
+    del bpy.types.Scene.em_tools
+
+if __name__ == "__main__":
+    register()
