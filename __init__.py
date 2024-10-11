@@ -68,7 +68,8 @@ from . import (
         em_statistics,
         server,
         graph2geometry,
-        activity_manager
+        activity_manager,
+        populate_lists
         #google_credentials
         )
 
@@ -79,6 +80,9 @@ from . import addon_updater_ops
 
 from .external_modules_install import check_external_modules
 
+from .populate_lists import *
+
+
 # demo bare-bones preferences 
 @addon_updater_ops.make_annotations
 #@telegram_io.main()
@@ -86,13 +90,13 @@ from .external_modules_install import check_external_modules
 class EMAddonSettings(bpy.types.PropertyGroup):
     preserve_web_url: bpy.props.BoolProperty(
         name="Preserve Web URL",
-        description="Preserve the web URL instead of overwriting",
+        description="Preserve web urls (if any) from the GraphML file",
         default=True
     ) # type: ignore
 
     overwrite_url_with_dosco_filepath: bpy.props.BoolProperty(
-        name="Overwrite URL with DosCo Filepath",
-        description="Overwrite the URL with DosCo Filepath",
+        name="Overwrite URL witPh DosCo Filepath",
+        description="Retrieve the URL from real DosCo Filepath ignoring the url values stated in the GraphML file",
         default=False
     ) # type: ignore
 

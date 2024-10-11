@@ -2,6 +2,12 @@ import bpy
 from .S3Dgraphy import load_graph, get_graph
 from .S3Dgraphy import *
 
+from . import sqlite_io
+from .__init__ import get_bl_info
+
+from .EM_list import EM_import_GraphML
+
+from .populate_lists import *
 
 class EMToolsProperties(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="GraphML File")
@@ -21,7 +27,10 @@ class EMTOOLS_UL_files(bpy.types.UIList):
         layout.label(text=item.name)
 
 class EM_SetupPanel(bpy.types.Panel):
-    bl_label = "EM Tools Setup"
+    bl_info = get_bl_info()
+    devel_version = bl_info.get('devel_version', 'Unknown version')
+    bl_label = "EM setup " + devel_version
+
     bl_idname = "VIEW3D_PT_EM_Tools_Setup"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -54,6 +63,9 @@ class EM_SetupPanel(bpy.types.Panel):
             # Button to trigger the import
             row = layout.row(align=True)
             row.operator("import.em_graphml", text="Import GraphML").graphml_index = em_tools.active_file_index
+            row = layout.row(align=True)
+
+            row.operator("em_tools.populate_lists", text="Update Lists for current graph")
 
             box = layout.box()
             box.prop(active_file, "expanded", icon="TRIA_DOWN" if active_file.expanded else "TRIA_RIGHT", emboss=False)
@@ -62,10 +74,49 @@ class EM_SetupPanel(bpy.types.Panel):
 
                 # Path to DosCo folder
                 box.prop(active_file, "dosco_dir", text="DosCo Directory")
+
+                em_settings = bpy.context.window_manager.em_addon_settings
+                #box.prop(em_settings, "dosco_advanced_options", 
+
+                box.prop(em_settings, "dosco_advanced_options", text="DosCo advanced options", icon="TRIA_DOWN" if em_settings.dosco_advanced_options else "TRIA_RIGHT", emboss=False)
+
+                if em_settings.dosco_advanced_options:
+                    #row = box.row()
+                    box.label(text="Populate extractors, documents and combiners using DosCo files:")
+                    #row = box.row()
+                    box.prop(em_settings, 'overwrite_url_with_dosco_filepath', text = "Overwrite paths")
+                    box.prop(em_settings, 'preserve_web_url', text = "Preserve web urls (if any)")
+
                 # XLSX file
                 box.prop(active_file, "xlsx_filepath", text="Source File (xlsx)")
                 # EMdb file
                 box.prop(active_file, "emdb_filepath", text="EMdb File (sqlite)")
+
+
+        ############# box con le statistiche del file ##################
+        box = layout.box()
+        row = box.row(align=True)
+        #row = layout.row(align=True)
+        split = row.split()
+        col = split.column()
+        col.label(text="US/USV")
+        #col = split.column()
+        col.prop(scene, "em_list", text='')
+        col = split.column()
+        col.label(text="Periods")
+        #col = split.column()
+        col.prop(scene, "epoch_list", text='')
+
+        col = split.column()
+        col.label(text="Properties")
+        #col = split.column()
+        col.prop(scene, "em_properties_list", text='')
+
+        col = split.column()
+        col.label(text="Sources")
+        #col = split.column()
+        col.prop(scene, "em_sources_list", text='')
+
 
 
 class EMToolsAddFile(bpy.types.Operator):
@@ -86,11 +137,43 @@ class EMToolsRemoveFile(bpy.types.Operator):
     def execute(self, context):
         em_tools = context.scene.em_tools
         if em_tools.active_file_index >= 0:
-            em_tools.graphml_files.remove(em_tools.active_file_index)
-            em_tools.active_file_index = min(max(0, em_tools.active_file_index - 1), len(em_tools.graphml_files) - 1)
             graphml = em_tools.graphml_files[self.graphml_index]
             remove_graph(graphml.name)
+
+            em_tools.graphml_files.remove(em_tools.active_file_index)
+            em_tools.active_file_index = min(max(0, em_tools.active_file_index - 1), len(em_tools.graphml_files) - 1)
+
         return {'FINISHED'}
+
+class EM_InvokePopulateLists(bpy.types.Operator):
+    bl_idname = "em_tools.populate_lists"
+    bl_label = "Populate Blender Lists"
+    bl_description = "Populate Blender lists from GraphML"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        # Ottieni il GraphML attivo dal contesto
+        scene = context.scene
+        em_tools = scene.em_tools
+
+        if em_tools.active_file_index >= 0 and em_tools.graphml_files:
+            # Ottieni il file GraphML selezionato
+            graphml_file = em_tools.graphml_files[em_tools.active_file_index]
+
+            # Recupero il grafo
+            graph_instance = get_graph(graphml_file.name)
+
+            # Istanzia l'operatore `EM_import_GraphML`
+            populate_blender_lists_from_graph(context, graph_instance)
+
+            self.report({'INFO'}, "Populated Blender lists from GraphML")
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, "No valid GraphML file selected")
+            return {'CANCELLED'}
+
+
+
 
 # Lista delle classi da registrare
 classes = [
@@ -99,7 +182,8 @@ classes = [
     EMTOOLS_UL_files,
     EM_SetupPanel,
     EMToolsAddFile,
-    EMToolsRemoveFile
+    EMToolsRemoveFile,
+    EM_InvokePopulateLists
 ]
 
 def register():
