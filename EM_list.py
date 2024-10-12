@@ -139,8 +139,8 @@ class EM_not_in_matrix(bpy.types.Operator):
 
 class EM_import_GraphML(bpy.types.Operator):
     bl_idname = "import.em_graphml"
-    bl_label = "Import the EM GraphML"
-    bl_description = "Import the EM GraphML"
+    bl_label = "Import EM (GraphML)"
+    bl_description = "Load/reload this EM from disk and set it active"
     bl_options = {"REGISTER", "UNDO"}
 
     # Aggiungiamo una proprietà per passare l'indice del file GraphML selezionato
@@ -150,13 +150,18 @@ class EM_import_GraphML(bpy.types.Operator):
         # Setup scene variable
 
         scene = context.scene
-
         em_tools = scene.em_tools
 
         # Recupera il file GraphML selezionato tramite l'indice
-        if self.graphml_index >= 0 and self.graphml_index < len(em_tools.graphml_files):
+        #if self.graphml_index >= 0 and self.graphml_index < len(em_tools):
+        #    graphml = em_tools.graphml_files[self.graphml_index]
+
+        if self.graphml_index >= 0 and em_tools.graphml_files[self.graphml_index]:
+            # Ottieni il file GraphML selezionato
             graphml = em_tools.graphml_files[self.graphml_index]
-            
+
+
+
             # Verifica che il campo path sia valorizzato
             if not graphml.graphml_path:
                 self.report({'ERROR'}, "GraphML path is not specified.")
@@ -226,7 +231,7 @@ class EM_import_GraphML(bpy.types.Operator):
 
             bpy.ops.epoch_manager.update_us_list
 
-            bpy.ops.activity.refresh_list()
+            bpy.ops.activity.refresh_list(graphml_index=self.graphml_index)
 
             # After loading the graph
             #scene.em_graph = graph  # Replace 'loaded_graph' with your graph variable

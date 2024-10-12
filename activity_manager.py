@@ -59,10 +59,13 @@ class ACTIVITY_OT_refresh_list(Operator):
     bl_label = "Aggiorna Lista Attività"
     bl_description = "Aggiorna la lista delle attività dai dati del grafo"
 
+    # Aggiungiamo una proprietà per passare l'indice del file GraphML selezionato
+    graphml_index: bpy.props.IntProperty() # type: ignore
+
     def execute(self, context):
         em_tools = context.scene.em_tools
-        if em_tools.active_file_index >= 0:
-            graphml = em_tools.graphml_files[em_tools.active_file_index]
+        if self.graphml_index >= 0:
+            graphml = em_tools.graphml_files[self.graphml_index]
             
             graph_data = get_graph(graphml.name)
             print("Eseguo l'update della lista delle attività")
