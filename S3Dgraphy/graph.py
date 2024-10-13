@@ -378,3 +378,124 @@ class Graph:
         else:
             print(f"No connected EpochNodes found for node '{node.node_id}' via edge type '{edge_type}'.")
         return connected_epoch_nodes
+    
+
+    # Aggiungi questo metodo alla classe Graph in s3Dgraphy/graph.py
+
+    def calculate_chronology(self):
+        """
+        Calcola la cronologia per tutti i nodi stratigrafici nel grafo,
+        considerando la gerarchia dei dati: specifici > locali > generali.
+        """
+        stratigraphic_nodes = self.get_nodes_by_type("StratigraphicNode")
+        
+        for node in stratigraphic_nodes:
+            self._propagate_chronology(node)
+
+    def _propagate_chronology(self, node):
+        """
+        Propaga l'informazione cronologica per un singolo nodo stratigrafico.
+        """
+        start_t_prop = self.find_property_node(node, "Start_time")
+        end_t_prop = self.find_property_node(node, "End_time")
+        
+        # Ottieni tutte le epoche collegate al nodo
+        epochs = self.get_connected_epoch_nodes_list_by_edge_type(node, "has_first_epoch")
+        epochs += self.get_connected_epoch_nodes_list_by_edge_type(node, "survive_in_epoch")
+
+        # Calcola il delta temporale dalle epoche
+        delta_start = min(epoch.start_time for epoch in epochs) if epochs else None
+        delta_end = max(epoch.end_time for epoch in epochs) if epochs else None
+
+        # Applica la gerarchia dei dati
+        if start_t_prop:
+            start_time = float(start_t_prop.value)
+        elif delta_start is not None:
+            start_time = delta_start
+        else:
+            start_time = None
+
+        if end_t_prop:
+            end_time = float(end_t_prop.value)
+        elif delta_end is not None:
+            end_time = delta_end
+        else:
+            end_time = self._find_end_time_from_superior_nodes(node)
+
+        self._set_calculated_times(node, start_time, end_time)
+        self._propagate_to_connected_nodes(node, start_time, end_time)
+
+    def _find_end_time_from_superior_nodes(self, node):
+        """
+        Cerca l'End Time nei nodi stratigrafici superiori.
+        """
+        for edge in self.get_connected_edges(node.node_id):
+            if edge.edge_type == "line" and edge.edge_source == node.node_id:
+                superior_node = self.find_node_by_id(edge.edge_target)
+                if isinstance(superior_node, StratigraphicNode):
+                    end_t_prop = self.find_property_node(superior_node, "End_time")
+                    if end_t_prop:
+                        return float(end_t_prop.value)
+        return None
+
+    def _set_calculated_times(self, node, start_time, end_time):
+        """
+        Imposta i tempi calcolati come attributi diretti del nodo stratigrafico.
+        """
+        if start_time is not None:
+            node.attributes["CALCUL_START_T"] = start_time
+        if end_time is not None:
+            node.attributes["CALCUL_END_T"] = end_time
+
+    def _propagate_to_connected_nodes(self, node, start_time, end_time):
+        """
+        Propaga le informazioni temporali ai nodi collegati.
+        """
+        for edge in self.get_connected_edges(node.node_id):
+            if edge.edge_type == "line":
+                if edge.edge_source == node.node_id:
+                    target_node = self.find_node_by_id(edge.edge_target)
+                    if isinstance(target_node, StratigraphicNode):
+                        if start_time is not None and not self.find_property_node(target_node, "Start_time"):
+                            self._set_calculated_times(target_node, start_time, None)
+                elif edge.edge_target == node.node_id:
+                    source_node = self.find_node_by_id(edge.edge_source)
+                    if isinstance(source_node, StratigraphicNode):
+                        if end_time is not None and not self.find_property_node(source_node, "End_time"):
+                            self._set_calculated_times(source_node, None, end_time)
+
+    def find_property_node(self, node, property_type):
+        """
+        Trova un nodo proprietà specifico collegato a un nodo stratigrafico usando l'edge di tipo "dashed".
+        """
+        for edge in self.get_connected_edges(node.node_id):
+            if edge.edge_type == "dashed":
+                prop_node = self.find_node_by_id(edge.edge_target)
+                if isinstance(prop_node, PropertyNode) and prop_node.property_type == property_type:
+                    return prop_node
+        return None
+
+    # Metodo di utilità per il filtraggio rapido
+    def filter_nodes_by_time_range(self, start_time, end_time):
+        """
+        Filtra i nodi stratigrafici in base a un intervallo di tempo.
+        """
+        filtered_nodes = []
+        for node in self.get_nodes_by_type("StratigraphicNode"):
+            node_start = node.attributes.get("CALCUL_START_T")
+            node_end = node.attributes.get("CALCUL_END_T")
+            if node_start is not None and node_end is not None:
+                if start_time <= node_end and end_time >= node_start:
+                    filtered_nodes.append(node)
+        return filtered_nodes
+    
+    '''
+    Esempio di utilizzo:
+    graph = get_graph()  # Ottieni il grafo caricato
+    graph.calculate_chronology()  # Calcola la cronologia
+
+    # Filtra i nodi in un intervallo di tempo specifico
+    filtered_nodes = graph.filter_nodes_by_time_range(50, 100)
+    for node in filtered_nodes:
+        print(f"Node {node.node_id}: Start = {node.attributes.get('CALCUL_START_T')}, End = {node.attributes.get('CALCUL_END_T')}")
+    '''
