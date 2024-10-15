@@ -3,14 +3,19 @@ from .functions import *
 from bpy.types import Operator
 from bpy.types import Menu, Panel, UIList, PropertyGroup
 from . import sqlite_io
-
+from .__init__ import get_bl_info
 
 #####################################################################
 #SETUP MENU
 
 class EM_SetupPanel:
-    bl_label = "EM setup (v1.3.2)"
-    bl_space_type = 'VIEW_3D'
+    #devel_version = bpy.context.preferences.addons["EM-blender-tools"].bl_info.get('devel_version', 'Unknown version')
+    #bl_label = f"EM setup {devel_version}"
+    bl_info = get_bl_info()
+    devel_version = bl_info.get('devel_version', 'Unknown version')
+
+    bl_label = "EM setup " + devel_version
+    bl_space_type = 'VIEW_3D' 
     bl_region_type = 'UI'
 
     def draw(self, context):
@@ -23,7 +28,6 @@ class EM_SetupPanel:
             is_em_list = True
         else:
             is_em_list = False
-        #box = layout.box()
 
         row = layout.row(align=True)
         split = row.split()
@@ -74,9 +78,45 @@ class EM_SetupPanel:
         #col = split.column()
         col.prop(scene, "em_sources_list", text='')
 
+        ################ da qui setto la cartella DosCo ##################
+
+        row = layout.row(align=True)
+        box = layout.box()
+        row = box.row()
+        row.prop(context.scene, 'EMDosCo_dir', toggle = True, text ="DosCo") 
+        em_settings = bpy.context.window_manager.em_addon_settings
+        row.prop(em_settings, "dosco_advanced_options", text="advanced options")
+
+        if em_settings.dosco_advanced_options:
+            row = box.row()
+            row.label(text="Populate extractors, documents and combiners using DosCo files:")
+            row = box.row()
+            row.prop(em_settings, 'overwrite_url_with_dosco_filepath', text = "Overwrite paths")
+            row.prop(em_settings, 'preserve_web_url', text = "Preserve web urls (if any)")
+        #preserve_web_url = settings.preserve_web_url
+        #overwrite_url_with_dosco_filepath = settings.overwrite_url_with_dosco_filepath
+
+# Ora puoi utilizzare `preserve_web_url` e `overwrite_url_with_dosco_filepath` nel tuo addon
+ 
+
+        ################ da qui setto la lista delle sources ##################
+
+        row = layout.row()
+        box = layout.box()
+        row = box.row()
+        row.label(text="Source file (xlsx)")
+        row.operator("load.emdb_xlsx", icon="STICKY_UVS_DISABLE", text='')
+        row.operator("open_prefs_panel.em_tools", icon="SETTINGS", text="")
+        row = box.row()
+
+        
+        row.prop(scene, "EMdb_xlsx_filepath", text="")      
+
         ################ da qui porzione di pannello per EMdb #####################
 
         row = layout.row(align=True)
+        box = layout.box()
+        row = box.row()
         db_type_current = scene.current_db_type
         split = row.split()
         col = split.column()
@@ -86,9 +126,9 @@ class EM_SetupPanel:
         op.db_type = db_type_current
         col = split.column(align=True)
         col.menu(sqlite_io.EMdb_type_menu.bl_idname, text=db_type_current, icon='COLOR')
-        row = layout.row(align=True)
+        row = box.row()
+        #row = layout.row(align=True)
         row.prop(context.scene, 'EMdb_file', toggle = True, text ="")
-
 
 class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):
     bl_category = "EM"
@@ -112,8 +152,15 @@ def register():
         subtype = 'FILE_PATH'
     )   
 
+    bpy.types.Scene.EMDosCo_dir = StringProperty(
+        name = "EM DosCo folder",
+        default = "",
+        description = "Define the path to the EM DosCo folder",
+        subtype = 'DIR_PATH'
+    )   
 
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
     del bpy.types.Scene.EMdb_file
+    del bpy.types.Scene.EMDosCo_dir

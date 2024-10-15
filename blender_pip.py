@@ -128,6 +128,7 @@ class Pip:
         if options is None or options.strip() == "":
             # store in user writable directory, use wheel, without deps
             options = "--user --only-binary all --no-deps"
+            #options = "--only-binary all --no-deps"
         return Pip()._cmd("install", options, module)
 
     @staticmethod

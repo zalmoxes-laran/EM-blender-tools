@@ -67,7 +67,7 @@ class EM_ToolsPanel:
                     col = split.column()
                     col.label(text="", icon='LONGDISPLAY')             
                     
-            #split = layout.split()
+            '''
             col = split.column(align=True)
             col.label(text="Sync:")
 
@@ -79,7 +79,7 @@ class EM_ToolsPanel:
 
             col = split.column(align=True)
             col.prop(em_settings, "em_proxy_sync", text='', icon="LONGDISPLAY")
-
+            '''
             col = split.column(align=True)
             col.prop(scene, "paradata_streaming_mode", text='', icon="SHORTDISPLAY")
 
@@ -101,7 +101,6 @@ class EM_ToolsPanel:
                                         ctx['area'] = area
                                         ctx['region'] = area.regions[-1]
                                         bpy.ops.view3d.view_selected(ctx)
-
         else:
             row.label(text="No US/USV here :-(")
 
@@ -205,6 +204,7 @@ class EM_BasePanel:
             op.rm_add = False
             op = row.operator("select_rm.given_epoch", text="", emboss=False, icon='SELECT_SET')
             op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
+        
         else:
             row.label(text="No periods here :-(")
         
@@ -386,7 +386,7 @@ class EM_ParadataPanel:
             # layout.row().separator()
 
             row = layout.row()
-            row.label(text="Reasoning - Combiners: ("+str(eval(len_combiner_var))+")")
+            row.label(text="Combiners: ("+str(eval(len_combiner_var))+")")
             row.prop(scene, "comb_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
             row = layout.row()
             row.template_list("EM_UL_combiners_managers", "", scene, combiner_list_var, scene, combiner_list_index_var, rows=1)
@@ -413,7 +413,7 @@ class EM_ParadataPanel:
             # layout.row().separator()
 
             row = layout.row()
-            row.label(text="Interpretation - Extractors: ("+str(eval(len_source_var))+")")
+            row.label(text="Extractors: ("+str(eval(len_source_var))+")")
             row.prop(scene, "extr_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
             row = layout.row()
             row.template_list("EM_UL_extractors_managers", "", scene, extractor_list_var, scene, extractor_list_index_var, rows=2)
@@ -455,8 +455,10 @@ class EM_ParadataPanel:
             # layout.row().separator()
 
             row = layout.row()
-            row.label(text="Sources: ("+str(eval(len_source_var))+")")
+            row.label(text="Docs: ("+str(eval(len_source_var))+")")
+            
             row = layout.row()
+
             row.template_list("EM_UL_sources_managers", "", scene, source_list_var, scene, source_list_index_var, rows=2)
 
             item_source = eval(source_list_cmd)[eval(source_list_index_cmd)]
@@ -536,115 +538,3 @@ class EM_UL_extractors_managers(UIList):
 # Paradata section 
 #####################################################################
 
-#####################################################################
-#Export Section
-
-class EM_ExportPanel:
-    bl_label = "Export Manager"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
- 
-
-        row = layout.row()
-        box = layout.box()
-        row = box.row()
-        row.label(text="Tables export:")
-        row = box.row()
-        op = row.operator("export.uuss_export", text="EM (csv)", emboss=True, icon='LONGDISPLAY')
-        row = box.row()
-        row.prop(context.window_manager.export_tables_vars, 'table_type', expand=True)
-        row = layout.row()
-        box = layout.box()
-        row = box.row()
-        row.label(text="EMviq export:")
-        row = box.row()
-        row.prop(context.scene, 'EMviq_project_name', toggle=True, text="")
-        row.label(text="<-- Project's name")
-        row = box.row()#(align=True)
-        row.prop(context.scene, 'EMviq_model_author_name', toggle=True, text="")
-        row.label(text="<-- Model's author(s)")
-        row = box.row()
-        row.prop(context.scene, 'EMviq_user_name', toggle=True, text="")
-        row.label(text="<-- ATON user's name")
-        row = box.row()
-        row.prop(context.scene, 'ATON_path', toggle=True, text="")
-        row.label(text="<-- path to ATON")
-
-
-
-        '''
-        row = layout.row()  # (align=True)
-        row.prop(context.scene, 'EMviq_folder', toggle=True, text="")
-        row.label(text="<-- Collection folder export path")
-        row = layout.row()#(align=True)
-        row.prop(context.scene, 'EMviq_scene_folder', toggle=True, text="")
-        row.label(text="<-- Scene folder export path")
-        '''
-
-        row = box.row()
-        row.prop(context.window_manager.export_vars, 'format_file', expand=True)
-        #box = layout.box()
-        row = box.row()
-        row.prop(context.scene, 'enable_image_compression', toggle = True, text='Use tex compression')
-        row.prop(context.scene, 'EM_gltf_export_maxres', toggle = True, text='Max res')
-        row.prop(context.scene, 'EM_gltf_export_quality', toggle = True, text='Size')
-        row = box.row()
-        op = row.operator("export_manager.export", text="Generate full EMviq Project", emboss=True, icon='LONGDISPLAY')
-        op.em_export_type = 'EMviq'
-        op.em_export_format = context.window_manager.export_vars.format_file
-
-        row = box.row()
-        row.label(text="Export partial Emviq project's components:")
-        row = box.row()
-        op = row.operator("export_manager.export", text="Proxies", emboss=True, icon='SHADING_SOLID')
-        op.em_export_type = 'Proxies'
-        op = row.operator("export_manager.export", text="GraphML", emboss=True, icon='SHADING_SOLID')
-        op.em_export_type = 'GraphML'
-        op = row.operator("export_manager.export", text="RM", emboss=True, icon='SHADING_TEXTURE')
-        op.em_export_type = 'RM'
-
-        row = layout.row()
-
-
-
-        if scene.emviq_error_list_index >= 0 and len(scene.emviq_error_list) > 0:
-            row.template_list("ER_UL_List", "EM nodes", scene, "emviq_error_list", scene, "emviq_error_list_index")
-            item = scene.emviq_error_list[scene.emviq_error_list_index]
-            box = layout.box()
-            row = box.row(align=True)
-
-            split = row.split()
-            col = split.column()
-            row.prop(item, "name", text="")
-            split = row.split()
-            col = split.column()
-            op = col.operator("select.fromlistitem", text='', icon="MESH_CUBE")
-            op.list_type = "emviq_error_list"
-            #op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
-            #op.list_type = "emviq_error_list"
-            #row = layout.row()
-            #row.label(text="Description:")
-            row = box.row()
-            #layout.alignment = 'LEFT'
-            row.prop(item, "description", text="", slider=True, emboss=True)
-
-class VIEW3D_PT_ExportPanel(Panel, EM_ExportPanel):
-    bl_category = "EM"
-    bl_idname = "VIEW3D_PT_ExportPanel"
-    bl_context = "objectmode"
-
-
-class ER_UL_List(bpy.types.UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        icons_style = 'OUTLINER'
-        scene = context.scene
-        layout = layout.split(factor =0.30, align = True)
-        layout.label(text = item.texture_type, icon = 'ERROR')
-        layout.label(text = item.material, icon='NONE', icon_value=0)
-
-#Export Section
-#####################################################################

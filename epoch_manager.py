@@ -128,7 +128,6 @@ class EM_toggle_visibility(bpy.types.Operator):
         current_e_manager.use_toggle = not current_e_manager.use_toggle
         return {'FINISHED'}
 
-
 class EM_toggle_selectable(bpy.types.Operator):
     """Toggle select"""
     bl_idname = "epoch_manager.toggle_selectable"
@@ -193,7 +192,6 @@ class EM_toggle_soloing(bpy.types.Operator):
                             
         return {'FINISHED'}
 
-
 class EM_select_epoch_rm(bpy.types.Operator):
     """Select RM for a given epoch"""
     bl_idname = "select_rm.given_epoch"
@@ -219,8 +217,8 @@ class EM_add_remove_epoch_models(bpy.types.Operator):
     bl_description = "Add and remove models from epochs"
     bl_options = {'REGISTER', 'UNDO'}
 
-    rm_epoch : StringProperty()
-    rm_add : BoolProperty()
+    rm_epoch : StringProperty() # type: ignore
+    rm_add : BoolProperty() # type: ignore
 
     def execute(self, context):
         scene = context.scene
@@ -284,7 +282,7 @@ class EM_change_selected_objects(bpy.types.Operator):
                ('TWOSIDE_SHADE', 'TWOSIDE_SHADE', '')
                ),
         default = 'MATERIAL_SHADE'
-    )
+    ) # type: ignore
     sg_do_with_groups = [
         'COLOR_WIRE', 'DEFAULT_COLOR_WIRE', 'LOCKED', 'UNLOCKED']
 
@@ -310,3 +308,28 @@ class EM_change_selected_objects(bpy.types.Operator):
                     obj.data.show_double_sided = True
 
         return {'FINISHED'}
+    
+classes = [
+    EM_UL_List,
+    EM_toggle_reconstruction,
+    EM_toggle_select,
+    EM_toggle_visibility,
+    EM_set_EM_materials,
+    EM_set_epoch_materials,
+    EM_change_selected_objects,
+    EM_toggle_selectable,
+    EM_toggle_soloing,
+    EM_add_remove_epoch_models,
+    EM_select_epoch_rm
+    ]
+
+# Registration
+def register():
+
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+def unregister():
+        
+    for cls in classes:
+        bpy.utils.unregister_class(cls)

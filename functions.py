@@ -1,6 +1,8 @@
 import xml.etree.ElementTree as ET
 import bpy
 import os
+import re
+import json
 import shutil
 import bpy.props as prop
 from bpy.props import (BoolProperty,
@@ -10,6 +12,36 @@ from bpy.props import (BoolProperty,
                        CollectionProperty,
                        IntProperty
                        )
+
+from urllib.parse import urlparse
+
+def convert_shape2type(yedtype): 
+    # restituisce una coppia di info: short e verbose
+    nodetype = []
+    if yedtype == "rectangle":
+        nodetype = ["US","Stratigraphic Unit"]
+    elif yedtype == "parallelogram":
+        nodetype = ["USVs","Structural Virtual Stratigrafic Units"]
+    elif yedtype == "ellipse":
+        #nodetype = ["SUseries","Series of USVs"]
+        nodetype = ["serSU","Series of USVs"] 
+    elif yedtype == "white_ellipse":
+        nodetype = ["serUSV", "Series of US"]        
+    elif yedtype == "hexagon":
+        nodetype = ["USVn","Structural Virtual Stratigrafic Units"]
+    elif yedtype == "octagon_white":
+        nodetype = ["SF","Special Find"]
+    elif yedtype == "octagon": #da verificare
+        nodetype = ["VSF","Virtual Special Find"]
+    elif yedtype == "roundrectangle":
+        nodetype = ["USD","Documentary Stratigraphic Unit"]
+    else:
+        nodetype = ["unknow","unrecognisized node"]
+    return nodetype
+
+def is_valid_url(url_string):
+    parsed_url = urlparse(url_string)
+    return bool(parsed_url.scheme) or bool(parsed_url.netloc)
 
 def menu_func(self, context):
     self.layout.separator()
@@ -68,7 +100,7 @@ def check_if_current_obj_has_brother_inlist(obj_name, list_type):
     return is_brother
 
 def select_3D_obj(name):
-    scene = bpy.context.scene
+    #scene = bpy.context.scene
     bpy.ops.object.select_all(action="DESELECT")
     object_to_select = bpy.data.objects[name]
     object_to_select.select_set(True)
@@ -110,347 +142,8 @@ def add_sceneobj_to_epochs():
 #### Functions to extract data from GraphML file ####
 ### #### #### #### #### #### #### #### #### #### ####
 
-def get_edge_target(tree, node_element):
-    alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
-    id_node = getnode_id(node_element)
-    EM_us_target = "" 
-    node_y_pos = 0.0
-    
-    for edge in alledges:
-        id_node_edge_source = getnode_edge_source(edge) 
-        if id_node_edge_source == id_node:
-            my_continuity_node_description, node_y_pos = EM_extract_continuity(node_element)
-            id_node_edge_target = getnode_edge_target(edge)
-            EM_us_target = find_node_us_by_id(id_node_edge_target)
-            #print("edge with id: "+ getnode_id(edge)+" with target US_node "+ id_node_edge_target+" which is the US "+ EM_us_target)
-    #print("edge with id: "+ getnode_id(edge)+" with target US_node "+ id_node_edge_target+" which is the US "+ EM_us_target)
-    return EM_us_target, node_y_pos
-
-def getnode_id(node_element):
-    id_node = str(node_element.attrib['id'])
-    return id_node
-
-def getnode_edge_target(node_element):
-    id_node_edge_target = str(node_element.attrib['target'])
-    return id_node_edge_target
-
-def getnode_edge_source(node_element):
-    id_node_edge_source = str(node_element.attrib['source'])
-    #print(id_node_edge_source)
-    return id_node_edge_source
-
-def find_node_us_by_id(id_node):
-    us_node = ""
-    for us in bpy.context.scene.em_list:
-        if id_node == us.id_node:
-            us_node = us.name
-    return us_node
-
-def EM_extract_combiner_node(node_element):
-
-    is_d4 = False
-    is_d5 = False
-    node_id = node_element.attrib['id']
-    if len(node_id) > 2:
-        subnode_is_combiner = False
-        nodeurl = " "
-        nodename = " "
-        node_description = " "
-        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
-            attrib1 = subnode.attrib
-            #print(subnode.tag)
-            if attrib1 == {'key': 'd6'}:
-                for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
-                    nodename = check_if_empty(USname.text)
-                if nodename.startswith("C."):
-                    subnode_is_combiner = True
-                    #print(nodename)
-                # for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}SVGContent'):
-                #     attrib2 = nodetype.attrib
-                #     if attrib2 == {'refid': '3'}:
-                #         subnode_is_combiner = True
-                        
-        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
-            attrib1 = subnode.attrib                        
-            if subnode_is_combiner is True:
-
-                if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
-                    if subnode.text is not None:
-                        is_d4 = True
-                        nodeurl = check_if_empty(subnode.text)
-                if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
-                    is_d5 = True
-                    node_description = clean_comments(check_if_empty(subnode.text))
-
-        if not is_d4:
-            nodeurl = '--None--'
-        if not is_d5:
-            nodedescription = '--None--'
-        return nodename, node_id, node_description, nodeurl, subnode_is_combiner
-
-def EM_extract_extractor_node(node_element):
-
-    is_d4 = False
-    is_d5 = False
-    node_id = node_element.attrib['id']
-    if len(node_id) > 2:
-        subnode_is_extractor = False
-        nodeurl = " "
-        nodename = " "
-        node_description = " "
-        is_document = False
-        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
-            attrib1 = subnode.attrib
-            #print(subnode.tag)
-            if attrib1 == {'key': 'd6'}:
-                for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
-                    nodename = check_if_empty(USname.text)
-                if nodename.startswith("D."):
-                    for elem in bpy.context.scene.em_sources_list:
-                        if nodename == elem.name:
-                            is_document = True
-                    if not is_document:
-                        #print(f"il nodo non è un documento e si chiama: {nodename}")
-                        subnode_is_extractor = True
-                # for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}SVGContent'):
-                #     attrib2 = nodetype.attrib
-                #     if attrib2 == {'refid': '1'}:
-                #         subnode_is_extractor = True
-                        
-        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
-            attrib1 = subnode.attrib                        
-            if subnode_is_extractor is True:
-
-                if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
-                    if subnode.text is not None:
-                        is_d4 = True
-                        nodeurl = check_if_empty(subnode.text)
-                if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
-                    is_d5 = True
-                    node_description = clean_comments(check_if_empty(subnode.text))
-
-        if not is_d4:
-            nodeurl = '--None--'
-        if not is_d5:
-            nodedescription = '--None--'
-        return nodename, node_id, node_description, nodeurl, subnode_is_extractor
-
-def EM_extract_document_node(node_element):
-
-    is_d4 = False
-    is_d5 = False
-    node_id = node_element.attrib['id']
-    if len(node_id) > 2:
-        subnode_is_document = False
-        nodeurl = " "
-        nodename = " "
-        node_description = " "
-        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
-            attrib1 = subnode.attrib
-            #print(subnode.tag)
-            if attrib1 == {'key': 'd6'}:
-                for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
-                    nodename = USname.text
-                for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}Property'):
-                    attrib2 = nodetype.attrib
-                    if attrib2 == {'class': 'com.yworks.yfiles.bpmn.view.DataObjectTypeEnum', 'name': 'com.yworks.bpmn.dataObjectType', 'value': 'DATA_OBJECT_TYPE_PLAIN'}:
-                        subnode_is_document = True
-
-        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
-            attrib1 = subnode.attrib                        
-            if subnode_is_document is True:
-
-                if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
-                    if subnode.text is not None:
-                        is_d4 = True
-                        nodeurl = subnode.text
-                if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
-                    is_d5 = True
-                    node_description = clean_comments(subnode.text)
-        if not is_d4:
-            nodeurl = '--None--'
-        if not is_d5:
-            nodedescription = '--None--'
-        return nodename, node_id, node_description, nodeurl, subnode_is_document
-
-def check_if_empty(name):
-    if name == None:
-        name = "--None--"
-    return name
-
-def EM_extract_property_node(node_element):
-    is_d4 = False
-    is_d5 = False
-    node_id = node_element.attrib['id']
-    if len(node_id) > 2:
-        subnode_is_property = False
-        nodeurl = " "
-        nodename = " "
-        node_description = " "
-        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
-            attrib1 = subnode.attrib
-            if attrib1 == {'key': 'd6'}:
-                for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
-                    nodename = check_if_empty(USname.text)
-                for nodetype in subnode.findall('.//{http://www.yworks.com/xml/graphml}Property'):
-                    attrib2 = nodetype.attrib
-                    if attrib2 == {'class': 'com.yworks.yfiles.bpmn.view.BPMNTypeEnum', 'name': 'com.yworks.bpmn.type', 'value': 'ARTIFACT_TYPE_ANNOTATION'}:
-                        subnode_is_property = True
-
-        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
-            attrib1 = subnode.attrib                        
-            if subnode_is_property is True:
-
-                if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
-                    if subnode.text is not None:
-                        is_d4 = True
-                        nodeurl = subnode.text
-                if attrib1 == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
-                    is_d5 = True
-                    node_description = clean_comments(subnode.text)
-
-        if not is_d4:
-            nodeurl = '--None--'
-        if not is_d5:
-            nodedescription = '--None--'        
-
-
-    return nodename, node_id, node_description, nodeurl, subnode_is_property
-
-#oldversion of clean comments
-def remove_comments(text_to_clean):
-    clean_text = text_to_clean.split("##")[0].replace("\n","")
-    return clean_text
-
-def clean_comments(multiline_str):
-    newstring = ""
-    for line in multiline_str.splitlines():
-        #print(line)
-        if line.startswith("«") or line.startswith("#"):
-            pass
-        else:
-            newstring = newstring+line+" "
-    return newstring
-
-def EM_extract_node_name(node_element):
-    is_d4 = False
-    is_d5 = False
-    node_y_pos = None
-    nodeshape = None
-    nodeurl = None
-    nodedescription = None
-    nodename = None
-    fillcolor = None
-    for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
-        attrib = subnode.attrib
-        if attrib == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd4'}:
-            is_d4 = True
-            nodeurl = subnode.text
-        if attrib == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
-            is_d5 = True
-            nodedescription = clean_comments(subnode.text)
-        if attrib == {'key': 'd6'}:
-            for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
-                nodename = check_if_empty(USname.text)
-            for fill_color in subnode.findall('.//{http://www.yworks.com/xml/graphml}Fill'):
-                fillcolor = fill_color.attrib['color']
-            for USshape in subnode.findall('.//{http://www.yworks.com/xml/graphml}Shape'):
-                nodeshape = USshape.attrib['type']
-            for geometry in subnode.findall('./{http://www.yworks.com/xml/graphml}ShapeNode/{http://www.yworks.com/xml/graphml}Geometry'):
-            #for geometry in subnode.findall('./{http://www.yworks.com/xml/graphml}Geometry'):
-                node_y_pos = geometry.attrib['y']
-    if not is_d4:
-        nodeurl = '--None--'
-    if not is_d5:
-        nodedescription = '--None--'
-    return nodename, nodedescription, nodeurl, nodeshape, node_y_pos, fillcolor 
-
-def EM_extract_continuity(node_element):
-    is_d5 = False
-    node_y_pos = 0.0
-    nodedescription = None
-    for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
-        attrib = subnode.attrib
-        #print(attrib)
-        if attrib == {'{http://www.w3.org/XML/1998/namespace}space': 'preserve', 'key': 'd5'}:
-            is_d5 = True
-            nodedescription = subnode.text
-            #print(nodedescription)
-        if attrib == {'key': 'd6'}:
-            for geometry in subnode.findall('./{http://www.yworks.com/xml/graphml}SVGNode/{http://www.yworks.com/xml/graphml}Geometry'):
-                node_y_pos = float(geometry.attrib['y'])
-                #print("il valore y di nodo "+ str(nodedescription) +" = "+str(node_y_pos))
-    if not is_d5:
-        nodedescription = '--None--'
-    return nodedescription, node_y_pos 
-
-def EM_check_node_type(node_element):
-    id_node = str(node_element.attrib)
-    if "yfiles.foldertype" in id_node:
-        tablenode = node_element.find('.//{http://www.yworks.com/xml/graphml}TableNode')
-        if tablenode is not None:
-            #print(' un nodo swimlane: ' + id_node)
-            node_type = 'node_swimlane'
-        else:
-            #print(' un nodo group: ' + id_node)
-            node_type = 'node_group'
-    else:
-        #print(' un semplice nodo: ' + id_node)
-        node_type = 'node_simple'
-    return node_type
-
-def EM_check_node_us(node_element):
-    US_nodes_list = ['rectangle', 'parallelogram',
-                     'ellipse', 'hexagon', 'octagon', 'roundrectangle']
-    my_nodename, my_node_description, my_node_url, my_node_shape, my_node_y_pos, my_node_fill_color = EM_extract_node_name(node_element)
-    #print(my_node_shape)
-    if my_node_shape in US_nodes_list:
-        id_node_us = True
-    else:
-        id_node_us = False
-    return id_node_us
-
-def EM_check_node_document(node_element):
-    try:
-        src_nodename, src_node_id, src_node_description, src_nodeurl, subnode_is_document = EM_extract_document_node(node_element)
-    except TypeError as e:
-        subnode_is_document = False
-        #print(f"Huston abbiamo un problema {e} al nodo {node_element}")
-    return subnode_is_document
-
-def EM_check_node_property(node_element):
-    try:
-        pro_nodename, pro_node_id, pro_node_description, pro_nodeurl, subnode_is_property = EM_extract_property_node(node_element)
-    except UnboundLocalError as e:
-        subnode_is_property = False
-    return subnode_is_property
-
-def EM_check_node_extractor(node_element):
-    try:
-        ext_nodename, ext_node_id, ext_node_description, ext_nodeurl, subnode_is_extractor = EM_extract_extractor_node(node_element)
-    except TypeError as e:
-        subnode_is_extractor = False
-    return subnode_is_extractor
-
-def EM_check_node_combiner(node_element):
-    try:
-        com_nodename, com_node_id, com_node_description, com_nodeurl, subnode_is_combiner = EM_extract_combiner_node(node_element)
-    except TypeError as e:
-        subnode_is_combiner = False
-    return subnode_is_combiner
-
-def EM_check_node_continuity(node_element):
-    id_node_continuity = False
-    my_node_description, my_node_y_pos = EM_extract_continuity(node_element)
-    if my_node_description == "_continuity":
-        id_node_continuity = True
-        #print("found node continuity")
-    else:
-        id_node_continuity = False
-    return id_node_continuity
-
 def EM_list_clear(context, list_type):
-    scene = context.scene
+    scene = bpy.context.scene
     list_cmd1 = "scene."+list_type+".update()"
     list_cmd2 = "len(scene."+list_type+")"
     list_cmd3 = "scene."+list_type+".remove(0)"
@@ -458,70 +151,6 @@ def EM_list_clear(context, list_type):
     list_lenght = eval(list_cmd2)
     for x in range(list_lenght):
         eval(list_cmd3)
-    return
-
-def extract_epochs(node_element):
-    geometry = node_element.find('.//{http://www.yworks.com/xml/graphml}Geometry')
-    y_start = float(geometry.attrib['y'])
-    context = bpy.context
-    scene = context.scene    
-    EM_list_clear(context, "epoch_list")  
-    epoch_list_index_ema = 0
-    y_min = y_start
-    y_max = y_start
-
-    for row in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}Table/{http://www.yworks.com/xml/graphml}Rows/{http://www.yworks.com/xml/graphml}Row'):
-        id_row = row.attrib['id']
-        h_row = float(row.attrib['height'])
-        
-        scene.epoch_list.add()
-        scene.epoch_list[epoch_list_index_ema].id = str(id_row)
-        scene.epoch_list[epoch_list_index_ema].height = h_row
-        
-        y_min = y_max
-        y_max += h_row
-        scene.epoch_list[epoch_list_index_ema].min_y = y_min
-        scene.epoch_list[epoch_list_index_ema].max_y = y_max
-        #print(str(id_row))
-        epoch_list_index_ema += 1        
-
-    for nodelabel in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
-        RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
-        if RowNodeLabelModelParameter is not None:
-            label_node = nodelabel.text
-            id_node = str(RowNodeLabelModelParameter.attrib['id'])
-            # read the color of the epoch from the title of the row, if no color is provided, a default color is used
-            if 'backgroundColor' in nodelabel.attrib:
-                e_color = str(nodelabel.attrib['backgroundColor'])
-                #print(e_color)
-            else:
-                e_color = "#BCBCBC"
-            #print(e_color)
-        else:
-            id_node = "null"
-            
-        for i in range(len(scene.epoch_list)):
-            id_key = scene.epoch_list[i].id
-            if id_node == id_key:
-                scene.epoch_list[i].name = str(label_node)
-                scene.epoch_list[i].epoch_color = e_color
-                scene.epoch_list[i].epoch_RGB_color = hex_to_rgb(e_color)
-
-def read_edge_db(context, tree):
-    alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
-    scene = context.scene
-    EM_list_clear(context, "edges_list")
-    em_list_index_ema = 0
-
-    for edge in alledges:
-        #print(str(edge.attrib['id']))
-        scene.edges_list.add()
-        scene.edges_list[em_list_index_ema].id_node = str(edge.attrib['id'])
-        scene.edges_list[em_list_index_ema].source = str(edge.attrib['source'])#getnode_edge_source(edge)
-        scene.edges_list[em_list_index_ema].target = str(edge.attrib['target'])#getnode_edge_target(edge)
-        #print(scene.edges_list[em_list_index_ema].id_node)
-        #print(scene.edges_list[em_list_index_ema].target)
-        em_list_index_ema += 1
     return
 
 def stream_properties(self, context):
@@ -787,20 +416,23 @@ def em_setup_mat_cycles(matname, R, G, B):
     nodes = mat.node_tree.nodes
     output = nodes.new('ShaderNodeOutputMaterial')
     output.location = (0, 0)
-    mainNode = nodes.new('ShaderNodeBsdfDiffuse')
-    mainNode.inputs['Color'].default_value = (R,G,B,scene.proxy_display_alpha)
+    mainNode = nodes.new('ShaderNodeBsdfPrincipled')
+    mainNode.inputs['Base Color'].default_value = (R,G,B,scene.proxy_display_alpha)
     mainNode.location = (-800, 50)
     mainNode.name = "diffuse"
-    mixNode = nodes.new('ShaderNodeMixShader')
-    mixNode.location = (-400,-50)
-    transpNode = nodes.new('ShaderNodeBsdfTransparent')
-    transpNode.location = (-800,-200)
-    mixNode.name = "mixnode"
-    mixNode.inputs[0].default_value = scene.proxy_display_alpha
+    #mixNode = nodes.new('ShaderNodeMixShader')
+    #mixNode.location = (-400,-50)
+    #transpNode = nodes.new('ShaderNodeBsdfTransparent')
+    #transpNode.location = (-800,-200)
+    #mixNode.name = "mixnode"
+    #mixNode.inputs[0].default_value = scene.proxy_display_alpha
+    mainNode.inputs['Alpha'].default_value = scene.proxy_display_alpha
 
-    links.new(mainNode.outputs[0], mixNode.inputs[1])
-    links.new(transpNode.outputs[0], mixNode.inputs[2])
-    links.new(mixNode.outputs[0], output.inputs[0])
+    links.new(mainNode.outputs[0], output.inputs[0])
+    
+    #links.new(mainNode.outputs[0], mixNode.inputs[1])
+    #links.new(transpNode.outputs[0], mixNode.inputs[2])
+    #links.new(mixNode.outputs[0], output.inputs[0])
     
 def check_material_presence(matname):
     mat_presence = False
@@ -1083,7 +715,6 @@ def substitue_with_custom_mtl(ob, export_sub_folder):
         f.write("%s %s\n" % ("map_Kd", mat.material.name+"_ALB"))
         mat.material.name
 
-
     f.close() 
 
 #create_collection
@@ -1102,3 +733,65 @@ class em_create_collection(bpy.types.Operator):
         else:
             currentCol = bpy.data.collections.get(target_collection)
         return currentCol
+
+def identify_node(name):
+    #import re
+    extractor_pattern = re.compile(r"D\.\d+\.\d+")
+    node_type = ""
+    if  name.match(extractor_pattern):
+        node_type = "Extractor"
+    elif name.startswith("C."):
+        node_type = "Combiner"
+    elif name.startswith("D."):
+        node_type = "Document"
+    
+    return node_type
+
+def inspect_load_dosco_files():
+    context = bpy.context
+    scene = context.scene
+    em_settings = bpy.context.window_manager.em_addon_settings
+    if scene.EMDosCo_dir:
+        dir_path = scene.EMDosCo_dir
+        abs_dir_path = bpy.path.abspath(dir_path)
+
+        # Regex per identificare gli estrattori
+        extractor_pattern = re.compile(r"D\.\d+\.\d+")
+
+        for entry in os.listdir(abs_dir_path):
+            file_path = os.path.join(abs_dir_path, entry)
+            if os.path.isfile(file_path):
+                # Verifica se è un estrattore
+                if extractor_pattern.match(entry):
+                    counter = 0
+                    for extractor_element in scene.em_extractors_list:
+                        if entry.startswith(extractor_element.name):
+                            if  em_settings.preserve_web_url and is_valid_url(scene.em_extractors_list[counter].url):
+                                pass
+                            else:
+                                scene.em_extractors_list[counter].url = entry
+                                scene.em_extractors_list[counter].icon_url = "CHECKBOX_HLT"
+                        counter += 1 
+
+                # Verifica se è un combiner
+                elif entry.startswith("C."):
+                    counter = 0
+                    for combiner_element in scene.em_combiners_list:
+                        if entry.startswith(combiner_element.name):
+                            if not em_settings.preserve_web_url and not is_valid_url(scene.em_combiners_list[counter].url):
+                                scene.em_combiners_list[counter].url = entry
+                                scene.em_combiners_list[counter].icon_url = "CHECKBOX_HLT"
+                        counter += 1
+
+                # Verifica se è un documento
+                elif entry.startswith("D."):
+                    counter = 0
+                    for document_element in scene.em_sources_list:
+                        if entry.startswith(document_element.name):
+                            if em_settings.preserve_web_url and is_valid_url(scene.em_sources_list[counter].url):
+                                pass
+                            else:
+                                scene.em_sources_list[counter].url = entry
+                                scene.em_sources_list[counter].icon_url = "CHECKBOX_HLT"
+                        counter += 1 
+    return

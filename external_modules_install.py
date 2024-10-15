@@ -5,9 +5,7 @@ import bpy
 import site
 import pkg_resources
 
-from bpy.props import BoolProperty
-
-from .google_credentials import check_google_modules
+from bpy.props import BoolProperty, StringProperty
 
 from .blender_pip import Pip
 Pip._ensure_user_site_package()
@@ -15,19 +13,41 @@ Pip._ensure_user_site_package()
 import logging
 log = logging.getLogger(__name__)
 
-class OBJECT_OT_install_missing_modules(bpy.types.Operator):
-    bl_idname = "install_missing.modules"
+
+def check_external_modules():
+    addon_prefs = bpy.context.preferences.addons.get(__package__, None)
+    try:
+        import pandas
+        #import openpyxl 
+        #import webdavclient3
+        #import lxml
+        #import googleapiclient
+        #import google_auth_oauthlib
+        #import google_auth_httplib2
+        addon_prefs.preferences.is_external_module = True
+        print("emdb ci sono")
+    except ImportError:
+        addon_prefs.preferences.is_external_module = False
+        print("emdb Non ci sono")
+
+class OBJECT_OT_install_em_missing_modules(bpy.types.Operator):
+    bl_idname = "install_em_missing.modules"
     bl_label = "missing modules"
     bl_options = {"REGISTER", "UNDO"}
 
-    is_install : BoolProperty()
+    is_install : BoolProperty() # type: ignore
+    list_modules_to_install: StringProperty() # type: ignore
 
     def execute(self, context):
+        if self.list_modules_to_install == "Google":
+            list_modules = google_list_modules()
+        elif self.list_modules_to_install == "EMdb_xlsx":
+            list_modules = EMdb_xlsx_modules()
         if self.is_install:
-            install_modules()
+            install_modules(list_modules)
         else:
-            uninstall_modules()
-        check_google_modules()
+            uninstall_modules(list_modules)
+        check_external_modules()
         return {'FINISHED'}
 
 def google_list_modules():
@@ -60,19 +80,32 @@ def google_list_modules():
         ]
     return list_of_modules
 
-def install_modules():
+def EMdb_xlsx_modules():
+    # https://pypi.org/project/optimize-images/
+    # da aggiungere per ottimizzare le immagini in export
+    list_of_modules =[
+        "pandas",
+        "pytz",
+        "python-dateutil",
+        "numpy",
+        "six",
+        "openpyxl",
+        "webdavclient3",
+        "lxml"
+    ]
+    return list_of_modules
+
+def install_modules(list_of_modules):
     Pip.upgrade_pip()
-    list_of_modules = google_list_modules()
     for module_istall in list_of_modules:
         Pip.install(module_istall)
 
-def uninstall_modules():
-    list_of_modules = google_list_modules()
+def uninstall_modules(list_of_modules):
     for module_istall in list_of_modules:
         Pip.uninstall(module_istall)
 
 classes = [
-    OBJECT_OT_install_missing_modules,
+    OBJECT_OT_install_em_missing_modules,
     ]
 
 def register():
@@ -84,9 +117,11 @@ def register():
 			bpy.utils.unregister_class(cls)
 			bpy.utils.register_class(cls)
 
+
 def unregister():
 	for cls in classes:
 		bpy.utils.unregister_class(cls)
 
 if __name__ == '__main__':
-    install_modules()
+    #install_modules(google_list_modules())
+    install_modules(EMdb_xlsx_modules())    

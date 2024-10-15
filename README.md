@@ -22,18 +22,31 @@ For more details see the [EM-tools page](https://www.extendedmatrix.org/em-frame
 
 * Export full dataset to ATON 3 (EMviq app)
 
-## Changelog of EM-tools 1.3.2
+# Extended Matrix Tool - Version 1.4 Release Notes
 
-* Full support of EM 1.3
-* A refactored export panel targeting Aton 3-based web apps (like EMviq) with tools to easily optimise models  for web visualisation;
-* The original GitHub repository of the EM formal language can be found here
+## New Features:
+- **XLSX Reader:** Added functionality to import source files in `.xlsx` format for easier data handling and integration.
+- **JSON Exporter for Aton & EMviq:** Extended support for JSON serialization, enabling the export of knowledge graphs for [Aton](https://osiris.itabc.cnr.it/aton/) and specifically for [EMviq](http://osiris.itabc.cnr.it/scenebaker/index.php/projects/emviq/) workflows.
+- **External Libraries Installation:** Introduced new systems to easily install and manage external libraries within the tool.
+- **Aton Integration:** Added the ability to launch Aton directly from Blender for streamlined workflows.
+- **Statistics & Geometry Tools:** New tools for calculating statistics, volumes, and dimensions, including surface areas of wall structures based on selected proxy models.
+- **Automatic Property Numbering:** Support for automatic numbering of properties within the Extended Matrix.
+- **Collection Exporter for EMviq:** Added functionality to export collections directly to EMviq for enhanced data management.
+
+## Improvements:
+- **Code Cleanup:** General code optimization and performance improvements to enhance overall tool stability and efficiency.
+- **Bug Fixes:** Resolved various issues and added tools for opening node-related resources, such as images, directly from the operating system.
+
+## Extended Functionality:
+- **Transformation Stratigraphic Unit (TSU):** Version 1.4 introduces support for TSU, allowing for detailed characterization of degradation surfaces.
+
+These updates make the Extended Matrix Tool even more powerful and adaptable to advanced workflows, enhancing integration with Aton and EMviq.
 
 ## Contribute
 You are more than welcome to contribute to the project by spotting bugs/issues and providing code or solutions through pull requests to fix or improve EM functionalities (see TODO list below). Get in touch here on github, through the [telegram open-group](https://t.me/UserGroupEM) or through the other channels.
 
 ## TODO list
 
-- [ ] Statistical tools for the reconstrucion (volumes, typo of sources, property density)
 - [ ] New label system
 - [ ] New section for visual tools
 - [ ] Simplified proxy generation
