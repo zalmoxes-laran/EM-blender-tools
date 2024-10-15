@@ -10,7 +10,7 @@ Channel to join the community of users [Telegram open-group](https%3A%2F%2Ft.me%
 
 For more details see the [EM-tools page](https://www.extendedmatrix.org/em-framework/emtools) on the EM website
 
-## Main features:
+## Main features
 
 * Integration of Extended Matrix language with Blender
 
@@ -22,33 +22,28 @@ For more details see the [EM-tools page](https://www.extendedmatrix.org/em-frame
 
 * Export full dataset to ATON 3 (EMviq app)
 
-## Changelog of EM-tools 1.4.x dev
-
-* Initial support of EM 1.4
-* Refactoring of the UI
-* Adding tools to load xlsx files
+* Statistical tools for the reconstrucion (volumes, typo of sources, property density)
 
 ## Contribute
 
 You are more than welcome to contribute to the project by spotting bugs/issues and providing code or solutions through pull requests to fix or improve EM functionalities (see TODO list below). Get in touch here on github, through the [telegram open-group](https://t.me/UserGroupEM) or through the other channels.
 
-## TODO list for the upcoming EM-tools 1.4.x dev
+## TODO list for the upcoming EM-tools 1.5 dev
 
 ### specific task for the s3Dgraphy project
 
-- [x] check if I can maintain the root Node class cleaner, putting specific properties to subclassess
-- [x] check if some GraphML data can be put into a runtime property (y_position for instance) focusing more into a clean and abstract EM graph
-- [ ] complete the porting of the graphml parser: 
-    - [ ] continuity node
-    - [ ] epochs
-- [ ] move import_graphml into the s3Dgraphy library
-- [ ] add node and populated lists for Activities
-- [ ] move duplication controllers to parsers and nodes constructors
-- [ ] add to parser and node constructors the ability to parse new propertes like author, time_Start, time_emd etc...
+* [x] check if I can maintain the root Node class cleaner, putting specific properties to subclassess
+* [x] check if some GraphML data can be put into a runtime property (y_position for instance) focusing more into a clean and abstract EM graph
+* [ ] complete the porting of the graphml parser:
+  * [x] continuity node
+  * [x] epochs
+* [x] move import_graphml into the s3Dgraphy library
+* [ ] add node and populated lists for Activities
+* [ ] move duplication controllers to parsers and nodes constructors
+* [ ] add to parser and node constructors the ability to parse new propertes like author, time_Start, time_emd etc...
 
 ### other general tools
 
-- [ ] Statistical tools for the reconstrucion (volumes, typo of sources, property density)
-- [ ] New label system
-- [ ] New section for visual tools
-- [ ] Simplified proxy generation
+* [ ] New label system
+* [ ] New section for visual tools
+* [ ] Simplified proxy generation
