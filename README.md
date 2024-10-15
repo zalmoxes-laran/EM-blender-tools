@@ -1,6 +1,6 @@
 # Extended Matrix 3D tools (EMTools)
 
-is a Python-based addon that brings the formal language Extended Matrix within the Blender 3D open-source software. It has been designed and developed by E. Demetrescu (CNR-ISPC, former ITABC) and is part of the Extended Matrix Framework (EMF).
+is a Python-based addon that brings the formal language Extended Matrix within the Blender 3D open-source software (version 4.2 or newer). It has been designed and developed by E. Demetrescu (CNR-ISPC, former ITABC) and is part of the Extended Matrix Framework (EMF).
 
 With EMtools users can import, manage, visualize, modify, represent and export all the information (geometries, data and paradata) concerning micro and macro scale contexts, single objects or collections of objects.
 
