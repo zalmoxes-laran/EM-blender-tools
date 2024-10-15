@@ -22,10 +22,10 @@ bl_info = {
     "author": "E. Demetrescu",
     "version": (1, 4, 0),
     "blender": (4, 2, 0),
-    "devel_version": "v1.4.0 dev11",  # Aggiunto campo devel_version
+    "devel_version": "v1.4.0",  # Aggiunto campo devel_version
     "location": "3D View > Toolbox",
-    "warning": "This addon is in beta stage.",
-    "wiki_url": "",
+    #"warning": "This addon is in beta stage.",
+    "wiki_url": "https://docs.extendedmatrix.org/projects/EM-tools/en/latest/#",
     "category": "Tools",
     }
 
@@ -65,8 +65,7 @@ from . import (
         sqlite_io,
         EMdb_excel,
         external_modules_install,
-        em_statistics,
-        server
+        em_statistics
         #google_credentials
         )
 
@@ -480,7 +479,7 @@ def register():
 
        epoch_manager.register()
 
-       server.register()
+       #server.register()
 
        check_external_modules() 
 
@@ -635,7 +634,7 @@ def unregister():
        export_manager.unregister()
        em_statistics.unregister()
        EM_list.unregister()
-       server.unregister()
+       #server.unregister()
        epoch_manager.unregister()
 
        for cls in classes:
