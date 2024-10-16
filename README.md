@@ -37,10 +37,14 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
 * [ ] complete the porting of the graphml parser:
   * [x] continuity node
   * [x] epochs
+  * [ ] paradata nodes
 * [x] move import_graphml into the s3Dgraphy library
-* [ ] add node and populated lists for Activities
-* [ ] move duplication controllers to parsers and nodes constructors
-* [ ] add to parser and node constructors the ability to parse new propertes like author, time_Start, time_emd etc...
+* [x] add node and populated lists for Activities
+* [x] move duplication controllers to parsers and nodes constructors
+* [ ] add to parser and node constructors the ability to parse new properties 
+  * [ ] author
+  * [x] time_Start and time_End
+
 
 ### other general tools
 

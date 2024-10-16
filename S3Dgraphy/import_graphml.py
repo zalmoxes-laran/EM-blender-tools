@@ -397,10 +397,14 @@ class GraphMLImporter:
                 nodeurl = subnode.text
             if attrib.get('key') == 'd5':
                 is_d5 = True
-                nodedescription = self.clean_comments(subnode.text)
+                if not subnode.text:
+                    nodedescription = ''
+                else:
+                    nodedescription = self.clean_comments(subnode.text)
             if attrib.get('key') == 'd6':
                 for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
                     nodename = self._check_if_empty(USname.text)
+                    print(f'Sto provando ad estrarre il colore alla US con nome {nodename}')
                 for fill_color in subnode.findall('.//{http://www.yworks.com/xml/graphml}Fill'):
                     fillcolor = fill_color.attrib['color']
                 for border_style in subnode.findall('.//{http://www.yworks.com/xml/graphml}BorderStyle'):
