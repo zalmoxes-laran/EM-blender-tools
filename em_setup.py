@@ -110,8 +110,8 @@ class EM_SetupPanel(bpy.types.Panel):
 
 
         row = layout.row(align=True)
-        row.operator('em_tools.add_file', text="Add GraphML", icon="ADD")
-        row.operator('em_tools.remove_file', text="Remove GraphML", icon="REMOVE")
+        row.operator('em_tools.add_file', text="Add UT", icon="ADD")
+        row.operator('em_tools.remove_file', text="Remove UT", icon="REMOVE")
 
         # Details for selected GraphML file
         if em_tools.active_file_index >= 0 and em_tools.graphml_files:
