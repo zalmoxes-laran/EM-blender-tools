@@ -10,7 +10,7 @@ from bpy_extras.io_utils import ExportHelper
 from bpy.props import BoolProperty, PointerProperty
 from bpy.types import Operator
 from .functions import *
-from .S3Dgraphy import convert_shape2type
+from .s3Dgraphy import convert_shape2type
 
 # Operatore per esportare in CSV
 class EMExportCSV(Operator, ExportHelper):

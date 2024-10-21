@@ -1,4 +1,4 @@
-# S3Dgraphy/utils.py
+# s3Dgraphy/utils.py
 def convert_shape2type(yedtype, border_style):
     """
     Converte la forma e lo stile del bordo di un nodo YED in un tipo di nodo stratigrafico.

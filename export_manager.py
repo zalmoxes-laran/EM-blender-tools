@@ -15,7 +15,7 @@ from .functions import *
 
 import random
 
-from .S3Dgraphy import convert_shape2type
+from .s3Dgraphy import convert_shape2type
 
 
 #####################################################################

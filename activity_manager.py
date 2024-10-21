@@ -15,11 +15,11 @@ from bpy.types import (# type: ignore
 )
 
 # Importa le classi dal tuo modulo
-from .S3Dgraphy.graph import Graph
-from .S3Dgraphy.node import ActivityNodeGroup, EpochNode
-from .S3Dgraphy.import_graphml import GraphMLImporter
+from .s3Dgraphy.graph import Graph
+from .s3Dgraphy.node import ActivityNodeGroup, EpochNode
+from .s3Dgraphy.import_graphml import GraphMLImporter
 
-from .S3Dgraphy.multigraph import load_graph, get_graph
+from .s3Dgraphy.multigraph import load_graph, get_graph
 
 
 class ActivityItem(PropertyGroup):

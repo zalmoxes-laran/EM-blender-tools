@@ -24,10 +24,10 @@ from bpy.types import ( # type: ignore
 from .functions import *
 from .epoch_manager import *
 
-from .S3Dgraphy import *
-from .S3Dgraphy.node import StratigraphicNode  # Import diretto
+from .s3Dgraphy import *
+from .s3Dgraphy.node import StratigraphicNode  # Import diretto
 
-from .S3Dgraphy import load_graph, get_graph
+from .s3Dgraphy import load_graph, get_graph
 
 from .populate_lists import *
 

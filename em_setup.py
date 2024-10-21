@@ -1,6 +1,6 @@
 import bpy
-from .S3Dgraphy import load_graph, get_graph
-from .S3Dgraphy import *
+from .s3Dgraphy import load_graph, get_graph
+from .s3Dgraphy import *
 
 from . import sqlite_io
 from .__init__ import get_bl_info
