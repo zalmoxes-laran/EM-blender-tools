@@ -86,6 +86,11 @@ class StratigraphicNode(Node):
             "label": "continuity node",
             "description": "End of life of a US/USV."
         },
+        "SE": {
+            "symbol": "to be defined",
+            "label": "stratigraphic event node",
+            "description": "A stratigraphic event is the process or event that leads to the formation or alteration of a stratigraphic unit. It is distinct from the unit itself, which represents the result or outcome of the event. The event can be thought of as a precursor and can be paired with its resulting unit to provide a more detailed temporal range. This allows for the documentation of both the initial moment of action (e.g., the start of construction, a collapse, or an incision) and the final state (the resulting unit that persists over time)."
+        },        
         "unknown": {
             "symbol": "question mark",
             "label": "Unknown node",
