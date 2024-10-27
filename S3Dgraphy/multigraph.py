@@ -1,5 +1,3 @@
-# s3Dgraphy/multigraph.py
-
 import os
 from .graph import Graph
 from .import_graphml import GraphMLImporter
@@ -33,6 +31,37 @@ class MultiGraphManager:
         if graph_id in self.graphs:
             del self.graphs[graph_id]
             print(f"Graph '{graph_id}' removed successfully.")
+
+    def update_graph_metadata(self, current_graph_id, new_graph_id=None, new_name=None):
+        """
+        Update the ID and/or name of a graph within the MultiGraphManager.
+
+        Args:
+            current_graph_id (str): The current ID of the graph to be updated.
+            new_graph_id (str, optional): The new ID for the graph. Defaults to None.
+            new_name (str, optional): The new name for the graph. Defaults to None.
+
+        Raises:
+            ValueError: If the graph ID to update does not exist or if the new ID is already taken.
+        """
+        if current_graph_id not in self.graphs:
+            raise ValueError(f"Graph with ID '{current_graph_id}' does not exist.")
+
+        graph = self.graphs[current_graph_id]
+
+        # Update graph ID if specified and unique
+        if new_graph_id and new_graph_id != current_graph_id:
+            if new_graph_id in self.graphs:
+                raise ValueError(f"Graph with ID '{new_graph_id}' already exists.")
+            # Remove old entry and add new entry with updated ID
+            self.graphs[new_graph_id] = self.graphs.pop(current_graph_id)
+            graph.graph_id = new_graph_id
+            print(f"Graph ID updated from '{current_graph_id}' to '{new_graph_id}'.")
+
+        # Update graph name if specified
+        if new_name is not None:
+            graph.name = new_name
+            print(f"Graph '{new_graph_id or current_graph_id}' name updated to '{new_name}'.")
 
 multi_graph_manager = MultiGraphManager()
 

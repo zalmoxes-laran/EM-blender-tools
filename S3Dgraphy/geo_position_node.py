@@ -5,7 +5,7 @@ from .node import Node
 class GeoPositionNode(Node):
     """
     Classe per rappresentare un nodo GeoPosition all'interno del grafo.
-    
+
     Attributi:
         type (str): Tipo di nodo, impostato su "geo_position".
         data (dict): Dati relativi alla posizione geografica.

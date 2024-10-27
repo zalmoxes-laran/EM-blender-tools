@@ -10,6 +10,8 @@ from .edge import Edge
 from .utils import convert_shape2type
 import re
 
+from .edge import EDGE_TYPES
+
 class GraphMLImporter:
     """
     Classe per importare grafi da file GraphML.
@@ -230,12 +232,12 @@ class GraphMLImporter:
 
                 # Creare l'arco 'is_grouped_in' dopo aver aggiunto il nodo al grafo
                 if not self.graph.find_edge_by_nodes(subnode_id, group_id):
-                    edge_id = f"{subnode_id}_grouped_in_{group_id}"
+                    edge_id = f"{subnode_id}_has_activity_{group_id}"
                     self.graph.add_edge(
                         edge_id=edge_id,
                         edge_source=subnode_id,
                         edge_target=group_id,
-                        edge_type="is_grouped_in"
+                        edge_type="has_activity"
                     )
 
     def extract_epochs(self, node_element, graph):
@@ -256,6 +258,10 @@ class GraphMLImporter:
             id_row = row.attrib['id']
             h_row = float(row.attrib['height'])
 
+            #for attribrow in row.attrib:
+            #    print(f"Attibuto: {attribrow}")
+            #print(f"Il testo dela row è: {row.text}")
+
             y_min = y_max
             y_max += h_row
 
@@ -268,10 +274,35 @@ class GraphMLImporter:
             epoch_node.min_y = y_min
             epoch_node.max_y = y_max
             self.graph.add_node(epoch_node)
+            #print(f"Ho creato un nodo epoca con id {id_row}")
+
 
         for nodelabel in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
             RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
-            if RowNodeLabelModelParameter is not None:
+            ColumnNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}ColumnNodeLabelModelParameter')
+            
+            #Extract generaldata from the EM
+            if RowNodeLabelModelParameter is None and ColumnNodeLabelModelParameter is None:
+                print(f"Trovata intestazione del grafo")
+                print(f"nodelabel è {nodelabel.text}")
+                stringa_pulita, vocabolario = self.estrai_stringa_e_vocabolario(nodelabel.text)
+                try:
+                    print(vocabolario['ID'])
+                    print(vocabolario['ORCID'])
+                    print(vocabolario['description@it'])
+                except:
+                    pass
+            #Extract sectors as localdata from the EM
+            elif ColumnNodeLabelModelParameter is not None:
+                #print(f"Trovate colonne del grafo")
+                height = nodelabel.attrib["height"]
+                width = nodelabel.attrib["width"]
+                x = nodelabel.attrib["x"]
+                print(f"La colonna {nodelabel.text} ha altezza: {height}, x: {x} e larghezza: {width}")
+
+            # here check if it is a swimlane (epoch)    
+            elif RowNodeLabelModelParameter is not None:
+
                 label_node = nodelabel.text
                 id_node = str(RowNodeLabelModelParameter.attrib['id'])
 
@@ -404,7 +435,7 @@ class GraphMLImporter:
             if attrib.get('key') == 'd6':
                 for USname in subnode.findall('.//{http://www.yworks.com/xml/graphml}NodeLabel'):
                     nodename = self._check_if_empty(USname.text)
-                    print(f'Sto provando ad estrarre il colore alla US con nome {nodename}')
+                    #print(f'Sto provando ad estrarre il colore alla US con nome {nodename}')
                 for fill_color in subnode.findall('.//{http://www.yworks.com/xml/graphml}Fill'):
                     fillcolor = fill_color.attrib['color']
                 for border_style in subnode.findall('.//{http://www.yworks.com/xml/graphml}BorderStyle'):
@@ -599,13 +630,42 @@ class GraphMLImporter:
         return nodedescription, node_y_pos, node_id
 
     def EM_extract_edge_type(self, edge_element):
-        edge_type = "connected_to"
+        """
+        Extracts the semantic type of the edge from the GraphML data.
+        
+        Args:
+            edge_element (Element): XML element for the edge.
+
+        Returns:
+            str: The edge type representing the semantic relationship.
+        """
+        edge_type = "generic_connection"  # Default edge type
         data_element = edge_element.find('./{http://graphml.graphdrawing.org/xmlns}data[@key="d10"]')
+
         if data_element is not None:
+            # Extract graphical line style and map it to a semantic relationship
             line_style = data_element.find('.//{http://www.yworks.com/xml/graphml}LineStyle')
             if line_style is not None:
-                edge_type = self._check_if_empty(line_style.attrib.get("type"))
+                style_type = line_style.attrib.get("type")
+                # Map each graphical style to its semantic meaning
+                if style_type == "line":
+                    edge_type = "is_before"
+                elif style_type == "double_line":
+                    edge_type = "has_same_time"
+                elif style_type == "dotted":
+                    edge_type = "changed_from"
+                elif style_type == "dashed":
+                    edge_type = "has_data_provenance"
+                elif style_type == "dashed_dotted":
+                    edge_type = "contrasts_with"
+
+        if edge_type not in EDGE_TYPES:
+            print(f"Warning: Unrecognized edge type '{edge_type}' detected for edge {edge_element.attrib['id']}. Defaulting to 'generic_connection'.")
+            edge_type = "generic_connection"
+
+        #print(f"Parsed edge type '{edge_type}' for edge {edge_element.attrib['id']}")
         return edge_type
+
 
     # Funzioni di utilità
 

@@ -5,7 +5,6 @@ from .edge import Edge
 from typing import List
 from .geo_position_node import GeoPositionNode
 
-
 class Graph:
     """
     Classe per rappresentare un grafo contenente nodi ed archi.
@@ -51,19 +50,18 @@ class Graph:
         Raises:
             ValueError: Se un nodo con lo stesso ID esiste già e overwrite è False.
         """
-        print(f"Attempting to add node: {node.node_id}, overwrite: {overwrite}")
+        #print(f"Attempting to add node: {node.node_id}, overwrite: {overwrite}")
         existing_node = self.find_node_by_id(node.node_id)
         if existing_node:
             if overwrite:
                 self.nodes.remove(existing_node)
                 print(f"Node '{node.node_id}' overwritten.")
             else:
-                print(f"Node '{node.node_id}' already exists. Skipping addition.")
+                #print(f"Node '{node.node_id}' already exists. Skipping addition.")
                 return existing_node  # Restituisce il nodo esistente senza aggiungerlo nuovamente
         self.nodes.append(node)
-        print(f"Node '{node.node_id}' added successfully.")
+        #print(f"Node '{node.node_id}' added successfully.")
         return node
-
 
     def add_edge(self, edge_id: str, edge_source: str, edge_target: str, edge_type: str) -> Edge:
         """
@@ -290,7 +288,6 @@ class Graph:
         for key, value in kwargs.items():
             setattr(edge, key, value)
 
-
     def get_connected_epoch_node_by_edge_type(self, node, edge_type: str):
         """
         Ottiene il nodo EpochNode connesso tramite un arco di tipo specifico.
@@ -313,7 +310,7 @@ class Graph:
                 if source_node and source_node.node_type == "EpochNode":
                     print(f"Found connected EpochNode '{source_node.node_id}' via edge type '{edge_type}'.")
                     return source_node
-        print(f"No connected EpochNode found for node '{node.node_id}' via edge type '{edge_type}'.")
+        #print(f"No connected EpochNode found for node '{node.node_id}' via edge type '{edge_type}'.")
         return None
 
     def get_nodes_by_type(self, node_type):
@@ -375,8 +372,8 @@ class Graph:
                     connected_epoch_nodes.append(source_node)
         if connected_epoch_nodes:
             print(f"Found {len(connected_epoch_nodes)} connected EpochNode(s) via edge type '{edge_type}'.")
-        else:
-            print(f"No connected EpochNodes found for node '{node.node_id}' via edge type '{edge_type}'.")
+        #else:
+            #print(f"No connected EpochNodes found for node '{node.node_id}' via edge type '{edge_type}'.")
         return connected_epoch_nodes
     
 

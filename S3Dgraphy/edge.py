@@ -1,72 +1,103 @@
-# 3dgraphy/edge.py
+EDGE_TYPES = {
+    "is_before": {
+        "label": "Chronological Sequence",
+        "description": "Indicates a temporal sequence where one item occurs before another."
+    },
+    "has_same_time": {
+        "label": "Contemporaneous Elements",
+        "description": "Indicates that two elements are contemporaneous."
+    },
+    "changed_from": {
+        "label": "Temporal Transformation",
+        "description": "Represents an object that changes over time."
+    },
+    "has_data_provenance": {
+        "label": "Data Provenance",
+        "description": "Indicates the provenance of data, often linking to source nodes."
+    },
+    "contrasts_with": {
+        "label": "Contrasting Properties",
+        "description": "Represents contrasting or mutually exclusive properties."
+    },
+    "has_first_epoch": {
+        "label": "Has First Epoch",
+        "description": "Indicates the initial epoch associated with a node."
+    },
+    "survive_in_epoch": {
+        "label": "Survives In Epoch",
+        "description": "Indicates that a node continues to exist in a given epoch."
+    },
+    "has_activity": {
+        "label": "Part of Activity",
+        "description": "Indicates that a node is part of a specific activity."
+    },
+    "has_property": {
+        "label": "Has Property",
+        "description": "Connects a node to one of its properties."
+    },
+    "extracted_from": {
+        "label": "Extracted From",
+        "description": "Indicates that information is derived from a particular source."
+    },
+    "combines": {
+        "label": "Combines",
+        "description": "Indicates that a node combines information from various sources."
+    },
+    "has_timebranch": {
+        "label": "Included in Timebranch",
+        "description": "Indicates that a node belongs to a specific time branch."
+    },
+    "generic_connection": {
+        "label": "Generic Connection",
+        "description": "Represents a non-specific connection between two nodes."
+    }
+}
+
 class Edge:
     """
-    Classe per rappresentare un arco nel grafo.
-
+    Represents an edge in the graph, connecting two nodes with a specific relationship type.
+    
     Attributes:
-        edge_id (str): Identificatore univoco dell'arco.
-        edge_source (str): ID del nodo sorgente.
-        edge_target (str): ID del nodo destinazione.
-        edge_type (str): Tipo di arco, deve essere uno dei valori definiti in EDGE_TYPES.
+        edge_id (str): Unique identifier for the edge.
+        edge_source (str): ID of the source node.
+        edge_target (str): ID of the target node.
+        edge_type (str): Semantic type of the relationship.
+        label (str): A descriptive label for the relationship type.
+        description (str): A detailed description of the relationship type.
     """
 
-    EDGE_TYPES = {
-        "line": {
-            "label": "Chronological Sequence",
-            "description": "Relazione di cronologia relativa - una cosa viene prima di un'altra."
-        },
-        "dashed": {
-            "label": "Data Provenance",
-            "description": "Indica la provenienza dei dati."
-        },
-        "dotted": {
-            "label": "Temporal Transformation",
-            "description": "Rappresenta un oggetto che cambia nel tempo."
-        },
-        "double_line": {
-            "label": "Contemporaneous Elements",
-            "description": "Indica che due US sono contemporanee."
-        },
-        "dashed_dotted": {
-            "label": "Contrasting Properties",
-            "description": "Rappresenta proprietà contrastanti o in mutua esclusione tra loro."
-        },
-        "has_first_epoch": {
-            "label": "Has First Epoch",
-            "description": "Indica l'epoca iniziale associata a un nodo."
-        },
-        "survive_in_epoch": {
-            "label": "Survives In Epoch",
-            "description": "Indica che un nodo continua a esistere in una determinata epoca."
-        },
-        "is_grouped_in": {
-            "label": "Is Grouped In",
-            "description": "Indica che un nodo è parte di un gruppo."
-        },
-        "connected_to": {
-            "label": "Connected To",
-            "description": "Relazione generica di connessione tra due nodi."
-        },
-        "has_property": {
-            "label": "Has Property",
-            "description": "Collega un nodo a una sua proprietà."
-        },
-        "extracted_from": {
-            "label": "Extracted From",
-            "description": "Indica che un'informazione è stata estratta da una fonte."
-        },
-        "combines": {
-            "label": "Combines",
-            "description": "Indica che un nodo combina informazioni da varie fonti."
-        },
-        # qui altri tipi di edge qui se necessario...
-    }
-
     def __init__(self, edge_id, edge_source, edge_target, edge_type):
-        if edge_type not in self.EDGE_TYPES:
-            raise ValueError(f"Tipo di arco non valido: {edge_type}")
+        if edge_type not in EDGE_TYPES:
+            raise ValueError(f"Edge type '{edge_type}' is not a recognized relationship type.")
+        
         self.edge_id = edge_id
         self.edge_source = edge_source
         self.edge_target = edge_target
         self.edge_type = edge_type
-        # Si possono aggiungere ulteriori attributi qui, come peso dell'arco, direzionalità, ecc.
+        self.label = EDGE_TYPES[edge_type]["label"]
+        self.description = EDGE_TYPES[edge_type]["description"]
+
+    def to_dict(self):
+        """
+        Converts the Edge instance to a dictionary format.
+
+        Returns:
+            dict: A dictionary representation of the edge, including its attributes.
+        """
+        return {
+            "edge_id": self.edge_id,
+            "source": self.edge_source,
+            "target": self.edge_target,
+            "type": self.edge_type,
+            "label": self.label,
+            "description": self.description
+        }
+
+    def __repr__(self):
+        """
+        Returns a string representation of the Edge instance.
+
+        Returns:
+            str: A string representation of the edge, showing its source, target, and type.
+        """
+        return f"Edge({self.edge_id}, {self.edge_source} -> {self.edge_target}, {self.edge_type})"

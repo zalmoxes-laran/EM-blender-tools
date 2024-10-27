@@ -200,8 +200,6 @@ class ExtractorNode(ParadataNode):
         self.source = source
         self.data = data if data is not None else {}
 
-
-
 # PropertyNode Class - Subclass of ParadataNode
 class PropertyNode(ParadataNode):
     """
@@ -298,7 +296,6 @@ class PropertyNode(ParadataNode):
             "type": self.property_type,
             "description": self.description
         }
-
 
 # EpochNode Class
 class EpochNode(Node):
