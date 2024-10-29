@@ -1,6 +1,7 @@
-from .node import Node
+from .base_node import Node
 
-class AuthorNode(Node):
+class AuthorNode(Node
+                 ):
     """
     Classe per rappresentare un nodo autore all'interno del grafo.
 

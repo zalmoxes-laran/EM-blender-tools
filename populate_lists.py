@@ -1,12 +1,16 @@
 import bpy
 
 from .functions import *
-from .epoch_manager import *
+#from .epoch_manager import *
 
-from .s3Dgraphy import *
-from .s3Dgraphy.node import StratigraphicNode  # Import diretto
+#from .s3Dgraphy import *
+from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode  # Import diretto
+from .s3Dgraphy.nodes.document_node import DocumentNode  # Import diretto
+from .s3Dgraphy.nodes.property_node import PropertyNode  # Import diretto
+from .s3Dgraphy.nodes.extractor_node import ExtractorNode  # Import diretto
+from .s3Dgraphy.nodes.combiner_node import CombinerNode  # Import diretto
+from .s3Dgraphy.nodes.epoch_node import EpochNode  # Import diretto
 
-from .s3Dgraphy import load_graph, get_graph
 
 def populate_blender_lists_from_graph(context, graph):
     scene = context.scene

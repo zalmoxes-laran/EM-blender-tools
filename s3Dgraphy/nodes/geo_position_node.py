@@ -1,6 +1,6 @@
-# s3Dgraphy/geo_position_node.py
+# s3Dgraphy/nodes/geo_position_node.py
 
-from .node import Node
+from .base_node import Node
 
 class GeoPositionNode(Node):
     """

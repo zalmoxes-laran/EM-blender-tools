@@ -4,7 +4,7 @@ import bpy # type: ignore
 from .external_modules_install import check_external_modules, install_modules
 import logging
 
-from .s3Dgraphy.multigraph import load_graph, get_graph
+from .s3Dgraphy import load_graph, get_graph
 
 log = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ def create_geometry_from_graph(graph, context):
     :param context: Il contesto di Blender.
     """
     # Importa generate_layout solo se networkx è disponibile
-    from .s3Dgraphy.visual_layout import generate_layout
+    from .s3Dgraphy.utils.visual_layout import generate_layout
 
     # Genera il layout per i nodi del grafo
     layout = generate_layout(graph)
@@ -70,7 +70,6 @@ def create_geometry_from_graph(graph, context):
             mat = bpy.data.materials.new(name="Red_Material")
             mat.diffuse_color = (1, 0, 0, 1)  # Rosso
             curve_obj.data.materials.append(mat)
-
 
 # Operatore per Blender
 class OBJECT_OT_CreateGraphGeometry(bpy.types.Operator):

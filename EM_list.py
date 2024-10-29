@@ -22,13 +22,11 @@ from bpy.types import ( # type: ignore
         )
 
 from .functions import *
-from .epoch_manager import *
 
-from .s3Dgraphy import *
-from .s3Dgraphy.node import StratigraphicNode  # Import diretto
+#from .epoch_manager import *
 
 from .s3Dgraphy import load_graph, get_graph
-
+from .s3Dgraphy import remove_graph
 from .populate_lists import *
 
 #### da qui si definiscono le funzioni e gli operatori

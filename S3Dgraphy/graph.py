@@ -1,9 +1,24 @@
 # s3Dgraphy/graph.py
 
-from .node import Node, EpochNode, StratigraphicNode, PropertyNode
-from .edge import Edge
+"""
+Graph module for s3Dgraphy, responsible for managing nodes and edges in the knowledge graph.
+"""
+
+# Import necessary node types from the nodes package
+#from .nodes import * #Node, EpochNode, StratigraphicNode, PropertyNode, GeoPositionNode
+
+from .nodes.base_node import Node
+from .nodes.epoch_node import EpochNode
+from .nodes.stratigraphic_node import StratigraphicNode
+from .nodes.property_node import PropertyNode
+from .nodes.geo_position_node import GeoPositionNode
+
+
+# Import the Edge class from the edges package
+from .edges import Edge
+
 from typing import List
-from .geo_position_node import GeoPositionNode
+
 
 class Graph:
     """

@@ -1,4 +1,4 @@
-from .node import Node
+from .base_node import Node
 
 class LinkNode(Node):
     """

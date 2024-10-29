@@ -1,16 +1,22 @@
 # s3Dgraphy/import_graphml.py
 
 import xml.etree.ElementTree as ET
-from .graph import Graph
-from .node import (
-    Node, StratigraphicNode, ParadataNode, DocumentNode,
-    CombinerNode, ExtractorNode, PropertyNode, EpochNode, GroupNode, ParadataNodeGroup, ActivityNodeGroup
-)
-from .edge import Edge
-from .utils import convert_shape2type
+from ..graph import Graph
+from ..nodes.stratigraphic_node import (
+    Node, StratigraphicNode)
+from ..nodes.paradata_node import ParadataNode
+from ..nodes.document_node import DocumentNode
+from ..nodes.combiner_node import CombinerNode
+from ..nodes.extractor_node import ExtractorNode
+from ..nodes.property_node import PropertyNode
+from ..nodes.epoch_node import EpochNode
+from ..nodes.group_node import GroupNode, ParadataNodeGroup, ActivityNodeGroup
+
+from ..edges.edge import Edge
+from ..utils.utils import convert_shape2type
 import re
 
-from .edge import EDGE_TYPES
+from ..edges.edge import EDGE_TYPES
 
 class GraphMLImporter:
     """

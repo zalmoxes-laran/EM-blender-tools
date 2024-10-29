@@ -10,7 +10,7 @@ from bpy.types import Operator# type: ignore
 from bpy.types import Menu, Panel, UIList, PropertyGroup# type: ignore
 from bpy.props import StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty# type: ignore
 from bpy.app.handlers import persistent# type: ignore
-from .epoch_manager import *
+#from .epoch_manager import *
 from .EM_list import *
 from . import addon_updater_ops
 

@@ -1,14 +1,21 @@
-# s3Dgraphy/utils.py
+# s3Dgraphy/utils/utils.py
+
+"""
+Utilities for the s3Dgraphy library.
+
+This module includes helper functions for node type conversion based on YED node shapes and border styles.
+"""
+
 def convert_shape2type(yedtype, border_style):
     """
-    Converte la forma e lo stile del bordo di un nodo YED in un tipo di nodo stratigrafico.
+    Converts YED node shape and border style to a specific stratigraphic node type.
 
     Args:
-        yedtype (str): Tipo di forma del nodo in YED.
-        border_style (str): Colore del bordo del nodo.
+        yedtype (str): The shape type of the node in YED.
+        border_style (str): The border color of the node.
 
     Returns:
-        tuple: (codice breve del tipo di nodo, descrizione estesa)
+        tuple: A tuple with a short code for the node type and an extended description.
     """
     if yedtype == "rectangle":
         nodetype = ("US", "Stratigraphic Unit")
@@ -19,7 +26,7 @@ def convert_shape2type(yedtype, border_style):
     elif yedtype == "ellipse" and border_style == "#248FE7":
         nodetype = ("serUSVs", "Series of USVs")
     elif yedtype == "ellipse" and border_style == "#9B3333":
-        nodetype = ("serSU", "Series of US")
+        nodetype = ("serSU", "Series of SU")
     elif yedtype == "hexagon":
         nodetype = ("USVn", "Non-Structural Virtual Stratigraphic Units")
     elif yedtype == "octagon" and border_style == "#D8BD30":
@@ -29,6 +36,7 @@ def convert_shape2type(yedtype, border_style):
     elif yedtype == "roundrectangle":
         nodetype = ("USD", "Documentary Stratigraphic Unit")
     else:
-        print(f"Non riconosciuto: yedtype='{yedtype}', border_style='{border_style}'")
+        print(f"Unrecognized node type and style: yedtype='{yedtype}', border_style='{border_style}'")
         nodetype = ("unknown", "Unrecognized node")
+        
     return nodetype

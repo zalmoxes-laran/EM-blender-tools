@@ -1,6 +1,6 @@
 import os
-from .graph import Graph
-from .import_graphml import GraphMLImporter
+from ..graph import Graph
+from ..importer.import_graphml import GraphMLImporter
 
 class MultiGraphManager:
     def __init__(self):

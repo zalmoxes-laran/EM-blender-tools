@@ -1,6 +1,6 @@
 import bpy
-from .s3Dgraphy import load_graph, get_graph
-from .s3Dgraphy import *
+from .s3Dgraphy import get_graph
+from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode
 
 from . import sqlite_io
 from .__init__ import get_bl_info

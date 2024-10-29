@@ -6,13 +6,9 @@ import bpy.props as prop # type: ignore
 
 from .functions import *
 
-from .s3Dgraphy import *
-from .s3Dgraphy.graph import Graph
-from .s3Dgraphy.node import StratigraphicNode  # Import diretto
+from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode  # Import diretto
 
-from .s3Dgraphy.multigraph import load_graph, get_graph
-
-
+from .s3Dgraphy import get_graph
 
 ########################
 
