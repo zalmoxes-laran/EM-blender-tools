@@ -1,0 +1,321 @@
+{
+    "formal_language": "EM",
+    "version": "1.5",
+    "node_styles": {
+        "US": {
+            "file_3d": "src/3D/US.glb",
+            "file_2d": "src/2D/US.png",
+            "style": {
+                "border_color": "#FFFFFF",
+                "fill_color": "#F0F0F0",
+                "border_style": "solid",
+                "shape": "rectangle"
+            },
+            "label_position": "over"
+        },
+        "USVs": {
+            "file_3d": "src/3D/USVs.glb",
+            "file_2d": "src/2D/USVs.png",
+            "style": {
+                "border_color": "#000000",
+                "fill_color": "#CCCCCC",
+                "border_style": "solid",
+                "shape": "parallelogram"
+            },
+            "label_position": "over"
+        },
+        "serSU": {
+            "file_3d": "src/3D/serSU.glb",
+            "file_2d": "src/2D/serSU.png",
+            "style": {
+                "border_color": "#FFFFFF",
+                "fill_color": "#EFEFEF",
+                "border_style": "solid",
+                "shape": "ellipse"
+            },
+            "label_position": "over"
+        },
+        "serUSV": {
+            "file_3d": "src/3D/serUSV.glb",
+            "file_2d": "src/2D/serUSV.png",
+            "style": {
+                "border_color": "#007F00",
+                "fill_color": "#000000",
+                "border_style": "solid",
+                "shape": "ellipse"
+            },
+            "label_position": "over"
+        },
+        "USVn": {
+            "file_3d": "src/3D/USVn.glb",
+            "file_2d": "src/2D/USVn.png",
+            "style": {
+                "border_color": "#FF0000",
+                "fill_color": "#000000",
+                "border_style": "solid",
+                "shape": "hexagon"
+            },
+            "label_position": "over"
+        },
+        "SF": {
+            "file_3d": "src/3D/SF.glb",
+            "file_2d": "src/2D/SF.png",
+            "style": {
+                "border_color": "#FFFFFF",
+                "fill_color": "#CCCCCC",
+                "border_style": "solid",
+                "shape": "octagon"
+            },
+            "label_position": "over"
+        },
+        "VSF": {
+            "file_3d": "src/3D/VSF.glb",
+            "file_2d": "src/2D/VSF.png",
+            "style": {
+                "border_color": "#000000",
+                "fill_color": "#CCCCCC",
+                "border_style": "solid",
+                "shape": "octagon"
+            },
+            "label_position": "over"
+        },
+        "USD": {
+            "file_3d": "src/3D/USD.glb",
+            "file_2d": "src/2D/USD.png",
+            "style": {
+                "border_color": "#AAAAAA",
+                "fill_color": "#F5F5F5",
+                "border_style": "solid",
+                "shape": "rounded_rectangle"
+            },
+            "label_position": "over"
+        },
+        "TSU": {
+            "file_3d": "src/3D/TSU.glb",
+            "file_2d": "src/2D/TSU.png",
+            "style": {
+                "border_color": "#AAAAAA",
+                "fill_color": "#DDDDDD",
+                "border_style": "dotted",
+                "shape": "rectangle"
+            },
+            "label_position": "over"
+        },
+        "BR": {
+            "file_3d": "src/3D/BR.glb",
+            "file_2d": "src/2D/BR.png",
+            "style": {
+                "border_color": "#000000",
+                "fill_color": "#FFFFFF",
+                "border_style": "solid",
+                "shape": "diamond"
+            },
+            "label_position": "center"
+        },
+        "SE": {
+            "file_3d": "src/3D/SE.glb",
+            "file_2d": "src/2D/SE.png",
+            "style": {
+                "border_color": "#FF0000",
+                "fill_color": "#FFFFFF",
+                "border_style": "dashed",
+                "shape": "triangle"
+            },
+            "label_position": "over"
+        },
+        "property": {
+            "file_3d": "src/3D/property.glb",
+            "file_2d": "src/2D/property.png",
+            "style": {
+                "border_color": "#666666",
+                "fill_color": "#FFFFFF",
+                "border_style": "dashed",
+                "shape": "circle"
+            },
+            "label_position": "over"
+        },
+        "combiner": {
+            "file_3d": "src/3D/combiner.glb",
+            "file_2d": "src/2D/combiner.png",
+            "style": {
+                "border_color": "#FFCC00",
+                "fill_color": "#FFFFFF",
+                "border_style": "dashed",
+                "shape": "hexagon"
+            },
+            "label_position": "bottom"
+        },
+        "extractor": {
+            "file_3d": "src/3D/extractor.glb",
+            "file_2d": "src/2D/extractor.png",
+            "style": {
+                "border_color": "#0033CC",
+                "fill_color": "#F0F0F0",
+                "border_style": "solid",
+                "shape": "pentagon"
+            },
+            "label_position": "bottom"
+        },
+        "document": {
+            "file_3d": "src/3D/document.glb",
+            "file_2d": "src/2D/document.png",
+            "style": {
+                "border_color": "#000000",
+                "fill_color": "#E0E0E0",
+                "border_style": "solid",
+                "shape": "ellipse"
+            },
+            "label_position": "over"
+        },
+        "epoch": {
+            "file_3d": "src/3D/epoch.glb",
+            "file_2d": "src/2D/epoch.png",
+            "style": {
+                "border_color": "#009933",
+                "fill_color": "#FFFFFF",
+                "border_style": "solid",
+                "shape": "rectangle"
+            },
+            "label_position": "over"
+        },
+        "activity": {
+            "file_3d": "src/3D/activity.glb",
+            "file_2d": "src/2D/activity.png",
+            "style": {
+                "border_color": "#9966CC",
+                "fill_color": "#FFFFFF",
+                "border_style": "dashed",
+                "shape": "ellipse"
+            },
+            "label_position": "over"
+        },
+        "actor": {
+            "file_3d": "src/3D/actor.glb",
+            "file_2d": "src/2D/actor.png",
+            "style": {
+                "border_color": "#FF6600",
+                "fill_color": "#FFFFFF",
+                "border_style": "solid",
+                "shape": "star"
+            },
+            "label_position": "over"
+        },
+        "unknown": {
+            "file_3d": "src/3D/unknown.glb",
+            "file_2d": "src/2D/unknown.png",
+            "style": {
+                "border_color": "#FF0000",
+                "fill_color": "#FFFFFF",
+                "border_style": "dotted",
+                "shape": "question_mark"
+            },
+            "label_position": "center"
+        }
+    },
+    "edge_style": {
+        "is_before": {
+            "style": {
+                "color": "#FF0000",
+                "line_style": "solid",
+                "width": 2
+            },
+            "label": "Chronological Sequence"
+        },
+        "has_same_time": {
+            "style": {
+                "color": "#00FF00",
+                "line_style": "dashed",
+                "width": 2
+            },
+            "label": "Contemporaneous Elements"
+        },
+        "changed_from": {
+            "style": {
+                "color": "#0000FF",
+                "line_style": "dotted",
+                "width": 2
+            },
+            "label": "Temporal Transformation"
+        },
+        "has_data_provenance": {
+            "style": {
+                "color": "#FFA500",
+                "line_style": "dashed",
+                "width": 1.5
+            },
+            "label": "Data Provenance"
+        },
+        "contrasts_with": {
+            "style": {
+                "color": "#800080",
+                "line_style": "solid",
+                "width": 1.5
+            },
+            "label": "Contrasting Properties"
+        },
+        "has_first_epoch": {
+            "style": {
+                "color": "#008000",
+                "line_style": "solid",
+                "width": 2
+            },
+            "label": "Has First Epoch"
+        },
+        "survive_in_epoch": {
+            "style": {
+                "color": "#FF69B4",
+                "line_style": "dotted",
+                "width": 1.5
+            },
+            "label": "Survives In Epoch"
+        },
+        "has_activity": {
+            "style": {
+                "color": "#1E90FF",
+                "line_style": "solid",
+                "width": 2
+            },
+            "label": "Part of Activity"
+        },
+        "has_property": {
+            "style": {
+                "color": "#FFD700",
+                "line_style": "dashed",
+                "width": 1.5
+            },
+            "label": "Has Property"
+        },
+        "extracted_from": {
+            "style": {
+                "color": "#A52A2A",
+                "line_style": "dotted",
+                "width": 1.5
+            },
+            "label": "Extracted From"
+        },
+        "combines": {
+            "style": {
+                "color": "#FF6347",
+                "line_style": "solid",
+                "width": 2
+            },
+            "label": "Combines"
+        },
+        "has_timebranch": {
+            "style": {
+                "color": "#4682B4",
+                "line_style": "solid",
+                "width": 2
+            },
+            "label": "Included in Timebranch"
+        },
+        "generic_connection": {
+            "style": {
+                "color": "#808080",
+                "line_style": "dashed",
+                "width": 1
+            },
+            "label": "Generic Connection"
+        }
+    }
+}
