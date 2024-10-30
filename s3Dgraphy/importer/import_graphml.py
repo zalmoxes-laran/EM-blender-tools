@@ -13,7 +13,7 @@ from ..nodes.epoch_node import EpochNode
 from ..nodes.group_node import GroupNode, ParadataNodeGroup, ActivityNodeGroup
 
 from ..edges.edge import Edge
-from ..utils.utils import convert_shape2type
+from ..utils.utils import convert_shape2type, get_stratigraphic_node_class
 import re
 
 from ..edges.edge import EDGE_TYPES
@@ -93,13 +93,16 @@ class GraphMLImporter:
         if self.EM_check_node_us(node_element):
             # Creazione del nodo stratigrafico e aggiunta al grafo
             nodename, nodedescription, nodeurl, nodeshape, node_y_pos, fillcolor, borderstyle = self.EM_extract_node_name(node_element)
+            
             stratigraphic_type = convert_shape2type(nodeshape, borderstyle)[0]
-            stratigraphic_node = StratigraphicNode(
+            node_class = get_stratigraphic_node_class(stratigraphic_type)  # Ottieni la classe usando la funzione
+            stratigraphic_node = node_class(
                 node_id=self.getnode_id(node_element),
                 name=nodename,
-                stratigraphic_type=stratigraphic_type,
+                #node_type=stratigraphic_type,
                 description=nodedescription
             )
+            
             # Aggiunta di runtime properties
             stratigraphic_node.attributes['shape'] = nodeshape
             stratigraphic_node.attributes['y_pos'] = float(node_y_pos)
@@ -664,10 +667,13 @@ class GraphMLImporter:
                     edge_type = "has_data_provenance"
                 elif style_type == "dashed_dotted":
                     edge_type = "contrasts_with"
+                else:
+                    edge_type = "generic_connection"  # Default to "generic_connection" if unknown style
 
-        if edge_type not in EDGE_TYPES:
-            print(f"Warning: Unrecognized edge type '{edge_type}' detected for edge {edge_element.attrib['id']}. Defaulting to 'generic_connection'.")
-            edge_type = "generic_connection"
+
+        #if edge_type not in EDGE_TYPES:
+        #    print(f"Warning: Unrecognized edge type '{edge_type}' detected for edge {edge_element.attrib['id']}. Defaulting to 'generic_connection'.")
+        #    edge_type = "generic_connection"
 
         #print(f"Parsed edge type '{edge_type}' for edge {edge_element.attrib['id']}")
         return edge_type

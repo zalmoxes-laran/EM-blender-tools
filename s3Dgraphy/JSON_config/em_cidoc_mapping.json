@@ -1,0 +1,194 @@
+{
+    "mapping_version": "1.5",
+    "components": ["CIDOC-archeo", "CIDOC-inf", "CIDOC-sci"],
+    "nodes": {
+      "StratigraphicUnit": {
+        "cidoc_class": "E26_Physical_Object",
+        "node_properties": {
+          "name": "P1_is_identified_by",
+          "description": "P3_has_note",
+          "material": "P45_consists_of",
+          "dimensions": "P43_has_dimension"
+        },
+        "relations": {
+          "is_before": "P120_occurs_before",
+          "is_part_of_activity": "P9_consists_of",
+          "has_property": "P46_is_composed_of"
+        }
+      },
+      "StratigraphicSeries": {
+        "cidoc_class": "E78_Collection",
+        "node_properties": {
+          "series_name": "P1_is_identified_by",
+          "description": "P3_has_note"
+        },
+        "relations": {
+          "contains": "P46_is_composed_of",
+          "part_of_series": "P9_consists_of"
+        }
+      },
+      "StructuralStratigraphicUnit": {
+        "cidoc_class": "E26_Physical_Object",
+        "node_properties": {
+          "name": "P1_is_identified_by",
+          "construction_type": "P2_has_type",
+          "material": "P45_consists_of"
+        },
+        "relations": {
+          "is_part_of_structure": "P46_is_composed_of",
+          "precedes": "P120_occurs_before"
+        }
+      },
+      "GeoPositionNode": {
+        "cidoc_class": "E53_Place",
+        "node_properties": {
+          "latitude": "P168_place_is_located_at",
+          "longitude": "P168_place_is_located_at",
+          "altitude": "P168_place_is_located_at"
+        },
+        "relations": {
+          "is_within": "P89_falls_within",
+          "defines_location": "P89_falls_within"
+        }
+      },
+      "RepresentationModelNode": {
+        "cidoc_class": "E36_Visual_Item",
+        "node_properties": {
+          "file_path": "P128_carries",
+          "format": "P2_has_type",
+          "description": "P3_has_note"
+        },
+        "relations": {
+          "depicts_epoch": "P138_represents",
+          "is_represented_in": "P67_is_referred_to_by"
+        }
+      },
+      "DocumentNode": {
+        "cidoc_class": "E31_Document",
+        "node_properties": {
+          "title": "P102_has_title",
+          "author": "P94i_was_created_by",
+          "date": "P4_has_time-span"
+        },
+        "relations": {
+          "documents_node": "P70_documents",
+          "is_documented_by": "P67_is_referred_to_by"
+        }
+      },
+      "PropertyNode": {
+        "cidoc_class": "E55_Type",
+        "node_properties": {
+          "property_name": "P1_is_identified_by",
+          "value": "P91_has_value"
+        },
+        "relations": {
+          "defines_property_of": "P46_is_composed_of",
+          "is_defined_by": "P138_represents"
+        }
+      },
+      "EpochNode": {
+        "cidoc_class": "E4_Period",
+        "node_properties": {
+          "start_time": "P4_has_time-span",
+          "end_time": "P4_has_time-span",
+          "label": "P1_is_identified_by"
+        },
+        "relations": {
+          "defines_time_of": "P10_falls_within",
+          "is_defined_by": "P9_consists_of"
+        }
+      },
+      "AuthorNode": {
+        "cidoc_class": "E39_Actor",
+        "node_properties": {
+          "orcid": "P131_is_identified_by",
+          "name": "P1_is_identified_by"
+        },
+        "relations": {
+          "created_document": "P94i_was_created_by",
+          "is_referred_to_by": "P67_is_referred_to_by"
+        }
+      },
+      "LinkNode": {
+        "cidoc_class": "E73_Information_Object",
+        "node_properties": {
+          "url": "P106_is_composed_of",
+          "description": "P3_has_note",
+          "type": "P2_has_type"
+        },
+        "relations": {
+          "links_to": "P67_is_referred_to_by",
+          "refers_to": "P1_is_identified_by"
+        }
+      },
+      "ExtractorNode": {
+        "cidoc_class": "E73_Information_Object",
+        "node_properties": {
+          "extracted_info": "P3_has_note",
+          "source": "P67_is_referred_to_by"
+        },
+        "relations": {
+          "extracts_from": "P134_continued",
+          "is_extracted_by": "P9_consists_of"
+        }
+      },
+      "CombinerNode": {
+        "cidoc_class": "E41_Appellation",
+        "node_properties": {
+          "combined_sources": "P1_is_identified_by",
+          "description": "P3_has_note"
+        },
+        "relations": {
+          "combines": "P45_consists_of",
+          "is_combined_by": "P70_documents"
+        }
+      },
+      "ActivityNodeGroup": {
+        "cidoc_class": "E7_Activity",
+        "node_properties": {
+          "activity_name": "P1_is_identified_by",
+          "description": "P3_has_note"
+        },
+        "relations": {
+          "contains_activity": "P9_consists_of",
+          "is_part_of_activity": "P9_consists_of"
+        }
+      },
+      "ParadataNode": {
+        "cidoc_class": "E89_Propositional_Object",
+        "node_properties": {
+          "source_type": "P67_is_referred_to_by",
+          "detail_level": "P3_has_note"
+        },
+        "relations": {
+          "paradata_for": "P70_documents",
+          "is_paradata_of": "P67_is_referred_to_by"
+        }
+      },
+      "DocumentaryStratigraphicUnit": {
+        "cidoc_class": "E28_Conceptual_Object",
+        "node_properties": {
+          "name": "P1_is_identified_by",
+          "description": "P3_has_note",
+          "document_type": "P2_has_type"
+        },
+        "relations": {
+          "documents": "P70_documents",
+          "is_documented_in": "P67_is_referred_to_by"
+        }
+      },
+      "SpecialFind": {
+        "cidoc_class": "E20_Biological_Object",
+        "node_properties": {
+          "name": "P1_is_identified_by",
+          "description": "P3_has_note",
+          "preservation_state": "P44_has_condition"
+        },
+        "relations": {
+          "is_associated_with": "P12_occurred_in_the_presence_of",
+          "is_documented_in": "P70_documents"
+        }
+      }
+    }
+  }
+  
