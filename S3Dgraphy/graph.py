@@ -196,6 +196,220 @@ class Graph:
             setattr(edge, key, value)
         print(f"Edge '{edge_id}' updated successfully.")
 
+
+    def find_node_by_name(self, name):
+        """
+        Cerca un nodo per nome.
+
+        Args:
+            name (str): Nome del nodo da cercare.
+
+        Returns:
+            Node: Il nodo trovato, o None se non esiste.
+        """
+        for node in self.nodes:
+            if node.name == name:
+                return node
+        return None
+    
+    def find_edge_by_nodes(self, source_id, target_id):
+        """
+        Cerca un arco basato sugli ID dei nodi sorgente e destinazione.
+
+        Args:
+            source_id (str): ID del nodo sorgente.
+            target_id (str): ID del nodo destinazione.
+
+        Returns:
+            Edge: L'arco trovato, o None se non esiste.
+        """
+        for edge in self.edges:
+            if edge.edge_source == source_id and edge.edge_target == target_id:
+                return edge
+        return None
+
+    def get_connected_node_by_type(self, node, node_type):
+        """
+        Ottiene un nodo collegato di un determinato tipo.
+
+        Args:
+            node (Node): Nodo di partenza.
+            node_type (str): Tipo di nodo da cercare.
+
+        Returns:
+            Node: Il nodo collegato del tipo specificato, o None se non trovato.
+        """
+        for edge in self.edges:
+            if edge.edge_source == node.node_id:
+                target_node = self.find_node_by_id(edge.edge_target)
+                if target_node and target_node.node_type == node_type:
+                    return target_node
+            elif edge.edge_target == node.node_id:
+                source_node = self.find_node_by_id(edge.edge_source)
+                if source_node and source_node.node_type == node_type:
+                    return source_node
+        return None
+
+
+    def get_connected_epoch_node_by_edge_type(self, node, edge_type: str):
+        """
+        Ottiene il nodo EpochNode connesso tramite un arco di tipo specifico.
+
+        Args:
+            node (Node): Il nodo da cui partire.
+            edge_type (str): Il tipo di arco da filtrare.
+
+        Returns:
+            EpochNode | None: Il nodo EpochNode connesso, oppure None se non trovato.
+        """
+        for edge in self.edges:
+            if (edge.edge_source == node.node_id and edge.edge_type == edge_type):
+                target_node = self.find_node_by_id(edge.edge_target)
+                if target_node and target_node.node_type == "EpochNode":
+                    print(f"Found connected EpochNode '{target_node.node_id}' via edge type '{edge_type}'.")
+                    return target_node
+            elif (edge.edge_target == node.node_id and edge.edge_type == edge_type):
+                source_node = self.find_node_by_id(edge.edge_source)
+                if source_node and source_node.node_type == "EpochNode":
+                    print(f"Found connected EpochNode '{source_node.node_id}' via edge type '{edge_type}'.")
+                    return source_node
+        return None
+
+
+    def get_connected_epoch_nodes_list_by_edge_type(self, node, edge_type: str):
+        """
+        Ottiene una lista di nodi EpochNode connessi tramite un arco di tipo specifico.
+
+        Args:
+            node (Node): Il nodo da cui partire.
+            edge_type (str): Il tipo di arco da filtrare.
+
+        Returns:
+            List[EpochNode]: Lista di nodi EpochNode connessi.
+        """
+        connected_epoch_nodes = []
+        for edge in self.edges:
+            if (edge.edge_source == node.node_id and edge.edge_type == edge_type):
+                target_node = self.find_node_by_id(edge.edge_target)
+                if target_node and target_node.node_type == "EpochNode":
+                    print(f"Found connected EpochNode '{target_node.node_id}' via edge type '{edge_type}'.")
+                    connected_epoch_nodes.append(target_node)
+            elif (edge.edge_target == node.node_id and edge.edge_type == edge_type):
+                source_node = self.find_node_by_id(edge.edge_source)
+                if source_node and source_node.node_type == "EpochNode":
+                    print(f"Found connected EpochNode '{source_node.node_id}' via edge type '{edge_type}'.")
+                    connected_epoch_nodes.append(source_node)
+        return connected_epoch_nodes
+
+
+    def calculate_chronology(self, graph):
+        """
+        Calculate the chronology for all stratigraphic nodes in the graph.
+
+        This method implements the chronology calculation protocol, considering
+        the hierarchy of data: specific > local > general. It propagates temporal
+        information through the stratigraphic relationships and epoch associations.
+
+        Args:
+            graph (Graph): The graph containing stratigraphic nodes and their relationships.
+
+        Returns:
+            None: The method updates the nodes in place.
+        """
+        stratigraphic_nodes = self.get_nodes_of_type(graph, "StratigraphicNode")
+
+        for node in stratigraphic_nodes:
+            self.propagate_chronology(graph, node)
+
+
+    def propagate_chronology(self, graph, node):
+        """
+        Propagate chronological information for a single stratigraphic node.
+
+        This method applies the chronology calculation protocol to a specific node,
+        considering its properties, associated epochs, and stratigraphic relationships.
+
+        Args:
+            graph (Graph): The graph containing the node and its relationships.
+            node (StratigraphicNode): The node for which to calculate chronology.
+
+        Returns:
+            None: The method updates the node in place.
+        """
+        start_time_prop = self.find_property_node(graph, node, "Start_time")
+        end_time_prop = self.find_property_node(graph, node, "End_time")
+
+        epochs = self.get_connected_epoch_nodes(graph, node)
+
+        delta_start = min(epoch.start_time for epoch in epochs) if epochs else None
+        delta_end = max(epoch.end_time for epoch in epochs) if epochs else None
+
+        start_time = float(start_time_prop.value) if start_time_prop else delta_start
+        end_time = float(end_time_prop.value) if end_time_prop else delta_end
+        self.set_calculated_times(node, start_time, end_time)
+        self.propagate_to_connected_nodes(graph, node, start_time, end_time)
+
+
+    def find_property_node(self, graph, node, property_type):
+        """
+        Find a specific property node connected to a stratigraphic node.
+
+        This method searches for a property node of a given type that is connected
+        to the stratigraphic node via a 'dashed' edge type.
+
+        Args:
+            graph (Graph): The graph containing the nodes and their relationships.
+            node (StratigraphicNode): The stratigraphic node to search from.
+            property_type (str): The type of property to find (e.g., "Start_time", "End_time").
+
+        Returns:
+            PropertyNode or None: The found property node, or None if not found.
+        """
+        for edge in self.get_connected_edges(graph, node):
+            if edge.type == "dashed":
+                prop_node = self.find_node_by_id(graph, edge.target)
+                if self.is_property_node(prop_node) and prop_node.property_type == property_type:
+                    return prop_node
+        return None
+
+
+    def set_calculated_times(self, node, start_time, end_time):
+        """
+        Set the calculated start and end times as attributes of a stratigraphic node.
+
+        Args:
+            node (StratigraphicNode): The node to update.
+            start_time (float or None): The calculated start time.
+            end_time (float or None): The calculated end time.
+        """
+        if start_time is not None:
+            node.attributes["CALCUL_START_T"] = start_time
+        if end_time is not None:
+            node.attributes["CALCUL_END_T"] = end_time
+
+
+    def filter_nodes_by_time_range(self, graph, start_time, end_time):
+        """
+        Filter stratigraphic nodes based on a given time range.
+
+        Args:
+            graph (Graph): The graph containing the nodes to filter.
+            start_time (float): The start of the time range to filter by.
+            end_time (float): The end of the time range to filter by.
+
+        Returns:
+            list: A list of StratigraphicNodes that fall within the specified time range.
+        """
+        filtered_nodes = []
+        for node in self.get_nodes_of_type(graph, "StratigraphicNode"):
+            node_start = node.attributes.get("CALCUL_START_T")
+            node_end = node.attributes.get("CALCUL_END_T")
+            if node_start is not None and node_end is not None:
+                if start_time <= node_end and end_time >= node_start:
+                    filtered_nodes.append(node)
+        return filtered_nodes
+
+
 '''
 Esempio di utilizzo:
 graph = get_graph()  # Ottieni il grafo caricato
