@@ -15,7 +15,7 @@ from .property_node import PropertyNode
 from .document_node import DocumentNode
 from .combiner_node import CombinerNode
 from .extractor_node import ExtractorNode
-from .group_node import GroupNode, ActivityNodeGroup, ParadataNodeGroup
+from .group_node import GroupNode, ActivityNodeGroup, ParadataNodeGroup, TimeBranchNodeGroup
 from .paradata_node import ParadataNode
 from .geo_position_node import GeoPositionNode
 from .representation_model_node import RepresentationModelNode
@@ -33,7 +33,8 @@ __all__ = [
     "ExtractorNode", 
     "GroupNode", 
     "ActivityNodeGroup",
-    "ParadataNodeGroup", 
+    "ParadataNodeGroup",
+    "TimeBranchNodeGroup", 
     "ParadataNode", 
     "GeoPositionNode", 
     "RepresentationModelNode",

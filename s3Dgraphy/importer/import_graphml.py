@@ -10,7 +10,7 @@ from ..nodes.combiner_node import CombinerNode
 from ..nodes.extractor_node import ExtractorNode
 from ..nodes.property_node import PropertyNode
 from ..nodes.epoch_node import EpochNode
-from ..nodes.group_node import GroupNode, ParadataNodeGroup, ActivityNodeGroup
+from ..nodes.group_node import GroupNode, ParadataNodeGroup, ActivityNodeGroup, TimeBranchNodeGroup
 
 from ..edges.edge import Edge
 from ..utils.utils import convert_shape2type, get_stratigraphic_node_class
@@ -206,6 +206,13 @@ class GraphMLImporter:
             )
         elif group_node_type == 'ParadataNodeGroup':
             group_node = ParadataNodeGroup(
+                node_id=group_id,
+                name=group_name,
+                description=group_description,
+                y_pos=group_y_pos
+            )
+        elif group_node_type == 'TimeBranchNodeGroup':
+            group_node = TimeBranchNodeGroup(
                 node_id=group_id,
                 name=group_name,
                 description=group_description,
@@ -407,8 +414,10 @@ class GraphMLImporter:
     def determine_group_node_type_by_color(self, background_color):
         if background_color == '#CCFFFF':
             return 'ActivityNodeGroup'
-        elif background_color == '#EBEBEB':
+        elif background_color == '#FFCC99':
             return 'ParadataNodeGroup'
+        elif background_color == '#99CC00':
+            return 'TimeBranchNodeGroup'
         else:
             return 'GroupNode'
 

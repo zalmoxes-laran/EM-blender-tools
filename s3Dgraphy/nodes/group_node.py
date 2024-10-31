@@ -33,3 +33,14 @@ class ParadataNodeGroup(GroupNode):
     def __init__(self, node_id, name, description="", y_pos=0.0):
         super().__init__(node_id, name, description=description, y_pos=y_pos)
         self.node_type = "ParadataNodeGroup"
+
+
+class TimeBranchNodeGroup(GroupNode):
+    """
+    Nodo gruppo per aggregare tuti gli elementi che appartengono ad un ramo temporale.
+
+    """
+
+    def __init__(self, node_id, name, description="", y_pos=0.0):
+        super().__init__(node_id, name, description=description, y_pos=y_pos)
+        self.node_type = "TimeBranchNodeGroup"
