@@ -37,7 +37,7 @@ class ParadataNodeGroup(GroupNode):
 
 class TimeBranchNodeGroup(GroupNode):
     """
-    Nodo gruppo per aggregare tuti gli elementi che appartengono ad un ramo temporale.
+    Group node to aggregate all elements belonging to a time branch. Two TB can be connected by a "contrasts_with" edge.
 
     """
 
