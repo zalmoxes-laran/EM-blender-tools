@@ -6,8 +6,8 @@
         "label": "Chronological Sequence",
         "description": "Indicates a temporal sequence where one item occurs before another.",
         "allowed_connections": {
-          "source": ["StratigraphicUnit"],
-          "target": ["StratigraphicUnit"]
+          "source": ["StratigraphicNode"],
+          "target": ["StratigraphicNode"]
         }
       },
       {
@@ -15,8 +15,8 @@
         "label": "Contemporaneous Elements",
         "description": "Indicates that two elements are contemporaneous.",
         "allowed_connections": {
-          "source": ["StratigraphicUnit"],
-          "target": ["StratigraphicUnit"]
+          "source": ["StratigraphicNode"],
+          "target": ["StratigraphicNode"]
         }
       },
       {
@@ -24,8 +24,8 @@
         "label": "Temporal Transformation",
         "description": "Represents an object that changes over time.",
         "allowed_connections": {
-          "source": ["StratigraphicUnit"],
-          "target": ["StratigraphicUnit"]
+          "source": ["StratigraphicNode"],
+          "target": ["StratigraphicNode"]
         }
       },
       {
@@ -51,7 +51,7 @@
         "label": "Has First Epoch",
         "description": "Indicates the initial epoch associated with a node.",
         "allowed_connections": {
-          "source": ["StratigraphicUnit"],
+          "source": ["StratigraphicNode"],
           "target": ["EpochNode"]
         }
       },
@@ -60,7 +60,7 @@
         "label": "Survives In Epoch",
         "description": "Indicates that a node continues to exist in a given epoch.",
         "allowed_connections": {
-          "source": ["StratigraphicUnit"],
+          "source": ["StratigraphicNode"],
           "target": ["EpochNode"]
         }
       },
@@ -69,7 +69,7 @@
         "label": "Part of Activity",
         "description": "Indicates that a node is part of a specific activity.",
         "allowed_connections": {
-          "source": ["StratigraphicUnit"],
+          "source": ["StratigraphicNode"],
           "target": ["ActivityNodeGroup"]
         }
       },
@@ -78,7 +78,7 @@
         "label": "Has Property",
         "description": "Connects a node to one of its properties.",
         "allowed_connections": {
-          "source": ["StratigraphicUnit"],
+          "source": ["StratigraphicNode"],
           "target": ["PropertyNode"]
         }
       },
@@ -105,7 +105,7 @@
         "label": "Included in Timebranch",
         "description": "Indicates that a node belongs to a specific time branch.",
         "allowed_connections": {
-          "source": ["StratigraphicUnit"],
+          "source": ["StratigraphicNode"],
           "target": ["TimeBranchNodeGroup"]
         }
       },
@@ -114,8 +114,44 @@
         "label": "Generic Connection",
         "description": "Represents a non-specific connection between two nodes.",
         "allowed_connections": {
-          "source": ["StratigraphicUnit", "PropertyNode"],
-          "target": ["StratigraphicUnit", "PropertyNode"]
+          "source": ["StratigraphicNode", "PropertyNode"],
+          "target": ["StratigraphicNode", "PropertyNode"]
+        }
+      },
+      {
+        "type": "has_author",
+        "label": "Has author",
+        "description": "Represents the connection of a node with its author.",
+        "allowed_connections": {
+          "source": ["StratigraphicNode", "ParadataNode", "GroupNode"],
+          "target": ["AuthorNode"]
+        }
+      },
+      {
+        "type": "has_geoposition",
+        "label": "Has geoposition",
+        "description": "Represents a connection with the geoposition node of a given node",
+        "allowed_connections": {
+          "source": ["StratigraphicNode", "ParadataNode"],
+          "target": ["GeoPositionNode"]
+        }
+      },
+      {
+        "type": "has_linked_resource",
+        "label": "Has a linked resource",
+        "description": "Represents a connection between a node and a linked resource node",
+        "allowed_connections": {
+          "source": ["StratigraphicNode", "ParadataNode"],
+          "target": ["LinkNode"]
+        }
+      },
+      {
+        "type": "has_representation_model",
+        "label": "Has a representation 3D model",
+        "description": "Represents a connection between a stratigraphic, extractor or document node and representation 3D model",
+        "allowed_connections": {
+          "source": ["StratigraphicNode", "ExtractorNode", "DocumentNode"],
+          "target": ["RepresentationModelNode"]
         }
       }
     ]
