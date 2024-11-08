@@ -33,17 +33,17 @@
         "label": "Data Provenance",
         "description": "Indicates the provenance of data, often linking to source nodes.",
         "allowed_connections": {
-          "source": ["DocumentNode"],
-          "target": ["StratigraphicUnit"]
+          "source": ["PropertyNode"],
+          "target": ["ExtractorNode","CombinerNode"]
         }
       },
       {
         "type": "contrasts_with",
-        "label": "Contrasting Properties",
-        "description": "Represents contrasting or mutually exclusive properties.",
+        "label": "Contrasting Time Branches",
+        "description": "Represents contrasting or mutually exclusive Time Branches.",
         "allowed_connections": {
-          "source": ["PropertyNode"],
-          "target": ["PropertyNode"]
+          "source": ["TimeBranchNodeGroup"],
+          "target": ["TimeBranchNodeGroup"]
         }
       },
       {
@@ -97,7 +97,7 @@
         "description": "Indicates that a node combines information from various sources.",
         "allowed_connections": {
           "source": ["CombinerNode"],
-          "target": ["DocumentNode"]
+          "target": ["ExtractorNode"]
         }
       },
       {
@@ -106,7 +106,7 @@
         "description": "Indicates that a node belongs to a specific time branch.",
         "allowed_connections": {
           "source": ["StratigraphicUnit"],
-          "target": ["EpochNode"]
+          "target": ["TimeBranchNodeGroup"]
         }
       },
       {
