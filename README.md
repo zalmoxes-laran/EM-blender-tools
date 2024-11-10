@@ -157,3 +157,8 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
   - Enable usage outside Blender and yED, allowing other applications to access and use the data.
   - Aim to establish a standard structure for critical models and virtual reconstructions.
   - *Note*: This is for future development.
+
+  - [ ] Formalization of color maps to visualize statistical data about the reconstruction (volumes, typo of sources, property density)
+  - [ ] New label system
+  - [ ] New section for visual tools
+  - [ ] Simplified proxy generation
