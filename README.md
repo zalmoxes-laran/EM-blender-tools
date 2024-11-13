@@ -119,12 +119,18 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
 
 ### Tasks To Do
 
+- [ ] **Fix operators in the Epoch Manager**
+  - [ ] **Select**
+  - [ ] **Set unselectable**
+  - [ ] **Toggle reconstruction**
+  - [ ] **soloing**
+
 - [ ] **Populate New Lists**
-  - **Activities List**
+  - [ ] **Activities List**
     - Populate with activity data for better organization.
-  - **Time Branches List**
+  - [ ] **Time Branches List**
     - Populate to manage alternative temporal sequences.
-  - **Task**: Implement functionality to read and populate these lists.
+  - [ ] **Task**: Implement functionality to read and populate these lists.
 
 - [ ] **Develop a Filtering System**
   - Create a system to filter nodes, allowing users to visualize only a subset of stratigraphic units.
@@ -140,7 +146,7 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
 
 - [ ] **Modify Code for Visual Rules in Stratigraphic Nodes**
   - Modify the code to read the visual rules file for converting stratigraphic nodes into colors.
-  - *Note*: This task is related to Task 11 in Project B.
+  - *Note*: This task is related to a task in Project s3Dgraphy.
 
 - [ ] **Develop JSON Exporter for Heritage Metaverse**
   - Create a JSON exporter that prepares data for use in the Heritage Metaverse.
