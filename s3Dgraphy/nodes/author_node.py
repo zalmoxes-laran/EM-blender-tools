@@ -1,7 +1,6 @@
 from .base_node import Node
 
-class AuthorNode(Node
-                 ):
+class AuthorNode(Node):
     """
     Classe per rappresentare un nodo autore all'interno del grafo.
 
@@ -10,7 +9,8 @@ class AuthorNode(Node
         name (str): Nome dell'autore (opzionale).
         surname (str): Cognome dell'autore (opzionale).
     """
-    
+    node_type = "author"
+
     def __init__(self, node_id, orcid="noorcid", name="noname", surname="nosurname"):
         """
         Inizializza una nuova istanza di AuthorNode.
@@ -21,7 +21,7 @@ class AuthorNode(Node
             name (str, opzionale): Nome dell'autore. Defaults to "noname".
             surname (str, opzionale): Cognome dell'autore. Defaults to "nosurname".
         """
-        super().__init__(node_id=node_id, name="author", node_type="author")
+        super().__init__(node_id=node_id, name="author")
         
         # Dati dell'autore con valori di fallback
         self.data = {

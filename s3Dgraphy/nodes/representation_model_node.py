@@ -8,7 +8,7 @@ class RepresentationModelNode(Node):
         model_type (str): Format of the 3D model, default is "gltf".
         data (dict): Specific data for the representation model, including ID, name, description, and link.
     """
-    
+    node_type="representation_model"
     def __init__(self, node_id, name="Representation Model", model_type="gltf", description="", url=""):
         """
         Initialize a new instance of RepresentationModelNode.
@@ -20,7 +20,7 @@ class RepresentationModelNode(Node):
             description (str, optional): Description of the model. Defaults to an empty string.
             url (str, optional): URL link to the model. Defaults to an empty string.
         """
-        super().__init__(node_id=node_id, name=name, node_type="representation_model")
+        super().__init__(node_id=node_id, name=name)
         self.data = {
             "model_type": model_type,
             "description": description,

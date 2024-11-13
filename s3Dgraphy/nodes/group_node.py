@@ -9,9 +9,9 @@ class GroupNode(Node):
     Attributes:
         y_pos (float): Posizione verticale del nodo.
     """
-
+    node_type = "Group"
     def __init__(self, node_id, name, description="", y_pos=0.0):
-        super().__init__(node_id, name, node_type="Group", description=description)
+        super().__init__(node_id, name, description=description)
         self.attributes['y_pos'] = y_pos
 
 class ActivityNodeGroup(GroupNode):
@@ -19,10 +19,10 @@ class ActivityNodeGroup(GroupNode):
     Nodo gruppo per attività. Una attività è un gruppo logico di azioni che vengono tenute insieme per un fine narrativo e di ordine delle informazioni (es: costruzione di una stanza di un edificio nell'anno x, attività di restauro di varie parti di quella stanza 20 anni dopo)
 
     """
-
+    node_type = "ActivityNodeGroup"
     def __init__(self, node_id, name, description="", y_pos=0.0):
         super().__init__(node_id, name, description=description, y_pos=y_pos)
-        self.node_type = "ActivityNodeGroup"
+        #self.node_type = "ActivityNodeGroup"
 
 class ParadataNodeGroup(GroupNode):
     """
@@ -30,9 +30,11 @@ class ParadataNodeGroup(GroupNode):
 
     """
 
+    node_type = "ParadataNodeGroup"
+
     def __init__(self, node_id, name, description="", y_pos=0.0):
         super().__init__(node_id, name, description=description, y_pos=y_pos)
-        self.node_type = "ParadataNodeGroup"
+        #self.node_type = "ParadataNodeGroup"
 
 
 class TimeBranchNodeGroup(GroupNode):
@@ -40,7 +42,7 @@ class TimeBranchNodeGroup(GroupNode):
     Group node to aggregate all elements belonging to a time branch. Two TB can be connected by a "contrasts_with" edge.
 
     """
-
+    node_type = "TimeBranchNodeGroup"
     def __init__(self, node_id, name, description="", y_pos=0.0):
         super().__init__(node_id, name, description=description, y_pos=y_pos)
-        self.node_type = "TimeBranchNodeGroup"
+        #self.node_type = "TimeBranchNodeGroup"

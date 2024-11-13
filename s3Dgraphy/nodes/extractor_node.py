@@ -9,8 +9,8 @@ class ExtractorNode(ParadataNode):
         source (str): Fonte da cui è stata estratta l'informazione.
         data (dict): Metadati aggiuntivi, come 'author', 'url_type', 'icon', ecc.
     """
-
+    node_type = "extractor"
     def __init__(self, node_id, name, description="", source=None, data=None, url=None):
-        super().__init__(node_id, name, "extractor", description, url)
+        super().__init__(node_id, name, description, url)
         self.source = source
         self.data = data if data is not None else {}

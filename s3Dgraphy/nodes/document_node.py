@@ -8,7 +8,8 @@ class DocumentNode(ParadataNode):
     Attributes:
         data (dict): Metadati aggiuntivi, come 'url_type'.
     """
+    node_type = "document"
 
     def __init__(self, node_id, name, description="", url=None, data=None):
-        super().__init__(node_id, name, node_type="document", description=description, url=url)
+        super().__init__(node_id, name, description=description, url=url)
         self.data = data if data is not None else {}

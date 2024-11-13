@@ -10,9 +10,11 @@ class EpochNode(Node):
         end_time (float): Tempo di fine dell'epoca.
         color (str): Colore associato all'epoca.
     """
+    
+    node_type = "epoch"
 
     def __init__(self, node_id, name, start_time, end_time, color="#FFFFFF", description=""):
-        super().__init__(node_id, name, "epoch", description)
+        super().__init__(node_id, name, description)
         self.start_time = start_time
         self.end_time = end_time
         self.color = color

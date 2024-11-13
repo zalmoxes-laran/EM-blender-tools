@@ -18,6 +18,7 @@ from typing import List
 rules_path = os.path.join(os.path.dirname(__file__), "./JSON_config/em_connection_rules.json")
 with open(rules_path) as f:
     connection_rules = json.load(f)["rules"]
+    print('regole caricate !')
 
 class Graph:
     """
@@ -64,11 +65,31 @@ class Graph:
         Returns:
             bool: True if the connection is allowed, False otherwise.
         """
+
+        source_class = Node.node_type_map.get(source_node_type)
+        target_class = Node.node_type_map.get(target_node_type)
+
+        if source_class is None or target_class is None:
+            return False  # O gestisci l'errore come preferisci
+
         for rule in connection_rules:
             if rule["type"] == edge_type:
                 allowed_sources = rule["allowed_connections"]["source"]
                 allowed_targets = rule["allowed_connections"]["target"]
-                return source_node_type in allowed_sources and target_node_type in allowed_targets
+
+                
+                source_allowed = any(
+                    issubclass(source_class, Node.node_type_map.get(allowed_source, object))
+                    for allowed_source in allowed_sources
+                )
+
+                target_allowed = any(
+                    issubclass(target_class, Node.node_type_map.get(allowed_target, object))
+                    for allowed_target in allowed_targets
+                )
+
+                return source_allowed and target_allowed    
+
         return False
 
     def add_warning(self, message):

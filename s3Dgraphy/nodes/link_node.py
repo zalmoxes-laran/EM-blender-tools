@@ -9,7 +9,7 @@ class LinkNode(Node):
         url_type (str): Tipo di URL (es. "External link", "Image").
         description (str): Descrizione del collegamento.
     """
-
+    node_type="link"
     def __init__(self, node_id, name="Unnamed Link", url="", url_type="External link", description="No description"):
         """
         Inizializza una nuova istanza di LinkNode.
@@ -21,7 +21,7 @@ class LinkNode(Node):
             url_type (str, opzionale): Tipo di URL. Defaults to "External link".
             description (str, opzionale): Descrizione del collegamento. Defaults to "No description".
         """
-        super().__init__(node_id=node_id, name=name, node_type="link")
+        super().__init__(node_id=node_id, name=name)
         
         # Dati del collegamento
         self.data = {

@@ -42,6 +42,7 @@ class GraphMLImporter:
         self.parse_nodes(tree)
         self.parse_edges(tree)
         self.connect_nodes_to_epochs()
+        self.graph.display_warnings()
         return self.graph
 
     def parse_nodes(self, tree):
@@ -99,10 +100,10 @@ class GraphMLImporter:
             stratigraphic_node = node_class(
                 node_id=self.getnode_id(node_element),
                 name=nodename,
-                #node_type=stratigraphic_type,
                 description=nodedescription
             )
-            
+            print(f"Created node {stratigraphic_node.name} with node_type {stratigraphic_node.node_type}")
+
             # Aggiunta di runtime properties
             stratigraphic_node.attributes['shape'] = nodeshape
             stratigraphic_node.attributes['y_pos'] = float(node_y_pos)
@@ -175,7 +176,7 @@ class GraphMLImporter:
             generic_node = Node(
                 node_id=node_id,
                 name=node_name,
-                node_type="Generic",
+                #node_type="Generic",
                 description=""
             )
             self.graph.add_node(generic_node)
@@ -339,6 +340,7 @@ class GraphMLImporter:
                         epoch_node.set_name(label_node)
 
                     epoch_node.set_color(e_color)
+                    print(f'Ho creato un nodo epoca chiamato {epoch_node.name}')
 
     def connect_nodes_to_epochs(self):
         """

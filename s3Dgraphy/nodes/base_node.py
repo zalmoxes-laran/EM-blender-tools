@@ -36,12 +36,20 @@ class Node:
         attributes (dict): Dictionary for additional attributes.
         mapping (dict): CIDOC mapping data specific to the node type.
     """
+    node_type = "Node"  # Attributo di classe
+    node_type_map = {}  # Mappatura tra node_type e classi
 
-    def __init__(self, node_id, name, node_type, description=""):
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        node_type = getattr(cls, 'node_type', None)
+        if node_type:
+            Node.node_type_map[node_type] = cls
+
+    def __init__(self, node_id, name, description=""):
         self.node_id = node_id
         self.name = name
-        self.node_type = node_type
         self.description = description
+        self.node_type = self.__class__.node_type
         self.attributes = {}
         self.mapping = self.load_mapping()
 

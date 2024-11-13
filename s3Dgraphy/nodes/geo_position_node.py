@@ -10,7 +10,7 @@ class GeoPositionNode(Node):
         type (str): Tipo di nodo, impostato su "geo_position".
         data (dict): Dati relativi alla posizione geografica.
     """
-    
+    node_type = "geo_position"
     def __init__(self, node_id, epsg=4326, shift_x=0.0, shift_y=0.0, shift_z=0.0):
         """
         Inizializza una nuova istanza di GeoPositionNode.
@@ -22,7 +22,7 @@ class GeoPositionNode(Node):
             shift_y (float, opzionale): Spostamento lungo l'asse Y. Defaults to 0.0.
             shift_z (float, opzionale): Spostamento lungo l'asse Z. Defaults to 0.0.
         """
-        super().__init__(node_id=node_id, name="geo_position", node_type="geo_position")
+        super().__init__(node_id=node_id, name="geo_position")
         self.data = {
             "epsg": epsg,
             "shift_x": shift_x,

@@ -70,8 +70,10 @@ class PropertyNode(ParadataNode):
         }
     }
 
+    node_type = "property"
+
     def __init__(self, node_id, name, description="", value=None, property_type="string", data=None, url=None):
-        super().__init__(node_id, name, "property", description, url)
+        super().__init__(node_id, name, description, url)
         self.value = value
         self.property_type = property_type  # Definisce il tipo della proprietà
         self.data = data if data is not None else {}

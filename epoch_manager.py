@@ -26,8 +26,7 @@ class EM_UL_List(bpy.types.UIList):
 ########################
 
 class EM_toggle_select(bpy.types.Operator):
-
-    """Draw a line with the mouse"""
+    """Toggle select proxies in epoch"""
     bl_idname = "epoch_manager.toggle_select"
     bl_label = "Toggle Select"
     bl_description = "Toggle Select"
@@ -43,6 +42,7 @@ class EM_toggle_select(bpy.types.Operator):
             current_e_manager = scene.epoch_list[self.group_em_idx]
             for us in scene.em_list:
                 if us.icon == "RESTRICT_INSTANCED_OFF":
+                    #print(f"La US {us.name} appartiene all'epoca {us.epoch}")
                     if current_e_manager.name == us.epoch:
                         object_to_select = bpy.data.objects[us.name]
                         try:

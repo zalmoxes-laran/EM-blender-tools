@@ -27,6 +27,7 @@ from .functions import *
 
 from .s3Dgraphy import load_graph, get_graph
 from .s3Dgraphy import remove_graph
+from .s3Dgraphy.nodes.group_node import GroupNode
 from .populate_lists import *
 
 #### da qui si definiscono le funzioni e gli operatori
