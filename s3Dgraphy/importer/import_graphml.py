@@ -102,7 +102,7 @@ class GraphMLImporter:
                 name=nodename,
                 description=nodedescription
             )
-            print(f"Created node {stratigraphic_node.name} with node_type {stratigraphic_node.node_type}")
+            #print(f"Created node {stratigraphic_node.name} with node_type {stratigraphic_node.node_type}")
 
             # Aggiunta di runtime properties
             stratigraphic_node.attributes['shape'] = nodeshape

@@ -117,13 +117,29 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
 - [X] **Modified emtools to Integrate with s3Dgraphy**
   - Enabled emtools to work seamlessly with s3Dgraphy, allowing for the import of 3D models.
 
+- [X] **Fix operators in the Epoch Manager even with the old approach**
+  - [X] **Select**
+  - [X] **Set unselectable**
+  - [X] **Toggle reconstruction**
+
 ### Tasks To Do
 
-- [ ] **Fix operators in the Epoch Manager**
-  - [ ] **Select**
-  - [ ] **Set unselectable**
-  - [ ] **Toggle reconstruction**
-  - [ ] **soloing**
+- [ ] **Rewrite the way EMtools's operators interact with scene lists (like scene.em_list)**
+  - [ ] **Create a new "ubermethod" in graph.py to find connected nodes with node_type and edge_type as variables**
+  - [ ] **Create a function that manage both missing proxies and proxies in hidden layers**
+
+- [ ] **Fix operators in the Epoch Manager even with the old approach**
+  - [ ] **soloing to be done with the new node-based approach**
+
+- [ ] **Develop a SF panel for extended visualization of data from a standardized excel file**
+  - [ ] **Add a file path entry in EMsetup panel**
+  - [ ] **Create operator to load xlsx file at convenience and/or automatically at graphml import**
+  - [ ] **Create a panel to show extended info for SF - or integrate it in the Stratigraphic Nodes Manager -**
+  - [ ] **testing**
+
+- [ ] **Develop a Filtering System**
+  - Create a system to filter nodes, allowing users to visualize only a subset of stratigraphic units.
+  - Improves usability when dealing with complex graphs.
 
 - [ ] **Populate New Lists**
   - [ ] **Activities List**
@@ -132,16 +148,12 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
     - Populate to manage alternative temporal sequences.
   - [ ] **Task**: Implement functionality to read and populate these lists.
 
-- [ ] **Develop a Filtering System**
-  - Create a system to filter nodes, allowing users to visualize only a subset of stratigraphic units.
-  - Improves usability when dealing with complex graphs.
-
 - [ ] **Integrate IDs from Extended Matrix Canvas Tags**
   - Implement a system to append the ID from the canvas tags as a suffix to stratigraphic unit names.
   - **Objective**: Ensure unique naming of units to allow importing stratigraphies from different graphs into the same scene.
 
 - [ ] **Enhance Node Management**
-  - Improve handling of newly added nodes such as authors, licenses, time branches, and activities.
+  - Improve handling of newly added nodes such as authors, licenses.
   - **Task**: Develop features to manage these nodes effectively within emtools.
 
 - [ ] **Modify Code for Visual Rules in Stratigraphic Nodes**

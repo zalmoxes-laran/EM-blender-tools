@@ -453,6 +453,40 @@ class Graph:
                     print(f"  Connection Type: {edge.edge_type} ({edge.label})")
                     print(f"    - Source Node: {source_node.name}, Type: {source_node.node_type}")
 
+
+    def get_connected_nodes_by_filters(self, node, target_node_type="all", edge_type="all"):
+        """
+        Ottiene una lista di nodi collegati in base ai filtri specificati su target_node_type ed edge_type.
+
+        Args:
+            node (Node): Nodo di partenza.
+            target_node_type (str): Tipo di nodo target da cercare ("all" per nessun filtro).
+            edge_type (str): Tipo di edge da cercare ("all" per nessun filtro).
+
+        Returns:
+            list[Node]: Lista di nodi collegati che soddisfano i criteri specificati.
+        """
+        connected_nodes = []
+
+        for edge in self.edges:
+            # Filtra per edge_type se specificato
+            if edge_type != "all" and edge.edge_type != edge_type:
+                continue
+
+            # Verifica se il nodo di partenza è source o target dell'edge
+            if edge.edge_source == node.node_id:
+                target_node = self.find_node_by_id(edge.edge_target)
+                # Filtra per target_node_type se specificato
+                if target_node and (target_node_type == "all" or target_node.node_type == target_node_type):
+                    connected_nodes.append(target_node)
+            elif edge.edge_target == node.node_id:
+                source_node = self.find_node_by_id(edge.edge_source)
+                # Filtra per target_node_type se specificato
+                if source_node and (target_node_type == "all" or source_node.node_type == target_node_type):
+                    connected_nodes.append(source_node)
+
+        return connected_nodes
+
 '''
 Esempio di utilizzo:
 graph = get_graph()  # Ottieni il grafo caricato

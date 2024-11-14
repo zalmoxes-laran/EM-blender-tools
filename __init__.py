@@ -200,7 +200,6 @@ class EmPreferences(bpy.types.AddonPreferences):
               op.is_install = False
               op.list_modules_to_install = "NetworkX"
 
-
 class EDGESListItem(bpy.types.PropertyGroup):
        """ Group of properties an item in the list """
 
@@ -454,7 +453,6 @@ class EMUSItem(bpy.types.PropertyGroup):
     description: bpy.props.StringProperty(name="Description", default="") # type: ignore
     status: bpy.props.StringProperty(name="Status", default="") # type: ignore
     y_pos: bpy.props.StringProperty(name="y_pos", default="") # type: ignore
-
 
 def update_selected_epoch_us_list(self, context):
        #if context.scene.em_graph:

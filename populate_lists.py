@@ -83,7 +83,7 @@ def populate_stratigraphic_node(scene, node, index, graph):
         graph.print_node_connections(node)
     em_item.epoch = first_epoch.name if first_epoch else ""
 
-    print("Ho registrato l'epoca "+em_item.epoch+" per il nodo"+em_item.name)
+    #print("Ho registrato l'epoca "+em_item.epoch+" per il nodo"+em_item.name)
     #em_item.epoch = graph.get_epochs_list_for_stratigraphicnode(node.node_id)
     
     return index + 1
