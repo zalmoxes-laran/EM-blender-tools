@@ -1,5 +1,5 @@
 import bpy
-from .s3Dgraphy import get_graph
+from .s3Dgraphy import get_graph, remove_graph
 from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode
 
 from . import sqlite_io
@@ -26,6 +26,7 @@ class EMToolsProperties(bpy.types.PropertyGroup):
     graphml_path: bpy.props.StringProperty(name="GraphML Path", subtype='FILE_PATH')  # Aggiungiamo il campo per il percorso
     dosco_dir: bpy.props.StringProperty(name="DosCo Directory", subtype='DIR_PATH')
     xlsx_filepath: bpy.props.StringProperty(name="Source File (xlsx)", subtype='FILE_PATH')
+    xlsx_sf_filepath: bpy.props.StringProperty(name="Special Find File (xlsx)", subtype='FILE_PATH')
     emdb_filepath: bpy.props.StringProperty(name="EMdb File (sqlite)", subtype='FILE_PATH')
     is_graph: bpy.props.BoolProperty(name="Graph Exists", default=False)  # Aggiungi questa riga
 
@@ -142,8 +143,10 @@ class EM_SetupPanel(bpy.types.Panel):
                     box.prop(em_settings, 'overwrite_url_with_dosco_filepath', text = "Overwrite paths")
                     box.prop(em_settings, 'preserve_web_url', text = "Preserve web urls (if any)")
 
-                # XLSX file
+                # source XLSX file
                 box.prop(active_file, "xlsx_filepath", text="Source File (xlsx)")
+                # SF XLSX file
+                box.prop(active_file, "xlsx_sf_filepath", text="SF File (xlsx)")
                 # EMdb file
                 box.prop(active_file, "emdb_filepath", text="EMdb File (sqlite)")
 

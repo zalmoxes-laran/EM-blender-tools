@@ -176,6 +176,7 @@ class EM_import_GraphML(bpy.types.Operator):
             # Recupera gli altri percorsi (DosCo, XLSX, EMdb)
             dosco_dir = graphml.dosco_dir
             xlsx_filepath = graphml.xlsx_filepath
+            xlsx_sf_filepath = graphml.xlsx_sf_filepath
             emdb_filepath = graphml.emdb_filepath
 
 

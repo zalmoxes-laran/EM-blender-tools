@@ -1,6 +1,6 @@
-import bpy
-from bpy.types import Operator, AddonPreferences, Panel
-from bpy.props import StringProperty, BoolProperty
+import bpy # type: ignore
+from bpy.types import Operator, AddonPreferences, Panel # type: ignore
+from bpy.props import StringProperty, BoolProperty # type: ignore
 import os
 
 import logging
@@ -35,8 +35,8 @@ class OBJECT_OT_load_EMdb_xlsx(Operator):
     def execute(self, context):
         # import functions for this task
         # execute function
-        import pandas
-        import openpyxl
+        import pandas # type: ignore
+        import openpyxl # type: ignore
         scene = context.scene
         newfile_name = bpy.path.abspath(scene.EMdb_xlsx_filepath)
         data = pandas.read_excel(newfile_name, sheet_name ='sources')
@@ -50,7 +50,6 @@ class OBJECT_OT_load_EMdb_xlsx(Operator):
             for source_v_item in scene.em_v_sources_list:
                 if source_v_item.name == row['Name']:
                     source_v_item.description = row['Description']
-
         return {'FINISHED'}
 
 '''
