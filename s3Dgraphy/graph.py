@@ -132,7 +132,7 @@ class Graph:
 
         # Validate the connection using connection rules
         if not self.validate_connection(source_node.node_type, target_node.node_type, edge_type):
-            self.add_warning(f"Connection '{edge_type}' not allowed between '{source_node.node_type}' and '{target_node.node_type}'. Using 'generic_connection' instead.")
+            self.add_warning(f"Connection '{edge_type}' not allowed between '{source_node.node_type}' (name:{source_node.name}) and '{target_node.node_type}' (name:'{target_node.name}'). Using 'generic_connection' instead.")
             edge_type = "generic_connection"
 
         if self.find_edge_by_id(edge_id):
@@ -285,15 +285,21 @@ class Graph:
         """
         for edge in self.edges:
             if (edge.edge_source == node.node_id and edge.edge_type == edge_type):
+                #print("Ho trovato un edge corretto per il mio nodo")
                 target_node = self.find_node_by_id(edge.edge_target)
-                if target_node and target_node.node_type == "EpochNode":
-                    print(f"Found connected EpochNode '{target_node.node_id}' via edge type '{edge_type}'.")
+                if target_node and target_node.node_type == "epoch":
+                    #print(f"Found connected EpochNode '{target_node.node_id}' via edge type '{edge_type}'.")
                     return target_node
+                else:
+                    print(f"NOT found any epochnode for {node.name} con id {node.node_id}")
             elif (edge.edge_target == node.node_id and edge.edge_type == edge_type):
                 source_node = self.find_node_by_id(edge.edge_source)
-                if source_node and source_node.node_type == "EpochNode":
-                    print(f"Found connected EpochNode '{source_node.node_id}' via edge type '{edge_type}'.")
+                if source_node and source_node.node_type == "epoch":
+                    #print(f"Found connected EpochNode '{source_node.node_id}' via edge type '{edge_type}'.")
                     return source_node
+                else:
+                    print(f"NOT found any epochnode for {node.name} con id {node.id}")
+            
         return None
 
 
@@ -430,6 +436,22 @@ class Graph:
                     filtered_nodes.append(node)
         return filtered_nodes
 
+    def print_node_connections(self, node):
+
+        print(f"Node: {node.name}, Type: {node.node_type}")
+        print("Connections:")
+
+        for edge in self.edges:
+            if edge.edge_source == node.node_id:
+                target_node = self.find_node_by_id(edge.edge_target)
+                if target_node:
+                    print(f"  Connection Type: {edge.edge_type} ({edge.label})")
+                    print(f"    - Target Node: {target_node.name}, Type: {target_node.node_type}")
+            elif edge.edge_target == node.node_id:
+                source_node = self.find_node_by_id(edge.edge_source)
+                if source_node:
+                    print(f"  Connection Type: {edge.edge_type} ({edge.label})")
+                    print(f"    - Source Node: {source_node.name}, Type: {source_node.node_type}")
 
 '''
 Esempio di utilizzo:
