@@ -54,7 +54,6 @@ class ACTIVITY_UL_list(UIList):
             layout.alignment = 'CENTER'
             layout.label(text="")
 
-
 class ACTIVITY_OT_refresh_list(Operator):
     bl_idname = "activity.refresh_list"
     bl_label = "Aggiorna Lista Attività"
@@ -105,15 +104,17 @@ class VIEW3D_PT_activity_manager(Panel):
     bl_region_type = 'UI'
     bl_category = 'EM'
 
+    @classmethod
+    def poll(cls, context):
+        em_tools = context.scene.em_tools
+        # Restituisce True se mode_switch è False, quindi il pannello viene mostrato solo in modalità 3D GIS
+        return em_tools.mode_switch
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
+        # Controlla il valore del flag per decidere cosa mostrare
         activity_manager = scene.activity_manager
-
-
-        #row = layout.row()
-        #row.operator('activity.refresh_list', text='Aggiorna Lista')
-
         layout.template_list(
             "ACTIVITY_UL_list", "activity_list",
             activity_manager, "activities",

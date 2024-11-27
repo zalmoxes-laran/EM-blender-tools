@@ -18,7 +18,7 @@ from bpy.props import (BoolProperty, # type: ignore
                        PointerProperty,
                        FloatVectorProperty,
                        )
-from bpy.types import Operator
+from bpy.types import Operator # type: ignore
 
 class EMToolsProperties(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="GraphML File")
@@ -31,8 +31,14 @@ class EMToolsProperties(bpy.types.PropertyGroup):
     is_graph: bpy.props.BoolProperty(name="Graph Exists", default=False)  # Aggiungi questa riga
 
 class EMToolsSettings(bpy.types.PropertyGroup):
-    graphml_files: bpy.props.CollectionProperty(type=EMToolsProperties)
-    active_file_index: bpy.props.IntProperty()
+    graphml_files: bpy.props.CollectionProperty(type=EMToolsProperties) # type: ignore
+    active_file_index: bpy.props.IntProperty() # type: ignore
+    mode_switch: bpy.props.BoolProperty(
+        name="Modalità EM Avanzata",
+        description="Switch tra modalità 3D GIS e modalità EM avanzata",
+        default=False
+    ) # type: ignore
+
 
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files"""
@@ -103,6 +109,26 @@ class EM_SetupPanel(bpy.types.Panel):
         layout = self.layout
         scene = context.scene
         em_tools = scene.em_tools
+
+        box = layout.box()
+        row = box.row(align=True)
+        #row = layout.row(align=True)
+        split = row.split()
+        col = split.column()
+
+        # Aggiungi il flag booleano
+        col.prop(em_tools, "mode_switch", text="Advanced EM mode")
+        col = split.column()
+
+        # Controlla il valore del flag per decidere cosa mostrare
+        if em_tools.mode_switch:
+            # Modalità EM avanzata (grafi di conoscenza)
+            col.label(text="Advanced EM mode active")
+            # Aggiungi qui gli elementi UI specifici per questa modalità
+            # ...
+        else:
+            # Modalità 3D GIS (tabelle)
+            col.label(text="3D GIS mode active")
 
         # List of GraphML files
         row = layout.row()

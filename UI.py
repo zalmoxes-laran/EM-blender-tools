@@ -127,6 +127,12 @@ class VIEW3D_PT_USListPanel(bpy.types.Panel):
     bl_region_type = 'UI'
     bl_category = 'EM'
 
+    @classmethod
+    def poll(cls, context):
+        em_tools = context.scene.em_tools
+        # Restituisce True se mode_switch è False, quindi il pannello viene mostrato solo in modalità 3D GIS
+        return em_tools.mode_switch
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
@@ -159,6 +165,12 @@ class EMdbPanel:
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     
+    @classmethod
+    def poll(cls, context):
+        em_tools = context.scene.em_tools
+        # Restituisce True se mode_switch è False, quindi il pannello viene mostrato solo in modalità 3D GIS
+        return em_tools.mode_switch
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
@@ -226,6 +238,12 @@ class EM_BasePanel:
     bl_label = "Periods Manager"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
+
+    @classmethod
+    def poll(cls, context):
+        em_tools = context.scene.em_tools
+        # Restituisce True se mode_switch è False, quindi il pannello viene mostrato solo in modalità 3D GIS
+        return em_tools.mode_switch
 
     def draw(self, context):
         layout = self.layout
@@ -342,6 +360,12 @@ class EM_ParadataPanel:
     bl_label = "Paradata Manager"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
+
+    @classmethod
+    def poll(cls, context):
+        em_tools = context.scene.em_tools
+        # Restituisce True se mode_switch è False, quindi il pannello viene mostrato solo in modalità 3D GIS
+        return em_tools.mode_switch
 
     def draw(self, context):
         layout = self.layout

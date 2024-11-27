@@ -1,10 +1,10 @@
-import bpy
+import bpy # type: ignore
 import xml.etree.ElementTree as ET
 import os
 import sys
-import bpy.props as prop
+import bpy.props as prop # type: ignore
 import subprocess
-from bpy.props import (BoolProperty,
+from bpy.props import (BoolProperty, # type: ignore
                        FloatProperty,
                        StringProperty,
                        EnumProperty,
@@ -14,7 +14,7 @@ from bpy.props import (BoolProperty,
                        FloatVectorProperty,
                        )
 
-from bpy.types import (
+from bpy.types import ( # type: ignore
         AddonPreferences,
         PropertyGroup,
         )
@@ -29,7 +29,7 @@ class EM_files_opener(bpy.types.Operator):
     bl_label = "Open a file using external software or a url using the default system browser"
     bl_options = {"REGISTER", "UNDO"}
 
-    node_type: StringProperty()
+    node_type: StringProperty() # type: ignore
 
     #@classmethod
     #def poll(cls, context):
