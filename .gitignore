@@ -61,3 +61,6 @@ em-blender-tools_updater/EM-blender-tools_updater_status.json
 telegram_credentials.py
 .vscode/settings.json
 s3Dgraphy/.DS_Store
+.DS_Store
+s3Dgraphy/.DS_Store
+s3Dgraphy/JSON_config/.DS_Store

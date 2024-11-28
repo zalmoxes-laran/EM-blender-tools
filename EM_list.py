@@ -159,8 +159,6 @@ class EM_import_GraphML(bpy.types.Operator):
             # Ottieni il file GraphML selezionato
             graphml = em_tools.graphml_files[self.graphml_index]
 
-
-
             # Verifica che il campo path sia valorizzato
             if not graphml.graphml_path:
                 self.report({'ERROR'}, "GraphML path is not specified.")

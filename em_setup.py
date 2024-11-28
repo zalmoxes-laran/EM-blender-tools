@@ -39,7 +39,6 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         default=False
     ) # type: ignore
 
-
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
