@@ -20,13 +20,19 @@ from bpy.props import (BoolProperty, # type: ignore
                        )
 from bpy.types import Operator # type: ignore
 
+from .import_operators.importer_EMdb import *
+
 class EMToolsProperties(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="GraphML File")
     expanded: bpy.props.BoolProperty(name="Auxiliary files", default=False)
     graphml_path: bpy.props.StringProperty(name="GraphML Path", subtype='FILE_PATH')  # Aggiungiamo il campo per il percorso
     dosco_dir: bpy.props.StringProperty(name="DosCo Directory", subtype='DIR_PATH')
     xlsx_filepath: bpy.props.StringProperty(name="Source File (xlsx)", subtype='FILE_PATH')
-    xlsx_sf_filepath: bpy.props.StringProperty(name="Special Find File (xlsx)", subtype='FILE_PATH')
+    xlsx_3DGIS_database_file: bpy.props.StringProperty(
+        name="3D GIS Database File", 
+        description="Path to the 3D GIS database Excel file",
+        subtype='FILE_PATH'
+    )     # type: ignore
     emdb_filepath: bpy.props.StringProperty(name="EMdb File (sqlite)", subtype='FILE_PATH')
     is_graph: bpy.props.BoolProperty(name="Graph Exists", default=False)  # Aggiungi questa riga
 
@@ -95,6 +101,26 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="File Name") # type: ignore
     is_graph: bpy.props.BoolProperty(name="Graph Exists", default=False) # type: ignore
 
+class EMToolsSwitchModeOperator(bpy.types.Operator):
+    bl_idname = "emtools.switch_mode"
+    bl_label = "Switch Mode"
+    
+    def execute(self, context):
+        em_tools = context.scene.em_tools
+        
+        # Alterna tra le due modalità
+        em_tools.mode_switch = not em_tools.mode_switch
+        
+        # Messaggio per informare l'utente
+        if em_tools.mode_switch:
+            self.report({'INFO'}, "Switched to Advanced EM Mode")
+        else:
+            self.report({'INFO'}, "Switched to 3D GIS Mode")
+        
+        return {'FINISHED'}
+
+
+
 class EM_SetupPanel(bpy.types.Panel):
     bl_info = get_bl_info()
     devel_version = bl_info.get('devel_version', 'Unknown version')
@@ -115,65 +141,66 @@ class EM_SetupPanel(bpy.types.Panel):
         split = row.split()
         col = split.column()
 
-        # Aggiungi il flag booleano
-        col.prop(em_tools, "mode_switch", text="Advanced EM mode")
-        col = split.column()
-
-        # Controlla il valore del flag per decidere cosa mostrare
+        activemode_label = ""
+        # Cambia l'etichetta del pulsante in base alla modalità attiva
         if em_tools.mode_switch:
-            # Modalità EM avanzata (grafi di conoscenza)
-            col.label(text="Advanced EM mode active")
-            # Aggiungi qui gli elementi UI specifici per questa modalità
-            # ...
+            activemode_label = "Switch to 3D GIS Mode"
         else:
-            # Modalità 3D GIS (tabelle)
-            col.label(text="3D GIS mode active")
+            activemode_label = "Switch to Advanced EM Mode"
+        
+        # Disegna il pulsante
+        col.operator("emtools.switch_mode", text=activemode_label)
 
-        # List of GraphML files
-        row = layout.row()
+        if em_tools.mode_switch:
+            # List of GraphML files
+            row = layout.row()
+            row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=3)
 
-        row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=3)
-
-
-        row = layout.row(align=True)
-        row.operator('em_tools.add_file', text="Add UT", icon="ADD")
-        row.operator('em_tools.remove_file', text="Remove UT", icon="REMOVE")
-
-        # Details for selected GraphML file
-        if em_tools.active_file_index >= 0 and em_tools.graphml_files:
-            active_file = em_tools.graphml_files[em_tools.active_file_index]
-
-
-            # Path to GraphML
             row = layout.row(align=True)
-            row.prop(active_file, "graphml_path", text="Path")
+            row.operator('em_tools.add_file', text="Add UT", icon="ADD")
+            row.operator('em_tools.remove_file', text="Remove UT", icon="REMOVE")
 
+            # Details for selected GraphML file
+            if em_tools.active_file_index >= 0 and em_tools.graphml_files:
+                active_file = em_tools.graphml_files[em_tools.active_file_index]
+
+                # Path to GraphML
+                row = layout.row(align=True)
+                row.prop(active_file, "graphml_path", text="Path")
+
+                box = layout.box()
+                box.prop(active_file, "expanded", icon="TRIA_DOWN" if active_file.expanded else "TRIA_RIGHT", emboss=False)
+
+                if active_file.expanded:
+
+                    # Path to DosCo folder
+                    box.prop(active_file, "dosco_dir", text="DosCo Directory")
+
+                    em_settings = bpy.context.window_manager.em_addon_settings
+                    #box.prop(em_settings, "dosco_advanced_options", 
+
+                    box.prop(em_settings, "dosco_advanced_options", text="DosCo advanced options", icon="TRIA_DOWN" if em_settings.dosco_advanced_options else "TRIA_RIGHT", emboss=False)
+
+                    if em_settings.dosco_advanced_options:
+                        #row = box.row()
+                        box.label(text="Populate extractors, documents and combiners using DosCo files:")
+                        #row = box.row()
+                        box.prop(em_settings, 'overwrite_url_with_dosco_filepath', text = "Overwrite paths")
+                        box.prop(em_settings, 'preserve_web_url', text = "Preserve web urls (if any)")
+
+                    # source XLSX file
+                    box.prop(active_file, "xlsx_filepath", text="Source File (xlsx)")
+                    # EMdb file
+                    box.prop(active_file, "emdb_filepath", text="EMdb File (sqlite)")
+
+        else:
             box = layout.box()
-            box.prop(active_file, "expanded", icon="TRIA_DOWN" if active_file.expanded else "TRIA_RIGHT", emboss=False)
+            # SF XLSX file
+            box.prop(em_tools, "xlsx_3DGIS_database_file", text="xlsx 3DGIS database File")
 
-            if active_file.expanded:
-
-                # Path to DosCo folder
-                box.prop(active_file, "dosco_dir", text="DosCo Directory")
-
-                em_settings = bpy.context.window_manager.em_addon_settings
-                #box.prop(em_settings, "dosco_advanced_options", 
-
-                box.prop(em_settings, "dosco_advanced_options", text="DosCo advanced options", icon="TRIA_DOWN" if em_settings.dosco_advanced_options else "TRIA_RIGHT", emboss=False)
-
-                if em_settings.dosco_advanced_options:
-                    #row = box.row()
-                    box.label(text="Populate extractors, documents and combiners using DosCo files:")
-                    #row = box.row()
-                    box.prop(em_settings, 'overwrite_url_with_dosco_filepath', text = "Overwrite paths")
-                    box.prop(em_settings, 'preserve_web_url', text = "Preserve web urls (if any)")
-
-                # source XLSX file
-                box.prop(active_file, "xlsx_filepath", text="Source File (xlsx)")
-                # SF XLSX file
-                box.prop(active_file, "xlsx_sf_filepath", text="SF File (xlsx)")
-                # EMdb file
-                box.prop(active_file, "emdb_filepath", text="EMdb File (sqlite)")
+            # Add import button
+            #row = box.row()
+            box.operator("em.import_3dgis_database", text="Import 3D GIS Database", icon='IMPORT')
 
 
         ############# box con le statistiche del file ##################
@@ -268,7 +295,8 @@ classes = [
     EMToolsAddFile,
     EMToolsRemoveFile,
     EM_InvokePopulateLists,
-    GraphMLFileItem
+    GraphMLFileItem,
+    EMToolsSwitchModeOperator
 ]
 
 def register():
