@@ -56,7 +56,7 @@ link_node_zenodo = LinkNode(
 
 # Creazione di un LinkNode per un’immagine a risoluzione completa
 link_node_image = LinkNode(
-    node_id="USM04.image",
+    node_id="D.01.image",
     name="FullRES Image",
     url="http://aton.ispc.it/image.jpeg",
     url_type="Image",
