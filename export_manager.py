@@ -16,6 +16,7 @@ from .functions import *
 import random
 
 from .s3Dgraphy import convert_shape2type
+from .s3Dgraphy.exporter.json_exporter import JSONExporter
 
 
 #####################################################################
@@ -469,6 +470,7 @@ class EM_openemviq(bpy.types.Operator):
 
         return {'FINISHED'}
 
+
 class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
     bl_idname = "export.emjson"
     bl_label = "Export emjson"
@@ -490,6 +492,45 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
             return self.export_emjson(context, None)
     
     def export_emjson(self, context, file_path):
+        scene = context.scene
+        if not file_path:
+            file_path = "output.json"
+            
+        try:
+            # Crea l'esportatore
+            exporter = JSONExporter(file_path)
+            
+            # Esporta tutti i grafi
+            exporter.export_graphs()
+            
+            self.report({'INFO'}, f"EM data successfully exported to {file_path}")
+            return {'FINISHED'}
+            
+        except Exception as e:
+            self.report({'ERROR'}, f"Error exporting EM data: {str(e)}")
+            return {'CANCELLED'}
+
+class JSON_OT_exportJSONformat(bpy.types.Operator, ExportHelper):
+    bl_idname = "export.json"
+    bl_label = "Export json"
+    bl_options = {"REGISTER", "UNDO"}
+
+    # Proprietà per controllare se mostrare la finestra di dialogo
+    use_file_dialog: BoolProperty(
+        name="Use File Dialog",
+        description="Use the file dialog to choose where to save the JSON",
+        default=True
+    ) # type: ignore
+
+    filename_ext = ".json"
+
+    def execute(self, context):
+        if self.use_file_dialog:
+            return self.export_json(context, self.filepath)
+        else:
+            return self.export_ejson(context, None)
+    
+    def export_json(self, context, file_path):
         scene = context.scene
         if not file_path:
             
