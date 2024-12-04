@@ -142,13 +142,19 @@ class EM_SetupPanel(bpy.types.Panel):
         col = split.column()
 
         activemode_label = ""
+        active_label = ""
         # Cambia l'etichetta del pulsante in base alla modalità attiva
         if em_tools.mode_switch:
-            activemode_label = "Switch to 3D GIS Mode"
+            activemode_label = "Switch to 3D GIS"
+            active_label = "Advanced EM Mode active"
         else:
-            activemode_label = "Switch to Advanced EM Mode"
+            activemode_label = "Switch to Advanced EM"
+            active_label = "3D GIS Mode active"
         
         # Disegna il pulsante
+        
+        col.label(text=active_label)
+        col = split.column()
         col.operator("emtools.switch_mode", text=activemode_label)
 
         if em_tools.mode_switch:
