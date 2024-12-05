@@ -22,9 +22,9 @@ bl_info = {
     "author": "E. Demetrescu",
     "version": (1, 5, 0),
     "blender": (4, 2, 3),
-    "devel_version": "v1.5.0 dev6",  # Aggiunto campo devel_version
+    "devel_version": "v1.5.0 dev7",  # Aggiunto campo devel_version
     "location": "3D View > Toolbox",
-    "warning": "This addon is in dev3 stage.",
+    "warning": "This addon is in dev7 stage.",
     "wiki_url": "",
     "category": "Tools",
     }
@@ -68,8 +68,7 @@ from . import (
         em_statistics,
         server,
         graph2geometry,
-        activity_manager,
-        populate_lists
+        activity_manager
         #google_credentials
         )
 

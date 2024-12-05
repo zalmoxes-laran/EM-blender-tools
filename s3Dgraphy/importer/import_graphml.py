@@ -306,7 +306,7 @@ class GraphMLImporter:
                 try:
                     print(vocabolario['ID'])
                     print(vocabolario['ORCID'])
-                    print(vocabolario['description@it'])
+                    print(vocabolario['description'])
                 except:
                     pass
             #Extract sectors as localdata from the EM

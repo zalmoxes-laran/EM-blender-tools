@@ -20,7 +20,7 @@ from bpy.props import (BoolProperty, # type: ignore
                        )
 from bpy.types import Operator # type: ignore
 
-from .import_operators.importer_EMdb import *
+from .import_operators.import_EMdb import *
 
 class EMToolsProperties(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="GraphML File")
@@ -42,7 +42,7 @@ class EMToolsSettings(bpy.types.PropertyGroup):
     mode_switch: bpy.props.BoolProperty(
         name="Modalità EM Avanzata",
         description="Switch tra modalità 3D GIS e modalità EM avanzata",
-        default=False
+        default=True
     ) # type: ignore
 
 class EMTOOLS_UL_files(bpy.types.UIList):
@@ -118,8 +118,6 @@ class EMToolsSwitchModeOperator(bpy.types.Operator):
             self.report({'INFO'}, "Switched to 3D GIS Mode")
         
         return {'FINISHED'}
-
-
 
 class EM_SetupPanel(bpy.types.Panel):
     bl_info = get_bl_info()

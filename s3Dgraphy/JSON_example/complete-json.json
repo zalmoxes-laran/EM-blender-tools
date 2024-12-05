@@ -32,7 +32,7 @@
         "domus_romana_01": {
             "id": "domus_romana_01",
             "name": "Domus del Criptoportico",
-            "description": "Scavo stratigrafico della Domus del Criptoportico di Vulci",
+            "description": "Scavo stratigrafico della Domus del Comandante",
             "defaults": {
                 "license": "CC-BY-NC-ND",
                 "authors": ["author_01", "author_02"],
@@ -42,11 +42,11 @@
                 "authors": {
                     "author_01": {
                         "type": "author",
-                        "name": "Maria Rossi",
-                        "description": "Archeologa responsabile dello scavo",
+                        "name": "Indiana Jones",
+                        "description": "Archeologo responsabile dello scavo",
                         "data": {
                             "orcid": "0000-0002-1825-0097",
-                            "affiliation": "Università di Roma La Sapienza"
+                            "affiliation": "CNR ISPC"
                         }
                     },
                     "author_02": {

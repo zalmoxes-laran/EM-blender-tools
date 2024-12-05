@@ -27,7 +27,7 @@
   - GPL3-license.txt
   - foldertree.txt
   - import_operators/
-    - importer_EMdb.py
+    - import_EMdb.py
     - __init__.py
   - s3Dgraphy/
     - graph.py
