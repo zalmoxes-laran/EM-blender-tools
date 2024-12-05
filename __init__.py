@@ -22,7 +22,7 @@ bl_info = {
     "author": "E. Demetrescu",
     "version": (1, 5, 0),
     "blender": (4, 2, 3),
-    "devel_version": "v1.5.0 dev5",  # Aggiunto campo devel_version
+    "devel_version": "v1.5.0 dev6",  # Aggiunto campo devel_version
     "location": "3D View > Toolbox",
     "warning": "This addon is in dev3 stage.",
     "wiki_url": "",
@@ -72,6 +72,8 @@ from . import (
         populate_lists
         #google_credentials
         )
+
+from .import_operators import import_graphml
 
 from .functions import *
 from bpy.utils import register_class, unregister_class  # type: ignore
@@ -525,6 +527,8 @@ def register():
 
        activity_manager.register()
 
+       import_graphml.register()
+
        check_external_modules() 
 
 
@@ -691,6 +695,7 @@ def unregister():
        epoch_manager.unregister()
        graph2geometry.unregister()
        activity_manager.unregister()
+       import_graphml.unregister()
        for cls in classes:
               try:
                      bpy.utils.unregister_class(cls)

@@ -5,7 +5,7 @@ from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode
 from . import sqlite_io
 from .__init__ import get_bl_info
 
-from .EM_list import EM_import_GraphML
+from .import_operators.import_graphml import EM_import_GraphML
 
 from .populate_lists import *
 
