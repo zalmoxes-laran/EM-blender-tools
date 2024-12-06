@@ -72,7 +72,7 @@ from . import (
         #google_credentials
         )
 
-from .import_operators import import_graphml
+from .import_operators import importer_graphml
 
 from .functions import *
 from bpy.utils import register_class, unregister_class  # type: ignore
@@ -526,7 +526,7 @@ def register():
 
        activity_manager.register()
 
-       import_graphml.register()
+       importer_graphml.register()
 
        check_external_modules() 
 
@@ -694,7 +694,7 @@ def unregister():
        epoch_manager.unregister()
        graph2geometry.unregister()
        activity_manager.unregister()
-       import_graphml.unregister()
+       importer_graphml.unregister()
        for cls in classes:
               try:
                      bpy.utils.unregister_class(cls)
