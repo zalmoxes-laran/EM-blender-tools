@@ -25,9 +25,9 @@
   - EM_list.py
   - GPL3-license.txt
   - import_operators/
-    - import_graphml.py
     - __init__.py
     - import_EMdb.py
+    - importer_graphml.py
   - s3Dgraphy/
     - graph.py
     - __init__.py
