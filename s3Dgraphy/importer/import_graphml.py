@@ -297,18 +297,11 @@ class GraphMLImporter:
         for nodelabel in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
             RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
             ColumnNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}ColumnNodeLabelModelParameter')
-            
+
             #Extract generaldata from the EM
             if RowNodeLabelModelParameter is None and ColumnNodeLabelModelParameter is None:
-                print(f"Trovata intestazione del grafo")
-                print(f"nodelabel è {nodelabel.text}")
-                stringa_pulita, vocabolario = self.estrai_stringa_e_vocabolario(nodelabel.text)
-                try:
-                    print(vocabolario['ID'])
-                    print(vocabolario['ORCID'])
-                    print(vocabolario['description'])
-                except:
-                    pass
+                self.process_general_data(nodelabel, self.graph)
+
             #Extract sectors as localdata from the EM
             elif ColumnNodeLabelModelParameter is not None:
                 #print(f"Trovate colonne del grafo")
@@ -341,6 +334,69 @@ class GraphMLImporter:
 
                     epoch_node.set_color(e_color)
                     print(f'Ho creato un nodo epoca chiamato {epoch_node.name}')
+
+
+    # In import_graphml.py, nella classe GraphMLImporter
+
+    def process_general_data(self, nodelabel, graph):
+        """
+        Processa i dati generali dal nodelabel e li aggiunge al grafo.
+        
+        Args:
+            nodelabel: L'elemento nodelabel contenente i dati generali
+            graph: L'istanza del grafo a cui aggiungere i dati
+        """
+        print(f"Trovata intestazione del grafo")
+        print(f"nodelabel è {nodelabel.text}")
+        stringa_pulita, vocabolario = self.estrai_stringa_e_vocabolario(nodelabel.text)
+        
+        try:
+            # Aggiorna l'ID del grafo se presente
+            if 'ID' in vocabolario:
+                graph.graph_id = vocabolario['ID']
+                
+            # Crea il nodo autore se presente un ORCID
+            if 'ORCID' in vocabolario:
+                from ..nodes.author_node import AuthorNode
+                author_node = AuthorNode(
+                    node_id=f"author_{vocabolario['ORCID']}",
+                    orcid=vocabolario['ORCID'],
+                    name=vocabolario.get('author_name', 'Unknown Author'),
+                    surname=vocabolario.get('author_surname', 'Unknown Surname')
+                )
+                graph.add_node(author_node)
+                
+                # Collega l'autore al grafo
+                graph.add_edge(
+                    edge_id=f"authorship_{author_node.node_id}",
+                    edge_source=author_node.node_id,
+                    edge_target=graph.graph_id,
+                    edge_type="has_author"
+                )
+                
+            # Aggiorna la descrizione del grafo
+            if 'description' in vocabolario:
+                graph.description = {'default': vocabolario['description']}
+                
+            # Gestisce la data di embargo se presente
+            if 'embargo' in vocabolario:
+                try:
+                    # Converti la data di embargo in formato ISO
+                    embargo_date = vocabolario['embargo']
+                    # Assumi che la data sia in formato YYYY-MM-DD
+                    graph.data['embargo_until'] = embargo_date
+                except ValueError as e:
+                    print(f"Errore nel parsing della data di embargo: {e}")
+                    
+            # Gestisce la licenza se presente
+            if 'license' in vocabolario:
+                graph.data['license'] = vocabolario['license']
+                
+        except Exception as e:
+            print(f"Errore nel processare i dati generali: {e}")
+
+
+
 
     def connect_nodes_to_epochs(self):
         """

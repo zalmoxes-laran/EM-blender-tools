@@ -119,6 +119,18 @@ class JSONExporter:
             elif node.node_type in ["US", "USVs", "SF", "USVn", "USD"]:
                 nodes["stratigraphic"][node.node_type][node.node_id] = node_data
             elif node.node_type == "epoch":
+                node_data = {
+                    "type": node.node_type,
+                    "name": node.name,
+                    "description": node.description,
+                    "data": {
+                        "start_time": node.start_time,  # Aggiungo il valore start_time
+                        "end_time": node.end_time,      # Aggiungo il valore end_time
+                        "color": node.color if hasattr(node, 'color') else None,
+                        "min_y": node.min_y if hasattr(node, 'min_y') else None,
+                        "max_y": node.max_y if hasattr(node, 'max_y') else None
+                    }
+                }
                 nodes["epochs"][node.node_id] = node_data
             elif node.node_type in ["ActivityNodeGroup", "TimeBranchNodeGroup", "ParadataNodeGroup"]:
                 nodes["groups"][node.node_id] = node_data
