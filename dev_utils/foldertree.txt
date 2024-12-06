@@ -9,7 +9,6 @@
   - visual_tools.py
   - EMdb_excel.py
   - addon_updater_ops.py
-  - tree_structure.py
   - paradata_manager.py
   - UI.py
   - populate_lists.py
@@ -25,10 +24,10 @@
   - visual_manager.py
   - EM_list.py
   - GPL3-license.txt
-  - foldertree.txt
   - import_operators/
-    - import_EMdb.py
+    - import_graphml.py
     - __init__.py
+    - import_EMdb.py
   - s3Dgraphy/
     - graph.py
     - __init__.py
@@ -38,9 +37,9 @@
     - importer/
       - base_importer.py
       - import_sf_xlsx.py
-      - [importer]__init__.py
       - import_graphml.py
       - xlsx_importer.py
+      - __init__.py
       - JSONmappings/
         - __init__.py
         - stratigraphic_units.json
@@ -49,6 +48,7 @@
       - extractor_node.py
       - property_node.py
       - epoch_node.py
+      - __init__.py
       - representation_model_node.py
       - combiner_node.py
       - document_node.py
@@ -57,13 +57,15 @@
       - link_node.py
       - base_node.py
       - geo_position_node.py
-      - __init__py
       - group_node.py
     - utils/
       - visual_layout.py
       - __init__.py
       - utils.py
+    - JSON_example/
+      - complete-json.json
     - exporter/
+      - json_exporter.py
       - __init__.py
     - edges/
       - edge.py
@@ -74,38 +76,8 @@
       - em_cidoc_mapping.json
       - src/
         - 3D/
-          - property.glb
-          - serUSV.glb
-          - USVn.glb
-          - serSU.glb
-          - document.glb
-          - TSU.glb
-          - US.glb
-          - VSF.glb
-          - USVs.glb
-          - combiner.glb
-          - extractor.glb
-          - SF.glb
-          - USD.glb
-          - continuity.glb
         - 2D/
-          - TSU.png
-          - document.png
-          - VSF.png
-          - US.png
-          - USVs.png
-          - SF.png
-          - extractor.png
-          - combiner.png
-          - USD.png
-          - continuity.png
-          - property.png
-          - serUSV.png
-          - USVn.png
-          - serSU.png
   - resources/
     - tsu/
-      - EM_UTR_retino_encrustation.png
-      - EM_UTR_retino_disintegration.png
   - em-blender-tools_updater/
     - EM-blender-tools_updater_status.json
