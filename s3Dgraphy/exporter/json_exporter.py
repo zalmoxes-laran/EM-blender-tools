@@ -74,21 +74,31 @@ class JSONExporter:
             
         with open(self.output_path, 'w', encoding='utf-8') as f:
             json.dump(export_data, f, indent=4, ensure_ascii=False)
-            
+
     def _process_graph(self, graph: Graph) -> Dict[str, Any]:
         """Process a single graph into its JSON representation."""
+        
+        # Raccogli tutti gli author nodes collegati al grafo
+        author_nodes = []
+        for edge in graph.edges:
+            if edge.edge_type == "has_author" and edge.edge_target == graph.graph_id:
+                author_node = graph.find_node_by_id(edge.edge_source)
+                if author_node:
+                    author_nodes.append(author_node.node_id)
+
         return {
             "id": graph.graph_id,
             "name": graph.name.get('default', ''),
             "description": graph.description.get('default', ''),
             "defaults": {
-                "license": "CC-BY-NC-ND",  # Default license
-                "authors": [],  # Will be populated if found in graph
-                "embargo_until": None  # Will be populated if found in graph
+                "license": graph.data.get('license', 'CC-BY-NC-ND'),  # Usa il valore dal grafo o default
+                "authors": author_nodes,  # Lista degli ID dei nodi autore
+                "embargo_until": graph.data.get('embargo_until', None)  # Data di embargo dal grafo
             },
             "nodes": self._process_nodes(graph),
             "edges": self._process_edges(graph)
         }
+
         
     def _process_nodes(self, graph: Graph) -> Dict[str, Dict[str, Any]]:
         """Process all nodes in the graph, organizing them by type."""

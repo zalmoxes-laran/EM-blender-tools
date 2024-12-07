@@ -336,8 +336,6 @@ class GraphMLImporter:
                     print(f'Ho creato un nodo epoca chiamato {epoch_node.name}')
 
 
-    # In import_graphml.py, nella classe GraphMLImporter
-
     def process_general_data(self, nodelabel, graph):
         """
         Processa i dati generali dal nodelabel e li aggiunge al grafo.
