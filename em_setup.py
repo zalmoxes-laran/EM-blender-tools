@@ -45,10 +45,10 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         default=True
     ) # type: ignore
 
-class EMTOOLS_UL_files(bpy.types.UIList):
-    """UIList to display the GraphML files"""
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        layout.label(text=item.name)
+#class EMTOOLS_UL_files(bpy.types.UIList):
+#    """UIList to display the GraphML files"""
+#    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+#        layout.label(text=item.name)
 
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files with icons to indicate graph presence and actions"""
@@ -56,7 +56,14 @@ class EMTOOLS_UL_files(bpy.types.UIList):
 
         # Controllo temporaneo durante il disegno, senza scrivere su item.is_graph
         graph_data = get_graph(item.name)
-        is_graph_present = bool(graph_data and len(graph_data.nodes) > 0 and len(graph_data.edges) > 0)
+        # Aggiungiamo stampe di debug
+        print(f"Checking graph '{item.name}':")
+        print(f"Graph data exists: {bool(graph_data)}")
+        if graph_data:
+            print(f"Number of nodes: {len(graph_data.nodes)}")
+            print(f"First few nodes: {[node.node_id for node in graph_data.nodes[:3]]}")
+        is_graph_present = bool(graph_data and len(graph_data.nodes) > 0)
+        print(f"Is graph present: {is_graph_present}")
 
         # Mostra il nome del file nella lista
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
@@ -68,8 +75,10 @@ class EMTOOLS_UL_files(bpy.types.UIList):
             # Bottone per indicare se il grafo esiste o meno
             if is_graph_present:
                 status_icon = 'SEQUENCE_COLOR_04'  # Icona verde se il grafo esiste
+                print(f"Setting green icon for {item.name}")
             else:
                 status_icon = 'SEQUENCE_COLOR_01'  # Icona rossa se il grafo non esiste
+                print(f"Setting red icon for {item.name}")
 
             # Mostra semplicemente l'icona dello stato
             row = split.row()

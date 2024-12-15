@@ -339,59 +339,104 @@ class GraphMLImporter:
     def process_general_data(self, nodelabel, graph):
         """
         Processa i dati generali dal nodelabel e li aggiunge al grafo.
-        
-        Args:
-            nodelabel: L'elemento nodelabel contenente i dati generali
-            graph: L'istanza del grafo a cui aggiungere i dati
         """
-        print(f"Trovata intestazione del grafo")
-        print(f"nodelabel è {nodelabel.text}")
+        print(f"\nProcessing general data from GraphML header:")
+        print(f"Raw nodelabel text: '{nodelabel.text}'")
+        
         stringa_pulita, vocabolario = self.estrai_stringa_e_vocabolario(nodelabel.text)
+        print(f"Stringa pulita: '{stringa_pulita}'")
+        print(f"Vocabolario estratto: {vocabolario}")
         
         try:
-            # Aggiorna l'ID del grafo se presente
+            # Imposta il nome e l'ID del grafo
             if 'ID' in vocabolario:
+                print(f"Found ID: {vocabolario['ID']}")
                 graph.graph_id = vocabolario['ID']
+            else:
+                # Fallback al nome del file
+                import os
+                graph.graph_id = os.path.splitext(os.path.basename(self.filepath))[0]
+                print(f"Using filename as graph ID: {graph.graph_id}")
+
+            graph.name = {'default': stringa_pulita}
+            print(f"Set graph ID to: {graph.graph_id}")
+            print(f"Set graph name to: {graph.name}")
                 
-            # Crea il nodo autore se presente un ORCID
+            # Crea il nodo grafo stesso
+            from ..nodes.base_node import Node
+            graph_node = Node(
+                node_id=graph.graph_id,
+                name=stringa_pulita
+            )
+            graph.add_node(graph_node)
+                
+            # Crea e connetti il nodo autore se presente un ORCID
             if 'ORCID' in vocabolario:
+                print(f"Found ORCID: {vocabolario['ORCID']}")
                 from ..nodes.author_node import AuthorNode
+                
+                # Componi il nome completo per il display
+                author_name = vocabolario.get('author_name', '')
+                author_surname = vocabolario.get('author_surname', '')
+                display_name = f"{author_name} {author_surname}".strip()
+                
+                # Crea l'ID dell'autore
+                author_id = f"author_{vocabolario['ORCID']}"
+                
+                # Crea il nodo autore usando solo i parametri accettati dal costruttore
                 author_node = AuthorNode(
-                    node_id=f"author_{vocabolario['ORCID']}",
+                    node_id=author_id,
                     orcid=vocabolario['ORCID'],
-                    name=vocabolario.get('author_name', 'Unknown Author'),
-                    surname=vocabolario.get('author_surname', 'Unknown Surname')
+                    name=author_name,
+                    surname=author_surname
                 )
+                print(f"Created author node with ID: {author_id}")
+                
+                # Aggiungi il nodo al grafo
                 graph.add_node(author_node)
                 
-                # Collega l'autore al grafo
+                # Aggiungi l'autore alla lista degli autori nei dati del grafo
+                if 'authors' not in graph.data:
+                    graph.data['authors'] = []
+                if author_id not in graph.data['authors']:
+                    graph.data['authors'].append(author_id)
+                
+                # Crea l'edge tra autore e grafo
+                edge_id = f"authorship_{author_id}"
                 graph.add_edge(
-                    edge_id=f"authorship_{author_node.node_id}",
-                    edge_source=author_node.node_id,
+                    edge_id=edge_id,
+                    edge_source=author_id,
                     edge_target=graph.graph_id,
                     edge_type="has_author"
                 )
-                
+                print(f"Added author node and edge: {author_id}")
+                    
             # Aggiorna la descrizione del grafo
             if 'description' in vocabolario:
+                print(f"Found description: {vocabolario['description']}")
                 graph.description = {'default': vocabolario['description']}
-                
+                    
             # Gestisce la data di embargo se presente
             if 'embargo' in vocabolario:
-                try:
-                    # Converti la data di embargo in formato ISO
-                    embargo_date = vocabolario['embargo']
-                    # Assumi che la data sia in formato YYYY-MM-DD
-                    graph.data['embargo_until'] = embargo_date
-                except ValueError as e:
-                    print(f"Errore nel parsing della data di embargo: {e}")
+                print(f"Found embargo: {vocabolario['embargo']}")
+                graph.data['embargo_until'] = vocabolario['embargo']
                     
             # Gestisce la licenza se presente
             if 'license' in vocabolario:
+                print(f"Found license: {vocabolario['license']}")
                 graph.data['license'] = vocabolario['license']
-                
+
+            print(f"\nGraph data after processing:")
+            print(f"ID: {graph.graph_id}")
+            print(f"Name: {graph.name}")
+            print(f"Description: {graph.description}")
+            print(f"Data: {graph.data}")
+            print(f"Authors: {graph.data.get('authors', [])}")
+            
         except Exception as e:
-            print(f"Errore nel processare i dati generali: {e}")
+            print(f"Error processing general data: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 

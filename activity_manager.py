@@ -67,31 +67,32 @@ class ACTIVITY_OT_refresh_list(Operator):
         if self.graphml_index >= 0:
             graphml = em_tools.graphml_files[self.graphml_index]
             
+            # Ora usiamo il nome aggiornato dal grafo
             graph_data = get_graph(graphml.name)
+            
+            if graph_data is None:
+                self.report({'WARNING'}, f"Nessun grafo trovato con ID: {graphml.name}")
+                return {'CANCELLED'}
+
             print("Eseguo l'update della lista delle attività")
             context.scene.activity_manager.activities.clear()
-
-            if graph_data is None:
-                self.report({'ERROR'}, "Nessun dato del grafo caricato")
-                return {'CANCELLED'}
 
             for node in graph_data.nodes:
                 if isinstance(node, ActivityNodeGroup):
                     item = context.scene.activity_manager.activities.add()
                     item.name = node.name
-                    # Recupera gli EpochNode connessi all'attività
-                    #connected_epochs = graph_data.get_connected_epochs(node)
                     print(f"Provo a cercare un nodo epoca per il nodo {node.name}")
                     epoch_node = graph_data.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
                     if epoch_node:
-                        #print(epoch_node.name)
                         item.epoch_name = epoch_node.name
                     else:
                         item.epoch_name = 'Sconosciuta'
-                    item.description = node.description
+                    item.description = node.description 
                     item.y_pos = node.attributes.get('y_pos', 0.0)
 
-        return {'FINISHED'}
+            return {'FINISHED'}
+
+        return {'CANCELLED'}
 
 class ActivityManagerProperties(PropertyGroup):
     activities: CollectionProperty(type=ActivityItem) # type: ignore

@@ -75,6 +75,10 @@ class EM_import_GraphML(bpy.types.Operator):
                 self.report({'ERROR'}, "Errore: il grafo non è stato caricato correttamente.")
                 return {'CANCELLED'}
 
+            # Aggiorna il nome nella UI con l'ID effettivo del grafo
+            graphml.name = graph_instance.graph_id
+            print(f"Updated display name to graph ID: {graph_instance.graph_id}")
+
             # Now populate the Blender lists from the graph
             populate_blender_lists_from_graph(context, graph_instance)
 

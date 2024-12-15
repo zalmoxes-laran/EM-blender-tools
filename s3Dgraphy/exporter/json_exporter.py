@@ -51,6 +51,8 @@ class JSONExporter:
             }
         }
 
+
+
     def export_graphs(self, graph_ids: Optional[List[str]] = None) -> None:
         """
         Export specified graphs to JSON. If no graph_ids provided, exports all graphs.
@@ -60,44 +62,63 @@ class JSONExporter:
         """
         if graph_ids is None:
             graph_ids = get_all_graph_ids()
-            
+                
         export_data = {
             "version": "1.5",
-            "context": self.context,
             "graphs": {}
         }
-        
+            
         for graph_id in graph_ids:
             graph = get_graph(graph_id)
-            if graph:
-                export_data["graphs"][graph_id] = self._process_graph(graph)
-            
+            if graph and hasattr(graph, 'graph_id'):
+                # Usa l'ID effettivo del grafo come chiave
+                actual_id = graph.graph_id  # Questo dovrebbe essere 'PT18' nel tuo caso
+                print(f"Exporting graph with ID: {actual_id}")
+                export_data["graphs"][actual_id] = self._process_graph(graph)
+                
         with open(self.output_path, 'w', encoding='utf-8') as f:
             json.dump(export_data, f, indent=4, ensure_ascii=False)
+
+
 
     def _process_graph(self, graph: Graph) -> Dict[str, Any]:
         """Process a single graph into its JSON representation."""
         
-        # Raccogli tutti gli author nodes collegati al grafo
-        author_nodes = []
-        for edge in graph.edges:
-            if edge.edge_type == "has_author" and edge.edge_target == graph.graph_id:
-                author_node = graph.find_node_by_id(edge.edge_source)
-                if author_node:
-                    author_nodes.append(author_node.node_id)
+        print(f"\nProcessing graph for JSON export:")
+        print(f"Graph name: {graph.name}")
+        print(f"Graph description: {graph.description}")
+        print(f"Graph data: {graph.data}")
 
-        return {
-            "id": graph.graph_id,
+        # Raccogli gli ID degli autori dal grafo
+        authors = graph.data.get('authors', [])
+        if not authors:
+            # Se non ci sono autori in graph.data, cerca negli edges
+            for edge in graph.edges:
+                if edge.edge_type in ['has_author', 'generic_connection']:
+                    if edge.edge_target == graph.graph_id:
+                        author_node = graph.find_node_by_id(edge.edge_source)
+                        if author_node and author_node.node_type == 'author':
+                            authors.append(edge.edge_source)
+                            print(f"Found author from edge: {edge.edge_source}")
+
+        result = {
             "name": graph.name.get('default', ''),
             "description": graph.description.get('default', ''),
             "defaults": {
-                "license": graph.data.get('license', 'CC-BY-NC-ND'),  # Usa il valore dal grafo o default
-                "authors": author_nodes,  # Lista degli ID dei nodi autore
-                "embargo_until": graph.data.get('embargo_until', None)  # Data di embargo dal grafo
+                "license": graph.data.get('license', 'CC-BY-NC-ND'),
+                "authors": authors,
+                "embargo_until": graph.data.get('embargo_until')
             },
             "nodes": self._process_nodes(graph),
             "edges": self._process_edges(graph)
         }
+        
+        print(f"\nJSON output for graph metadata:")
+        print(f"Name: {result['name']}")
+        print(f"Description: {result['description']}")
+        print(f"Defaults: {result['defaults']}")
+        
+        return result
 
         
     def _process_nodes(self, graph: Graph) -> Dict[str, Dict[str, Any]]:
