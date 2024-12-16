@@ -69,6 +69,7 @@ class ACTIVITY_OT_refresh_list(Operator):
             
             # Ora usiamo il nome aggiornato dal grafo
             graph_data = get_graph(graphml.name)
+            print(f'Il garfo si chiama {graphml.name}')
             
             if graph_data is None:
                 self.report({'WARNING'}, f"Nessun grafo trovato con ID: {graphml.name}")

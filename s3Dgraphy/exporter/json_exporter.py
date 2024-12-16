@@ -72,7 +72,7 @@ class JSONExporter:
             graph = get_graph(graph_id)
             if graph and hasattr(graph, 'graph_id'):
                 # Usa l'ID effettivo del grafo come chiave
-                actual_id = graph.graph_id  # Questo dovrebbe essere 'PT18' nel tuo caso
+                actual_id = graph.graph_id  # 
                 print(f"Exporting graph with ID: {actual_id}")
                 export_data["graphs"][actual_id] = self._process_graph(graph)
                 
