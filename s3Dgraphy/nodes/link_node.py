@@ -10,6 +10,18 @@ class LinkNode(Node):
         description (str): Descrizione del collegamento.
     """
     node_type="link"
+
+    # Valid resource types
+    RESOURCE_TYPES = {
+        "3d_model": ["gltf", "obj", "fbx", "3ds", "blend"],
+        "proxy_model": ["glb"],  # Typically GLB for proxies
+        "image": ["jpg", "jpeg", "png", "tif", "tiff", "bmp"],
+        "document": ["pdf", "doc", "docx", "txt"],
+        "web_page": ["http", "https"],
+        "video": ["mp4", "avi", "mov"],
+        "point_cloud": ["e57", "pts", "las", "laz"]
+    }
+
     def __init__(self, node_id, name="Unnamed Link", url="", url_type="External link", description="No description"):
         """
         Inizializza una nuova istanza di LinkNode.
@@ -25,10 +37,33 @@ class LinkNode(Node):
         
         # Dati del collegamento
         self.data = {
-            "description": description,
             "url": url,
-            "url_type": url_type
+            "url_type": url_type or self._determine_url_type(url),
+            "description": description or f"Link to {name}"
         }
+
+
+    def _determine_url_type(self, url):
+        """
+        Automatically determine the resource type from the URL/path
+        """
+        # Check if it's a web URL
+        if url.startswith(("http://", "https://")):
+            return "web_page"
+            
+        # Get extension
+        ext = url.lower().split('.')[-1] if '.' in url else ''
+        
+        # Check extension against known types
+        for res_type, extensions in self.RESOURCE_TYPES.items():
+            if ext in extensions:
+                return res_type
+                
+        # Special case for proxies
+        if ext == "glb" and "proxy" in url.lower():
+            return "proxy_model"
+            
+        return "unknown"
 
     def to_dict(self):
         """
@@ -39,10 +74,17 @@ class LinkNode(Node):
         """
         return {
             "id": self.node_id,
-            "name": self.name,
             "type": self.node_type,
-            "data": self.data
+            "name": self.name,
+            "description": self.data.get("description", ""),
+            "data": {
+                "url": self.data.get("url", ""),
+                "url_type": self.data.get("url_type", "unknown")
+            }
         }
+
+
+
 
 '''
 # Creazione di un LinkNode per un URL Zenodo

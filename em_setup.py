@@ -54,7 +54,6 @@ class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files with icons to indicate graph presence and actions"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
 
-        # Controllo temporaneo durante il disegno, senza scrivere su item.is_graph
         graph_data = get_graph(item.name)
         # Aggiungiamo stampe di debug
         print(f"Checking graph '{item.name}':")

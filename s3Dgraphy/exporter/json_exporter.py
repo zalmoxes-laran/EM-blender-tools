@@ -141,9 +141,9 @@ class JSONExporter:
                 "type": node.node_type,
                 "name": node.name,
                 "description": node.description,
-                "data": node.attributes.copy()
+                "data": node.data.copy() if hasattr(node, 'data') else {}  # Copiamo esplicitamente i dati
             }
-            
+
             # Add node to appropriate category
             if node.node_type == "author":
                 nodes["authors"][node.node_id] = node_data

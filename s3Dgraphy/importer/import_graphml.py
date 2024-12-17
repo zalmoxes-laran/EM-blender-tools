@@ -11,6 +11,7 @@ from ..nodes.extractor_node import ExtractorNode
 from ..nodes.property_node import PropertyNode
 from ..nodes.epoch_node import EpochNode
 from ..nodes.group_node import GroupNode, ParadataNodeGroup, ActivityNodeGroup, TimeBranchNodeGroup
+from ..nodes.link_node import *
 
 from ..edges.edge import Edge
 from ..utils.utils import convert_shape2type, get_stratigraphic_node_class
@@ -91,6 +92,7 @@ class GraphMLImporter:
         Args:
             node_element (Element): Elemento nodo XML dal file GraphML.
         """
+
         if self.EM_check_node_us(node_element):
             # Creazione del nodo stratigrafico e aggiunta al grafo
             nodename, nodedescription, nodeurl, nodeshape, node_y_pos, fillcolor, borderstyle = self.EM_extract_node_name(node_element)
@@ -120,7 +122,14 @@ class GraphMLImporter:
                 description=nodedescription,
                 url=nodeurl
             )
+
             self.graph.add_node(document_node)
+
+
+            # Se c'è un URL valido, crea un nodo Link
+            if nodeurl and nodeurl.strip() != 'Empty':
+                link_node = self._create_link_node(document_node, nodeurl)
+                
 
         elif self.EM_check_node_property(node_element):
             # Creazione del nodo proprietà e aggiunta al grafo
@@ -144,7 +153,13 @@ class GraphMLImporter:
                 description=nodedescription,
                 source=nodeurl
             )
+
             self.graph.add_node(extractor_node)
+
+            # Se c'è un URL valido, crea un nodo Link
+            if nodeurl and nodeurl.strip() != 'Empty':
+                link_node = self._create_link_node(extractor_node, nodeurl)
+
 
         elif self.EM_check_node_combiner(node_element):
             # Creazione del nodo combiner e aggiunta al grafo
@@ -180,6 +195,49 @@ class GraphMLImporter:
                 description=""
             )
             self.graph.add_node(generic_node)
+
+    def _create_link_node(self, source_node, url):
+        """
+        Creates a Link node for a resource.
+
+        Args:
+            source_node (Node): The source node with which the link is associated
+            url (str): The URL or path of the resource
+
+        Returns:
+            LinkNode: The Link node created
+        """
+        from ..nodes.link_node import LinkNode
+        
+        link_node_id = f"{source_node.node_id}_link"
+        
+        # Verifica se il nodo Link esiste già
+        existing_link_node = self.graph.find_node_by_id(link_node_id)
+        if existing_link_node:
+            return existing_link_node
+        
+        # Se non esiste, crealo
+        link_node = LinkNode(
+            node_id=link_node_id,
+            name=f"Link to {source_node.name}",
+            description=f"Link to {source_node.description}" if source_node.description else "",
+            url=url
+        )
+        
+        self.graph.add_node(link_node)
+        
+        # Crea l'edge solo se non esiste già
+        edge_id = f"{source_node.node_id}_has_linked_resource_{link_node_id}"
+        if not self.graph.find_edge_by_id(edge_id):
+            self.graph.add_edge(
+                edge_id=edge_id,
+                edge_source=source_node.node_id,
+                edge_target=link_node.node_id,
+                edge_type="has_linked_resource"
+            )
+        
+        return link_node
+        
 
     def handle_group_node(self, node_element):
         """

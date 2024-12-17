@@ -3,6 +3,10 @@ EDGE_TYPES = {
         "label": "Chronological Sequence",
         "description": "Indicates a temporal sequence where one item occurs before another."
     },
+    "has_linked_resource": {
+        "label": "Has Link",
+        "description": "Connects a node to its linked resource(s)"
+    },
     "has_same_time": {
         "label": "Contemporaneous Elements",
         "description": "Indicates that two elements are contemporaneous."
@@ -50,6 +54,10 @@ EDGE_TYPES = {
     "generic_connection": {
         "label": "Generic Connection",
         "description": "Represents a non-specific connection between two nodes."
+    },
+    "has_semantic_shape": {
+        "label": "Has Semantic Shape",
+        "description": "Connects any node to its semantic shape representation in 3D space."
     }
 }
 

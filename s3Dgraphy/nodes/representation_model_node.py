@@ -1,99 +1,94 @@
 from .base_node import Node
+from typing import Dict, Any
 
 class RepresentationModelNode(Node):
     """
-    Node to represent 3D representation models associated with EpochNode and StratigraphicNode.
-
+    Node che rappresenta un modello 3D o un'immagine spazializzata.
+    
     Attributes:
-        model_type (str): Format of the 3D model, default is "gltf".
-        data (dict): Specific data for the representation model, including ID, name, description, and link.
+        node_type (str): Tipo di nodo, impostato su "representation_model".
+        type (str): Il tipo di rappresentazione ("RM", "spatialized_image" o "generic").
+        url (str): URL della risorsa (es. file .gltf).
     """
-    node_type="representation_model"
-    def __init__(self, node_id, name="Representation Model", model_type="gltf", description="", url=""):
-        """
-        Initialize a new instance of RepresentationModelNode.
+    
+    node_type = "representation_model"
 
-        Args:
-            node_id (str): Unique identifier for the node.
-            name (str, optional): Name of the representation model. Defaults to "Representation Model".
-            model_type (str, optional): Format of the 3D model (e.g., gltf). Defaults to "gltf".
-            description (str, optional): Description of the model. Defaults to an empty string.
-            url (str, optional): URL link to the model. Defaults to an empty string.
+    # Tipi validi di rappresentazione
+    VALID_TYPES = {
+        "RM": "Representation Model - Modello 3D",
+        "spatialized_image": "Immagine spazializzata",
+        "generic": "Rappresentazione generica"
+    }
+
+    def __init__(self, 
+                 node_id: str,
+                 name: str,
+                 type: str = "RM",
+                 url: str = "",
+                 description: str = ""):
         """
-        super().__init__(node_id=node_id, name=name)
+        Inizializza un nuovo RepresentationModelNode.
+        
+        Args:
+            node_id (str): Identificatore univoco del nodo.
+            name (str): Nome del modello.
+            type (str): Tipo di rappresentazione ("RM", "spatialized_image" o "generic").
+            url (str): URL della risorsa.
+            description (str): Descrizione del modello.
+            
+        Raises:
+            ValueError: Se il tipo non è valido.
+        """
+        super().__init__(node_id=node_id, name=name, description=description)
+        
+        if type not in self.VALID_TYPES:
+            raise ValueError(f"type must be one of: {list(self.VALID_TYPES.keys())}")
+        
+        self.type = type
+        self.url = url
+        
+        # Struttura data per serializzazione
         self.data = {
-            "model_type": model_type,
-            "description": description,
-            "url": url
+            "url": self.url
         }
     
-    def to_dict(self):
+    def set_url(self, url: str) -> None:
         """
-        Convert the RepresentationModelNode instance to a dictionary.
+        Imposta l'URL della risorsa.
+        
+        Args:
+            url (str): URL della risorsa.
+        """
+        self.url = url
+        self.data["url"] = url
 
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Converte il nodo in un dizionario per la serializzazione JSON.
+        
         Returns:
-            dict: Dictionary representation of the node.
+            Dict[str, Any]: Rappresentazione del nodo come dizionario.
         """
         return {
-            "type": self.node_type,
-            "id": self.node_id,
-            "name": self.name,
-            "data": self.data
+            self.node_id: {
+                "type": self.type,
+                "name": self.name,
+                "description": self.description,
+                "data": self.data
+            }
         }
 
-    def link_to_epoch_or_stratigraphic(self, target_node, edge_type="generic_line"):
-        """
-        Establish a connection from this RepresentationModelNode to an EpochNode or StratigraphicNode.
-        
-        This connection can be used to apply properties from the representation model to the connected
-        stratigraphic elements or epochs during parsing or data processing.
-
-        Args:
-            target_node (Node): The target EpochNode or StratigraphicNode to connect to.
-            edge_type (str, optional): Type of edge for the connection. Defaults to "generic_line".
-        """
-        if target_node.node_type in ["epoch", "stratigraphic"]:
-            # Assuming add_edge function exists in the Graph class to create edges
-            self.graph.add_edge(
-                edge_id=f"{self.node_id}_to_{target_node.node_id}",
-                edge_source=self.node_id,
-                edge_target=target_node.node_id,
-                edge_type=edge_type
-            )
-        else:
-            raise ValueError("Target node must be of type 'epoch' or 'stratigraphic'")
-
-
-'''
-# Creazione del grafo
-graph = Graph(graph_id="example_graph")
-
-# Creazione dei nodi StratigraphicNode e EpochNode
-stratigraphic_node = StratigraphicNode(node_id="SN1", name="Stratigraphic Layer 1", stratigraphic_type="US")
-epoch_node = EpochNode(node_id="E1", name="Epoch Example", start_time=-500, end_time=1000)
-
-# Aggiunta dei nodi al grafo
-graph.add_node(stratigraphic_node)
-graph.add_node(epoch_node)
-
-# Creazione di un RepresentationModelNode
-representation_model = RepresentationModelNode(
-    node_id="RM1",
-    name="House Model",
-    model_type="gltf",
-    description="3D model of an ancient house",
-    url="http://example.com/house_model.gltf"
+# Esempio di utilizzo:
+"""
+# Creazione di un modello di rappresentazione
+rm = RepresentationModelNode(
+    node_id="tempio_2_secolo_sgyfg",
+    name="Tempio Traiano",
+    type="RM",
+    url="path/to/model.gltf",
+    description="Modello 3D del tempio di Traiano."
 )
 
-# Aggiunta del RepresentationModelNode al grafo
-graph.add_node(representation_model)
-
-# Collegamento del RepresentationModelNode al StratigraphicNode e all'EpochNode
-representation_model.link_to_epoch_or_stratigraphic(target_node=stratigraphic_node)
-representation_model.link_to_epoch_or_stratigraphic(target_node=epoch_node)
-
-# Visualizzazione del risultato
-print("Representation Model Node:", representation_model.to_dict())
-print("Stratigraphic Node connections:", graph.get_connected_edges(stratigraphic_node.node_id))
-print("Epoch Node connections:", graph.get_connected_edges(epoch_node.node_id))
-'''
+# Serializzazione in dizionario
+json_dict = rm.to_dict()
+"""
