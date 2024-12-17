@@ -57,6 +57,7 @@
       - link_node.py
       - base_node.py
       - geo_position_node.py
+      - semantic_shape_node.py
       - group_node.py
     - utils/
       - visual_layout.py
@@ -79,5 +80,8 @@
         - 2D/
   - resources/
     - tsu/
+  - export_operators/
+    - exporter_heriverse.py
+    - __init__.py
   - em-blender-tools_updater/
     - EM-blender-tools_updater_status.json

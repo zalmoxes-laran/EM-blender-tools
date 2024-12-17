@@ -33,8 +33,8 @@ class EMToolsProperties(bpy.types.PropertyGroup):
         description="Path to the 3D GIS database Excel file",
         subtype='FILE_PATH'
     )     # type: ignore
-    emdb_filepath: bpy.props.StringProperty(name="EMdb File (sqlite)", subtype='FILE_PATH')
-    is_graph: bpy.props.BoolProperty(name="Graph Exists", default=False)  # Aggiungi questa riga
+    emdb_filepath: bpy.props.StringProperty(name="EMdb File (sqlite)", subtype='FILE_PATH') # type: ignore
+    is_graph: bpy.props.BoolProperty(name="Graph Exists", default=False)  # type: ignore # Aggiungi questa riga
 
 class EMToolsSettings(bpy.types.PropertyGroup):
     graphml_files: bpy.props.CollectionProperty(type=EMToolsProperties) # type: ignore

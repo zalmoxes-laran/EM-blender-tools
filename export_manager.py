@@ -36,6 +36,7 @@ class EM_ExportPanel:
     def draw(self, context):
         layout = self.layout
         scene = context.scene
+        export_vars = context.window_manager.export_vars
  
         row = layout.row()
         box = layout.box()
@@ -45,62 +46,119 @@ class EM_ExportPanel:
         op = row.operator("export.uuss_export", text="EM (csv)", emboss=True, icon='LONGDISPLAY')
         row = box.row()
         row.prop(context.window_manager.export_tables_vars, 'table_type', expand=True)
-        row.operator(JSON_OT_exportEMformat.bl_idname, text="EMjson").use_file_dialog = True
-        row = layout.row()
+        
+        # Heriverse Export Section
         box = layout.box()
         row = box.row()
-        row.label(text="EMviq export:")
-        row = box.row()
-        row.prop(context.scene, 'EMviq_project_name', toggle=True, text="")
-        row.label(text="<-- Project's name")
-        row = box.row()#(align=True)
-        row.prop(context.scene, 'EMviq_model_author_name', toggle=True, text="")
-        row.label(text="<-- Model's author(s)")
-        row = box.row()
-        row.prop(context.scene, 'EMviq_user_name', toggle=True, text="")
-        row.label(text="<-- ATON user's name")
-        row = box.row()
-        row.prop(context.scene, 'password', toggle=True, text="")
-        row.label(text="<-- ATON user's password")
-        row = box.row()
-        row.prop(context.scene, 'ATON_path', toggle=True, text="")
-        row.label(text="<-- path to ATON")
+        row.prop(export_vars, "heriverse_expanded", 
+                text="Heriverse Export", 
+                icon='TRIA_DOWN' if export_vars.heriverse_expanded else 'TRIA_RIGHT',
+                emboss=False)
 
-        '''
-        row = layout.row()  # (align=True)
-        row.prop(context.scene, 'EMviq_folder', toggle=True, text="")
-        row.label(text="<-- Collection folder export path")
-        row = layout.row()#(align=True)
-        row.prop(context.scene, 'EMviq_scene_folder', toggle=True, text="")
-        row.label(text="<-- Scene folder export path")
-        '''
+        if export_vars.heriverse_expanded:
+            row = box.row()
+            row.prop(export_vars, "heriverse_export_path", text="Export Path")
+            
+            row = box.row()
+            row.prop(export_vars, "heriverse_project_name", text="Project Name")
+            
+            row = box.row()
+            row.prop(export_vars, "heriverse_export_all_graphs", text="Export All Graphs")
+            
+            row = box.row()
+            col = row.column()
+            col.prop(export_vars, "heriverse_overwrite_json", text="Overwrite JSON")
+            col = row.column()
+            col.prop(export_vars, "heriverse_export_dosco", text="Export DosCo")
+            
+            row = box.row()
+            col = row.column()
+            col.prop(export_vars, "heriverse_export_proxies", text="Export Proxies")
+            col = row.column() 
+            col.prop(export_vars, "heriverse_export_rm", text="Export RM")
+            
+            row = box.row()
+            row.prop(export_vars, "heriverse_create_zip", text="Create ZIP")
+            
+            row = box.row()
+            row.operator("export.heriverse", text="Export Heriverse Project", icon='EXPORT')
 
-        row = box.row()
-        row.prop(context.window_manager.export_vars, 'format_file', expand=True)
-        #box = layout.box()
-        row = box.row()
-        row.prop(context.scene, 'enable_image_compression', toggle = True, text='Use tex compression')
-        row.prop(context.scene, 'EM_gltf_export_maxres', toggle = True, text='Max res')
-        row.prop(context.scene, 'EM_gltf_export_quality', toggle = True, text='Size')
-        row = box.row()
-        op = row.operator("export_manager.export", text="Generate full EMviq Project", emboss=True, icon='LONGDISPLAY')
-        op.em_export_type = 'EMviq'
-        op.em_export_format = context.window_manager.export_vars.format_file
 
-        row = box.row()
-        row.label(text="Export partial Emviq project's components:")
-        row = box.row()
-        op = row.operator("export_manager.export", text="Proxies", emboss=True, icon='SHADING_SOLID')
-        op.em_export_type = 'Proxies'
-        op = row.operator("export_manager.export", text="GraphML", emboss=True, icon='SHADING_SOLID')
-        op.em_export_type = 'GraphML'
-        op = row.operator("export_manager.export", text="RM", emboss=True, icon='SHADING_TEXTURE')
-        op.em_export_type = 'RM'
+            # Advanced options section
+            row = box.row()
+            row.prop(export_vars, "heriverse_advanced_options",
+                    text="Advanced Options",
+                    icon='TRIA_DOWN' if export_vars.heriverse_advanced_options else 'TRIA_RIGHT',
+                    emboss=False)
 
-        row = layout.row()
+            if export_vars.heriverse_advanced_options:
+                col = box.column(align=True)
+                col.prop(export_vars, "heriverse_use_draco", text="Use Draco Compression")
+                if export_vars.heriverse_use_draco:
+                    col.prop(export_vars, "heriverse_draco_level", text="Compression Level")
+                col.prop(export_vars, "heriverse_separate_textures", text="Separate Textures")
 
-        row.operator("open.emviq", text="Open on EMviq", emboss=True, icon='SHADING_TEXTURE')
-        #row.operator("run.aton", text="Run Aton", emboss=True, icon='SHADING_TEXTURE')
+
+        # Heriverse Export Section
+        box = layout.box()
+        row = box.row()
+        row.prop(export_vars, "emviq_expanded", 
+                text="EMviq export", 
+                icon='TRIA_DOWN' if export_vars.emviq_expanded else 'TRIA_RIGHT',
+                emboss=False)
+
+        if export_vars.emviq_expanded:
+            row = box.row()
+            row.prop(context.scene, 'EMviq_project_name', toggle=True, text="")
+            row.label(text="<-- Project's name")
+            row = box.row()#(align=True)
+            row.prop(context.scene, 'EMviq_model_author_name', toggle=True, text="")
+            row.label(text="<-- Model's author(s)")
+            row = box.row()
+            row.prop(context.scene, 'EMviq_user_name', toggle=True, text="")
+            row.label(text="<-- ATON user's name")
+            row = box.row()
+            row.prop(context.scene, 'password', toggle=True, text="")
+            row.label(text="<-- ATON user's password")
+            row = box.row()
+            row.prop(context.scene, 'ATON_path', toggle=True, text="")
+            row.label(text="<-- path to ATON")
+
+            '''
+            row = layout.row()  # (align=True)
+            row.prop(context.scene, 'EMviq_folder', toggle=True, text="")
+            row.label(text="<-- Collection folder export path")
+            row = layout.row()#(align=True)
+            row.prop(context.scene, 'EMviq_scene_folder', toggle=True, text="")
+            row.label(text="<-- Scene folder export path")
+            '''
+
+            row = box.row()
+            row.prop(export_vars, 'format_file', expand=True)
+            #box = layout.box()
+            row = box.row()
+            row.prop(context.scene, 'enable_image_compression', toggle = True, text='Use tex compression')
+            row.prop(context.scene, 'EM_gltf_export_maxres', toggle = True, text='Max res')
+            row.prop(context.scene, 'EM_gltf_export_quality', toggle = True, text='Size')
+            row = box.row()
+            op = row.operator("export_manager.export", text="Generate full EMviq Project", emboss=True, icon='LONGDISPLAY')
+            op.em_export_type = 'EMviq'
+            op.em_export_format = export_vars.format_file
+
+            row = box.row()
+            row.label(text="Export partial Emviq project's components:")
+            row = box.row()
+            op = row.operator("export_manager.export", text="Proxies", emboss=True, icon='SHADING_SOLID')
+            op.em_export_type = 'Proxies'
+            op = row.operator("export_manager.export", text="GraphML", emboss=True, icon='SHADING_SOLID')
+            op.em_export_type = 'GraphML'
+            op = row.operator("export_manager.export", text="RM", emboss=True, icon='SHADING_TEXTURE')
+            op.em_export_type = 'RM'
+
+            row = layout.row()
+
+            row.operator("open.emviq", text="Open on EMviq", emboss=True, icon='SHADING_TEXTURE')
+            #row.operator("run.aton", text="Run Aton", emboss=True, icon='SHADING_TEXTURE')
         
         if scene.emviq_error_list_index >= 0 and len(scene.emviq_error_list) > 0:
             row.template_list("ER_UL_List", "EM nodes", scene, "emviq_error_list", scene, "emviq_error_list_index")
@@ -475,46 +533,6 @@ class EM_openemviq(bpy.types.Operator):
 
 
         return {'FINISHED'}
-
-
-class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
-    bl_idname = "export.emjson"
-    bl_label = "Export emjson"
-    bl_options = {"REGISTER", "UNDO"}
-
-    # Proprietà per controllare se mostrare la finestra di dialogo
-    use_file_dialog: BoolProperty(
-        name="Use File Dialog",
-        description="Use the file dialog to choose where to save the JSON",
-        default=True
-    ) # type: ignore
-
-    filename_ext = ".json"
-
-    def execute(self, context):
-        if self.use_file_dialog:
-            return self.export_emjson(context, self.filepath)
-        else:
-            return self.export_emjson(context, None)
-    
-    def export_emjson(self, context, file_path):
-        scene = context.scene
-        if not file_path:
-            file_path = "output.json"
-            
-        try:
-            # Crea l'esportatore
-            exporter = JSONExporter(file_path)
-            
-            # Esporta tutti i grafi
-            exporter.export_graphs()
-            
-            self.report({'INFO'}, f"EM data successfully exported to {file_path}")
-            return {'FINISHED'}
-            
-        except Exception as e:
-            self.report({'ERROR'}, f"Error exporting EM data: {str(e)}")
-            return {'CANCELLED'}
 
 class JSON_OT_exportJSONformat(bpy.types.Operator, ExportHelper):
     bl_idname = "export.json"
@@ -936,8 +954,7 @@ classes = [
     EM_export,
     EM_openemviq,
     ExportuussData,
-    OBJECT_OT_ExportUUSS,
-    JSON_OT_exportEMformat
+    OBJECT_OT_ExportUUSS
     ]
 
 def register():
