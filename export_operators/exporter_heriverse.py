@@ -269,25 +269,6 @@ class HERIVERSE_OT_export(Operator):
             os.makedirs(project_path, exist_ok=True)
             print("Created project directory")
             
-            # Esporta il JSON direttamente usando il nuovo JSONExporter
-            json_path = os.path.join(project_path, "project.json")
-            print(f"Exporting JSON to: {json_path}")
-            
-            # Aggiorna il grafo prima dell'esportazione
-            update_graph_with_scene_data()
-
-            # Usa l'operatore JSON con i parametri corretti
-            result = bpy.ops.export.heriversejson(
-                filepath=json_path,
-                use_file_dialog=False
-            )
-            
-            if result == {'FINISHED'}:
-                print("JSON export completed successfully")
-            else:
-                self.report({'ERROR'}, "JSON export failed")
-                return {'CANCELLED'}
-
             # Salva lo stato delle collezioni
             collection_states = {}
             for collection in bpy.data.collections:
@@ -296,6 +277,27 @@ class HERIVERSE_OT_export(Operator):
                     collection_states[collection.name] = layer_collection.exclude
 
             try:
+                if export_vars.heriverse_overwrite_json:
+
+                    # Esporta il JSON direttamente usando il nuovo JSONExporter
+                    json_path = os.path.join(project_path, "project.json")
+                    print(f"Exporting JSON to: {json_path}")
+                    
+                    # Aggiorna il grafo prima dell'esportazione
+                    update_graph_with_scene_data()
+
+                    # Usa l'operatore JSON con i parametri corretti
+                    result = bpy.ops.export.heriversejson(
+                        filepath=json_path,
+                        use_file_dialog=False
+                    )
+                    
+                    if result == {'FINISHED'}:
+                        print("JSON export completed successfully")
+                    else:
+                        self.report({'ERROR'}, "JSON export failed")
+                        return {'CANCELLED'}
+
                 # Esporta i proxy se richiesto
                 if export_vars.heriverse_export_proxies:
                     print("\n--- Starting Proxy Export ---")

@@ -58,6 +58,10 @@ EDGE_TYPES = {
     "has_semantic_shape": {
         "label": "Has Semantic Shape",
         "description": "Connects any node to its semantic shape representation in 3D space."
+    },
+    "has_representation_model": {
+        "label": "Has Representation Model",
+        "description": "Connects any node to its representation model in 3D space."
     }
 }
 

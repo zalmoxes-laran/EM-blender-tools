@@ -67,7 +67,7 @@ class EM_ExportPanel:
             
             row = box.row()
             col = row.column()
-            col.prop(export_vars, "heriverse_overwrite_json", text="Overwrite JSON")
+            col.prop(export_vars, "heriverse_overwrite_json", text="Export JSON")
             col = row.column()
             col.prop(export_vars, "heriverse_export_dosco", text="Export DosCo")
             

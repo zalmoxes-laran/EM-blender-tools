@@ -48,30 +48,31 @@ def update_semantic_shapes(graph):
     
     for strat_node in stratigraphic_nodes:
         matching_proxy = next((obj for obj in mesh_objects 
-                             if obj.name == strat_node.node_id), None)
+                             if obj.name == strat_node.name), None)
         
         if matching_proxy:
-            shape_node_id = f"{strat_node.node_id}_shape"
-            shape_node = graph.find_node_by_id(shape_node_id)
-            
+            shape_node_name = f"{strat_node.name}_shape"
+            shape_node = graph.find_node_by_id(shape_node_name)
+            print(f'Try to create node semantic {shape_node_name}')
             if not shape_node:
                 shape_node = SemanticShapeNode(
-                    node_id=shape_node_id,
+                    node_id=shape_node_name,
                     name=f"Shape for {strat_node.name}",
                     type="proxy",
                     url=f"proxies/{matching_proxy.name}.glb"
                 )
+                print(f'Created node semantic {shape_node_name}')
                 graph.add_node(shape_node)
                 nodes_added += 1
             else:
                 shape_node.url = f"proxies/{matching_proxy.name}.glb"
             
-            edge_id = f"{strat_node.node_id}_has_shape_{shape_node_id}"
+            edge_id = f"{strat_node.node_id}_has_shape_{shape_node_name}"
             if not graph.find_edge_by_id(edge_id):
                 graph.add_edge(
                     edge_id=edge_id,
                     edge_source=strat_node.node_id,
-                    edge_target=shape_node_id,
+                    edge_target=shape_node_name,
                     edge_type="has_semantic_shape"
                 )
                 edges_added += 1
@@ -89,6 +90,7 @@ def update_representation_models(graph):
     edges_added = 0
     
     for obj in mesh_objects:
+        print(f'Mesh object RM is {obj.name}')
         model_node_id = f"{obj.name}_model"
         model_node = graph.find_node_by_id(model_node_id)
         

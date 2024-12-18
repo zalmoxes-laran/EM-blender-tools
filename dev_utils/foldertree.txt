@@ -4,6 +4,7 @@
   - functions.py
   - google_credentials.py
   - activity_manager.py
+  - graph_updaters.py
   - server.py
   - sqlite_io.py
   - visual_tools.py
@@ -29,6 +30,9 @@
     - __init__.py
     - import_EMdb.py
     - importer_graphml.py
+  - operators/
+    - update_graph.py
+    - __init__.py
   - s3Dgraphy/
     - graph.py
     - __init__.py

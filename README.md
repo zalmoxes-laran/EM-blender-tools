@@ -125,8 +125,8 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
 ### Tasks To Do
 
 - [ ] **Rewrite the way EMtools's operators interact with scene lists (like scene.em_list)**
-  - [ ] **Create a new "ubermethod" in graph.py to find connected nodes with node_type and edge_type as variables**
-  - [ ] **Create a function that manage both missing proxies and proxies in hidden layers**
+  - [X] **Create a new "ubermethod" in graph.py to find connected nodes with node_type and edge_type as variables**
+  - [X] **Create a function that manage both missing proxies and proxies in hidden layers**
 
 - [ ] **Fix operators in the Epoch Manager even with the old approach**
   - [ ] **soloing to be done with the new node-based approach**
@@ -142,11 +142,10 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
   - Improves usability when dealing with complex graphs.
 
 - [ ] **Populate New Lists**
-  - [ ] **Activities List**
+  - [X] **Activities List**
     - Populate with activity data for better organization.
   - [ ] **Time Branches List**
     - Populate to manage alternative temporal sequences.
-  - [ ] **Task**: Implement functionality to read and populate these lists.
 
 - [ ] **Integrate IDs from Extended Matrix Canvas Tags**
   - Implement a system to append the ID from the canvas tags as a suffix to stratigraphic unit names.
@@ -160,9 +159,13 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
   - Modify the code to read the visual rules file for converting stratigraphic nodes into colors.
   - *Note*: This task is related to a task in Project s3Dgraphy.
 
-- [ ] **Develop JSON Exporter for Heritage Metaverse**
-  - Create a JSON exporter that prepares data for use in the Heritage Metaverse.
-  - Ensure compatibility and proper data formatting.
+- [X] **Create a ExtendedMatrix data folder (that can work also as a zipped file .EMZ)**
+
+- [X] **Develop JSON Exporter for Heritage Metaverse**
+  - [X] Create a JSON exporter that prepares data for use in the Heritage Metaverse.
+  - [X] Ensure compatibility and proper data formatting.
+  - [ ] Adding update fuction to catch geo_position_data and export them in EM-JSON
+  - [ ] Fixing errors in data layou in the EM-JSON exporter for Heriverse
 
 - [ ] **Debugging in Extended Matrix Tool**
   - **a.** Debug how paradata are presented in the Extended Matrix Tool.
@@ -170,7 +173,7 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
 
 ## Future versions of EM-tools
 
-- [ ] **Develop a JSON Importer with Folder Structure**
+- [ ] **Develop a JSON Importer with EM zipped (or not) Folder Structure (EMZ file)**
   - Develop a JSON importer that uses a folder structure for files.
   - Enable usage outside Blender and yED, allowing other applications to access and use the data.
   - Aim to establish a standard structure for critical models and virtual reconstructions.
