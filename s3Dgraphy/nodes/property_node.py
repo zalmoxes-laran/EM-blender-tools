@@ -134,7 +134,7 @@ class PropertyNode(ParadataNode):
         self.data = data if data is not None else {}
         
         # Validazione del tipo di proprietà
-        self.validate_property_type()
+        #self.validate_property_type()
 
     def validate_property_type(self):
         """
@@ -142,6 +142,7 @@ class PropertyNode(ParadataNode):
         """
         if self.property_type not in self.PROPERTY_TYPES:
             print(f"Warning: Property type '{self.property_type}' is not recognized for node '{self.name}' (ID: {self.node_id}).")
+            pass
 
     def get_property_info(self):
         """

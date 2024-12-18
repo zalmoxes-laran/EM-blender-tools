@@ -145,7 +145,8 @@ class Graph:
     def display_warnings(self):
         """Displays all accumulated warning messages."""
         for warning in self.warnings:
-            print("Warning:", warning)
+            #print("Warning:", warning)
+            pass
 
     def find_node_by_id(self, node_id):
         """Finds a node by ID."""

@@ -43,7 +43,7 @@ class GraphMLImporter:
         self.parse_nodes(tree)
         self.parse_edges(tree)
         self.connect_nodes_to_epochs()
-        self.graph.display_warnings()
+        #self.graph.display_warnings()
         return self.graph
 
     def parse_nodes(self, tree):
@@ -366,7 +366,7 @@ class GraphMLImporter:
                 height = nodelabel.attrib["height"]
                 width = nodelabel.attrib["width"]
                 x = nodelabel.attrib["x"]
-                print(f"La colonna {nodelabel.text} ha altezza: {height}, x: {x} e larghezza: {width}")
+                #print(f"La colonna {nodelabel.text} ha altezza: {height}, x: {x} e larghezza: {width}")
 
             # here check if it is a swimlane (epoch)    
             elif RowNodeLabelModelParameter is not None:
@@ -391,7 +391,7 @@ class GraphMLImporter:
                         epoch_node.set_name(label_node)
 
                     epoch_node.set_color(e_color)
-                    print(f'Ho creato un nodo epoca chiamato {epoch_node.name}')
+                    #print(f'Ho creato un nodo epoca chiamato {epoch_node.name}')
 
 
     def process_general_data(self, nodelabel, graph):
