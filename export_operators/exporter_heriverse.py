@@ -9,6 +9,7 @@ import shutil
 
 from ..s3Dgraphy import get_graph, get_all_graph_ids
 from ..functions import *
+from ..graph_updaters import *
 
 def clean_filename(filename: str) -> str:
     """
@@ -45,13 +46,13 @@ class JSON_OT_exportEMformat(Operator, ExportHelper):
         name="Use File Dialog",
         description="Use the file dialog to choose where to save the JSON",
         default=True
-    )
+    ) # type: ignore
 
     filepath: StringProperty(
         name="File Path",
         description="Path to save the JSON file",
         default=""
-    )
+    ) # type: ignore
 
     def invoke(self, context, event):
         if self.use_file_dialog:
@@ -242,7 +243,6 @@ class HERIVERSE_OT_export(Operator):
         
         return zip_path
 
-    
     def execute(self, context):
         scene = context.scene
         export_vars = context.window_manager.export_vars
@@ -273,6 +273,9 @@ class HERIVERSE_OT_export(Operator):
             json_path = os.path.join(project_path, "project.json")
             print(f"Exporting JSON to: {json_path}")
             
+            # Aggiorna il grafo prima dell'esportazione
+            update_graph_with_scene_data()
+
             # Usa l'operatore JSON con i parametri corretti
             result = bpy.ops.export.heriversejson(
                 filepath=json_path,

@@ -133,7 +133,9 @@ class JSONExporter:
             "extractors": {},
             "combiners": {},
             "links": {},
-            "geo": {}
+            "geo": {},
+            "semantic_shapes": {},      
+            "representation_models": {} 
         }
         
         for node in graph.nodes:
@@ -177,7 +179,10 @@ class JSONExporter:
                 nodes["links"][node.node_id] = node_data
             elif node.node_type == "geo_position":
                 nodes["geo"][node.node_id] = node_data
-                
+            elif node.node_type == "semantic_shape":
+                nodes["semantic_shapes"][node.node_id] = node_data
+            elif node.node_type == "representation_model":
+                nodes["representation_models"][node.node_id] = node_data
         return nodes
         
     def _process_edges(self, graph: Graph) -> Dict[str, List[Dict[str, Any]]]:
