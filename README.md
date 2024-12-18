@@ -75,7 +75,7 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
   - Find a nomenclature to describe stratigraphic units, possibly using the Getty vocabulary or specialized vocabularies developed in Ariadne.
   - *Note*: This task is closely linked to a similar task in the EM development.
 
-- [ ] **Work on Connection Rules in JSON**
+- [X] **Work on Connection Rules in JSON**
   - Formalize the connection rules by working on the JSON file of connection rules.
   - Ensure all nodes and connectors are correctly defined.
 
@@ -94,11 +94,6 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
 - [ ] **Publish s3Dgraphy as Standalone Library**
   - Publish s3Dgraphy as a standalone library.
   - Include documentation and possibly a publication to accompany the release.
-
-- [ ] **Publish Heritage Multidimensional Graph (HMG)**
-  - Publish the Heritage Multidimensional Graph, for which a LaTeX draft is already developed.
-  - This publication will detail the theoretical framework and applications.
-
 
 ## Future versions of s3Dgraphy
 
