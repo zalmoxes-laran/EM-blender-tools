@@ -15,6 +15,7 @@ from bpy.props import (BoolProperty,
 
 from urllib.parse import urlparse
 
+from .s3Dgraphy.utils.utils import get_material_color
 
 def is_valid_url(url_string):
     parsed_url = urlparse(url_string)
@@ -378,38 +379,6 @@ def update_display_mode(self, context):
     if bpy.context.scene.proxy_display_mode == "Periods":
         bpy.ops.emset.epochmaterial()
 
-def em_setup_mat_cycles(matname, R, G, B):
-    scene = bpy.context.scene
-    mat = bpy.data.materials[matname]
-    mat.diffuse_color[0] = R
-    mat.diffuse_color[1] = G
-    mat.diffuse_color[2] = B
-    mat.show_transparent_back = False
-    mat.use_backface_culling = False
-    mat.use_nodes = True
-    mat.node_tree.nodes.clear()
-    mat.blend_method = scene.proxy_blend_mode
-    links = mat.node_tree.links
-    nodes = mat.node_tree.nodes
-    output = nodes.new('ShaderNodeOutputMaterial')
-    output.location = (0, 0)
-    mainNode = nodes.new('ShaderNodeBsdfPrincipled')
-    mainNode.inputs['Base Color'].default_value = (R,G,B,scene.proxy_display_alpha)
-    mainNode.location = (-800, 50)
-    mainNode.name = "diffuse"
-    #mixNode = nodes.new('ShaderNodeMixShader')
-    #mixNode.location = (-400,-50)
-    #transpNode = nodes.new('ShaderNodeBsdfTransparent')
-    #transpNode.location = (-800,-200)
-    #mixNode.name = "mixnode"
-    #mixNode.inputs[0].default_value = scene.proxy_display_alpha
-    mainNode.inputs['Alpha'].default_value = scene.proxy_display_alpha
-
-    links.new(mainNode.outputs[0], output.inputs[0])
-    
-    #links.new(mainNode.outputs[0], mixNode.inputs[1])
-    #links.new(transpNode.outputs[0], mixNode.inputs[2])
-    #links.new(mixNode.outputs[0], output.inputs[0])
     
 def check_material_presence(matname):
     mat_presence = False
@@ -423,6 +392,9 @@ def check_material_presence(matname):
 #### Functions materials for EM  ####
 #  #### #### #### #### #### #### ####
 
+
+from .s3Dgraphy.utils.utils import get_material_color
+
 def consolidate_EM_material_presence(overwrite_mats):
     EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD']
     for EM_mat_name in EM_mat_list:
@@ -431,8 +403,34 @@ def consolidate_EM_material_presence(overwrite_mats):
             overwrite_mats = True
         if overwrite_mats == True:
             scene = bpy.context.scene
-            R, G, B = EM_mat_get_RGB_values(EM_mat_name)
-            em_setup_mat_cycles(EM_mat_name,R,G,B)
+            color_values = get_material_color(EM_mat_name)
+            if color_values is not None:
+                R, G, B, A = color_values
+                em_setup_mat_cycles(EM_mat_name, R, G, B, A)
+
+def em_setup_mat_cycles(matname, R, G, B, A=1.0):
+    scene = bpy.context.scene
+    mat = bpy.data.materials[matname]
+    mat.diffuse_color[0] = R
+    mat.diffuse_color[1] = G
+    mat.diffuse_color[2] = B 
+    mat.diffuse_color[3] = A
+    mat.show_transparent_back = False
+    mat.use_backface_culling = False
+    mat.use_nodes = True
+    mat.node_tree.nodes.clear()
+    mat.blend_method = scene.proxy_blend_mode
+    links = mat.node_tree.links
+    nodes = mat.node_tree.nodes
+    output = nodes.new('ShaderNodeOutputMaterial')
+    output.location = (0, 0)
+    mainNode = nodes.new('ShaderNodeBsdfPrincipled')
+    mainNode.inputs['Base Color'].default_value = (R, G, B, A)
+    mainNode.location = (-800, 50)
+    mainNode.name = "diffuse"
+    mainNode.inputs['Alpha'].default_value = scene.proxy_display_alpha
+    links.new(mainNode.outputs[0], output.inputs[0])
+
 
 def set_materials_using_EM_list(context):
     em_list_lenght = len(context.scene.em_list)
@@ -474,41 +472,6 @@ def proxy_shader_mode_function(self, context):
     else:
         scene.proxy_blend_mode = "BLEND"
     update_display_mode(self, context)
-
-def EM_mat_get_RGB_values(matname):
-    if matname == "US":
-        R = 0.328
-        G = 0.033
-        B = 0.033
-    elif matname == "USVn":
-        R = 0.031
-        G = 0.191 
-        B = 0.026
-    elif matname == "USVs":
-        R = 0.018
-        G = 0.275
-        B = 0.799
-    elif matname == "VSF":
-        #errati su articolo five steps
-        #R = 0.694
-        #G = 0.623
-        #B = 0.380
-        R = 0.439
-        G = 0.346
-        B = 0.119
-    elif matname == "SF":
-        #errati su articolo five steps
-        #R = 0.847
-        #G = 0.741
-        #B = 0.188
-        R = 0.686
-        G = 0.508
-        B = 0.029
-    elif matname == "USD":
-        R = 0.549
-        G = 0.103
-        B = 0.000
-    return R, G, B
 
 def hex_to_rgb(value):
     gamma = 2.2

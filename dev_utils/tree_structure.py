@@ -5,7 +5,7 @@ def list_files(startpath, output_file):
     with open(output_file, 'w') as f:
         for root, dirs, files in os.walk(startpath):
             # Filtra directory nascoste, __pycache__, e la directory dev_utils
-            dirs[:] = [d for d in dirs if not d.startswith('.') and d != '__pycache__' and d != 'dev_utils']
+            dirs[:] = [d for d in dirs if not d.startswith('.') and not d.startswith('addon_updater') and d != '__pycache__' and d != 'dev_utils' and d !='GPL3-license.txt' and d != 'README.md' and d !='complete-json.json' ]
             # Filtra file nascosti e rimuove file .png e .glb
             files = [file for file in files if not file.startswith('.')]
             files = [file for file in files if not (file.lower().endswith('.png') or file.lower().endswith('.glb'))]

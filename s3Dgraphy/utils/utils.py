@@ -1,5 +1,6 @@
 # s3Dgraphy/utils/utils.py
-
+import os
+import json
 
 """
 Utilities for the s3Dgraphy library.
@@ -89,3 +90,39 @@ def get_stratigraphic_node_class(stratigraphic_type):
     """
     # Usa StratigraphicUnit come fallback se il tipo non è nella mappa
     return STRATIGRAPHIC_CLASS_MAP.get(stratigraphic_type, StratigraphicNode)
+
+def get_material_color(matname, rules_path=None):
+    """
+    Ottiene i valori RGB per un dato tipo di materiale dal file di configurazione.
+    
+    Args:
+        matname (str): Nome del materiale/tipo di unità stratigrafica
+        rules_path (str, optional): Percorso al file JSON delle regole. Se None,
+            usa il path di default.
+            
+    Returns:
+        tuple: (R, G, B, A) con valori tra 0 e 1 o None se il nodo non prevede
+        un materiale
+    """
+    if rules_path is None:
+        rules_path = os.path.join(os.path.dirname(__file__), 
+                                "../JSON_config/em_visual_rules.json")
+    
+    try:
+        with open(rules_path, 'r') as f:
+            rules = json.load(f)
+            node_style = rules["node_styles"].get(matname, {})
+            style = node_style.get("style", {})
+            
+            # Se non c'è la sezione material, restituisce None
+            if "material" not in style:
+                return None
+                
+            color = style["material"]["color"]
+            return (color["r"], color["g"], color["b"], color.get("a", 1.0))
+            
+    except (KeyError, FileNotFoundError, json.JSONDecodeError):
+        # Fallback solo per i nodi che dovrebbero avere un materiale
+        if matname in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD']:
+            return (0.5, 0.5, 0.5, 1.0)
+        return None

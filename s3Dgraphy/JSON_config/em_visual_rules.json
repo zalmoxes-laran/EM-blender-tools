@@ -6,6 +6,14 @@
             "file_3d": "src/3D/US.glb",
             "file_2d": "src/2D/US.png",
             "style": {
+                "material": {
+                    "color": {
+                        "r": 0.328,
+                        "g": 0.033,
+                        "b": 0.033,
+                        "a": 1.0
+                    }
+                },
                 "border_color": "#FFFFFF",
                 "fill_color": "#F0F0F0",
                 "border_style": "solid",
@@ -13,10 +21,37 @@
             },
             "label_position": "over"
         },
+        "USVn": {
+            "file_3d": "src/3D/USVn.glb",
+            "file_2d": "src/2D/USVn.png",
+            "style": {
+                "material": {
+                    "color": {
+                        "r": 0.031,
+                        "g": 0.191,
+                        "b": 0.026,
+                        "a": 1.0
+                    }
+                },
+                "border_color": "#FF0000",
+                "fill_color": "#000000",
+                "border_style": "solid",
+                "shape": "hexagon"
+            },
+            "label_position": "over"
+        },
         "USVs": {
             "file_3d": "src/3D/USVs.glb",
             "file_2d": "src/2D/USVs.png",
             "style": {
+                "material": {
+                    "color": {
+                        "r": 0.018,
+                        "g": 0.275,
+                        "b": 0.799,
+                        "a": 1.0
+                    }
+                },
                 "border_color": "#000000",
                 "fill_color": "#CCCCCC",
                 "border_style": "solid",
@@ -24,6 +59,65 @@
             },
             "label_position": "over"
         },
+        "VSF": {
+            "file_3d": "src/3D/VSF.glb",
+            "file_2d": "src/2D/VSF.png",
+            "style": {
+                "material": {
+                    "color": {
+                        "r": 0.439,
+                        "g": 0.346,
+                        "b": 0.119,
+                        "a": 1.0
+                    }
+                },
+                "border_color": "#000000",
+                "fill_color": "#CCCCCC",
+                "border_style": "solid",
+                "shape": "octagon"
+            },
+            "label_position": "over"
+        },
+        "SF": {
+            "file_3d": "src/3D/SF.glb",
+            "file_2d": "src/2D/SF.png",
+            "style": {
+                "material": {
+                    "color": {
+                        "r": 0.686,
+                        "g": 0.508,
+                        "b": 0.029,
+                        "a": 1.0
+                    }
+                },
+                "border_color": "#FFFFFF",
+                "fill_color": "#CCCCCC",
+                "border_style": "solid",
+                "shape": "octagon"
+            },
+            "label_position": "over"
+        },
+        "USD": {
+            "file_3d": "src/3D/USD.glb",
+            "file_2d": "src/2D/USD.png",
+            "style": {
+                "material": {
+                    "color": {
+                        "r": 0.549,
+                        "g": 0.103,
+                        "b": 0.000,
+                        "a": 1.0
+                    }
+                },
+                "border_color": "#AAAAAA",
+                "fill_color": "#F5F5F5",
+                "border_style": "solid",
+                "shape": "rounded_rectangle"
+            },
+            "label_position": "over"
+        },
+    
+
         "serSU": {
             "file_3d": "src/3D/serSU.glb",
             "file_2d": "src/2D/serSU.png",
@@ -46,50 +140,7 @@
             },
             "label_position": "over"
         },
-        "USVn": {
-            "file_3d": "src/3D/USVn.glb",
-            "file_2d": "src/2D/USVn.png",
-            "style": {
-                "border_color": "#FF0000",
-                "fill_color": "#000000",
-                "border_style": "solid",
-                "shape": "hexagon"
-            },
-            "label_position": "over"
-        },
-        "SF": {
-            "file_3d": "src/3D/SF.glb",
-            "file_2d": "src/2D/SF.png",
-            "style": {
-                "border_color": "#FFFFFF",
-                "fill_color": "#CCCCCC",
-                "border_style": "solid",
-                "shape": "octagon"
-            },
-            "label_position": "over"
-        },
-        "VSF": {
-            "file_3d": "src/3D/VSF.glb",
-            "file_2d": "src/2D/VSF.png",
-            "style": {
-                "border_color": "#000000",
-                "fill_color": "#CCCCCC",
-                "border_style": "solid",
-                "shape": "octagon"
-            },
-            "label_position": "over"
-        },
-        "USD": {
-            "file_3d": "src/3D/USD.glb",
-            "file_2d": "src/2D/USD.png",
-            "style": {
-                "border_color": "#AAAAAA",
-                "fill_color": "#F5F5F5",
-                "border_style": "solid",
-                "shape": "rounded_rectangle"
-            },
-            "label_position": "over"
-        },
+
         "TSU": {
             "file_3d": "src/3D/TSU.glb",
             "file_2d": "src/2D/TSU.png",

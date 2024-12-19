@@ -15,7 +15,6 @@
   - populate_lists.py
   - external_modules_install.py
   - em_statistics.py
-  - output.json
   - em_setup.py
   - graph2geometry.py
   - __init__.py

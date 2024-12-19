@@ -22,7 +22,7 @@ bl_info = {
     "author": "E. Demetrescu",
     "version": (1, 5, 0),
     "blender": (4, 2, 3),
-    "devel_version": "v1.5.0 dev7",  # Aggiunto campo devel_version
+    "devel_version": "v1.5.0 dev8",  # Aggiunto campo devel_version
     "location": "3D View > Toolbox",
     "warning": "This addon is in dev7 stage.",
     "wiki_url": "",
@@ -84,6 +84,7 @@ from .external_modules_install import check_external_modules
 
 from .populate_lists import *
 
+from .s3Dgraphy.utils.utils import get_material_color
 
 # demo bare-bones preferences 
 @addon_updater_ops.make_annotations
