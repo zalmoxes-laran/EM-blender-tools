@@ -48,15 +48,14 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
   - **Link Nodes**
     - Allow expression of resources connected to reference nodes (e.g., documents, properties).
     - Specify the type of link (e.g., 3D models, JPEGs, PDFs, Zenodo links).
+  - [X] **Added a Representation Model Node**
+    - Allows for inclusion of representation models within the graph.
 
 - [X] **Modified GraphML Import**
   - Updated to work with the new JSON files, ensuring compatibility.
 
 - [X] **Developed a Parser**
   - Recognizes tags within the Extended Matrix canvas for better data interpretation.
-
-- [X] **Added a Representation Model Node**
-  - Allows for inclusion of representation models within the graph.
 
 - [X] **Included a Library of Models in Visual Rules**
   - **3D Models** in GLTF format for 3D graph visualization.
@@ -71,6 +70,8 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
 - [X] **Work on Connection Rules in JSON**
   - Formalize the connection rules by working on the JSON file of connection rules.
   - Ensure all nodes and connectors are correctly defined.
+
+- [X] **The EM color schema was moved outside the EM tools code and now is part of the s3Dgraphy library**
 
 ### Tasks To Do
 
@@ -93,7 +94,7 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
 
 - [ ] **Publish s3Dgraphy as Standalone Library**
   - Publish s3Dgraphy as a standalone library.
-  - Include documentation and possibly a publication to accompany the release.
+  - Include documentation and a publication to accompany the release.
 
 ## Future versions of s3Dgraphy
 
@@ -124,6 +125,13 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
 
 ### Tasks To Do
 
+- [ ] **Develop the 3D GIS mode for EM tools**
+  - [X] Adding a section to the UI to swithch to simple 3D GIS
+  - [ ] developing an operator to parse xlsx/csv files driven by a JSON mapping schema oriented to QKGs
+  - [ ] developing a fallback simple importer assuming an "ID" column to work with and using all the others columns like properties
+  - [ ] adding a section visual manager to the UI with the ability to show the available properties in the graph as a drop menu.
+  - [ ] developing an operator to create a color ramp or other stuff to colorize the proxies according to the properties
+  - [ ] documentation of the new tool
 
 - [ ] **Fix operators in the Epoch Manager even with the old approach**
   - [ ] **soloing to be done with the new node-based approach**
