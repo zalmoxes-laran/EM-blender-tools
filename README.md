@@ -68,16 +68,16 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
 - [X] **Created and Managed Graphs and Multigraphs**
   - Developed a first version of an information propagation algorithm.
 
+- [X] **Work on Connection Rules in JSON**
+  - Formalize the connection rules by working on the JSON file of connection rules.
+  - Ensure all nodes and connectors are correctly defined.
+
 ### Tasks To Do
 
 - [ ] **Verify and Extend Property Nodes Using Nomenclature**
   - Check if the property node should have subclasses using the nomenclature of qualia.
   - Find a nomenclature to describe stratigraphic units, possibly using the Getty vocabulary or specialized vocabularies developed in Ariadne.
   - *Note*: This task is closely linked to a similar task in the EM development.
-
-- [X] **Work on Connection Rules in JSON**
-  - Formalize the connection rules by working on the JSON file of connection rules.
-  - Ensure all nodes and connectors are correctly defined.
 
 - [ ] **Redo the Turtle (`.ttl`) File**
   - Schematize how the data model works.
@@ -117,11 +117,13 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
   - [X] **Set unselectable**
   - [X] **Toggle reconstruction**
 
-### Tasks To Do
-
-- [ ] **Rewrite the way EMtools's operators interact with scene lists (like scene.em_list)**
+- [X] **Rewrite the way EMtools's operators interact with scene lists (like scene.em_list)**
   - [X] **Create a new "ubermethod" in graph.py to find connected nodes with node_type and edge_type as variables**
   - [X] **Create a function that manage both missing proxies and proxies in hidden layers**
+
+
+### Tasks To Do
+
 
 - [ ] **Fix operators in the Epoch Manager even with the old approach**
   - [ ] **soloing to be done with the new node-based approach**
@@ -160,7 +162,7 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
   - [X] Create a JSON exporter that prepares data for use in the Heritage Metaverse.
   - [X] Ensure compatibility and proper data formatting.
   - [ ] Adding update fuction to catch geo_position_data and export them in EM-JSON
-  - [ ] Fixing errors in data layou in the EM-JSON exporter for Heriverse
+  - [ ] Fixing errors in data layout in the EM-JSON exporter for Heriverse
 
 - [ ] **Debugging in Extended Matrix Tool**
   - **a.** Debug how paradata are presented in the Extended Matrix Tool.
