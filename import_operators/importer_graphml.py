@@ -69,6 +69,7 @@ class EM_import_GraphML(bpy.types.Operator):
                 return {'CANCELLED'}
 
             # Ora ottieni il grafo utilizzando `get_graph(graph_id)`
+            print(f"Getting graph with ID: {graph_id}")
             graph_instance = get_graph(graph_id)
 
             if graph_instance is None:

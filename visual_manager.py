@@ -47,47 +47,142 @@ class UPDATE_OT_property_values(bpy.types.Operator):
     
     def execute(self, context):
         scene = context.scene
+        em_tools = scene.em_tools
+        
+        print("\n=== Starting Property Values Update ===")
         
         # Clear existing values
         scene.property_values.clear()
         
-        # Get all values for selected property
-        values = set()
-        if scene.show_all_graphs:
-            for graph_id in get_all_graph_ids():
-                graph = get_graph(graph_id)
-                if graph:
-                    mapping = create_property_value_mapping(graph, scene.selected_property)
-                    values.update(mapping.values())
-        else:
-            graph = get_graph()
-            if graph:
-                mapping = create_property_value_mapping(graph, scene.selected_property)
-                values.update(mapping.values())
-        
-        # Add values to property_values collection
-        for value in sorted(values):
-            item = scene.property_values.add()
-            item.value = str(value)
-            item.color = (0.5, 0.5, 0.5, 1.0)  # Default gray
-        
-        return {'FINISHED'}
+        try:
+            values = set()
+            processed_graphs = 0
+            
+            if scene.show_all_graphs:
+                print("Processing all loaded graphs...")
+                graph_ids = get_all_graph_ids()
+                print(f"Found {len(graph_ids)} graph(s): {graph_ids}")
+                
+                for graph_id in graph_ids:
+                    graph = get_graph(graph_id)
+                    if graph:
+                        print(f"\nProcessing graph '{graph_id}'")
+                        mapping = create_property_value_mapping(graph, scene.selected_property)
+                        values.update(mapping.values())
+                        processed_graphs += 1
+                    else:
+                        print(f"Warning: Could not retrieve graph '{graph_id}'")
+            else:
+                # Process only the active GraphML file
+                if em_tools.active_file_index >= 0:
+                    graphml = em_tools.graphml_files[em_tools.active_file_index]
+                    graph = get_graph(graphml.name)
+                    
+                    if graph:
+                        print(f"\nProcessing active graph '{graphml.name}'")
+                        mapping = create_property_value_mapping(graph, scene.selected_property)
+                        values.update(mapping.values())
+                        processed_graphs = 1
+                    else:
+                        message = "No active graph found. Please load a GraphML file first."
+                        self.report({'ERROR'}, message)
+                        print(f"Error: {message}")
+                        return {'CANCELLED'}
+                else:
+                    message = "No GraphML file selected"
+                    self.report({'ERROR'}, message)
+                    print(f"Error: {message}")
+                    return {'CANCELLED'}
+            
+            # Sort and add values to property_values collection
+            print("\nAdding property values:")
+            for value in sorted(values):
+                item = scene.property_values.add()
+                item.value = str(value)
+                item.color = (0.5, 0.5, 0.5, 1.0)  # Default gray
+                print(f"Added value: {value}")
+            
+            summary = f"Successfully processed {processed_graphs} graph(s) and found {len(values)} unique values"
+            print(f"\n{summary}")
+            self.report({'INFO'}, summary)
+            
+            return {'FINISHED'}
+            
+        except Exception as e:
+            import traceback
+            print("\nError during property values update:")
+            print(traceback.format_exc())
+            self.report({'ERROR'}, f"Error updating property values: {str(e)}")
+            return {'CANCELLED'}
+        finally:
+            print("\n=== Property Values Update Completed ===")
 
-def get_available_properties(graph):
-    """Get list of available property names from the graph."""
+def get_available_properties(context):
+    """
+    Get list of available property names from either active graph or all graphs.
+    
+    Args:
+        context: Blender context
+        
+    Returns:
+        list: Sorted list of unique property names
+    """
+    print(f"\n=== Getting Available Properties ===")
+    scene = context.scene
+    em_tools = scene.em_tools
     properties = set()
-    
-    print(f"\nCercando proprietà nel grafo...")
-    print(f"Numero totale di nodi: {len(graph.nodes)}")
-    
-    for node in graph.nodes:
-        print(f"Node type: {node.node_type}, name: {node.name}")
-        if node.node_type == "property":
-            print(f"Found property node: {node.name}")
-            properties.add(node.name)
-    
-    result = list(properties)
-    print(f"Proprietà trovate: {result}")
+
+    # Determina quale grafo/i usare
+    if scene.show_all_graphs:
+        graph_ids = get_all_graph_ids()
+        print(f"Processing all graphs: {graph_ids}")
+    else:
+        # Usa solo il grafo attivo
+        if em_tools.active_file_index >= 0:
+            active_file = em_tools.graphml_files[em_tools.active_file_index]
+            graph_ids = [active_file.name]
+            print(f"Processing active graph: {active_file.name}")
+        else:
+            print("No active graph file selected")
+            return []
+    graph_ids_test = get_all_graph_ids()
+    for graph_id in graph_ids_test:
+        print(f"Graph ID: {graph_id}")
+        
+    # Processa ogni grafo
+    for graph_id in graph_ids:
+        graph = get_graph(graph_id)
+        if not graph:
+            print(f"Warning: Could not retrieve graph '{graph_id}'")
+            continue
+
+        print(f"\nProcessing graph '{graph_id}':")
+        print(f"Total nodes: {len(graph.nodes)}")
+        
+        # Cerca i nodi proprietà
+        property_nodes = [node for node in graph.nodes if node.node_type == "property"]
+        print(f"Found {len(property_nodes)} property nodes")
+
+        for node in property_nodes:
+            if node.name:
+                properties.add(node.name)
+                print(f"Found property: {node.name}")
+                
+                # Conta le connessioni
+                edges = [e for e in graph.edges 
+                        if (e.edge_target == node.node_id and 
+                            e.edge_type == "has_property")]
+                print(f"  Connected to {len(edges)} nodes")
+                
+                # Mostra il valore/descrizione
+                if hasattr(node, 'value') and node.value:
+                    print(f"  Value: {node.value}")
+                if hasattr(node, 'description') and node.description:
+                    print(f"  Description: {node.description}")
+
+    result = sorted(list(properties))
+    print(f"\nTotal unique properties found: {len(result)}")
+    print(f"Properties: {result}")
     return result
 
 class PropertyValueItem(bpy.types.PropertyGroup):
@@ -210,35 +305,12 @@ class VISUALToolsPanel:
             row = box.row()
             row.prop(scene, "show_all_graphs", text="Show All Graphs")
             
-            # Property selector
+            # Property selector 
             row = box.row()
-            props = []
-            
-            print("\nRecuperando il grafo...")
-            if scene.show_all_graphs:
-                graph_ids = get_all_graph_ids()
-                print(f"Graph IDs trovati: {graph_ids}")
-                for graph_id in graph_ids:
-                    graph = get_graph(graph_id)
-                    if graph:
-                        print(f"Processando grafo {graph_id}")
-                        props.extend(get_available_properties(graph))
-            else:
-                # Get the active file's graph_id
-                em_tools = scene.em_tools
-                if em_tools.active_file_index >= 0:
-                    graphml = em_tools.graphml_files[em_tools.active_file_index]
-                    graph = get_graph(graphml.name)
-                    if graph:
-                        print(f"Processando grafo {graphml.name}")
-                        props = get_available_properties(graph)
-                else:
-                    print("Nessun file GraphML attivo")
-            
-            props = sorted(set(props))  # Remove duplicates and sort
+            props = get_available_properties(context)  # Usa la nuova funzione
             
             if props:
-                print(f"Proprietà disponibili: {props}")
+                # Se ci sono proprietà, mostra il menu
                 enum_items = [(p, p, "") for p in props]
                 row.prop_menu_enum(scene, "selected_property", text="Select Property")
                 

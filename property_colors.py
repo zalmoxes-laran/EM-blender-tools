@@ -7,24 +7,51 @@ from .functions import hex_to_rgb
 DEFAULT_COLOR = (0.5, 0.5, 0.5, 1.0)  # Grigio medio
 
 def create_property_value_mapping(graph, property_name):
-    """Creates a temporary mapping of stratigraphic nodes to their property values."""
+    """
+    Creates a mapping of stratigraphic nodes to their property values.
+    
+    Args:
+        graph: Graph instance
+        property_name: Name of the property to map
+        
+    Returns:
+        dict: Mapping of node names to property values
+    """
+    print(f"\n=== Creating Property Value Mapping for '{property_name}' ===")
+    
     mapping = {}
     
-    for node in graph.nodes:
-        if isinstance(node, StratigraphicNode):
-            connected_nodes = graph.get_connected_nodes_by_filters(
-                node, 
-                target_node_type="property",
-                edge_type="has_property"
-            )
+    # Get all edges of type "has_property"
+    property_edges = [
+        edge for edge in graph.edges
+        if edge.edge_type == "has_property"
+    ]
+    
+    print(f"Found {len(property_edges)} property edges")
+    
+    for edge in property_edges:
+        # Get the property node
+        prop_node = graph.find_node_by_id(edge.edge_target)
+        
+        if prop_node and prop_node.node_type == "property" and prop_node.name == property_name:
+            # Get the stratigraphic node
+            strat_node = graph.find_node_by_id(edge.edge_source)
             
-            for prop_node in connected_nodes:
-                if prop_node.name == property_name:
-                    mapping[node.name] = prop_node.value
-                    break
-            else:
-                mapping[node.name] = "nodata"
-                
+            if strat_node:
+                # Use description as value since that's where the data is stored
+                value = prop_node.description
+                if value:
+                    print(f"Node '{strat_node.name}' has {property_name}: {value}")
+                    mapping[strat_node.name] = value
+                else:
+                    print(f"Warning: Node '{strat_node.name}' has empty {property_name}")
+                    mapping[strat_node.name] = "nodata"
+    
+    if not mapping:
+        print(f"No values found for property '{property_name}'")
+    else:
+        print(f"\nFound {len(mapping)} nodes with {property_name} values")
+        
     return mapping
 
 def apply_property_colors(context, property_mapping, color_scheme):
