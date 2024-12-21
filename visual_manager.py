@@ -276,6 +276,14 @@ def print_graph_info():
             for node_type, count in type_count.items():
                 print(f"  {node_type}: {count}")
 
+
+# Definizione della proprietà enum dinamica
+def update_enum_items(self, context):
+    props = ["pendenza", "position", "posizione", "rivestimento", "stile", "tecnica", "tecnica costruttiva", "tipologia e dimensioni"]
+    return [(p, p, "") for p in props]
+
+
+
 class VISUALToolsPanel:
     bl_label = "Visual manager"
     bl_space_type = "VIEW_3D"
@@ -308,6 +316,8 @@ class VISUALToolsPanel:
             # Property selector 
             row = box.row()
             props = get_available_properties(context)  # Usa la nuova funzione
+            for prop in props:
+                print(f"Available Property: {prop}")
             
             if props:
                 # Se ci sono proprietà, mostra il menu
@@ -315,12 +325,17 @@ class VISUALToolsPanel:
                 row.prop_menu_enum(scene, "selected_property", text="Select Property")
                 
                 if scene.selected_property:
+                    row.label(text=f"{scene.selected_property}")
                     # Values list with colors
                     row = box.row()
                     row.template_list("PROPERTY_UL_values", "", 
                                     scene, "property_values",
                                     scene, "active_value_index")
                     
+                    #row = box.row()
+                    
+
+
                     # Color scheme management
                     row = box.row(align=True)
                     row.operator("color_scheme.save", text="Save Schema", icon='FILE_TICK')
@@ -329,7 +344,7 @@ class VISUALToolsPanel:
                 row.label(text="No properties found in graph")
 
        
-            
+            '''
             if scene.selected_property:
                 # Values list with colors
                 row = box.row()
@@ -341,7 +356,7 @@ class VISUALToolsPanel:
                 row = box.row(align=True)
                 row.operator("color_scheme.save", text="Save Schema", icon='FILE_TICK')
                 row.operator("color_scheme.load", text="Load Schema", icon='FILE_FOLDER')
-
+            '''
         row = layout.row()
         row.prop(scene, "proxy_display_alpha")
 
@@ -419,6 +434,12 @@ def register():
         type=bpy.types.PropertyGroup
     )
 
+    # Proprietà dinamica registrata nella scena
+    bpy.types.Scene.selected_property = bpy.props.EnumProperty(
+        name="Properties",
+        items=update_enum_items
+    )
+
 
 def unregister():
     for cls in classes:
@@ -429,3 +450,4 @@ def unregister():
     del bpy.types.Scene.selected_property
     del bpy.types.Scene.show_all_graphs
     del bpy.types.Scene.available_properties
+    del bpy.types.Scene.selected_property
