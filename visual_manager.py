@@ -520,21 +520,21 @@ class PROPERTY_OT_select_proxies(bpy.types.Operator):
             
             if graph:
                 selected_count = 0
+                connected_strat_nodes = set()
 
-                if self.value == "no " + scene.selected_property + " node":
+                # Trova tutti i nodi property del tipo selezionato
+                property_nodes = [node for node in graph.nodes 
+                                if node.node_type == "property" 
+                                and node.name == scene.selected_property]
+
+                # Prima raccogli tutti i nodi stratigrafici connessi
+                for prop_node in property_nodes:
+                    for edge in graph.edges:
+                        if edge.edge_type == "has_data_provenance" and edge.edge_target == prop_node.node_id:
+                            connected_strat_nodes.add(edge.edge_source)
+
+                if self.value == f"no property {scene.selected_property} node":
                     # Seleziona i proxy che non hanno questa proprietà
-                    property_nodes = [node for node in graph.nodes 
-                                    if node.node_type == "property" 
-                                    and node.name == scene.selected_property]
-                    
-                    # Trova tutti i nodi stratigrafici collegati a questa proprietà
-                    connected_strat_nodes = set()
-                    for prop_node in property_nodes:
-                        for edge in graph.edges:
-                            if edge.edge_type == "has_data_provenance" and edge.edge_target == prop_node.node_id:
-                                connected_strat_nodes.add(edge.edge_source)
-                    
-                    # Seleziona i proxy dei nodi stratigrafici che NON sono nel set
                     for node in graph.nodes:
                         if isinstance(node, StratigraphicNode) and node.node_id not in connected_strat_nodes:
                             proxy = bpy.data.objects.get(node.name)
@@ -542,23 +542,31 @@ class PROPERTY_OT_select_proxies(bpy.types.Operator):
                                 proxy.select_set(True)
                                 selected_count += 1
 
-                else:
-                    # Trova i proxy con il valore specificato
-                    property_nodes = [node for node in graph.nodes 
-                                    if node.node_type == "property" 
-                                    and node.name == scene.selected_property
-                                    and (node.description == self.value or 
-                                        (not node.description and self.value == "empty " + scene.selected_property + " node"))]
-                    
+                elif self.value == f"empty property {scene.selected_property} node":
+                    # Seleziona i proxy con proprietà ma senza valore
                     for prop_node in property_nodes:
-                        for edge in graph.edges:
-                            if edge.edge_type == "has_data_provenance" and edge.edge_target == prop_node.node_id:
-                                strat_node = graph.find_node_by_id(edge.edge_source)
-                                if strat_node:
-                                    proxy = bpy.data.objects.get(strat_node.name)
-                                    if proxy and proxy.type == 'MESH':
-                                        proxy.select_set(True)
-                                        selected_count += 1
+                        if not prop_node.description:
+                            for edge in graph.edges:
+                                if edge.edge_type == "has_data_provenance" and edge.edge_target == prop_node.node_id:
+                                    strat_node = graph.find_node_by_id(edge.edge_source)
+                                    if strat_node:
+                                        proxy = bpy.data.objects.get(strat_node.name)
+                                        if proxy and proxy.type == 'MESH':
+                                            proxy.select_set(True)
+                                            selected_count += 1
+
+                else:
+                    # Seleziona i proxy con il valore specifico
+                    for prop_node in property_nodes:
+                        if prop_node.description == self.value:
+                            for edge in graph.edges:
+                                if edge.edge_type == "has_data_provenance" and edge.edge_target == prop_node.node_id:
+                                    strat_node = graph.find_node_by_id(edge.edge_source)
+                                    if strat_node:
+                                        proxy = bpy.data.objects.get(strat_node.name)
+                                        if proxy and proxy.type == 'MESH':
+                                            proxy.select_set(True)
+                                            selected_count += 1
                 
                 self.report({'INFO'}, f"Selected {selected_count} objects")
                 return {'FINISHED'}
