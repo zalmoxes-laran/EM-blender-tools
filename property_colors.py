@@ -88,7 +88,7 @@ def save_color_scheme(filepath, property_name, color_mapping):
     data = {
         "metadata": {
             "property_name": property_name,
-            "created": bpy.utils.blend_paths(0),
+            "created": bpy.data.filepath,  # Usiamo direttamente il filepath del blend
             "description": f"Color mapping for {property_name} values"
         },
         "color_mapping": color_mapping

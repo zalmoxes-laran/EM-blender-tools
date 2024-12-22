@@ -25,6 +25,7 @@
   - visual_manager.py
   - EM_list.py
   - GPL3-license.txt
+  - property_colors.py
   - import_operators/
     - __init__.py
     - import_EMdb.py

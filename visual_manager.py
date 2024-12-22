@@ -5,6 +5,8 @@ from bpy.types import Operator
 from bpy.types import PropertyGroup
 from bpy.types import UIList
 
+from .color_ramps import COLOR_RAMPS
+
 from .functions import *
 from .property_colors import *
 
@@ -134,11 +136,7 @@ def get_enum_items(self, context):
 def update_selected_property(self, context):
     bpy.ops.update.property_values()
 
-bpy.types.Scene.selected_property = bpy.props.StringProperty(
-    name="Selected Property",
-    description="Property to use for coloring",
-    update=update_selected_property
-)
+
 
 class UPDATE_OT_property_values(bpy.types.Operator):
     bl_idname = "update.property_values"
@@ -429,26 +427,43 @@ class VISUALToolsPanel:
             row.prop(scene, "property_enum", text="Select Property")
 
             if scene.selected_property:
-                print(f"\nDebug Panel:")  # Debug
-                print(f"Selected property: {scene.selected_property}")
-                print(f"Number of values in collection: {len(scene.property_values)}")
-                for i, item in enumerate(scene.property_values):
-                    print(f"Value {i}: {item.value}")
-
+                
                 row = box.row()
                 row.template_list("PROPERTY_UL_values", "", 
                                 scene, "property_values",
                                 scene, "active_value_index")
 
+                # Color scheme management
+                row = box.row(align=True)
+                row.operator("color_scheme.save", text="Save Schema", icon='FILE_TICK')
+                row.operator("color_scheme.load", text="Load Schema", icon='FILE_FOLDER')
+
+                row = box.row()
+                row.prop(scene.color_ramp_props, "advanced_options", 
+                        text="Color Ramp", 
+                        icon='TRIA_DOWN' if scene.color_ramp_props.advanced_options else 'TRIA_RIGHT',
+                        emboss=False)
+
+                if scene.color_ramp_props.advanced_options:
+                    preview = box.box()
+                    preview.prop(scene.color_ramp_props, "ramp_type")
+                    preview.prop(scene.color_ramp_props, "ramp_name")
+                    
+                    # Preview della color ramp
+                    if (scene.color_ramp_props.ramp_type in COLOR_RAMPS and 
+                        scene.color_ramp_props.ramp_name in COLOR_RAMPS[scene.color_ramp_props.ramp_type]):
+                        
+                        ramp_info = COLOR_RAMPS[scene.color_ramp_props.ramp_type][scene.color_ramp_props.ramp_name]
+                        preview.label(text=f"Selected: {ramp_info['name']}")
+                        preview.label(text=ramp_info['description'])
+                    
+                        preview.operator("property.apply_color_ramp", text="Apply Color Ramp")
 
                 if scene.selected_property and len(scene.property_values) > 0:
                     row = box.row()
                     row.operator("property.apply_colors", text="Apply Colors to Proxies", icon='COLOR')
 
-                # Color scheme management
-                row = box.row(align=True)
-                row.operator("color_scheme.save", text="Save Schema", icon='FILE_TICK')
-                row.operator("color_scheme.load", text="Load Schema", icon='FILE_FOLDER')
+
         
         row = layout.row()
         row.prop(scene, "proxy_display_alpha")
@@ -490,6 +505,8 @@ class VISUALToolsPanel:
         
         """ op = row.operator("center.mass", text="", emboss=False, icon='SNAP_FACE_CENTER')
         op.center_to = "mass" """
+
+
 
 class VIEW3D_PT_VisualPanel(Panel, VISUALToolsPanel):
     bl_category = "EM"
@@ -575,6 +592,87 @@ class PROPERTY_OT_select_proxies(bpy.types.Operator):
         return {'CANCELLED'}
 
 
+def get_ramp_types(self, context):
+    """Return color ramp types for the enum property"""
+    return [(k, k.title(), k.title()) for k in COLOR_RAMPS.keys()]
+
+def get_ramp_names(self, context):
+    """Return color ramp names for the selected type"""
+    ramp_type = context.scene.color_ramp_props.ramp_type
+    if ramp_type in COLOR_RAMPS:
+        return [(k, v["name"], v["description"]) 
+                for k, v in COLOR_RAMPS[ramp_type].items()]
+    return []
+
+class ColorRampProperties(bpy.types.PropertyGroup):
+    """Properties for color ramp selection"""
+    ramp_type: bpy.props.EnumProperty(
+        name="Scale Type",
+        items=get_ramp_types,
+        description="Type of color scale"
+    ) # type: ignore
+    
+    ramp_name: bpy.props.EnumProperty(
+        name="Color Ramp",
+        items=get_ramp_names,
+        description="Selected color ramp"
+    ) # type: ignore
+
+    advanced_options: bpy.props.BoolProperty(
+        name="Show advanced options",
+        description="Show advanced export options like compression settings",
+        default=False
+    ) # type: ignore
+
+
+class PROPERTY_OT_apply_color_ramp(bpy.types.Operator):
+    """Apply the selected color ramp to property values"""
+    bl_idname = "property.apply_color_ramp"
+    bl_label = "Apply Color Ramp"
+    bl_description = "Apply selected color ramp to property values"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    def execute(self, context):
+        scene = context.scene
+        props = scene.color_ramp_props
+        
+        if not scene.selected_property:
+            self.report({'ERROR'}, "No property selected")
+            return {'CANCELLED'}
+            
+        # Get the selected color ramp
+        if props.ramp_type not in COLOR_RAMPS or props.ramp_name not in COLOR_RAMPS[props.ramp_type]:
+            self.report({'ERROR'}, "Invalid color ramp selection")
+            return {'CANCELLED'}
+            
+        colors = COLOR_RAMPS[props.ramp_type][props.ramp_name]["colors"]
+        
+        # Sort property values for sequential/diverging ramps
+        values = list(scene.property_values)
+        if props.ramp_type in ["sequential", "diverging"]:
+            values.sort(key=lambda x: float(x.value) if x.value.replace(".", "").isdigit() else float("-inf"))
+        
+        # Assign colors to values
+        num_colors = len(colors)
+        num_values = len(values)
+        
+        for i, value in enumerate(values):
+            # Calculate color index based on distribution type
+            if props.ramp_type == "diverging":
+                # Center the values around the middle color
+                mid_point = (num_values - 1) / 2
+                rel_pos = (i - mid_point) / mid_point if mid_point > 0 else 0
+                color_idx = int((rel_pos + 1) * (num_colors - 1) / 2)
+            else:
+                # Distribute colors evenly
+                color_idx = min(int(i * num_colors / num_values), num_colors - 1)
+            
+            value.color = (*colors[color_idx], 1.0)  # Add alpha channel
+        
+        self.report({'INFO'}, f"Applied {props.ramp_name} color ramp to {num_values} values")
+        return {'FINISHED'}
+
+
 classes = [
     VIEW3D_PT_VisualPanel,
     Display_mode_menu,
@@ -585,7 +683,9 @@ classes = [
     PropertyValueItem,
     UPDATE_OT_property_values,
     PROPERTY_OT_apply_colors,
-    PROPERTY_OT_select_proxies
+    PROPERTY_OT_select_proxies,
+    ColorRampProperties,
+    PROPERTY_OT_apply_color_ramp
     ]
 
 def register():
@@ -614,7 +714,13 @@ def register():
         update=update_property_enum  # Usa la funzione update definita sopra
     )
 
+    bpy.types.Scene.color_ramp_props = bpy.props.PointerProperty(type=ColorRampProperties)
 
+    bpy.types.Scene.selected_property = bpy.props.StringProperty(
+        name="Selected Property",
+        description="Property to use for coloring",
+        update=update_selected_property
+    )
 
 def unregister():
     for cls in classes:
@@ -627,3 +733,4 @@ def unregister():
     del bpy.types.Scene.selected_property
 
     del bpy.types.Scene.property_enum
+    del bpy.types.Scene.color_ramp_props
