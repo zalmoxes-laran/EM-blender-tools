@@ -32,6 +32,83 @@ import logging
 log = logging.getLogger(__name__)
 
 
+class PROPERTY_OT_apply_colors(bpy.types.Operator):
+    bl_idname = "property.apply_colors"
+    bl_label = "Apply Color Scheme"
+    bl_description = "Apply the selected colors to proxies based on their property values"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    def execute(self, context):
+        scene = context.scene
+        em_tools = scene.em_tools
+        
+        if not scene.selected_property:
+            self.report({'ERROR'}, "No property selected")
+            return {'CANCELLED'}
+            
+        # Get the active graph
+        if em_tools.active_file_index >= 0:
+            graphml = em_tools.graphml_files[em_tools.active_file_index]
+            graph = get_graph(graphml.name)
+            
+            if graph:
+                # Create a mapping of property values to colors
+                color_mapping = {item.value: item.color for item in scene.property_values}
+                
+                # Find property nodes with our selected property
+                property_nodes = [node for node in graph.nodes 
+                                if node.node_type == "property" 
+                                and node.name == scene.selected_property]
+                
+                # Create a material for each unique color
+                materials = {}
+                for value, color in color_mapping.items():
+                    mat_name = f"prop_{scene.selected_property}_{value}"
+                    mat = bpy.data.materials.get(mat_name)
+                    if not mat:
+                        mat = bpy.data.materials.new(name=mat_name)
+                        mat.use_nodes = True
+                        mat.node_tree.nodes["Principled BSDF"].inputs[0].default_value = (*color[:3], 1.0)
+                    materials[value] = mat
+                
+                # For each property node, find connected stratigraphic nodes and color their proxies
+                colored_objects = 0
+                for prop_node in property_nodes:
+                    value = prop_node.description if prop_node.description else "nodata"
+                    if value in materials:
+                        # Find edges connecting to stratigraphic nodes
+                        for edge in graph.edges:
+                            if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
+                                strat_node = graph.find_node_by_id(edge.edge_source)
+                                if strat_node:
+                                    # Find and color the proxy
+                                    proxy = bpy.data.objects.get(strat_node.name)
+                                    if proxy and proxy.type == 'MESH':
+                                        if proxy.data.materials:
+                                            proxy.data.materials[0] = materials[value]
+                                        else:
+                                            proxy.data.materials.append(materials[value])
+                                        colored_objects += 1
+                
+                self.report({'INFO'}, f"Applied colors to {colored_objects} objects")
+                return {'FINISHED'}
+            
+        self.report({'ERROR'}, "No active graph")
+        return {'CANCELLED'}
+
+
+def update_property_enum(self, context):
+    print("\nProperty enum updated!")  # Debug
+    context.scene.selected_property = self.property_enum
+    print(f"Selected property: {context.scene.selected_property}")  # Debug
+    bpy.ops.update.property_values()
+
+def get_enum_items(self, context):
+    """Funzione getter per gli items dell'enum property"""
+    props = get_available_properties(context)
+    return [(p, p, f"Select {p} property") for p in props]
+
+
 def update_selected_property(self, context):
     bpy.ops.update.property_values()
 
@@ -67,6 +144,14 @@ class UPDATE_OT_property_values(bpy.types.Operator):
                     graph = get_graph(graph_id)
                     if graph:
                         print(f"\nProcessing graph '{graph_id}'")
+                        # Debug degli edges
+                        print("\nDEBUG - Graph edges:")
+                        for edge in graph.edges:
+                            print(f"Edge: {edge.edge_id}")
+                            print(f"  Type: {edge.edge_type}")
+                            print(f"  Source: {edge.edge_source}")
+                            print(f"  Target: {edge.edge_target}")
+                        
                         mapping = create_property_value_mapping(graph, scene.selected_property)
                         values.update(mapping.values())
                         processed_graphs += 1
@@ -80,6 +165,14 @@ class UPDATE_OT_property_values(bpy.types.Operator):
                     
                     if graph:
                         print(f"\nProcessing active graph '{graphml.name}'")
+                        # Debug degli edges
+                        print("\nDEBUG - Graph edges:")
+                        for edge in graph.edges:
+                            print(f"Edge: {edge.edge_id}")
+                            print(f"  Type: {edge.edge_type}")
+                            print(f"  Source: {edge.edge_source}")
+                            print(f"  Target: {edge.edge_target}")
+                        
                         mapping = create_property_value_mapping(graph, scene.selected_property)
                         values.update(mapping.values())
                         processed_graphs = 1
@@ -198,6 +291,7 @@ class PropertyValueItem(bpy.types.PropertyGroup):
 
 class PROPERTY_UL_values(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        print(f"Drawing item {index}: value={item.value}, color={item.color}")  # Debug
         row = layout.row(align=True)
         row.prop(item, "value", text="")
         row.prop(item, "color", text="")
@@ -277,13 +371,6 @@ def print_graph_info():
                 print(f"  {node_type}: {count}")
 
 
-# Definizione della proprietà enum dinamica
-def update_enum_items(self, context):
-    props = ["pendenza", "position", "posizione", "rivestimento", "stile", "tecnica", "tecnica costruttiva", "tipologia e dimensioni"]
-    return [(p, p, "") for p in props]
-
-
-
 class VISUALToolsPanel:
     bl_label = "Visual manager"
     bl_space_type = "VIEW_3D"
@@ -313,50 +400,31 @@ class VISUALToolsPanel:
             row = box.row()
             row.prop(scene, "show_all_graphs", text="Show All Graphs")
             
-            # Property selector 
             row = box.row()
-            props = get_available_properties(context)  # Usa la nuova funzione
-            for prop in props:
-                print(f"Available Property: {prop}")
-            
-            if props:
-                # Se ci sono proprietà, mostra il menu
-                enum_items = [(p, p, "") for p in props]
-                row.prop_menu_enum(scene, "selected_property", text="Select Property")
-                
-                if scene.selected_property:
-                    row.label(text=f"{scene.selected_property}")
-                    # Values list with colors
-                    row = box.row()
-                    row.template_list("PROPERTY_UL_values", "", 
-                                    scene, "property_values",
-                                    scene, "active_value_index")
-                    
-                    #row = box.row()
-                    
+            row.prop(scene, "property_enum", text="Select Property")
 
-
-                    # Color scheme management
-                    row = box.row(align=True)
-                    row.operator("color_scheme.save", text="Save Schema", icon='FILE_TICK')
-                    row.operator("color_scheme.load", text="Load Schema", icon='FILE_FOLDER')
-            else:
-                row.label(text="No properties found in graph")
-
-       
-            '''
             if scene.selected_property:
-                # Values list with colors
+                print(f"\nDebug Panel:")  # Debug
+                print(f"Selected property: {scene.selected_property}")
+                print(f"Number of values in collection: {len(scene.property_values)}")
+                for i, item in enumerate(scene.property_values):
+                    print(f"Value {i}: {item.value}")
+
                 row = box.row()
                 row.template_list("PROPERTY_UL_values", "", 
                                 scene, "property_values",
                                 scene, "active_value_index")
-                
+
+
+                if scene.selected_property and len(scene.property_values) > 0:
+                    row = box.row()
+                    row.operator("property.apply_colors", text="Apply Colors to Proxies", icon='COLOR')
+
                 # Color scheme management
                 row = box.row(align=True)
                 row.operator("color_scheme.save", text="Save Schema", icon='FILE_TICK')
                 row.operator("color_scheme.load", text="Load Schema", icon='FILE_FOLDER')
-            '''
+        
         row = layout.row()
         row.prop(scene, "proxy_display_alpha")
 
@@ -412,7 +480,8 @@ classes = [
     LoadColorScheme,
     PROPERTY_UL_values,
     PropertyValueItem,
-    UPDATE_OT_property_values    
+    UPDATE_OT_property_values,
+    PROPERTY_OT_apply_colors
     ]
 
 def register():
@@ -421,10 +490,7 @@ def register():
 
     bpy.types.Scene.property_values = bpy.props.CollectionProperty(type=PropertyValueItem)
     bpy.types.Scene.active_value_index = bpy.props.IntProperty()
-    bpy.types.Scene.selected_property = bpy.props.StringProperty(
-        name="Selected Property",
-        description="Property to use for coloring"
-    )
+    
     bpy.types.Scene.show_all_graphs = bpy.props.BoolProperty(
         name="Show All Graphs",
         description="Show properties from all loaded graphs",
@@ -434,11 +500,16 @@ def register():
         type=bpy.types.PropertyGroup
     )
 
-    # Proprietà dinamica registrata nella scena
-    bpy.types.Scene.selected_property = bpy.props.EnumProperty(
+    # Property enum
+        
+    # Property enum che ora usa la funzione update_property_enum
+    bpy.types.Scene.property_enum = bpy.props.EnumProperty(
+        items=get_enum_items,
         name="Properties",
-        items=update_enum_items
+        description="Available properties",
+        update=update_property_enum  # Usa la funzione update definita sopra
     )
+
 
 
 def unregister():
@@ -447,7 +518,8 @@ def unregister():
 
     del bpy.types.Scene.property_values
     del bpy.types.Scene.active_value_index
-    del bpy.types.Scene.selected_property
     del bpy.types.Scene.show_all_graphs
     del bpy.types.Scene.available_properties
     del bpy.types.Scene.selected_property
+
+    del bpy.types.Scene.property_enum
