@@ -46,7 +46,6 @@ class PROPERTY_OT_apply_colors(bpy.types.Operator):
             self.report({'ERROR'}, "No property selected")
             return {'CANCELLED'}
             
-        # Get the active graph
         if em_tools.active_file_index >= 0:
             graphml = em_tools.graphml_files[em_tools.active_file_index]
             graph = get_graph(graphml.name)
@@ -55,12 +54,7 @@ class PROPERTY_OT_apply_colors(bpy.types.Operator):
                 # Create a mapping of property values to colors
                 color_mapping = {item.value: item.color for item in scene.property_values}
                 
-                # Find property nodes with our selected property
-                property_nodes = [node for node in graph.nodes 
-                                if node.node_type == "property" 
-                                and node.name == scene.selected_property]
-                
-                # Create a material for each unique color
+                # Create materials
                 materials = {}
                 for value, color in color_mapping.items():
                     mat_name = f"prop_{scene.selected_property}_{value}"
@@ -68,20 +62,35 @@ class PROPERTY_OT_apply_colors(bpy.types.Operator):
                     if not mat:
                         mat = bpy.data.materials.new(name=mat_name)
                         mat.use_nodes = True
-                        mat.node_tree.nodes["Principled BSDF"].inputs[0].default_value = (*color[:3], 1.0)
+                    principled = mat.node_tree.nodes["Principled BSDF"]
+                    principled.inputs[0].default_value = (*color[:3], 1.0)
                     materials[value] = mat
-                
-                # For each property node, find connected stratigraphic nodes and color their proxies
+
+                # Find all property nodes of the selected type
+                property_nodes = [node for node in graph.nodes 
+                                if node.node_type == "property" 
+                                and node.name == scene.selected_property]
+
+                # Set per tracciare i nodi stratigrafici che hanno la proprietà
+                connected_strat_nodes = set()
                 colored_objects = 0
+
+                # Prima gestisci i nodi con valori e quelli vuoti
                 for prop_node in property_nodes:
-                    value = prop_node.description if prop_node.description else "nodata"
-                    if value in materials:
-                        # Find edges connecting to stratigraphic nodes
-                        for edge in graph.edges:
-                            if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
-                                strat_node = graph.find_node_by_id(edge.edge_source)
-                                if strat_node:
-                                    # Find and color the proxy
+                    # Traccia tutti i nodi stratigrafici connessi a questa proprietà
+                    for edge in graph.edges:
+                        if edge.edge_type == "has_data_provenance" and edge.edge_target == prop_node.node_id:
+                            connected_strat_nodes.add(edge.edge_source)
+                            strat_node = graph.find_node_by_id(edge.edge_source)
+                            if strat_node:
+                                # Determina il valore appropriato
+                                if prop_node.description:
+                                    value = prop_node.description
+                                else:
+                                    value = f"empty property {scene.selected_property} node"
+
+                                # Se abbiamo un materiale per questo valore, applicalo
+                                if value in materials:
                                     proxy = bpy.data.objects.get(strat_node.name)
                                     if proxy and proxy.type == 'MESH':
                                         if proxy.data.materials:
@@ -89,7 +98,20 @@ class PROPERTY_OT_apply_colors(bpy.types.Operator):
                                         else:
                                             proxy.data.materials.append(materials[value])
                                         colored_objects += 1
-                
+
+                # Ora gestisci i nodi stratigrafici senza questa proprietà
+                no_prop_value = f"no property {scene.selected_property} node"
+                if no_prop_value in materials:
+                    for node in graph.nodes:
+                        if isinstance(node, StratigraphicNode) and node.node_id not in connected_strat_nodes:
+                            proxy = bpy.data.objects.get(node.name)
+                            if proxy and proxy.type == 'MESH':
+                                if proxy.data.materials:
+                                    proxy.data.materials[0] = materials[no_prop_value]
+                                else:
+                                    proxy.data.materials.append(materials[no_prop_value])
+                                colored_objects += 1
+
                 self.report({'INFO'}, f"Applied colors to {colored_objects} objects")
                 return {'FINISHED'}
             
@@ -264,7 +286,7 @@ def get_available_properties(context):
                 # Conta le connessioni
                 edges = [e for e in graph.edges 
                         if (e.edge_target == node.node_id and 
-                            e.edge_type == "has_property")]
+                            e.edge_type == "has_data_provenance")]
                 print(f"  Connected to {len(edges)} nodes")
                 
                 # Mostra il valore/descrizione
@@ -295,6 +317,9 @@ class PROPERTY_UL_values(bpy.types.UIList):
         row = layout.row(align=True)
         row.prop(item, "value", text="")
         row.prop(item, "color", text="")
+        op = row.operator("property.select_proxies", text="", icon='RESTRICT_SELECT_OFF')
+        op.value = item.value
+
 
 class SaveColorScheme(bpy.types.Operator, ExportHelper):
     bl_idname = "color_scheme.save"
@@ -471,6 +496,76 @@ class VIEW3D_PT_VisualPanel(Panel, VISUALToolsPanel):
     bl_idname = "VIEW3D_PT_VisualPanel"
     #bl_context = "objectmode"
 
+class PROPERTY_OT_select_proxies(bpy.types.Operator):
+    bl_idname = "property.select_proxies"
+    bl_label = "Select Proxies"
+    bl_description = "Select all proxies with this property value"
+
+    value: bpy.props.StringProperty() # type: ignore
+
+    def execute(self, context):
+        scene = context.scene
+        em_tools = scene.em_tools
+        
+        if not scene.selected_property:
+            self.report({'ERROR'}, "No property selected")
+            return {'CANCELLED'}
+            
+        # Deselect all objects first
+        bpy.ops.object.select_all(action='DESELECT')
+        
+        if em_tools.active_file_index >= 0:
+            graphml = em_tools.graphml_files[em_tools.active_file_index]
+            graph = get_graph(graphml.name)
+            
+            if graph:
+                selected_count = 0
+
+                if self.value == "no " + scene.selected_property + " node":
+                    # Seleziona i proxy che non hanno questa proprietà
+                    property_nodes = [node for node in graph.nodes 
+                                    if node.node_type == "property" 
+                                    and node.name == scene.selected_property]
+                    
+                    # Trova tutti i nodi stratigrafici collegati a questa proprietà
+                    connected_strat_nodes = set()
+                    for prop_node in property_nodes:
+                        for edge in graph.edges:
+                            if edge.edge_type == "has_data_provenance" and edge.edge_target == prop_node.node_id:
+                                connected_strat_nodes.add(edge.edge_source)
+                    
+                    # Seleziona i proxy dei nodi stratigrafici che NON sono nel set
+                    for node in graph.nodes:
+                        if isinstance(node, StratigraphicNode) and node.node_id not in connected_strat_nodes:
+                            proxy = bpy.data.objects.get(node.name)
+                            if proxy and proxy.type == 'MESH':
+                                proxy.select_set(True)
+                                selected_count += 1
+
+                else:
+                    # Trova i proxy con il valore specificato
+                    property_nodes = [node for node in graph.nodes 
+                                    if node.node_type == "property" 
+                                    and node.name == scene.selected_property
+                                    and (node.description == self.value or 
+                                        (not node.description and self.value == "empty " + scene.selected_property + " node"))]
+                    
+                    for prop_node in property_nodes:
+                        for edge in graph.edges:
+                            if edge.edge_type == "has_data_provenance" and edge.edge_target == prop_node.node_id:
+                                strat_node = graph.find_node_by_id(edge.edge_source)
+                                if strat_node:
+                                    proxy = bpy.data.objects.get(strat_node.name)
+                                    if proxy and proxy.type == 'MESH':
+                                        proxy.select_set(True)
+                                        selected_count += 1
+                
+                self.report({'INFO'}, f"Selected {selected_count} objects")
+                return {'FINISHED'}
+            
+        self.report({'ERROR'}, "No active graph")
+        return {'CANCELLED'}
+
 
 classes = [
     VIEW3D_PT_VisualPanel,
@@ -481,7 +576,8 @@ classes = [
     PROPERTY_UL_values,
     PropertyValueItem,
     UPDATE_OT_property_values,
-    PROPERTY_OT_apply_colors
+    PROPERTY_OT_apply_colors,
+    PROPERTY_OT_select_proxies
     ]
 
 def register():

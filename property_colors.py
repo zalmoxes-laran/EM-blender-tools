@@ -15,22 +15,44 @@ def create_property_value_mapping(graph, property_name):
     print(f"\n=== Creating Property Value Mapping for '{property_name}' ===")
     
     mapping = {}
-    has_nodata = False
+    has_empty = False
     
     # Raccogli tutti i valori unici per quella proprietà
-    for node in graph.nodes:
-        if node.node_type == "property" and node.name == property_name:
-            if node.description:  # Se ha un valore
-                value = node.description
-                mapping[node.node_id] = value
-                print(f"Found value: {value}")
-            else:
-                has_nodata = True
+    property_nodes = [node for node in graph.nodes 
+                     if node.node_type == "property" 
+                     and node.name == property_name]
     
-    # Aggiungi nodata se necessario
-    if has_nodata:
-        mapping['nodata'] = "nodata"
-        print("Found nodes without value, adding 'nodata'")
+    print(f"Found {len(property_nodes)} nodes for property {property_name}")
+    
+    # Set per tenere traccia dei nodi stratigrafici connessi
+    connected_strat_nodes = set()
+    
+    for node in property_nodes:
+        if node.description:  # Se ha un valore
+            value = node.description
+            mapping[node.node_id] = value
+            print(f"Found value: {value}")
+            
+            # Aggiungi i nodi stratigrafici connessi al set
+            for edge in graph.edges:
+                if edge.edge_type == "has_data_provenance" and edge.edge_target == node.node_id:
+                    connected_strat_nodes.add(edge.edge_source)
+        else:
+            has_empty = True
+
+    # Aggiungi empty property se necessario
+    if has_empty:
+        mapping['empty'] = f"empty property {property_name} node"
+        print(f"Found nodes with empty {property_name} property")
+
+    # Verifica se ci sono nodi stratigrafici senza questa proprietà
+    strat_nodes_without_prop = any(
+        isinstance(node, StratigraphicNode) and node.node_id not in connected_strat_nodes 
+        for node in graph.nodes
+    )
+    if strat_nodes_without_prop:
+        mapping['no_prop'] = f"no property {property_name} node"
+        print(f"Found nodes without {property_name} property")
 
     print(f"\nMapping results:")
     for node_id, value in mapping.items():
