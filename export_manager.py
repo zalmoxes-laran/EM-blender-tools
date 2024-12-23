@@ -616,9 +616,12 @@ class ExportuussData(Operator, ExportHelper):
             for US in context.scene.em_list:
                 if only_UUSS:
                     if US.icon == "RESTRICT_INSTANCED_ON":
-                        f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape,US.border_style)[1]))
+                        f.write("%s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape,US.border_style)[1]))
                 else:
-                    f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape,US.border_style)[1]))
+                    #previous version of the export
+                    #f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape,US.border_style)[1]))
+                    # new version of the export
+                    f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, US.shape))
         if  context.window_manager.export_tables_vars.table_type == 'Sources':
             if header:
                 f.write("Name; Description \n")

@@ -26,6 +26,7 @@
   - EM_list.py
   - GPL3-license.txt
   - property_colors.py
+  - color_ramps.py
   - import_operators/
     - __init__.py
     - import_EMdb.py
@@ -90,3 +91,4 @@
     - __init__.py
   - em-blender-tools_updater/
     - EM-blender-tools_updater_status.json
+  - emdbjson/

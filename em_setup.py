@@ -23,11 +23,11 @@ from bpy.types import Operator # type: ignore
 from .import_operators.import_EMdb import *
 
 class EMToolsProperties(bpy.types.PropertyGroup):
-    name: bpy.props.StringProperty(name="GraphML File")
-    expanded: bpy.props.BoolProperty(name="Auxiliary files", default=False)
-    graphml_path: bpy.props.StringProperty(name="GraphML Path", subtype='FILE_PATH')  # Aggiungiamo il campo per il percorso
-    dosco_dir: bpy.props.StringProperty(name="DosCo Directory", subtype='DIR_PATH')
-    xlsx_filepath: bpy.props.StringProperty(name="Source File (xlsx)", subtype='FILE_PATH')
+    name: bpy.props.StringProperty(name="GraphML File") # type: ignore
+    expanded: bpy.props.BoolProperty(name="Auxiliary files", default=False) # type: ignore
+    graphml_path: bpy.props.StringProperty(name="GraphML Path", subtype='FILE_PATH')   # type: ignore # Aggiungiamo il campo per il percorso
+    dosco_dir: bpy.props.StringProperty(name="DosCo Directory", subtype='DIR_PATH') # type: ignore
+    xlsx_filepath: bpy.props.StringProperty(name="Source File (xlsx)", subtype='FILE_PATH') # type: ignore
     xlsx_3DGIS_database_file: bpy.props.StringProperty(
         name="3D GIS Database File", 
         description="Path to the 3D GIS database Excel file",
@@ -35,6 +35,23 @@ class EMToolsProperties(bpy.types.PropertyGroup):
     )     # type: ignore
     emdb_filepath: bpy.props.StringProperty(name="EMdb File (sqlite)", subtype='FILE_PATH') # type: ignore
     is_graph: bpy.props.BoolProperty(name="Graph Exists", default=False)  # type: ignore # Aggiungi questa riga
+
+
+
+def get_emdb_mappings():
+    mappings = []
+    mapping_dir = os.path.join(os.path.dirname(__file__), "emdbjson")
+    
+    if os.path.exists(mapping_dir):
+        for file in os.listdir(mapping_dir):
+            if file.endswith('.json'):
+                with open(os.path.join(mapping_dir, file)) as f:
+                    data = json.load(f)
+                    name = data.get("name", os.path.splitext(file)[0])
+                    mappings.append((file, name, data.get("description", "")))
+                    
+    return mappings if mappings else [("none", "No mappings found", "")]
+
 
 class EMToolsSettings(bpy.types.PropertyGroup):
     graphml_files: bpy.props.CollectionProperty(type=EMToolsProperties) # type: ignore
@@ -44,6 +61,56 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         description="Switch tra modalità 3D GIS e modalità EM avanzata",
         default=True
     ) # type: ignore
+
+
+    mode_3dgis_import_type: bpy.props.EnumProperty(
+        name="Import Type",
+        items=[
+            ("generic_xlsx", "Generic Excel", "Import from generic Excel file"),
+            ("pyarchinit", "pyArchInit", "Import from pyArchInit SQLite DB"),
+            ("emdb_xlsx", "EMdb Excel", "Import from EMdb Excel format")
+        ],
+        default="generic_xlsx"
+    ) # type: ignore
+
+    # Generic Excel properties
+    generic_xlsx_file: bpy.props.StringProperty(
+        name="Excel File",
+        description="Path to generic Excel file",
+        subtype='FILE_PATH'
+    ) # type: ignore
+    xlsx_sheet_name: bpy.props.StringProperty(
+        name="Sheet Name",
+        description="Name of the Excel sheet containing the data",
+        default="Sheet1"
+    ) # type: ignore
+
+    xlsx_id_column: bpy.props.StringProperty(
+        name="ID Column",
+        description="Name of the column containing unique IDs",
+        default="ID"
+    ) # type: ignore
+
+    # pyArchInit properties
+    pyarchinit_db_path: bpy.props.StringProperty(
+        name="SQLite Database",
+        description="Path to pyArchInit SQLite database",
+        subtype='FILE_PATH'
+    ) # type: ignore
+
+    pyarchinit_table: bpy.props.StringProperty(
+        name="Table Name",
+        description="Name of the table to import",
+        default="us_table"
+    ) # type: ignore
+
+    # EMdb properties
+    emdb_xlsx_file: bpy.props.StringProperty(
+        name="EMdb Excel File",
+        description="Path to EMdb Excel file",
+        subtype='FILE_PATH'
+    ) # type: ignore
+
 
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files with icons to indicate graph presence and actions"""
@@ -201,13 +268,48 @@ class EM_SetupPanel(bpy.types.Panel):
                     box.prop(active_file, "emdb_filepath", text="EMdb File (sqlite)")
 
         else:
+            # UI per modalità 3D GIS
             box = layout.box()
-            # SF XLSX file
-            box.prop(em_tools, "xlsx_3DGIS_database_file", text="xlsx 3DGIS database File")
-
-            # Add import button
-            #row = box.row()
-            box.operator("em.import_3dgis_database", text="Import 3D GIS Database", icon='IMPORT')
+            
+            # Menu a tendina per il tipo di import
+            row = box.row()
+            row.prop(em_tools, "mode_3dgis_import_type", 
+                    text="Import Type",
+                    expand=True)
+            
+            # Box specifico per le opzioni del tipo selezionato
+            options_box = box.box()
+            
+            if em_tools.mode_3dgis_import_type == "generic_xlsx":
+                options_box.label(text="Generic Excel Import Settings:")
+                options_box.prop(em_tools, "generic_xlsx_file", text="Excel File")
+                options_box.prop(em_tools, "xlsx_sheet_name", text="Sheet Name")
+                options_box.prop(em_tools, "xlsx_id_column", text="ID Column")
+                
+            elif em_tools.mode_3dgis_import_type == "pyarchinit":
+                options_box.label(text="pyArchInit Import Settings:")
+                options_box.prop(em_tools, "pyarchinit_db_path", text="SQLite Database")
+                options_box.prop(em_tools, "pyarchinit_table", text="Table Name")
+                
+            elif em_tools.mode_3dgis_import_type == "emdb_xlsx":
+                options_box.label(text="EMdb Excel Import Settings:")
+                options_box.prop(em_tools, "emdb_xlsx_file", text="EMdb Excel File")
+                options_box.prop(em_tools, "emdb_mapping", text="EMdb Format")
+                
+                # Mostra una descrizione del formato selezionato
+                if em_tools.emdb_mapping != "none":
+                    desc_box = options_box.box()
+                    desc_box.label(text="Format Description:")
+                    mapping_data = get_mapping_description(em_tools.emdb_mapping)
+                    if mapping_data:
+                        desc_box.label(text=mapping_data["description"])
+            
+            # Import button con icona
+            row = box.row(align=True)
+            row.scale_y = 1.5  # Bottone più grande
+            row.operator("em.import_3dgis_database", 
+                        text="Import 3D GIS Database", 
+                        icon='IMPORT')
 
 
         ############# box con le statistiche del file ##################
@@ -233,6 +335,36 @@ class EM_SetupPanel(bpy.types.Panel):
         col.label(text="Sources")
         #col = split.column()
         col.prop(scene, "em_sources_list", text='')
+
+
+def get_mapping_description(mapping_file):
+    """Recupera la descrizione del mapping dal file JSON."""
+    mapping_path = os.path.join(os.path.dirname(__file__), "emdbjson", mapping_file)
+    try:
+        with open(mapping_path) as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading mapping description: {str(e)}")
+        return None
+
+class EM_OT_import_3dgis_database(bpy.types.Operator):
+    bl_idname = "em.import_3dgis_database"
+    bl_label = "Import 3D GIS Database"
+    
+    def execute(self, context):
+        em_tools = context.scene.em_tools
+        
+        if em_tools.mode_3dgis_import_type == "generic_xlsx":
+            # Logica per import Excel generico
+            pass
+        elif em_tools.mode_3dgis_import_type == "emdb_xlsx":
+            # Logica per import EMdb Excel
+            pass
+        elif em_tools.mode_3dgis_import_type == "pyarchinit":
+            # Logica per import SQLite
+            pass
+            
+        return {'FINISHED'}
 
 class EMToolsAddFile(bpy.types.Operator):
     bl_idname = "em_tools.add_file"
@@ -303,7 +435,8 @@ classes = [
     EMToolsRemoveFile,
     EM_InvokePopulateLists,
     GraphMLFileItem,
-    EMToolsSwitchModeOperator
+    EMToolsSwitchModeOperator,
+    EM_OT_import_3dgis_database
 ]
 
 def register():
