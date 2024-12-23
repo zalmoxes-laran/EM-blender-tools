@@ -1,0 +1,19 @@
+{
+    "name": "USM Format",
+    "description": "Import format for USM (Mural Stratigraphic Units)",
+    "version": "1.5",
+    "required_columns": [
+        "ID",
+        "Name",
+        "Description",
+        "Building Technique",
+        "Phase"
+    ],
+    "optional_columns": [
+        "Material",
+        "Conservation State",
+        "Notes"
+    ],
+    "id_column": "ID",
+    "sheet_name": "USM"
+}

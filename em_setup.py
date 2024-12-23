@@ -39,6 +39,7 @@ class EMToolsProperties(bpy.types.PropertyGroup):
 
 
 def get_emdb_mappings():
+    """Funzione per ottenere i mapping EMdb disponibili"""
     mappings = []
     mapping_dir = os.path.join(os.path.dirname(__file__), "emdbjson")
     
@@ -51,7 +52,6 @@ def get_emdb_mappings():
                     mappings.append((file, name, data.get("description", "")))
                     
     return mappings if mappings else [("none", "No mappings found", "")]
-
 
 class EMToolsSettings(bpy.types.PropertyGroup):
     graphml_files: bpy.props.CollectionProperty(type=EMToolsProperties) # type: ignore
@@ -111,6 +111,12 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         subtype='FILE_PATH'
     ) # type: ignore
 
+
+    emdb_mapping: bpy.props.EnumProperty(
+            name="EMdb Format",
+            items=lambda self, context: get_emdb_mappings(),
+            description="Select EMdb format"
+        ) # type: ignore
 
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files with icons to indicate graph presence and actions"""
@@ -302,7 +308,20 @@ class EM_SetupPanel(bpy.types.Panel):
                     desc_box.label(text="Format Description:")
                     mapping_data = get_mapping_description(em_tools.emdb_mapping)
                     if mapping_data:
-                        desc_box.label(text=mapping_data["description"])
+                        # Header
+                        row = desc_box.row()
+                        row.label(text=f"Name: {mapping_data['name']}")
+                        
+                        # Description
+                        if "description" in mapping_data:
+                            desc_box.label(text=mapping_data["description"])
+                            
+                        # Required Excel columns
+                        if "required_columns" in mapping_data:
+                            col_box = desc_box.box()
+                            col_box.label(text="Required Excel columns:")
+                            for col in mapping_data["required_columns"]:
+                                col_box.label(text=f"- {col}")
             
             # Import button con icona
             row = box.row(align=True)
