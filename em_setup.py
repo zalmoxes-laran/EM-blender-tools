@@ -22,6 +22,33 @@ from bpy.types import Operator # type: ignore
 
 from .import_operators.import_EMdb import *
 
+
+
+class AuxiliaryFileProperties(bpy.types.PropertyGroup):
+    name: bpy.props.StringProperty(name="File Name") # type: ignore
+    filepath: bpy.props.StringProperty(
+        name="File Path",
+        subtype='FILE_PATH'
+    ) # type: ignore
+    file_type: bpy.props.EnumProperty(
+        name="File Type",
+        items=[
+            ("generic_xlsx", "Generic Excel", "Import from generic Excel file"),
+            ("pyarchinit", "pyArchInit", "Import from pyArchInit SQLite DB"),
+            ("emdb_xlsx", "EMdb Excel", "Import from EMdb Excel format")
+        ],
+        default="emdb_xlsx"
+    ) # type: ignore
+    emdb_mapping: bpy.props.EnumProperty(
+        name="EMdb Format",
+        items=lambda self, context: get_emdb_mappings(),
+        description="Select EMdb format"
+    ) # type: ignore
+    expanded: bpy.props.BoolProperty(
+        name="Show Details",
+        default=False
+    ) # type: ignore
+
 class EMToolsProperties(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="GraphML File") # type: ignore
     expanded: bpy.props.BoolProperty(name="Auxiliary files", default=False) # type: ignore
@@ -36,7 +63,36 @@ class EMToolsProperties(bpy.types.PropertyGroup):
     emdb_filepath: bpy.props.StringProperty(name="EMdb File (sqlite)", subtype='FILE_PATH') # type: ignore
     is_graph: bpy.props.BoolProperty(name="Graph Exists", default=False)  # type: ignore # Aggiungi questa riga
 
+    auxiliary_files: bpy.props.CollectionProperty(type=AuxiliaryFileProperties) # type: ignore
+    active_auxiliary_index: bpy.props.IntProperty() # type: ignore
 
+class AUXILIARY_UL_files(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            row = layout.row(align=True)
+            
+            # Menu contestuale
+            op = row.operator("auxiliary.context_menu", 
+                            text="", 
+                            icon='DOWNARROW_HLT',
+                            emboss=False)
+            
+            # Nome file
+            row.prop(item, "name", text="", emboss=False)
+            
+            # Tipo file icon
+            icon = 'FILE_SPREADSHEET' if item.file_type == "emdb_xlsx" else 'DATABASE'
+            row.label(text="", icon=icon)
+            
+            # Stato del file
+            if item.filepath:
+                row.label(text="", icon='CHECKMARK')
+            else:
+                row.label(text="", icon='ERROR')
+
+            # Quick actions
+            row.operator("auxiliary.reload", text="", icon="FILE_REFRESH", emboss=False).file_index = index
+            row.operator("auxiliary.import_now", text="", icon="IMPORT", emboss=False)
 
 def get_emdb_mappings():
     """Funzione per ottenere i mapping EMdb disponibili"""
@@ -248,6 +304,37 @@ class EM_SetupPanel(bpy.types.Panel):
                 row = layout.row(align=True)
                 row.prop(active_file, "graphml_path", text="Path")
 
+                # Auxiliary files section
+                box = layout.box()
+                row = box.row()
+                row.label(text="Auxiliary Files")
+                
+                # Lista dei file ausiliari
+                row = box.row()
+                row.template_list("AUXILIARY_UL_files", "", active_file, "auxiliary_files",
+                                active_file, "active_auxiliary_index", rows=3)
+
+                # Bottoni per aggiungere/rimuovere file ausiliari
+                row = box.row(align=True)
+                row.operator('auxiliary.add_file', text="Add", icon="ADD")
+                row.operator('auxiliary.remove_file', text="Remove", icon="REMOVE")
+
+                # Se c'è un file ausiliario selezionato
+                if active_file.active_auxiliary_index >= 0 and active_file.auxiliary_files:
+                    aux_file = active_file.auxiliary_files[active_file.active_auxiliary_index]
+                    
+                    # File path e tipo
+                    box = layout.box()
+                    row = box.row()
+                    row.prop(aux_file, "filepath", text="Path")
+                    row.prop(aux_file, "file_type", text="Type")
+
+                    # EMdb mapping se necessario
+                    if aux_file.file_type == "emdb_xlsx":
+                        row = box.row()
+                        row.prop(aux_file, "emdb_mapping", text="Format")
+
+                # Expanded settings
                 box = layout.box()
                 box.prop(active_file, "expanded", icon="TRIA_DOWN" if active_file.expanded else "TRIA_RIGHT", emboss=False)
 
@@ -367,23 +454,111 @@ def get_mapping_description(mapping_file):
         return None
 
 class EM_OT_import_3dgis_database(bpy.types.Operator):
+    """Import operator for both 3D GIS mode and advanced EM mode"""
     bl_idname = "em.import_3dgis_database"
-    bl_label = "Import 3D GIS Database"
-    
-    def execute(self, context):
+    bl_label = "Import Database"
+    bl_description = "Import data from selected database format"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    # Per gestire import da auxiliary files
+    auxiliary_mode: bpy.props.BoolProperty(default=False) # type: ignore
+    graphml_index: bpy.props.IntProperty(default=-1) # type: ignore
+    auxiliary_index: bpy.props.IntProperty(default=-1) # type: ignore
+
+    def get_import_settings(self, context):
+        """Recupera le impostazioni di import in base alla modalità"""
         em_tools = context.scene.em_tools
-        
-        if em_tools.mode_3dgis_import_type == "generic_xlsx":
-            # Logica per import Excel generico
+
+        if self.auxiliary_mode:
+            # Modalità EM avanzata - auxiliary file
+            graphml = em_tools.graphml_files[self.graphml_index]
+            aux_file = graphml.auxiliary_files[self.auxiliary_index]
+            return {
+                'import_type': aux_file.file_type,
+                'filepath': aux_file.filepath,
+                'mapping': aux_file.emdb_mapping if aux_file.file_type == "emdb_xlsx" else None,
+                'sheet_name': em_tools.xlsx_sheet_name,
+                'id_column': em_tools.xlsx_id_column,
+                'parent_graphml': graphml
+            }
+        else:
+            # Modalità 3D GIS
+            return {
+                'import_type': em_tools.mode_3dgis_import_type,
+                'filepath': em_tools.xlsx_3DGIS_database_file,
+                'mapping': em_tools.emdb_mapping if em_tools.mode_3dgis_import_type == "emdb_xlsx" else None,
+                'sheet_name': em_tools.xlsx_sheet_name,
+                'id_column': em_tools.xlsx_id_column,
+                'parent_graphml': None
+            }
+
+    def create_importer(self, settings):
+        """Crea l'importer appropriato basato sulle impostazioni"""
+        from .s3Dgraphy.importer import create_importer
+
+        if settings['import_type'] == "emdb_xlsx":
+            return create_importer(
+                filepath=settings['filepath'],
+                format_type='xlsx',
+                mapping_name=settings['mapping'],
+                overwrite=True
+            )
+        elif settings['import_type'] == "generic_xlsx":
+            return create_importer(
+                filepath=settings['filepath'],
+                format_type='xlsx',
+                id_column=settings['id_column'],
+                overwrite=True
+            )
+        elif settings['import_type'] == "pyarchinit":
+            # TODO: Implementare PyArchInit importer
             pass
-        elif em_tools.mode_3dgis_import_type == "emdb_xlsx":
-            # Logica per import EMdb Excel
-            pass
-        elif em_tools.mode_3dgis_import_type == "pyarchinit":
-            # Logica per import SQLite
-            pass
+
+    def execute(self, context):
+        try:
+            # Ottieni impostazioni
+            settings = self.get_import_settings(context)
             
-        return {'FINISHED'}
+            # Verifica file path
+            if not settings['filepath']:
+                self.report({'ERROR'}, "No file path specified")
+                return {'CANCELLED'}
+
+            # Crea e configura importer
+            importer = self.create_importer(settings)
+            if not importer:
+                self.report({'ERROR'}, "Failed to create importer")
+                return {'CANCELLED'}
+
+            # Esegui import
+            graph = importer.parse()
+
+            # Gestisci risultati in base alla modalità
+            if self.auxiliary_mode and settings['parent_graphml']:
+                # Collega i dati importati al GraphML parent
+                self.link_to_graphml(graph, settings['parent_graphml'])
+            else:
+                # Modalità 3D GIS - popola le liste di Blender
+                from .populate_lists import populate_blender_lists_from_graph
+                populate_blender_lists_from_graph(context, graph)
+
+            # Mostra warning se presenti
+            if importer.warnings:
+                for warning in importer.warnings:
+                    self.report({'WARNING'}, warning)
+
+            self.report({'INFO'}, "Import completed successfully")
+            return {'FINISHED'}
+
+        except Exception as e:
+            self.report({'ERROR'}, f"Import failed: {str(e)}")
+            return {'CANCELLED'}
+
+    def link_to_graphml(self, imported_graph, parent_graphml):
+        """Collega i dati importati al grafo GraphML parent"""
+        # Qui implementeremo la logica di collegamento
+        # basata sul mapping quando lo definiremo
+        pass
 
 class EMToolsAddFile(bpy.types.Operator):
     bl_idname = "em_tools.add_file"
@@ -444,8 +619,101 @@ class EM_InvokePopulateLists(bpy.types.Operator):
             self.report({'ERROR'}, "No valid GraphML file selected")
             return {'CANCELLED'}
 
+
+class AUXILIARY_OT_add_file(bpy.types.Operator):
+    bl_idname = "auxiliary.add_file"
+    bl_label = "Add Auxiliary File"
+    bl_description = "Add a new auxiliary file to the selected GraphML"
+
+    def execute(self, context):
+        em_tools = context.scene.em_tools
+        if em_tools.active_file_index >= 0:
+            graphml = em_tools.graphml_files[em_tools.active_file_index]
+            new_file = graphml.auxiliary_files.add()
+            new_file.name = "New Auxiliary File"
+            graphml.active_auxiliary_index = len(graphml.auxiliary_files) - 1
+            return {'FINISHED'}
+        return {'CANCELLED'}
+
+class AUXILIARY_OT_remove_file(bpy.types.Operator):
+    bl_idname = "auxiliary.remove_file"
+    bl_label = "Remove Auxiliary File"
+    bl_description = "Remove selected auxiliary file"
+
+    def execute(self, context):
+        em_tools = context.scene.em_tools
+        if em_tools.active_file_index >= 0:
+            graphml = em_tools.graphml_files[em_tools.active_file_index]
+            if graphml.active_auxiliary_index >= 0:
+                graphml.auxiliary_files.remove(graphml.active_auxiliary_index)
+                graphml.active_auxiliary_index = min(max(0, graphml.active_auxiliary_index - 1), 
+                                                   len(graphml.auxiliary_files) - 1)
+            return {'FINISHED'}
+        return {'CANCELLED'}
+
+class AUXILIARY_MT_context_menu(bpy.types.Menu):
+    bl_idname = "AUXILIARY_MT_context_menu"
+    bl_label = "Auxiliary File Specials"
+
+    def draw(self, context):
+        layout = self.layout
+        em_tools = context.scene.em_tools
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+        aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
+
+        layout.operator("auxiliary.reload", text="Reload File")
+        layout.operator("auxiliary.import_now", text="Import Now")
+        layout.separator()
+        
+        # Sottomenu per il tipo di file
+        layout.prop(aux_file, "file_type", text="Change Type")
+        
+        if aux_file.file_type == "emdb_xlsx":
+            layout.prop(aux_file, "emdb_mapping", text="Change Format")
+
+class AUXILIARY_OT_context_menu_invoke(bpy.types.Operator):
+    bl_idname = "auxiliary.context_menu"
+    bl_label = "Auxiliary File Context Menu"
+    
+    def execute(self, context):
+        bpy.ops.wm.call_menu(name="AUXILIARY_MT_context_menu")
+        return {'FINISHED'}
+
+class AUXILIARY_OT_reload_file(bpy.types.Operator):
+    bl_idname = "auxiliary.reload"
+    bl_label = "Reload Auxiliary File"
+    bl_description = "Reload the auxiliary file data"
+
+    file_index: bpy.props.IntProperty()
+
+    def execute(self, context):
+        em_tools = context.scene.em_tools
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+        aux_file = graphml.auxiliary_files[self.file_index]
+
+        # Qui andrà la logica di ricaricamento del file
+        # che riutilizzerà gli importers esistenti
+        self.report({'INFO'}, f"Reloading {aux_file.name}")
+        return {'FINISHED'}
+
+class AUXILIARY_OT_import_now(bpy.types.Operator):
+    bl_idname = "auxiliary.import_now"
+    bl_label = "Import Auxiliary File"
+    bl_description = "Import the auxiliary file data now"
+
+    def execute(self, context):
+        em_tools = context.scene.em_tools
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+        aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
+
+        # Qui andrà la logica di import che riutilizzerà
+        # gli importers esistenti
+        self.report({'INFO'}, f"Importing {aux_file.name}")
+        return {'FINISHED'}
+
 # Lista delle classi da registrare
 classes = [
+    AuxiliaryFileProperties,
     EMToolsProperties,
     EMToolsSettings,
     EMTOOLS_UL_files,
@@ -455,7 +723,14 @@ classes = [
     EM_InvokePopulateLists,
     GraphMLFileItem,
     EMToolsSwitchModeOperator,
-    EM_OT_import_3dgis_database
+    EM_OT_import_3dgis_database,
+    AUXILIARY_UL_files,
+    AUXILIARY_OT_add_file,
+    AUXILIARY_OT_remove_file,
+    AUXILIARY_MT_context_menu,
+    AUXILIARY_OT_context_menu_invoke,
+    AUXILIARY_OT_reload_file,
+    AUXILIARY_OT_import_now
 ]
 
 def register():

@@ -1,0 +1,47 @@
+{
+    "name": "USM Format",
+    "description": "Mapping format for Mural Stratigraphic Units",
+    "version": "1.0",
+    "table_settings": {
+        "format_type": "xlsx",
+        "sheet_name": "USM",
+        "id_mapping": {
+            "column": "Nome_USM",
+            "target_node_type": "US"
+        }
+    },
+    "property_mappings": {
+        "Lunghezza": {
+            "property_name": "length",
+            "property_type": "Length",
+            "edge_type": "has_data_provenance",
+            "relations": [
+                {
+                    "target_column": "Altezza",
+                    "edge_type": "has_same_time"
+                }
+            ]
+        },
+        "Altezza": {
+            "property_name": "height",
+            "property_type": "Height",
+            "edge_type": "has_data_provenance"
+        },
+        "Tecnica_Costruttiva": {
+            "property_name": "building_technique",
+            "property_type": "Morphology",
+            "edge_type": "has_data_provenance",
+            "relations": [
+                {
+                    "target_column": "Materiale",
+                    "edge_type": "combines"
+                }
+            ]
+        },
+        "Materiale": {
+            "property_name": "material",
+            "property_type": "Material",
+            "edge_type": "has_data_provenance"
+        }
+    }
+}
