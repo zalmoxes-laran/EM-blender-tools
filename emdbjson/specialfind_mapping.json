@@ -1,0 +1,36 @@
+{
+    "name": "Special Finds Format",
+    "description": "Mapping format for Special Finds",
+    "version": "1.0",
+    "table_settings": {
+        "format_type": "xlsx",
+        "sheet_name": "Special_Finds",
+        "id_mapping": {
+            "column": "ID_Reperto",
+            "target_node_type": "SF"
+        }
+    },
+    "property_mappings": {
+        "Dimensioni": {
+            "property_name": "dimensions",
+            "property_type": "Length",
+            "edge_type": "has_data_provenance"
+        },
+        "Stato_Conservazione": {
+            "property_name": "conservation_state",
+            "property_type": "string",
+            "edge_type": "has_data_provenance",
+            "relations": [
+                {
+                    "target_column": "Materiale",
+                    "edge_type": "extracted_from"
+                }
+            ]
+        },
+        "Materiale": {
+            "property_name": "material",
+            "property_type": "Material",
+            "edge_type": "has_data_provenance"
+        }
+    }
+}

@@ -81,7 +81,7 @@ class AUXILIARY_UL_files(bpy.types.UIList):
             row.prop(item, "name", text="", emboss=False)
             
             # Tipo file icon
-            icon = 'FILE_SPREADSHEET' if item.file_type == "emdb_xlsx" else 'DATABASE'
+            icon = 'SPREADSHEET' if item.file_type == "emdb_xlsx" else 'FILE_VOLUME'
             row.label(text="", icon=icon)
             
             # Stato del file
@@ -99,14 +99,36 @@ def get_emdb_mappings():
     mappings = []
     mapping_dir = os.path.join(os.path.dirname(__file__), "emdbjson")
     
-    if os.path.exists(mapping_dir):
+    # Verifica se la directory esiste
+    if not os.path.exists(mapping_dir):
+        os.makedirs(mapping_dir)
+        return [("none", "No mappings found", "")]
+    
+    try:
         for file in os.listdir(mapping_dir):
             if file.endswith('.json'):
-                with open(os.path.join(mapping_dir, file)) as f:
-                    data = json.load(f)
-                    name = data.get("name", os.path.splitext(file)[0])
-                    mappings.append((file, name, data.get("description", "")))
+                file_path = os.path.join(mapping_dir, file)
+                try:
+                    with open(file_path, 'r') as f:
+                        content = f.read()
+                        if not content.strip():  # Se il file è vuoto
+                            print(f"Warning: Empty mapping file: {file}")
+                            continue
+                            
+                        try:
+                            data = json.loads(content)
+                            name = data.get("name", os.path.splitext(file)[0])
+                            mappings.append((file, name, data.get("description", "")))
+                        except json.JSONDecodeError as e:
+                            print(f"Error decoding JSON from {file}: {str(e)}")
+                            continue
+                except IOError as e:
+                    print(f"Error reading file {file}: {str(e)}")
+                    continue
                     
+    except Exception as e:
+        print(f"Error scanning mapping directory: {str(e)}")
+        
     return mappings if mappings else [("none", "No mappings found", "")]
 
 class EMToolsSettings(bpy.types.PropertyGroup):
@@ -304,42 +326,37 @@ class EM_SetupPanel(bpy.types.Panel):
                 row = layout.row(align=True)
                 row.prop(active_file, "graphml_path", text="Path")
 
-                # Auxiliary files section
-                box = layout.box()
-                row = box.row()
-                row.label(text="Auxiliary Files")
-                
-                # Lista dei file ausiliari
-                row = box.row()
-                row.template_list("AUXILIARY_UL_files", "", active_file, "auxiliary_files",
-                                active_file, "active_auxiliary_index", rows=3)
-
-                # Bottoni per aggiungere/rimuovere file ausiliari
-                row = box.row(align=True)
-                row.operator('auxiliary.add_file', text="Add", icon="ADD")
-                row.operator('auxiliary.remove_file', text="Remove", icon="REMOVE")
-
-                # Se c'è un file ausiliario selezionato
-                if active_file.active_auxiliary_index >= 0 and active_file.auxiliary_files:
-                    aux_file = active_file.auxiliary_files[active_file.active_auxiliary_index]
-                    
-                    # File path e tipo
-                    box = layout.box()
-                    row = box.row()
-                    row.prop(aux_file, "filepath", text="Path")
-                    row.prop(aux_file, "file_type", text="Type")
-
-                    # EMdb mapping se necessario
-                    if aux_file.file_type == "emdb_xlsx":
-                        row = box.row()
-                        row.prop(aux_file, "emdb_mapping", text="Format")
-
                 # Expanded settings
                 box = layout.box()
                 box.prop(active_file, "expanded", icon="TRIA_DOWN" if active_file.expanded else "TRIA_RIGHT", emboss=False)
 
                 if active_file.expanded:
 
+                    # Lista dei file ausiliari
+                    row = box.row()
+                    row.template_list("AUXILIARY_UL_files", "", active_file, "auxiliary_files",
+                                    active_file, "active_auxiliary_index", rows=3)
+
+                    # Bottoni per aggiungere/rimuovere file ausiliari
+                    row = box.row(align=True)
+                    row.operator('auxiliary.add_file', text="Add", icon="ADD")
+                    row.operator('auxiliary.remove_file', text="Remove", icon="REMOVE")
+
+                    # Se c'è un file ausiliario selezionato
+                    if active_file.active_auxiliary_index >= 0 and active_file.auxiliary_files:
+                        aux_file = active_file.auxiliary_files[active_file.active_auxiliary_index]
+                        
+                        # File path e tipo
+                        row = box.row()
+                        row.prop(aux_file, "filepath", text="Path")
+                        row.prop(aux_file, "file_type", text="Type")
+
+                        # EMdb mapping se necessario
+                        if aux_file.file_type == "emdb_xlsx":
+                            row = box.row()
+                            row.prop(aux_file, "emdb_mapping", text="Format")
+
+                    box = layout.box()
                     # Path to DosCo folder
                     box.prop(active_file, "dosco_dir", text="DosCo Directory")
 
@@ -355,10 +372,12 @@ class EM_SetupPanel(bpy.types.Panel):
                         box.prop(em_settings, 'overwrite_url_with_dosco_filepath', text = "Overwrite paths")
                         box.prop(em_settings, 'preserve_web_url', text = "Preserve web urls (if any)")
 
+                    '''
                     # source XLSX file
                     box.prop(active_file, "xlsx_filepath", text="Source File (xlsx)")
                     # EMdb file
                     box.prop(active_file, "emdb_filepath", text="EMdb File (sqlite)")
+                    '''
 
         else:
             # UI per modalità 3D GIS

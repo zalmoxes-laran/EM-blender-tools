@@ -92,3 +92,5 @@
   - em-blender-tools_updater/
     - EM-blender-tools_updater_status.json
   - emdbjson/
+    - usm_mapping.json
+    - specialfind_mapping.json
