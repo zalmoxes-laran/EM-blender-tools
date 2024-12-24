@@ -75,6 +75,8 @@ from . import (
 from .import_operators import importer_graphml
 from .export_operators import exporter_heriverse
 
+from .import_operators import import_EMdb
+
 from .functions import *
 from bpy.utils import register_class, unregister_class  # type: ignore
 
@@ -621,6 +623,8 @@ def register():
 
        exporter_heriverse.register()
 
+       import_EMdb.register()
+
        check_external_modules() 
 
 
@@ -789,6 +793,8 @@ def unregister():
        activity_manager.unregister()
        importer_graphml.unregister()
        exporter_heriverse.unregister()
+       import_EMdb.unregister()
+       
        for cls in classes:
               try:
                      bpy.utils.unregister_class(cls)

@@ -730,6 +730,8 @@ class AUXILIARY_OT_import_now(bpy.types.Operator):
         self.report({'INFO'}, f"Importing {aux_file.name}")
         return {'FINISHED'}
 
+
+
 # Lista delle classi da registrare
 classes = [
     AuxiliaryFileProperties,
