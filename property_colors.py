@@ -35,7 +35,7 @@ def create_property_value_mapping(graph, property_name):
             
             # Aggiungi i nodi stratigrafici connessi al set
             for edge in graph.edges:
-                if edge.edge_type == "has_data_provenance" and edge.edge_target == node.node_id:
+                if edge.edge_type == "has_property" and edge.edge_target == node.node_id:
                     connected_strat_nodes.add(edge.edge_source)
         else:
             has_empty = True

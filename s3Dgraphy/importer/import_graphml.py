@@ -838,12 +838,28 @@ class GraphMLImporter:
                 else:
                     edge_type = "generic_connection"  # Default to "generic_connection" if unknown style
 
+            # Post-processing basato sui tipi di nodi collegati
+            if edge_type == "has_data_provenance":
+                source_node = self.graph.find_node_by_id(edge_element.attrib['source'])
+                target_node = self.graph.find_node_by_id(edge_element.attrib['target'])
+                
+                if source_node and target_node:
+                    # Se il source è un nodo stratigrafico e il target è una property
+                    if (isinstance(source_node, StratigraphicNode) and 
+                        isinstance(target_node, PropertyNode)):
+                        edge_type = "has_property"
+                    # Se il source è un nodo extractor e il target è un document node
+                    if (isinstance(source_node, ExtractorNode) and 
+                        isinstance(target_node, DocumentNode)):
+                        edge_type = "extracted_from"
+                    # Se il source è un nodo combiner e il target è un extractor
+                    if (isinstance(source_node, CombinerNode) and 
+                        isinstance(target_node, ExtractorNode)):
+                        edge_type = "combines"
+                    # Qui possiamo aggiungere altri pattern specifici
+                    # elif (...):
+                    #     edge_type = "altro_tipo"
 
-        #if edge_type not in EDGE_TYPES:
-        #    print(f"Warning: Unrecognized edge type '{edge_type}' detected for edge {edge_element.attrib['id']}. Defaulting to 'generic_connection'.")
-        #    edge_type = "generic_connection"
-
-        #print(f"Parsed edge type '{edge_type}' for edge {edge_element.attrib['id']}")
         return edge_type
 
 

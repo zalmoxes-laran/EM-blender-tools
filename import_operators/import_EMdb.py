@@ -79,13 +79,12 @@ class EM_OT_Import3DGISDatabase(Operator):
                             
                             # Crea edge
                             edge_id = f"{strat_id}_{col}_edge"
-                            edge = Edge(
+                            graph.add_edge(
                                 edge_id=edge_id,
-                                edge_source=strat_id,
-                                edge_target=prop_id,
-                                edge_type="has_data_provenance"
+                                edge_source=strat_id,    # dal nodo stratigrafico
+                                edge_target=prop_id,     # al nodo proprietà
+                                edge_type="has_property" # tipo corretto secondo le regole
                             )
-                            graph.add_edge(edge)
                             
                 except Exception as e:
                     self.report({'WARNING'}, f"Error processing row {idx}: {str(e)}")

@@ -15,7 +15,7 @@ class BaseImporter(ABC):
     Abstract base class for all importers.
     Supports both mapped and automatic property creation modes.
     """
-    def __init__(self, filepath: str, mapping_name: str = None, id_column: str = None, overwrite: bool = False):
+    def __init__(self, filepath: str, mapping_name: str = None, id_column: str = None, overwrite: bool = False, graph_id: str = None):
         """
         Initialize the importer.
         

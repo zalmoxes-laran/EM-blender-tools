@@ -763,8 +763,12 @@ def register():
 
 def unregister():
     # Itera sulla lista per cancellare la registrazione delle classi
-    for cls in reversed(classes):  # Usa reversed per evitare problemi di dipendenze
-        bpy.utils.unregister_class(cls)
+
+    for cls in reversed(classes):
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception as e:
+            print(f"Errore durante la deregistrazione di {cls.__name__}: {e}")
 
     del bpy.types.Scene.em_tools
 

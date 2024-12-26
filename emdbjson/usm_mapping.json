@@ -14,7 +14,7 @@
         "Lunghezza": {
             "property_name": "length",
             "property_type": "Length",
-            "edge_type": "has_data_provenance",
+            "edge_type": "has_property",
             "relations": [
                 {
                     "target_column": "Altezza",
@@ -25,12 +25,12 @@
         "Altezza": {
             "property_name": "height",
             "property_type": "Height",
-            "edge_type": "has_data_provenance"
+            "edge_type": "has_property"
         },
         "Tecnica_Costruttiva": {
             "property_name": "building_technique",
             "property_type": "Morphology",
-            "edge_type": "has_data_provenance",
+            "edge_type": "has_property",
             "relations": [
                 {
                     "target_column": "Materiale",
@@ -41,7 +41,7 @@
         "Materiale": {
             "property_name": "material",
             "property_type": "Material",
-            "edge_type": "has_data_provenance"
+            "edge_type": "has_property"
         }
     }
 }

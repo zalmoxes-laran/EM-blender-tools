@@ -27,12 +27,14 @@ class EM_ExportPanel:
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
 
+    '''
     @classmethod
     def poll(cls, context):
         em_tools = context.scene.em_tools
         # Restituisce True se mode_switch è False, quindi il pannello viene mostrato solo in modalità 3D GIS
         return em_tools.mode_switch
-
+    '''
+    
     def draw(self, context):
         layout = self.layout
         scene = context.scene

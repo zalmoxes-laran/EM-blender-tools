@@ -81,7 +81,7 @@ class PROPERTY_OT_apply_colors(bpy.types.Operator):
                 for prop_node in property_nodes:
                     # Traccia tutti i nodi stratigrafici connessi a questa proprietà
                     for edge in graph.edges:
-                        if edge.edge_type == "has_data_provenance" and edge.edge_target == prop_node.node_id:
+                        if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
                             connected_strat_nodes.add(edge.edge_source)
                             strat_node = graph.find_node_by_id(edge.edge_source)
                             if strat_node:
@@ -245,53 +245,61 @@ def get_available_properties(context):
     em_tools = scene.em_tools
     properties = set()
 
-    # Determina quale grafo/i usare
-    if scene.show_all_graphs:
-        graph_ids = get_all_graph_ids()
-        print(f"Processing all graphs: {graph_ids}")
-    else:
-        # Usa solo il grafo attivo
-        if em_tools.active_file_index >= 0:
-            active_file = em_tools.graphml_files[em_tools.active_file_index]
-            graph_ids = [active_file.name]
-            print(f"Processing active graph: {active_file.name}")
+    # Determina se siamo in modalità 3D GIS o EM Advanced
+
+
+    if not em_tools.mode_switch:  # Modalità 3D GIS
+        from .s3Dgraphy.multigraph import MultiGraphManager
+        mgr = MultiGraphManager()
+        print("\nDebug - Graph Manager Status:")
+        print(f"Available graphs: {list(mgr.graphs.keys())}")
+        
+        graph = mgr.graphs.get("3dgis_graph")
+        if graph:
+            print(f"Found 3D GIS graph with {len(graph.nodes)} nodes")
+            property_nodes = [node for node in graph.nodes if node.node_type == "property"]
+            print(f"Found {len(property_nodes)} property nodes")
+            for node in property_nodes:
+                if node.name:
+                    properties.add(node.name)
+                    print(f"Added property: {node.name}")
         else:
-            print("No active graph file selected")
-            return []
-    graph_ids_test = get_all_graph_ids()
-    for graph_id in graph_ids_test:
-        print(f"Graph ID: {graph_id}")
-        
-    # Processa ogni grafo
-    for graph_id in graph_ids:
-        graph = get_graph(graph_id)
-        if not graph:
-            print(f"Warning: Could not retrieve graph '{graph_id}'")
-            continue
+            print("3D GIS graph not found in MultiGraphManager")
 
-        print(f"\nProcessing graph '{graph_id}':")
-        print(f"Total nodes: {len(graph.nodes)}")
-        
-        # Cerca i nodi proprietà
-        property_nodes = [node for node in graph.nodes if node.node_type == "property"]
-        print(f"Found {len(property_nodes)} property nodes")
 
-        for node in property_nodes:
-            if node.name:
-                properties.add(node.name)
-                print(f"Found property: {node.name}")
-                
-                # Conta le connessioni
-                edges = [e for e in graph.edges 
-                        if (e.edge_target == node.node_id and 
-                            e.edge_type == "has_data_provenance")]
-                print(f"  Connected to {len(edges)} nodes")
-                
-                # Mostra il valore/descrizione
-                if hasattr(node, 'value') and node.value:
-                    print(f"  Value: {node.value}")
-                if hasattr(node, 'description') and node.description:
-                    print(f"  Description: {node.description}")
+    else:  # Modalità EM Advanced
+        # Determina quale grafo/i usare
+        if scene.show_all_graphs:
+            graph_ids = get_all_graph_ids()
+            print(f"Processing all graphs: {graph_ids}")
+        else:
+            # Usa solo il grafo attivo
+            if em_tools.active_file_index >= 0:
+                active_file = em_tools.graphml_files[em_tools.active_file_index]
+                graph_ids = [active_file.name]
+                print(f"Processing active graph: {active_file.name}")
+            else:
+                print("No active graph file selected")
+                return []
+
+        # Processa ogni grafo
+        for graph_id in graph_ids:
+            graph = get_graph(graph_id)
+            if not graph:
+                print(f"Warning: Could not retrieve graph '{graph_id}'")
+                continue
+
+            print(f"\nProcessing graph '{graph_id}':")
+            print(f"Total nodes: {len(graph.nodes)}")
+            
+            # Cerca i nodi proprietà
+            property_nodes = [node for node in graph.nodes if node.node_type == "property"]
+            print(f"Found {len(property_nodes)} property nodes")
+
+            for node in property_nodes:
+                if node.name:
+                    properties.add(node.name)
+                    print(f"Found property: {node.name}")
 
     result = sorted(list(properties))
     print(f"\nTotal unique properties found: {len(result)}")
@@ -547,7 +555,7 @@ class PROPERTY_OT_select_proxies(bpy.types.Operator):
                 # Prima raccogli tutti i nodi stratigrafici connessi
                 for prop_node in property_nodes:
                     for edge in graph.edges:
-                        if edge.edge_type == "has_data_provenance" and edge.edge_target == prop_node.node_id:
+                        if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
                             connected_strat_nodes.add(edge.edge_source)
 
                 if self.value == f"no property {scene.selected_property} node":
@@ -564,7 +572,7 @@ class PROPERTY_OT_select_proxies(bpy.types.Operator):
                     for prop_node in property_nodes:
                         if not prop_node.description:
                             for edge in graph.edges:
-                                if edge.edge_type == "has_data_provenance" and edge.edge_target == prop_node.node_id:
+                                if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
                                     strat_node = graph.find_node_by_id(edge.edge_source)
                                     if strat_node:
                                         proxy = bpy.data.objects.get(strat_node.name)
@@ -577,7 +585,7 @@ class PROPERTY_OT_select_proxies(bpy.types.Operator):
                     for prop_node in property_nodes:
                         if prop_node.description == self.value:
                             for edge in graph.edges:
-                                if edge.edge_type == "has_data_provenance" and edge.edge_target == prop_node.node_id:
+                                if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
                                     strat_node = graph.find_node_by_id(edge.edge_source)
                                     if strat_node:
                                         proxy = bpy.data.objects.get(strat_node.name)

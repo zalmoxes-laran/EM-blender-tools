@@ -14,12 +14,12 @@
         "Dimensioni": {
             "property_name": "dimensions",
             "property_type": "Length",
-            "edge_type": "has_data_provenance"
+            "edge_type": "has_property"
         },
         "Stato_Conservazione": {
             "property_name": "conservation_state",
             "property_type": "string",
-            "edge_type": "has_data_provenance",
+            "edge_type": "has_property",
             "relations": [
                 {
                     "target_column": "Materiale",
@@ -30,7 +30,7 @@
         "Materiale": {
             "property_name": "material",
             "property_type": "Material",
-            "edge_type": "has_data_provenance"
+            "edge_type": "has_property"
         }
     }
 }
