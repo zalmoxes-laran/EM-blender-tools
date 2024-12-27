@@ -1,7 +1,7 @@
 {
     "name": "Special Finds Format",
     "description": "Mapping format for Special Finds",
-    "version": "1.0",
+    "version": "1.5",
     "table_settings": {
         "format_type": "xlsx",
         "sheet_name": "Special_Finds",
