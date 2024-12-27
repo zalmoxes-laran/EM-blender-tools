@@ -132,6 +132,7 @@ def get_emdb_mappings():
     return mappings if mappings else [("none", "No mappings found", "")]
 
 class EMToolsSettings(bpy.types.PropertyGroup):
+    # Proprietà esistenti
     graphml_files: bpy.props.CollectionProperty(type=EMToolsProperties) # type: ignore
     active_file_index: bpy.props.IntProperty() # type: ignore
     mode_switch: bpy.props.BoolProperty(
@@ -140,7 +141,7 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         default=True
     ) # type: ignore
 
-
+    # Properties per import 3DGIS
     mode_3dgis_import_type: bpy.props.EnumProperty(
         name="Import Type",
         items=[
@@ -162,7 +163,6 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         description="Name of the Excel sheet containing the data",
         default="Sheet1"
     ) # type: ignore
-
     xlsx_id_column: bpy.props.StringProperty(
         name="ID Column",
         description="Name of the column containing unique IDs",
@@ -175,7 +175,6 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         description="Path to pyArchInit SQLite database",
         subtype='FILE_PATH'
     ) # type: ignore
-
     pyarchinit_table: bpy.props.StringProperty(
         name="Table Name",
         description="Name of the table to import",
@@ -188,13 +187,11 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         description="Path to EMdb Excel file",
         subtype='FILE_PATH'
     ) # type: ignore
-
-
     emdb_mapping: bpy.props.EnumProperty(
-            name="EMdb Format",
-            items=lambda self, context: get_emdb_mappings(),
-            description="Select EMdb format"
-        ) # type: ignore
+        name="EMdb Format",
+        items=lambda self, context: get_emdb_mappings(),
+        description="Select EMdb format"
+    ) # type: ignore
 
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files with icons to indicate graph presence and actions"""
@@ -428,13 +425,17 @@ class EM_SetupPanel(bpy.types.Panel):
                             col_box.label(text="Required Excel columns:")
                             for col in mapping_data["required_columns"]:
                                 col_box.label(text=f"- {col}")
-            
-            # Import button con icona
+
+            # Tasto Import con operatore unificato
             row = box.row(align=True)
             row.scale_y = 1.5  # Bottone più grande
-            row.operator("em.import_3dgis_database", 
-                        text="Import 3D GIS Database", 
-                        icon='IMPORT')
+            op = row.operator("em.import_3dgis_database", 
+                            text="Import Database",
+                            icon='IMPORT')
+            # Impostiamo le proprietà dell'operatore
+            op.auxiliary_mode = False  # Modalità 3DGIS standard
+            op.graphml_index = -1  # Non applicabile in modalità 3DGIS
+            op.auxiliary_index = -1  # Non applicabile in modalità 3DGIS
 
 
         ############# box con le statistiche del file ##################
@@ -471,113 +472,6 @@ def get_mapping_description(mapping_file):
     except Exception as e:
         print(f"Error loading mapping description: {str(e)}")
         return None
-
-class EM_OT_import_3dgis_database(bpy.types.Operator):
-    """Import operator for both 3D GIS mode and advanced EM mode"""
-    bl_idname = "em.import_3dgis_database"
-    bl_label = "Import Database"
-    bl_description = "Import data from selected database format"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    # Per gestire import da auxiliary files
-    auxiliary_mode: bpy.props.BoolProperty(default=False) # type: ignore
-    graphml_index: bpy.props.IntProperty(default=-1) # type: ignore
-    auxiliary_index: bpy.props.IntProperty(default=-1) # type: ignore
-
-    def get_import_settings(self, context):
-        """Recupera le impostazioni di import in base alla modalità"""
-        em_tools = context.scene.em_tools
-
-        if self.auxiliary_mode:
-            # Modalità EM avanzata - auxiliary file
-            graphml = em_tools.graphml_files[self.graphml_index]
-            aux_file = graphml.auxiliary_files[self.auxiliary_index]
-            return {
-                'import_type': aux_file.file_type,
-                'filepath': aux_file.filepath,
-                'mapping': aux_file.emdb_mapping if aux_file.file_type == "emdb_xlsx" else None,
-                'sheet_name': em_tools.xlsx_sheet_name,
-                'id_column': em_tools.xlsx_id_column,
-                'parent_graphml': graphml
-            }
-        else:
-            # Modalità 3D GIS
-            return {
-                'import_type': em_tools.mode_3dgis_import_type,
-                'filepath': em_tools.xlsx_3DGIS_database_file,
-                'mapping': em_tools.emdb_mapping if em_tools.mode_3dgis_import_type == "emdb_xlsx" else None,
-                'sheet_name': em_tools.xlsx_sheet_name,
-                'id_column': em_tools.xlsx_id_column,
-                'parent_graphml': None
-            }
-
-    def create_importer(self, settings):
-        """Crea l'importer appropriato basato sulle impostazioni"""
-        from .s3Dgraphy.importer import create_importer
-
-        if settings['import_type'] == "emdb_xlsx":
-            return create_importer(
-                filepath=settings['filepath'],
-                format_type='xlsx',
-                mapping_name=settings['mapping'],
-                overwrite=True
-            )
-        elif settings['import_type'] == "generic_xlsx":
-            return create_importer(
-                filepath=settings['filepath'],
-                format_type='xlsx',
-                id_column=settings['id_column'],
-                overwrite=True
-            )
-        elif settings['import_type'] == "pyarchinit":
-            # TODO: Implementare PyArchInit importer
-            pass
-
-    def execute(self, context):
-        try:
-            # Ottieni impostazioni
-            settings = self.get_import_settings(context)
-            
-            # Verifica file path
-            if not settings['filepath']:
-                self.report({'ERROR'}, "No file path specified")
-                return {'CANCELLED'}
-
-            # Crea e configura importer
-            importer = self.create_importer(settings)
-            if not importer:
-                self.report({'ERROR'}, "Failed to create importer")
-                return {'CANCELLED'}
-
-            # Esegui import
-            graph = importer.parse()
-
-            # Gestisci risultati in base alla modalità
-            if self.auxiliary_mode and settings['parent_graphml']:
-                # Collega i dati importati al GraphML parent
-                self.link_to_graphml(graph, settings['parent_graphml'])
-            else:
-                # Modalità 3D GIS - popola le liste di Blender
-                from .populate_lists import populate_blender_lists_from_graph
-                populate_blender_lists_from_graph(context, graph)
-
-            # Mostra warning se presenti
-            if importer.warnings:
-                for warning in importer.warnings:
-                    self.report({'WARNING'}, warning)
-
-            self.report({'INFO'}, "Import completed successfully")
-            return {'FINISHED'}
-
-        except Exception as e:
-            self.report({'ERROR'}, f"Import failed: {str(e)}")
-            return {'CANCELLED'}
-
-    def link_to_graphml(self, imported_graph, parent_graphml):
-        """Collega i dati importati al grafo GraphML parent"""
-        # Qui implementeremo la logica di collegamento
-        # basata sul mapping quando lo definiremo
-        pass
 
 class EMToolsAddFile(bpy.types.Operator):
     bl_idname = "em_tools.add_file"
@@ -744,7 +638,6 @@ classes = [
     EM_InvokePopulateLists,
     GraphMLFileItem,
     EMToolsSwitchModeOperator,
-    EM_OT_import_3dgis_database,
     AUXILIARY_UL_files,
     AUXILIARY_OT_add_file,
     AUXILIARY_OT_remove_file,

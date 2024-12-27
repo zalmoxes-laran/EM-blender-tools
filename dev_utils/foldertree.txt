@@ -29,6 +29,7 @@
   - color_ramps.py
   - import_operators/
     - __init__.py
+    - importer_xlsx.py
     - import_EMdb.py
     - importer_graphml.py
   - operators/

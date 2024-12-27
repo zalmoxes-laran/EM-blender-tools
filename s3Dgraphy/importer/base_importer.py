@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 import json
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from ..graph import Graph
 from ..nodes.base_node import Node
 from ..nodes.property_node import PropertyNode
@@ -15,18 +15,17 @@ class BaseImporter(ABC):
     Abstract base class for all importers.
     Supports both mapped and automatic property creation modes.
     """
-    def __init__(self, filepath: str, mapping_name: str = None, id_column: str = None, overwrite: bool = False, graph_id: str = None):
+    def __init__(self, filepath: str, mapping_name: str = None, id_column: str = None, 
+                 overwrite: bool = False, mode: str = "EM_ADVANCED"):
         """
         Initialize the importer.
         
         Args:
-            filepath (str): Path to the file to import
-            mapping_name (str, optional): Name of the mapping configuration to use
-            id_column (str, optional): Name of the ID column when not using mapping
-            overwrite (bool, optional): If True, overwrites existing property values
-            
-        Raises:
-            ValueError: If neither mapping_name nor id_column is provided
+            filepath: Path to the file to import
+            mapping_name: Name of the mapping configuration to use
+            id_column: Name of the ID column when not using mapping
+            overwrite: If True, overwrites existing property values
+            mode: Either "3DGIS" or "EM_ADVANCED"
         """
         if mapping_name is None and id_column is None:
             raise ValueError("Either mapping_name or id_column must be provided")
@@ -34,28 +33,32 @@ class BaseImporter(ABC):
         self.filepath = filepath
         self.id_column = id_column
         self.mapping = self._load_mapping(mapping_name) if mapping_name else None
-        self.graph = Graph(graph_id=f"imported_{os.path.splitext(os.path.basename(filepath))[0]}")
-        self.warnings = []
         self.overwrite = overwrite
-        self.automatic_mode = mapping_name is None
+        self.mode = mode
+
+        
+        # Il grafo verrà inizializzato dalla classe figlia
+        #self.graph = None
+        self.warnings = []
 
     def _load_mapping(self, mapping_name: str) -> Dict[str, Any]:
-        """Load the JSON mapping file from the JSONmappings directory."""
+        """Load the JSON mapping file from the appropriate directory."""
         if mapping_name is None:
             return None
             
-        mapping_path = os.path.join(
-            os.path.dirname(__file__), 
-            'JSONmappings', 
-            f'{mapping_name}.json'
-        )
-        try:
-            with open(mapping_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Mapping file {mapping_name}.json not found")
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Error parsing mapping file: {str(e)}")
+        mapping_paths = [
+            os.path.join(os.path.dirname(__file__), 'JSONmappings', f'{mapping_name}.json'),
+            os.path.join(os.path.dirname(__file__), '..', 'emdbjson', f'{mapping_name}.json')
+        ]
+        
+        for mapping_path in mapping_paths:
+            try:
+                with open(mapping_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except FileNotFoundError:
+                continue
+                
+        raise FileNotFoundError(f"Mapping file {mapping_name}.json not found in any of the expected locations")
 
     @abstractmethod
     def parse(self) -> Graph:
@@ -72,6 +75,7 @@ class BaseImporter(ABC):
         except KeyError as e:
             self.warnings.append(f"Missing required column: {str(e)}")
             raise
+
 
     def _process_row_with_mapping(self, row_data: Dict[str, Any]) -> Node:
         """Process a row using the mapping configuration."""
@@ -115,6 +119,7 @@ class BaseImporter(ABC):
         # Get basic node attributes from data or use defaults
         name = str(row_data.get('name', node_id))
         description = str(row_data.get('description', ''))
+        #description = "Automatic"
 
         existing_node = self.graph.find_node_by_id(node_id)
         
@@ -160,61 +165,23 @@ class BaseImporter(ABC):
             prop_node = PropertyNode(
                 node_id=prop_id,
                 name=prop_name,
-                value=prop_value,
-                property_type=self._guess_property_type(prop_name, prop_value)
+                value="",
+                property_type=prop_name,
+                #property_type=self._guess_property_type(prop_name, prop_value)
             )
+            prop_node.description = str(prop_value)  # Mettiamo il valore in description
+
             self.graph.add_node(prop_node)
 
-            # Create edge to connect property to stratigraphic node
-            edge = Edge(
-                edge_id=f"{node_id}_{prop_name}_edge",
-                edge_source=strat_node.node_id,
-                edge_target=prop_node.node_id,
-                edge_type="has_property"
-            )
-            self.graph.add_edge(edge)
-
-    def _guess_property_type(self, prop_name: str, value: Any) -> str:
-        """
-        Guess property type based on column name and value.
-        Uses the predefined PropertyNode.PROPERTY_TYPES for validation.
-        """
-        name_lower = prop_name.lower()
-        
-        # Check dimension-related properties
-        if any(dim in name_lower for dim in ['height', 'altezza']):
-            return 'Height'
-        if any(dim in name_lower for dim in ['width', 'larghezza']):
-            return 'Width'
-        if any(dim in name_lower for dim in ['length', 'lunghezza']):
-            return 'Length'
-        if any(dim in name_lower for dim in ['diameter', 'diametro']):
-            return 'Diameter'
-        if any(dim in name_lower for dim in ['depth', 'profondità']):
-            return 'Depth'
-            
-        # Check material-related properties
-        if any(mat in name_lower for mat in ['material', 'materiale']):
-            return 'Material'
-            
-        # Check morphology-related properties
-        if any(morph in name_lower for morph in ['shape', 'form', 'morphology', 'forma']):
-            return 'Morphology'
-            
-        # Check style-related properties
-        if any(style in name_lower for style in ['style', 'stile']):
-            return 'Style'
-            
-        # Check location-related properties
-        if any(loc in name_lower for loc in ['location', 'position', 'posizione']):
-            return 'Location'
-            
-        # Check restoration-related properties
-        if any(rest in name_lower for rest in ['restoration', 'restauro']):
-            return 'Restoration'
-            
-        # Default to string if no specific type is identified
-        return 'string'
+            # Create edge only if it doesn't exist
+            edge_id = f"{node_id}_has_property_{prop_id}"
+            if not self.graph.find_edge_by_id(edge_id):
+                self.graph.add_edge(
+                    edge_id=edge_id,
+                    edge_source=node_id,
+                    edge_target=prop_id,
+                    edge_type="has_property"
+                )
 
     def display_warnings(self):
         """Display all accumulated warnings."""
