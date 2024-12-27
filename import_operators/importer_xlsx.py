@@ -6,6 +6,9 @@ from ..s3Dgraphy.graph import Graph
 from ..s3Dgraphy.multigraph import load_graph, get_graph
 import os
 
+from ..s3Dgraphy.multigraph.multigraph import multi_graph_manager  # Aggiungi questa importazione
+
+
 class GenericXLSXImporter(BaseImporter):
     """
     A generic XLSX importer for EM-tools that can import Excel files with flexible structures.
@@ -45,6 +48,11 @@ class GenericXLSXImporter(BaseImporter):
         print(f"\nDebug - Graph Initialization:")
         print(f"Creating graph with ID: {self.graph_id}")
 
+        # Registra il grafo nel MultiGraphManager
+        multi_graph_manager.graphs[self.graph_id] = self.graph
+        print(f"\nDebug - Graph Registration:")
+        print(f"Registering graph with ID: {self.graph_id}")
+        print(f"Current registered graphs: {list(multi_graph_manager.graphs.keys())}")
 
 
     def _read_excel_file(self) -> pd.DataFrame:
@@ -100,6 +108,7 @@ class GenericXLSXImporter(BaseImporter):
             
         except Exception as e:
             raise ImportError(f"Error reading Excel file: {str(e)}")
+    
     def _clean_row_data(self, row: pd.Series) -> Dict[str, Any]:
         """Clean and prepare row data for processing."""
         row_dict = row.to_dict()

@@ -1,9 +1,9 @@
-import bpy
+import bpy # type: ignore
 
-from bpy.types import Panel
-from bpy.types import Operator
-from bpy.types import PropertyGroup
-from bpy.types import UIList
+from bpy.types import Panel # type: ignore
+from bpy.types import Operator # type: ignore
+from bpy.types import PropertyGroup # type: ignore
+from bpy.types import UIList # type: ignore
 
 from .color_ramps import COLOR_RAMPS
 
@@ -24,7 +24,7 @@ from .s3Dgraphy.nodes.property_node import PropertyNode
 
 from .s3Dgraphy import get_graph
 from .s3Dgraphy import get_all_graph_ids
-
+from .s3Dgraphy.multigraph.multigraph import multi_graph_manager
 
 import json
 import os
@@ -51,71 +51,80 @@ class PROPERTY_OT_apply_colors(bpy.types.Operator):
         if em_tools.active_file_index >= 0:
             graphml = em_tools.graphml_files[em_tools.active_file_index]
             graph = get_graph(graphml.name)
+
+        if not em_tools.mode_switch:
+
+            mgr = multi_graph_manager
+            print("\nDebug - Graph Manager Status:")
+            print(f"Available SPEZZ graphs: {list(mgr.graphs.keys())}")
             
-            if graph:
-                # Create a mapping of property values to colors
-                color_mapping = {item.value: item.color for item in scene.property_values}
-                
-                # Create materials
-                materials = {}
-                for value, color in color_mapping.items():
-                    mat_name = f"prop_{scene.selected_property}_{value}"
-                    mat = bpy.data.materials.get(mat_name)
-                    if not mat:
-                        mat = bpy.data.materials.new(name=mat_name)
-                        mat.use_nodes = True
-                    principled = mat.node_tree.nodes["Principled BSDF"]
-                    principled.inputs[0].default_value = (*color[:3], 1.0)
-                    materials[value] = mat
+            graph = mgr.graphs.get("3dgis_graph")
 
-                # Find all property nodes of the selected type
-                property_nodes = [node for node in graph.nodes 
-                                if node.node_type == "property" 
-                                and node.name == scene.selected_property]
 
-                # Set per tracciare i nodi stratigrafici che hanno la proprietà
-                connected_strat_nodes = set()
-                colored_objects = 0
+        if graph:
+            # Create a mapping of property values to colors
+            color_mapping = {item.value: item.color for item in scene.property_values}
+            
+            # Create materials
+            materials = {}
+            for value, color in color_mapping.items():
+                mat_name = f"prop_{scene.selected_property}_{value}"
+                mat = bpy.data.materials.get(mat_name)
+                if not mat:
+                    mat = bpy.data.materials.new(name=mat_name)
+                    mat.use_nodes = True
+                principled = mat.node_tree.nodes["Principled BSDF"]
+                principled.inputs[0].default_value = (*color[:3], 1.0)
+                materials[value] = mat
 
-                # Prima gestisci i nodi con valori e quelli vuoti
-                for prop_node in property_nodes:
-                    # Traccia tutti i nodi stratigrafici connessi a questa proprietà
-                    for edge in graph.edges:
-                        if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
-                            connected_strat_nodes.add(edge.edge_source)
-                            strat_node = graph.find_node_by_id(edge.edge_source)
-                            if strat_node:
-                                # Determina il valore appropriato
-                                if prop_node.description:
-                                    value = prop_node.description
-                                else:
-                                    value = f"empty property {scene.selected_property} node"
+            # Find all property nodes of the selected type
+            property_nodes = [node for node in graph.nodes 
+                            if node.node_type == "property" 
+                            and node.name == scene.selected_property]
 
-                                # Se abbiamo un materiale per questo valore, applicalo
-                                if value in materials:
-                                    proxy = bpy.data.objects.get(strat_node.name)
-                                    if proxy and proxy.type == 'MESH':
-                                        if proxy.data.materials:
-                                            proxy.data.materials[0] = materials[value]
-                                        else:
-                                            proxy.data.materials.append(materials[value])
-                                        colored_objects += 1
+            # Set per tracciare i nodi stratigrafici che hanno la proprietà
+            connected_strat_nodes = set()
+            colored_objects = 0
 
-                # Ora gestisci i nodi stratigrafici senza questa proprietà
-                no_prop_value = f"no property {scene.selected_property} node"
-                if no_prop_value in materials:
-                    for node in graph.nodes:
-                        if isinstance(node, StratigraphicNode) and node.node_id not in connected_strat_nodes:
-                            proxy = bpy.data.objects.get(node.name)
-                            if proxy and proxy.type == 'MESH':
-                                if proxy.data.materials:
-                                    proxy.data.materials[0] = materials[no_prop_value]
-                                else:
-                                    proxy.data.materials.append(materials[no_prop_value])
-                                colored_objects += 1
+            # Prima gestisci i nodi con valori e quelli vuoti
+            for prop_node in property_nodes:
+                # Traccia tutti i nodi stratigrafici connessi a questa proprietà
+                for edge in graph.edges:
+                    if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
+                        connected_strat_nodes.add(edge.edge_source)
+                        strat_node = graph.find_node_by_id(edge.edge_source)
+                        if strat_node:
+                            # Determina il valore appropriato
+                            if prop_node.description:
+                                value = prop_node.description
+                            else:
+                                value = f"empty property {scene.selected_property} node"
 
-                self.report({'INFO'}, f"Applied colors to {colored_objects} objects")
-                return {'FINISHED'}
+                            # Se abbiamo un materiale per questo valore, applicalo
+                            if value in materials:
+                                proxy = bpy.data.objects.get(strat_node.name)
+                                if proxy and proxy.type == 'MESH':
+                                    if proxy.data.materials:
+                                        proxy.data.materials[0] = materials[value]
+                                    else:
+                                        proxy.data.materials.append(materials[value])
+                                    colored_objects += 1
+
+            # Ora gestisci i nodi stratigrafici senza questa proprietà
+            no_prop_value = f"no property {scene.selected_property} node"
+            if no_prop_value in materials:
+                for node in graph.nodes:
+                    if isinstance(node, StratigraphicNode) and node.node_id not in connected_strat_nodes:
+                        proxy = bpy.data.objects.get(node.name)
+                        if proxy and proxy.type == 'MESH':
+                            if proxy.data.materials:
+                                proxy.data.materials[0] = materials[no_prop_value]
+                            else:
+                                proxy.data.materials.append(materials[no_prop_value])
+                            colored_objects += 1
+
+            self.report({'INFO'}, f"Applied colors to {colored_objects} objects")
+            return {'FINISHED'}
             
         self.report({'ERROR'}, "No active graph")
         return {'CANCELLED'}
@@ -155,7 +164,7 @@ class UPDATE_OT_property_values(bpy.types.Operator):
             values = set()
             processed_graphs = 0
             
-            if scene.show_all_graphs:
+            if scene.show_all_graphs or not em_tools.mode_switch:
                 print("Processing all loaded graphs...")
                 graph_ids = get_all_graph_ids()
                 print(f"Found {len(graph_ids)} graph(s): {graph_ids}")
@@ -182,6 +191,7 @@ class UPDATE_OT_property_values(bpy.types.Operator):
                 if em_tools.active_file_index >= 0:
                     graphml = em_tools.graphml_files[em_tools.active_file_index]
                     graph = get_graph(graphml.name)
+
                     
                     if graph:
                         print(f"\nProcessing active graph '{graphml.name}'")
@@ -249,8 +259,7 @@ def get_available_properties(context):
 
 
     if not em_tools.mode_switch:  # Modalità 3D GIS
-        from .s3Dgraphy.multigraph import MultiGraphManager
-        mgr = MultiGraphManager()
+        mgr = multi_graph_manager
         print("\nDebug - Graph Manager Status:")
         print(f"Available graphs: {list(mgr.graphs.keys())}")
         
@@ -265,6 +274,12 @@ def get_available_properties(context):
                     print(f"Added property: {node.name}")
         else:
             print("3D GIS graph not found in MultiGraphManager")
+            print("\nDebug - Registered Graphs:")
+            for graph_id, graph in mgr.graphs.items():
+                print(f"- Graph ID: {graph_id}")
+                print(f"  Nodes: {len(graph.nodes)}")
+                if hasattr(graph, 'name'):
+                    print(f"  Name: {graph.name}")
 
 
     else:  # Modalità EM Advanced
@@ -376,8 +391,10 @@ class Display_mode_menu(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("emset.emmaterial", text="EM")
-        layout.operator("emset.epochmaterial", text="Periods")
+        if context.scene.em_tools.mode_switch:
+            layout.operator("emset.emmaterial", text="EM")
+            layout.operator("emset.epochmaterial", text="Periods")
+
         layout.operator("emset.propertymaterial", text="Properties")
 
 def print_graph_info():
@@ -428,8 +445,10 @@ class VISUALToolsPanel:
         # Add property-specific UI when in Properties mode
         if current_proxy_display_mode == "Properties":
             box = layout.box()
-            row = box.row()
-            row.prop(scene, "show_all_graphs", text="Show All Graphs")
+            
+            if scene.em_tools.mode_switch:
+                row = box.row()
+                row.prop(scene, "show_all_graphs", text="Show All Graphs")
             
             row = box.row()
             row.prop(scene, "property_enum", text="Select Property")

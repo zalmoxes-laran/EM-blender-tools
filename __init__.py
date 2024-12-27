@@ -739,8 +739,8 @@ def register():
        bpy.types.Scene.rm_settings = PointerProperty(type=EM_Other_Settings)
        bpy.types.Scene.proxy_display_mode = StringProperty(
               name = "Proxy display mode",
-              default = "EM",
-              description = "EM proxy current display mode"
+              default = "select",
+              description = "Proxy current display mode"
        )
        bpy.types.Scene.proxy_blend_mode = StringProperty(
               name = "Proxy blend mode",

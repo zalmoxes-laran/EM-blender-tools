@@ -155,6 +155,10 @@ class BaseImporter(ABC):
         """Create or update a property node."""
         prop_id = f"{node_id}_{prop_name}"
         existing_prop = self.graph.find_node_by_id(prop_id)
+
+        print(f"Creating property: {prop_name}")
+        print(f"Existing prop: {existing_prop}")
+        print(f"Property value arcont: {prop_value}")
         
         if existing_prop:
             if self.overwrite:
@@ -165,12 +169,13 @@ class BaseImporter(ABC):
             prop_node = PropertyNode(
                 node_id=prop_id,
                 name=prop_name,
-                value="",
+                description= str(prop_value),  # Mettiamo il valore in description
+                value=str(prop_value),
                 property_type=prop_name,
-                #property_type=self._guess_property_type(prop_name, prop_value)
-            )
-            prop_node.description = str(prop_value)  # Mettiamo il valore in description
-
+                data={},  # Popola 'data' se necessario
+                url="",
+                )
+            
             self.graph.add_node(prop_node)
 
             # Create edge only if it doesn't exist
