@@ -47,18 +47,22 @@ class PROPERTY_OT_apply_colors(bpy.types.Operator):
         if not scene.selected_property:
             self.report({'ERROR'}, "No property selected")
             return {'CANCELLED'}
-            
-        if em_tools.active_file_index >= 0:
-            graphml = em_tools.graphml_files[em_tools.active_file_index]
-            graph = get_graph(graphml.name)
-
+        
         if not em_tools.mode_switch:
 
             mgr = multi_graph_manager
             print("\nDebug - Graph Manager Status:")
-            print(f"Available SPEZZ graphs: {list(mgr.graphs.keys())}")
+            print(f"Available graphs: {list(mgr.graphs.keys())}")
             
             graph = mgr.graphs.get("3dgis_graph")
+        else:
+            if em_tools.active_file_index >= 0:
+                try:
+                    graphml = em_tools.graphml_files[em_tools.active_file_index]
+                    graph = get_graph(graphml.name)
+                except Exception as e:
+                    self.report({'ERROR'}, f"Error loading graph: {str(e)}")
+                    return {'CANCELLED'}
 
 
         if graph:
@@ -557,63 +561,77 @@ class PROPERTY_OT_select_proxies(bpy.types.Operator):
             
         # Deselect all objects first
         bpy.ops.object.select_all(action='DESELECT')
-        
-        if em_tools.active_file_index >= 0:
-            graphml = em_tools.graphml_files[em_tools.active_file_index]
-            graph = get_graph(graphml.name)
+
+
+        if not scene.em_tools.mode_switch:
+
+            mgr = multi_graph_manager
+            print("\nDebug - Graph Manager Status:")
+            print(f"Available graphs: {list(mgr.graphs.keys())}")
             
-            if graph:
-                selected_count = 0
-                connected_strat_nodes = set()
+            graph = mgr.graphs.get("3dgis_graph")
 
-                # Trova tutti i nodi property del tipo selezionato
-                property_nodes = [node for node in graph.nodes 
-                                if node.node_type == "property" 
-                                and node.name == scene.selected_property]
+        else:
+            if em_tools.active_file_index >= 0:
+                try:
+                    graphml = em_tools.graphml_files[em_tools.active_file_index]
+                    graph = get_graph(graphml.name)
+                except Exception as e:
+                    self.report({'ERROR'}, f"Error loading graph: {str(e)}")
+                    return {'CANCELLED'}
+        
+        if graph:
+            selected_count = 0
+            connected_strat_nodes = set()
 
-                # Prima raccogli tutti i nodi stratigrafici connessi
+            # Trova tutti i nodi property del tipo selezionato
+            property_nodes = [node for node in graph.nodes 
+                            if node.node_type == "property" 
+                            and node.name == scene.selected_property]
+
+            # Prima raccogli tutti i nodi stratigrafici connessi
+            for prop_node in property_nodes:
+                for edge in graph.edges:
+                    if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
+                        connected_strat_nodes.add(edge.edge_source)
+
+            if self.value == f"no property {scene.selected_property} node":
+                # Seleziona i proxy che non hanno questa proprietà
+                for node in graph.nodes:
+                    if isinstance(node, StratigraphicNode) and node.node_id not in connected_strat_nodes:
+                        proxy = bpy.data.objects.get(node.name)
+                        if proxy and proxy.type == 'MESH':
+                            proxy.select_set(True)
+                            selected_count += 1
+
+            elif self.value == f"empty property {scene.selected_property} node":
+                # Seleziona i proxy con proprietà ma senza valore
                 for prop_node in property_nodes:
-                    for edge in graph.edges:
-                        if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
-                            connected_strat_nodes.add(edge.edge_source)
+                    if not prop_node.description:
+                        for edge in graph.edges:
+                            if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
+                                strat_node = graph.find_node_by_id(edge.edge_source)
+                                if strat_node:
+                                    proxy = bpy.data.objects.get(strat_node.name)
+                                    if proxy and proxy.type == 'MESH':
+                                        proxy.select_set(True)
+                                        selected_count += 1
 
-                if self.value == f"no property {scene.selected_property} node":
-                    # Seleziona i proxy che non hanno questa proprietà
-                    for node in graph.nodes:
-                        if isinstance(node, StratigraphicNode) and node.node_id not in connected_strat_nodes:
-                            proxy = bpy.data.objects.get(node.name)
-                            if proxy and proxy.type == 'MESH':
-                                proxy.select_set(True)
-                                selected_count += 1
-
-                elif self.value == f"empty property {scene.selected_property} node":
-                    # Seleziona i proxy con proprietà ma senza valore
-                    for prop_node in property_nodes:
-                        if not prop_node.description:
-                            for edge in graph.edges:
-                                if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
-                                    strat_node = graph.find_node_by_id(edge.edge_source)
-                                    if strat_node:
-                                        proxy = bpy.data.objects.get(strat_node.name)
-                                        if proxy and proxy.type == 'MESH':
-                                            proxy.select_set(True)
-                                            selected_count += 1
-
-                else:
-                    # Seleziona i proxy con il valore specifico
-                    for prop_node in property_nodes:
-                        if prop_node.description == self.value:
-                            for edge in graph.edges:
-                                if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
-                                    strat_node = graph.find_node_by_id(edge.edge_source)
-                                    if strat_node:
-                                        proxy = bpy.data.objects.get(strat_node.name)
-                                        if proxy and proxy.type == 'MESH':
-                                            proxy.select_set(True)
-                                            selected_count += 1
-                
-                self.report({'INFO'}, f"Selected {selected_count} objects")
-                return {'FINISHED'}
+            else:
+                # Seleziona i proxy con il valore specifico
+                for prop_node in property_nodes:
+                    if prop_node.description == self.value:
+                        for edge in graph.edges:
+                            if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
+                                strat_node = graph.find_node_by_id(edge.edge_source)
+                                if strat_node:
+                                    proxy = bpy.data.objects.get(strat_node.name)
+                                    if proxy and proxy.type == 'MESH':
+                                        proxy.select_set(True)
+                                        selected_count += 1
+            
+            self.report({'INFO'}, f"Selected {selected_count} objects")
+            return {'FINISHED'}
             
         self.report({'ERROR'}, "No active graph")
         return {'CANCELLED'}
