@@ -3,7 +3,7 @@
 import xml.etree.ElementTree as ET
 from ..graph import Graph
 from ..nodes.stratigraphic_node import (
-    Node, StratigraphicNode)
+    Node, StratigraphicNode, ContinuityNode)
 from ..nodes.paradata_node import ParadataNode
 from ..nodes.document_node import DocumentNode
 from ..nodes.combiner_node import CombinerNode
@@ -175,10 +175,10 @@ class GraphMLImporter:
         elif self.EM_check_node_continuity(node_element):
             # Creazione del nodo continuity e aggiunta al grafo
             nodedescription, node_y_pos, node_id = self.EM_extract_continuity(node_element)
-            continuity_node = StratigraphicNode(
+            continuity_node = ContinuityNode(
                 node_id=node_id,
                 name="continuity_node",
-                stratigraphic_type="BR",
+                #stratigraphic_type="BR",
                 description=nodedescription
             )
             continuity_node.attributes['y_pos'] = float(node_y_pos)

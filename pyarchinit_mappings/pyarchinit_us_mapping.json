@@ -16,17 +16,42 @@
             "is_description": true,
             "target_id_column": "us"
         },
-        "formazione": {
+        "d_interpretativa": {
             "node_type": "PropertyNode",
-            "property_name": "Morphology",
-            "display_name": "Formation",
-            "description": "Formation process of the stratigraphic unit"
+            "property_name": "Interpretation",
+            "display_name": "Interpretation",
+            "description": "Interpretation of the stratigraphic unit",
+            "create_empty": true
+        },
+        "attivita": {
+            "node_type": "PropertyNode",
+            "property_name": "Activity",
+            "display_name": "Activity type", 
+            "description": "Type of archaeological activity",
+            "create_empty": true
+        },
+        "struttura": {
+            "node_type": "PropertyNode",
+            "property_name": "Structure",
+            "display_name": "Structure type",
+            "description": "Type of archaeological structure",
+            "create_empty": true
         }
     },
     "relations": [
         {
             "source_column": "us",
-            "target_column": "formazione",
+            "target_column": "d_interpretativa",
+            "edge_type": "has_property"
+        },
+        {
+            "source_column": "us", 
+            "target_column": "attivita",
+            "edge_type": "has_property"
+        },
+        {
+            "source_column": "us",
+            "target_column": "struttura",
             "edge_type": "has_property"
         }
     ]

@@ -6,7 +6,7 @@ from ..s3Dgraphy.graph import Graph
 from ..s3Dgraphy.multigraph import load_graph, get_graph
 import os
 
-from ..s3Dgraphy.multigraph.multigraph import multi_graph_manager  # Aggiungi questa importazione
+from ..s3Dgraphy.multigraph.multigraph import multi_graph_manager  
 
 
 class GenericXLSXImporter(BaseImporter):
