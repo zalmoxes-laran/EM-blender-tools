@@ -131,6 +131,41 @@ def get_emdb_mappings():
         
     return mappings if mappings else [("none", "No mappings found", "")]
 
+
+def get_pyarchinit_mappings(self, context):
+    """Get available pyArchInit mapping files"""
+    mappings = []
+    mapping_dir = os.path.join(os.path.dirname(__file__), "pyarchinit_mappings")
+    
+    mappings.append(("none", "No Mapping", "Select a mapping file"))
+    
+    if not os.path.exists(mapping_dir):
+        os.makedirs(mapping_dir)
+        return mappings
+    
+    try:
+        for file in os.listdir(mapping_dir):
+            if file.endswith('.json'):
+                file_path = os.path.join(mapping_dir, file)
+                try:
+                    with open(file_path, 'r') as f:
+                        data = json.load(f)
+                        # Usa il nome del file senza estensione come identificatore
+                        file_id = os.path.splitext(file)[0]
+                        mappings.append((
+                            file_id,  # identificatore senza .json
+                            data.get("name", file_id),  # nome visualizzato
+                            data.get("description", "")  # descrizione/tooltip
+                        ))
+                except Exception as e:
+                    print(f"Error reading mapping {file}: {str(e)}")
+                    continue
+    except Exception as e:
+        print(f"Error scanning mapping directory: {str(e)}")
+    
+    return mappings
+
+
 class EMToolsSettings(bpy.types.PropertyGroup):
     # Proprietà esistenti
     graphml_files: bpy.props.CollectionProperty(type=EMToolsProperties) # type: ignore
@@ -192,6 +227,13 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         items=lambda self, context: get_emdb_mappings(),
         description="Select EMdb format"
     ) # type: ignore
+
+    pyarchinit_mapping: bpy.props.EnumProperty(
+        name="pyArchInit Format",
+        items=get_pyarchinit_mappings,
+        description="Select pyArchInit table mapping"
+    ) # type: ignore
+
 
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files with icons to indicate graph presence and actions"""
@@ -398,8 +440,21 @@ class EM_SetupPanel(bpy.types.Panel):
             elif em_tools.mode_3dgis_import_type == "pyarchinit":
                 options_box.label(text="pyArchInit Import Settings:")
                 options_box.prop(em_tools, "pyarchinit_db_path", text="SQLite Database")
-                options_box.prop(em_tools, "pyarchinit_table", text="Table Name")
+                options_box.prop(em_tools, "pyarchinit_mapping", text="Select Mapping")
                 
+                # Mostra info sul mapping selezionato
+                if em_tools.pyarchinit_mapping != "none":
+                    desc_box = options_box.box()
+                    desc_box.label(text="Mapping Info:")
+                    mapping_data = get_mapping_description(em_tools.pyarchinit_mapping, "pyarchinit")
+                    if mapping_data:
+                        row = desc_box.row()
+                        row.label(text=f"Name: {mapping_data['name']}")
+                        if "description" in mapping_data:
+                            desc_box.label(text=mapping_data["description"])
+                        if "table_settings" in mapping_data:
+                            desc_box.label(text=f"Table: {mapping_data['table_settings']['table_name']}")     
+            
             elif em_tools.mode_3dgis_import_type == "emdb_xlsx":
                 options_box.label(text="EMdb Excel Import Settings:")
                 options_box.prop(em_tools, "emdb_xlsx_file", text="EMdb Excel File")
@@ -463,10 +518,21 @@ class EM_SetupPanel(bpy.types.Panel):
         col.prop(scene, "em_sources_list", text='')
 
 
-def get_mapping_description(mapping_file):
+def get_mapping_description(mapping_file, mapping_type="emdb"):
     """Recupera la descrizione del mapping dal file JSON."""
-    mapping_path = os.path.join(os.path.dirname(__file__), "emdbjson", mapping_file)
+    if mapping_type == "pyarchinit":
+        mapping_dir = os.path.join(os.path.dirname(__file__), "pyarchinit_mappings")
+    else:
+        mapping_dir = os.path.join(os.path.dirname(__file__), "emdbjson")
+    
     try:
+        # Aggiungi l'estensione .json se non è già presente
+        if not mapping_file.endswith('.json'):
+            mapping_file = f"{mapping_file}.json"
+            
+        mapping_path = os.path.join(mapping_dir, mapping_file)
+        print(f"Looking for mapping file at: {mapping_path}")  # Debug
+        
         with open(mapping_path) as f:
             return json.load(f)
     except Exception as e:

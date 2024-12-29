@@ -1,47 +1,66 @@
 {
     "name": "USM Format",
     "description": "Mapping format for Mural Stratigraphic Units",
-    "version": "1.0",
+    "version": "1.5",
     "table_settings": {
         "format_type": "xlsx",
-        "sheet_name": "USM",
-        "id_mapping": {
-            "column": "Nome_USM",
-            "target_node_type": "US"
-        }
+        "sheet_name": "USM"
     },
-    "property_mappings": {
+    "column_mappings": {
+        "Nome_USM": {
+            "node_type": "StratigraphicUnit",
+            "is_id": true
+        },
         "Lunghezza": {
-            "property_name": "length",
-            "property_type": "Length",
-            "edge_type": "has_property",
-            "relations": [
-                {
-                    "target_column": "Altezza",
-                    "edge_type": "has_same_time"
-                }
-            ]
+            "node_type": "PropertyNode",
+            "property_name": "Length",
+            "display_name": "Length",
+            "description": "Length of the wall unit"
         },
         "Altezza": {
-            "property_name": "height",
-            "property_type": "Height",
-            "edge_type": "has_property"
+            "node_type": "PropertyNode",
+            "property_name": "Height",
+            "display_name": "Height",
+            "description": "Height of the wall unit"
         },
         "Tecnica_Costruttiva": {
-            "property_name": "building_technique",
-            "property_type": "Morphology",
-            "edge_type": "has_property",
-            "relations": [
-                {
-                    "target_column": "Materiale",
-                    "edge_type": "combines"
-                }
-            ]
+            "node_type": "PropertyNode",
+            "property_name": "BuildingTechnique",
+            "display_name": "Building Technique",
+            "description": "Construction technique of the wall"
         },
         "Materiale": {
-            "property_name": "material",
-            "property_type": "Material",
-            "edge_type": "has_property"
+            "node_type": "PropertyNode",
+            "property_name": "Material",
+            "display_name": "Material",
+            "description": "Main material used in construction"
         }
-    }
+    },
+    "relations": [
+        {
+            "source_column": "Nome_USM",
+            "target_column": "Lunghezza",
+            "edge_type": "has_property"
+        },
+        {
+            "source_column": "Nome_USM",
+            "target_column": "Altezza",
+            "edge_type": "has_property"
+        },
+        {
+            "source_column": "Nome_USM",
+            "target_column": "Tecnica_Costruttiva",
+            "edge_type": "has_property"
+        },
+        {
+            "source_column": "Nome_USM",
+            "target_column": "Materiale",
+            "edge_type": "has_property"
+        },
+        {
+            "source_column": "Tecnica_Costruttiva",
+            "target_column": "Materiale",
+            "edge_type": "combines"
+        }
+    ]
 }

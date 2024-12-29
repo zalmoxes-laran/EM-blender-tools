@@ -1,0 +1,33 @@
+{
+    "name": "pyArchInit US Table",
+    "description": "Mapping for pyArchInit Stratigraphic Units table (us_table)",
+    "version": "1.0",
+    "table_settings": {
+        "format_type": "sqlite",
+        "table_name": "us_table"
+    },
+    "column_mappings": {
+        "us": {
+            "node_type": "StratigraphicUnit",
+            "is_id": true
+        },
+        "d_stratigrafica": {
+            "node_type": "StratigraphicUnit", 
+            "is_description": true,
+            "target_id_column": "us"
+        },
+        "formazione": {
+            "node_type": "PropertyNode",
+            "property_name": "Morphology",
+            "display_name": "Formation",
+            "description": "Formation process of the stratigraphic unit"
+        }
+    },
+    "relations": [
+        {
+            "source_column": "us",
+            "target_column": "formazione",
+            "edge_type": "has_property"
+        }
+    ]
+}

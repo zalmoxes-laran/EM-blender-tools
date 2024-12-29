@@ -3,6 +3,7 @@ from bpy.props import BoolProperty, StringProperty, IntProperty # type: ignore
 from ..populate_lists import populate_blender_lists_from_graph, clear_lists
 from .importer_xlsx import GenericXLSXImporter
 from ..s3Dgraphy import get_graph
+from ..s3Dgraphy.importer.pyarchinit_importer import PyArchInitImporter
 
 class EM_OT_import_3dgis_database(bpy.types.Operator):
     """Import operator for both 3D GIS mode and advanced EM mode"""
@@ -47,15 +48,34 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             }
         else:
             # 3D GIS mode
-            return {
-                'import_type': em_tools.mode_3dgis_import_type,
-                'filepath': em_tools.generic_xlsx_file,
-                'mapping': em_tools.emdb_mapping if em_tools.mode_3dgis_import_type == "emdb_xlsx" else None,
-                'sheet_name': em_tools.xlsx_sheet_name,
-                'id_column': em_tools.xlsx_id_column,
-                'parent_graphml': None,
-                'mode': '3DGIS'
-            }
+            import_type = em_tools.mode_3dgis_import_type
+            
+            if import_type == "pyarchinit":
+                return {
+                    'import_type': import_type,
+                    'filepath': em_tools.pyarchinit_db_path,
+                    'mapping': em_tools.pyarchinit_mapping,
+                    'table_name': em_tools.pyarchinit_table,
+                    'mode': '3DGIS'
+                }
+            elif import_type == "generic_xlsx":
+                return {
+                    'import_type': import_type,
+                    'filepath': em_tools.generic_xlsx_file,
+                    'sheet_name': em_tools.xlsx_sheet_name,
+                    'id_column': em_tools.xlsx_id_column,
+                    'mode': '3DGIS'
+                }
+            elif import_type == "emdb_xlsx":
+                return {
+                    'import_type': import_type,
+                    'filepath': em_tools.emdb_xlsx_file,
+                    'mapping': em_tools.emdb_mapping,
+                    'mode': '3DGIS'
+                }
+
+
+
 
     def execute(self, context):
         try:
@@ -79,9 +99,12 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
                 self.report({'ERROR'}, "EMdb XLSX import not yet implemented")
                 return {'CANCELLED'}
             elif settings['import_type'] == "pyarchinit":
-                # TODO: Add PyArchInit importer
-                self.report({'ERROR'}, "PyArchInit import not yet implemented")
-                return {'CANCELLED'}
+                # Aggiungi estensione .json al nome del mapping
+                mapping_name = f"{settings['mapping']}.json" if settings['mapping'] != 'none' else None
+                importer = PyArchInitImporter(
+                    filepath=settings['filepath'],
+                    mapping_name=mapping_name
+                )
             else:
                 self.report({'ERROR'}, f"Unknown import type: {settings['import_type']}")
                 return {'CANCELLED'}

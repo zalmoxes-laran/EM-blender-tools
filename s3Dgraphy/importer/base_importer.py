@@ -47,19 +47,20 @@ class BaseImporter(ABC):
             return None
             
         mapping_paths = [
-            os.path.join(os.path.dirname(__file__), 'JSONmappings', f'{mapping_name}.json'),
-            os.path.join(os.path.dirname(__file__), '..', 'emdbjson', f'{mapping_name}.json')
-        ]
+            os.path.join(os.path.dirname(__file__), 'JSONmappings', f'{mapping_name}'),
+            os.path.join(os.path.dirname(__file__), '..', 'emdbjson', f'{mapping_name}'),
+            os.path.join(os.path.dirname(__file__), '..', '..', 'pyarchinit_mappings', f'{mapping_name}')        ]
         
         for mapping_path in mapping_paths:
             try:
                 with open(mapping_path, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except FileNotFoundError:
+                print(f"Not found at: {mapping_path}")  # Debug
                 continue
                 
-        raise FileNotFoundError(f"Mapping file {mapping_name}.json not found in any of the expected locations")
-
+        raise FileNotFoundError(f"Mapping file {mapping_name} not found in any of the expected locations")
+    
     @abstractmethod
     def parse(self) -> Graph:
         """Parse the input file and create nodes/edges in the graph."""
