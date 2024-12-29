@@ -41,41 +41,113 @@ class BaseImporter(ABC):
         #self.graph = None
         self.warnings = []
 
+
     def _load_mapping(self, mapping_name: str) -> Dict[str, Any]:
         """Load the JSON mapping file from the appropriate directory."""
         if mapping_name is None:
             return None
             
+        print(f"\nDebug - Loading mapping:")
+        print(f"Mapping name: {mapping_name}")
+        
         mapping_paths = [
             os.path.join(os.path.dirname(__file__), 'JSONmappings', f'{mapping_name}'),
             os.path.join(os.path.dirname(__file__), '..', 'emdbjson', f'{mapping_name}'),
-            os.path.join(os.path.dirname(__file__), '..', '..', 'pyarchinit_mappings', f'{mapping_name}')        ]
+            os.path.join(os.path.dirname(__file__), '..', '..', 'pyarchinit_mappings', f'{mapping_name}')
+        ]
         
         for mapping_path in mapping_paths:
             try:
+                print(f"Trying to load: {mapping_path}")
                 with open(mapping_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    mapping = json.load(f)
+                    print("Mapping loaded successfully:")
+                    print(f"Keys in mapping: {list(mapping.keys())}")
+                    print(f"Column mappings: {list(mapping.get('column_mappings', {}).keys())}")
+                    return mapping
             except FileNotFoundError:
-                print(f"Not found at: {mapping_path}")  # Debug
+                print(f"Not found at: {mapping_path}")
+                continue
+            except json.JSONDecodeError as e:
+                print(f"Error parsing JSON at {mapping_path}: {str(e)}")
+                continue
+            except Exception as e:
+                print(f"Unexpected error loading {mapping_path}: {str(e)}")
                 continue
                 
         raise FileNotFoundError(f"Mapping file {mapping_name} not found in any of the expected locations")
-    
+
     @abstractmethod
     def parse(self) -> Graph:
         """Parse the input file and create nodes/edges in the graph."""
         pass
 
-    def process_row(self, row_data: Dict[str, Any]) -> Node:
-        """Process a row using either mapping or automatic mode."""
-        try:
+    def _get_id_column(self):
+            """Get ID column from mapping or use provided id_column."""
+            print("\nDebug - Getting ID column:")
+            print(f"Mapping present: {self.mapping is not None}")
+            
             if self.mapping:
-                return self._process_row_with_mapping(row_data)
-            else:
-                return self._process_row_automatic(row_data)
-        except KeyError as e:
-            self.warnings.append(f"Missing required column: {str(e)}")
-            raise
+                print(f"Looking in column mappings: {list(self.mapping.get('column_mappings', {}).keys())}")
+                for col_name, col_config in self.mapping.get('column_mappings', {}).items():
+                    print(f"Checking column {col_name}: {col_config}")
+                    if col_config.get('is_id', False):
+                        print(f"Found ID column: {col_name}")
+                        return col_name
+                        
+            print(f"Using provided id_column: {self.id_column}")
+            return self.id_column
+
+    def process_row(self, row_data: Dict[str, Any]) -> Node:
+            """Process a row using either mapping or automatic mode."""
+            try:
+                id_column = self._get_id_column()
+                if id_column not in row_data:
+                    raise KeyError(f"ID column '{id_column}' not found in data. Available columns: {list(row_data.keys())}")
+                    
+                if self.mapping:
+                    for col_name, col_config in self.mapping.get('column_mappings', {}).items():
+                        if col_config.get('is_id', False):
+                            base_attrs = {
+                                'node_id': str(row_data[col_name]),
+                                'name': str(row_data[col_name]),
+                                'description': str(row_data.get(col_name, ''))
+                            }
+
+                            strat_type = col_config.get('node_type', 'US')
+                            node_class = get_stratigraphic_node_class(strat_type)
+                            
+                            existing_node = self.graph.find_node_by_id(base_attrs['node_id'])
+                            
+                            if existing_node:
+                                if self.overwrite:
+                                    existing_node.name = base_attrs['name']
+                                    existing_node.description = base_attrs['description']
+                                    self.warnings.append(f"Updated existing node: {base_attrs['node_id']}")
+                                strat_node = existing_node
+                            else:
+                                strat_node = node_class(
+                                    node_id=base_attrs['node_id'],
+                                    name=base_attrs['name'],
+                                    description=base_attrs['description']
+                                )
+                                self.graph.add_node(strat_node)
+
+                            if 'property_name' in col_config:
+                                self._create_or_update_property(
+                                    node_id=base_attrs['node_id'],
+                                    strat_node=strat_node,
+                                    prop_name=col_config['property_name'],
+                                    prop_value=row_data.get(col_name)
+                                )
+
+                            return strat_node
+                else:
+                    return self._process_row_automatic(row_data)
+                    
+            except KeyError as e:
+                self.warnings.append(f"Missing required column: {str(e)}")
+                raise
 
 
     def _process_row_with_mapping(self, row_data: Dict[str, Any]) -> Node:

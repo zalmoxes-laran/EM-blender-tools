@@ -31,7 +31,6 @@
     - __init__.py
     - importer_xlsx.py
     - import_EMdb.py
-    - importer_pyarchinit.py
     - importer_graphml.py
   - operators/
     - update_graph.py

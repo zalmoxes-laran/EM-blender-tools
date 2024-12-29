@@ -1,9 +1,13 @@
 # s3Dgraphy/importer/pyarchinit_importer.py
 
+from typing import Dict, Any
 from .base_importer import BaseImporter
 import sqlite3
 import os
-from ..graph import Graph  # Aggiungiamo questo import
+from ..graph import Graph  
+from ..nodes.base_node import Node
+from ..nodes.stratigraphic_node import StratigraphicNode
+from ..utils.utils import get_stratigraphic_node_class
 
 
 class PyArchInitImporter(BaseImporter):
@@ -27,11 +31,29 @@ class PyArchInitImporter(BaseImporter):
             mode="3DGIS"
         )
 
+        self.graph = Graph(graph_id="pyarchinit_graph")
+        self.validate_mapping()
+
+    def process_row(self, row_dict: Dict[str, Any]) -> Node:
+        """Process a row from pyArchInit database"""
+        # Add type conversion for numeric ID
+        id_column = self._get_id_column()
+        if isinstance(row_dict.get(id_column), (int, float)):
+            row_dict[id_column] = str(row_dict[id_column])
+        return super().process_row(row_dict)
+
     def parse(self) -> Graph:
         """Parse pyArchInit database using mapping configuration"""
         try:
+            print("\n=== Starting PyArchInit Import ===")
             conn = sqlite3.connect(self.filepath)
             cursor = conn.cursor()
+            
+            # Debug del mapping
+            print(f"\nMapping configuration:")
+            print(f"Filepath: {self.filepath}")
+            print(f"Table settings: {self.mapping.get('table_settings', {})}")
+            print(f"Column mappings: {self.mapping.get('column_mappings', {})}")
             
             # Get table name from mapping
             table_settings = self.mapping.get('table_settings', {})
@@ -44,9 +66,20 @@ class PyArchInitImporter(BaseImporter):
             column_maps = self.mapping.get('column_mappings', {})
             if not column_maps:
                 raise ValueError("No column mappings found")
+                
+            # Find ID column
+            id_column = None
+            for col, config in column_maps.items():
+                if config.get('is_id', False):
+                    id_column = col
+                    break
+                    
+            print(f"\nID column identified: {id_column}")
             
             columns = list(column_maps.keys())
+            print(f"Columns to query: {columns}")
             query = f'SELECT {",".join(columns)} FROM {table_name}'
+            print(f"Query: {query}")
             
             total_rows = 0
             successful_rows = 0
@@ -56,13 +89,16 @@ class PyArchInitImporter(BaseImporter):
                 try:
                     # Convert row to dict with column names
                     row_dict = dict(zip(columns, row))
+                    print(f"\nProcessing row {total_rows}:")
+                    print(f"Row data: {row_dict}")
                     
-                    # Process row using parent class method
+                    # Process row using this class's method
                     self.process_row(row_dict)
                     successful_rows += 1
                     
                 except Exception as e:
                     self.warnings.append(f"Error processing row {total_rows}: {str(e)}")
+                    print(f"Error processing row {total_rows}: {str(e)}")
 
             # Add import summary
             self.warnings.append(f"\nImport summary:")
