@@ -4,6 +4,7 @@ from ..populate_lists import populate_blender_lists_from_graph, clear_lists
 from .importer_xlsx import GenericXLSXImporter
 from ..s3Dgraphy import get_graph
 from ..s3Dgraphy.importer.pyarchinit_importer import PyArchInitImporter
+from ..s3Dgraphy.importer.mapped_xlsx_importer import MappedXLSXImporter
 
 class EM_OT_import_3dgis_database(bpy.types.Operator):
     """Import operator for both 3D GIS mode and advanced EM mode"""
@@ -94,10 +95,15 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
                     id_column=settings['id_column'],
                     mode=settings['mode']
                 )
+            
             elif settings['import_type'] == "emdb_xlsx":
-                # TODO: Add EMdb XLSX importer
-                self.report({'ERROR'}, "EMdb XLSX import not yet implemented")
-                return {'CANCELLED'}
+                mapping_name = settings['mapping'] if settings['mapping'] != 'none' else None
+                importer = MappedXLSXImporter(
+                    filepath=settings['filepath'], 
+                    mapping_name=mapping_name,
+                    overwrite=True
+                )
+
             elif settings['import_type'] == "pyarchinit":
                 # Aggiungi estensione .json al nome del mapping
                 mapping_name = f"{settings['mapping']}.json" if settings['mapping'] != 'none' else None

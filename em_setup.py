@@ -2,7 +2,6 @@ import bpy
 from .s3Dgraphy import get_graph, remove_graph
 from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode
 
-from . import sqlite_io
 from .__init__ import get_bl_info
 
 from .import_operators.importer_graphml import EM_import_GraphML
@@ -21,6 +20,7 @@ from bpy.props import (BoolProperty, # type: ignore
 from bpy.types import Operator # type: ignore
 
 from .import_operators.import_EMdb import *
+
 
 
 
@@ -131,6 +131,42 @@ def get_emdb_mappings():
         
     return mappings if mappings else [("none", "No mappings found", "")]
 
+def get_emdb_mappings():
+    """Funzione per ottenere i mapping EMdb disponibili"""
+    mappings = []
+    mapping_dir = os.path.join(os.path.dirname(__file__), "emdbjson")
+    
+    # Verifica se la directory esiste
+    if not os.path.exists(mapping_dir):
+        os.makedirs(mapping_dir)
+        return [("none", "No mappings found", "")]
+    
+    try:
+        for file in os.listdir(mapping_dir):
+            if file.endswith('.json'):
+                file_path = os.path.join(mapping_dir, file)
+                try:
+                    with open(file_path, 'r') as f:
+                        content = f.read()
+                        if not content.strip():  # Se il file è vuoto
+                            print(f"Warning: Empty mapping file: {file}")
+                            continue
+                            
+                        try:
+                            data = json.loads(content)
+                            name = data.get("name", os.path.splitext(file)[0])
+                            mappings.append((file, name, data.get("description", "")))
+                        except json.JSONDecodeError as e:
+                            print(f"Error decoding JSON from {file}: {str(e)}")
+                            continue
+                except IOError as e:
+                    print(f"Error reading file {file}: {str(e)}")
+                    continue
+                    
+    except Exception as e:
+        print(f"Error scanning mapping directory: {str(e)}")
+        
+    return mappings if mappings else [("none", "No mappings found", "")]
 
 def get_pyarchinit_mappings(self, context):
     """Get available pyArchInit mapping files"""
@@ -233,6 +269,7 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         items=get_pyarchinit_mappings,
         description="Select pyArchInit table mapping"
     ) # type: ignore
+
 
 
 class EMTOOLS_UL_files(bpy.types.UIList):

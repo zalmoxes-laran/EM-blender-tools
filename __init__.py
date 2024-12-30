@@ -22,7 +22,7 @@ bl_info = {
     "author": "E. Demetrescu",
     "version": (1, 5, 0),
     "blender": (4, 2, 3),
-    "devel_version": "v1.5.0 dev9",  # Aggiunto campo devel_version
+    "devel_version": "v1.5.0 dev10",  # Aggiunto campo devel_version
     "location": "3D View > Toolbox",
     "warning": "This addon is in dev7 stage.",
     "wiki_url": "",
@@ -62,7 +62,6 @@ from . import (
         visual_tools,
         visual_manager,
         em_setup,
-        sqlite_io,
         EMdb_excel,
         external_modules_install,
         em_statistics,
@@ -558,7 +557,6 @@ def update_selected_epoch_us_list(self, context):
 classes = (
     UI.VIEW3D_PT_ToolsPanel,
     UI.VIEW3D_PT_BasePanel,
-    UI.VIEW3D_PT_EMdbPanel,
     UI.EM_UL_named_epoch_managers,
     UI.VIEW3D_PT_ParadataPanel,
     UI.EM_UL_properties_managers,
@@ -596,7 +594,7 @@ def register():
               bpy.utils.register_class(cls)
 
        em_setup.register()
-       sqlite_io.register()
+
        visual_manager.register()
 
        external_modules_install.register()
@@ -780,7 +778,6 @@ def register():
 def unregister():
        del bpy.types.Scene.em_graph 
        addon_updater_ops.unregister(bl_info)
-       sqlite_io.unregister()
        visual_manager.unregister()
        em_setup.unregister()
        EMdb_excel.unregister()
