@@ -75,9 +75,6 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
                     'mode': '3DGIS'
                 }
 
-
-
-
     def execute(self, context):
         try:
             settings = self.get_import_settings(context)

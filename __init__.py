@@ -590,12 +590,12 @@ def register():
 
        bpy.types.Scene.em_graph = None
 
-       for cls in classes:
-              bpy.utils.register_class(cls)
-
        em_setup.register()
 
        visual_manager.register()
+
+       for cls in classes:
+              bpy.utils.register_class(cls)
 
        external_modules_install.register()
 

@@ -6,7 +6,6 @@
   - activity_manager.py
   - graph_updaters.py
   - server.py
-  - sqlite_io.py
   - visual_tools.py
   - EMdb_excel.py
   - addon_updater_ops.py
@@ -48,6 +47,7 @@
       - pyarchinit_importer.py
       - xlsx_importer.py
       - __init__.py
+      - mapped_xlsx_importer.py
     - nodes/
       - stratigraphic_node.py
       - extractor_node.py
@@ -94,5 +94,6 @@
     - EM-blender-tools_updater_status.json
   - emdbjson/
     - usm_mapping.json
+    - special_find_mapping.json
     - specialfind_mapping.json
   - mappings/

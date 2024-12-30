@@ -8,7 +8,6 @@ import os
 
 from ..s3Dgraphy.multigraph.multigraph import multi_graph_manager  
 
-
 class GenericXLSXImporter(BaseImporter):
     """
     A generic XLSX importer for EM-tools that can import Excel files with flexible structures.

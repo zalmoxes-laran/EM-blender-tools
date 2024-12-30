@@ -5,9 +5,8 @@
 # This script will automatically create a material named '_generated.Label' and assign it to all generated labels.
 # The generated material can be modified to affect the appearance of the labels.
 
-import bpy
-from bpy_extras.object_utils import world_to_camera_view
-
+import bpy # type: ignore
+from bpy_extras.object_utils import world_to_camera_view # type: ignore
 
 class EM_label_creation(bpy.types.Operator):
 
