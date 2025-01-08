@@ -53,7 +53,7 @@ class EM_ToolsPanel:
             split = layout.split()
             if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
                 col = split.column()
-                op = col.operator("select.fromlistitem", text='', icon="MESH_CUBE")
+                op = col.operator("select.fromlistitem", text='List to Proxy3D', icon="MESH_CUBE")
                 op.list_type = "em_list"
             else:
                 col = split.column()
@@ -61,27 +61,14 @@ class EM_ToolsPanel:
             if obj:
                 if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
                     col = split.column(align=True)
-                    op = col.operator("select.listitem", text='', icon="LONGDISPLAY")
+                    op = col.operator("select.listitem", text='3DProxy to List', icon="LONGDISPLAY")
                     op.list_type = "em_list"
                 else:
                     col = split.column()
                     col.label(text="", icon='LONGDISPLAY')             
                     
-            '''
             col = split.column(align=True)
-            col.label(text="Sync:")
-
-            col = split.column(align=True)
-            col.prop(em_settings, "em_proxy_sync2", text='', icon="MESH_CUBE")
-
-            col = split.column(align=True)
-            col.prop(em_settings, "em_proxy_sync2_zoom", text='', icon="ZOOM_SELECTED")
-
-            col = split.column(align=True)
-            col.prop(em_settings, "em_proxy_sync", text='', icon="LONGDISPLAY")
-            '''
-            col = split.column(align=True)
-            col.prop(scene, "paradata_streaming_mode", text='', icon="SHORTDISPLAY")
+            col.prop(scene, "paradata_streaming_mode", text='Paradata', icon="SHORTDISPLAY")
 
             if scene.em_settings.em_proxy_sync is True:
                 if obj is not None:
