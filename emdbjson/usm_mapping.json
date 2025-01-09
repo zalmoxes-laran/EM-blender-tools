@@ -1,6 +1,6 @@
 {
     "name": "USM Format",
-    "description": "Mapping format for Mural Stratigraphic Units",
+    "description": "Mapping format for Masonry Stratigraphic Units",
     "version": "1.5",
     "table_settings": {
         "format_type": "xlsx",
