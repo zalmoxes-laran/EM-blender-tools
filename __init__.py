@@ -21,8 +21,8 @@ bl_info = {
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
     "version": (1, 5, 0),
-    "blender": (4, 2, 3),
-    "devel_version": "v1.5.0 dev10",  # Aggiunto campo devel_version
+    "blender": (4, 3, 2),
+    "devel_version": "v1.5.0 dev11",  # Aggiunto campo devel_version
     "location": "3D View > Toolbox",
     "warning": "This addon is in dev7 stage.",
     "wiki_url": "",
