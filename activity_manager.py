@@ -47,8 +47,8 @@ class ACTIVITY_UL_list(UIList):
     ):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             layout.label(text=item.name, icon='FILE_FOLDER')
-            layout.label(text=f"Epoch: {item.epoch_name}")
-            layout.label(text=f"{item.description}")
+            #layout.label(text=f"Epoch: {item.epoch_name}")
+            #layout.label(text=f"{item.description}")
             #layout.label(text=f"{item.y_pos}")
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'

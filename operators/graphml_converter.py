@@ -1,5 +1,5 @@
-import bpy
-from bpy_extras.io_utils import ImportHelper, ExportHelper
+import bpy # type: ignore
+from bpy_extras.io_utils import ImportHelper, ExportHelper # type: ignore
 import xml.etree.ElementTree as ET
 
 class GRAPHML_OT_convert_borders(bpy.types.Operator, ImportHelper):
@@ -13,7 +13,7 @@ class GRAPHML_OT_convert_borders(bpy.types.Operator, ImportHelper):
         default="*.graphml",
         options={'HIDDEN'},
         maxlen=255,
-    )
+    ) # type: ignore
 
     def modify_node_borders(self, xml_content):
         tree = ET.ElementTree(ET.fromstring(xml_content))
@@ -22,13 +22,14 @@ class GRAPHML_OT_convert_borders(bpy.types.Operator, ImportHelper):
         ns = {'y': 'http://www.yworks.com/xml/graphml'}
         
         # Define shapes to modify
-        target_shapes = {'rectangle', 'hexagon', 'ellipse', 'octagon'}
+        target_shapes = {'rectangle', 'hexagon', 'ellipse', 'octagon', 'parallelogram'}
         
         # Define color mapping based on shape type
         color_mapping = {
             'rectangle': '#9B3333',
             'hexagon': '#31792D', 
-            'ellipse': '#31792D'
+            'ellipse': '#31792D',
+            'parallelogram': '#248FE7',
         }
 
         # Find ShapeNode elements directly
