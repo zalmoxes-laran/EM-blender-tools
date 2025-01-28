@@ -21,7 +21,7 @@ from bpy.types import Operator # type: ignore
 
 from .import_operators.import_EMdb import *
 
-
+from .operators.graphml_converter import GRAPHML_OT_convert_borders
 
 
 class AuxiliaryFileProperties(bpy.types.PropertyGroup):
@@ -554,6 +554,7 @@ class EM_SetupPanel(bpy.types.Panel):
         #col = split.column()
         col.prop(scene, "em_sources_list", text='')
 
+        layout.operator(GRAPHML_OT_convert_borders.bl_idname, text="Convert legacy GraphML (1.x->1.5)", icon='FILE_REFRESH')
 
 def get_mapping_description(mapping_file, mapping_type="emdb"):
     """Recupera la descrizione del mapping dal file JSON."""

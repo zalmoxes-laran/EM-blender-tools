@@ -87,6 +87,8 @@ from .populate_lists import *
 
 from .s3Dgraphy.utils.utils import get_material_color
 
+from .operators import graphml_converter 
+
 # demo bare-bones preferences 
 @addon_updater_ops.make_annotations
 #@telegram_io.main()
@@ -623,6 +625,8 @@ def register():
 
        import_EMdb.register()
 
+       graphml_converter.register()
+
        check_external_modules() 
 
 
@@ -777,6 +781,7 @@ def register():
 
 def unregister():
        del bpy.types.Scene.em_graph 
+       graphml_converter.unregister()
        addon_updater_ops.unregister(bl_info)
        visual_manager.unregister()
        em_setup.unregister()
