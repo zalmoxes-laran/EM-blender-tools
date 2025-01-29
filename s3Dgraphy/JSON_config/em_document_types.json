@@ -1,0 +1,362 @@
+{
+    "metadata": {
+      "version": "1.0",
+      "last_updated": "2025-01-29",
+      "maintainers": ["Emanuel Demetrescu"],
+      "license": "CC-BY-4.0"
+    },
+    "document_types": {
+      "3d_model": {
+        "id": "3d_model",
+        "name": "3D Model",
+        "description": "Three-dimensional digital representation",
+        "formats": ["gltf", "obj", "ply", "fbx", "3ds"],
+        "possible_extractions": [
+          "dimensions",
+          "color",
+          "position",
+          "texture",
+          "geometry",
+          "volume"
+        ],
+        "metadata_requirements": {
+          "mandatory": [
+            "creation_date",
+            "creator",
+            "software_used",
+            "coordinate_system"
+          ],
+          "optional": [
+            "accuracy",
+            "resolution",
+            "processing_steps",
+            "original_file_format"
+          ]
+        }
+      },
+      "image": {
+        "id": "image",
+        "name": "Image",
+        "description": "2D visual representation",
+        "subtypes": {
+          "photograph": {
+            "id": "photograph",
+            "name": "Photograph",
+            "formats": ["jpg", "tiff", "raw"],
+            "possible_extractions": [
+              "color",
+              "texture",
+              "condition",
+              "surface_treatment"
+            ],
+            "metadata_requirements": {
+              "mandatory": [
+                "capture_date",
+                "photographer",
+                "camera_model"
+              ],
+              "optional": [
+                "exposure_settings",
+                "lighting_conditions",
+                "color_calibration"
+              ]
+            }
+          },
+          "technical_drawing": {
+            "id": "technical_drawing",
+            "name": "Technical Drawing",
+            "formats": ["dwg", "dxf", "pdf", "svg"],
+            "possible_extractions": [
+              "dimensions",
+              "position",
+              "construction_details"
+            ],
+            "metadata_requirements": {
+              "mandatory": [
+                "creation_date",
+                "author",
+                "scale",
+                "drawing_type"
+              ],
+              "optional": [
+                "revision_number",
+                "drawing_standard",
+                "referenced_documents"
+              ]
+            }
+          },
+          "historic_drawing": {
+            "id": "historic_drawing",
+            "name": "Historic Drawing",
+            "formats": ["jpg", "tiff", "pdf"],
+            "possible_extractions": [
+              "stylistic_elements",
+              "historical_context",
+              "architectural_details"
+            ],
+            "metadata_requirements": {
+              "mandatory": [
+                "creation_date",
+                "author",
+                "drawing_type",
+                "archive_reference"
+              ],
+              "optional": [
+                "conservation_state",
+                "original_medium",
+                "provenance"
+              ]
+            }
+          }
+        }
+      },
+      "spatial_survey": {
+        "id": "spatial_survey",
+        "name": "Spatial Survey",
+        "description": "Specialized spatial measurement documentation",
+        "subtypes": {
+          "total_station_survey": {
+            "id": "total_station_survey",
+            "name": "Total Station Survey",
+            "formats": ["txt", "csv", "dxf"],
+            "possible_extractions": [
+              "absolute_position",
+              "elevation",
+              "orientation"
+            ],
+            "metadata_requirements": {
+              "mandatory": [
+                "survey_date",
+                "surveyor",
+                "instrument_model",
+                "coordinate_system"
+              ],
+              "optional": [
+                "weather_conditions",
+                "accuracy_estimation",
+                "post_processing_steps"
+              ]
+            }
+          },
+          "gps_survey": {
+            "id": "gps_survey",
+            "name": "GPS Survey",
+            "formats": ["gpx", "csv", "kml"],
+            "possible_extractions": [
+              "absolute_position",
+              "elevation"
+            ],
+            "metadata_requirements": {
+              "mandatory": [
+                "survey_date",
+                "device_model",
+                "coordinate_system"
+              ],
+              "optional": [
+                "number_of_satellites",
+                "hdop_value",
+                "accuracy_estimation"
+              ]
+            }
+          }
+        }
+      },
+      "cultural_documentation": {
+        "id": "cultural_documentation",
+        "name": "Cultural Documentation",
+        "description": "Documentation of cultural and interpretive aspects",
+        "subtypes": {
+          "iconographic_study": {
+            "id": "iconographic_study",
+            "name": "Iconographic Study",
+            "formats": ["pdf", "docx"],
+            "possible_extractions": [
+              "symbolic_meaning",
+              "cultural_significance",
+              "artistic_influences"
+            ],
+            "metadata_requirements": {
+              "mandatory": [
+                "study_author",
+                "study_date",
+                "methodology"
+              ],
+              "optional": [
+                "comparative_examples",
+                "cultural_context",
+                "interpretative_notes"
+              ]
+            }
+          },
+          "heritage_assessment": {
+            "id": "heritage_assessment",
+            "name": "Heritage Assessment Report",
+            "formats": ["pdf", "docx"],
+            "possible_extractions": [
+              "historical_value",
+              "artistic_value",
+              "cultural_significance"
+            ],
+            "metadata_requirements": {
+              "mandatory": [
+                "assessor",
+                "assessment_date",
+                "assessment_criteria"
+              ],
+              "optional": [
+                "comparative_analysis",
+                "stakeholder_input",
+                "recommendations"
+              ]
+            }
+          }
+        }
+      },
+      "administrative_documentation": {
+        "id": "administrative_documentation",
+        "name": "Administrative Documentation",
+        "description": "Administrative and management records",
+        "subtypes": {
+          "inventory_record": {
+            "id": "inventory_record",
+            "name": "Inventory Record",
+            "formats": ["pdf", "xlsx", "db"],
+            "possible_extractions": [
+              "inventory_number",
+              "legal_status",
+              "administrative_history"
+            ],
+            "metadata_requirements": {
+              "mandatory": [
+                "record_date",
+                "record_author",
+                "institution"
+              ],
+              "optional": [
+                "previous_numbers",
+                "location_history",
+                "administrative_notes"
+              ]
+            }
+          },
+          "conservation_record": {
+            "id": "conservation_record",
+            "name": "Conservation Record",
+            "formats": ["pdf", "docx", "xlsx"],
+            "possible_extractions": [
+              "conservation_status",
+              "intervention_history",
+              "condition_assessment"
+            ],
+            "metadata_requirements": {
+              "mandatory": [
+                "record_date",
+                "conservator",
+                "condition_status"
+              ],
+              "optional": [
+                "environmental_data",
+                "analysis_results",
+                "monitoring_records"
+              ]
+            }
+          },
+          "management_plan": {
+            "id": "management_plan",
+            "name": "Management Plan",
+            "formats": ["pdf", "docx"],
+            "possible_extractions": [
+              "management_guidelines",
+              "conservation_priorities",
+              "access_protocols"
+            ],
+            "metadata_requirements": {
+              "mandatory": [
+                "plan_date",
+                "author",
+                "approval_status",
+                "review_period"
+              ],
+              "optional": [
+                "stakeholder_input",
+                "risk_assessment",
+                "resource_allocation"
+              ]
+            }
+          }
+        }
+      },
+      "textual_source": {
+        "id": "textual_source",
+        "name": "Textual Source",
+        "description": "Written documentation",
+        "subtypes": {
+          "archival_document": {
+            "id": "archival_document",
+            "formats": ["pdf", "txt", "docx"],
+            "possible_extractions": [
+              "historical_information",
+              "dating",
+              "modifications",
+              "original_context"
+            ],
+            "metadata_requirements": {
+              "mandatory": [
+                "archive_reference",
+                "document_date",
+                "document_type"
+              ],
+              "optional": [
+                "transcription_author",
+                "transcription_date",
+                "archival_notes"
+              ]
+            }
+          },
+          "bibliography": {
+            "id": "bibliography",
+            "formats": ["pdf", "txt", "docx"],
+            "possible_extractions": [
+              "research_history",
+              "interpretations",
+              "comparative_analysis"
+            ],
+            "metadata_requirements": {
+              "mandatory": [
+                "author",
+                "publication_date",
+                "reference_type"
+              ],
+              "optional": [
+                "publisher",
+                "page_numbers",
+                "doi"
+              ]
+            }
+          },
+          "field_notes": {
+            "id": "field_notes",
+            "formats": ["pdf", "txt", "docx"],
+            "possible_extractions": [
+              "contextual_observations",
+              "preliminary_interpretations",
+              "field_conditions"
+            ],
+            "metadata_requirements": {
+              "mandatory": [
+                "author",
+                "date",
+                "location",
+                "project_reference"
+              ],
+              "optional": [
+                "weather_conditions",
+                "associated_materials",
+                "field_sketches"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }

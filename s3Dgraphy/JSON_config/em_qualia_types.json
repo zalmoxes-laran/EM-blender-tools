@@ -1,0 +1,287 @@
+{
+    "metadata": {
+      "version": "1.0",
+      "last_updated": "2025-01-29",
+      "maintainers": ["Emanuel Demetrescu"],
+      "license": "CC-BY-4.0"
+    },
+    "qualia_categories": [
+      {
+        "id": "cultural_interpretive",
+        "name": "Cultural and Interpretive Qualia",
+        "description": "Cultural, symbolic, and perceptual properties",
+        "subcategories": {
+          "stylistic": {
+            "name": "Stylistic Qualia",
+            "description": "Artistic and architectural style characteristics",
+            "properties": [
+              {
+                "id": "artistic_style",
+                "name": "Artistic Style",
+                "description": "Recognized artistic or architectural style",
+                "mappings": {
+                  "getty_aat": "300015646",
+                  "cidoc_crm": "E55_Type"
+                },
+                "data_type": "controlled_vocabulary",
+                "vocabulary_source": "getty_aat",
+                "vocabulary_category": "Styles and Periods",
+                "expected_extractors": [
+                  "style_analysis",
+                  "comparative_analysis"
+                ]
+              },
+              {
+                "id": "stylistic_influences",
+                "name": "Stylistic Influences",
+                "description": "Cultural or artistic influences",
+                "mappings": {
+                  "getty_aat": "300015646",
+                  "cidoc_crm": "E55_Type"
+                },
+                "data_type": "controlled_vocabulary",
+                "vocabulary_source": "getty_aat",
+                "vocabulary_category": "Styles and Periods",
+                "expected_extractors": [
+                  "historical_analysis",
+                  "stylistic_analysis"
+                ]
+              }
+            ]
+          },
+          "semantic": {
+            "name": "Semantic Qualia",
+            "description": "Meaning and symbolic significance",
+            "properties": [
+              {
+                "id": "symbolic_meaning",
+                "name": "Symbolic Meaning",
+                "description": "Symbolic or iconographic significance",
+                "mappings": {
+                  "getty_aat": "300055799",
+                  "cidoc_crm": "E28_Conceptual_Object"
+                },
+                "data_type": "controlled_vocabulary",
+                "vocabulary_source": "getty_aat",
+                "vocabulary_category": "Associated Concepts",
+                "expected_extractors": [
+                  "iconographic_analysis",
+                  "cultural_interpretation",
+                  "historical_analysis"
+                ]
+              },
+              {
+                "id": "cultural_significance",
+                "name": "Cultural Significance",
+                "description": "Cultural meaning and importance",
+                "mappings": {
+                  "getty_aat": "300379612",
+                  "cidoc_crm": "E28_Conceptual_Object"
+                },
+                "data_type": "controlled_vocabulary",
+                "vocabulary_source": "getty_aat",
+                "vocabulary_category": "Cultural Role",
+                "expected_extractors": [
+                  "cultural_analysis",
+                  "anthropological_research"
+                ]
+              }
+            ]
+          },
+          "valorization": {
+            "name": "Value-based Qualia",
+            "description": "Historical, artistic, and documentary value",
+            "properties": [
+              {
+                "id": "historical_value",
+                "name": "Historical Value",
+                "description": "Value as historical evidence or testimony",
+                "mappings": {
+                  "getty_aat": "300438559",
+                  "cidoc_crm": "E1_CRM_Entity"
+                },
+                "data_type": "controlled_vocabulary",
+                "vocabulary_source": "getty_aat",
+                "vocabulary_category": "Value Assessments",
+                "expected_extractors": [
+                  "historical_assessment",
+                  "heritage_evaluation"
+                ]
+              },
+              {
+                "id": "artistic_value",
+                "name": "Artistic Value",
+                "description": "Aesthetic and artistic significance",
+                "mappings": {
+                  "getty_aat": "300132352",
+                  "cidoc_crm": "E1_CRM_Entity"
+                },
+                "data_type": "controlled_vocabulary",
+                "vocabulary_source": "getty_aat",
+                "vocabulary_category": "Value Assessments",
+                "expected_extractors": [
+                  "artistic_assessment",
+                  "expert_evaluation"
+                ]
+              }
+            ]
+          },
+          "perceptual": {
+            "name": "Perceptual Qualia",
+            "description": "Aesthetic impact and perceptual characteristics",
+            "properties": [
+              {
+                "id": "monumentality",
+                "name": "Monumentality",
+                "description": "Perceived monumental quality",
+                "mappings": {
+                  "getty_aat": "300379969",
+                  "cidoc_crm": "E54_Dimension"
+                },
+                "data_type": "controlled_vocabulary",
+                "vocabulary_source": "getty_aat",
+                "vocabulary_category": "Visual Characteristics",
+                "expected_extractors": [
+                  "visual_impact_assessment",
+                  "spatial_analysis"
+                ]
+              },
+              {
+                "id": "aesthetic_impact",
+                "name": "Aesthetic Impact",
+                "description": "Overall aesthetic effect and experience",
+                "mappings": {
+                  "getty_aat": "300055874",
+                  "cidoc_crm": "E54_Dimension"
+                },
+                "data_type": "controlled_vocabulary",
+                "vocabulary_source": "getty_aat",
+                "vocabulary_category": "Visual Characteristics",
+                "expected_extractors": [
+                  "aesthetic_assessment",
+                  "perception_studies"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "contextual",
+        "name": "Contextual Qualia",
+        "description": "Administrative, documentary and management properties",
+        "subcategories": {
+          "administrative": {
+            "name": "Administrative Qualia",
+            "description": "Administrative and institutional properties",
+            "properties": [
+              {
+                "id": "inventory_number",
+                "name": "Inventory Number",
+                "description": "Official inventory or catalog number",
+                "mappings": {
+                  "getty_aat": "300312355",
+                  "cidoc_crm": "P48_has_preferred_identifier"
+                },
+                "data_type": "string",
+                "expected_extractors": [
+                  "archival_research",
+                  "museum_documentation"
+                ]
+              },
+              {
+                "id": "legal_status",
+                "name": "Legal Status",
+                "description": "Legal protection and ownership status",
+                "mappings": {
+                  "getty_aat": "300435427",
+                  "cidoc_crm": "P104_is_subject_to"
+                },
+                "data_type": "controlled_vocabulary",
+                "vocabulary_source": "getty_aat",
+                "vocabulary_category": "Legal Concepts",
+                "expected_extractors": [
+                  "legal_documentation",
+                  "administrative_research"
+                ]
+              }
+            ]
+          },
+          "documentary": {
+            "name": "Documentary Qualia",
+            "description": "Documentation and reference properties",
+            "properties": [
+              {
+                "id": "bibliographic_references",
+                "name": "Bibliographic References",
+                "description": "Published references to the object",
+                "mappings": {
+                  "getty_aat": "300311705",
+                  "cidoc_crm": "P67_refers_to"
+                },
+                "data_type": "controlled_vocabulary",
+                "vocabulary_source": "custom",
+                "expected_extractors": [
+                  "bibliographic_research",
+                  "literature_review"
+                ]
+              },
+              {
+                "id": "archival_references",
+                "name": "Archival References",
+                "description": "References to archival documents",
+                "mappings": {
+                  "getty_aat": "300375748",
+                  "cidoc_crm": "P67_refers_to"
+                },
+                "data_type": "controlled_vocabulary",
+                "vocabulary_source": "custom",
+                "expected_extractors": [
+                  "archival_research",
+                  "historical_documentation"
+                ]
+              }
+            ]
+          },
+          "management": {
+            "name": "Management Qualia",
+            "description": "Conservation and management properties",
+            "properties": [
+              {
+                "id": "conservation_status",
+                "name": "Conservation Status",
+                "description": "Current conservation state and needs",
+                "mappings": {
+                  "getty_aat": "300435429",
+                  "cidoc_crm": "P44_has_condition"
+                },
+                "data_type": "controlled_vocabulary",
+                "vocabulary_source": "getty_aat",
+                "vocabulary_category": "Conservation Status",
+                "expected_extractors": [
+                  "conservation_assessment",
+                  "condition_survey"
+                ]
+              },
+              {
+                "id": "access_conditions",
+                "name": "Access Conditions",
+                "description": "Conditions for access and use",
+                "mappings": {
+                  "getty_aat": "300435430",
+                  "cidoc_crm": "P104_is_subject_to"
+                },
+                "data_type": "controlled_vocabulary",
+                "vocabulary_source": "getty_aat",
+                "vocabulary_category": "Access Conditions",
+                "expected_extractors": [
+                  "access_assessment",
+                  "management_review"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }

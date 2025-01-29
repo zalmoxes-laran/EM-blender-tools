@@ -1,0 +1,210 @@
+{
+    "metadata": {
+      "version": "1.0",
+      "last_updated": "2025-01-29",
+      "maintainers": ["Emanuel Demetrescu"],
+      "license": "CC-BY-4.0"
+    },
+    "extractor_types": {
+      "measurement": {
+        "id": "measurement",
+        "name": "Measurement Methods",
+        "description": "Methods for obtaining dimensional data",
+        "subtypes": {
+          "direct_measurement": {
+            "id": "direct_measurement",
+            "name": "Direct Physical Measurement",
+            "accuracy": "medium",
+            "tools": ["tape_measure", "caliper", "laser_distance_meter"],
+            "reliability_factors": [
+              "operator_experience",
+              "tool_calibration",
+              "access_conditions"
+            ],
+            "documentation_requirements": [
+              "measurement_points",
+              "tool_used",
+              "date_time",
+              "operator"
+            ]
+          },
+          "3d_model_measurement": {
+            "id": "3d_model_measurement",
+            "name": "3D Model-based Measurement",
+            "accuracy": "high",
+            "tools": ["3d_software"],
+            "reliability_factors": [
+              "model_resolution",
+              "registration_quality",
+              "georeferencing_accuracy"
+            ],
+            "documentation_requirements": [
+              "software_used",
+              "measurement_method",
+              "model_metadata"
+            ]
+          }
+        }
+      },
+      "spatial_analysis": {
+        "id": "spatial_analysis",
+        "name": "Spatial Analysis Methods",
+        "description": "Methods for analyzing spatial characteristics",
+        "subtypes": {
+          "gps_survey": {
+            "id": "gps_survey",
+            "name": "GPS Survey",
+            "accuracy": "medium",
+            "tools": ["gps_receiver", "gnss_device"],
+            "reliability_factors": [
+              "satellite_coverage",
+              "atmospheric_conditions",
+              "multipath_effects"
+            ],
+            "documentation_requirements": [
+              "device_specifications",
+              "survey_conditions",
+              "post_processing_method"
+            ]
+          },
+          "total_station_survey": {
+            "id": "total_station_survey",
+            "name": "Total Station Survey",
+            "accuracy": "high",
+            "tools": ["total_station", "prism"],
+            "reliability_factors": [
+              "instrument_calibration",
+              "atmospheric_correction",
+              "operator_expertise"
+            ],
+            "documentation_requirements": [
+              "instrument_model",
+              "setup_parameters",
+              "reference_points"
+            ]
+          }
+        }
+      },
+      "cultural_analysis": {
+        "id": "cultural_analysis",
+        "name": "Cultural Analysis Methods",
+        "description": "Methods for analyzing cultural and symbolic aspects",
+        "subtypes": {
+          "iconographic_analysis": {
+            "id": "iconographic_analysis",
+            "name": "Iconographic Analysis",
+            "accuracy": "medium_high",
+            "tools": [
+              "comparative_catalogs",
+              "iconographic_databases",
+              "visual_documentation"
+            ],
+            "reliability_factors": [
+              "expert_knowledge",
+              "comparative_examples",
+              "cultural_context_understanding"
+            ],
+            "documentation_requirements": [
+              "analysis_methodology",
+              "reference_examples",
+              "interpretation_criteria"
+            ]
+          },
+          "historical_interpretation": {
+            "id": "historical_interpretation",
+            "name": "Historical Interpretation",
+            "accuracy": "medium",
+            "tools": [
+              "historical_sources",
+              "archival_documents",
+              "period_documentation"
+            ],
+            "reliability_factors": [
+              "source_reliability",
+              "contextual_evidence",
+              "historiographical_consensus"
+            ],
+            "documentation_requirements": [
+              "source_citations",
+              "interpretive_framework",
+              "comparative_analysis"
+            ]
+          }
+        }
+      },
+      "value_assessment": {
+        "id": "value_assessment",
+        "name": "Value Assessment Methods",
+        "description": "Methods for assessing cultural and historical value",
+        "subtypes": {
+          "heritage_value_assessment": {
+            "id": "heritage_value_assessment",
+            "name": "Heritage Value Assessment",
+            "accuracy": "medium",
+            "tools": [
+              "assessment_frameworks",
+              "comparative_criteria",
+              "expert_consultation"
+            ],
+            "reliability_factors": [
+              "assessment_methodology",
+              "expert_consensus",
+              "evidence_quality"
+            ],
+            "documentation_requirements": [
+              "assessment_criteria",
+              "value_statements",
+              "supporting_evidence"
+            ]
+          }
+        }
+      },
+      "administrative_analysis": {
+        "id": "administrative_analysis",
+        "name": "Administrative Analysis Methods",
+        "description": "Methods for analyzing administrative aspects",
+        "subtypes": {
+          "inventory_research": {
+            "id": "inventory_research",
+            "name": "Inventory Research",
+            "accuracy": "high",
+            "tools": [
+              "inventory_databases",
+              "archival_records",
+              "institutional_documentation"
+            ],
+            "reliability_factors": [
+              "documentation_completeness",
+              "record_consistency",
+              "institutional_authority"
+            ],
+            "documentation_requirements": [
+              "inventory_references",
+              "documentation_trail",
+              "verification_method"
+            ]
+          },
+          "conservation_assessment": {
+            "id": "conservation_assessment",
+            "name": "Conservation Assessment",
+            "accuracy": "high",
+            "tools": [
+              "condition_surveys",
+              "diagnostic_equipment",
+              "monitoring_tools"
+            ],
+            "reliability_factors": [
+              "assessment_methodology",
+              "expert_qualification",
+              "documentation_quality"
+            ],
+            "documentation_requirements": [
+              "condition_report",
+              "intervention_history",
+              "monitoring_data"
+            ]
+          }
+        }
+      }
+    }
+  }
