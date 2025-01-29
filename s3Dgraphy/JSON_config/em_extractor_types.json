@@ -1,210 +1,330 @@
 {
-    "metadata": {
-      "version": "1.0",
-      "last_updated": "2025-01-29",
-      "maintainers": ["Emanuel Demetrescu"],
-      "license": "CC-BY-4.0"
+  "metadata": {
+    "version": "2.0",
+    "last_updated": "2025-01-29",
+    "maintainers": ["Emanuel Demetrescu"],
+    "license": "CC-BY-4.0",
+    "description": "Extractors for deriving qualia from source documents"
+  },
+  "vocabulary_versions": {
+    "getty_aat": "2024-01",
+    "cidoc_crm": "7.1.1",
+    "cen_16096": "2012",
+    "dublin_core": "2020-01-20",
+    "icomos": "2024",
+    "unesco": "2024"
+  },
+  "accuracy_levels": {
+    "very_high": 0.95,
+    "high": 0.85,
+    "medium_high": 0.75,
+    "medium": 0.65,
+    "low": 0.50
+  },
+  "extractor_types": {
+    "physical_measurement": {
+      "id": "physical_measurement",
+      "name": "Physical Measurement Extractors",
+      "description": "Methods for extracting dimensional data from various documents",
+      "vocabulary_mappings": {
+        "getty_aat": "300053578",
+        "cidoc_crm": {
+          "activity": "E16_Measurement",
+          "result": "E54_Dimension"
+        }
+      },
+      "subtypes": {
+        "3d_model_analysis": {
+          "id": "3d_model_analysis",
+          "name": "3D Model Analysis",
+          "source_documents": ["3d_scan", "photogrammetric_model", "cad_model"],
+          "target_qualia": ["height", "width", "depth", "diameter", "volume"],
+          "accuracy": "high",
+          "tools": ["3d_software", "measurement_tools"],
+          "reliability_factors": [
+            "model_resolution",
+            "registration_quality",
+            "point_cloud_density"
+          ],
+          "validation_requirements": {
+            "peer_review": true,
+            "cross_verification": true,
+            "minimum_samples": 5
+          }
+        },
+        "technical_drawing_analysis": {
+          "id": "technical_drawing_analysis",
+          "name": "Technical Drawing Analysis",
+          "source_documents": ["architectural_drawings", "survey_drawings", "construction_plans"],
+          "target_qualia": ["height", "width", "depth", "diameter"],
+          "accuracy": "medium_high",
+          "tools": ["cad_software", "digital_measurement_tools"],
+          "reliability_factors": [
+            "drawing_accuracy",
+            "scale_reliability",
+            "detail_level"
+          ],
+          "validation_requirements": {
+            "peer_review": true,
+            "cross_verification": true,
+            "minimum_samples": 3
+          }
+        }
+      }
     },
-    "extractor_types": {
-      "measurement": {
-        "id": "measurement",
-        "name": "Measurement Methods",
-        "description": "Methods for obtaining dimensional data",
-        "subtypes": {
-          "direct_measurement": {
-            "id": "direct_measurement",
-            "name": "Direct Physical Measurement",
-            "accuracy": "medium",
-            "tools": ["tape_measure", "caliper", "laser_distance_meter"],
-            "reliability_factors": [
-              "operator_experience",
-              "tool_calibration",
-              "access_conditions"
-            ],
-            "documentation_requirements": [
-              "measurement_points",
-              "tool_used",
-              "date_time",
-              "operator"
-            ]
-          },
-          "3d_model_measurement": {
-            "id": "3d_model_measurement",
-            "name": "3D Model-based Measurement",
-            "accuracy": "high",
-            "tools": ["3d_software"],
-            "reliability_factors": [
-              "model_resolution",
-              "registration_quality",
-              "georeferencing_accuracy"
-            ],
-            "documentation_requirements": [
-              "software_used",
-              "measurement_method",
-              "model_metadata"
-            ]
-          }
+    "material_analysis": {
+      "id": "material_analysis",
+      "name": "Material Analysis Extractors",
+      "description": "Methods for extracting material properties from documentation",
+      "vocabulary_mappings": {
+        "getty_aat": "300053816",
+        "cidoc_crm": {
+          "activity": "E7_Activity",
+          "procedure": "E29_Design_or_Procedure"
         }
       },
-      "spatial_analysis": {
-        "id": "spatial_analysis",
-        "name": "Spatial Analysis Methods",
-        "description": "Methods for analyzing spatial characteristics",
-        "subtypes": {
-          "gps_survey": {
-            "id": "gps_survey",
-            "name": "GPS Survey",
-            "accuracy": "medium",
-            "tools": ["gps_receiver", "gnss_device"],
-            "reliability_factors": [
-              "satellite_coverage",
-              "atmospheric_conditions",
-              "multipath_effects"
-            ],
-            "documentation_requirements": [
-              "device_specifications",
-              "survey_conditions",
-              "post_processing_method"
-            ]
-          },
-          "total_station_survey": {
-            "id": "total_station_survey",
-            "name": "Total Station Survey",
-            "accuracy": "high",
-            "tools": ["total_station", "prism"],
-            "reliability_factors": [
-              "instrument_calibration",
-              "atmospheric_correction",
-              "operator_expertise"
-            ],
-            "documentation_requirements": [
-              "instrument_model",
-              "setup_parameters",
-              "reference_points"
-            ]
+      "subtypes": {
+        "photographic_analysis": {
+          "id": "photographic_analysis",
+          "name": "Photographic Analysis",
+          "source_documents": ["photographs", "microscope_images", "spectral_images"],
+          "target_qualia": ["material_type", "surface_treatment", "conservation_state"],
+          "accuracy": "medium",
+          "tools": ["image_analysis_software", "comparative_databases"],
+          "reliability_factors": [
+            "image_quality",
+            "lighting_conditions",
+            "camera_calibration"
+          ],
+          "validation_requirements": {
+            "peer_review": true,
+            "cross_verification": true,
+            "minimum_samples": 3
+          }
+        },
+        "lab_report_analysis": {
+          "id": "lab_report_analysis",
+          "name": "Laboratory Report Analysis",
+          "source_documents": ["material_analysis_reports", "scientific_studies", "test_results"],
+          "target_qualia": ["material_composition", "physical_properties", "chemical_properties"],
+          "accuracy": "very_high",
+          "tools": ["scientific_databases", "analysis_protocols"],
+          "reliability_factors": [
+            "lab_credibility",
+            "methodology_soundness",
+            "sample_representativeness"
+          ],
+          "validation_requirements": {
+            "peer_review": true,
+            "cross_verification": true,
+            "minimum_samples": 1
           }
         }
-      },
-      "cultural_analysis": {
-        "id": "cultural_analysis",
-        "name": "Cultural Analysis Methods",
-        "description": "Methods for analyzing cultural and symbolic aspects",
-        "subtypes": {
-          "iconographic_analysis": {
-            "id": "iconographic_analysis",
-            "name": "Iconographic Analysis",
-            "accuracy": "medium_high",
-            "tools": [
-              "comparative_catalogs",
-              "iconographic_databases",
-              "visual_documentation"
-            ],
-            "reliability_factors": [
-              "expert_knowledge",
-              "comparative_examples",
-              "cultural_context_understanding"
-            ],
-            "documentation_requirements": [
-              "analysis_methodology",
-              "reference_examples",
-              "interpretation_criteria"
-            ]
-          },
-          "historical_interpretation": {
-            "id": "historical_interpretation",
-            "name": "Historical Interpretation",
-            "accuracy": "medium",
-            "tools": [
-              "historical_sources",
-              "archival_documents",
-              "period_documentation"
-            ],
-            "reliability_factors": [
-              "source_reliability",
-              "contextual_evidence",
-              "historiographical_consensus"
-            ],
-            "documentation_requirements": [
-              "source_citations",
-              "interpretive_framework",
-              "comparative_analysis"
-            ]
-          }
+      }
+    },
+    "temporal_analysis": {
+      "id": "temporal_analysis",
+      "name": "Temporal Analysis Extractors",
+      "description": "Methods for extracting chronological information",
+      "vocabulary_mappings": {
+        "getty_aat": "300054714",
+        "cidoc_crm": {
+          "activity": "E13_Attribute_Assignment",
+          "result": "E52_Time-Span"
         }
       },
-      "value_assessment": {
-        "id": "value_assessment",
-        "name": "Value Assessment Methods",
-        "description": "Methods for assessing cultural and historical value",
-        "subtypes": {
-          "heritage_value_assessment": {
-            "id": "heritage_value_assessment",
-            "name": "Heritage Value Assessment",
-            "accuracy": "medium",
-            "tools": [
-              "assessment_frameworks",
-              "comparative_criteria",
-              "expert_consultation"
-            ],
-            "reliability_factors": [
-              "assessment_methodology",
-              "expert_consensus",
-              "evidence_quality"
-            ],
-            "documentation_requirements": [
-              "assessment_criteria",
-              "value_statements",
-              "supporting_evidence"
-            ]
+      "subtypes": {
+        "archival_document_analysis": {
+          "id": "archival_document_analysis",
+          "name": "Archival Document Analysis",
+          "source_documents": ["historical_documents", "archival_records", "historical_maps"],
+          "target_qualia": ["construction_date", "modification_date", "historical_phase"],
+          "accuracy": "medium_high",
+          "tools": ["archival_databases", "document_analysis_software"],
+          "reliability_factors": [
+            "document_authenticity",
+            "source_reliability",
+            "contextual_consistency"
+          ],
+          "validation_requirements": {
+            "peer_review": true,
+            "cross_verification": true,
+            "minimum_samples": 2
+          }
+        },
+        "scientific_dating_analysis": {
+          "id": "scientific_dating_analysis",
+          "name": "Scientific Dating Analysis",
+          "source_documents": ["laboratory_reports", "dating_certificates", "analysis_results"],
+          "target_qualia": ["absolute_date", "date_range", "chronological_phase"],
+          "accuracy": "very_high",
+          "tools": ["dating_databases", "calibration_software"],
+          "reliability_factors": [
+            "method_reliability",
+            "sample_quality",
+            "contextual_association"
+          ],
+          "validation_requirements": {
+            "peer_review": true,
+            "cross_verification": true,
+            "minimum_samples": 1
           }
         }
+      }
+    },
+    "functional_analysis": {
+      "id": "functional_analysis",
+      "name": "Functional Analysis Extractors",
+      "description": "Methods for extracting functional and use-related information",
+      "vocabulary_mappings": {
+        "getty_aat": "300068003",
+        "cidoc_crm": {
+          "activity": "E13_Attribute_Assignment",
+          "result": "E55_Type"
+        }
       },
-      "administrative_analysis": {
-        "id": "administrative_analysis",
-        "name": "Administrative Analysis Methods",
-        "description": "Methods for analyzing administrative aspects",
-        "subtypes": {
-          "inventory_research": {
-            "id": "inventory_research",
-            "name": "Inventory Research",
-            "accuracy": "high",
-            "tools": [
-              "inventory_databases",
-              "archival_records",
-              "institutional_documentation"
-            ],
-            "reliability_factors": [
-              "documentation_completeness",
-              "record_consistency",
-              "institutional_authority"
-            ],
-            "documentation_requirements": [
-              "inventory_references",
-              "documentation_trail",
-              "verification_method"
-            ]
-          },
-          "conservation_assessment": {
-            "id": "conservation_assessment",
-            "name": "Conservation Assessment",
-            "accuracy": "high",
-            "tools": [
-              "condition_surveys",
-              "diagnostic_equipment",
-              "monitoring_tools"
-            ],
-            "reliability_factors": [
-              "assessment_methodology",
-              "expert_qualification",
-              "documentation_quality"
-            ],
-            "documentation_requirements": [
-              "condition_report",
-              "intervention_history",
-              "monitoring_data"
-            ]
+      "subtypes": {
+        "architectural_analysis": {
+          "id": "architectural_analysis",
+          "name": "Architectural Analysis",
+          "source_documents": ["architectural_plans", "technical_reports", "building_surveys"],
+          "target_qualia": ["spatial_organization", "circulation_pattern", "structural_role"],
+          "accuracy": "high",
+          "tools": ["architectural_software", "spatial_analysis_tools"],
+          "reliability_factors": [
+            "documentation_completeness",
+            "architectural_expertise",
+            "contextual_understanding"
+          ],
+          "validation_requirements": {
+            "peer_review": true,
+            "cross_verification": true,
+            "minimum_samples": 3
+          }
+        },
+        "use_pattern_analysis": {
+          "id": "use_pattern_analysis",
+          "name": "Use Pattern Analysis",
+          "source_documents": ["historical_accounts", "ethnographic_studies", "user_documentation"],
+          "target_qualia": ["primary_function", "secondary_functions", "use_evolution"],
+          "accuracy": "medium",
+          "tools": ["comparative_databases", "pattern_analysis_software"],
+          "reliability_factors": [
+            "source_reliability",
+            "temporal_coverage",
+            "cultural_context"
+          ],
+          "validation_requirements": {
+            "peer_review": true,
+            "cross_verification": true,
+            "minimum_samples": 5
+          }
+        }
+      }
+    },
+    "cultural_analysis": {
+      "id": "cultural_analysis",
+      "name": "Cultural Analysis Extractors",
+      "description": "Methods for extracting cultural and symbolic information",
+      "vocabulary_mappings": {
+        "getty_aat": "300379612",
+        "cidoc_crm": {
+          "activity": "E13_Attribute_Assignment",
+          "result": "E28_Conceptual_Object"
+        }
+      },
+      "subtypes": {
+        "iconographic_analysis": {
+          "id": "iconographic_analysis",
+          "name": "Iconographic Analysis",
+          "source_documents": ["photographs", "drawings", "historical_illustrations"],
+          "target_qualia": ["symbolic_meaning", "artistic_style", "iconographic_program"],
+          "accuracy": "medium_high",
+          "tools": ["iconographic_databases", "comparative_catalogs"],
+          "reliability_factors": [
+            "expert_knowledge",
+            "comparative_material",
+            "cultural_context"
+          ],
+          "validation_requirements": {
+            "peer_review": true,
+            "cross_verification": true,
+            "minimum_samples": 3
+          }
+        },
+        "historical_context_analysis": {
+          "id": "historical_context_analysis",
+          "name": "Historical Context Analysis",
+          "source_documents": ["historical_texts", "period_documents", "contemporary_accounts"],
+          "target_qualia": ["cultural_significance", "historical_context", "social_value"],
+          "accuracy": "medium",
+          "tools": ["historical_databases", "context_analysis_software"],
+          "reliability_factors": [
+            "source_credibility",
+            "contextual_understanding",
+            "historiographical_consensus"
+          ],
+          "validation_requirements": {
+            "peer_review": true,
+            "cross_verification": true,
+            "minimum_samples": 5
+          }
+        }
+      }
+    },
+    "conservation_analysis": {
+      "id": "conservation_analysis",
+      "name": "Conservation Analysis Extractors",
+      "description": "Methods for extracting conservation and condition information",
+      "vocabulary_mappings": {
+        "getty_aat": "300435429",
+        "cidoc_crm": {
+          "activity": "E14_Condition_Assessment",
+          "result": "E3_Condition_State"
+        },
+        "cen_16096": {
+          "condition_assessment": "Level 1",
+          "inspection_type": "Visual survey"
+        }
+      },
+      "subtypes": {
+        "condition_report_analysis": {
+          "id": "condition_report_analysis",
+          "name": "Condition Report Analysis",
+          "source_documents": ["condition_reports", "conservation_surveys", "monitoring_records"],
+          "target_qualia": ["conservation_state", "degradation_patterns", "intervention_needs"],
+          "accuracy": "high",
+          "tools": ["condition_assessment_software", "documentation_databases"],
+          "reliability_factors": [
+            "report_completeness",
+            "assessor_expertise",
+            "temporal_coverage"
+          ],
+          "validation_requirements": {
+            "peer_review": true,
+            "cross_verification": true,
+            "minimum_samples": 1
+          }
+        },
+        "intervention_history_analysis": {
+          "id": "intervention_history_analysis",
+          "name": "Intervention History Analysis",
+          "source_documents": ["restoration_reports", "intervention_documentation", "maintenance_records"],
+          "target_qualia": ["previous_interventions", "treatment_effectiveness", "maintenance_needs"],
+          "accuracy": "medium_high",
+          "tools": ["conservation_databases", "intervention_tracking_software"],
+          "reliability_factors": [
+            "documentation_quality",
+            "intervention_documentation",
+            "follow-up_records"
+          ],
+          "validation_requirements": {
+            "peer_review": true,
+            "cross_verification": true,
+            "minimum_samples": 2
           }
         }
       }
     }
   }
+}

@@ -1,287 +1,869 @@
 {
-    "metadata": {
-      "version": "1.0",
-      "last_updated": "2025-01-29",
-      "maintainers": ["Emanuel Demetrescu"],
-      "license": "CC-BY-4.0"
-    },
-    "qualia_categories": [
+  "metadata": {
+    "version": "1.0",
+    "last_updated": "2025-01-29",
+    "maintainers": ["Emanuel Demetrescu"],
+    "license": "CC-BY-4.0"
+  },
+  "qualia_categories": [
       {
-        "id": "cultural_interpretive",
-        "name": "Cultural and Interpretive Qualia",
-        "description": "Cultural, symbolic, and perceptual properties",
-        "subcategories": {
-          "stylistic": {
-            "name": "Stylistic Qualia",
-            "description": "Artistic and architectural style characteristics",
-            "properties": [
-              {
-                "id": "artistic_style",
-                "name": "Artistic Style",
-                "description": "Recognized artistic or architectural style",
-                "mappings": {
-                  "getty_aat": "300015646",
-                  "cidoc_crm": "E55_Type"
-                },
-                "data_type": "controlled_vocabulary",
-                "vocabulary_source": "getty_aat",
-                "vocabulary_category": "Styles and Periods",
-                "expected_extractors": [
-                  "style_analysis",
-                  "comparative_analysis"
-                ]
+          "id": "physical_material",
+          "name": "Physical and Material Qualia",
+          "description": "Measurable and observable physical properties of objects",
+          "subcategories": {
+              "dimensional": {
+                  "name": "Dimensional Qualia",
+                  "description": "Measurable spatial properties",
+                  "properties": [
+                  {
+                      "id": "height",
+                      "name": "Height",
+                      "mappings": {
+                      "getty_aat": "300055644",
+                      "cidoc_crm": "E54_Dimension",
+                      "dublin_core": "format.extent"
+                      },
+                      "data_type": "float",
+                      "units": ["cm", "m", "ft"],
+                      "expected_extractors": ["direct_measurement", "3d_model_measurement", "drawing_measurement"]
+                  },
+                  {
+                      "id": "width",
+                      "name": "Width",
+                      "mappings": {
+                      "getty_aat": "300055647",
+                      "cidoc_crm": "E54_Dimension",
+                      "dublin_core": "format.extent"
+                      },
+                      "data_type": "float",
+                      "units": ["cm", "m", "ft"],
+                      "expected_extractors": ["direct_measurement", "3d_model_measurement", "drawing_measurement"]
+                  },
+                  {
+                      "id": "depth",
+                      "name": "Depth",
+                      "mappings": {
+                      "getty_aat": "300072633",
+                      "cidoc_crm": "E54_Dimension",
+                      "dublin_core": "format.extent"
+                      },
+                      "data_type": "float",
+                      "units": ["cm", "m", "ft"],
+                      "expected_extractors": ["direct_measurement", "3d_model_measurement", "drawing_measurement"]
+                  },
+                  {
+                      "id": "diameter",
+                      "name": "Diameter",
+                      "mappings": {
+                      "getty_aat": "300055624",
+                      "cidoc_crm": "E54_Dimension",
+                      "dublin_core": "format.extent"
+                      },
+                      "data_type": "float",
+                      "units": ["cm", "m", "ft"],
+                      "expected_extractors": ["direct_measurement", "3d_model_measurement", "drawing_measurement"]
+                  }
+                  ]
               },
-              {
-                "id": "stylistic_influences",
-                "name": "Stylistic Influences",
-                "description": "Cultural or artistic influences",
-                "mappings": {
-                  "getty_aat": "300015646",
-                  "cidoc_crm": "E55_Type"
-                },
-                "data_type": "controlled_vocabulary",
-                "vocabulary_source": "getty_aat",
-                "vocabulary_category": "Styles and Periods",
-                "expected_extractors": [
-                  "historical_analysis",
-                  "stylistic_analysis"
-                ]
-              }
-            ]
-          },
-          "semantic": {
-            "name": "Semantic Qualia",
-            "description": "Meaning and symbolic significance",
-            "properties": [
-              {
-                "id": "symbolic_meaning",
-                "name": "Symbolic Meaning",
-                "description": "Symbolic or iconographic significance",
-                "mappings": {
-                  "getty_aat": "300055799",
-                  "cidoc_crm": "E28_Conceptual_Object"
-                },
-                "data_type": "controlled_vocabulary",
-                "vocabulary_source": "getty_aat",
-                "vocabulary_category": "Associated Concepts",
-                "expected_extractors": [
-                  "iconographic_analysis",
-                  "cultural_interpretation",
-                  "historical_analysis"
-                ]
+              "material": {
+                  "name": "Material Qualia",
+                  "description": "Physical material properties",
+                  "properties": [
+                  {
+                      "id": "material_type",
+                      "name": "Material Type",
+                      "mappings": {
+                      "getty_aat": "300010357",
+                      "cidoc_crm": "E57_Material",
+                      "dublin_core": "format.medium"
+                      },
+                      "data_type": "controlled_vocabulary",
+                      "vocabulary_source": "getty_aat",
+                      "vocabulary_category": "Materials",
+                      "expected_extractors": ["visual_inspection", "laboratory_analysis"]
+                  },
+                  {
+                      "id": "granulometry",
+                      "name": "Granulometry",
+                      "mappings": {
+                      "getty_aat": "300417183",
+                      "cidoc_crm": "E54_Dimension",
+                      "unit_type": "grain size"
+                      },
+                      "data_type": "controlled_vocabulary",
+                      "vocabulary_source": "custom",
+                      "values": ["fine", "medium", "coarse"],
+                      "expected_extractors": ["visual_inspection", "microscopic_analysis"]
+                  }
+                  ]
               },
-              {
-                "id": "cultural_significance",
-                "name": "Cultural Significance",
-                "description": "Cultural meaning and importance",
-                "mappings": {
-                  "getty_aat": "300379612",
-                  "cidoc_crm": "E28_Conceptual_Object"
-                },
-                "data_type": "controlled_vocabulary",
-                "vocabulary_source": "getty_aat",
-                "vocabulary_category": "Cultural Role",
-                "expected_extractors": [
-                  "cultural_analysis",
-                  "anthropological_research"
-                ]
-              }
-            ]
-          },
-          "valorization": {
-            "name": "Value-based Qualia",
-            "description": "Historical, artistic, and documentary value",
-            "properties": [
-              {
-                "id": "historical_value",
-                "name": "Historical Value",
-                "description": "Value as historical evidence or testimony",
-                "mappings": {
-                  "getty_aat": "300438559",
-                  "cidoc_crm": "E1_CRM_Entity"
-                },
-                "data_type": "controlled_vocabulary",
-                "vocabulary_source": "getty_aat",
-                "vocabulary_category": "Value Assessments",
-                "expected_extractors": [
-                  "historical_assessment",
-                  "heritage_evaluation"
-                ]
+              "conservation": {
+                  "name": "Conservation Qualia",
+                  "description": "State of preservation and decay",
+                  "properties": [
+                  {
+                      "id": "conservation_state",
+                      "name": "Conservation State",
+                      "mappings": {
+                      "getty_aat": "300015332",
+                      "cidoc_crm": "E3_Condition_State",
+                      "icom_cidoc": "Object Condition Information"
+                      },
+                      "data_type": "controlled_vocabulary",
+                      "vocabulary_source": "custom",
+                      "values": ["excellent", "good", "fair", "poor", "very_poor"],
+                      "expected_extractors": ["visual_inspection", "condition_assessment"]
+                  },
+                  {
+                      "id": "integrity",
+                      "name": "Integrity",
+                      "mappings": {
+                      "getty_aat": "300388714",
+                      "cidoc_crm": "E3_Condition_State",
+                      "dublin_core": "description"
+                      },
+                      "data_type": "percentage",
+                      "range": [0, 100],
+                      "expected_extractors": ["visual_inspection", "3d_model_analysis"]
+                  }
+                  ]
               },
-              {
-                "id": "artistic_value",
-                "name": "Artistic Value",
-                "description": "Aesthetic and artistic significance",
-                "mappings": {
-                  "getty_aat": "300132352",
-                  "cidoc_crm": "E1_CRM_Entity"
-                },
-                "data_type": "controlled_vocabulary",
-                "vocabulary_source": "getty_aat",
-                "vocabulary_category": "Value Assessments",
-                "expected_extractors": [
-                  "artistic_assessment",
-                  "expert_evaluation"
-                ]
+              "technical": {
+                  "name": "Technical Qualia",
+                  "description": "Construction and execution techniques",
+                  "properties": [
+                  {
+                      "id": "construction_technique",
+                      "name": "Construction Technique",
+                      "mappings": {
+                      "getty_aat": "300000022",
+                      "cidoc_crm": "E29_Design_or_Procedure",
+                      "dublin_core": "description"
+                      },
+                      "data_type": "controlled_vocabulary",
+                      "vocabulary_source": "getty_aat",
+                      "vocabulary_category": "Construction Techniques",
+                      "expected_extractors": ["visual_inspection", "technical_analysis"]
+                  },
+                  {
+                      "id": "surface_treatment",
+                      "name": "Surface Treatment",
+                      "mappings": {
+                      "getty_aat": "300053895",
+                      "cidoc_crm": "E11_Modification",
+                      "dublin_core": "description"
+                      },
+                      "data_type": "controlled_vocabulary",
+                      "vocabulary_source": "getty_aat",
+                      "vocabulary_category": "Surface Treatments",
+                      "expected_extractors": ["visual_inspection", "surface_analysis"]
+                  }
+                  ]
               }
-            ]
-          },
-          "perceptual": {
-            "name": "Perceptual Qualia",
-            "description": "Aesthetic impact and perceptual characteristics",
-            "properties": [
-              {
-                "id": "monumentality",
-                "name": "Monumentality",
-                "description": "Perceived monumental quality",
-                "mappings": {
-                  "getty_aat": "300379969",
-                  "cidoc_crm": "E54_Dimension"
-                },
-                "data_type": "controlled_vocabulary",
-                "vocabulary_source": "getty_aat",
-                "vocabulary_category": "Visual Characteristics",
-                "expected_extractors": [
-                  "visual_impact_assessment",
-                  "spatial_analysis"
-                ]
-              },
-              {
-                "id": "aesthetic_impact",
-                "name": "Aesthetic Impact",
-                "description": "Overall aesthetic effect and experience",
-                "mappings": {
-                  "getty_aat": "300055874",
-                  "cidoc_crm": "E54_Dimension"
-                },
-                "data_type": "controlled_vocabulary",
-                "vocabulary_source": "getty_aat",
-                "vocabulary_category": "Visual Characteristics",
-                "expected_extractors": [
-                  "aesthetic_assessment",
-                  "perception_studies"
-                ]
-              }
-            ]
           }
-        }
       },
       {
-        "id": "contextual",
-        "name": "Contextual Qualia",
-        "description": "Administrative, documentary and management properties",
-        "subcategories": {
-          "administrative": {
-            "name": "Administrative Qualia",
-            "description": "Administrative and institutional properties",
-            "properties": [
-              {
-                "id": "inventory_number",
-                "name": "Inventory Number",
-                "description": "Official inventory or catalog number",
-                "mappings": {
-                  "getty_aat": "300312355",
-                  "cidoc_crm": "P48_has_preferred_identifier"
-                },
-                "data_type": "string",
-                "expected_extractors": [
-                  "archival_research",
-                  "museum_documentation"
-                ]
+          "id": "spatiotemporal",
+          "name": "Spatiotemporal Qualia",
+          "description": "Spatial and temporal properties of objects",
+          "subcategories": {
+              "spatial": {
+                  "name": "Spatial Qualia",
+                  "description": "Location and orientation in space",
+                  "properties": [
+                  {
+                      "id": "absolute_position",
+                      "name": "Absolute Position",
+                      "description": "Position in a global reference system",
+                      "mappings": {
+                      "getty_aat": "300387565",
+                      "cidoc_crm": "E53_Place"
+                      },
+                      "data_type": "coordinates",
+                      "coordinate_system": {
+                      "type": "cartesian_3d",
+                      "components": ["x", "y", "z"],
+                      "units": ["m"],
+                      "reference_system": "WGS84"
+                      },
+                      "expected_extractors": ["gps_survey", "total_station_survey", "3d_model_measurement"]
+                  },
+                  {
+                      "id": "elevation",
+                      "name": "Elevation",
+                      "description": "Height above sea level",
+                      "mappings": {
+                      "getty_aat": "300447457",
+                      "cidoc_crm": "E54_Dimension"
+                      },
+                      "data_type": "float",
+                      "units": ["m", "ft"],
+                      "expected_extractors": ["gps_survey", "total_station_survey", "leveling"]
+                  },
+                  {
+                      "id": "orientation",
+                      "name": "Orientation",
+                      "description": "Angular orientation in space",
+                      "mappings": {
+                      "getty_aat": "300131574",
+                      "cidoc_crm": "E54_Dimension"
+                      },
+                      "data_type": "angles",
+                      "components": ["azimuth", "tilt", "roll"],
+                      "units": ["degrees"],
+                      "expected_extractors": ["compass_measurement", "3d_model_analysis"]
+                  },
+                  {
+                      "id": "arrangement",
+                      "name": "Arrangement",
+                      "description": "Spatial relationship with other objects",
+                      "mappings": {
+                      "getty_aat": "300067654",
+                      "cidoc_crm": "E55_Type"
+                      },
+                      "data_type": "controlled_vocabulary",
+                      "vocabulary_source": "custom",
+                      "values": [
+                      "linear",
+                      "radial",
+                      "grid",
+                      "clustered",
+                      "scattered",
+                      "concentric"
+                  ,
+          {
+              "id": "functional",
+              "name": "Functional Qualia",
+              "description": "Properties related to function, structural role and performance",
+              "subcategories": {
+              "telic": {
+                  "name": "Telic Qualia",
+                  "description": "Original and intended functions",
+                  "properties": [
+                  {
+                      "id": "primary_function",
+                      "name": "Primary Function",
+                      "description": "Main intended function of the object",
+                      "mappings": {
+                      "getty_aat": "300068003",
+                      "cidoc_crm": "E55_Type"
+                      },
+                      "data_type": "controlled_vocabulary",
+                      "vocabulary_source": "getty_aat",
+                      "vocabulary_category": "Functions",
+                      "expected_extractors": [
+                      "functional_analysis",
+                      "historical_research",
+                      "comparative_analysis"
+                      ]
+                  },
+                  {
+                      "id": "secondary_functions",
+                      "name": "Secondary Functions",
+                      "description": "Additional or subsidiary functions",
+                      "mappings": {
+                      "getty_aat": "300068003",
+                      "cidoc_crm": "E55_Type"
+                      },
+                      "data_type": "controlled_vocabulary_multiple",
+                      "vocabulary_source": "getty_aat",
+                      "vocabulary_category": "Functions",
+                      "expected_extractors": [
+                      "functional_analysis",
+                      "historical_research"
+                      ]
+                  }
+                  ]
               },
-              {
-                "id": "legal_status",
-                "name": "Legal Status",
-                "description": "Legal protection and ownership status",
-                "mappings": {
-                  "getty_aat": "300435427",
-                  "cidoc_crm": "P104_is_subject_to"
-                },
-                "data_type": "controlled_vocabulary",
-                "vocabulary_source": "getty_aat",
-                "vocabulary_category": "Legal Concepts",
-                "expected_extractors": [
-                  "legal_documentation",
-                  "administrative_research"
-                ]
-              }
-            ]
-          },
-          "documentary": {
-            "name": "Documentary Qualia",
-            "description": "Documentation and reference properties",
-            "properties": [
-              {
-                "id": "bibliographic_references",
-                "name": "Bibliographic References",
-                "description": "Published references to the object",
-                "mappings": {
-                  "getty_aat": "300311705",
-                  "cidoc_crm": "P67_refers_to"
-                },
-                "data_type": "controlled_vocabulary",
-                "vocabulary_source": "custom",
-                "expected_extractors": [
-                  "bibliographic_research",
-                  "literature_review"
-                ]
+              "structural": {
+                  "name": "Structural Qualia",
+                  "description": "Structural and mechanical roles",
+                  "properties": [
+                  {
+                      "id": "structural_role",
+                      "name": "Structural Role",
+                      "description": "Role in the overall structural system",
+                      "mappings": {
+                      "getty_aat": "300264518",
+                      "cidoc_crm": "E55_Type"
+                      },
+                      "data_type": "controlled_vocabulary",
+                      "vocabulary_source": "custom",
+                      "values": [
+                      "load_bearing",
+                      "non_load_bearing",
+                      "reinforcing",
+                      "connecting",
+                      "supporting",
+                      "decorative"
+                      ],
+                      "expected_extractors": [
+                      "structural_analysis",
+                      "architectural_analysis"
+                      ]
+                  },
+                  {
+                      "id": "stress_type",
+                      "name": "Stress Type",
+                      "description": "Type of mechanical stress the element is subject to",
+                      "mappings": {
+                      "getty_aat": "300264519",
+                      "cidoc_crm": "E55_Type"
+                      },
+                      "data_type": "controlled_vocabulary_multiple",
+                      "vocabulary_source": "custom",
+                      "values": [
+                      "compression",
+                      "tension",
+                      "bending",
+                      "shear",
+                      "torsion"
+                      ],
+                      "expected_extractors": ["structural_analysis"]
+                  }
+                  ]
               },
-              {
-                "id": "archival_references",
-                "name": "Archival References",
-                "description": "References to archival documents",
-                "mappings": {
-                  "getty_aat": "300375748",
-                  "cidoc_crm": "P67_refers_to"
-                },
-                "data_type": "controlled_vocabulary",
-                "vocabulary_source": "custom",
-                "expected_extractors": [
-                  "archival_research",
-                  "historical_documentation"
-                ]
+              "performative": {
+                  "name": "Performative Qualia",
+                  "description": "Performance and capability characteristics",
+                  "properties": [
+                  {
+                      "id": "load_capacity",
+                      "name": "Load Capacity",
+                      "description": "Maximum load the element can bear",
+                      "mappings": {
+                      "getty_aat": "300265725",
+                      "cidoc_crm": "E54_Dimension"
+                      },
+                      "data_type": "float",
+                      "units": ["kN", "kgf"],
+                      "expected_extractors": [
+                      "structural_analysis",
+                      "load_testing"
+                      ]
+                  },
+                  {
+                      "id": "thermal_performance",
+                      "name": "Thermal Performance",
+                      "description": "Thermal transmission characteristics",
+                      "mappings": {
+                      "getty_aat": "300265726",
+                      "cidoc_crm": "E54_Dimension"
+                      },
+                      "data_type": "float",
+                      "units": ["W/(m²·K)"],
+                      "expected_extractors": ["thermal_analysis"]
+                  },
+                  {
+                      "id": "acoustic_performance",
+                      "name": "Acoustic Performance",
+                      "description": "Sound insulation characteristics",
+                      "mappings": {
+                      "getty_aat": "300265727",
+                      "cidoc_crm": "E54_Dimension"
+                      },
+                      "data_type": "float",
+                      "units": ["dB"],
+                      "expected_extractors": ["acoustic_analysis"]
+                  }
+                  ]
               }
-            ]
-          },
-          "management": {
-            "name": "Management Qualia",
-            "description": "Conservation and management properties",
-            "properties": [
-              {
-                "id": "conservation_status",
-                "name": "Conservation Status",
-                "description": "Current conservation state and needs",
-                "mappings": {
-                  "getty_aat": "300435429",
-                  "cidoc_crm": "P44_has_condition"
-                },
-                "data_type": "controlled_vocabulary",
-                "vocabulary_source": "getty_aat",
-                "vocabulary_category": "Conservation Status",
-                "expected_extractors": [
-                  "conservation_assessment",
-                  "condition_survey"
-                ]
-              },
-              {
-                "id": "access_conditions",
-                "name": "Access Conditions",
-                "description": "Conditions for access and use",
-                "mappings": {
-                  "getty_aat": "300435430",
-                  "cidoc_crm": "P104_is_subject_to"
-                },
-                "data_type": "controlled_vocabulary",
-                "vocabulary_source": "getty_aat",
-                "vocabulary_category": "Access Conditions",
-                "expected_extractors": [
-                  "access_assessment",
-                  "management_review"
-                ]
               }
-            ]
           }
-        }
+          ],
+                      "expected_extractors": ["visual_inspection", "spatial_analysis"]
+                  }
+                  ]
+              },
+              "temporal": {
+                  "name": "Temporal Qualia",
+                  "description": "Temporal properties and dating",
+                  "properties": [
+                  {
+                      "id": "absolute_dating",
+                      "name": "Absolute Dating",
+                      "description": "Precise temporal placement",
+                      "mappings": {
+                      "getty_aat": "300404284",
+                      "cidoc_crm": "E52_Time-Span"
+                      },
+                      "data_type": "temporal_range",
+                      "components": {
+                      "abstime_start": {
+                          "type": "integer",
+                          "description": "Start year (negative for BCE)",
+                          "range": [-10000, 2100]
+                      },
+                      "abstime_start_range": {
+                          "type": "integer",
+                          "description": "Uncertainty range for start date",
+                          "range": [0, 1000]
+                      },
+                      "abstime_end": {
+                          "type": "integer",
+                          "description": "End year (negative for BCE)",
+                          "range": [-10000, 2100]
+                      },
+                      "abstime_end_range": {
+                          "type": "integer",
+                          "description": "Uncertainty range for end date",
+                          "range": [0, 1000]
+                      }
+                      },
+                      "expected_extractors": [
+                      "archaeological_dating",
+                      "archival_research",
+                      "scientific_dating"
+                      ]
+                  },
+                  {
+                      "id": "dating_method",
+                      "name": "Dating Method",
+                      "description": "Method used for dating",
+                      "mappings": {
+                      "getty_aat": "300054714",
+                      "cidoc_crm": "E55_Type"
+                      },
+                      "data_type": "controlled_vocabulary",
+                      "vocabulary_source": "custom",
+                      "values": [
+                      "stratigraphy",
+                      "typology",
+                      "c14",
+                      "dendrochronology",
+                      "historical_sources",
+                      "stylistic_analysis"
+                      ],
+                      "expected_extractors": ["dating_analysis", "laboratory_analysis"]
+                  }
+                  ]
+              }
+          }
+      },
+      {
+          "id": "functional",
+          "name": "Functional Qualia",
+          "description": "Properties related to function, structural role and performance",
+          "subcategories": {
+            "telic": {
+              "name": "Telic Qualia",
+              "description": "Original and intended functions",
+              "properties": [
+                {
+                  "id": "primary_function",
+                  "name": "Primary Function",
+                  "description": "Main intended function of the object",
+                  "mappings": {
+                    "getty_aat": "300068003",
+                    "cidoc_crm": "E55_Type"
+                  },
+                  "data_type": "controlled_vocabulary",
+                  "vocabulary_source": "getty_aat",
+                  "vocabulary_category": "Functions",
+                  "expected_extractors": [
+                    "functional_analysis",
+                    "historical_research",
+                    "comparative_analysis"
+                  ]
+                },
+                {
+                  "id": "secondary_functions",
+                  "name": "Secondary Functions",
+                  "description": "Additional or subsidiary functions",
+                  "mappings": {
+                    "getty_aat": "300068003",
+                    "cidoc_crm": "E55_Type"
+                  },
+                  "data_type": "controlled_vocabulary_multiple",
+                  "vocabulary_source": "getty_aat",
+                  "vocabulary_category": "Functions",
+                  "expected_extractors": [
+                    "functional_analysis",
+                    "historical_research"
+                  ]
+                }
+              ]
+            },
+            "structural": {
+              "name": "Structural Qualia",
+              "description": "Structural and mechanical roles",
+              "properties": [
+                {
+                  "id": "structural_role",
+                  "name": "Structural Role",
+                  "description": "Role in the overall structural system",
+                  "mappings": {
+                    "getty_aat": "300264518",
+                    "cidoc_crm": "E55_Type"
+                  },
+                  "data_type": "controlled_vocabulary",
+                  "vocabulary_source": "custom",
+                  "values": [
+                    "load_bearing",
+                    "non_load_bearing",
+                    "reinforcing",
+                    "connecting",
+                    "supporting",
+                    "decorative"
+                  ],
+                  "expected_extractors": [
+                    "structural_analysis",
+                    "architectural_analysis"
+                  ]
+                },
+                {
+                  "id": "stress_type",
+                  "name": "Stress Type",
+                  "description": "Type of mechanical stress the element is subject to",
+                  "mappings": {
+                    "getty_aat": "300264519",
+                    "cidoc_crm": "E55_Type"
+                  },
+                  "data_type": "controlled_vocabulary_multiple",
+                  "vocabulary_source": "custom",
+                  "values": [
+                    "compression",
+                    "tension",
+                    "bending",
+                    "shear",
+                    "torsion"
+                  ],
+                  "expected_extractors": ["structural_analysis"]
+                }
+              ]
+            },
+            "performative": {
+              "name": "Performative Qualia",
+              "description": "Performance and capability characteristics",
+              "properties": [
+                {
+                  "id": "load_capacity",
+                  "name": "Load Capacity",
+                  "description": "Maximum load the element can bear",
+                  "mappings": {
+                    "getty_aat": "300265725",
+                    "cidoc_crm": "E54_Dimension"
+                  },
+                  "data_type": "float",
+                  "units": ["kN", "kgf"],
+                  "expected_extractors": [
+                    "structural_analysis",
+                    "load_testing"
+                  ]
+                },
+                {
+                  "id": "thermal_performance",
+                  "name": "Thermal Performance",
+                  "description": "Thermal transmission characteristics",
+                  "mappings": {
+                    "getty_aat": "300265726",
+                    "cidoc_crm": "E54_Dimension"
+                  },
+                  "data_type": "float",
+                  "units": ["W/(m²·K)"],
+                  "expected_extractors": ["thermal_analysis"]
+                },
+                {
+                  "id": "acoustic_performance",
+                  "name": "Acoustic Performance",
+                  "description": "Sound insulation characteristics",
+                  "mappings": {
+                    "getty_aat": "300265727",
+                    "cidoc_crm": "E54_Dimension"
+                  },
+                  "data_type": "float",
+                  "units": ["dB"],
+                  "expected_extractors": ["acoustic_analysis"]
+                }
+              ]
+            }
+          }
+      },
+      {
+          "id": "cultural_interpretive",
+          "name": "Cultural and Interpretive Qualia",
+          "description": "Cultural, symbolic, and perceptual properties",
+          "subcategories": {
+            "stylistic": {
+              "name": "Stylistic Qualia",
+              "description": "Artistic and architectural style characteristics",
+              "properties": [
+                {
+                  "id": "artistic_style",
+                  "name": "Artistic Style",
+                  "description": "Recognized artistic or architectural style",
+                  "mappings": {
+                    "getty_aat": "300015646",
+                    "cidoc_crm": "E55_Type"
+                  },
+                  "data_type": "controlled_vocabulary",
+                  "vocabulary_source": "getty_aat",
+                  "vocabulary_category": "Styles and Periods",
+                  "expected_extractors": [
+                    "style_analysis",
+                    "comparative_analysis"
+                  ]
+                },
+                {
+                  "id": "stylistic_influences",
+                  "name": "Stylistic Influences",
+                  "description": "Cultural or artistic influences",
+                  "mappings": {
+                    "getty_aat": "300015646",
+                    "cidoc_crm": "E55_Type"
+                  },
+                  "data_type": "controlled_vocabulary",
+                  "vocabulary_source": "getty_aat",
+                  "vocabulary_category": "Styles and Periods",
+                  "expected_extractors": [
+                    "historical_analysis",
+                    "stylistic_analysis"
+                  ]
+                }
+              ]
+            },
+            "semantic": {
+              "name": "Semantic Qualia",
+              "description": "Meaning and symbolic significance",
+              "properties": [
+                {
+                  "id": "symbolic_meaning",
+                  "name": "Symbolic Meaning",
+                  "description": "Symbolic or iconographic significance",
+                  "mappings": {
+                    "getty_aat": "300055799",
+                    "cidoc_crm": "E28_Conceptual_Object"
+                  },
+                  "data_type": "controlled_vocabulary",
+                  "vocabulary_source": "getty_aat",
+                  "vocabulary_category": "Associated Concepts",
+                  "expected_extractors": [
+                    "iconographic_analysis",
+                    "cultural_interpretation",
+                    "historical_analysis"
+                  ]
+                },
+                {
+                  "id": "cultural_significance",
+                  "name": "Cultural Significance",
+                  "description": "Cultural meaning and importance",
+                  "mappings": {
+                    "getty_aat": "300379612",
+                    "cidoc_crm": "E28_Conceptual_Object"
+                  },
+                  "data_type": "controlled_vocabulary",
+                  "vocabulary_source": "getty_aat",
+                  "vocabulary_category": "Cultural Role",
+                  "expected_extractors": [
+                    "cultural_analysis",
+                    "anthropological_research"
+                  ]
+                }
+              ]
+            },
+            "valorization": {
+              "name": "Value-based Qualia",
+              "description": "Historical, artistic, and documentary value",
+              "properties": [
+                {
+                  "id": "historical_value",
+                  "name": "Historical Value",
+                  "description": "Value as historical evidence or testimony",
+                  "mappings": {
+                    "getty_aat": "300438559",
+                    "cidoc_crm": "E1_CRM_Entity"
+                  },
+                  "data_type": "controlled_vocabulary",
+                  "vocabulary_source": "getty_aat",
+                  "vocabulary_category": "Value Assessments",
+                  "expected_extractors": [
+                    "historical_assessment",
+                    "heritage_evaluation"
+                  ]
+                },
+                {
+                  "id": "artistic_value",
+                  "name": "Artistic Value",
+                  "description": "Aesthetic and artistic significance",
+                  "mappings": {
+                    "getty_aat": "300132352",
+                    "cidoc_crm": "E1_CRM_Entity"
+                  },
+                  "data_type": "controlled_vocabulary",
+                  "vocabulary_source": "getty_aat",
+                  "vocabulary_category": "Value Assessments",
+                  "expected_extractors": [
+                    "artistic_assessment",
+                    "expert_evaluation"
+                  ]
+                }
+              ]
+            },
+            "perceptual": {
+              "name": "Perceptual Qualia",
+              "description": "Aesthetic impact and perceptual characteristics",
+              "properties": [
+                {
+                  "id": "monumentality",
+                  "name": "Monumentality",
+                  "description": "Perceived monumental quality",
+                  "mappings": {
+                    "getty_aat": "300379969",
+                    "cidoc_crm": "E54_Dimension"
+                  },
+                  "data_type": "controlled_vocabulary",
+                  "vocabulary_source": "getty_aat",
+                  "vocabulary_category": "Visual Characteristics",
+                  "expected_extractors": [
+                    "visual_impact_assessment",
+                    "spatial_analysis"
+                  ]
+                },
+                {
+                  "id": "aesthetic_impact",
+                  "name": "Aesthetic Impact",
+                  "description": "Overall aesthetic effect and experience",
+                  "mappings": {
+                    "getty_aat": "300055874",
+                    "cidoc_crm": "E54_Dimension"
+                  },
+                  "data_type": "controlled_vocabulary",
+                  "vocabulary_source": "getty_aat",
+                  "vocabulary_category": "Visual Characteristics",
+                  "expected_extractors": [
+                    "aesthetic_assessment",
+                    "perception_studies"
+                  ]
+                }
+              ]
+            }
+          }
+      },
+      {
+          "id": "contextual",
+          "name": "Contextual Qualia",
+          "description": "Administrative, documentary and management properties",
+          "subcategories": {
+            "administrative": {
+              "name": "Administrative Qualia",
+              "description": "Administrative and institutional properties",
+              "properties": [
+                {
+                  "id": "inventory_number",
+                  "name": "Inventory Number",
+                  "description": "Official inventory or catalog number",
+                  "mappings": {
+                    "getty_aat": "300312355",
+                    "cidoc_crm": "P48_has_preferred_identifier"
+                  },
+                  "data_type": "string",
+                  "expected_extractors": [
+                    "archival_research",
+                    "museum_documentation"
+                  ]
+                },
+                {
+                  "id": "legal_status",
+                  "name": "Legal Status",
+                  "description": "Legal protection and ownership status",
+                  "mappings": {
+                    "getty_aat": "300435427",
+                    "cidoc_crm": "P104_is_subject_to"
+                  },
+                  "data_type": "controlled_vocabulary",
+                  "vocabulary_source": "getty_aat",
+                  "vocabulary_category": "Legal Concepts",
+                  "expected_extractors": [
+                    "legal_documentation",
+                    "administrative_research"
+                  ]
+                },
+                {
+                  "id": "intervention_history",
+                  "name": "Intervention History",
+                  "description": "History of conservation interventions",
+                  "mappings": {
+                      "getty_aat": "300379504",
+                      "cidoc_crm": "E11_Modification"
+                  }
+                }
+              ]
+            },
+            "documentary": {
+              "name": "Documentary Qualia",
+              "description": "Documentation and reference properties",
+              "properties": [
+                {
+                  "id": "bibliographic_references",
+                  "name": "Bibliographic References",
+                  "description": "Published references to the object",
+                  "mappings": {
+                    "getty_aat": "300311705",
+                    "cidoc_crm": "P67_refers_to"
+                  },
+                  "data_type": "controlled_vocabulary",
+                  "vocabulary_source": "custom",
+                  "expected_extractors": [
+                    "bibliographic_research",
+                    "literature_review"
+                  ]
+                },
+                {
+                  "id": "archival_references",
+                  "name": "Archival References",
+                  "description": "References to archival documents",
+                  "mappings": {
+                    "getty_aat": "300375748",
+                    "cidoc_crm": "P67_refers_to"
+                  },
+                  "data_type": "controlled_vocabulary",
+                  "vocabulary_source": "custom",
+                  "expected_extractors": [
+                    "archival_research",
+                    "historical_documentation"
+                  ]
+                }
+              ]
+            },
+            "management": {
+              "name": "Management Qualia",
+              "description": "Conservation and management properties",
+              "properties": [
+                {
+                  "id": "conservation_status",
+                  "name": "Conservation Status",
+                  "description": "Current conservation state and needs",
+                  "mappings": {
+                    "getty_aat": "300435429",
+                    "cidoc_crm": "P44_has_condition"
+                  },
+                  "data_type": "controlled_vocabulary",
+                  "vocabulary_source": "getty_aat",
+                  "vocabulary_category": "Conservation Status",
+                  "expected_extractors": [
+                    "conservation_assessment",
+                    "condition_survey"
+                  ]
+                },
+                {
+                  "id": "access_conditions",
+                  "name": "Access Conditions",
+                  "description": "Conditions for access and use",
+                  "mappings": {
+                    "getty_aat": "300435430",
+                    "cidoc_crm": "P104_is_subject_to"
+                  },
+                  "data_type": "controlled_vocabulary",
+                  "vocabulary_source": "getty_aat",
+                  "vocabulary_category": "Access Conditions",
+                  "expected_extractors": [
+                    "access_assessment",
+                    "management_review"
+                  ]
+                }
+              ]
+            }
+          }
       }
-    ]
-  }
+  ]
+}
