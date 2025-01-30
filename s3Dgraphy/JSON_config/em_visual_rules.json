@@ -270,12 +270,12 @@
                 "line_style": "solid",
                 "width": 2
             },
-            "label": "Chronological Sequence"
+            "label": "Is Before"
         },
         "has_same_time": {
             "style": {
                 "color": "#00FF00",
-                "line_style": "dashed",
+                "line_style": "solid",
                 "width": 2
             },
             "label": "Contemporaneous Elements"
