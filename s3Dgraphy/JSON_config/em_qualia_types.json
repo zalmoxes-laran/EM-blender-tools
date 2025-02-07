@@ -40,6 +40,30 @@
                 "expected_extractors": ["direct_measurement", "3d_model_measurement", "drawing_measurement"]
               },
               {
+                "id": "length",
+                "name": "Length",
+                "mappings": {
+                  "getty_aat": "300055644",
+                  "cidoc_crm": "E54_Dimension",
+                  "dublin_core": "format.extent"
+                },
+                "data_type": "float",
+                "units": ["cm", "m", "ft"],
+                "expected_extractors": ["direct_measurement", "3d_model_measurement", "drawing_measurement"]
+              },
+              {
+                "id": "thickness",
+                "name": "Thickness",
+                "mappings": {
+                  "getty_aat": "300055650",
+                  "cidoc_crm": "E54_Dimension",
+                  "dublin_core": "format.extent"
+                },
+                "data_type": "float",
+                "units": ["mm", "cm", "m"],
+                "expected_extractors": ["direct_measurement", "material_analysis", "cross_section_measurement"]
+              },            
+              {
                 "id": "depth",
                 "name": "Depth",
                 "mappings": {
