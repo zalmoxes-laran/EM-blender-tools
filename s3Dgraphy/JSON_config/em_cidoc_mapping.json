@@ -8,9 +8,7 @@
       "cidoc_class": "E26_Physical_Object",
       "node_properties": {
         "name": "P1_is_identified_by",
-        "description": "P3_has_note",
-        "material": "P45_consists_of",
-        "dimensions": "P43_has_dimension"
+        "description": "P3_has_note"
       },
       "relations": {
         "is_before": {
