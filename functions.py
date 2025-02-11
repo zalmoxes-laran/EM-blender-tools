@@ -16,6 +16,8 @@ from bpy.props import (BoolProperty,
 from urllib.parse import urlparse
 
 from .s3Dgraphy.utils.utils import get_material_color
+from .s3Dgraphy.nodes.link_node import LinkNode
+from .s3Dgraphy import load_graph, get_graph
 
 def is_valid_url(url_string):
     parsed_url = urlparse(url_string)
@@ -693,21 +695,24 @@ def inspect_load_dosco_files():
     em_tools = scene.em_tools
     em_settings = bpy.context.window_manager.em_addon_settings
 
-    # Verifica se c'è un file GraphML attivo e se ha un percorso DosCo valido
     if (em_tools.active_file_index >= 0 and 
-        em_tools.graphml_files[em_tools.active_file_index] and 
-        em_tools.graphml_files[em_tools.active_file_index].dosco_dir):
+        em_tools.graphml_files[em_tools.active_file_index]):
         
+        # Ottieni il grafo attivo
+        graph_id = em_tools.graphml_files[em_tools.active_file_index].name
+        graph = get_graph(graph_id)
+        if not graph:
+            return
+
         dir_path = em_tools.graphml_files[em_tools.active_file_index].dosco_dir
         abs_dir_path = bpy.path.abspath(dir_path)
 
-        # Regex per identificare gli estrattori
         extractor_pattern = re.compile(r"D\.\d+\.\d+")
 
         for entry in os.listdir(abs_dir_path):
             file_path = os.path.join(abs_dir_path, entry)
             if os.path.isfile(file_path):
-                # Verifica se è un estrattore
+                # Gestione estrattori
                 if extractor_pattern.match(entry):
                     counter = 0
                     for extractor_element in scene.em_extractors_list:
@@ -715,21 +720,33 @@ def inspect_load_dosco_files():
                             if em_settings.preserve_web_url and is_valid_url(scene.em_extractors_list[counter].url):
                                 pass
                             else:
+                                # Aggiorna la lista Blender
                                 scene.em_extractors_list[counter].url = entry
                                 scene.em_extractors_list[counter].icon_url = "CHECKBOX_HLT"
-                        counter += 1 
+                                
+                                # Aggiorna/crea nodo link nel grafo
+                                extractor_node = graph.find_node_by_id(extractor_element.id_node)
+                                if extractor_node:
+                                    update_or_create_link_node(graph, extractor_node, entry, em_settings.preserve_web_url)
+                        counter += 1
 
-                # Verifica se è un combiner
+                # Gestione combiners
                 elif entry.startswith("C."):
                     counter = 0
                     for combiner_element in scene.em_combiners_list:
                         if entry.startswith(combiner_element.name):
                             if not em_settings.preserve_web_url and not is_valid_url(scene.em_combiners_list[counter].url):
+                                # Aggiorna la lista Blender
                                 scene.em_combiners_list[counter].url = entry
                                 scene.em_combiners_list[counter].icon_url = "CHECKBOX_HLT"
+                                
+                                # Aggiorna/crea nodo link nel grafo
+                                combiner_node = graph.find_node_by_id(combiner_element.id_node)
+                                if combiner_node:
+                                    update_or_create_link_node(graph, combiner_node, entry, em_settings.preserve_web_url)
                         counter += 1
 
-                # Verifica se è un documento
+                # Gestione documenti
                 elif entry.startswith("D."):
                     counter = 0
                     for document_element in scene.em_sources_list:
@@ -737,7 +754,52 @@ def inspect_load_dosco_files():
                             if em_settings.preserve_web_url and is_valid_url(scene.em_sources_list[counter].url):
                                 pass
                             else:
+                                # Aggiorna la lista Blender
                                 scene.em_sources_list[counter].url = entry
                                 scene.em_sources_list[counter].icon_url = "CHECKBOX_HLT"
-                        counter += 1 
+                                
+                                # Aggiorna/crea nodo link nel grafo
+                                document_node = graph.find_node_by_id(document_element.id_node)
+                                if document_node:
+                                    update_or_create_link_node(graph, document_node, entry, em_settings.preserve_web_url)
+                        counter += 1
     return
+
+def update_or_create_link_node(graph, source_node, url, preserve_existing=True):
+    """
+    Aggiorna un nodo link esistente o ne crea uno nuovo.
+    
+    Args:
+        graph: Il grafo s3Dgraphy
+        source_node: Il nodo sorgente (documento, estrattore o combiner)
+        url: L'URL o percorso da assegnare
+        preserve_existing: Se True, preserva i link esistenti con URL web
+    """
+    link_node_id = f"{source_node.node_id}_link"
+    existing_link = graph.find_node_by_id(link_node_id)
+    
+    if existing_link:
+        if preserve_existing and is_valid_url(existing_link.url):
+            return
+        # Aggiorna l'URL del nodo link esistente
+        existing_link.url = url
+    else:
+        # Crea un nuovo nodo link
+        
+        link_node = LinkNode(
+            node_id=link_node_id,
+            name=f"Link to {source_node.name}",
+            description=f"Link to {source_node.description}" if source_node.description else "",
+            url=url
+        )
+        graph.add_node(link_node)
+        
+        # Crea l'edge
+        edge_id = f"{source_node.node_id}_has_linked_resource_{link_node_id}"
+        if not graph.find_edge_by_id(edge_id):
+            graph.add_edge(
+                edge_id=edge_id,
+                edge_source=source_node.node_id,
+                edge_target=link_node.node_id,
+                edge_type="has_linked_resource"
+            )
