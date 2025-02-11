@@ -53,7 +53,7 @@ class EM_ToolsPanel:
             split = layout.split()
             if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
                 col = split.column()
-                op = col.operator("select.fromlistitem", text='List to Proxy3D', icon="MESH_CUBE")
+                op = col.operator("select.fromlistitem", text='Proxy3D from List item', icon="MESH_CUBE")
                 op.list_type = "em_list"
             else:
                 col = split.column()
@@ -61,7 +61,7 @@ class EM_ToolsPanel:
             if obj:
                 if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
                     col = split.column(align=True)
-                    op = col.operator("select.listitem", text='3DProxy to List', icon="LONGDISPLAY")
+                    op = col.operator("select.listitem", text='List item from 3DProxy', icon="LONGDISPLAY")
                     op.list_type = "em_list"
                 else:
                     col = split.column()

@@ -690,9 +690,15 @@ def identify_node(name):
 def inspect_load_dosco_files():
     context = bpy.context
     scene = context.scene
+    em_tools = scene.em_tools
     em_settings = bpy.context.window_manager.em_addon_settings
-    if scene.EMDosCo_dir:
-        dir_path = scene.EMDosCo_dir
+
+    # Verifica se c'è un file GraphML attivo e se ha un percorso DosCo valido
+    if (em_tools.active_file_index >= 0 and 
+        em_tools.graphml_files[em_tools.active_file_index] and 
+        em_tools.graphml_files[em_tools.active_file_index].dosco_dir):
+        
+        dir_path = em_tools.graphml_files[em_tools.active_file_index].dosco_dir
         abs_dir_path = bpy.path.abspath(dir_path)
 
         # Regex per identificare gli estrattori
@@ -706,7 +712,7 @@ def inspect_load_dosco_files():
                     counter = 0
                     for extractor_element in scene.em_extractors_list:
                         if entry.startswith(extractor_element.name):
-                            if  em_settings.preserve_web_url and is_valid_url(scene.em_extractors_list[counter].url):
+                            if em_settings.preserve_web_url and is_valid_url(scene.em_extractors_list[counter].url):
                                 pass
                             else:
                                 scene.em_extractors_list[counter].url = entry
