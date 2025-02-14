@@ -107,7 +107,8 @@ class JSONExporter:
             "defaults": {
                 "license": graph.data.get('license', 'CC-BY-NC-ND'),
                 "authors": authors,
-                "embargo_until": graph.data.get('embargo_until')
+                "embargo_until": graph.data.get('embargo_until'),
+                "panorama": graph.data.get('panorama', 'panorama/defsky.jpg')
             },
             "nodes": self._process_nodes(graph),
             "edges": self._process_edges(graph)
