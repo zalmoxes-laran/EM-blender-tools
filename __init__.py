@@ -22,9 +22,9 @@ bl_info = {
     "author": "E. Demetrescu",
     "version": (1, 5, 0),
     "blender": (4, 3, 2),
-    "devel_version": "v1.5.0 dev11",  # Aggiunto campo devel_version
+    "devel_version": "v1.5.0 dev12",  # Aggiunto campo devel_version
     "location": "3D View > Toolbox",
-    "warning": "This addon is in dev7 stage.",
+    "warning": "This addon is in dev12 stage.",
     "wiki_url": "",
     "category": "Tools",
     }
@@ -357,6 +357,17 @@ class EMListItem(bpy.types.PropertyGroup):
            name="id node",
            description="",
            default="Empty") # type: ignore
+    
+    border_style: prop.StringProperty(
+           name="border style",
+           description="",
+           default="Empty") # type: ignore    
+
+    fill_color: prop.StringProperty(
+           name="fill color",
+           description="",
+           default="Empty") # type: ignore
+
 
 class EMreusedUS(bpy.types.PropertyGroup):
     """ Group of properties representing an item in the list """

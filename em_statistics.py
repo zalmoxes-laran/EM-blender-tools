@@ -2,7 +2,9 @@ import bpy
 import csv
 import os
 import bmesh
+import math
 from bpy_extras.io_utils import ExportHelper
+from .s3Dgraphy import convert_shape2type
 
 # Percorso del file CSV con materiali e densità
 CSV_FILE = os.path.join(os.path.dirname(__file__), "resources/materials", "ch_materials.csv")
@@ -22,44 +24,55 @@ def load_materials():
 def get_material_items(self, context):
     """Restituisce l'elenco dei materiali come items per EnumProperty."""
     materials = load_materials()
-    return [(mat, mat.title(), "") for mat in sorted(materials.keys())] if materials else [("none", "Nessun materiale disponibile", "")]
+    return [(mat, mat.title(), "") for mat in sorted(materials.keys())] if materials else [("none", "No material available", "")]
 
-def calculate_object_weight(obj, selected_material, materials):
-    """Calcola il volume e il peso di un oggetto selezionato."""
+def is_mesh_closed(bm):
+    """Verifica se una mesh è chiusa controllando i bordi non manifold."""
+    return all(len(edge.link_faces) == 2 for edge in bm.edges)
+
+def calculate_object_metrics(obj, selected_material, materials):
+    """Calcola volume, peso e superfici di un oggetto."""
     if not obj or obj.type != 'MESH':
-        return None, None
+        return None, None, None, None, None
     
     # Calcolo del volume con BMesh
     mesh = obj.data
     bm = bmesh.new()
     bm.from_mesh(mesh)
+    bm.faces.ensure_lookup_table()
     
-    try:
-        volume = bm.calc_volume()
-    except RuntimeError:
-        print(f"Mesh aperta per '{obj.name}', impossibile calcolare il volume.")
-        return None, "Errore: Mesh aperta"
+    if is_mesh_closed(bm):
+        measurement_type = "Closed Mesh"
+        try:
+            volume = bm.calc_volume()
+        except RuntimeError:
+            volume = None
+            measurement_type = "Errore nel calcolo del volume"
+    else:
+        measurement_type = "Open Mesh - Bounding Box"
+        dimensions = obj.dimensions
+        volume = dimensions.x * dimensions.y * dimensions.z
+    
+    total_surface = sum(f.calc_area() for f in bm.faces)
+    vertical_surface = sum(f.calc_area() for f in bm.faces if 85 <= math.degrees(f.normal.angle((0, 0, 1))) <= 95)
     
     bm.free()
     
-    # Verifica del materiale selezionato
+    # Calcolo del peso
     material_name = selected_material.strip().lower()
-    print(f"DEBUG: Oggetto {obj.name} - Materiale selezionato: '{material_name}'")
-    
     if material_name in materials:
         density = materials[material_name]
-        weight = volume * density
-        print(f"DEBUG: Materiale trovato! Densità: {density} - Volume: {volume} - Peso: {weight}")
-        return volume, weight
+        weight = volume * density if volume else "Errore nel volume"
     else:
-        print(f"ERRORE: Materiale '{material_name}' non trovato nel CSV. Disponibili: {list(materials.keys())}")
-        return volume, "Materiale non valido"
+        weight = "Materiale non valido"
+    
+    return volume, weight, measurement_type, total_surface, vertical_surface
 
 # Proprietà per la selezione delle opzioni di esportazione
 class EMSceneProperties(bpy.types.PropertyGroup):
-    export_volume: bpy.props.BoolProperty(name="Esporta Volume", default=True)
-    export_weight: bpy.props.BoolProperty(name="Esporta Peso", default=False)
-    material_list: bpy.props.EnumProperty(name="Materiale", items=get_material_items)
+    export_volume: bpy.props.BoolProperty(name="Calculate Volume", default=True)
+    export_weight: bpy.props.BoolProperty(name="Calculate weight", default=False)
+    material_list: bpy.props.EnumProperty(name="Material", items=get_material_items)
 
 class EMExportCSV(bpy.types.Operator, ExportHelper):
     """Esporta i dati degli oggetti selezionati in CSV."""
@@ -78,18 +91,32 @@ class EMExportCSV(bpy.types.Operator, ExportHelper):
                 continue
             
             selected_material = scene_props.material_list
-            volume, weight = calculate_object_weight(obj, selected_material, materials)
+            volume, weight, measurement_type, total_surface, vertical_surface = calculate_object_metrics(obj, selected_material, materials)
+            
+            epoca = description = emnode = "none"
+            for i in bpy.context.scene.em_list:
+                if obj.name == i.name:
+                    epoca = i.epoch
+                    description = i.description
+                    emnode = convert_shape2type(i.shape, i.border_style)[0]
+                    break
             
             row = {
-                "name": obj.name,
-                "volume": volume if scene_props.export_volume else "",
-                "weight": weight if scene_props.export_weight else ""
+                "Name": obj.name,
+                "EM node": emnode,
+                "Epoch": epoca,
+                "Description": description,
+                "Volume (m³)": volume if scene_props.export_volume else "",
+                "Measurement type": measurement_type,
+                "Weight (kg)": weight if scene_props.export_weight else "",
+                "Total Surface (m²)": total_surface,
+                "Vertical Surface (m²)": vertical_surface
             }
             data.append(row)
 
         # Esportazione CSV
         with open(self.filepath, 'w', newline='', encoding='utf-8') as file:
-            writer = csv.DictWriter(file, fieldnames=["name", "volume", "weight"])
+            writer = csv.DictWriter(file, fieldnames=["Name", "EM node", "Epoch", "Description", "Volume (m³)", "Measurement type", "Weight (kg)", "Total Surface (m²)", "Vertical Surface (m²)"])
             writer.writeheader()
             writer.writerows(data)
 
@@ -98,7 +125,7 @@ class EMExportCSV(bpy.types.Operator, ExportHelper):
 
 # Pannello per l'interfaccia utente
 class EM_PT_ExportPanel(bpy.types.Panel):
-    bl_label = "Esporta Dati Mesh"
+    bl_label = "Export statistics"
     bl_idname = "EM_PT_ExportPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
