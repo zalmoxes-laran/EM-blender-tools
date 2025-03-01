@@ -874,7 +874,7 @@ def register():
         print("EM Tools: Missing dependencies. Registering only dependency panel.")
         dependecy_panel.register()
 
- def unregister():
+def unregister():
     """Main unregistration function"""
     global DEPENDENCIES_INSTALLED
     
