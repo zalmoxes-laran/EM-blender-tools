@@ -2,8 +2,6 @@ import bpy
 from .s3Dgraphy import get_graph, remove_graph
 from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode
 
-from .bl_info import get_bl_info
-
 from .import_operators.importer_graphml import EM_import_GraphML
 
 from .populate_lists import *
@@ -350,8 +348,9 @@ class EMToolsSwitchModeOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 class EM_SetupPanel(bpy.types.Panel):
-    bl_info = get_bl_info()
-    devel_version = bl_info.get('devel_version', 'Unknown version')
+    #bl_info = get_bl_info()
+    #devel_version = bl_info.get('devel_version', 'Unknown version')
+    devel_version = "1.5 dev12"
     bl_label = "EM setup " + devel_version
     bl_idname = "VIEW3D_PT_EM_Tools_Setup"
     bl_space_type = 'VIEW_3D'

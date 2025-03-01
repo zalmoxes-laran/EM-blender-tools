@@ -16,7 +16,21 @@ emanuel.demetrescu@cnr.it
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from .bl_info import bl_info, get_bl_info
+bl_info = {
+    "name": "EM tools",
+    "description": "Blender tools for Extended Matrix",
+    "author": "E. Demetrescu",
+    "version": (1, 5, 0),  # This is fine as a tuple
+    "blender": (4, 0, 0),  # Make sure this matches the minimum Blender version you support
+    #"devel_version": "v1.5.0 dev12",  # This is already a string, which is good
+    "location": "3D View > Toolbox",
+    "warning": "This addon is in dev12 stage.",
+    "wiki_url": "",
+    "category": "Tools",
+}
+
+def get_bl_info():
+    return bl_info
 
 # load basic modules required for all operations
 ##################################
@@ -580,8 +594,9 @@ def register_full_addon():
         from .import_operators import importer_graphml
         from .export_operators import exporter_heriverse
         from .import_operators import import_EMdb
-        from .functions import *
-        from .populate_lists import *
+        # Import modules without wildcard imports
+        from . import functions
+        from . import populate_lists
         from .s3Dgraphy.utils.utils import get_material_color
         from .operators import graphml_converter
 
