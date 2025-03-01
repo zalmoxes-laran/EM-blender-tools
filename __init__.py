@@ -595,10 +595,12 @@ def register_full_addon():
         from .export_operators import exporter_heriverse
         from .import_operators import import_EMdb
         # Import modules without wildcard imports
-        from . import functions
         from . import populate_lists
         from .s3Dgraphy.utils.utils import get_material_color
         from .operators import graphml_converter
+
+        # Create a set to keep track of registered classes to prevent duplicates
+        registered_classes = set()
 
         # Full classes list for addon
         classes = (
@@ -619,9 +621,15 @@ def register_full_addon():
             visual_tools.EM_label_creation,
         )
 
-        # Register remaining classes
+        # Register remaining classes - with duplicate prevention
         for cls in classes:
-            bpy.utils.register_class(cls)
+            cls_name = cls.__name__
+            if cls_name not in registered_classes:
+                try:
+                    bpy.utils.register_class(cls)
+                    registered_classes.add(cls_name)
+                except ValueError as e:
+                    print(f"Warning: Class '{cls_name}' already registered: {e}")
 
         # Register modules
         em_setup.register()
@@ -866,12 +874,15 @@ def register():
         print("EM Tools: Missing dependencies. Registering only dependency panel.")
         dependecy_panel.register()
 
-def unregister():
+ def unregister():
     """Main unregistration function"""
     global DEPENDENCIES_INSTALLED
     
     if DEPENDENCIES_INSTALLED:
         try:
+            # Import functions module here to ensure it's available during unregistration
+            from . import functions
+            
             # Unregister all components in reverse order
             del bpy.types.WindowManager.em_addon_settings
             del bpy.types.Scene.EM_gltf_export_maxres
@@ -971,7 +982,7 @@ def unregister():
             em_setup.unregister()
             
             # Unregister UI classes
-            from . import UI, functions, paradata_manager, visual_tools
+            from . import UI, paradata_manager, visual_tools
             
             classes = (
                 visual_tools.EM_label_creation,
