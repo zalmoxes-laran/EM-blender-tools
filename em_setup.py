@@ -2,7 +2,7 @@ import bpy
 from .s3Dgraphy import get_graph, remove_graph
 from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode
 
-from .__init__ import get_bl_info
+from .bl_info import get_bl_info
 
 from .import_operators.importer_graphml import EM_import_GraphML
 

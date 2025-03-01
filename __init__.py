@@ -16,21 +16,7 @@ emanuel.demetrescu@cnr.it
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-bl_info = {
-    "name": "EM tools",
-    "description": "Blender tools for Extended Matrix",
-    "author": "E. Demetrescu",
-    "version": (1, 5, 0),
-    "blender": (4, 3, 2),
-    "devel_version": "v1.5.0 dev12",  # Aggiunto campo devel_version
-    "location": "3D View > Toolbox",
-    "warning": "This addon is in dev12 stage.",
-    "wiki_url": "",
-    "category": "Tools",
-    }
-
-def get_bl_info():
-    return bl_info
+from .bl_info import bl_info, get_bl_info
 
 # load and reload submodules
 ##################################
