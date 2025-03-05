@@ -117,6 +117,12 @@ class EMExportCSV(bpy.types.Operator, ExportHelper):
         # Esportazione CSV
         with open(self.filepath, 'w', newline='', encoding='utf-8') as file:
             writer = csv.DictWriter(file, fieldnames=["Name", "EM node", "Epoch", "Description", "Volume (m³)", "Measurement type", "Weight (kg)", "Total Surface (m²)", "Vertical Surface (m²)"])
+            writer = csv.DictWriter(file, fieldnames=[
+                    "Name", "EM node", "Epoch", "Description", 
+                    "Volume (m³)", "Measurement type", "Weight (kg)", 
+                    "Total Surface (m²)", "Vertical Surface (m²)"
+                ],
+                delimiter=";")  # Usa il punto e virgola come delimitatore
             writer.writeheader()
             writer.writerows(data)
 
