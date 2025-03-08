@@ -947,10 +947,6 @@ def unregister():
             
             # Unregister modules
             from . import (
-                graphml_converter,
-                import_EMdb,
-                exporter_heriverse,
-                importer_graphml,
                 activity_manager,
                 graph2geometry,
                 server,
@@ -964,6 +960,11 @@ def unregister():
                 em_setup
             )
             
+            from .export_operators import exporter_heriverse
+            from .import_operators import importer_graphml, import_EMdb 
+            from .operators import graphml_converter
+
+
             graphml_converter.unregister()
             import_EMdb.unregister()
             exporter_heriverse.unregister()
