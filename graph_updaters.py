@@ -101,12 +101,21 @@ def update_representation_models(graph):
                 type="RM",
                 url=f"models/{obj.name}.gltf"
             )
+            # Aggiungi l'attributo is_publishable come default
+            model_node.attributes['is_publishable'] = True
             graph.add_node(model_node)
             nodes_added += 1
         else:
             model_node.url = f"models/{obj.name}.gltf"
+            # Assicurati che ci sia l'attributo is_publishable
+            if 'is_publishable' not in model_node.attributes:
+                model_node.attributes['is_publishable'] = True
         
         for epoch_prop in obj.EM_ep_belong_ob:
+            # Salta le entry "no_epoch" per gli edges (le manteniamo solo come marker)
+            if epoch_prop.epoch == "no_epoch":
+                continue
+                
             epoch_node = next((node for node in graph.nodes 
                              if node.node_type == "epoch" and 
                              node.name == epoch_prop.epoch), None)
@@ -123,4 +132,5 @@ def update_representation_models(graph):
                     edges_added += 1
     
     print(f"Added {nodes_added} representation model nodes and {edges_added} edges")
+
 

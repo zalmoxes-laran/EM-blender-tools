@@ -350,7 +350,7 @@ class EMToolsSwitchModeOperator(bpy.types.Operator):
 class EM_SetupPanel(bpy.types.Panel):
     #bl_info = get_bl_info()
     #devel_version = bl_info.get('devel_version', 'Unknown version')
-    devel_version = "1.5 dev13"
+    devel_version = "1.5 dev14"
     bl_label = "EM setup " + devel_version
     bl_idname = "VIEW3D_PT_EM_Tools_Setup"
     bl_space_type = 'VIEW_3D'

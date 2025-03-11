@@ -23,7 +23,7 @@ bl_info = {
     "version": (1, 5, 0),  # This is fine as a tuple
     "blender": (4, 0, 0),  # Make sure this matches the minimum Blender version you support
     "location": "3D View > Toolbox",
-    "warning": "This addon is in dev13 stage.",
+    "warning": "This addon is in dev14 stage.",
     "wiki_url": "",
     "category": "Tools",
 }
@@ -52,6 +52,8 @@ from bpy.types import (  # type: ignore
 from . import addon_updater_ops
 from . import dependecy_panel
 from .blender_pip import Pip
+from . import rm_manager  # Importa il nuovo modulo
+
 
 # Global variable to track dependency status
 DEPENDENCIES_INSTALLED = False
@@ -604,7 +606,6 @@ def register_full_addon():
         # Full classes list for addon
         classes = (
             UI.VIEW3D_PT_ToolsPanel,
-            UI.VIEW3D_PT_BasePanel,
             UI.EM_UL_named_epoch_managers,
             UI.VIEW3D_PT_ParadataPanel,
             UI.EM_UL_properties_managers,
@@ -639,6 +640,7 @@ def register_full_addon():
         export_manager.register()
         em_statistics.register()
         epoch_manager.register()
+        rm_manager.register()
         server.register()
         graph2geometry.register()
         activity_manager.register()
@@ -972,6 +974,7 @@ def unregister():
             activity_manager.unregister()
             graph2geometry.unregister()
             server.unregister()
+            rm_manager.unregister()
             epoch_manager.unregister()
             em_statistics.unregister()
             export_manager.unregister()
@@ -998,7 +1001,6 @@ def unregister():
                 UI.EM_UL_properties_managers,
                 UI.VIEW3D_PT_ParadataPanel,
                 UI.EM_UL_named_epoch_managers,
-                UI.VIEW3D_PT_BasePanel,
                 UI.VIEW3D_PT_ToolsPanel
             )
             

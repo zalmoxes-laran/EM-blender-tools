@@ -4,11 +4,69 @@ import string
 from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty # type: ignore
 import bpy.props as prop # type: ignore
 
+from bpy.types import Panel # type: ignore
+
+
 from .functions import *
 
 from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode  # Import diretto
 
 from .s3Dgraphy import get_graph
+
+#Periods Manager
+class EM_BasePanel:
+    bl_label = "Periods Manager"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    @classmethod
+    def poll(cls, context):
+        em_tools = context.scene.em_tools
+        # Restituisce True se mode_switch è False, quindi il pannello viene mostrato solo in modalità 3D GIS
+        return em_tools.mode_switch
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        row = layout.row()
+        ob = context.object
+
+        if len(scene.em_list) > 0:
+            row.template_list(
+                "EM_UL_named_epoch_managers", "", scene, "epoch_list", scene, "epoch_list_index")
+            row = layout.row()
+            row.label(text="Representation Models (RM):")
+            op = row.operator("epoch_models.add_remove", text="", emboss=False, icon='ADD')
+            op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
+            op.rm_add = True
+            op = row.operator("epoch_models.add_remove", text="", emboss=False, icon='REMOVE')
+            op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
+            op.rm_add = False
+            op = row.operator("select_rm.given_epoch", text="", emboss=False, icon='SELECT_SET')
+            op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
+        
+        else:
+            row.label(text="No periods here :-(")
+        
+        row = layout.row()
+
+        if ob is None:
+            pass
+        else:
+            if ob.type in ['MESH']:
+                row.label(text="Active object: "+ob.name)
+                row = layout.row()
+
+            if len(ob.EM_ep_belong_ob) > 0:
+                row.template_list(
+                    "EM_UL_belongob", "", ob, "EM_ep_belong_ob", ob, "EM_ep_belong_ob_index", rows=2)
+            else:
+                row.label(text="No periods for active object")
+
+class VIEW3D_PT_BasePanel(Panel, EM_BasePanel):
+    bl_category = "EM"
+    bl_idname = "VIEW3D_PT_BasePanel"
+    bl_context = "objectmode"
 
 ########################
 
@@ -66,9 +124,6 @@ class EM_toggle_select(bpy.types.Operator):
             self.layout.label(text=missing_objects_str)
         bpy.context.window_manager.popup_menu(draw, title="Warning", icon='INFO')
 
-#["rectangle", "ellipse_white", "roundrectangle", "octagon_white"]
-#["parallelogram", "ellipse", "hexagon", "octagon"]
-
 class EM_toggle_reconstruction(bpy.types.Operator):
     """Draw a line with the mouse"""
     bl_idname = "epoch_manager.toggle_reconstruction"
@@ -112,7 +167,7 @@ class EM_toggle_reconstruction(bpy.types.Operator):
         return {'FINISHED'}
 
 class EM_toggle_visibility(bpy.types.Operator):
-    """Draw a line with the mouse"""
+    """Toggle visibility"""
     bl_idname = "epoch_manager.toggle_visibility"
     bl_label = "Toggle Visibility"
     bl_description = "Toggle Visibility"
@@ -409,7 +464,8 @@ classes = [
     EM_toggle_soloing,
     EM_add_remove_epoch_models,
     EM_select_epoch_rm,
-    EM_UpdateUSListOperator
+    EM_UpdateUSListOperator,
+    VIEW3D_PT_BasePanel
     ]
 
 # Registration
