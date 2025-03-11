@@ -802,7 +802,7 @@ def register_full_addon():
         )
 
         bpy.types.Scene.em_settings = PointerProperty(type=EM_Other_Settings)
-        bpy.types.Scene.rm_settings = PointerProperty(type=EM_Other_Settings)
+        #bpy.types.Scene.rm_settings = PointerProperty(type=EM_Other_Settings)
         bpy.types.Scene.proxy_display_mode = StringProperty(
             name="Proxy display mode",
             default="select",
@@ -896,7 +896,7 @@ def unregister():
             del bpy.types.Scene.proxy_display_alpha
             del bpy.types.Scene.proxy_blend_mode
             del bpy.types.Scene.proxy_display_mode
-            del bpy.types.Scene.rm_settings
+            #del bpy.types.Scene.rm_settings
             del bpy.types.Scene.em_settings
             
             del bpy.types.Scene.EMviq_model_author_name
