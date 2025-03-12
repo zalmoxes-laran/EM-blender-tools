@@ -186,8 +186,13 @@ class RM_OT_update_list(Operator):
             
             # Ottieni il grafo attivo se stiamo aggiornando dal grafo
             graph = None
-            if self.from_graph and hasattr(context.scene, 'em_tools') and hasattr(context.scene.em_tools, 'active_file_index'):
-                if context.scene.em_tools.active_file_index >= 0:
+            if self.from_graph and hasattr(context.scene, 'em_tools'):
+                # Verifica che graphml_files esista e non sia vuoto
+                if (hasattr(context.scene.em_tools, 'graphml_files') and
+                    len(context.scene.em_tools.graphml_files) > 0 and
+                    context.scene.em_tools.active_file_index >= 0 and 
+                    context.scene.em_tools.active_file_index < len(context.scene.em_tools.graphml_files)):
+                    
                     graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
                     from .s3Dgraphy import get_graph
                     graph = get_graph(graphml.name)
@@ -1179,6 +1184,9 @@ class VIEW3D_PT_RM_Manager(Panel):
         scene = context.scene
 
         from .functions import is_graph_available
+        
+        # Verifica se è disponibile un grafo
+        graph_available, graph = is_graph_available(context)
 
         # Mostra l'epoca attiva
         has_active_epoch = False
@@ -1191,9 +1199,6 @@ class VIEW3D_PT_RM_Manager(Panel):
         # Controllo per aggiornamento lista e gestione mismatch
         row = layout.row(align=True)
         row.operator("rm.update_list", text="Update from Scene", icon='FILE_REFRESH').from_graph = False
-
-        # Use the modular function to check graph availability
-        graph_available, graph = is_graph_available(context)
 
         # Verifica se è disponibile un grafo
         if graph_available:
@@ -1213,9 +1218,12 @@ class VIEW3D_PT_RM_Manager(Panel):
             row.operator("rm.promote_to_rm", icon='ADD')
             row.operator("rm.remove_from_epoch", icon='REMOVE')
             row.operator("rm.demote_from_rm", icon='TRASH')
+        else:
+            box = layout.box()
+            box.label(text="Select an epoch to manage RM objects", icon='INFO')
         
-        # Elenco delle epoche associate sempre visibile
-        if scene.rm_list_index >= 0 and scene.rm_list and len(scene.rm_list):
+        # Elenco delle epoche associate solo se un RM è selezionato
+        if scene.rm_list_index >= 0 and len(scene.rm_list) > 0:
             item = scene.rm_list[scene.rm_list_index]
             
             # Mostra la lista delle epoche associate
@@ -1223,7 +1231,7 @@ class VIEW3D_PT_RM_Manager(Panel):
             row = box.row()
             row.label(text=f"Epochs for {item.name}:")
             
-            # Sublista delle epoche sempre visibile
+            # Sublista delle epoche
             row = box.row()
             row.template_list(
                 "RM_UL_EpochList", "rm_epochs",
@@ -1257,6 +1265,11 @@ class VIEW3D_PT_RM_Manager(Panel):
             row.label(text=f"First Epoch: {item.first_epoch}")
             row = box.row()
             row.prop(item, "is_publishable", text="Publishable")
+        elif len(scene.rm_list) == 0:
+            box = layout.box()
+            box.label(text="No RM models found", icon='INFO')
+            if has_active_epoch:
+                box.label(text="Select 3D objects and click 'Add' to create RMs")
         
         # Impostazioni
         box = layout.box()
@@ -1285,7 +1298,11 @@ def update_rm_list_on_graph_load(dummy):
         return
         
     # Only call the operator if we have an active file
-    if hasattr(scene, 'em_tools') and scene.em_tools.active_file_index >= 0:
+    if (hasattr(scene, 'em_tools') and 
+        hasattr(scene.em_tools, 'graphml_files') and 
+        len(scene.em_tools.graphml_files) > 0 and 
+        scene.em_tools.active_file_index >= 0):
+        
         try:
             # Run in a timer to ensure proper context
             bpy.app.timers.register(
