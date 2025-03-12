@@ -92,8 +92,7 @@ def check_dependencies():
 # Verifica le dipendenze durante il caricamento
 DEPENDENCIES_INSTALLED = check_dependencies()
 
-
-from . import dependecy_panel
+from . import dependecy_panel, us_list_per_epoch
 
 class EmPreferences(bpy.types.AddonPreferences):
     bl_idname = __package__
@@ -541,7 +540,6 @@ def register_full_addon():
     try:
         # Import required modules
         from . import (
-            UI,
             EM_list,
             epoch_manager,
             functions,
@@ -556,7 +554,8 @@ def register_full_addon():
             server,
             graph2geometry,
             activity_manager,
-            rm_manager
+            rm_manager,
+            us_list_per_epoch
         )
 
         from .import_operators import importer_graphml
@@ -572,10 +571,6 @@ def register_full_addon():
 
         # Full classes list for addon
         classes = (
-            UI.EM_UL_belongob,
-            UI.VIEW3D_PT_USListPanel,
-            UI.EM_UL_US_List,
-            paradata_manager.EM_files_opener,
             functions.OBJECT_OT_CenterMass,
             functions.OBJECT_OT_labelonoff,
             visual_tools.EM_label_creation,
@@ -792,14 +787,16 @@ def register_full_addon():
         visual_manager.register()
         external_modules_install.register()
         EMdb_excel.register()
+        activity_manager.register()
         EM_list.register()
-        export_manager.register()
         em_statistics.register()
         epoch_manager.register()
+        us_list_per_epoch.register()
+        paradata_manager.register()
         rm_manager.register()
+        export_manager.register()
         server.register()
         graph2geometry.register()
-        activity_manager.register()
         importer_graphml.register()
         exporter_heriverse.register()
         import_EMdb.register()
@@ -924,6 +921,7 @@ def unregister():
                 visual_manager,
                 em_setup,
                 rm_manager,
+                paradata_manager
             )
             
             from .export_operators import exporter_heriverse
@@ -938,6 +936,8 @@ def unregister():
             graph2geometry.unregister()
             server.unregister()
             rm_manager.unregister()
+            us_list_per_epoch.unregister()
+            paradata_manager.unregister()
             epoch_manager.unregister()
             em_statistics.unregister()
             export_manager.unregister()
@@ -948,17 +948,13 @@ def unregister():
             em_setup.unregister()
             
             # Unregister UI classes
-            from . import UI, paradata_manager, visual_tools
+            from . import paradata_manager, visual_tools
             
             classes = (
                 visual_tools.EM_label_creation,
                 functions.OBJECT_OT_labelonoff,
                 functions.OBJECT_OT_CenterMass,
                 paradata_manager.EM_files_opener,
-                UI.EM_UL_US_List,
-                UI.VIEW3D_PT_USListPanel,
-                UI.EM_UL_belongob,
-                UI.VIEW3D_PT_ToolsPanel
             )
             
             for cls in reversed(classes):

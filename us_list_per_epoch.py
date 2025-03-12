@@ -1,7 +1,3 @@
-#    part of this library is a heavy modified version of the original code from: 
-#    "name": "Super Grouper",
-#    "author": "Paul Geraskin, Aleksey Juravlev, BA Community",
-
 import bpy# type: ignore
 
 from .functions import *
@@ -10,7 +6,6 @@ from bpy.types import Operator# type: ignore
 from bpy.types import Menu, Panel, UIList, PropertyGroup# type: ignore
 from bpy.props import StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty# type: ignore
 from bpy.app.handlers import persistent# type: ignore
-#from .epoch_manager import *
 from .EM_list import *
 
 class EM_UL_US_List(bpy.types.UIList):
@@ -64,4 +59,19 @@ class EM_UL_belongob(UIList):
         #split.label(text=str(item.epoch))
         split.prop(item, "epoch", text="", emboss=False, translate=False, icon='SORTTIME')
 
+classes = (
+    VIEW3D_PT_USListPanel,
+    EM_UL_US_List,
+)
+
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+def unregister():
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
+
+if __name__ == "__main__":
+    register()
 
