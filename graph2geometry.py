@@ -1,7 +1,8 @@
 # EMtools/graph2geometry.py
 import bpy # type: ignore
 #from .graph_manager import graph_instance
-from .external_modules_install import check_external_modules, install_modules
+from .external_modules_install import check_external_modules
+from .blender_pip import Pip
 import logging
 
 from .s3Dgraphy import load_graph, get_graph

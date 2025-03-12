@@ -48,18 +48,50 @@ from bpy.types import (  # type: ignore
         PropertyGroup,
         )
 
-# Global variable to track dependency status
+
+# Funzione per configurare il percorso corretto per l'importazione dei moduli
+def setup_module_paths():
+    """
+    Configura i percorsi per l'importazione corretta dei moduli
+    Questo permette di importare da:
+    1. La directory lib dell'addon (se esiste)
+    2. I site-packages di Blender
+    3. I percorsi standard di Python
+    """
+    import os
+    import sys
+    import site
+    
+    # Determina la directory dell'addon
+    addon_dir = os.path.dirname(os.path.realpath(__file__))
+    
+    # Aggiungi la directory lib dell'addon al path se esiste
+    lib_dir = os.path.join(addon_dir, 'lib')
+    if os.path.exists(lib_dir) and lib_dir not in sys.path:
+        sys.path.insert(0, lib_dir)
+        print(f"Added addon lib directory to path: {lib_dir}")
+        return True
+    return False
+
+# Esegui setup_module_paths all'avvio
+module_paths_setup = setup_module_paths()
+
+# Inizializza la variabile globale per tracciare lo stato delle dipendenze
 DEPENDENCIES_INSTALLED = False
 
 def check_dependencies():
-    """Check if external dependencies are available"""
+    """Verifica se le dipendenze esterne sono disponibili"""
     try:
-        import pandas # type: ignore
-        #import networkx # type: ignore
+        import pandas
+        import networkx 
         return True
     except ImportError as e:
         print(f"Missing dependencies: {e}")
         return False
+
+# Verifica le dipendenze durante il caricamento
+DEPENDENCIES_INSTALLED = check_dependencies()
+
 
 from . import dependecy_panel
 
@@ -751,7 +783,8 @@ def register_full_addon():
             description="Define the maximum resolution of the bigger side (it depends if it is a squared landscape or portrait image) of the output images",
         )
 
-        bpy.types.WindowManager.em_addon_settings = bpy.props.PointerProperty(type=EMAddonSettings)
+        if not hasattr(bpy.types.WindowManager, 'em_addon_settings'):
+            bpy.types.WindowManager.em_addon_settings = bpy.props.PointerProperty(type=EMAddonSettings)
 
 
         # Register modules
@@ -814,7 +847,8 @@ def unregister():
             from . import functions
             
             # Unregister all components in reverse order
-            del bpy.types.WindowManager.em_addon_settings
+            if hasattr(bpy.types.WindowManager, 'em_addon_settings'):
+                del bpy.types.WindowManager.em_addon_settings
             del bpy.types.Scene.EM_gltf_export_maxres
             del bpy.types.Scene.EM_gltf_export_quality
             del bpy.types.Object.EM_ep_belong_ob_index
