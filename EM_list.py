@@ -32,6 +32,7 @@ class EM_ToolsPanel:
     bl_label = "US/USV Manager"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         layout = self.layout

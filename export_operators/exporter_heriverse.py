@@ -389,14 +389,12 @@ def find_layer_collection(layer_collection, collection_name):
             return found
     return None
 
-
 def get_collection_for_object(obj):
     """Trova la collection principale di un oggetto"""
     for collection in bpy.data.collections:
         if obj.name in collection.objects:
             return collection.name
     return None
-
 
 class HERIVERSE_OT_make_collections_visible(Operator):
     bl_idname = "heriverse.make_collections_visible"
@@ -419,14 +417,10 @@ class HERIVERSE_OT_make_collections_visible(Operator):
         self.report({'INFO'}, "All collections containing RM objects are now visible")
         return {'FINISHED'}
 
-
-
-
 def register():
     bpy.utils.register_class(HERIVERSE_OT_export)
     bpy.utils.register_class(JSON_OT_exportEMformat)  
     bpy.utils.register_class(HERIVERSE_OT_make_collections_visible) 
-    
     
 def unregister():
     bpy.utils.unregister_class(HERIVERSE_OT_export)

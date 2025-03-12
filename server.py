@@ -11,7 +11,8 @@ class EM_ServerPanel:
     bl_label = "EM Server"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-
+    bl_options = {'DEFAULT_CLOSED'}
+    
     @classmethod
     def poll(cls, context):
         em_tools = context.scene.em_tools
