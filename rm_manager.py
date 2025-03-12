@@ -18,6 +18,259 @@ from bpy.types import ( # type: ignore
 from .s3Dgraphy import get_graph
 from .s3Dgraphy.nodes.representation_model_node import RepresentationModelNode
 
+from bpy_extras.io_utils import ImportHelper, ExportHelper # type: ignore
+
+
+class RM_OT_select_from_object(Operator):
+    bl_idname = "rm.select_from_object"
+    bl_label = "Select RM List Item"
+    bl_description = "Select the corresponding row in the RM list for the active object"
+    
+    def execute(self, context):
+        active_obj = context.active_object
+        if not active_obj:
+            self.report({'ERROR'}, "No active object selected")
+            return {'CANCELLED'}
+        
+        # Find the item in the RM list with the matching name
+        scene = context.scene
+        rm_list = scene.rm_list
+        found = False
+        
+        for i, item in enumerate(rm_list):
+            if item.name == active_obj.name:
+                scene.rm_list_index = i
+                found = True
+                self.report({'INFO'}, f"Selected RM list item for {active_obj.name}")
+                break
+        
+        if not found:
+            # Try adding the object to the list if it has epochs
+            if hasattr(active_obj, "EM_ep_belong_ob") and len(active_obj.EM_ep_belong_ob) > 0:
+                # Update the list first to make sure all objects are included
+                bpy.ops.rm.update_list(from_graph=False)
+                
+                # Try finding it again
+                for i, item in enumerate(rm_list):
+                    if item.name == active_obj.name:
+                        scene.rm_list_index = i
+                        found = True
+                        self.report({'INFO'}, f"Added and selected RM list item for {active_obj.name}")
+                        break
+            
+            if not found:
+                self.report({'WARNING'}, f"Object {active_obj.name} not found in RM list. Try adding it to an epoch first.")
+        
+        return {'FINISHED'}
+
+class RM_OT_add_tileset(Operator):
+    bl_idname = "rm.add_tileset"
+    bl_label = "Add Cesium Tileset"
+    bl_description = "Add an empty Cesium tileset object to the current epoch"
+    
+    tileset_name: StringProperty(
+        name="Tileset Name",
+        description="Name of the tileset object",
+        default="Tileset"
+    )
+    
+    tileset_path: StringProperty(
+        name="Tileset Path",
+        description="Path to the Cesium tileset zip file (relative or absolute)",
+        default="",
+        subtype='FILE_PATH'
+    )
+    
+    def invoke(self, context, event):
+        # Open a dialog to get the tileset name and path
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, dialog):
+        layout = self.layout
+        layout.prop(self, "tileset_name")
+        layout.prop(self, "tileset_path")
+    
+    def execute(self, context):
+        scene = context.scene
+        
+        # Check if an epoch is selected
+        if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
+            self.report({'ERROR'}, "No active epoch selected")
+            return {'CANCELLED'}
+        
+        active_epoch = scene.epoch_list[scene.epoch_list_index]
+        
+        # Create an empty object
+        bpy.ops.object.empty_add(type='PLAIN_AXES', location=(0, 0, 0))
+        obj = context.object
+        
+        # Ensure the name is unique
+        base_name = self.tileset_name
+        if not base_name:
+            base_name = "Tileset"
+            
+        # Find a unique name by adding a number if needed
+        index = 1
+        obj_name = base_name
+        while obj_name in bpy.data.objects:
+            obj_name = f"{base_name}_{index}"
+            index += 1
+            
+        obj.name = obj_name
+        
+        # Add the tileset_path custom property
+        obj["tileset_path"] = self.tileset_path
+        
+        # Add it to the current epoch
+        ep_item = obj.EM_ep_belong_ob.add()
+        ep_item.epoch = active_epoch.name
+        
+        # Update the RM list
+        bpy.ops.rm.update_list(from_graph=True)
+        
+        # Update the graph if available
+        graph = None
+        if context.scene.em_tools.active_file_index >= 0:
+            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+            graph = get_graph(graphml.name)
+            
+            if graph:
+                # Create a RM node in the graph
+                from ..s3Dgraphy.nodes.representation_model_node import RepresentationModelNode
+                
+                model_node_id = f"{obj.name}_model"
+                model_node = RepresentationModelNode(
+                    node_id=model_node_id,
+                    name=f"Model for {obj.name}",
+                    type="RM",
+                    url=f"tilesets/{os.path.basename(self.tileset_path)}"
+                )
+                
+                # Add tileset marker attribute
+                model_node.attributes['is_tileset'] = True
+                model_node.attributes['tileset_path'] = self.tileset_path
+                model_node.attributes['is_publishable'] = True
+                
+                # Add the node to the graph
+                graph.add_node(model_node)
+                
+                # Find the epoch node
+                epoch_node = None
+                for node in graph.nodes:
+                    if node.node_type == "epoch" and node.name == active_epoch.name:
+                        epoch_node = node
+                        break
+                
+                if epoch_node:
+                    # Add the edge connecting the model to the epoch
+                    edge_id = f"{model_node_id}_belongs_to_{epoch_node.node_id}"
+                    if not graph.find_edge_by_id(edge_id):
+                        graph.add_edge(
+                            edge_id=edge_id,
+                            edge_source=model_node_id,
+                            edge_target=epoch_node.node_id,
+                            edge_type="has_first_epoch"
+                        )
+        
+        # Find and select the item in the RM list
+        for i, item in enumerate(scene.rm_list):
+            if item.name == obj.name:
+                scene.rm_list_index = i
+                break
+        
+        self.report({'INFO'}, f"Added tileset '{obj.name}' to epoch '{active_epoch.name}'")
+        return {'FINISHED'}
+
+# Panel to display tileset properties
+class VIEW3D_PT_RM_Tileset_Properties(Panel):
+    bl_label = "Tileset Properties"
+    bl_idname = "VIEW3D_PT_RM_Tileset_Properties"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'EM'
+    bl_parent_id = "VIEW3D_PT_RM_Manager"  # Make it a subpanel of RM Manager
+    bl_options = {'DEFAULT_CLOSED'}
+    
+    @classmethod
+    def poll(cls, context):
+        # Only show if an object is selected and it has the tileset_path property
+        obj = context.object
+        if not obj:
+            return False
+            
+        return "tileset_path" in obj
+    
+    def draw(self, context):
+        layout = self.layout
+        obj = context.object
+        
+        # Display the tileset path
+        layout.label(text="Tileset Properties:")
+        
+        # Add a property field to edit the path
+        row = layout.row()
+        row.prop(obj, '["tileset_path"]', text="Path")
+        
+        # Add a button to open a file browser to select a new path
+        row = layout.row()
+        op = row.operator("rm.set_tileset_path", text="Browse...", icon='FILEBROWSER')
+        op.object_name = obj.name
+        
+        # Show a warning if the path doesn't exist
+        path = obj["tileset_path"]
+        if path and not os.path.exists(bpy.path.abspath(path)):
+            row = layout.row()
+            row.alert = True
+            row.label(text="Warning: Path not found!", icon='ERROR')
+
+# Operator to set the tileset path
+class RM_OT_set_tileset_path(Operator, ImportHelper):
+    bl_idname = "rm.set_tileset_path"
+    bl_label = "Set Tileset Path"
+    bl_description = "Set the path to the Cesium tileset zip file"
+    
+    filter_glob: StringProperty(
+        default="*.zip",
+        options={'HIDDEN'}
+    )
+    
+    object_name: StringProperty(
+        name="Object Name",
+        description="Name of the object to update",
+        default=""
+    )
+    
+    def execute(self, context):
+        obj = bpy.data.objects.get(self.object_name)
+        if not obj:
+            self.report({'ERROR'}, f"Object {self.object_name} not found")
+            return {'CANCELLED'}
+        
+        # Update the tileset_path property
+        obj["tileset_path"] = self.filepath
+        
+        # Update the url in the graph if available
+        try:
+            graph = None
+            if context.scene.em_tools.active_file_index >= 0:
+                graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+                graph = get_graph(graphml.name)
+                
+                if graph:
+                    model_node_id = f"{obj.name}_model"
+                    model_node = graph.find_node_by_id(model_node_id)
+                    
+                    if model_node:
+                        model_node.url = f"tilesets/{os.path.basename(self.filepath)}"
+                        model_node.attributes['tileset_path'] = self.filepath
+                        print(f"Updated tileset path in graph node: {model_node.node_id}")
+        except Exception as e:
+            print(f"Error updating graph node: {e}")
+        
+        self.report({'INFO'}, f"Updated tileset path for {obj.name}")
+        return {'FINISHED'}
+
+
 # Classe PropertyGroup per rappresentare un'epoca associata a un modello RM
 class RMEpochItem(PropertyGroup):
     """Properties for an epoch associated with an RM model"""
@@ -80,24 +333,34 @@ class RMItem(PropertyGroup):
     )
 
 # UI List per mostrare i modelli RM
+# UI List for showing the models RM with tileset indicator
 class RM_UL_List(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         try:
             if self.layout_type in {'DEFAULT', 'COMPACT'}:
-                # Oggetto esiste in scena?
-                obj_icon = 'OBJECT_DATA' if item.object_exists else 'ERROR'
+                # Get the object to check if it's a tileset
+                obj = bpy.data.objects.get(item.name)
+                is_tileset = obj and "tileset_path" in obj
                 
-                # Aggiungiamo un'icona di avviso se c'è un mismatch con le epoche
+                # Determine the appropriate icon
+                if is_tileset:
+                    obj_icon = 'ORIENTATION_GLOBAL'  # Global icon for tileset
+                elif hasattr(item, 'object_exists') and item.object_exists:
+                    obj_icon = 'OBJECT_DATA'
+                else:
+                    obj_icon = 'ERROR'
+                
+                # Show warning icon if there's a mismatch
                 if hasattr(item, 'epoch_mismatch') and item.epoch_mismatch:
                     obj_icon = 'ERROR'
                 
-                # Layout simplificato
+                # Layout
                 row = layout.row(align=True)
                 
-                # Nome del modello RM
+                # Name of the RM model
                 row.prop(item, "name", text="", emboss=False, icon=obj_icon)
                 
-                # Epoca di appartenenza
+                # Epoch of belonging
                 if hasattr(item, 'first_epoch'):
                     if item.first_epoch == "no_epoch":
                         row.label(text="[No Epoch]", icon='QUESTION')
@@ -110,14 +373,12 @@ class RM_UL_List(UIList):
                 op = row.operator("rm.promote_to_rm", text="", icon='ADD', emboss=False)
                 op.mode = 'RM_LIST'
 
-                # Selezione oggetto (inline)
+                # Selection object (inline)
                 op = row.operator("rm.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
                 
                 # Flag pubblicabile
                 if hasattr(item, 'is_publishable'):
                     row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
-                
-
                 
             elif self.layout_type in {'GRID'}:
                 layout.alignment = 'CENTER'
@@ -192,8 +453,22 @@ class RM_OT_update_list(Operator):
                     from .s3Dgraphy import get_graph
                     graph = get_graph(graphml.name)
             
+            # Crea dizionario per ordinare le epoche per tempo di inizio
+            epoch_start_times = {}
+            if graph:
+                for node in graph.nodes:
+                    if node.node_type == "epoch":
+                        epoch_start_times[node.name] = getattr(node, 'start_time', float('inf'))
+            else:
+                # Se non abbiamo il grafo, usa le epoche dalla scena
+                for epoch in scene.epoch_list:
+                    epoch_start_times[epoch.name] = epoch.start_time
+            
             # Se non stiamo usando il grafo o non è disponibile, usiamo gli oggetti di scena
-            scene_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH' and hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0]
+            scene_objects = [obj for obj in bpy.data.objects if 
+                            (obj.type == 'MESH' or "tileset_path" in obj) and 
+                            hasattr(obj, "EM_ep_belong_ob") and 
+                            len(obj.EM_ep_belong_ob) > 0]
             
             processed_objects = set()
             
@@ -206,6 +481,9 @@ class RM_OT_update_list(Operator):
                 # Se non ci sono epoche, passa al prossimo oggetto
                 if not scene_epochs:
                     continue
+                
+                # Determine if this is a tileset object
+                is_tileset = "tileset_path" in obj
                 
                 # Se l'oggetto è già nella lista, aggiorna
                 if obj.name in existing_objects:
@@ -220,47 +498,24 @@ class RM_OT_update_list(Operator):
                     while len(item.epochs) > 0:
                         item.epochs.remove(0)
                     
-                    # Aggiungi le nuove epoche
-                    if graph:
-                        # Ordina le epoche dal grafo o dall'oggetto
-                        ordered_epochs = []
-                        for epoch_name in scene_epochs:
-                            epoch_node = None
-                            for node in graph.nodes:
-                                if node.node_type == "epoch" and node.name == epoch_name:
-                                    epoch_node = node
-                                    break
-                            
-                            if epoch_node:
-                                ordered_epochs.append({
-                                    "name": epoch_name,
-                                    "start_time": getattr(epoch_node, 'start_time', float('inf')),
-                                    "node": epoch_node
-                                })
-                            else:
-                                # Se non trova il nodo nel grafo, usa un tempo di default
-                                ordered_epochs.append({
-                                    "name": epoch_name,
-                                    "start_time": float('inf'),
-                                    "node": None
-                                })
-                        
-                        # Ordina per tempo di inizio
-                        ordered_epochs.sort(key=lambda x: x['start_time'])
-                        
-                        # Aggiungi le epoche all'item
-                        for epoch_data in ordered_epochs:
-                            epoch_item = item.epochs.add()
-                            epoch_item.name = epoch_data['name']
-                            # Imposta come prima epoch il primo elemento o se ha un tempo di inizio minimo
-                            epoch_item.is_first_epoch = (epoch_data['start_time'] == min(e['start_time'] for e in ordered_epochs))
+                    # Ordina le epoche per tempo di inizio
+                    ordered_epochs = []
+                    for epoch_name in scene_epochs:
+                        start_time = epoch_start_times.get(epoch_name, float('inf'))
+                        ordered_epochs.append({
+                            "name": epoch_name,
+                            "start_time": start_time
+                        })
                     
-                    else:
-                        # Se non abbiamo il grafo, usa le epoche dell'oggetto
-                        for i, epoch_name in enumerate(scene_epochs):
-                            epoch_item = item.epochs.add()
-                            epoch_item.name = epoch_name
-                            epoch_item.is_first_epoch = (i == 0)
+                    # Ordina per tempo di inizio
+                    ordered_epochs.sort(key=lambda x: x['start_time'])
+                    
+                    # Aggiungi le epoche all'item
+                    for i, epoch_data in enumerate(ordered_epochs):
+                        epoch_item = item.epochs.add()
+                        epoch_item.name = epoch_data['name']
+                        # La prima epoca è quella con il tempo di inizio più basso
+                        epoch_item.is_first_epoch = (i == 0)
                     
                     # Aggiorna la prima epoch
                     if len(item.epochs) > 0:
@@ -278,35 +533,24 @@ class RM_OT_update_list(Operator):
                     item.node_id = f"{obj.name}_model"
                     item.object_exists = True
                     
-                    # Aggiungi le epoche
-                    if graph:
-                        # Ordina le epoche dal grafo
-                        ordered_epochs = []
-                        for epoch_name in scene_epochs:
-                            for node in graph.nodes:
-                                if node.node_type == "epoch" and node.name == epoch_name:
-                                    ordered_epochs.append({
-                                        "name": epoch_name,
-                                        "start_time": getattr(node, 'start_time', float('inf'))
-                                    })
-                                    break
-                        
-                        # Ordina per tempo di inizio
-                        ordered_epochs.sort(key=lambda x: x['start_time'])
-                        
-                        # Aggiungi le epoche all'item
-                        for epoch_data in ordered_epochs:
-                            epoch_item = item.epochs.add()
-                            epoch_item.name = epoch_data['name']
-                            epoch_item.is_first_epoch = (epoch_data['name'] == ordered_epochs[0]['name'])
+                    # Ordina le epoche per tempo di inizio
+                    ordered_epochs = []
+                    for epoch_name in scene_epochs:
+                        start_time = epoch_start_times.get(epoch_name, float('inf'))
+                        ordered_epochs.append({
+                            "name": epoch_name,
+                            "start_time": start_time
+                        })
                     
-                    else:
-                        # Se non abbiamo il grafo, aggiungi le epoche nell'ordine corrente
-                        for epoch_name in scene_epochs:
-                            epoch_item = item.epochs.add()
-                            epoch_item.name = epoch_name
-                            # Imposta la prima come prima epoch
-                            epoch_item.is_first_epoch = (epoch_name == scene_epochs[0])
+                    # Ordina per tempo di inizio
+                    ordered_epochs.sort(key=lambda x: x['start_time'])
+                    
+                    # Aggiungi le epoche all'item
+                    for i, epoch_data in enumerate(ordered_epochs):
+                        epoch_item = item.epochs.add()
+                        epoch_item.name = epoch_data['name']
+                        # La prima epoca è quella con il tempo di inizio più basso
+                        epoch_item.is_first_epoch = (i == 0)
                     
                     # Imposta la prima epoch
                     if len(item.epochs) > 0:
@@ -321,6 +565,10 @@ class RM_OT_update_list(Operator):
                             item.is_publishable = rm_node.attributes.get('is_publishable', True)
                         else:
                             item.is_publishable = True
+                            
+                    # For tileset objects, make sure they're always publishable by default
+                    if is_tileset:
+                        item.is_publishable = True
             
             # Rimuovi gli oggetti non più presenti
             for i in range(len(rm_list) - 1, -1, -1):
@@ -333,7 +581,7 @@ class RM_OT_update_list(Operator):
                 
                 for node in rm_nodes:
                     # Estrai il nome dell'oggetto dal node_id
-                    obj_name = node.name.replace(" Model for ", "").replace("Model for ", "")
+                    obj_name = node.name.replace("Model for ", "").strip()
                     
                     # Verifica se l'oggetto esiste nella scena
                     obj_exists = obj_name in bpy.data.objects
@@ -372,10 +620,10 @@ class RM_OT_update_list(Operator):
                         associated_epochs.sort(key=lambda x: x['start_time'])
                         
                         # Aggiungi le epoche all'item
-                        for epoch_data in associated_epochs:
+                        for i, epoch_data in enumerate(associated_epochs):
                             epoch_item = new_item.epochs.add()
                             epoch_item.name = epoch_data['name']
-                            epoch_item.is_first_epoch = (epoch_data['edge_type'] == "has_first_epoch")
+                            epoch_item.is_first_epoch = (epoch_data['edge_type'] == "has_first_epoch" or i == 0)
                         
                         # Imposta la prima epoch
                         if associated_epochs:
@@ -1403,6 +1651,10 @@ class VIEW3D_PT_RM_Manager(Panel):
         if graph_available:
             row.operator("rm.update_list", text="Update from Graph", icon='NODE_MATERIAL').from_graph = True
 
+        # Selection sync button
+        row = layout.row(align=True)
+        row.operator("rm.select_from_object", text="Select from Object", icon='RESTRICT_SELECT_OFF')
+
         # Show active epoch
         has_active_epoch = False
         if hasattr(scene, 'epoch_list') and len(scene.epoch_list) > 0 and scene.epoch_list_index >= 0:
@@ -1415,38 +1667,28 @@ class VIEW3D_PT_RM_Manager(Panel):
             active_object = context.active_object
             if active_object and active_object.type == 'MESH':
                 box = layout.box()
-                #box.label(text=f"Active Object: {active_object.name}")
-                #row = layout.row(align=True)
-                box.label(text=f"Operations on selected objects: {active_object.name}")
-                row = layout.row(align=True)
+                box.label(text=f"Operations on selected objects:")
+                row = box.row(align=True)
                 row.operator("rm.promote_to_rm", text="Add Selected", icon='ADD').mode = 'SELECTED'
                 row.operator("rm.remove_epoch_from_selected", text="Remove Selected", icon='REMOVE')
                 row.operator("rm.demote_from_rm", icon='TRASH')
+                
+            # Add Tileset button (only when an epoch is selected)
+            box = layout.box()
+            box.label(text=f"Active Epoch: {active_epoch.name}", icon='TIME')
+            row = box.row()
+            row.operator("rm.add_tileset", text="Add Cesium Tileset", icon='ORIENTATION_GLOBAL')
         else:
             box = layout.box()
             box.label(text="Select an epoch to manage RM objects", icon='INFO')
 
-        if has_active_epoch:
-            box = layout.box()
-            box.label(text=f"Active Epoch: {active_epoch.name}", icon='ADD')
-        else:
-            box = layout.box()
-            box.label(text="Select an epoch to manage RM objects", icon='INFO')
-
+        # List of RM models
         row = layout.row()
         row.template_list(
             "RM_UL_List", "rm_list",
             scene, "rm_list",
             scene, "rm_list_index"
         )
-
-
-        # List of RM models
-
-
-
-
-
         
         # List of associated epochs only if an RM is selected
         if scene.rm_list_index >= 0 and len(scene.rm_list) > 0:
@@ -1545,7 +1787,11 @@ classes = [
     RMSettings,
     VIEW3D_PT_RM_Manager,
     RM_OT_remove_epoch_from_rm_list,
-    RM_OT_remove_epoch_from_selected
+    RM_OT_remove_epoch_from_selected,
+    RM_OT_select_from_object,  # New operator to select list item from active object
+    RM_OT_add_tileset,         # New operator to add tileset object
+    RM_OT_set_tileset_path,    # New operator to set tileset path
+    VIEW3D_PT_RM_Tileset_Properties  # New panel for tileset properties
 ]
 
 def register():

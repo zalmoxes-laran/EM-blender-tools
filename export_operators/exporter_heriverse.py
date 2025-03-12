@@ -123,6 +123,59 @@ class HERIVERSE_OT_export(Operator):
         self.report({'INFO'}, f"Exported {exported_count} proxies")
         return exported_count > 0
 
+    # Function to export tilesets
+    def export_tilesets(self, context, export_folder):
+        """Export Cesium tileset files"""
+        print("\n--- Exporting Cesium Tilesets ---")
+        
+        # Create tilesets directory if it doesn't exist
+        os.makedirs(export_folder, exist_ok=True)
+        
+        # Find all tileset objects
+        tileset_objects = [obj for obj in bpy.data.objects if "tileset_path" in obj]
+        
+        exported_count = 0
+        for obj in tileset_objects:
+            # Skip if object is not publishable in the RM list
+            is_publishable = True
+            for rm_item in context.scene.rm_list:
+                if rm_item.name == obj.name:
+                    is_publishable = rm_item.is_publishable
+                    break
+            
+            if not is_publishable:
+                print(f"Skipping tileset {obj.name} (not publishable)")
+                continue
+                
+            try:
+                tileset_path = obj["tileset_path"]
+                if not tileset_path:
+                    print(f"Skipping tileset {obj.name} (empty path)")
+                    continue
+                    
+                # Make sure the path is absolute
+                abs_path = bpy.path.abspath(tileset_path)
+                
+                if not os.path.exists(abs_path):
+                    self.report({'WARNING'}, f"Tileset file not found: {abs_path}")
+                    continue
+                    
+                # Get the filename without path
+                filename = os.path.basename(abs_path)
+                
+                # Copy the zip file to the export folder
+                dst_path = os.path.join(export_folder, filename)
+                shutil.copy2(abs_path, dst_path)
+                
+                print(f"Copied tileset: {obj.name} -> {filename}")
+                exported_count += 1
+                
+            except Exception as e:
+                self.report({'WARNING'}, f"Failed to export tileset {obj.name}: {str(e)}")
+        
+        return exported_count
+
+    # Updated export_rm function to only export publishable models
     def export_rm(self, context, export_folder):
         """Export representation models"""
         scene = context.scene
@@ -133,41 +186,59 @@ class HERIVERSE_OT_export(Operator):
         
         exported_count = 0
         for obj in bpy.data.objects:
-            if len(obj.EM_ep_belong_ob) > 0:
-                try:
-                    # Verifica che l'oggetto sia effettivamente accessibile
-                    if obj.hide_viewport:
-                        print(f"Object {obj.name} is hidden in viewport, making it temporarily visible")
-                        obj.hide_viewport = False
+            # Skip objects without epochs
+            if not hasattr(obj, "EM_ep_belong_ob") or len(obj.EM_ep_belong_ob) == 0:
+                continue
+                
+            # Skip if object is a tileset (handled separately)
+            if "tileset_path" in obj:
+                continue
+                
+            # Skip if object is not publishable in the RM list
+            is_publishable = True
+            for rm_item in scene.rm_list:
+                if rm_item.name == obj.name:
+                    is_publishable = rm_item.is_publishable
+                    break
                     
-                    obj.select_set(True)
-                    export_file = os.path.join(export_folder, clean_filename(obj.name))
-                    
-                    bpy.ops.export_scene.gltf(
-                        filepath=str(export_file),
-                        export_format='GLTF_SEPARATE',
-                        export_copyright=scene.EMviq_model_author_name,
-                        export_texcoords=True,
-                        export_normals=True,
-                        export_draco_mesh_compression_enable=export_vars.heriverse_use_draco,
-                        export_draco_mesh_compression_level=export_vars.heriverse_draco_level,
-                        export_materials='EXPORT',
-                        use_selection=True,
-                        export_apply=True,
-                        check_existing=False
-                    )
-                    
-                    if export_vars.heriverse_separate_textures:
-                        textures_dir = os.path.join(os.path.dirname(export_file), "textures")
-                        os.makedirs(textures_dir, exist_ok=True)
-                        self.export_textures(obj, textures_dir)
-                    
-                    exported_count += 1
-                    print(f"Exported RM: {obj.name}")
-                except Exception as e:
-                    self.report({'WARNING'}, f"Failed to export RM {obj.name}: {str(e)}")
-                finally:
-                    obj.select_set(False)
+            if not is_publishable:
+                print(f"Skipping RM {obj.name} (not publishable)")
+                continue
+                
+            try:
+                # Verifica che l'oggetto sia effettivamente accessibile
+                if obj.hide_viewport:
+                    print(f"Object {obj.name} is hidden in viewport, making it temporarily visible")
+                    obj.hide_viewport = False
+                
+                obj.select_set(True)
+                export_file = os.path.join(export_folder, clean_filename(obj.name))
+                
+                bpy.ops.export_scene.gltf(
+                    filepath=str(export_file),
+                    export_format='GLTF_SEPARATE',
+                    export_copyright=scene.EMviq_model_author_name,
+                    export_texcoords=True,
+                    export_normals=True,
+                    export_draco_mesh_compression_enable=export_vars.heriverse_use_draco,
+                    export_draco_mesh_compression_level=export_vars.heriverse_draco_level,
+                    export_materials='EXPORT',
+                    use_selection=True,
+                    export_apply=True,
+                    check_existing=False
+                )
+                
+                if export_vars.heriverse_separate_textures:
+                    textures_dir = os.path.join(os.path.dirname(export_file), "textures")
+                    os.makedirs(textures_dir, exist_ok=True)
+                    self.export_textures(obj, textures_dir)
+                
+                exported_count += 1
+                print(f"Exported RM: {obj.name}")
+            except Exception as e:
+                self.report({'WARNING'}, f"Failed to export RM {obj.name}: {str(e)}")
+            finally:
+                obj.select_set(False)
         
         self.report({'INFO'}, f"Exported {exported_count} RM models")
         return exported_count > 0
@@ -277,15 +348,14 @@ class HERIVERSE_OT_export(Operator):
                     collection_states[collection.name] = layer_collection.exclude
 
             try:
+                # Update the graph before exporting
+                update_graph_with_scene_data()
+                
                 if export_vars.heriverse_overwrite_json:
-
                     # Esporta il JSON direttamente usando il nuovo JSONExporter
                     json_path = os.path.join(project_path, "project.json")
                     print(f"Exporting JSON to: {json_path}")
                     
-                    # Aggiorna il grafo prima dell'esportazione
-                    update_graph_with_scene_data()
-
                     # Usa l'operatore JSON con i parametri corretti
                     result = bpy.ops.export.heriversejson(
                         filepath=json_path,
@@ -297,6 +367,20 @@ class HERIVERSE_OT_export(Operator):
                     else:
                         self.report({'ERROR'}, "JSON export failed")
                         return {'CANCELLED'}
+
+                # Export Cesium tilesets if requested
+                tilesets_exported = False
+                if export_vars.heriverse_export_rm:
+                    print("\n--- Starting Tileset Export ---")
+                    tilesets_path = os.path.join(project_path, "tilesets")
+                    os.makedirs(tilesets_path, exist_ok=True)
+                    
+                    count = self.export_tilesets(context, tilesets_path)
+                    tilesets_exported = count > 0
+                    if tilesets_exported:
+                        print(f"Exported {count} tileset files")
+                    else:
+                        print("No tilesets were exported")
 
                 # Esporta i proxy se richiesto
                 if export_vars.heriverse_export_proxies:
@@ -324,19 +408,28 @@ class HERIVERSE_OT_export(Operator):
                     models_path = os.path.join(project_path, "models")
                     os.makedirs(models_path, exist_ok=True)
                     
-                    rm_collection = bpy.data.collections.get('RM')
-                    if rm_collection:
-                        print(f"Found RM collection with {len(rm_collection.objects)} objects")
-                        layer_collection = find_layer_collection(context.view_layer.layer_collection, 'RM')
+                    # Make sure all collections containing RM objects are visible
+                    rm_objects = [obj for obj in bpy.data.objects 
+                                if hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0]
+                    
+                    # Get all collections containing RM objects
+                    rm_collections = set()
+                    for obj in rm_objects:
+                        for collection in bpy.data.collections:
+                            if obj.name in collection.objects:
+                                rm_collections.add(collection.name)
+                    
+                    # Make them all visible for export
+                    for col_name in rm_collections:
+                        layer_collection = find_layer_collection(context.view_layer.layer_collection, col_name)
                         if layer_collection:
                             layer_collection.exclude = False
-                            result = self.export_rm(context, models_path)
-                            if result:
-                                print("RM export completed successfully")
-                            else:
-                                print("No RM models were exported")
+                    
+                    result = self.export_rm(context, models_path)
+                    if result:
+                        print("RM export completed successfully")
                     else:
-                        print("No RM collection found")
+                        print("No RM models were exported")
 
                 # Esporta i file DosCo se richiesto
                 if export_vars.heriverse_export_dosco:
