@@ -100,19 +100,24 @@ class RM_UL_List(UIList):
                 # Epoca di appartenenza
                 if hasattr(item, 'first_epoch'):
                     if item.first_epoch == "no_epoch":
-                        row.label(text="[No Epoch]", icon='TIME')
+                        row.label(text="[No Epoch]", icon='QUESTION')
                     else:
                         row.label(text=item.first_epoch, icon='TIME')
                 else:
                     row.label(text="[Unknown]", icon='QUESTION')
+
+                # Add list item to epoch
+                op = row.operator("rm.promote_to_rm", text="", icon='ADD', emboss=False)
+                op.mode = 'RM_LIST'
+
+                # Selezione oggetto (inline)
+                op = row.operator("rm.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
                 
                 # Flag pubblicabile
                 if hasattr(item, 'is_publishable'):
                     row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
                 
-                # Selezione oggetto (inline)
-                op = row.operator("rm.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
-                op.rm_index = index
+
                 
             elif self.layout_type in {'GRID'}:
                 layout.alignment = 'CENTER'
@@ -1397,8 +1402,37 @@ class VIEW3D_PT_RM_Manager(Panel):
         # Check if a graph is available
         if graph_available:
             row.operator("rm.update_list", text="Update from Graph", icon='NODE_MATERIAL').from_graph = True
-        
-        # List of RM models
+
+        # Show active epoch
+        has_active_epoch = False
+        if hasattr(scene, 'epoch_list') and len(scene.epoch_list) > 0 and scene.epoch_list_index >= 0:
+            active_epoch = scene.epoch_list[scene.epoch_list_index]
+            has_active_epoch = True
+
+        # Main action buttons
+        if has_active_epoch:
+            row = layout.row(align=True)
+            active_object = context.active_object
+            if active_object and active_object.type == 'MESH':
+                box = layout.box()
+                #box.label(text=f"Active Object: {active_object.name}")
+                #row = layout.row(align=True)
+                box.label(text=f"Operations on selected objects: {active_object.name}")
+                row = layout.row(align=True)
+                row.operator("rm.promote_to_rm", text="Add Selected", icon='ADD').mode = 'SELECTED'
+                row.operator("rm.remove_epoch_from_selected", text="Remove Selected", icon='REMOVE')
+                row.operator("rm.demote_from_rm", icon='TRASH')
+        else:
+            box = layout.box()
+            box.label(text="Select an epoch to manage RM objects", icon='INFO')
+
+        if has_active_epoch:
+            box = layout.box()
+            box.label(text=f"Active Epoch: {active_epoch.name}", icon='ADD')
+        else:
+            box = layout.box()
+            box.label(text="Select an epoch to manage RM objects", icon='INFO')
+
         row = layout.row()
         row.template_list(
             "RM_UL_List", "rm_list",
@@ -1407,26 +1441,12 @@ class VIEW3D_PT_RM_Manager(Panel):
         )
 
 
-        # Show active epoch
-        has_active_epoch = False
-        if hasattr(scene, 'epoch_list') and len(scene.epoch_list) > 0 and scene.epoch_list_index >= 0:
-            active_epoch = scene.epoch_list[scene.epoch_list_index]
-            box = layout.box()
-            box.label(text=f"Active Epoch: {active_epoch.name}")
-            has_active_epoch = True
+        # List of RM models
 
-        # Main action buttons
-        if has_active_epoch:
-            box.operator("rm.promote_to_rm", text="Add from List", icon='ADD').mode = 'RM_LIST'
-            row = layout.row(align=True)
-            row.operator("rm.promote_to_rm", text="Add Selected", icon='ADD').mode = 'SELECTED'
-            row.operator("rm.remove_epoch_from_selected", text="Remove Selected", icon='REMOVE')
 
-            #row.operator("rm.remove_from_epoch", icon='REMOVE')
-            row.operator("rm.demote_from_rm", icon='TRASH')
-        else:
-            box = layout.box()
-            box.label(text="Select an epoch to manage RM objects", icon='INFO')
+
+
+
         
         # List of associated epochs only if an RM is selected
         if scene.rm_list_index >= 0 and len(scene.rm_list) > 0:
