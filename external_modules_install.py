@@ -1,7 +1,7 @@
 import os
-import bpy
-from bpy.types import Operator
-from bpy.props import BoolProperty, StringProperty
+import bpy # type: ignore
+from bpy.types import Operator # type: ignore
+from bpy.props import BoolProperty, StringProperty # type: ignore
 import subprocess
 import sys
 import importlib
