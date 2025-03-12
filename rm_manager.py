@@ -169,7 +169,7 @@ class RM_OT_update_list(Operator):
         name="Update from Graph",
         description="Update the list using graph data. If False, uses only scene objects.",
         default=True
-    ) # type: ignore
+    )
     
     def execute(self, context):
         try:
@@ -220,22 +220,38 @@ class RM_OT_update_list(Operator):
                     item_index = existing_objects[obj.name]["index"]
                     item = rm_list[item_index]
                     
+                    # Debug print
+                    print(f"Aggiornamento oggetto: {obj.name}")
+                    print(f"Epoche trovate: {scene_epochs}")
+                    
                     # Pulisci le epoche precedenti
                     while len(item.epochs) > 0:
                         item.epochs.remove(0)
                     
                     # Aggiungi le nuove epoche
                     if graph:
-                        # Ordina le epoche dal grafo
+                        # Ordina le epoche dal grafo o dall'oggetto
                         ordered_epochs = []
                         for epoch_name in scene_epochs:
+                            epoch_node = None
                             for node in graph.nodes:
                                 if node.node_type == "epoch" and node.name == epoch_name:
-                                    ordered_epochs.append({
-                                        "name": epoch_name,
-                                        "start_time": getattr(node, 'start_time', float('inf'))
-                                    })
+                                    epoch_node = node
                                     break
+                            
+                            if epoch_node:
+                                ordered_epochs.append({
+                                    "name": epoch_name,
+                                    "start_time": getattr(epoch_node, 'start_time', float('inf')),
+                                    "node": epoch_node
+                                })
+                            else:
+                                # Se non trova il nodo nel grafo, usa un tempo di default
+                                ordered_epochs.append({
+                                    "name": epoch_name,
+                                    "start_time": float('inf'),
+                                    "node": None
+                                })
                         
                         # Ordina per tempo di inizio
                         ordered_epochs.sort(key=lambda x: x['start_time'])
@@ -244,19 +260,24 @@ class RM_OT_update_list(Operator):
                         for epoch_data in ordered_epochs:
                             epoch_item = item.epochs.add()
                             epoch_item.name = epoch_data['name']
-                            epoch_item.is_first_epoch = (epoch_data['name'] == ordered_epochs[0]['name'])
+                            # Imposta come prima epoch il primo elemento o se ha un tempo di inizio minimo
+                            epoch_item.is_first_epoch = (epoch_data['start_time'] == min(e['start_time'] for e in ordered_epochs))
                     
                     else:
-                        # Se non abbiamo il grafo, aggiungi le epoche nell'ordine corrente
-                        for epoch_name in scene_epochs:
+                        # Se non abbiamo il grafo, usa le epoche dell'oggetto
+                        for i, epoch_name in enumerate(scene_epochs):
                             epoch_item = item.epochs.add()
                             epoch_item.name = epoch_name
-                            # Imposta la prima come prima epoch
-                            epoch_item.is_first_epoch = (epoch_name == scene_epochs[0])
+                            epoch_item.is_first_epoch = (i == 0)
                     
                     # Aggiorna la prima epoch
                     if len(item.epochs) > 0:
-                        item.first_epoch = item.epochs[0].name if item.epochs[0].name else "no_epoch"
+                        item.first_epoch = item.epochs[0].name
+                    else:
+                        item.first_epoch = "no_epoch"
+                    
+                    # Debug print
+                    print(f"Prima epoch aggiornata: {item.first_epoch}")
                 
                 else:
                     # Crea un nuovo elemento per l'oggetto
