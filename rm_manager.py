@@ -7,7 +7,7 @@ from bpy.props import (
     PointerProperty,
     FloatVectorProperty,
 )
-from bpy.types import (
+from bpy.types import ( # type: ignore
     Panel,
     Operator,
     PropertyGroup,
@@ -24,7 +24,7 @@ class RMEpochItem(PropertyGroup):
         name="Epoch Name",
         description="Name of the epoch",
         default=""
-    )
+    ) # type: ignore
     epoch_id: StringProperty(
         name="Epoch ID",
         description="ID of the epoch node in the graph",
@@ -81,36 +81,46 @@ class RMItem(PropertyGroup):
 # UI List per mostrare i modelli RM
 class RM_UL_List(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            # Oggetto esiste in scena?
-            obj_icon = 'OBJECT_DATA' if item.object_exists else 'ERROR'
-            
-            # Aggiungiamo un'icona di avviso se c'è un mismatch con le epoche
-            if item.epoch_mismatch:
-                obj_icon = 'ERROR'
-            
-            # Layout simplificato
-            row = layout.row(align=True)
-            
-            # Nome del modello RM
-            row.prop(item, "name", text="", emboss=False, icon=obj_icon)
-            
-            # Epoca di appartenenza
-            if item.first_epoch == "no_epoch":
-                row.label(text="[No Epoch]", icon='TIME')
-            else:
-                row.label(text=item.first_epoch, icon='TIME')
-            
-            # Flag pubblicabile
-            row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
-            
-            # Selezione oggetto (inline)
-            op = row.operator("rm.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
-            op.rm_index = index
-            
-        elif self.layout_type in {'GRID'}:
-            layout.alignment = 'CENTER'
-            layout.label(text="", icon=obj_icon)
+        try:
+            if self.layout_type in {'DEFAULT', 'COMPACT'}:
+                # Oggetto esiste in scena?
+                obj_icon = 'OBJECT_DATA' if item.object_exists else 'ERROR'
+                
+                # Aggiungiamo un'icona di avviso se c'è un mismatch con le epoche
+                if hasattr(item, 'epoch_mismatch') and item.epoch_mismatch:
+                    obj_icon = 'ERROR'
+                
+                # Layout simplificato
+                row = layout.row(align=True)
+                
+                # Nome del modello RM
+                row.prop(item, "name", text="", emboss=False, icon=obj_icon)
+                
+                # Epoca di appartenenza
+                if hasattr(item, 'first_epoch'):
+                    if item.first_epoch == "no_epoch":
+                        row.label(text="[No Epoch]", icon='TIME')
+                    else:
+                        row.label(text=item.first_epoch, icon='TIME')
+                else:
+                    row.label(text="[Unknown]", icon='QUESTION')
+                
+                # Flag pubblicabile
+                if hasattr(item, 'is_publishable'):
+                    row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
+                
+                # Selezione oggetto (inline)
+                op = row.operator("rm.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
+                op.rm_index = index
+                
+            elif self.layout_type in {'GRID'}:
+                layout.alignment = 'CENTER'
+                layout.label(text="", icon=obj_icon)
+                
+        except Exception as e:
+            # In caso di errore, mostra un elemento base
+            row = layout.row()
+            row.label(text=f"Error: {str(e)}", icon='ERROR')
 
 # UI List per mostrare le epoche associate a un RM
 class RM_UL_EpochList(UIList):
@@ -127,10 +137,18 @@ class RM_UL_EpochList(UIList):
             # Nome dell'epoca
             row.label(text=item.name)
             
-            # Pulsante per rimuovere l'associazione
-            op = row.operator("rm.remove_epoch", text="", icon='X', emboss=False)
-            op.epoch_name = item.name
-            op.rm_index = active_data.rm_list_index
+            # Pulsante per rimuovere l'associazione con gestione più robusta
+            try:
+                op = row.operator("rm.remove_epoch", text="", icon='X', emboss=False)
+                op.epoch_name = item.name
+                
+                # Ottieni l'indice RM dal contesto della scena in modo sicuro
+                if hasattr(context.scene, 'rm_list_index'):
+                    op.rm_index = context.scene.rm_list_index
+            except Exception as e:
+                print(f"Error in RM_UL_EpochList draw_item: {str(e)}")
+                # Fallback in caso di errore - mostra solo un'icona di errore
+                row.label(text="", icon='ERROR')
             
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
@@ -149,251 +167,261 @@ class RM_OT_update_list(Operator):
     )
     
     def execute(self, context):
-        scene = context.scene
-        rm_list = scene.rm_list
-        
-        # Salva l'indice corrente per ripristinarlo dopo l'aggiornamento
-        current_index = scene.rm_list_index
-        
-        # Dizionario per tracciare gli oggetti già presenti nella lista
-        existing_objects = {}
-        for i, item in enumerate(rm_list):
-            existing_objects[item.name] = {
-                "index": i,
-                "epochs": [epoch.name for epoch in item.epochs],
-                "is_publishable": item.is_publishable
-            }
-        
-        # Ottieni il grafo attivo se stiamo aggiornando dal grafo
-        graph = None
-        if self.from_graph and context.scene.em_tools.active_file_index >= 0:
-            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
-            graph = get_graph(graphml.name)
-        
-        # Aggiorna con i dati di scena se non stiamo usando il grafo o se non è disponibile
-        if not self.from_graph or not graph:
-            # Primo passo: aggiorna gli elementi dalla scena (proprietà personalizzate degli oggetti)
-            scene_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH' and hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0]
+        try:
+            scene = context.scene
+            rm_list = scene.rm_list
             
-            # Mantieni traccia degli oggetti già processati
-            processed_objects = set()
+            # Salva l'indice corrente per ripristinarlo dopo l'aggiornamento
+            current_index = scene.rm_list_index
             
-            for obj in scene_objects:
-                processed_objects.add(obj.name)
+            # Dizionario per tracciare gli oggetti già presenti nella lista
+            existing_objects = {}
+            for i, item in enumerate(rm_list):
+                if hasattr(item, 'name'):  # Verifica che l'item abbia un attributo 'name'
+                    existing_objects[item.name] = {
+                        "index": i,
+                        "epochs": [epoch.name for epoch in item.epochs] if hasattr(item, 'epochs') else [],
+                        "is_publishable": item.is_publishable if hasattr(item, 'is_publishable') else True
+                    }
+            
+            # Ottieni il grafo attivo se stiamo aggiornando dal grafo
+            graph = None
+            if self.from_graph and hasattr(context.scene, 'em_tools') and hasattr(context.scene.em_tools, 'active_file_index'):
+                if context.scene.em_tools.active_file_index >= 0:
+                    graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+                    from .s3Dgraphy import get_graph
+                    graph = get_graph(graphml.name)
+            
+            # Aggiorna con i dati di scena se non stiamo usando il grafo o se non è disponibile
+            if not self.from_graph or not graph:
+                # Primo passo: aggiorna gli elementi dalla scena (proprietà personalizzate degli oggetti)
+                scene_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH' and hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0]
                 
-                # Se l'oggetto è già nella lista, aggiorna le epoche
-                if obj.name in existing_objects:
-                    item_index = existing_objects[obj.name]["index"]
-                    item = rm_list[item_index]
+                # Mantieni traccia degli oggetti già processati
+                processed_objects = set()
+                
+                for obj in scene_objects:
+                    processed_objects.add(obj.name)
                     
-                    # Verifica la corrispondenza delle epoche
-                    scene_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob]
-                    list_epochs = [ep.name for ep in item.epochs]
-                    
-                    # Se le epoche sono diverse, aggiorna
-                    if set(scene_epochs) != set(list_epochs):
-                        # Aggiorna il flag mismatch
-                        item.epoch_mismatch = True
+                    # Se l'oggetto è già nella lista, aggiorna le epoche
+                    if obj.name in existing_objects:
+                        item_index = existing_objects[obj.name]["index"]
+                        item = rm_list[item_index]
                         
-                        # Aggiorna la prima epoca
+                        # Verifica la corrispondenza delle epoche
+                        scene_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob]
+                        list_epochs = [ep.name for ep in item.epochs] if hasattr(item, 'epochs') else []
+                        
+                        # Se le epoche sono diverse, aggiorna
+                        if set(scene_epochs) != set(list_epochs):
+                            # Aggiorna il flag mismatch
+                            item.epoch_mismatch = True
+                            
+                            # Aggiorna la prima epoca
+                            if scene_epochs:
+                                first_epoch_from_custom = scene_epochs[0]
+                                if first_epoch_from_custom != "no_epoch":
+                                    item.first_epoch = first_epoch_from_custom
+                        
+                    else:
+                        # Crea un nuovo elemento per l'oggetto
+                        item = rm_list.add()
+                        item.name = obj.name
+                        item.node_id = f"{obj.name}_model"  # Formato standard per gli ID di nodo RM
+                        item.object_exists = True
+                        item.is_publishable = True  # Default
+                        
+                        # Imposta l'epoca primaria
+                        scene_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob]
                         if scene_epochs:
-                            first_epoch_from_custom = scene_epochs[0]
-                            if first_epoch_from_custom != "no_epoch":
-                                item.first_epoch = first_epoch_from_custom
+                            first_epoch = scene_epochs[0]
+                            if first_epoch != "no_epoch":
+                                item.first_epoch = first_epoch
+                            else:
+                                item.first_epoch = "no_epoch"
+                        else:
+                            item.first_epoch = "no_epoch"
                         
-                else:
-                    # Crea un nuovo elemento per l'oggetto
-                    item = rm_list.add()
-                    item.name = obj.name
-                    item.node_id = f"{obj.name}_model"  # Formato standard per gli ID di nodo RM
-                    item.object_exists = True
-                    item.is_publishable = True  # Default
+                        # Popola la lista delle epoche
+                        for ep_name in scene_epochs:
+                            if ep_name != "no_epoch":
+                                epoch_item = item.epochs.add()
+                                epoch_item.name = ep_name
+                                epoch_item.is_first_epoch = (ep_name == item.first_epoch)
+                
+                # Rimuovi gli oggetti che non esistono più nella scena
+                for i in range(len(rm_list) - 1, -1, -1):
+                    if rm_list[i].name not in processed_objects:
+                        rm_list.remove(i)
+            
+            # Aggiorna con i dati del grafo se disponibile
+            if self.from_graph and graph:
+                # Trova tutti i nodi RM nel grafo
+                rm_nodes = [node for node in graph.nodes if node.node_type == "representation_model"]
+                
+                # Dizionario per tracciare oggetti processati
+                processed_graph_objects = set()
+                
+                # Aggiorna o aggiungi gli oggetti dal grafo
+                for node in rm_nodes:
+                    # Estrai il nome dell'oggetto dal node_id (rimuovendo il suffisso "_model")
+                    obj_name = node.name.replace(" Model for ", "").replace("Model for ", "")
+                    processed_graph_objects.add(obj_name)
                     
-                    # Imposta l'epoca primaria
-                    scene_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob]
-                    if scene_epochs:
-                        first_epoch = scene_epochs[0]
-                        if first_epoch != "no_epoch":
+                    # Verifica se l'oggetto esiste nella scena
+                    obj_exists = obj_name in bpy.data.objects
+                    
+                    # Controlla se esiste già nella lista
+                    if obj_name in existing_objects:
+                        item_index = existing_objects[obj_name]["index"]
+                        item = rm_list[item_index]
+                        
+                        # Aggiorna lo stato di pubblicazione dal nodo del grafo
+                        if hasattr(node, 'attributes') and 'is_publishable' in node.attributes:
+                            item.is_publishable = node.attributes['is_publishable']
+                        
+                        # Trova tutte le epoche associate al nodo nel grafo
+                        associated_epochs = []
+                        first_epoch = None
+                        first_epoch_time = float('inf')
+                        
+                        for edge in graph.edges:
+                            if edge.edge_source == node.node_id and edge.edge_type == "has_representation_model":
+                                epoch_node = graph.find_node_by_id(edge.edge_target)
+                                if epoch_node and epoch_node.node_type == "epoch":
+                                    associated_epochs.append({
+                                        "name": epoch_node.name,
+                                        "id": epoch_node.node_id,
+                                        "start_time": getattr(epoch_node, 'start_time', 0)
+                                    })
+                                    
+                                    # Identificazione dell'epoca più antica
+                                    if hasattr(epoch_node, 'start_time'):
+                                        if epoch_node.start_time < first_epoch_time:
+                                            first_epoch_time = epoch_node.start_time
+                                            first_epoch = epoch_node.name
+                        
+                        # Confronta le epoche dal grafo con quelle nell'oggetto Blender
+                        obj = bpy.data.objects.get(obj_name)
+                        if obj and hasattr(obj, "EM_ep_belong_ob"):
+                            graph_epochs = set([ep["name"] for ep in associated_epochs])
+                            obj_epochs = set([ep.epoch for ep in obj.EM_ep_belong_ob if ep.epoch != "no_epoch"])
+                            
+                            # Imposta il flag di mismatch se le epoche non corrispondono
+                            if graph_epochs != obj_epochs:
+                                item.epoch_mismatch = True
+                            else:
+                                item.epoch_mismatch = False
+                        
+                        # Aggiorna la prima epoca se necessario
+                        if first_epoch:
+                            item.first_epoch = first_epoch
+                    
+                    else:
+                        # Crea un nuovo elemento per l'oggetto dal grafo
+                        item = rm_list.add()
+                        item.name = obj_name
+                        item.node_id = node.node_id
+                        item.object_exists = obj_exists
+                        
+                        # Aggiungi attributo is_publishable
+                        if hasattr(node, 'attributes') and 'is_publishable' in node.attributes:
+                            item.is_publishable = node.attributes['is_publishable']
+                        else:
+                            item.is_publishable = True  # Default
+                        
+                        # Trova tutte le epoche associate
+                        associated_epochs = []
+                        first_epoch = None
+                        first_epoch_time = float('inf')
+                        
+                        for edge in graph.edges:
+                            if edge.edge_source == node.node_id and edge.edge_type == "has_representation_model":
+                                epoch_node = graph.find_node_by_id(edge.edge_target)
+                                if epoch_node and epoch_node.node_type == "epoch":
+                                    associated_epochs.append({
+                                        "name": epoch_node.name,
+                                        "id": epoch_node.node_id,
+                                        "start_time": getattr(epoch_node, 'start_time', 0)
+                                    })
+                                    
+                                    # Trova l'epoca più antica
+                                    if hasattr(epoch_node, 'start_time'):
+                                        if epoch_node.start_time < first_epoch_time:
+                                            first_epoch_time = epoch_node.start_time
+                                            first_epoch = epoch_node.name
+                        
+                        # Imposta l'epoca principale
+                        if first_epoch:
                             item.first_epoch = first_epoch
                         else:
                             item.first_epoch = "no_epoch"
-                    else:
-                        item.first_epoch = "no_epoch"
-                    
-                    # Popola la lista delle epoche
-                    for ep_name in scene_epochs:
-                        if ep_name != "no_epoch":
+                        
+                        # Popola la sublista delle epoche
+                        for epoch_data in associated_epochs:
                             epoch_item = item.epochs.add()
-                            epoch_item.name = ep_name
-                            epoch_item.is_first_epoch = (ep_name == item.first_epoch)
-            
-            # Rimuovi gli oggetti che non esistono più nella scena
-            for i in range(len(rm_list) - 1, -1, -1):
-                if rm_list[i].name not in processed_objects:
-                    rm_list.remove(i)
-        
-        # Aggiorna con i dati del grafo se disponibile
-        if self.from_graph and graph:
-            # Trova tutti i nodi RM nel grafo
-            rm_nodes = [node for node in graph.nodes if node.node_type == "representation_model"]
-            
-            # Dizionario per tracciare oggetti processati
-            processed_graph_objects = set()
-            
-            # Aggiorna o aggiungi gli oggetti dal grafo
-            for node in rm_nodes:
-                # Estrai il nome dell'oggetto dal node_id (rimuovendo il suffisso "_model")
-                obj_name = node.name.replace(" Model for ", "").replace("Model for ", "")
-                processed_graph_objects.add(obj_name)
+                            epoch_item.name = epoch_data["name"]
+                            epoch_item.epoch_id = epoch_data["id"]
+                            epoch_item.is_first_epoch = (epoch_data["name"] == first_epoch)
                 
-                # Verifica se l'oggetto esiste nella scena
-                obj_exists = obj_name in bpy.data.objects
-                
-                # Controlla se esiste già nella lista
-                if obj_name in existing_objects:
-                    item_index = existing_objects[obj_name]["index"]
-                    item = rm_list[item_index]
-                    
-                    # Aggiorna lo stato di pubblicazione dal nodo del grafo
-                    if hasattr(node, 'attributes') and 'is_publishable' in node.attributes:
-                        item.is_publishable = node.attributes['is_publishable']
-                    
-                    # Trova tutte le epoche associate al nodo nel grafo
-                    associated_epochs = []
-                    first_epoch = None
-                    first_epoch_time = float('inf')
-                    
-                    for edge in graph.edges:
-                        if edge.edge_source == node.node_id and edge.edge_type == "has_representation_model":
-                            epoch_node = graph.find_node_by_id(edge.edge_target)
-                            if epoch_node and epoch_node.node_type == "epoch":
-                                associated_epochs.append({
-                                    "name": epoch_node.name,
-                                    "id": epoch_node.node_id,
-                                    "start_time": getattr(epoch_node, 'start_time', 0)
-                                })
-                                
-                                # Identificazione dell'epoca più antica
-                                if hasattr(epoch_node, 'start_time'):
-                                    if epoch_node.start_time < first_epoch_time:
-                                        first_epoch_time = epoch_node.start_time
-                                        first_epoch = epoch_node.name
-                    
-                    # Confronta le epoche dal grafo con quelle nell'oggetto Blender
+                # Aggiorna gli oggetti Blender con le epoche definite nel grafo
+                for obj_name in processed_graph_objects:
                     obj = bpy.data.objects.get(obj_name)
                     if obj and hasattr(obj, "EM_ep_belong_ob"):
-                        graph_epochs = set([ep["name"] for ep in associated_epochs])
-                        obj_epochs = set([ep.epoch for ep in obj.EM_ep_belong_ob if ep.epoch != "no_epoch"])
+                        # Trova l'item corrispondente
+                        item = None
+                        for i, rm_item in enumerate(rm_list):
+                            if rm_item.name == obj_name:
+                                item = rm_item
+                                break
                         
-                        # Imposta il flag di mismatch se le epoche non corrispondono
-                        if graph_epochs != obj_epochs:
-                            item.epoch_mismatch = True
-                        else:
-                            item.epoch_mismatch = False
-                    
-                    # Aggiorna la prima epoca se necessario
-                    if first_epoch:
-                        item.first_epoch = first_epoch
-                
-                else:
-                    # Crea un nuovo elemento per l'oggetto dal grafo
-                    item = rm_list.add()
-                    item.name = obj_name
-                    item.node_id = node.node_id
-                    item.object_exists = obj_exists
-                    
-                    # Aggiungi attributo is_publishable
-                    if hasattr(node, 'attributes') and 'is_publishable' in node.attributes:
-                        item.is_publishable = node.attributes['is_publishable']
-                    else:
-                        item.is_publishable = True  # Default
-                    
-                    # Trova tutte le epoche associate
-                    associated_epochs = []
-                    first_epoch = None
-                    first_epoch_time = float('inf')
-                    
-                    for edge in graph.edges:
-                        if edge.edge_source == node.node_id and edge.edge_type == "has_representation_model":
-                            epoch_node = graph.find_node_by_id(edge.edge_target)
-                            if epoch_node and epoch_node.node_type == "epoch":
-                                associated_epochs.append({
-                                    "name": epoch_node.name,
-                                    "id": epoch_node.node_id,
-                                    "start_time": getattr(epoch_node, 'start_time', 0)
-                                })
+                        if item:
+                            # Confronta e aggiorna le epoche nell'oggetto
+                            graph_epochs = [ep.name for ep in item.epochs]
+                            obj_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob if ep.epoch != "no_epoch"]
+                            
+                            # Se c'è un mismatch, ma stiamo aggiornando dal grafo, aggiorna l'oggetto
+                            if set(graph_epochs) != set(obj_epochs):
+                                # Rimuovi tutte le epoche dall'oggetto eccetto no_epoch
+                                i = 0
+                                while i < len(obj.EM_ep_belong_ob):
+                                    if obj.EM_ep_belong_ob[i].epoch != "no_epoch":
+                                        obj.EM_ep_belong_ob.remove(i)
+                                    else:
+                                        i += 1
                                 
-                                # Trova l'epoca più antica
-                                if hasattr(epoch_node, 'start_time'):
-                                    if epoch_node.start_time < first_epoch_time:
-                                        first_epoch_time = epoch_node.start_time
-                                        first_epoch = epoch_node.name
-                    
-                    # Imposta l'epoca principale
-                    if first_epoch:
-                        item.first_epoch = first_epoch
-                    else:
-                        item.first_epoch = "no_epoch"
-                    
-                    # Popola la sublista delle epoche
-                    for epoch_data in associated_epochs:
-                        epoch_item = item.epochs.add()
-                        epoch_item.name = epoch_data["name"]
-                        epoch_item.epoch_id = epoch_data["id"]
-                        epoch_item.is_first_epoch = (epoch_data["name"] == first_epoch)
-            
-            # Aggiorna gli oggetti Blender con le epoche definite nel grafo
-            for obj_name in processed_graph_objects:
-                obj = bpy.data.objects.get(obj_name)
-                if obj and hasattr(obj, "EM_ep_belong_ob"):
-                    # Trova l'item corrispondente
-                    item = None
-                    for i, rm_item in enumerate(rm_list):
-                        if rm_item.name == obj_name:
-                            item = rm_item
-                            break
-                    
-                    if item:
-                        # Confronta e aggiorna le epoche nell'oggetto
-                        graph_epochs = [ep.name for ep in item.epochs]
-                        obj_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob if ep.epoch != "no_epoch"]
-                        
-                        # Se c'è un mismatch, ma stiamo aggiornando dal grafo, aggiorna l'oggetto
-                        if set(graph_epochs) != set(obj_epochs):
-                            # Rimuovi tutte le epoche dall'oggetto eccetto no_epoch
-                            i = 0
-                            while i < len(obj.EM_ep_belong_ob):
-                                if obj.EM_ep_belong_ob[i].epoch != "no_epoch":
-                                    obj.EM_ep_belong_ob.remove(i)
-                                else:
-                                    i += 1
-                            
-                            # Aggiungi le epoche dal grafo all'oggetto
-                            no_epoch_exists = False
-                            for i, ep in enumerate(obj.EM_ep_belong_ob):
-                                if ep.epoch == "no_epoch":
-                                    no_epoch_exists = True
-                                    break
-                            
-                            # Se non ci sono epoche da aggiungere e non c'è no_epoch, aggiungi no_epoch
-                            if not graph_epochs and not no_epoch_exists:
-                                ep_item = obj.EM_ep_belong_ob.add()
-                                ep_item.epoch = "no_epoch"
-                            else:
-                                # Aggiungi le epoche dal grafo
-                                for ep_name in graph_epochs:
+                                # Aggiungi le epoche dal grafo all'oggetto
+                                no_epoch_exists = False
+                                for i, ep in enumerate(obj.EM_ep_belong_ob):
+                                    if ep.epoch == "no_epoch":
+                                        no_epoch_exists = True
+                                        break
+                                
+                                # Se non ci sono epoche da aggiungere e non c'è no_epoch, aggiungi no_epoch
+                                if not graph_epochs and not no_epoch_exists:
                                     ep_item = obj.EM_ep_belong_ob.add()
-                                    ep_item.epoch = ep_name
-        
-        # Ripristina l'indice se possibile, altrimenti imposta a 0
-        scene.rm_list_index = min(current_index, len(rm_list)-1) if rm_list else 0
-        
-        if self.from_graph:
-            self.report({'INFO'}, f"Updated RM list from graph: {len(rm_list)} models")
-        else:
-            self.report({'INFO'}, f"Updated RM list from scene objects: {len(rm_list)} models")
-        
-        return {'FINISHED'}
+                                    ep_item.epoch = "no_epoch"
+                                else:
+                                    # Aggiungi le epoche dal grafo
+                                    for ep_name in graph_epochs:
+                                        ep_item = obj.EM_ep_belong_ob.add()
+                                        ep_item.epoch = ep_name
+            
+            # Ripristina l'indice se possibile, altrimenti imposta a 0
+            scene.rm_list_index = min(current_index, len(rm_list)-1) if rm_list else 0
+            
+            if self.from_graph:
+                self.report({'INFO'}, f"Updated RM list from graph: {len(rm_list)} models")
+            else:
+                self.report({'INFO'}, f"Updated RM list from scene objects: {len(rm_list)} models")
+            
+            return {'FINISHED'}
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.report({'ERROR'}, f"Error updating RM list: {str(e)}")
+            return {'CANCELLED'}
 
 # Operatore per risolvere i mismatch di epoche
 class RM_OT_resolve_mismatches(Operator):
@@ -783,15 +811,22 @@ class RM_OT_demote_from_rm(Operator):
         
         # Conta quanti oggetti sono stati rimossi
         removed_count = 0
-        
+
+        # Rimuovi gli elementi dalla lista RM prima
+        objects_to_remove = [obj.name for obj in selected_objects]
+        for i in range(len(scene.rm_list) - 1, -1, -1):
+            if scene.rm_list[i].name in objects_to_remove:
+                scene.rm_list.remove(i)
+
+
         for obj in selected_objects:
             # Rimuovi tutte le epoche dall'oggetto
             while len(obj.EM_ep_belong_ob) > 0:
                 obj.EM_ep_belong_ob.remove(0)
             
             # Aggiungi "no_epoch"
-            ep_item = obj.EM_ep_belong_ob.add()
-            ep_item.epoch = "no_epoch"
+            #ep_item = obj.EM_ep_belong_ob.add()
+            #ep_item.epoch = "no_epoch"
             
             removed_count += 1
             
@@ -815,8 +850,13 @@ class RM_OT_demote_from_rm(Operator):
                     graph.remove_node(model_node_id)
         
         # Aggiorna la lista RM
-        bpy.ops.rm.update_list(from_graph=graph is not None)
-        
+        #bpy.ops.rm.update_list(from_graph=graph is not None)
+
+        # Aggiorna l'indice della lista RM se necessario
+        if scene.rm_list_index >= len(scene.rm_list):
+            scene.rm_list_index = max(0, len(scene.rm_list) - 1)
+
+
         self.report({'INFO'}, f"Demoted {removed_count} objects from RM models")
         return {'FINISHED'}
 
@@ -833,44 +873,51 @@ class RM_OT_select_from_list(Operator):
     )
     
     def execute(self, context):
-        scene = context.scene
-        
-        # Usa l'indice fornito se valido, altrimenti l'indice selezionato nella lista
-        index = self.rm_index if self.rm_index >= 0 else scene.rm_list_index
-        
-        # Verifica se abbiamo un indice valido
-        if index >= 0 and index < len(scene.rm_list):
-            item = scene.rm_list[index]
+        try:
+            scene = context.scene
             
-            # Deseleziona tutti gli oggetti
-            bpy.ops.object.select_all(action='DESELECT')
+            # Usa l'indice fornito se valido, altrimenti l'indice selezionato nella lista
+            index = self.rm_index if self.rm_index >= 0 else scene.rm_list_index
             
-            # Se l'oggetto esiste, selezionalo
-            obj = bpy.data.objects.get(item.name)
-            if obj:
-                obj.select_set(True)
-                # Imposta l'oggetto attivo
-                context.view_layer.objects.active = obj
+            # Verifica se abbiamo un indice valido
+            if index >= 0 and index < len(scene.rm_list):
+                item = scene.rm_list[index]
                 
-                # Zoom sull'oggetto se l'opzione è abilitata
-                if scene.rm_settings.zoom_to_selected:
-                    # Zoom solo se sei in una vista 3D
-                    for area in bpy.context.screen.areas:
-                        if area.type == 'VIEW_3D':
-                            ctx = bpy.context.copy()
-                            ctx['area'] = area
-                            ctx['region'] = area.regions[-1]
-                            bpy.ops.view3d.view_selected(ctx)
-                            break
+                # Deseleziona tutti gli oggetti
+                bpy.ops.object.select_all(action='DESELECT')
                 
-                self.report({'INFO'}, f"Selected object: {item.name}")
-                return {'FINISHED'}
-            else:
-                self.report({'ERROR'}, f"Object not found in scene: {item.name}")
-                return {'CANCELLED'}
-        
-        self.report({'ERROR'}, "No item selected in the list")
-        return {'CANCELLED'}
+                # Se l'oggetto esiste, selezionalo
+                obj = bpy.data.objects.get(item.name)
+                if obj:
+                    obj.select_set(True)
+                    # Imposta l'oggetto attivo
+                    context.view_layer.objects.active = obj
+                    
+                    # Zoom sull'oggetto se l'opzione è abilitata
+                    if hasattr(scene, 'rm_settings') and scene.rm_settings.zoom_to_selected:
+                        # Zoom solo se sei in una vista 3D
+                        for area in bpy.context.screen.areas:
+                            if area.type == 'VIEW_3D':
+                                ctx = bpy.context.copy()
+                                ctx['area'] = area
+                                ctx['region'] = area.regions[-1]
+                                bpy.ops.view3d.view_selected(ctx)
+                                break
+                    
+                    self.report({'INFO'}, f"Selected object: {item.name}")
+                    return {'FINISHED'}
+                else:
+                    self.report({'ERROR'}, f"Object not found in scene: {item.name}")
+                    return {'CANCELLED'}
+            
+            self.report({'ERROR'}, "No item selected in the list")
+            return {'CANCELLED'}
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.report({'ERROR'}, f"Error selecting object: {str(e)}")
+            return {'CANCELLED'}
 
 # Operatore per aggiornare lo stato di pubblicazione
 class RM_OT_toggle_publishable(Operator):
