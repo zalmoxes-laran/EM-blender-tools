@@ -19,6 +19,45 @@ from .s3Dgraphy.utils.utils import get_material_color
 from .s3Dgraphy.nodes.link_node import LinkNode
 from .s3Dgraphy import load_graph, get_graph
 
+
+def is_graph_available(context):
+    """
+    Check if a valid graph is available in the current context.
+    
+    Args:
+        context: Blender context
+        
+    Returns:
+        tuple: (bool, graph) where bool indicates if a graph is available,
+               and graph is the actual graph object or None
+    """
+    if not hasattr(context.scene, 'em_tools'):
+        return False, None
+        
+    em_tools = context.scene.em_tools
+    
+    # Check if graphml_files collection exists and has items
+    if not hasattr(em_tools, 'graphml_files') or len(em_tools.graphml_files) == 0:
+        return False, None
+        
+    # Check if active_file_index is valid
+    if em_tools.active_file_index < 0 or em_tools.active_file_index >= len(em_tools.graphml_files):
+        return False, None
+        
+    try:
+        # Get the active graphml file
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+        
+        # Try to get the actual graph
+        from .s3Dgraphy import get_graph
+        graph = get_graph(graphml.name)
+        
+        return bool(graph), graph
+    except Exception as e:
+        print(f"Error accessing graph: {str(e)}")
+        return False, None
+
+
 def is_valid_url(url_string):
     parsed_url = urlparse(url_string)
     return bool(parsed_url.scheme) or bool(parsed_url.netloc)

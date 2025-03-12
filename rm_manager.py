@@ -1130,7 +1130,9 @@ class VIEW3D_PT_RM_Manager(Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        
+
+        from .functions import is_graph_available
+
         # Mostra l'epoca attiva
         has_active_epoch = False
         if hasattr(scene, 'epoch_list') and len(scene.epoch_list) > 0 and scene.epoch_list_index >= 0:
@@ -1142,15 +1144,13 @@ class VIEW3D_PT_RM_Manager(Panel):
         # Controllo per aggiornamento lista e gestione mismatch
         row = layout.row(align=True)
         row.operator("rm.update_list", text="Update from Scene", icon='FILE_REFRESH').from_graph = False
-        
+
+        # Use the modular function to check graph availability
+        graph_available, graph = is_graph_available(context)
+
         # Verifica se è disponibile un grafo
-        graph_available = False
-        if context.scene.em_tools.active_file_index >= 0:
-            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
-            graph = get_graph(graphml.name)
-            if graph:
-                graph_available = True
-                row.operator("rm.update_list", text="Update from Graph", icon='NODE_MATERIAL').from_graph = True
+        if graph_available:
+            row.operator("rm.update_list", text="Update from Graph", icon='NODE_MATERIAL').from_graph = True
         
         # Lista dei modelli RM
         row = layout.row()
