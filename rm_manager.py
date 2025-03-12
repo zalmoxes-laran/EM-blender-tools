@@ -585,7 +585,7 @@ class RM_OT_show_mismatch_details(Operator):
         return {'FINISHED'}
 
 # Operatore per promuovere oggetti selezionati a RM
-class RM_OT_promote_to_rm(Operator):
+class RM_OT_promote_to_rm(bpy.types.Operator):
     bl_idname = "rm.promote_to_rm"
     bl_label = "Add to Active Epoch"
     bl_description = "Add selected objects to the active epoch as RM models"
@@ -598,7 +598,7 @@ class RM_OT_promote_to_rm(Operator):
             self.report({'ERROR'}, "No mesh objects selected")
             return {'CANCELLED'}
         
-        # Ottieni l'epoca attiva
+        # Get active epoch
         active_epoch = None
         if hasattr(scene, 'epoch_list') and len(scene.epoch_list) > 0 and scene.epoch_list_index >= 0:
             active_epoch = scene.epoch_list[scene.epoch_list_index]
@@ -606,28 +606,28 @@ class RM_OT_promote_to_rm(Operator):
             self.report({'ERROR'}, "No active epoch")
             return {'CANCELLED'}
         
-        # Ottieni il grafo attivo
+        # Get active graph
         graph = None
         if context.scene.em_tools.active_file_index >= 0:
             graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
             graph = get_graph(graphml.name)
         
-        # Conta quanti oggetti sono stati promossi
+        # Count how many objects were promoted
         created_count = 0
         updated_count = 0
         
-        # Per ogni oggetto selezionato
+        # For each selected object
         for obj in selected_objects:
-            # Controlla se l'oggetto ha già l'epoca attiva
+            # Check if object already has the active epoch
             epoch_already_added = False
             for ep in obj.EM_ep_belong_ob:
                 if ep.epoch == active_epoch.name:
                     epoch_already_added = True
                     break
             
-            # Se l'epoca non è già associata, aggiungila
+            # If epoch is not already associated, add it
             if not epoch_already_added:
-                # Rimuovi no_epoch se presente
+                # Remove no_epoch if present
                 i = 0
                 no_epoch_found = False
                 while i < len(obj.EM_ep_belong_ob):
@@ -637,17 +637,17 @@ class RM_OT_promote_to_rm(Operator):
                         break
                     i += 1
                 
-                # Aggiungi l'epoca all'oggetto
+                # Add epoch to object
                 ep_item = obj.EM_ep_belong_ob.add()
                 ep_item.epoch = active_epoch.name
                 updated_count += 1
             
-            # Se il grafo è disponibile, aggiorna anche quello
+            # If graph is available, update it too
             if graph:
                 model_node_id = f"{obj.name}_model"
                 model_node = graph.find_node_by_id(model_node_id)
                 
-                # Se il nodo non esiste, crealo
+                # If node doesn't exist, create it
                 if not model_node:
                     model_node = RepresentationModelNode(
                         node_id=model_node_id,
@@ -659,7 +659,7 @@ class RM_OT_promote_to_rm(Operator):
                     graph.add_node(model_node)
                     created_count += 1
                 
-                # Trova il nodo epoca nel grafo
+                # Find epoch node in graph
                 epoch_node = None
                 for node in graph.nodes:
                     if node.node_type == "epoch" and node.name == active_epoch.name:
@@ -667,51 +667,32 @@ class RM_OT_promote_to_rm(Operator):
                         break
                 
                 if epoch_node:
-                    # Crea un edge tra il modello e l'epoca se non esiste già
+                    # Create edge between model and epoch if it doesn't already exist
                     edge_id = f"{model_node_id}_belongs_to_{epoch_node.node_id}"
-                    if not graph.find_edge_by_id(edge_id):
-                        graph.add_edge(
-                            edge_id=edge_id,
-                            edge_source=model_node_id,
-                            edge_target=epoch_node.node_id,
-                            edge_type="has_representation_model"
-                        )
-                
-                # Verifica se dobbiamo aggiornare gli edge "has_first_epoch"
-                if epoch_node:
-                    # Determina quale epoca è la più antica
-                    oldest_epoch = None
-                    oldest_epoch_time = float('inf')
+                    existing_edge = graph.find_edge_by_id(edge_id)
                     
-                    # Primo passo: trova tutte le epoche associate all'oggetto
-                    associated_epochs = []
-                    for ep in obj.EM_ep_belong_ob:
-                        if ep.epoch != "no_epoch":
-                            for node in graph.nodes:
-                                if node.node_type == "epoch" and node.name == ep.epoch:
-                                    associated_epochs.append(node)
-                                    
-                                    # Verifica se è l'epoca più antica
-                                    if hasattr(node, 'start_time'):
-                                        if node.start_time < oldest_epoch_time:
-                                            oldest_epoch_time = node.start_time
-                                            oldest_epoch = node
-                    
-                    # Secondo passo: aggiorna gli edge per ogni epoca
-                    for epoch in associated_epochs:
-                        edge_id = f"{model_node_id}_belongs_to_{epoch.node_id}"
-                        existing_edge = graph.find_edge_by_id(edge_id)
-                        
-                        # Se l'edge non esiste, crealo
-                        if not existing_edge:
+                    if not existing_edge:
+                        try:
                             graph.add_edge(
                                 edge_id=edge_id,
                                 edge_source=model_node_id,
-                                edge_target=epoch.node_id,
+                                edge_target=epoch_node.node_id,
                                 edge_type="has_representation_model"
                             )
+                        except Exception as e:
+                            print(f"Error adding edge: {e}")
+                            # Try with generic connection if has_representation_model fails
+                            try:
+                                graph.add_edge(
+                                    edge_id=edge_id,
+                                    edge_source=model_node_id,
+                                    edge_target=epoch_node.node_id,
+                                    edge_type="generic_connection"
+                                )
+                            except Exception as e2:
+                                print(f"Error adding generic edge: {e2}")
         
-        # Aggiorna la lista RM
+        # Update RM list
         bpy.ops.rm.update_list(from_graph=graph is not None)
         
         message = f"Added {updated_count} objects to epoch '{active_epoch.name}'"
@@ -881,32 +862,32 @@ class RM_OT_select_from_list(Operator):
         try:
             scene = context.scene
             
-            # Usa l'indice fornito se valido, altrimenti l'indice selezionato nella lista
+            # Use provided index if valid, otherwise the selected index in the list
             index = self.rm_index if self.rm_index >= 0 else scene.rm_list_index
             
-            # Verifica se abbiamo un indice valido
+            # Verify we have a valid index
             if index >= 0 and index < len(scene.rm_list):
                 item = scene.rm_list[index]
                 
-                # Deseleziona tutti gli oggetti
+                # Deselect all objects
                 bpy.ops.object.select_all(action='DESELECT')
                 
-                # Se l'oggetto esiste, selezionalo
+                # If the object exists, select it
                 obj = bpy.data.objects.get(item.name)
                 if obj:
                     obj.select_set(True)
-                    # Imposta l'oggetto attivo
+                    # Set as active object
                     context.view_layer.objects.active = obj
                     
-                    # Zoom sull'oggetto se l'opzione è abilitata
+                    # Zoom to object if the option is enabled
                     if hasattr(scene, 'rm_settings') and scene.rm_settings.zoom_to_selected:
-                        # Zoom solo se sei in una vista 3D
+                        # Find a 3D view area
                         for area in bpy.context.screen.areas:
                             if area.type == 'VIEW_3D':
-                                ctx = bpy.context.copy()
-                                ctx['area'] = area
-                                ctx['region'] = area.regions[-1]
-                                bpy.ops.view3d.view_selected(ctx)
+                                # Create a new context override that doesn't cause ValueError
+                                override = {'area': area}
+                                # Use this override to call view_selected
+                                bpy.ops.view3d.view_selected(override)
                                 break
                     
                     self.report({'INFO'}, f"Selected object: {item.name}")
@@ -1164,6 +1145,12 @@ class RMSettings(PropertyGroup):
         description="Automatically update RM list when a graph is loaded",
         default=True
     )
+    
+    show_settings: BoolProperty(
+        name="Show Settings",
+        description="Show or hide the settings section",
+        default=False
+    )
 
 # Il pannello principale RM Manager
 class VIEW3D_PT_RM_Manager(Panel):
@@ -1177,7 +1164,7 @@ class VIEW3D_PT_RM_Manager(Panel):
     @classmethod
     def poll(cls, context):
         em_tools = context.scene.em_tools
-        # Mostra solo se siamo in modalità EM avanzata
+        # Show only if we're in advanced EM mode
         return em_tools.mode_switch
     
     def draw(self, context):
@@ -1186,26 +1173,18 @@ class VIEW3D_PT_RM_Manager(Panel):
 
         from .functions import is_graph_available
         
-        # Verifica se è disponibile un grafo
+        # Check if a graph is available
         graph_available, graph = is_graph_available(context)
 
-        # Mostra l'epoca attiva
-        has_active_epoch = False
-        if hasattr(scene, 'epoch_list') and len(scene.epoch_list) > 0 and scene.epoch_list_index >= 0:
-            active_epoch = scene.epoch_list[scene.epoch_list_index]
-            box = layout.box()
-            box.label(text=f"Active Epoch: {active_epoch.name}")
-            has_active_epoch = True
-        
-        # Controllo per aggiornamento lista e gestione mismatch
+        # Update controls
         row = layout.row(align=True)
         row.operator("rm.update_list", text="Update from Scene", icon='FILE_REFRESH').from_graph = False
 
-        # Verifica se è disponibile un grafo
+        # Check if a graph is available
         if graph_available:
             row.operator("rm.update_list", text="Update from Graph", icon='NODE_MATERIAL').from_graph = True
         
-        # Lista dei modelli RM
+        # List of RM models
         row = layout.row()
         row.template_list(
             "RM_UL_List", "rm_list",
@@ -1213,7 +1192,17 @@ class VIEW3D_PT_RM_Manager(Panel):
             scene, "rm_list_index"
         )
         
-        # Bottoni per le azioni principali
+        # Show active epoch
+        has_active_epoch = False
+        if hasattr(scene, 'epoch_list') and len(scene.epoch_list) > 0 and scene.epoch_list_index >= 0:
+            active_epoch = scene.epoch_list[scene.epoch_list_index]
+            box = layout.box()
+            box.label(text=f"Active Epoch: {active_epoch.name}")
+            has_active_epoch = True
+
+
+        
+        # Main action buttons
         if has_active_epoch:
             row = layout.row(align=True)
             row.operator("rm.promote_to_rm", icon='ADD')
@@ -1223,29 +1212,25 @@ class VIEW3D_PT_RM_Manager(Panel):
             box = layout.box()
             box.label(text="Select an epoch to manage RM objects", icon='INFO')
         
-        # Elenco delle epoche associate solo se un RM è selezionato
+        # List of associated epochs only if an RM is selected
         if scene.rm_list_index >= 0 and len(scene.rm_list) > 0:
             item = scene.rm_list[scene.rm_list_index]
             
-            # Mostra la lista delle epoche associate
+            # Show the list of associated epochs
             box = layout.box()
             row = box.row()
             row.label(text=f"Epochs for {item.name}:")
             
-            # Sublista delle epoche
+            # Sublist of epochs
             row = box.row()
             row.template_list(
                 "RM_UL_EpochList", "rm_epochs",
                 item, "epochs",
-                item, "active_epoch_index"
+                item, "active_epoch_index",
+                rows=3  # Limit to 3 rows by default
             )
             
-            # Bottoni per aggiungere/gestire epoche
-            if has_active_epoch:
-                row = box.row()
-                row.operator("rm.add_epoch", icon='ADD').rm_index = scene.rm_list_index
-            
-            # Se c'è un mismatch, mostra un avviso e bottoni per risolverlo
+            # If there's a mismatch, show a warning and buttons to resolve it
             if item.epoch_mismatch:
                 row = box.row()
                 row.alert = True
@@ -1258,30 +1243,22 @@ class VIEW3D_PT_RM_Manager(Panel):
                 if graph_available:
                     row.operator("rm.resolve_mismatches", text="Use Graph Epochs", icon='NODE_MATERIAL').use_graph_epochs = True
                 row.operator("rm.resolve_mismatches", text="Use Scene Epochs", icon='OBJECT_DATA').use_graph_epochs = False
-            
-            # Informazioni oggetto
-            box = layout.box()
-            box.label(text=f"Selected RM: {item.name}")
-            row = box.row()
-            row.label(text=f"First Epoch: {item.first_epoch}")
-            row = box.row()
-            row.prop(item, "is_publishable", text="Publishable")
-        elif len(scene.rm_list) == 0:
-            box = layout.box()
-            box.label(text="No RM models found", icon='INFO')
-            if has_active_epoch:
-                box.label(text="Select 3D objects and click 'Add' to create RMs")
         
-        # Impostazioni
+        # Settings (collapsible)
         box = layout.box()
         row = box.row()
-        row.label(text="Settings")
-        row = box.row()
-        row.prop(scene.rm_settings, "zoom_to_selected")
-        row = box.row()
-        row.prop(scene.rm_settings, "show_mismatches")
-        row = box.row()
-        row.prop(scene.rm_settings, "auto_update_on_load")
+        row.prop(scene.rm_settings, "show_settings", 
+                icon="TRIA_DOWN" if scene.rm_settings.show_settings else "TRIA_RIGHT",
+                text="Settings", 
+                emboss=False)
+                
+        if scene.rm_settings.show_settings:
+            row = box.row()
+            row.prop(scene.rm_settings, "zoom_to_selected")
+            row = box.row()
+            row.prop(scene.rm_settings, "show_mismatches")
+            row = box.row()
+            row.prop(scene.rm_settings, "auto_update_on_load")
 
 # Handler per aggiornare automaticamente la lista RM quando viene caricato un grafo
 @bpy.app.handlers.persistent
