@@ -34,7 +34,6 @@ class EM_ToolsPanel:
     bl_region_type = 'UI'
 
     def draw(self, context):
-        #addon_updater_ops.check_for_update_background(context)
         layout = self.layout
         scene = context.scene
         em_settings = scene.em_settings

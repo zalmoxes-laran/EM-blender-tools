@@ -44,16 +44,9 @@ from bpy.props import ( # type: ignore
         CollectionProperty,
         FloatVectorProperty,
         )
-        
 from bpy.types import (  # type: ignore
         PropertyGroup,
         )
-
-from . import addon_updater_ops
-from . import dependecy_panel
-from .blender_pip import Pip
-from . import rm_manager  # Importa il nuovo modulo
-
 
 # Global variable to track dependency status
 DEPENDENCIES_INSTALLED = False
@@ -61,14 +54,15 @@ DEPENDENCIES_INSTALLED = False
 def check_dependencies():
     """Check if external dependencies are available"""
     try:
-        import pandas
-        import networkx
+        import pandas # type: ignore
+        #import networkx # type: ignore
         return True
-    except ImportError:
+    except ImportError as e:
+        print(f"Missing dependencies: {e}")
         return False
 
-# demo bare-bones preferences 
-@addon_updater_ops.make_annotations
+from . import dependecy_panel
+
 class EmPreferences(bpy.types.AddonPreferences):
     bl_idname = __package__
        #bl_idname = __name__
@@ -78,65 +72,7 @@ class EmPreferences(bpy.types.AddonPreferences):
               default=False
               ) # type: ignore
 
-    # addon updater preferences
-    auto_check_update : bpy.props.BoolProperty(
-        name="Auto-check for Update",
-        description="If enabled, auto-check for updates using an interval",
-        default=False
-        ) # type: ignore
-      
-    updater_intrval_months : bpy.props.IntProperty(
-        name='Months',
-        description="Number of months between checking for updates",
-        default=0,
-        min=0
-        ) # type: ignore
-      
-    updater_intrval_days : bpy.props.IntProperty(
-        name='Days',
-        description="Number of days between checking for updates",
-        default=7,
-        min=0,
-        max=31
-        ) # type: ignore
-      
-    updater_intrval_hours : bpy.props.IntProperty(
-        name='Hours',
-        description="Number of hours between checking for updates",
-        default=0,
-        min=0,
-        max=23
-        ) # type: ignore
-      
-    updater_intrval_minutes : bpy.props.IntProperty(
-        name='Minutes',
-        description="Number of minutes between checking for updates",
-        default=0,
-        min=0,
-        max=59
-        ) # type: ignore
-
     def draw(self, context):
-              layout = self.layout
-              # col = layout.column() # works best if a column, or even just self.layout
-              mainrow = layout.row()
-              col = mainrow.column()
-
-              # updater draw function
-              # could also pass in col as third arg
-              addon_updater_ops.update_settings_ui(self, context)
-
-              # Alternate draw function, which is more condensed and can be
-              # placed within an existing draw function. Only contains:
-              #   1) check for update/update now buttons
-              #   2) toggle for auto-check (interval will be equal to what is set above)
-              # addon_updater_ops.update_settings_ui_condensed(self, context, col)
-
-              # Adding another column to help show the above condensed ui as one column
-              # col = mainrow.column()
-              # col.scale_y = 2
-              # col.operator("wm.url_open","Open webpage ").url=addon_updater_ops.updater.website
-
               layout = self.layout
               layout.label(text="xlsx setup")
               #layout.prop(self, "filepath", text="Credentials path:")
@@ -517,8 +453,6 @@ class ExportVars(bpy.types.PropertyGroup):
        default=True
        ) # type: ignore
 
-
-
 class ExportTablesVars(bpy.types.PropertyGroup):
        table_type : bpy.props.EnumProperty(
               items=[
@@ -589,7 +523,8 @@ def register_full_addon():
             em_statistics,
             server,
             graph2geometry,
-            activity_manager
+            activity_manager,
+            rm_manager
         )
 
         from .import_operators import importer_graphml
@@ -605,13 +540,6 @@ def register_full_addon():
 
         # Full classes list for addon
         classes = (
-            UI.VIEW3D_PT_ToolsPanel,
-            UI.EM_UL_named_epoch_managers,
-            UI.VIEW3D_PT_ParadataPanel,
-            UI.EM_UL_properties_managers,
-            UI.EM_UL_sources_managers,
-            UI.EM_UL_extractors_managers,
-            UI.EM_UL_combiners_managers,
             UI.EM_UL_belongob,
             UI.VIEW3D_PT_USListPanel,
             UI.EM_UL_US_List,
@@ -631,23 +559,7 @@ def register_full_addon():
                 except ValueError as e:
                     print(f"Warning: Class '{cls_name}' already registered: {e}")
 
-        # Register modules
-        em_setup.register()
-        visual_manager.register()
-        external_modules_install.register()
-        EMdb_excel.register()
-        EM_list.register()
-        export_manager.register()
-        em_statistics.register()
-        epoch_manager.register()
-        rm_manager.register()
-        server.register()
-        graph2geometry.register()
-        activity_manager.register()
-        importer_graphml.register()
-        exporter_heriverse.register()
-        import_EMdb.register()
-        graphml_converter.register()
+
 
         # Initialize graph property
         bpy.types.Scene.em_graph = None
@@ -841,6 +753,25 @@ def register_full_addon():
 
         bpy.types.WindowManager.em_addon_settings = bpy.props.PointerProperty(type=EMAddonSettings)
 
+
+        # Register modules
+        em_setup.register()
+        visual_manager.register()
+        external_modules_install.register()
+        EMdb_excel.register()
+        EM_list.register()
+        export_manager.register()
+        em_statistics.register()
+        epoch_manager.register()
+        rm_manager.register()
+        server.register()
+        graph2geometry.register()
+        activity_manager.register()
+        importer_graphml.register()
+        exporter_heriverse.register()
+        import_EMdb.register()
+        graphml_converter.register()
+
         # Execute external modules check
         from .external_modules_install import check_external_modules
         check_external_modules()
@@ -856,8 +787,6 @@ def register_full_addon():
 
 def register():
     """Main registration function"""
-    # Register addon updater
-    addon_updater_ops.register(bl_info)
     
     # Register base classes
     for cls in base_classes:
@@ -959,13 +888,13 @@ def unregister():
                 EMdb_excel,
                 external_modules_install,
                 visual_manager,
-                em_setup
+                em_setup,
+                rm_manager,
             )
             
             from .export_operators import exporter_heriverse
             from .import_operators import importer_graphml, import_EMdb 
             from .operators import graphml_converter
-
 
             graphml_converter.unregister()
             import_EMdb.unregister()
@@ -995,12 +924,6 @@ def unregister():
                 UI.EM_UL_US_List,
                 UI.VIEW3D_PT_USListPanel,
                 UI.EM_UL_belongob,
-                UI.EM_UL_combiners_managers,
-                UI.EM_UL_extractors_managers,
-                UI.EM_UL_sources_managers,
-                UI.EM_UL_properties_managers,
-                UI.VIEW3D_PT_ParadataPanel,
-                UI.EM_UL_named_epoch_managers,
                 UI.VIEW3D_PT_ToolsPanel
             )
             
@@ -1027,5 +950,3 @@ def unregister():
         except Exception:
             pass
     
-    # Unregister addon updater
-    addon_updater_ops.unregister(bl_info)

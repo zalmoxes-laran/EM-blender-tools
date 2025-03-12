@@ -1,7 +1,8 @@
 # Aggiungi questo codice al file UI.py o crea un nuovo file chiamato dependency_panel.py
 
-import bpy
-from bpy.types import Panel
+import bpy # type: ignore
+from bpy.types import Panel # type: ignore
+from bpy.props import BoolProperty, StringProperty # type: ignore
 from .blender_pip import Pip
 
 class VIEW3D_PT_EM_MissingModules(Panel):
@@ -16,8 +17,8 @@ class VIEW3D_PT_EM_MissingModules(Panel):
     def poll(cls, context):
         # Verifica se le dipendenze sono mancanti
         try:
-            import pandas
-            import networkx
+            import pandas # type: ignore
+            import networkx # type: ignore
             return False  # Non mostrare il pannello se i moduli sono già presenti
         except ImportError:
             return True  # Mostra il pannello solo se mancano i moduli
@@ -49,17 +50,17 @@ class OBJECT_OT_install_em_missing_modules(bpy.types.Operator):
     bl_label = "Install Missing Modules"
     bl_options = {"REGISTER", "UNDO"}
 
-    is_install: bpy.props.BoolProperty()
-    list_modules_to_install: bpy.props.StringProperty()
+    is_install: BoolProperty() # type: ignore
+    list_modules_to_install: StringProperty() # type: ignore
 
     def execute(self, context):
         if self.list_modules_to_install == "ALL":
             # Installa tutti i moduli necessari
             modules = ["pandas", "pytz", "python-dateutil", "numpy", "six", 
-                      "openpyxl", "webdavclient3", "lxml", "networkx"]
+                      "openpyxl", "webdavclient3", "lxml", "networkx", "tzdata"]
         elif self.list_modules_to_install == "EMdb_xlsx":
             modules = ["pandas", "pytz", "python-dateutil", "numpy", "six", 
-                      "openpyxl", "webdavclient3", "lxml"]
+                      "openpyxl", "webdavclient3", "lxml", "tzdata"]
         elif self.list_modules_to_install == "NetworkX":
             modules = ["networkx"]
         else:

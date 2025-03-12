@@ -85,7 +85,8 @@ def EMdb_xlsx_modules():
         "six",
         "openpyxl",
         "webdavclient3",
-        "lxml"
+        "lxml",
+        "tzdata"
     ]
     return list_of_modules
 
