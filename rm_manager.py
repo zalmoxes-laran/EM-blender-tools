@@ -128,26 +128,31 @@ class RM_UL_EpochList(UIList):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             row = layout.row(align=True)
             
-            # Mostra se è l'epoca principale
+            # Icona per indicare la prima/altre epoche
             if item.is_first_epoch:
-                row.label(text="", icon='KEYFRAME_HLT')
+                row.label(text="", icon='KEYFRAME_HLT')  # Prima epoch
             else:
-                row.label(text="", icon='KEYFRAME')
-                
+                row.label(text="", icon='KEYFRAME')  # Altre epoche
+            
             # Nome dell'epoca
             row.label(text=item.name)
             
-            # Pulsante per rimuovere l'associazione con gestione più robusta
+            # Bottone per rimuovere l'associazione con l'epoca
             try:
-                op = row.operator("rm.remove_epoch", text="", icon='X', emboss=False)
-                op.epoch_name = item.name
+                # Controlla se stiamo nel contesto RM Manager
+                rm_list_index = getattr(context.scene, 'rm_list_index', -1)
+                if rm_list_index >= 0 and len(context.scene.rm_list) > 0:
+                    rm_item = context.scene.rm_list[rm_list_index]
+                    
+                    # Solo se ci sono più di una epoch
+                    if len(rm_item.epochs) > 1:
+                        op = row.operator("rm.remove_epoch", text="", icon='X', emboss=False)
+                        op.epoch_name = item.name
+                        op.rm_index = rm_list_index
                 
-                # Ottieni l'indice RM dal contesto della scena in modo sicuro
-                if hasattr(context.scene, 'rm_list_index'):
-                    op.rm_index = context.scene.rm_list_index
             except Exception as e:
                 print(f"Error in RM_UL_EpochList draw_item: {str(e)}")
-                # Fallback in caso di errore - mostra solo un'icona di errore
+                # Fallback con un'icona di errore
                 row.label(text="", icon='ERROR')
             
         elif self.layout_type in {'GRID'}:
@@ -164,7 +169,7 @@ class RM_OT_update_list(Operator):
         name="Update from Graph",
         description="Update the list using graph data. If False, uses only scene objects.",
         default=True
-    )
+    ) # type: ignore
     
     def execute(self, context):
         try:
@@ -177,7 +182,7 @@ class RM_OT_update_list(Operator):
             # Dizionario per tracciare gli oggetti già presenti nella lista
             existing_objects = {}
             for i, item in enumerate(rm_list):
-                if hasattr(item, 'name'):  # Verifica che l'item abbia un attributo 'name'
+                if hasattr(item, 'name'):
                     existing_objects[item.name] = {
                         "index": i,
                         "epochs": [epoch.name for epoch in item.epochs] if hasattr(item, 'epochs') else [],
@@ -187,234 +192,188 @@ class RM_OT_update_list(Operator):
             # Ottieni il grafo attivo se stiamo aggiornando dal grafo
             graph = None
             if self.from_graph and hasattr(context.scene, 'em_tools'):
-                # Verifica che graphml_files esista e non sia vuoto
                 if (hasattr(context.scene.em_tools, 'graphml_files') and
                     len(context.scene.em_tools.graphml_files) > 0 and
-                    context.scene.em_tools.active_file_index >= 0 and 
-                    context.scene.em_tools.active_file_index < len(context.scene.em_tools.graphml_files)):
+                    context.scene.em_tools.active_file_index >= 0):
                     
                     graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
                     from .s3Dgraphy import get_graph
                     graph = get_graph(graphml.name)
             
-            # Aggiorna con i dati di scena se non stiamo usando il grafo o se non è disponibile
-            if not self.from_graph or not graph:
-                # Primo passo: aggiorna gli elementi dalla scena (proprietà personalizzate degli oggetti)
-                scene_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH' and hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0]
-                
-                # Mantieni traccia degli oggetti già processati
-                processed_objects = set()
-                
-                for obj in scene_objects:
-                    processed_objects.add(obj.name)
-                    
-                    # Se l'oggetto è già nella lista, aggiorna le epoche
-                    if obj.name in existing_objects:
-                        item_index = existing_objects[obj.name]["index"]
-                        item = rm_list[item_index]
-                        
-                        # Verifica la corrispondenza delle epoche
-                        scene_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob]
-                        list_epochs = [ep.name for ep in item.epochs] if hasattr(item, 'epochs') else []
-                        
-                        # Se le epoche sono diverse, aggiorna
-                        if set(scene_epochs) != set(list_epochs):
-                            # Aggiorna il flag mismatch
-                            item.epoch_mismatch = True
-                            
-                            # Aggiorna la prima epoca
-                            if scene_epochs:
-                                first_epoch_from_custom = scene_epochs[0]
-                                if first_epoch_from_custom != "no_epoch":
-                                    item.first_epoch = first_epoch_from_custom
-                        
-                    else:
-                        # Crea un nuovo elemento per l'oggetto
-                        item = rm_list.add()
-                        item.name = obj.name
-                        item.node_id = f"{obj.name}_model"  # Formato standard per gli ID di nodo RM
-                        item.object_exists = True
-                        item.is_publishable = True  # Default
-                        
-                        # Imposta l'epoca primaria
-                        scene_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob]
-                        if scene_epochs:
-                            first_epoch = scene_epochs[0]
-                            if first_epoch != "no_epoch":
-                                item.first_epoch = first_epoch
-                            else:
-                                item.first_epoch = "no_epoch"
-                        else:
-                            item.first_epoch = "no_epoch"
-                        
-                        # Popola la lista delle epoche
-                        for ep_name in scene_epochs:
-                            if ep_name != "no_epoch":
-                                epoch_item = item.epochs.add()
-                                epoch_item.name = ep_name
-                                epoch_item.is_first_epoch = (ep_name == item.first_epoch)
-                
-                # Rimuovi gli oggetti che non esistono più nella scena
-                for i in range(len(rm_list) - 1, -1, -1):
-                    if rm_list[i].name not in processed_objects:
-                        rm_list.remove(i)
+            # Se non stiamo usando il grafo o non è disponibile, usiamo gli oggetti di scena
+            scene_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH' and hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0]
             
-            # Aggiorna con i dati del grafo se disponibile
+            processed_objects = set()
+            
+            for obj in scene_objects:
+                processed_objects.add(obj.name)
+                
+                # Ottieni le epoche dell'oggetto, escludendo "no_epoch"
+                scene_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob if ep.epoch != "no_epoch"]
+                
+                # Se non ci sono epoche, passa al prossimo oggetto
+                if not scene_epochs:
+                    continue
+                
+                # Se l'oggetto è già nella lista, aggiorna
+                if obj.name in existing_objects:
+                    item_index = existing_objects[obj.name]["index"]
+                    item = rm_list[item_index]
+                    
+                    # Pulisci le epoche precedenti
+                    while len(item.epochs) > 0:
+                        item.epochs.remove(0)
+                    
+                    # Aggiungi le nuove epoche
+                    if graph:
+                        # Ordina le epoche dal grafo
+                        ordered_epochs = []
+                        for epoch_name in scene_epochs:
+                            for node in graph.nodes:
+                                if node.node_type == "epoch" and node.name == epoch_name:
+                                    ordered_epochs.append({
+                                        "name": epoch_name,
+                                        "start_time": getattr(node, 'start_time', float('inf'))
+                                    })
+                                    break
+                        
+                        # Ordina per tempo di inizio
+                        ordered_epochs.sort(key=lambda x: x['start_time'])
+                        
+                        # Aggiungi le epoche all'item
+                        for epoch_data in ordered_epochs:
+                            epoch_item = item.epochs.add()
+                            epoch_item.name = epoch_data['name']
+                            epoch_item.is_first_epoch = (epoch_data['name'] == ordered_epochs[0]['name'])
+                    
+                    else:
+                        # Se non abbiamo il grafo, aggiungi le epoche nell'ordine corrente
+                        for epoch_name in scene_epochs:
+                            epoch_item = item.epochs.add()
+                            epoch_item.name = epoch_name
+                            # Imposta la prima come prima epoch
+                            epoch_item.is_first_epoch = (epoch_name == scene_epochs[0])
+                    
+                    # Aggiorna la prima epoch
+                    if len(item.epochs) > 0:
+                        item.first_epoch = item.epochs[0].name if item.epochs[0].name else "no_epoch"
+                
+                else:
+                    # Crea un nuovo elemento per l'oggetto
+                    item = rm_list.add()
+                    item.name = obj.name
+                    item.node_id = f"{obj.name}_model"
+                    item.object_exists = True
+                    
+                    # Aggiungi le epoche
+                    if graph:
+                        # Ordina le epoche dal grafo
+                        ordered_epochs = []
+                        for epoch_name in scene_epochs:
+                            for node in graph.nodes:
+                                if node.node_type == "epoch" and node.name == epoch_name:
+                                    ordered_epochs.append({
+                                        "name": epoch_name,
+                                        "start_time": getattr(node, 'start_time', float('inf'))
+                                    })
+                                    break
+                        
+                        # Ordina per tempo di inizio
+                        ordered_epochs.sort(key=lambda x: x['start_time'])
+                        
+                        # Aggiungi le epoche all'item
+                        for epoch_data in ordered_epochs:
+                            epoch_item = item.epochs.add()
+                            epoch_item.name = epoch_data['name']
+                            epoch_item.is_first_epoch = (epoch_data['name'] == ordered_epochs[0]['name'])
+                    
+                    else:
+                        # Se non abbiamo il grafo, aggiungi le epoche nell'ordine corrente
+                        for epoch_name in scene_epochs:
+                            epoch_item = item.epochs.add()
+                            epoch_item.name = epoch_name
+                            # Imposta la prima come prima epoch
+                            epoch_item.is_first_epoch = (epoch_name == scene_epochs[0])
+                    
+                    # Imposta la prima epoch
+                    if len(item.epochs) > 0:
+                        item.first_epoch = item.epochs[0].name
+                    else:
+                        item.first_epoch = "no_epoch"
+                    
+                    # Verifica pubblicabilità dal grafo
+                    if graph:
+                        rm_node = graph.find_node_by_id(item.node_id)
+                        if rm_node and hasattr(rm_node, 'attributes'):
+                            item.is_publishable = rm_node.attributes.get('is_publishable', True)
+                        else:
+                            item.is_publishable = True
+            
+            # Rimuovi gli oggetti non più presenti
+            for i in range(len(rm_list) - 1, -1, -1):
+                if rm_list[i].name not in processed_objects:
+                    rm_list.remove(i)
+            
+            # Gestisci l'aggiornamento dal grafo
             if self.from_graph and graph:
-                # Trova tutti i nodi RM nel grafo
                 rm_nodes = [node for node in graph.nodes if node.node_type == "representation_model"]
                 
-                # Dizionario per tracciare oggetti processati
-                processed_graph_objects = set()
-                
-                # Aggiorna o aggiungi gli oggetti dal grafo
                 for node in rm_nodes:
-                    # Estrai il nome dell'oggetto dal node_id (rimuovendo il suffisso "_model")
+                    # Estrai il nome dell'oggetto dal node_id
                     obj_name = node.name.replace(" Model for ", "").replace("Model for ", "")
-                    processed_graph_objects.add(obj_name)
                     
                     # Verifica se l'oggetto esiste nella scena
                     obj_exists = obj_name in bpy.data.objects
                     
-                    # Controlla se esiste già nella lista
-                    if obj_name in existing_objects:
-                        item_index = existing_objects[obj_name]["index"]
-                        item = rm_list[item_index]
-                        
-                        # Aggiorna lo stato di pubblicazione dal nodo del grafo
-                        if hasattr(node, 'attributes') and 'is_publishable' in node.attributes:
-                            item.is_publishable = node.attributes['is_publishable']
-                        
-                        # Trova tutte le epoche associate al nodo nel grafo
-                        associated_epochs = []
-                        first_epoch = None
-                        first_epoch_time = float('inf')
-                        
-                        for edge in graph.edges:
-                            if edge.edge_source == node.node_id and edge.edge_type == "has_representation_model":
-                                epoch_node = graph.find_node_by_id(edge.edge_target)
-                                if epoch_node and epoch_node.node_type == "epoch":
-                                    associated_epochs.append({
-                                        "name": epoch_node.name,
-                                        "id": epoch_node.node_id,
-                                        "start_time": getattr(epoch_node, 'start_time', 0)
-                                    })
-                                    
-                                    # Identificazione dell'epoca più antica
-                                    if hasattr(epoch_node, 'start_time'):
-                                        if epoch_node.start_time < first_epoch_time:
-                                            first_epoch_time = epoch_node.start_time
-                                            first_epoch = epoch_node.name
-                        
-                        # Confronta le epoche dal grafo con quelle nell'oggetto Blender
-                        obj = bpy.data.objects.get(obj_name)
-                        if obj and hasattr(obj, "EM_ep_belong_ob"):
-                            graph_epochs = set([ep["name"] for ep in associated_epochs])
-                            obj_epochs = set([ep.epoch for ep in obj.EM_ep_belong_ob if ep.epoch != "no_epoch"])
-                            
-                            # Imposta il flag di mismatch se le epoche non corrispondono
-                            if graph_epochs != obj_epochs:
-                                item.epoch_mismatch = True
-                            else:
-                                item.epoch_mismatch = False
-                        
-                        # Aggiorna la prima epoca se necessario
-                        if first_epoch:
-                            item.first_epoch = first_epoch
+                    # Trova o crea l'elemento nella lista
+                    existing_item = None
+                    for item in rm_list:
+                        if item.name == obj_name:
+                            existing_item = item
+                            break
                     
-                    else:
-                        # Crea un nuovo elemento per l'oggetto dal grafo
-                        item = rm_list.add()
-                        item.name = obj_name
-                        item.node_id = node.node_id
-                        item.object_exists = obj_exists
+                    # Se l'oggetto non esiste nella lista, crealo
+                    if not existing_item:
+                        new_item = rm_list.add()
+                        new_item.name = obj_name
+                        new_item.node_id = node.node_id
+                        new_item.object_exists = obj_exists
                         
-                        # Aggiungi attributo is_publishable
-                        if hasattr(node, 'attributes') and 'is_publishable' in node.attributes:
-                            item.is_publishable = node.attributes['is_publishable']
-                        else:
-                            item.is_publishable = True  # Default
+                        # Imposta la pubblicabilità 
+                        new_item.is_publishable = node.attributes.get('is_publishable', True)
                         
-                        # Trova tutte le epoche associate
+                        # Trova le epoche associate
                         associated_epochs = []
-                        first_epoch = None
-                        first_epoch_time = float('inf')
-                        
                         for edge in graph.edges:
-                            if edge.edge_source == node.node_id and edge.edge_type == "has_representation_model":
+                            if edge.edge_source == node.node_id and edge.edge_type in ["has_first_epoch", "has_representation_model", "survive_in_epoch"]:
                                 epoch_node = graph.find_node_by_id(edge.edge_target)
                                 if epoch_node and epoch_node.node_type == "epoch":
                                     associated_epochs.append({
                                         "name": epoch_node.name,
-                                        "id": epoch_node.node_id,
-                                        "start_time": getattr(epoch_node, 'start_time', 0)
+                                        "node": epoch_node,
+                                        "start_time": getattr(epoch_node, 'start_time', float('inf')),
+                                        "edge_type": edge.edge_type
                                     })
-                                    
-                                    # Trova l'epoca più antica
-                                    if hasattr(epoch_node, 'start_time'):
-                                        if epoch_node.start_time < first_epoch_time:
-                                            first_epoch_time = epoch_node.start_time
-                                            first_epoch = epoch_node.name
                         
-                        # Imposta l'epoca principale
-                        if first_epoch:
-                            item.first_epoch = first_epoch
-                        else:
-                            item.first_epoch = "no_epoch"
+                        # Ordina le epoche
+                        associated_epochs.sort(key=lambda x: x['start_time'])
                         
-                        # Popola la sublista delle epoche
+                        # Aggiungi le epoche all'item
                         for epoch_data in associated_epochs:
-                            epoch_item = item.epochs.add()
-                            epoch_item.name = epoch_data["name"]
-                            epoch_item.epoch_id = epoch_data["id"]
-                            epoch_item.is_first_epoch = (epoch_data["name"] == first_epoch)
-                
-                # Aggiorna gli oggetti Blender con le epoche definite nel grafo
-                for obj_name in processed_graph_objects:
-                    obj = bpy.data.objects.get(obj_name)
-                    if obj and hasattr(obj, "EM_ep_belong_ob"):
-                        # Trova l'item corrispondente
-                        item = None
-                        for i, rm_item in enumerate(rm_list):
-                            if rm_item.name == obj_name:
-                                item = rm_item
-                                break
+                            epoch_item = new_item.epochs.add()
+                            epoch_item.name = epoch_data['name']
+                            epoch_item.is_first_epoch = (epoch_data['edge_type'] == "has_first_epoch")
                         
-                        if item:
-                            # Confronta e aggiorna le epoche nell'oggetto
-                            graph_epochs = [ep.name for ep in item.epochs]
-                            obj_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob if ep.epoch != "no_epoch"]
-                            
-                            # Se c'è un mismatch, ma stiamo aggiornando dal grafo, aggiorna l'oggetto
-                            if set(graph_epochs) != set(obj_epochs):
-                                # Rimuovi tutte le epoche dall'oggetto eccetto no_epoch
-                                i = 0
-                                while i < len(obj.EM_ep_belong_ob):
-                                    if obj.EM_ep_belong_ob[i].epoch != "no_epoch":
-                                        obj.EM_ep_belong_ob.remove(i)
-                                    else:
-                                        i += 1
-                                
-                                # Aggiungi le epoche dal grafo all'oggetto
-                                no_epoch_exists = False
-                                for i, ep in enumerate(obj.EM_ep_belong_ob):
-                                    if ep.epoch == "no_epoch":
-                                        no_epoch_exists = True
-                                        break
-                                
-                                # Se non ci sono epoche da aggiungere e non c'è no_epoch, aggiungi no_epoch
-                                if not graph_epochs and not no_epoch_exists:
-                                    ep_item = obj.EM_ep_belong_ob.add()
-                                    ep_item.epoch = "no_epoch"
-                                else:
-                                    # Aggiungi le epoche dal grafo
-                                    for ep_name in graph_epochs:
-                                        ep_item = obj.EM_ep_belong_ob.add()
-                                        ep_item.epoch = ep_name
+                        # Imposta la prima epoch
+                        if associated_epochs:
+                            new_item.first_epoch = associated_epochs[0]['name']
+                        else:
+                            new_item.first_epoch = "no_epoch"
             
-            # Ripristina l'indice se possibile, altrimenti imposta a 0
+            # Ripristina l'indice se possibile
             scene.rm_list_index = min(current_index, len(rm_list)-1) if rm_list else 0
             
+            # Report
             if self.from_graph:
                 self.report({'INFO'}, f"Updated RM list from graph: {len(rm_list)} models")
             else:
@@ -598,124 +557,6 @@ class RM_OT_promote_to_rm(bpy.types.Operator):
             self.report({'ERROR'}, "No mesh objects selected")
             return {'CANCELLED'}
         
-        # Get active epoch
-        active_epoch = None
-        if hasattr(scene, 'epoch_list') and len(scene.epoch_list) > 0 and scene.epoch_list_index >= 0:
-            active_epoch = scene.epoch_list[scene.epoch_list_index]
-        else:
-            self.report({'ERROR'}, "No active epoch")
-            return {'CANCELLED'}
-        
-        # Get active graph
-        graph = None
-        if context.scene.em_tools.active_file_index >= 0:
-            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
-            graph = get_graph(graphml.name)
-        
-        # Count how many objects were promoted
-        created_count = 0
-        updated_count = 0
-        
-        # For each selected object
-        for obj in selected_objects:
-            # Check if object already has the active epoch
-            epoch_already_added = False
-            for ep in obj.EM_ep_belong_ob:
-                if ep.epoch == active_epoch.name:
-                    epoch_already_added = True
-                    break
-            
-            # If epoch is not already associated, add it
-            if not epoch_already_added:
-                # Remove no_epoch if present
-                i = 0
-                no_epoch_found = False
-                while i < len(obj.EM_ep_belong_ob):
-                    if obj.EM_ep_belong_ob[i].epoch == "no_epoch":
-                        obj.EM_ep_belong_ob.remove(i)
-                        no_epoch_found = True
-                        break
-                    i += 1
-                
-                # Add epoch to object
-                ep_item = obj.EM_ep_belong_ob.add()
-                ep_item.epoch = active_epoch.name
-                updated_count += 1
-            
-            # If graph is available, update it too
-            if graph:
-                model_node_id = f"{obj.name}_model"
-                model_node = graph.find_node_by_id(model_node_id)
-                
-                # If node doesn't exist, create it
-                if not model_node:
-                    model_node = RepresentationModelNode(
-                        node_id=model_node_id,
-                        name=f"Model for {obj.name}",
-                        type="RM",
-                        url=f"models/{obj.name}.gltf"
-                    )
-                    model_node.attributes['is_publishable'] = True
-                    graph.add_node(model_node)
-                    created_count += 1
-                
-                # Find epoch node in graph
-                epoch_node = None
-                for node in graph.nodes:
-                    if node.node_type == "epoch" and node.name == active_epoch.name:
-                        epoch_node = node
-                        break
-                
-                if epoch_node:
-                    # Create edge between model and epoch if it doesn't already exist
-                    edge_id = f"{model_node_id}_belongs_to_{epoch_node.node_id}"
-                    existing_edge = graph.find_edge_by_id(edge_id)
-                    
-                    if not existing_edge:
-                        try:
-                            graph.add_edge(
-                                edge_id=edge_id,
-                                edge_source=model_node_id,
-                                edge_target=epoch_node.node_id,
-                                edge_type="has_representation_model"
-                            )
-                        except Exception as e:
-                            print(f"Error adding edge: {e}")
-                            # Try with generic connection if has_representation_model fails
-                            try:
-                                graph.add_edge(
-                                    edge_id=edge_id,
-                                    edge_source=model_node_id,
-                                    edge_target=epoch_node.node_id,
-                                    edge_type="generic_connection"
-                                )
-                            except Exception as e2:
-                                print(f"Error adding generic edge: {e2}")
-        
-        # Update RM list
-        bpy.ops.rm.update_list(from_graph=graph is not None)
-        
-        message = f"Added {updated_count} objects to epoch '{active_epoch.name}'"
-        if created_count > 0:
-            message += f" and created {created_count} new RM nodes in the graph"
-        
-        self.report({'INFO'}, message)
-        return {'FINISHED'}
-
-# Operatore per rimuovere oggetti selezionati dall'epoca attiva
-class RM_OT_remove_from_epoch(Operator):
-    bl_idname = "rm.remove_from_epoch"
-    bl_label = "Remove from Active Epoch"
-    bl_description = "Remove selected objects from the active epoch"
-    
-    def execute(self, context):
-        scene = context.scene
-        selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
-        
-        if not selected_objects:
-            self.report({'ERROR'}, "No mesh objects selected")
-            return {'CANCELLED'}
-        
         # Ottieni l'epoca attiva
         active_epoch = None
         if hasattr(scene, 'epoch_list') and len(scene.epoch_list) > 0 and scene.epoch_list_index >= 0:
@@ -730,50 +571,236 @@ class RM_OT_remove_from_epoch(Operator):
             graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
             graph = get_graph(graphml.name)
         
-        # Conta quanti oggetti sono stati aggiornati
-        removed_count = 0
+        # Conta quanti oggetti sono stati promossi
+        updated_count = 0
         
         # Per ogni oggetto selezionato
         for obj in selected_objects:
-            # Rimuovi l'epoca attiva dall'oggetto
-            for i, ep in enumerate(obj.EM_ep_belong_ob):
-                if ep.epoch == active_epoch.name:
+            # Ottieni le epoche correnti dell'oggetto
+            current_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob if ep.epoch != "no_epoch"]
+            
+            # Controlla se l'oggetto ha già l'epoca attiva
+            if active_epoch.name in current_epochs:
+                self.report({'WARNING'}, f"Object {obj.name} already belongs to epoch {active_epoch.name}")
+                continue
+            
+            # Se non ci sono epoche, rimuovi "no_epoch"
+            i = 0
+            while i < len(obj.EM_ep_belong_ob):
+                if obj.EM_ep_belong_ob[i].epoch == "no_epoch":
                     obj.EM_ep_belong_ob.remove(i)
-                    removed_count += 1
-                    break
+                else:
+                    i += 1
             
-            # Se non ci sono più epoche, aggiungi "no_epoch"
-            if len(obj.EM_ep_belong_ob) == 0:
-                ep_item = obj.EM_ep_belong_ob.add()
-                ep_item.epoch = "no_epoch"
+            # Aggiungi l'epoca all'oggetto
+            ep_item = obj.EM_ep_belong_ob.add()
+            ep_item.epoch = active_epoch.name
+            updated_count += 1
             
-            # Se il grafo è disponibile, aggiorna anche quello
+            # Gestione del grafo
             if graph:
+                # Gestisci il nodo RM
                 model_node_id = f"{obj.name}_model"
                 model_node = graph.find_node_by_id(model_node_id)
                 
-                if model_node:
-                    # Trova il nodo epoca nel grafo
-                    epoch_node = None
-                    for node in graph.nodes:
-                        if node.node_type == "epoch" and node.name == active_epoch.name:
-                            epoch_node = node
-                            break
+                # Se il nodo non esiste, crealo
+                if not model_node:
+                    model_node = RepresentationModelNode(
+                        node_id=model_node_id,
+                        name=f"Model for {obj.name}",
+                        type="RM",
+                        url=f"models/{obj.name}.gltf"
+                    )
+                    model_node.attributes['is_publishable'] = True
+                    graph.add_node(model_node)
+                
+                # Trova il nodo epoca nel grafo
+                epoch_node = None
+                for node in graph.nodes:
+                    if node.node_type == "epoch" and node.name == active_epoch.name:
+                        epoch_node = node
+                        break
+                
+                if epoch_node:
+                    # Determina l'insieme di epoche correnti
+                    associated_epochs = []
+                    first_epoch = None
+                    first_epoch_time = float('inf')
                     
-                    if epoch_node:
-                        # Rimuovi l'edge tra il modello e l'epoca
-                        for edge in graph.edges:
-                            if (edge.edge_source == model_node_id and 
-                                edge.edge_target == epoch_node.node_id and 
-                                edge.edge_type == "has_representation_model"):
-                                graph.remove_edge(edge.edge_id)
+                    # Trova le epoche correnti associate al nodo RM
+                    for edge in graph.edges:
+                        if edge.edge_source == model_node_id and edge.edge_type in ["has_first_epoch", "has_representation_model", "survive_in_epoch"]:
+                            current_epoch_node = graph.find_node_by_id(edge.edge_target)
+                            if current_epoch_node and current_epoch_node.node_type == "epoch":
+                                associated_epochs.append({
+                                    "name": current_epoch_node.name,
+                                    "node": current_epoch_node,
+                                    "start_time": getattr(current_epoch_node, 'start_time', float('inf'))
+                                })
+                                
+                                # Trova l'epoch più antica
+                                if current_epoch_node.start_time < first_epoch_time:
+                                    first_epoch_time = current_epoch_node.start_time
+                                    first_epoch = current_epoch_node
+                    
+                    # Ordina le epoche
+                    associated_epochs.sort(key=lambda x: x['start_time'])
+                    
+                    # Determina se l'attuale è l'epoch più antica
+                    is_first_epoch = not associated_epochs or active_epoch.start_time < associated_epochs[0]['start_time']
+                    
+                    # Rimuovi eventuali edge duplicati
+                    for edge in graph.edges[:]:
+                        if (edge.edge_source == model_node_id and 
+                            edge.edge_target == epoch_node.node_id and 
+                            edge.edge_type in ["has_first_epoch", "has_representation_model", "survive_in_epoch"]):
+                            graph.remove_edge(edge.edge_id)
+                    
+                    # Aggiungi il nuovo edge 
+                    edge_type = "has_first_epoch" if is_first_epoch else "survive_in_epoch"
+                    edge_id = f"{model_node_id}_belongs_to_{epoch_node.node_id}"
+                    graph.add_edge(
+                        edge_id=edge_id,
+                        edge_source=model_node_id,
+                        edge_target=epoch_node.node_id,
+                        edge_type=edge_type
+                    )
+            
+            # Ordina le epoche dell'oggetto in base al loro tempo di inizio
+            if graph:
+                obj_epochs = []
+                for ep in obj.EM_ep_belong_ob:
+                    if ep.epoch != "no_epoch":
+                        for node in graph.nodes:
+                            if node.node_type == "epoch" and node.name == ep.epoch:
+                                obj_epochs.append((ep, node))
                                 break
+                
+                # Ordina in base al tempo di inizio (più antico prima)
+                obj_epochs.sort(key=lambda x: getattr(x[1], 'start_time', float('inf')))
+                
+                # Ricrea la lista in ordine
+                while len(obj.EM_ep_belong_ob) > 0:
+                    obj.EM_ep_belong_ob.remove(0)
+                
+                for ep, _ in obj_epochs:
+                    new_ep = obj.EM_ep_belong_ob.add()
+                    new_ep.epoch = ep.epoch
+                    
+                # Se non ci sono epoche, aggiungi "no_epoch"
+                if len(obj.EM_ep_belong_ob) == 0:
+                    no_ep = obj.EM_ep_belong_ob.add()
+                    no_ep.epoch = "no_epoch"
         
         # Aggiorna la lista RM
         bpy.ops.rm.update_list(from_graph=graph is not None)
         
-        self.report({'INFO'}, f"Removed {removed_count} objects from epoch '{active_epoch.name}'")
+        message = f"Added {updated_count} objects to epoch '{active_epoch.name}'"
+        self.report({'INFO'}, message)
         return {'FINISHED'}
+
+# Operatore per rimuovere oggetti selezionati dall'epoca attiva
+class RM_OT_remove_from_epoch(Operator):
+    bl_idname = "rm.remove_from_epoch"
+    bl_label = "Remove from Active Epoch"
+    bl_description = "Remove the selected RM model from the active epoch"
+    
+    rm_index: IntProperty(
+        name="RM Index",
+        description="Index of the RM item in the list",
+        default=-1
+    )
+    
+    def execute(self, context):
+        scene = context.scene
+        
+        # Usa l'indice fornito se valido, altrimenti l'indice selezionato nella lista
+        index = self.rm_index if self.rm_index >= 0 else scene.rm_list_index
+        
+        # Verifica che ci sia un elemento RM selezionato
+        if index < 0 or index >= len(scene.rm_list):
+            self.report({'ERROR'}, "No RM model selected")
+            return {'CANCELLED'}
+        
+        # Verifica che ci sia un'epoca attiva
+        if scene.epoch_list_index < 0 or not scene.epoch_list:
+            self.report({'ERROR'}, "No active epoch")
+            return {'CANCELLED'}
+        
+        # Ottiene l'elemento RM e l'epoca attiva
+        rm_item = scene.rm_list[index]
+        active_epoch = scene.epoch_list[scene.epoch_list_index]
+        
+        # Ottieni il grafo attivo
+        graph = None
+        if context.scene.em_tools.active_file_index >= 0:
+            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+            graph = get_graph(graphml.name)
+        
+        # Trova l'oggetto Blender
+        obj = bpy.data.objects.get(rm_item.name)
+        if not obj:
+            self.report({'ERROR'}, f"Object not found in scene: {rm_item.name}")
+            return {'CANCELLED'}
+        
+        # Rimuovi l'epoca dall'oggetto
+        epochs_removed = False
+        for i in range(len(obj.EM_ep_belong_ob) - 1, -1, -1):
+            if obj.EM_ep_belong_ob[i].epoch == active_epoch.name:
+                obj.EM_ep_belong_ob.remove(i)
+                epochs_removed = True
+        
+        # Se non ci sono più epoche, aggiungi "no_epoch"
+        if len(obj.EM_ep_belong_ob) == 0:
+            no_epoch_item = obj.EM_ep_belong_ob.add()
+            no_epoch_item.epoch = "no_epoch"
+        
+        # Gestisci il grafo se disponibile
+        if graph:
+            # Identificativo del nodo RM
+            model_node_id = f"{obj.name}_model"
+            rm_node = graph.find_node_by_id(model_node_id)
+            
+            if rm_node:
+                # Trova e rimuovi gli edge con l'epoca attiva
+                edges_to_remove = []
+                for edge in graph.edges:
+                    if (edge.edge_source == model_node_id and 
+                        edge.edge_type in ["has_first_epoch", "has_representation_model", "survive_in_epoch"]):
+                        # Trova il nodo dell'epoca
+                        epoch_node = graph.find_node_by_id(edge.edge_target)
+                        if epoch_node and epoch_node.name == active_epoch.name:
+                            edges_to_remove.append(edge.edge_id)
+                
+                # Rimuovi gli edge
+                for edge_id in edges_to_remove:
+                    graph.remove_edge(edge_id)
+        
+        # Aggiorna la lista RM
+        # Rimuovi l'epoch dalla lista delle epoche dell'item
+        for i in range(len(rm_item.epochs) - 1, -1, -1):
+            if rm_item.epochs[i].name == active_epoch.name:
+                rm_item.epochs.remove(i)
+        
+        # Se non ci sono più epoche, imposta a "no_epoch"
+        if len(rm_item.epochs) == 0:
+            rm_item.first_epoch = "no_epoch"
+        else:
+            # Rivaluta la prima epoch
+            for i, epoch_item in enumerate(rm_item.epochs):
+                epoch_item.is_first_epoch = (i == 0)
+            rm_item.first_epoch = rm_item.epochs[0].name
+        
+        # Aggiorna la lista RM
+        bpy.ops.rm.update_list(from_graph=graph is not None)
+        
+        # Messaggio di successo
+        if epochs_removed:
+            self.report({'INFO'}, f"Removed epoch '{active_epoch.name}' from {rm_item.name}")
+            return {'FINISHED'}
+        else:
+            self.report({'WARNING'}, f"No epoch '{active_epoch.name}' found for {rm_item.name}")
+            return {'FINISHED'}
 
 # Operatore per demote oggetti selezionati da RM
 class RM_OT_demote_from_rm(Operator):
@@ -983,7 +1010,7 @@ class RM_OT_remove_epoch(Operator):
                 self.report({'ERROR'}, f"Object not found in scene: {rm_item.name}")
                 return {'CANCELLED'}
             
-            # Rimuovi l'epoca dalla lista dell'oggetto
+            # Rimuovi l'epoca dall'oggetto Blender
             removed_from_obj = False
             for i, ep in enumerate(obj.EM_ep_belong_ob):
                 if ep.epoch == self.epoch_name:
@@ -991,36 +1018,52 @@ class RM_OT_remove_epoch(Operator):
                     removed_from_obj = True
                     break
             
-            # Se era l'unica epoca, aggiungi "no_epoch"
+            # Se era l'ultima epoca, aggiungi "no_epoch"
             if len(obj.EM_ep_belong_ob) == 0:
                 ep_item = obj.EM_ep_belong_ob.add()
                 ep_item.epoch = "no_epoch"
             
-            # Trova l'epoca nel grafo
-            epoch_node_id = None
-            for node in graph.nodes:
-                if node.node_type == "epoch" and node.name == self.epoch_name:
-                    epoch_node_id = node.node_id
+            # Rimuovi il nodo RM se necessario
+            model_node_id = f"{obj.name}_model"
+            
+            # Rimuovi l'edge dal grafo
+            removed_from_graph = False
+            edge_to_remove = None
+            
+            # Trova l'edge da rimuovere
+            for edge in graph.edges:
+                if (edge.edge_source == model_node_id and 
+                    edge.edge_type in ["has_first_epoch", "has_representation_model", "survive_in_epoch"]):
+                    # Trova il nodo epoch corrispondente
+                    epoch_node = graph.find_node_by_id(edge.edge_target)
+                    if epoch_node and epoch_node.name == self.epoch_name:
+                        edge_to_remove = edge.edge_id
+                        break
+            
+            # Rimuovi l'edge
+            if edge_to_remove:
+                graph.remove_edge(edge_to_remove)
+                removed_from_graph = True
+            
+            # Aggiorna la lista RM
+            # Rimuovi l'epoch dalla lista delle epoche dell'item
+            for i, epoch_item in enumerate(rm_item.epochs):
+                if epoch_item.name == self.epoch_name:
+                    rm_item.epochs.remove(i)
                     break
             
-            # Rimuovi edge dal grafo
-            if epoch_node_id:
-                removed_from_graph = False
-                edge_id_to_remove = None
-                for edge in graph.edges:
-                    if (edge.edge_source == rm_item.node_id and 
-                        edge.edge_target == epoch_node_id and 
-                        edge.edge_type == "has_representation_model"):
-                        edge_id_to_remove = edge.edge_id
-                        break
-                
-                if edge_id_to_remove:
-                    graph.remove_edge(edge_id_to_remove)
-                    removed_from_graph = True
+            # Se non ci sono più epoche, imposta a "no_epoch"
+            if len(rm_item.epochs) == 0:
+                rm_item.first_epoch = "no_epoch"
+            else:
+                # Rivaluta la prima epoch
+                rm_item.epochs[0].is_first_epoch = True
+                rm_item.first_epoch = rm_item.epochs[0].name
             
-            # Aggiorna la lista
-            bpy.ops.rm.update_list()
+            # Aggiorna la lista RM
+            bpy.ops.rm.update_list(from_graph=True)
             
+            # Messaggio di successo
             if removed_from_obj or removed_from_graph:
                 self.report({'INFO'}, f"Removed epoch '{self.epoch_name}' from {rm_item.name}")
                 return {'FINISHED'}
