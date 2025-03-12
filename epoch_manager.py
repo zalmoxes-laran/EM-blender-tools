@@ -4,14 +4,70 @@ import string
 from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty # type: ignore
 import bpy.props as prop # type: ignore
 
-from bpy.types import Panel # type: ignore
-
+from bpy.types import Panel, UIList # type: ignore
 
 from .functions import *
 
 from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode  # Import diretto
 
 from .s3Dgraphy import get_graph
+
+
+class EM_UL_named_epoch_managers(UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        epoch_list = item
+        #user_preferences = context.user_preferences
+        #self.layout.prop(context.scene, "test_color", text='Detail Color')
+        icons_style = 'OUTLINER'
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            #layout = layout.split(factor=0.6, align=True)
+            layout.prop(epoch_list, "name", text="", emboss=False)
+            layout.label(text=f"{int(item.start_time)}")
+            layout.label(text=f"{int(item.end_time)}")
+
+            #layout.prop(epoch_list, "start_time", text="min", emboss=False)
+            #layout.prop(epoch_list, "end_time", text="max", emboss=False)
+
+
+            # select operator
+            icon = 'RESTRICT_SELECT_ON' if epoch_list.is_selected else 'RESTRICT_SELECT_OFF'
+            if icons_style == 'OUTLINER':
+                icon = 'VIEWZOOM' if epoch_list.use_toggle else 'VIEWZOOM'
+            layout = layout.split(factor=0.1, align=True)
+            layout.prop(epoch_list, "epoch_RGB_color", text="", emboss=True, icon_value=0)
+            op = layout.operator(
+                "epoch_manager.toggle_select", text="", emboss=False, icon=icon)
+
+            op.group_em_idx = index
+
+            # lock operator
+            icon = 'LOCKED' if epoch_list.is_locked else 'UNLOCKED'
+            if icons_style == 'OUTLINER':
+                icon = 'RESTRICT_SELECT_OFF' if epoch_list.is_locked else 'RESTRICT_SELECT_ON'
+            op = layout.operator("epoch_manager.toggle_selectable", text="", emboss=False, icon=icon)
+            #op.em_group_changer = 'LOCKING'
+            op.group_em_idx = index
+
+            # view operator
+            icon = 'RESTRICT_VIEW_OFF' if epoch_list.use_toggle else 'RESTRICT_VIEW_ON'
+            op = layout.operator(
+                "epoch_manager.toggle_visibility", text="", emboss=False, icon=icon)
+            op.group_em_vis_idx = index
+
+            # view reconstruction
+            icon = 'MESH_CUBE' if not epoch_list.reconstruction_on else 'SNAP_VOLUME'
+            op = layout.operator(
+                "epoch_manager.toggle_reconstruction", text="", emboss=False, icon=icon)
+            op.group_em_vis_idx = index
+
+            # soloing operator
+            icon = 'RADIOBUT_ON' if epoch_list.epoch_soloing else 'RADIOBUT_OFF'
+            op = layout.operator(
+                "epoch_manager.toggle_soloing", text="", emboss=False, icon=icon)
+            op.group_em_idx = index
+
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
 
 #Periods Manager
 class EM_BasePanel:
@@ -456,6 +512,7 @@ class EM_UpdateUSListOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 classes = [
+    EM_UL_named_epoch_managers,
     EM_UL_List,
     EM_toggle_reconstruction,
     EM_toggle_select,

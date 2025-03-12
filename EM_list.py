@@ -2,6 +2,7 @@ import bpy # type: ignore
 import xml.etree.ElementTree as ET
 import os
 import bpy.props as prop # type: ignore
+from bpy.types import Panel # type: ignore
 
 
 #from bpy.props import StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
@@ -24,6 +25,90 @@ from bpy.types import ( # type: ignore
 from .functions import *
 
 #from .epoch_manager import *
+
+#####################################################################
+#US/USV Manager
+class EM_ToolsPanel:
+    bl_label = "US/USV Manager"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    def draw(self, context):
+        #addon_updater_ops.check_for_update_background(context)
+        layout = self.layout
+        scene = context.scene
+        em_settings = scene.em_settings
+        obj = context.object
+        #layout.alignment = 'LEFT'
+        row = layout.row()
+
+        if scene.em_list_index >= 0 and len(scene.em_list) > 0:
+            row.template_list("EM_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
+            item = scene.em_list[scene.em_list_index]
+            box = layout.box()
+            row = box.row(align=True)
+            #row.label(text="US/USV name, description:")
+            #row = box.row()
+            split = row.split()
+            col = split.column()
+            row.prop(item, "name", text="")
+            split = row.split()
+            col = split.column()
+            op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
+            op.list_type = "em_list"
+            #row = layout.row()
+            #row.label(text="Description:")
+            row = box.row()
+            #layout.alignment = 'LEFT'
+            row.prop(item, "description", text="", slider=True, emboss=True)
+
+            split = layout.split()
+            if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
+                col = split.column()
+                op = col.operator("select.fromlistitem", text='Proxy3D from List item', icon="MESH_CUBE")
+                op.list_type = "em_list"
+            else:
+                col = split.column()
+                col.label(text="", icon='MESH_CUBE') 
+            if obj:
+                if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
+                    col = split.column(align=True)
+                    op = col.operator("select.listitem", text='List item from 3DProxy', icon="LONGDISPLAY")
+                    op.list_type = "em_list"
+                else:
+                    col = split.column()
+                    col.label(text="", icon='LONGDISPLAY')             
+                    
+            col = split.column(align=True)
+            col.prop(scene, "paradata_streaming_mode", text='Paradata', icon="SHORTDISPLAY")
+
+            if scene.em_settings.em_proxy_sync is True:
+                if obj is not None:
+                    if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
+                            select_list_element_from_obj_proxy(obj, "em_list")
+                    
+            if scene.em_settings.em_proxy_sync2 is True:
+                if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
+                    list_item = scene.em_list[scene.em_list_index]
+                    if obj is not None:
+                        if list_item.name != obj.name:
+                            select_3D_obj(list_item.name)
+                            if scene.em_settings.em_proxy_sync2_zoom is True:
+                                for area in bpy.context.screen.areas:
+                                    if area.type == 'VIEW_3D':
+                                        ctx = bpy.context.copy()
+                                        ctx['area'] = area
+                                        ctx['region'] = area.regions[-1]
+                                        bpy.ops.view3d.view_selected(ctx)
+        else:
+            row.label(text="No US/USV here :-(")
+
+class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
+    bl_category = "EM"
+    bl_idname = "VIEW3D_PT_ToolsPanel"
+    bl_context = "objectmode"
+
+#US/USV Manager
 
 #### da qui si definiscono le funzioni e gli operatori
 class EM_listitem_OT_to3D(bpy.types.Operator):
@@ -137,6 +222,7 @@ class EM_not_in_matrix(bpy.types.Operator):
 
 classes = [
     EM_listitem_OT_to3D,
+    VIEW3D_PT_ToolsPanel,
     EM_update_icon_list,
     EM_select_from_list_item,
     EM_select_list_item,
