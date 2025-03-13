@@ -1,21 +1,21 @@
-import bpy # type: ignore
+import bpy
 import string
 import json
 import os
 import shutil
 
-from bpy_extras.io_utils import ExportHelper # type: ignore
-from bpy.types import Operator # type: ignore
-from bpy.types import Panel, UIList # type: ignore
+from bpy_extras.io_utils import ExportHelper
+from bpy.types import Operator
+from bpy.types import Panel, UIList
 
-from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty # type: ignore
-import bpy.props as prop # type: ignore
+from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
+import bpy.props as prop
 
 from .functions import *
 
 import random
 
-from .s3Dgraphy import convert_shape2type
+from .s3Dgraphy.utils.utils import convert_shape2type
 from .s3Dgraphy.exporter.json_exporter import JSONExporter
 
 
@@ -102,7 +102,7 @@ class EM_ExportPanel:
                 col.prop(export_vars, "heriverse_separate_textures", text="Separate Textures")
 
 
-        # Heriverse Export Section
+        # EMviq Export Section
         box = layout.box()
         row = box.row()
         row.prop(export_vars, "emviq_expanded", 
@@ -314,9 +314,10 @@ class EM_export(bpy.types.Operator):
         # Ripristina lo stato delle collezioni dopo l'export
         self.ripristina_stato_collezioni()        
 
-        # Export semantic descriptio in JSON file format 
-        # Avvia senza mostrare la finestra di dialogo
-        bpy.ops.export.heriversejson('INVOKE_DEFAULT', use_file_dialog=False)          
+        # Export semantic description in JSON file format 
+        # Generate path for the EMviq json export and call the right exporter
+        json_file_path = os.path.join(base_dir_scenes, "em.json")
+        bpy.ops.export.emjson('INVOKE_DEFAULT', filepath=json_file_path, use_file_dialog=False)          
 
         return {'FINISHED'}
 
@@ -488,7 +489,6 @@ class EM_export(bpy.types.Operator):
                     name = bpy.path.clean_name(em.name)
                     export_file = os.path.join(export_folder, name)
                     bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=False, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='NONE', export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False,  will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
-
                     proxy.select_set(False)
 
     def createfolder(self, base_dir, foldername):
@@ -511,19 +511,6 @@ class EM_openemviq(bpy.types.Operator):
     bl_label = "Open EMviq"
     bl_description = "Open EMviq"
     bl_options = {'REGISTER', 'UNDO'}
-
-    #em_export_type : StringProperty()
-    #em_export_format : StringProperty()
-    '''
-    @classmethod
-    def poll(cls, context):
-        scene = context.scene
-        is_active_button = False
-        prefs = context.preferences.addons.get(__package__, None)
-        if prefs.preferences.is_external_module:# and scene.EMdb_xlsx_filepath is not None:
-            is_active_button = True
-        return is_active_button
-    '''
     
     def execute(self, context):
         scene = context.scene
@@ -537,6 +524,262 @@ class EM_openemviq(bpy.types.Operator):
 
         return {'FINISHED'}
 
+class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
+    """Export project data in EMviq JSON format"""
+    bl_idname = "export.emjson"
+    bl_label = "Export EMviq JSON"
+    bl_options = {"REGISTER", "UNDO"}
+
+    # Proprietà per controllare se mostrare la finestra di dialogo
+    use_file_dialog: BoolProperty(
+        name="Use File Dialog",
+        description="Use the file dialog to choose where to save the JSON",
+        default=True
+    ) # type: ignore
+
+    filename_ext = ".json"
+
+    def invoke(self, context, event):
+        if self.use_file_dialog:
+            return ExportHelper.invoke(self, context, event)
+        else:
+            return self.execute(context)
+    
+    def execute(self, context):
+        # If filepath is provided explicitly through the parameter, use it
+        file_path = self.filepath
+        
+        if not file_path or self.use_file_dialog:
+            scene = context.scene
+            utente_aton = scene.EMviq_user_name
+            progetto_aton = scene.EMviq_project_name 
+            
+            # prepare folder paths
+            fix_if_relative_folder = bpy.path.abspath(scene.ATON_path)
+            base_dir = os.path.dirname(fix_if_relative_folder)
+            
+            if os.path.exists(os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)):
+                base_dir_scenes = os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)
+            else:
+                base_dir_scenes = self.createfolder(os.path.join(base_dir,"data","scenes",utente_aton), progetto_aton)
+
+            # generate the JSON file path
+            file_path = os.path.join(base_dir_scenes, "em.json")
+
+        # eventually reactivate collections RM and RB
+        collectionRM = context.view_layer.layer_collection.children.get('RM')
+        if collectionRM:
+            collectionRM.exclude = False
+        collectionRB = context.view_layer.layer_collection.children.get('RB')
+        if collectionRB:
+            collectionRB.exclude = False
+
+        try:
+            # setup JSON variables
+            root = {}
+            contextgraph = {}
+            semanticgraph = {}
+            nodes = {}
+            edges = {}
+            epochs = {}
+            emlist = {}
+            site1 = {}
+            
+            root["context"] = contextgraph
+            root["graphs"] = emlist
+            contextgraph['epochs'] = epochs
+            epochs = self.extract_epochs_from_epoch_list(context.scene, epochs)
+            
+            semanticgraph['EMlist'] = emlist
+            emlist['graph1'] = site1 # questo sarà sostituito dal nome del sito
+
+            # preparo le proprietà del grafo1
+            site1['name'] = "Acropoli"
+            site1['description'] = "Modello 3D Acropoli di Segni"
+            site1_data = {}
+            site1['data'] = site1_data
+            geo_position = {}
+            site1_data['geo_position'] = geo_position
+            geo_position['epsg'] = 3004
+            geo_position['shift_x'] = 0
+            geo_position['shift_y'] = 0
+            geo_position['shift_z'] = 0
+
+            # Prepare node graph for the JSON
+            nodes, edges = self.extract_nodes_edges_for_emjson(context.scene, nodes, edges)
+            site1['nodes'] = nodes
+            site1['edges'] = edges
+            
+            # encode dict as JSON 
+            data = json.dumps(root, indent=4, ensure_ascii=True)
+            
+            # write JSON file
+            with open(file_path, 'w') as outfile:
+                outfile.write(data + '\n')
+                
+            print(f"Successfully exported EMviq JSON to {file_path}")
+            self.report({'INFO'}, f"Successfully exported EMviq JSON to {file_path}")
+            return {'FINISHED'}
+            
+        except Exception as e:
+            print(f"Error during EMviq JSON export: {e}")
+            import traceback
+            traceback.print_exc()
+            self.report({'ERROR'}, f"Export failed: {str(e)}")
+            return {'CANCELLED'}
+    
+    def createfolder(self, base_dir, foldername):
+        export_folder = os.path.join(base_dir, foldername)
+        if not os.path.exists(export_folder):
+            os.makedirs(export_folder)
+            print(f'There is no {foldername} folder. Creating one...')
+        else:
+            print(f'Found previously created {foldername} folder. I will use it')
+        return export_folder
+    
+    def extract_nodes_edges_for_emjson(self, scene, nodes, edges):
+        # passo i nodi UUSS:
+        index_nodes = 0
+        
+        for uuss in scene.em_list:
+            uuss_node = {}
+            uuss_data = {}
+            uuss_layout = {}
+
+            uuss_node["type"] = convert_shape2type(uuss.shape, uuss.border_style)[0]
+            uuss_node["name"] = uuss.name
+
+            uuss_node["data"] = uuss_data 
+            uuss_data["description"] = uuss.description
+            uuss_data["epochs"] = [uuss.epoch]
+            uuss_data["url"] = uuss.url
+            uuss_data["rel_time"] = uuss.y_pos
+            uuss_data["time"] = 0  ### DA DEFINIRE MEGLIO CON VARIABILE
+            uuss_data["end_rel_time"] = 2024  ### DA DEFINIRE MEGLIO CON VARIABILE
+            uuss_data["end_time"] = 0  ### DA DEFINIRE MEGLIO CON VARIABILE
+
+            nodes[uuss.name] = uuss_node
+
+        for property in scene.em_properties_list:
+            property_node = {}
+            property_data = {}
+            property_layout = {}
+            property_node["type"] = "property"
+            property_node["name"] = property.name
+
+            property_node["data"] = property_data
+            property_data["description"] = property.description
+            property_data["icon"] = self.set_has_proxy_value(property.icon)
+            property_data["url"] = property.url
+            property_data["url_type"] = "External link"  ## DA DEFINIRE MEGLIO
+
+            nodes[property.id_node] = property_node
+
+        for combiner in scene.em_combiners_list:
+            combiner_node = {}
+            combiner_data = {}
+            combiner_layout = {}
+            combiner_node["type"] = "combiner"
+            combiner_node["name"] = combiner.name
+
+            combiner_node["data"] = combiner_data
+            combiner_data["description"] = combiner.description
+            combiner_data["url"] = combiner.url
+
+            nodes[combiner.id_node] = combiner_node
+
+        for extractor in scene.em_extractors_list:
+            extractor_node = {}
+            extractor_data = {}
+            extractor_layout = {}
+            extractor_node["type"] = "extractor"
+            extractor_node["name"] = extractor.name
+
+            extractor_node["data"] = extractor_data
+            extractor_data["description"] = extractor.description
+            extractor_data["icon"] = self.set_has_proxy_value(extractor.icon)
+            extractor_data["url"] = extractor.url
+            extractor_data["src"] = ""
+
+            nodes[extractor.id_node] = extractor_node
+
+        for source in scene.em_sources_list:
+            source_node = {}
+            source_data = {}
+            source_layout = {}
+            source_node["type"] = "document"
+            source_node["name"] = source.name
+
+            source_node["data"] = source_data
+            source_data["description"] = source.description
+            source_data["icon"] = self.set_has_proxy_value(source.icon)
+            source_data["url"] = source.url
+
+            nodes[source.id_node] = source_node
+
+        # Suppongo che 'scene.edges_list' sia una lista di edge disponibili
+        edges = {}
+        for edge in scene.edges_list:
+            edge_type = edge.edge_type
+            
+            # Crea la lista per questo tipo di edge se non esiste già
+            if edge_type not in edges:
+                edges[edge_type] = []
+
+            # Crea il dizionario per l'edge corrente
+            edge_dict = {
+                "from": self.original_id_to_new_name(scene, edge.source),
+                "to": self.original_id_to_new_name(scene, edge.target)
+            }
+
+            # Aggiungi l'edge alla lista corrispondente
+            edges[edge_type].append(edge_dict)
+
+        return nodes, edges
+
+    def extract_epochs_from_epoch_list(self, scene, epochs):
+        for epoch in scene.epoch_list:
+            epoch_node = {}
+            epoch_node['min'] = epoch.min_y
+            epoch_node['max'] = epoch.max_y
+            epoch_node['start'] = -1000
+            epoch_node['end'] = 2024
+            epoch_node['color'] = epoch.epoch_color
+            epochs[epoch.name] = epoch_node
+        return epochs
+
+    def edge_type_to_color(self, type):
+        if type == "line":
+            color = "red"
+        elif type == "dashed":
+            color = "blue"
+        else:
+            color = "black"
+        return color
+
+    def original_id_to_new_name(self, scene, id_node):
+        for UUSS in scene.em_list:
+            if UUSS.id_node == id_node:
+                return UUSS.name
+        for property in scene.em_properties_list:
+            if property.id_node == id_node:
+                return property.id_node
+        for combiner in scene.em_combiners_list:
+            if combiner.id_node == id_node:
+                return combiner.id_node
+        for extractor in scene.em_extractors_list:
+            if extractor.id_node == id_node:
+                return extractor.id_node
+        for source in scene.em_sources_list:
+            if source.id_node == id_node:
+                return source.id_node
+        return id_node
+
+    def set_has_proxy_value(self, string):
+        hasproxy = False
+        if string == "RESTRICT_INSTANCED_OFF":
+            hasproxy = True
+        return hasproxy
 
 
 class OBJECT_OT_ExportUUSS(bpy.types.Operator):
@@ -545,10 +788,7 @@ class OBJECT_OT_ExportUUSS(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-
         bpy.ops.export.uuss_data('INVOKE_DEFAULT')
-        
-            
         return {'FINISHED'}
 
 class ExportuussData(Operator, ExportHelper):
@@ -565,33 +805,6 @@ class ExportuussData(Operator, ExportHelper):
             maxlen=255,  # Max internal buffer length, longer would be clamped.
             ) # type: ignore
 
-    # List of operator properties, the attributes will be assigned
-    # to the class instance from the operator settings before calling.
-
-    # name: BoolProperty(
-    #         name="Names of UUSS",
-    #         description="This tool includes name",
-    #         default=True,
-    #         )
-
-    # description: BoolProperty(
-    #         name="Description",
-    #         description="This tool includes description",
-    #         default=True,
-    #         )
-
-    # epoch: BoolProperty(
-    #         name="Epoch",
-    #         description="This tool includes epoch",
-    #         default=True,
-    #         )
-
-    # type_node: BoolProperty(
-    #         name="Node type",
-    #         description="This includes node type",
-    #         default=True,
-    #         )
-
     only_UUSS_with_proxies: BoolProperty(
             name="Only elements with proxies",
             description="Only elements with proxies",
@@ -606,7 +819,6 @@ class ExportuussData(Operator, ExportHelper):
 
     def execute(self, context):
         return self.write_UUSS_data(context, self.filepath, self.only_UUSS_with_proxies, self.header_line)
-        #return self.write_UUSS_data(context, self.filepath, self.name, self.description, self.epoch, self.type_node, self.only_UUSS_with_proxies, self.header_line)
 
     def write_UUSS_data(self, context, filepath, only_UUSS, header):
         print("running write some data...")
@@ -619,7 +831,7 @@ class ExportuussData(Operator, ExportHelper):
             for US in context.scene.em_list:
                 if only_UUSS:
                     if US.icon == "RESTRICT_INSTANCED_ON":
-                        f.write("%s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape,US.border_style)[1]))
+                        f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape, US.border_style)[1]))
                 else:
                     #previous version of the export
                     #f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape,US.border_style)[1]))
@@ -658,6 +870,7 @@ classes = [
     EM_runaton,
     EM_export,
     EM_openemviq,
+    JSON_OT_exportEMformat,
     ExportuussData,
     OBJECT_OT_ExportUUSS
     ]
@@ -682,4 +895,3 @@ def unregister():
 
     del bpy.types.Scene.password
     del bpy.types.Scene.enable_image_compression
-
