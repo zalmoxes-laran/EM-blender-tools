@@ -121,7 +121,8 @@ class EM_ParadataPanel:
             row = box.row()
             row.prop(item_property, "url", text="", slider=True, emboss=True, icon='URL')
             op = row.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
-            op.node_type = combiner_list_var
+            if op:  # Check if operator is valid
+                op.node_type = combiner_list_var
             
     ###############################################################################
     ##          Extractors
@@ -163,7 +164,9 @@ class EM_ParadataPanel:
             row = box.row()
             row.prop(item_source, "url", text="", slider=True, emboss=True, icon='URL')
             op = row.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
-            op.node_type = extractor_list_var
+            if op:  # Check if operator is valid
+                op.node_type = extractor_list_var
+            
 
     ###############################################################################
     ##          Sources
@@ -211,7 +214,8 @@ class EM_ParadataPanel:
             row = box.row()
             row.prop(item_source, "url", text="", slider=True, emboss=True, icon='URL')
             op = row.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
-            op.node_type = source_list_var
+            if op:
+                op.node_type = source_list_var
             row = box.row()
 
 class VIEW3D_PT_ParadataPanel(Panel, EM_ParadataPanel):
