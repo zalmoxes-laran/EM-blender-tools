@@ -405,9 +405,17 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
         
         for combiner in combiners:
             item = scene.em_v_combiners_list.add()
-            item.name = combiner.name
-            item.description = combiner.description if hasattr(combiner, 'description') else ""
-            item.url = combiner.url if hasattr(combiner, 'url') else ""
+            item.name = combiner.name if hasattr(combiner, 'name') and combiner.name is not None else ""
+            item.description = combiner.description if hasattr(combiner, 'description') and combiner.description is not None else ""
+            
+            # Assicuriamoci che url non sia mai None
+            if hasattr(combiner, 'url') and combiner.url is not None:
+                item.url = combiner.url
+            elif hasattr(combiner, 'sources') and combiner.sources and len(combiner.sources) > 0:
+                item.url = combiner.sources[0]
+            else:
+                item.url = ""
+                
             item.icon = check_objs_in_scene_and_provide_icon_for_list_element(combiner.name)
             item.icon_url = "CHECKBOX_HLT" if item.url else "CHECKBOX_DEHLT"
             item.id_node = combiner.node_id
@@ -443,9 +451,17 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
         # Popola la lista
         for extractor in unique_extractors:
             item = scene.em_v_extractors_list.add()
-            item.name = extractor.name
-            item.description = extractor.description if hasattr(extractor, 'description') else ""
-            item.url = extractor.source if hasattr(extractor, 'source') else ""
+            item.name = extractor.name if hasattr(extractor, 'name') and extractor.name is not None else ""
+            item.description = extractor.description if hasattr(extractor, 'description') and extractor.description is not None else ""
+            
+            # Determina l'URL appropriata (source o url)
+            if hasattr(extractor, 'source') and extractor.source is not None:
+                item.url = extractor.source
+            elif hasattr(extractor, 'url') and extractor.url is not None:
+                item.url = extractor.url
+            else:
+                item.url = ""
+                
             item.icon = check_objs_in_scene_and_provide_icon_for_list_element(extractor.name)
             item.icon_url = "CHECKBOX_HLT" if item.url else "CHECKBOX_DEHLT"
             item.id_node = extractor.node_id
@@ -465,9 +481,9 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
         
         for doc in documents:
             item = scene.em_v_sources_list.add()
-            item.name = doc.name
-            item.description = doc.description if hasattr(doc, 'description') else ""
-            item.url = doc.url if hasattr(doc, 'url') else ""
+            item.name = doc.name if hasattr(doc, 'name') and doc.name is not None else ""
+            item.description = doc.description if hasattr(doc, 'description') and doc.description is not None else ""
+            item.url = doc.url if hasattr(doc, 'url') and doc.url is not None else ""
             item.icon = check_objs_in_scene_and_provide_icon_for_list_element(doc.name)
             item.icon_url = "CHECKBOX_HLT" if item.url else "CHECKBOX_DEHLT"
             item.id_node = doc.node_id

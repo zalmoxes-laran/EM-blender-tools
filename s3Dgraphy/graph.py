@@ -559,39 +559,61 @@ class Graph:
             list: Lista di nodi extractor connessi
         """
         extractors = []
-        print(f"\nCercando estrattori per nodo: {node_id}")
+        node = self.find_node_by_id(node_id)
+        print(f"\nCercando estrattori per nodo: {node_id} (tipo: {node.node_type if node else 'sconosciuto'})")
         
-        # Verifica tutte le relazioni possibili
-        edge_types_to_check = ["extracted_from", "combines", "has_data_provenance", "generic_connection"]
+        # Lista di edge types da considerare
+        edge_types = ["has_data_provenance", "extracted_from", "combines", "generic_connection"]
         
-        # Cerca relazioni dirette (nodo → estrattore)
+        # Check per estrattori che sono source delle relazioni (estrattore -> nodo)
         for edge in self.edges:
-            if edge.edge_source == node_id:
-                target_node = self.find_node_by_id(edge.edge_target)
-                if target_node and target_node.node_type == "extractor":
-                    extractors.append(target_node)
-                    print(f"  Trovato estrattore (target): {target_node.name} (edge: {edge.edge_type})")
-        
-        # Cerca relazioni inverse (estrattore → nodo)
-        for edge in self.edges:
-            if edge.edge_target == node_id:
+            if edge.edge_source in edge_types and edge.edge_target == node_id:
                 source_node = self.find_node_by_id(edge.edge_source)
                 if source_node and source_node.node_type == "extractor":
                     extractors.append(source_node)
                     print(f"  Trovato estrattore (source): {source_node.name} (edge: {edge.edge_type})")
         
+        # Check per estrattori che sono target delle relazioni (nodo -> estrattore)
+        for edge in self.edges:
+            if edge.edge_type in edge_types and edge.edge_source == node_id:
+                target_node = self.find_node_by_id(edge.edge_target)
+                if target_node and target_node.node_type == "extractor":
+                    extractors.append(target_node)
+                    print(f"  Trovato estrattore (target): {target_node.name} (edge: {edge.edge_type})")
+        
+        # Verifica le relazioni inverse (estrattore è source e questo nodo è target)
+        for edge in self.edges:
+            if edge.edge_target == node_id:
+                source_node = self.find_node_by_id(edge.edge_source)
+                if source_node and source_node.node_type == "extractor":
+                    extractors.append(source_node)
+                    print(f"  Trovato estrattore (rel inverse): {source_node.name} (edge: {edge.edge_type})")
+        
+        # Nel caso specifico dei combiner, verifica anche relazioni di tipo "combines"
+        node = self.find_node_by_id(node_id)
+        if node and node.node_type == "combiner":
+            # Se questo è un combiner, cerca estrattori che ha combinato
+            print(f"  Verifico relazioni speciali per combiner: {node.name}")
+            
+            # Verifica attributo sources se il nodo è un combiner
+            if hasattr(node, 'sources'):
+                for source_id in node.sources:
+                    source_node = self.find_node_by_id(source_id)
+                    if source_node and source_node.node_type == "extractor":
+                        extractors.append(source_node)
+                        print(f"  Trovato estrattore da sources: {source_node.name}")
+        
         # Rimuovi duplicati
         unique_extractors = []
-        extractor_ids = set()
-        
-        for ext in extractors:
-            if ext.node_id not in extractor_ids:
-                extractor_ids.add(ext.node_id)
-                unique_extractors.append(ext)
+        seen = set()
+        for extractor in extractors:
+            if extractor.node_id not in seen:
+                seen.add(extractor.node_id)
+                unique_extractors.append(extractor)
         
         print(f"  Totale estrattori trovati: {len(unique_extractors)}")
         return unique_extractors
-
+    
     def get_document_nodes_for_extractor(self, extractor_node_id):
         """
         Ottiene tutti i nodi documento connessi a un nodo extractor.
@@ -603,31 +625,40 @@ class Graph:
             list: Lista di nodi documento connessi
         """
         documents = []
-
-
-        print(f"Cercando documenti per estrattore: {extractor_node_id}")
-        print(f"Numero totale di edges: {len(self.edges)}")
-
-        for edge in self.edges:
-            # Verifica tutti i tipi di edge possibili tra extractor e document
-            if edge.edge_source == extractor_node_id:
-                print(f"  Edge trovato: {edge.edge_id}, Tipo: {edge.edge_type}, Target: {edge.edge_target}")
-                target_node = self.find_node_by_id(edge.edge_target)
-                if target_node:
-                    print(f"    Nodo target: {target_node.name}, Tipo: {target_node.node_type}")
-                    if target_node.node_type == "document":
-                        documents.append(target_node)
-                        print(f"    Aggiunto documento: {target_node.name}")
         
-        # Verifica anche il caso opposto (document come source e extractor come target)
+        extractor = self.find_node_by_id(extractor_node_id)
+        print(f"Cercando documenti per estrattore: {extractor_node_id} (tipo: {extractor.node_type if extractor else 'sconosciuto'})")
+        print(f"Numero totale di edges: {len(self.edges)}")
+        
+        # Verifica tutti i tipi di edge possibili
+        edge_types = ["extracted_from", "has_data_provenance", "generic_connection"]
+        
+        # Cerca relazioni (estrattore -> documento)
         for edge in self.edges:
-            if edge.edge_target == extractor_node_id:
+            if edge.edge_type in edge_types and edge.edge_source == extractor_node_id:
+                target_node = self.find_node_by_id(edge.edge_target)
+                if target_node and target_node.node_type == "document":
+                    documents.append(target_node)
+                    print(f"  Trovato documento (target): {target_node.name} (edge: {edge.edge_type})")
+        
+        # Cerca relazioni (documento -> estrattore)
+        for edge in self.edges:
+            if edge.edge_type in edge_types and edge.edge_target == extractor_node_id:
                 source_node = self.find_node_by_id(edge.edge_source)
                 if source_node and source_node.node_type == "document":
                     documents.append(source_node)
-                    print(f"  Aggiunto documento (source): {source_node.name}")
+                    print(f"  Trovato documento (source): {source_node.name} (edge: {edge.edge_type})")
         
-        return documents
+        # Rimuovi duplicati
+        unique_documents = []
+        seen = set()
+        for doc in documents:
+            if doc.node_id not in seen:
+                seen.add(doc.node_id)
+                unique_documents.append(doc)
+        
+        print(f"  Totale documenti trovati: {len(unique_documents)}")
+        return unique_documents
 
     def get_paradata_chain(self, strat_node_id):
         """
