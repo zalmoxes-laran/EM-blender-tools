@@ -197,7 +197,15 @@ class EM_BasePanel:
             row = layout.row()
             row.label(text="Representation Models (RM):")
             op = row.operator("epoch_models.add_remove", text="", emboss=False, icon='ADD')
-            op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
+            if len(scene.epoch_list) > 0 and scene.epoch_list_index >= 0 and scene.epoch_list_index < len(scene.epoch_list):
+                op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
+            else:
+                # Reset dell'indice a 0 se fuori range
+                scene.epoch_list_index = 0 if len(scene.epoch_list) > 0 else 0
+                if len(scene.epoch_list) > 0:
+                    op.rm_epoch = scene.epoch_list[0].name
+                else:
+                    op.rm_epoch = ""
             op.rm_add = True
             op = row.operator("epoch_models.add_remove", text="", emboss=False, icon='REMOVE')
             op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
