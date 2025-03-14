@@ -24,10 +24,128 @@ from bpy.types import ( # type: ignore
 
 from .functions import *
 
-#from .epoch_manager import *
+
+
+class EM_filter_lists(bpy.types.Operator):
+    bl_idname = "em.filter_lists"
+    bl_label = "Filter Lists"
+    bl_description = "Apply filters to US/USV list"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        scene = context.scene
+        em_tools = scene.em_tools
+        
+        # Verifica se c'è un grafo attivo
+        is_graph_available, graph = is_graph_available(context)
+        if not is_graph_available:
+            self.report({'WARNING'}, "No active graph found. Please load a GraphML file first.")
+            return {'CANCELLED'}
+        
+        # Lista temporanea per memorizzare tutti gli elementi filtrati
+        filtered_items = []
+        
+        # Ottieni i nodi stratigrafici dal grafo
+        strat_nodes = [node for node in graph.nodes if isinstance(node, StratigraphicNode)]
+        
+        for node in strat_nodes:
+            include_node = True
+            
+            # Applica filtro per epoca se attivo
+            if scene.filter_by_epoch:
+                active_epoch = scene.epoch_list[scene.epoch_list_index].name if scene.epoch_list_index >= 0 and len(scene.epoch_list) > 0 else None
+                if active_epoch:
+                    epoch_node = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
+                    if not epoch_node or epoch_node.name != active_epoch:
+                        # Verifica anche i nodi "survive_in_epoch"
+                        survived_epochs = graph.get_connected_nodes_by_edge_type(node.node_id, "survive_in_epoch")
+                        survived_in_active_epoch = any(epoch.name == active_epoch for epoch in survived_epochs)
+                        if not survived_in_active_epoch:
+                            include_node = False
+            
+            # Applica filtro per attività se attivo
+            if scene.filter_by_activity and include_node:
+                active_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name if scene.activity_manager.active_index >= 0 and len(scene.activity_manager.activities) > 0 else None
+                if active_activity:
+                    activity_nodes = graph.get_connected_nodes_by_edge_type(node.node_id, "has_activity")
+                    if not any(activity.name == active_activity for activity in activity_nodes):
+                        include_node = False
+            
+            # Se il nodo passa tutti i filtri, aggiungilo alla lista
+            if include_node:
+                filtered_items.append(node)
+        
+        # Aggiorna la lista em_list con gli elementi filtrati
+        # Salva l'elemento attualmente selezionato (se presente)
+        current_selected = scene.em_list[scene.em_list_index].name if scene.em_list_index >= 0 and len(scene.em_list) > 0 else None
+        
+        # Pulisci la lista attuale
+        EM_list_clear(context, "em_list")
+        
+        # Ricostruisci la lista con gli elementi filtrati
+        for node in filtered_items:
+            em_item = scene.em_list.add()
+            em_item.name = node.name
+            em_item.description = node.description
+            em_item.id_node = node.node_id
+            em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+            
+            # Aggiungi altre proprietà come fatto in populate_stratigraphic_node
+            if hasattr(node, 'attributes'):
+                em_item.shape = node.attributes.get('shape', "")
+                em_item.y_pos = node.attributes.get('y_pos', 0.0)
+                em_item.fill_color = node.attributes.get('fill_color', "")
+                em_item.border_style = node.attributes.get('border_style', "")
+            
+            # Imposta l'epoca
+            first_epoch = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
+            em_item.epoch = first_epoch.name if first_epoch else ""
+        
+        # Ripristina la selezione se possibile
+        if current_selected:
+            for i, item in enumerate(scene.em_list):
+                if item.name == current_selected:
+                    scene.em_list_index = i
+                    break
+        
+        return {'FINISHED'}
+
+class EM_reset_filters(bpy.types.Operator):
+    bl_idname = "em.reset_filters"
+    bl_label = "Reset Filters"
+    bl_description = "Reset all filters and reload the complete list"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        scene = context.scene
+        
+        # Disattiva i filtri
+        scene.filter_by_epoch = False
+        scene.filter_by_activity = False
+        
+        # Ricarica la lista completa
+        em_tools = scene.em_tools
+        if em_tools.active_file_index >= 0:
+            graphml = em_tools.graphml_files[em_tools.active_file_index]
+            graph = get_graph(graphml.name)
+            
+            if graph:
+                # Pulisci le liste Blender
+                EM_list_clear(context, "em_list")
+                
+                # Ripopola usando la funzione esistente
+                populate_blender_lists_from_graph(context, graph)
+                
+                self.report({'INFO'}, "Filters reset, showing all items")
+            else:
+                self.report({'WARNING'}, "No active graph found")
+        
+        return {'FINISHED'}
+
 
 #####################################################################
 #US/USV Manager
+
 class EM_ToolsPanel:
     bl_label = "US/USV Manager"
     bl_space_type = 'VIEW_3D'
@@ -39,7 +157,17 @@ class EM_ToolsPanel:
         scene = context.scene
         em_settings = scene.em_settings
         obj = context.object
-        #layout.alignment = 'LEFT'
+        
+        # Aggiungiamo i controlli per i filtri
+        row = layout.row(align=True)
+        row.label(text="Filters:")
+        row.prop(scene, "filter_by_epoch", text="Epoch", toggle=True, icon='SORTTIME')
+        row.prop(scene, "filter_by_activity", text="Activity", toggle=True, icon='GROUP')
+
+        # Reset filtri
+        if scene.filter_by_epoch or scene.filter_by_activity:
+            row.operator("em.reset_filters", text="", icon='X')
+        
         row = layout.row()
 
         if scene.em_list_index >= 0 and len(scene.em_list) > 0:
@@ -47,8 +175,6 @@ class EM_ToolsPanel:
             item = scene.em_list[scene.em_list_index]
             box = layout.box()
             row = box.row(align=True)
-            #row.label(text="US/USV name, description:")
-            #row = box.row()
             split = row.split()
             col = split.column()
             row.prop(item, "name", text="")
@@ -56,10 +182,7 @@ class EM_ToolsPanel:
             col = split.column()
             op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
             op.list_type = "em_list"
-            #row = layout.row()
-            #row.label(text="Description:")
             row = box.row()
-            #layout.alignment = 'LEFT'
             row.prop(item, "description", text="", slider=True, emboss=True)
 
             split = layout.split()
@@ -102,6 +225,7 @@ class EM_ToolsPanel:
                                         bpy.ops.view3d.view_selected(ctx)
         else:
             row.label(text="No US/USV here :-(")
+
 
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_category = "EM"
@@ -226,13 +350,37 @@ classes = [
     EM_update_icon_list,
     EM_select_from_list_item,
     EM_select_list_item,
-    EM_not_in_matrix
+    EM_not_in_matrix,
+    EM_filter_lists, 
+    EM_reset_filters 
     ]
 
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
+    bpy.types.Scene.filter_by_epoch = BoolProperty(
+        name="Filter by Epoch",
+        description="Show only elements from the active epoch",
+        default=False,
+        update=lambda self, context: bpy.ops.em.filter_lists()
+    )
+
+    bpy.types.Scene.filter_by_activity = BoolProperty(
+        name="Filter by Activity",
+        description="Show only elements from the active activity",
+        default=False,
+        update=lambda self, context: bpy.ops.em.filter_lists()
+    )
+
+
 def unregister():
-    for cls in classes:
+    for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
+    
+    # Rimuovi le proprietà dei filtri
+    del bpy.types.Scene.filter_by_epoch
+    del bpy.types.Scene.filter_by_activity
+
+
+

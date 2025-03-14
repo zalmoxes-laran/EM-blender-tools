@@ -519,6 +519,15 @@ class EM_UpdateUSListOperator(bpy.types.Operator):
 
         return {'FINISHED'}
 
+def update_filtered_lists_if_needed(self, context):
+    # Aggiorna la lista US per la visualizzazione nell'altro pannello
+    bpy.ops.epoch_manager.update_us_list()
+    
+    # Se il filtro per epoca è attivo, aggiorna anche la lista principale
+    if context.scene.filter_by_epoch:
+        bpy.ops.em.filter_lists()
+
+
 classes = [
     EM_UL_named_epoch_managers,
     EM_UL_List,
@@ -548,6 +557,13 @@ def register():
         default=False
     )
 
+    # Aggiungi questo per aggiornare la lista quando cambia l'epoca selezionata
+    bpy.types.Scene.epoch_list_index = IntProperty(
+        name="Index for epoch_list",
+        default=0,
+        update=lambda self, context: update_filtered_lists_if_needed(self, context)
+    )
+
 def unregister():
         
     for cls in reversed(classes):
@@ -555,3 +571,5 @@ def unregister():
     
     # Rimuovi la proprietà quando si disattiva l'addon
     del bpy.types.Scene.show_epoch_details
+
+
