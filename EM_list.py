@@ -23,7 +23,7 @@ from bpy.types import ( # type: ignore
         )
 
 from .functions import *
-
+from .s3Dgraphy.nodes import StratigraphicNode  
 
 
 class EM_filter_lists(bpy.types.Operator):
@@ -37,8 +37,10 @@ class EM_filter_lists(bpy.types.Operator):
         em_tools = scene.em_tools
         
         # Verifica se c'è un grafo attivo
-        is_graph_available, graph = is_graph_available(context)
-        if not is_graph_available:
+        from .functions import is_graph_available as check_graph  # Rinomina l'importazione per evitare conflitti
+        graph_exists, graph = check_graph(context)
+
+        if not graph_exists:
             self.report({'WARNING'}, "No active graph found. Please load a GraphML file first.")
             return {'CANCELLED'}
         
@@ -341,6 +343,14 @@ class EM_not_in_matrix(bpy.types.Operator):
         return {'FINISHED'}
 
 
+def filter_list_update(self, context):
+    # Controlla se l'operatore è disponibile prima di chiamarlo
+    if hasattr(bpy.ops.em, "filter_lists"):
+        try:
+            bpy.ops.em.filter_lists()
+        except Exception as e:
+            print(f"Error updating filtered list: {e}")
+
 #SETUP MENU
 #####################################################################
 
@@ -363,14 +373,14 @@ def register():
         name="Filter by Epoch",
         description="Show only elements from the active epoch",
         default=False,
-        update=lambda self, context: bpy.ops.em.filter_lists()
+        update=filter_list_update
     )
 
     bpy.types.Scene.filter_by_activity = BoolProperty(
         name="Filter by Activity",
         description="Show only elements from the active activity",
         default=False,
-        update=lambda self, context: bpy.ops.em.filter_lists()
+        update=filter_list_update
     )
 
 
