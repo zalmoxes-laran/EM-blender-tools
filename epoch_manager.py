@@ -16,19 +16,11 @@ from .s3Dgraphy import get_graph
 class EM_UL_named_epoch_managers(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         epoch_list = item
-        #user_preferences = context.user_preferences
-        #self.layout.prop(context.scene, "test_color", text='Detail Color')
         icons_style = 'OUTLINER'
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            #layout = layout.split(factor=0.6, align=True)
+            # Mostra solo il nome dell'epoca e il colore, rimuovendo le date
             layout.prop(epoch_list, "name", text="", emboss=False)
-            layout.label(text=f"{int(item.start_time)}")
-            layout.label(text=f"{int(item.end_time)}")
-
-            #layout.prop(epoch_list, "start_time", text="min", emboss=False)
-            #layout.prop(epoch_list, "end_time", text="max", emboss=False)
-
-
+            
             # select operator
             icon = 'RESTRICT_SELECT_ON' if epoch_list.is_selected else 'RESTRICT_SELECT_OFF'
             if icons_style == 'OUTLINER':
@@ -45,7 +37,6 @@ class EM_UL_named_epoch_managers(UIList):
             if icons_style == 'OUTLINER':
                 icon = 'RESTRICT_SELECT_OFF' if epoch_list.is_locked else 'RESTRICT_SELECT_ON'
             op = layout.operator("epoch_manager.toggle_selectable", text="", emboss=False, icon=icon)
-            #op.em_group_changer = 'LOCKING'
             op.group_em_idx = index
 
             # view operator
@@ -91,8 +82,43 @@ class EM_BasePanel:
         if len(scene.em_list) > 0:
             row.template_list(
                 "EM_UL_named_epoch_managers", "", scene, "epoch_list", scene, "epoch_list_index")
-            '''
-            row = layout.row()
+            
+            # Aggiungiamo il sottopannello con i dettagli dell'epoca selezionata
+            if scene.epoch_list_index >= 0 and len(scene.epoch_list) > 0:
+                epoch = scene.epoch_list[scene.epoch_list_index]
+                
+                # Box collassabile per i dettagli dell'epoca
+                box = layout.box()
+                row = box.row()
+                row.prop(scene, "show_epoch_details", 
+                        icon='TRIA_DOWN' if scene.show_epoch_details else 'TRIA_RIGHT',
+                        emboss=False, text="Epoch details")
+                
+                # Mostra i dettagli solo se il pannello è espanso
+                if scene.show_epoch_details:
+                    col = box.column(align=True)
+                    # Date di inizio e fine
+                    row = col.row()
+                    row.label(text="Years time-span:")
+                    row = col.row(align=True)
+                    row.prop(epoch, "start_time", text="Start")
+                    row.prop(epoch, "end_time", text="End")
+                    
+                    # Description - to be implemented in the future
+                    #if epoch.description:
+                    #    row = col.row()
+                    #    row.label(text="Descrizione:")
+                    #    row = col.row()
+                    #    row.label(text=epoch.description)
+        
+        else:
+            row.label(text="No epochs here :-(")
+            
+        # Aggiungiamo sezione RM (Representation Models) se necessario
+        '''
+        if scene.epoch_list_index >= 0 and len(scene.epoch_list) > 0:
+            box = layout.box()
+            row = box.row()
             row.label(text="Representation Models (RM):")
             op = row.operator("epoch_models.add_remove", text="", emboss=False, icon='ADD')
             op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
@@ -101,26 +127,7 @@ class EM_BasePanel:
             op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
             op.rm_add = False
             op = row.operator("select_rm.given_epoch", text="", emboss=False, icon='SELECT_SET')
-            op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name'
-            '''
-        
-        else:
-            row.label(text="No epochs here :-(")
-        '''
-        row = layout.row()
-
-        if ob is None:
-            pass
-        else:
-            if ob.type in ['MESH']:
-                row.label(text="Active object: "+ob.name)
-                row = layout.row()
-
-            if len(ob.EM_ep_belong_ob) > 0:
-                row.template_list(
-                    "EM_UL_belongob", "", ob, "EM_ep_belong_ob", ob, "EM_ep_belong_ob_index", rows=2)
-            else:
-                row.label(text="No epochs for active object")'
+            op.rm_epoch = scene.epoch_list[scene.epoch_list_index].name
         '''
 
 class VIEW3D_PT_BasePanel(Panel, EM_BasePanel):
@@ -535,7 +542,16 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
+    bpy.types.Scene.show_epoch_details = BoolProperty(
+        name="Show Epoch Details",
+        description="Show/hide details of the selected epoch.",
+        default=False
+    )
+
 def unregister():
         
-    for cls in classes:
+    for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
+    
+    # Rimuovi la proprietà quando si disattiva l'addon
+    del bpy.types.Scene.show_epoch_details
