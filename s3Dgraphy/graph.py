@@ -488,6 +488,194 @@ class Graph:
 
         return connected_nodes
 
+
+    def get_connected_nodes_by_edge_type(self, node_id, edge_type):
+        """
+        Ottiene tutti i nodi connessi a un nodo specifico tramite un tipo di edge.
+        
+        Args:
+            node_id (str): ID del nodo di partenza
+            edge_type (str): Tipo di edge da filtrare
+            
+        Returns:
+            list: Lista di nodi connessi attraverso il tipo di edge specificato
+        """
+        connected_nodes = []
+        
+        for edge in self.edges:
+            if edge.edge_type == edge_type:
+                if edge.edge_source == node_id:
+                    target_node = self.find_node_by_id(edge.edge_target)
+                    if target_node:
+                        connected_nodes.append(target_node)
+                elif edge.edge_target == node_id:
+                    source_node = self.find_node_by_id(edge.edge_source)
+                    if source_node:
+                        connected_nodes.append(source_node)
+        
+        return connected_nodes
+
+    def get_property_nodes_for_node(self, node_id):
+        """
+        Ottiene tutti i nodi proprietà connessi a un nodo specifico.
+        
+        Args:
+            node_id (str): ID del nodo di partenza
+            
+        Returns:
+            list: Lista di nodi proprietà connessi
+        """
+        return [node for node in self.get_connected_nodes_by_edge_type(node_id, "has_property") 
+                if node.node_type == "property"]
+
+    def get_combiner_nodes_for_property(self, property_node_id):
+        """
+        Ottiene tutti i nodi combiner connessi a un nodo proprietà.
+        
+        Args:
+            property_node_id (str): ID del nodo proprietà
+            
+        Returns:
+            list: Lista di nodi combiner connessi
+        """
+        combiners = []
+        
+        for edge in self.edges:
+            if edge.edge_source == property_node_id:
+                target_node = self.find_node_by_id(edge.edge_target)
+                if target_node and target_node.node_type == "combiner":
+                    combiners.append(target_node)
+        
+        return combiners
+
+    def get_extractor_nodes_for_node(self, node_id):
+        """
+        Ottiene tutti i nodi extractor connessi a un nodo (proprietà o combiner).
+        
+        Args:
+            node_id (str): ID del nodo di partenza
+            
+        Returns:
+            list: Lista di nodi extractor connessi
+        """
+        extractors = []
+        print(f"\nCercando estrattori per nodo: {node_id}")
+        
+        # Verifica tutte le relazioni possibili
+        edge_types_to_check = ["extracted_from", "combines", "has_data_provenance", "generic_connection"]
+        
+        # Cerca relazioni dirette (nodo → estrattore)
+        for edge in self.edges:
+            if edge.edge_source == node_id:
+                target_node = self.find_node_by_id(edge.edge_target)
+                if target_node and target_node.node_type == "extractor":
+                    extractors.append(target_node)
+                    print(f"  Trovato estrattore (target): {target_node.name} (edge: {edge.edge_type})")
+        
+        # Cerca relazioni inverse (estrattore → nodo)
+        for edge in self.edges:
+            if edge.edge_target == node_id:
+                source_node = self.find_node_by_id(edge.edge_source)
+                if source_node and source_node.node_type == "extractor":
+                    extractors.append(source_node)
+                    print(f"  Trovato estrattore (source): {source_node.name} (edge: {edge.edge_type})")
+        
+        # Rimuovi duplicati
+        unique_extractors = []
+        extractor_ids = set()
+        
+        for ext in extractors:
+            if ext.node_id not in extractor_ids:
+                extractor_ids.add(ext.node_id)
+                unique_extractors.append(ext)
+        
+        print(f"  Totale estrattori trovati: {len(unique_extractors)}")
+        return unique_extractors
+
+    def get_document_nodes_for_extractor(self, extractor_node_id):
+        """
+        Ottiene tutti i nodi documento connessi a un nodo extractor.
+        
+        Args:
+            extractor_node_id (str): ID del nodo extractor
+            
+        Returns:
+            list: Lista di nodi documento connessi
+        """
+        documents = []
+
+
+        print(f"Cercando documenti per estrattore: {extractor_node_id}")
+        print(f"Numero totale di edges: {len(self.edges)}")
+
+        for edge in self.edges:
+            # Verifica tutti i tipi di edge possibili tra extractor e document
+            if edge.edge_source == extractor_node_id:
+                print(f"  Edge trovato: {edge.edge_id}, Tipo: {edge.edge_type}, Target: {edge.edge_target}")
+                target_node = self.find_node_by_id(edge.edge_target)
+                if target_node:
+                    print(f"    Nodo target: {target_node.name}, Tipo: {target_node.node_type}")
+                    if target_node.node_type == "document":
+                        documents.append(target_node)
+                        print(f"    Aggiunto documento: {target_node.name}")
+        
+        # Verifica anche il caso opposto (document come source e extractor come target)
+        for edge in self.edges:
+            if edge.edge_target == extractor_node_id:
+                source_node = self.find_node_by_id(edge.edge_source)
+                if source_node and source_node.node_type == "document":
+                    documents.append(source_node)
+                    print(f"  Aggiunto documento (source): {source_node.name}")
+        
+        return documents
+
+    def get_paradata_chain(self, strat_node_id):
+        """
+        Ottiene la catena completa di paradata per un nodo stratigrafico.
+        
+        Args:
+            strat_node_id (str): ID del nodo stratigrafico
+            
+        Returns:
+            dict: Dizionario con le catene di paradata strutturate
+        """
+        result = {
+            "properties": [],
+            "combiners": [],
+            "extractors": [],
+            "documents": []
+        }
+        
+        # Ottieni le proprietà
+        properties = self.get_property_nodes_for_node(strat_node_id)
+        result["properties"] = properties
+        
+        # Per ogni proprietà, ottieni combiners ed extractors
+        for prop in properties:
+            combiners = self.get_combiner_nodes_for_property(prop.node_id)
+            extractors = self.get_extractor_nodes_for_node(prop.node_id)
+            
+            result["combiners"].extend(combiners)
+            result["extractors"].extend(extractors)
+            
+            # Per ogni combiner, ottieni extractors
+            for combiner in combiners:
+                comb_extractors = self.get_extractor_nodes_for_node(combiner.node_id)
+                result["extractors"].extend(comb_extractors)
+            
+            # Per ogni extractor, ottieni documents
+            for extractor in extractors + [ext for comb in combiners for ext in self.get_extractor_nodes_for_node(comb.node_id)]:
+                documents = self.get_document_nodes_for_extractor(extractor.node_id)
+                result["documents"].extend(documents)
+        
+        # Rimuovi duplicati (preservando l'ordine)
+        for key in result:
+            seen = set()
+            result[key] = [x for x in result[key] if not (x.node_id in seen or seen.add(x.node_id))]
+        
+        return result
+
+
 '''
 Esempio di utilizzo:
 graph = get_graph()  # Ottieni il grafo caricato

@@ -278,9 +278,10 @@ class EMTOOLS_UL_files(bpy.types.UIList):
         # Aggiungiamo stampe di debug
         #print(f"Checking graph '{item.name}':")
         #print(f"Graph data exists: {bool(graph_data)}")
-        if graph_data:
-            print(f"Number of nodes: {len(graph_data.nodes)}")
-            print(f"First few nodes: {[node.node_id for node in graph_data.nodes[:3]]}")
+        
+        #if graph_data:
+            #print(f"Number of nodes: {len(graph_data.nodes)}")
+            #print(f"First few nodes: {[node.node_id for node in graph_data.nodes[:3]]}")
         is_graph_present = bool(graph_data and len(graph_data.nodes) > 0)
         #print(f"Is graph present: {is_graph_present}")
 

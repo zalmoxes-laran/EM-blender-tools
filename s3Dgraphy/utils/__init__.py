@@ -1,4 +1,3 @@
-from .utils import convert_shape2type
-#from .visual_layout import visual_layout
+from .utils import convert_shape2type, debug_graph_structure
 
-__all__ = ["convert_shape2type"]
+__all__ = ["convert_shape2type", "debug_graph_structure"]

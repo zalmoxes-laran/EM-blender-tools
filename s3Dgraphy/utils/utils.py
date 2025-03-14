@@ -25,6 +25,56 @@ from ..nodes.stratigraphic_node import (
 )
 
 
+def debug_graph_structure(graph, node_id=None):
+    """
+    Stampa informazioni dettagliate sulla struttura del grafo.
+    Se node_id è specificato, si concentra sulle relazioni di quel nodo.
+    """
+    print("\n=== DEBUG STRUTTURA GRAFO ===")
+    
+    node_types = {}
+    for node in graph.nodes:
+        if node.node_type not in node_types:
+            node_types[node.node_type] = []
+        node_types[node.node_type].append(node)
+    
+    print(f"Numero totale di nodi: {len(graph.nodes)}")
+    for ntype, nodes in node_types.items():
+        print(f"  - {ntype}: {len(nodes)} nodi")
+    
+    print(f"\nNumero totale di edges: {len(graph.edges)}")
+    edge_types = {}
+    for edge in graph.edges:
+        if edge.edge_type not in edge_types:
+            edge_types[edge.edge_type] = 0
+        edge_types[edge.edge_type] += 1
+    
+    for etype, count in edge_types.items():
+        print(f"  - {etype}: {count} edges")
+    
+    if node_id:
+        node = graph.find_node_by_id(node_id)
+        if node:
+            print(f"\nDettagli del nodo {node_id} ({node.node_type}):")
+            print(f"  Nome: {node.name}")
+            
+            out_edges = [e for e in graph.edges if e.edge_source == node_id]
+            in_edges = [e for e in graph.edges if e.edge_target == node_id]
+            
+            print(f"  Edges in uscita: {len(out_edges)}")
+            for e in out_edges:
+                target = graph.find_node_by_id(e.edge_target)
+                target_type = target.node_type if target else "Unknown"
+                print(f"    -> {e.edge_target} ({target_type}) via {e.edge_type}")
+            
+            print(f"  Edges in entrata: {len(in_edges)}")
+            for e in in_edges:
+                source = graph.find_node_by_id(e.edge_source)
+                source_type = source.node_type if source else "Unknown"
+                print(f"    <- {e.edge_source} ({source_type}) via {e.edge_type}")
+    
+    print("=== FINE DEBUG ===\n")
+
 def convert_shape2type(yedtype, border_style):
     """
     Converts YED node shape and border style to a specific stratigraphic node type.

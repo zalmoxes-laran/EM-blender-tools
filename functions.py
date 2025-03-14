@@ -173,38 +173,27 @@ def EM_list_clear(context, list_type):
     return
 
 def stream_properties(self, context):
-    scene = context.scene
-    if scene.prop_paradata_streaming_mode:
-        #print("qui ci arrivo")
-        selected_property_node = scene.em_v_properties_list[scene.em_v_properties_list_index]
-        #print("il nodo che voglio inseguire: "+selected_property_node.name)
-        is_combiner = create_derived_combiners_list(selected_property_node)
-        if not is_combiner:
-            create_derived_extractors_list(selected_property_node)
-    else:
-        for v_list_property in scene.em_v_properties_list:
-            is_combiner = create_derived_combiners_list(v_list_property)
-            if not is_combiner:
-                create_derived_extractors_list(v_list_property)       
-
-        create_derived_extractors_list(scene.em_v_properties_list[scene.em_v_properties_list_index])
-
+    """
+    Funzione chiamata quando l'utente cambia elemento nella lista properties.
+    Aggiorna le liste di combiner ed extractor filtrandole per la proprietà selezionata.
+    """
+    bpy.ops.em.update_paradata_lists()
     return
 
 def stream_combiners(self, context):
-    scene = context.scene
-    if scene.comb_paradata_streaming_mode:
-        create_derived_extractors_list(scene.em_v_combiners_list[scene.em_v_combiners_list_index])
-    else:
-        pass
+    """
+    Funzione chiamata quando l'utente cambia elemento nella lista combiners.
+    Aggiorna la lista degli extractors filtrandoli per il combiner selezionato.
+    """
+    bpy.ops.em.update_paradata_lists()
     return
 
 def stream_extractors(self, context):
-    scene = context.scene
-    if scene.extr_paradata_streaming_mode:
-        create_derived_sources_list(scene.em_v_extractors_list[scene.em_v_extractors_list_index])
-    else:
-        pass
+    """
+    Funzione chiamata quando l'utente cambia elemento nella lista extractors.
+    Aggiorna la lista dei documenti filtrandoli per l'extractor selezionato.
+    """
+    bpy.ops.em.update_paradata_lists()
     return
 
 def create_derived_lists(node):
@@ -376,19 +365,34 @@ def create_derived_sources_list(passed_extractor_item):
     #print("sources: "+ str(sour_index))
 
 def switch_paradata_lists(self, context):
+    """
+    Funzione chiamata quando l'utente cambia elemento nella lista US/USV.
+    Aggiorna tutte le liste di paradata in base all'elemento selezionato.
+    """
     scene = context.scene
+    
+    # Verifica se c'è un grafo attivo prima di chiamare l'operatore
     if scene.paradata_streaming_mode:
-        #print("sto lanciano dil comando again")
-        node = scene.em_list[scene.em_list_index]
-        create_derived_lists(node)
-
-    if scene.em_list[scene.em_list_index].icon_db == 'DECORATE_KEYFRAME':
-        index_to_find = 0
-        while index_to_find < len(scene.emdb_list):
-            if scene.emdb_list[index_to_find].name == scene.em_list[scene.em_list_index].name:
-                print("Ho trovato il record giusto")
-                scene.emdb_list_index = index_to_find
-            index_to_find +=1
+        # Controlla se c'è un file GraphML attivo
+        em_tools = scene.em_tools
+        if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
+            try:
+                # Verifica se il grafo esiste
+                from .s3Dgraphy import get_graph
+                graphml = em_tools.graphml_files[em_tools.active_file_index]
+                graph = get_graph(graphml.name)
+                
+                if graph:
+                    # Il grafo esiste, aggiorna le liste
+                    bpy.ops.em.update_paradata_lists()
+                else:
+                    print(f"Grafo '{graphml.name}' non trovato, impossibile aggiornare le liste")
+            except Exception as e:
+                print(f"Errore durante la verifica del grafo: {str(e)}")
+        else:
+            print("Nessun file GraphML attivo, impossibile aggiornare le liste")
+    
+    # Il resto del codice...
     return
 
 ## #### #### #### #### #### #### #### #### #### #### #### ####
