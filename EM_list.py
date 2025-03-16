@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 import os
 import bpy.props as prop # type: ignore
 from bpy.types import Panel # type: ignore
-
+from .populate_lists import populate_blender_lists_from_graph
 
 #from bpy.props import StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
 
@@ -162,14 +162,18 @@ class EM_ToolsPanel:
         
         # Aggiungiamo i controlli per i filtri
         row = layout.row(align=True)
+
         row.label(text="Filters:")
         row.prop(scene, "filter_by_epoch", text="Epoch", toggle=True, icon='SORTTIME')
         row.prop(scene, "filter_by_activity", text="Activity", toggle=True, icon='GROUP')
-
+        
         # Reset filtri
         if scene.filter_by_epoch or scene.filter_by_activity:
             row.operator("em.reset_filters", text="", icon='X')
-        
+
+        row.label(text=" Rows: " + str(len(scene.em_list)))
+
+
         row = layout.row()
 
         if scene.em_list_index >= 0 and len(scene.em_list) > 0:
