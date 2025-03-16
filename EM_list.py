@@ -338,8 +338,12 @@ class EM_ToolsPanel:
             if scene.filter_by_epoch or scene.filter_by_activity:
                 row.operator("em.reset_filters", text="", icon='X')
 
-        # Aggiungi opzione per sincronizzare la visibilità
+        # Aggiungo opzione per sincronizzare la visibilità
         row = layout.row(align=True)
+
+        # Mostro numero elementi nella lista
+        row.label(text=" Rows: " + str(len(scene.em_list)))
+
         if hasattr(scene, "sync_list_visibility"):
             row.prop(scene, "sync_list_visibility", text="Sync Visibility", 
                     icon='HIDE_OFF' if scene.sync_list_visibility else 'HIDE_ON')
@@ -347,8 +351,7 @@ class EM_ToolsPanel:
         # Tasto per attivare tutte le collezioni con proxy
         row.operator("em.strat_activate_collections", text="", icon='OUTLINER_COLLECTION')
         
-        # Mostra numero elementi nella lista
-        row.label(text=" Rows: " + str(len(scene.em_list)))
+
 
         row = layout.row()
 
