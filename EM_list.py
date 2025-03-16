@@ -324,33 +324,40 @@ class EM_ToolsPanel:
         
         # Aggiungiamo i controlli per i filtri
         row = layout.row(align=True)
-        row.label(text="Filters:")
+        row.label(text=" Rows: " + str(len(scene.em_list)))
+
+        #row.label(text="Filters:")
         
         # Verifichiamo che le proprietà esistano prima di usarle
         if hasattr(scene, "filter_by_epoch"):
-            row.prop(scene, "filter_by_epoch", text="Epoch", toggle=True, icon='SORTTIME')
+            row.prop(scene, "filter_by_epoch", text="", toggle=True, icon='SORTTIME')
         
         if hasattr(scene, "filter_by_activity"):
-            row.prop(scene, "filter_by_activity", text="Activity", toggle=True, icon='GROUP')
+            row.prop(scene, "filter_by_activity", text="", toggle=True, icon='GROUP')
         
         # Reset filtri
         if hasattr(scene, "filter_by_epoch") and hasattr(scene, "filter_by_activity"):
             if scene.filter_by_epoch or scene.filter_by_activity:
                 row.operator("em.reset_filters", text="", icon='X')
 
-        # Aggiungo opzione per sincronizzare la visibilità
-        row = layout.row(align=True)
-
-        # Mostro numero elementi nella lista
-        row.label(text=" Rows: " + str(len(scene.em_list)))
-
         if hasattr(scene, "sync_list_visibility"):
-            row.prop(scene, "sync_list_visibility", text="Sync Visibility", 
+            row.prop(scene, "sync_list_visibility", text="Sync", 
                     icon='HIDE_OFF' if scene.sync_list_visibility else 'HIDE_ON')
-        
+
         # Tasto per attivare tutte le collezioni con proxy
         row.operator("em.strat_activate_collections", text="", icon='OUTLINER_COLLECTION')
-        
+
+        if obj:
+            #split = row.split()
+
+            if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
+                #col = split.column(align=True)
+                op = row.operator("select.listitem", text='', icon="LONGDISPLAY")
+                if op:
+                    op.list_type = "em_list"
+            else:
+                #col = split.column()
+                row.label(text="", icon='LONGDISPLAY')    
 
 
         row = layout.row()
@@ -381,24 +388,7 @@ class EM_ToolsPanel:
             row.prop(item, "description", text="", slider=True, emboss=True)
 
             split = layout.split()
-            if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
-                col = split.column()
-                op = col.operator("select.fromlistitem", text='Proxy3D from List item', icon="MESH_CUBE")
-                if op:
-                    op.list_type = "em_list"
-            else:
-                col = split.column()
-                col.label(text="", icon='MESH_CUBE') 
-            if obj:
-                if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
-                    col = split.column(align=True)
-                    op = col.operator("select.listitem", text='List item from 3DProxy', icon="LONGDISPLAY")
-                    if op:
-                        op.list_type = "em_list"
-                else:
-                    col = split.column()
-                    col.label(text="", icon='LONGDISPLAY')             
-                    
+
             col = split.column(align=True)
             col.prop(scene, "paradata_streaming_mode", text='Paradata', icon="SHORTDISPLAY")
 
@@ -430,35 +420,51 @@ class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_context = "objectmode"
 
 # Custom list drawing with visibility icon - renamed to avoid conflicts
+
 class EM_STRAT_UL_List(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         icons_style = 'OUTLINER'
         scene = context.scene
+        is_in_scene = item.icon == 'RESTRICT_INSTANCED_OFF'
         
-        # Create layout with proper spacing
-        split = layout.split(factor=0.08, align=True)
+        # Layout with better spacing
+        row = layout.row(align=True)
         
-        # First column: Visibility toggle
-        col1 = split.column(align=True)
+        # First column: Chain icon (active or inactive)
+        first_split = row.split(factor=0.03)
+        col1 = first_split.column(align=True)
+        
+        # Use the same column structure but control enablement at the column level
+        sub_col = col1.column(align=True)
+        sub_col.enabled = is_in_scene
+        
+        # Always use an operator, but the column enablement controls its functionality
+        op = sub_col.operator("select.fromlistitem", text="", icon=item.icon, emboss=False)
+        if op:
+            op.list_type = "em_list"
+            op.specific_item = item.name
+        
+        remaining = first_split.column(align=True)
+        
+        # Name column (25% of remaining space)
+        name_split = remaining.split(factor=0.25)
+        col2 = name_split.column(align=True)
+        col2.label(text=item.name)
+        
+        # Description and visibility toggle
+        desc_vis_split = name_split.column(align=True).split(factor=0.98)
+        col3 = desc_vis_split.column(align=True)
+        col3.label(text=item.description)
+        
+        # Visibility toggle
+        col4 = desc_vis_split.column(align=True)
+        col4.enabled = is_in_scene
         if hasattr(item, "is_visible"):
             vis_icon = 'HIDE_OFF' if item.is_visible else 'HIDE_ON'
-            op = col1.operator("em.strat_toggle_visibility", text="", icon=vis_icon, emboss=False)
-            if op:  # Check if operator was created successfully
+            op = col4.operator("em.strat_toggle_visibility", text="", icon=vis_icon, emboss=False)
+            if op:
                 op.index = index
-        
-        # Second column: Icon showing if object exists in scene
-        split2 = split.split(factor=0.03, align=True)
-        col2 = split2.column(align=True)
-        col2.label(text="", icon=item.icon)
-        
-        # Third column: Name
-        split3 = split2.split(factor=0.3, align=True)
-        col3 = split3.column(align=True)
-        col3.label(text=item.name)
-        
-        # Fourth column: Description
-        col4 = split3.column(align=True)
-        col4.label(text=item.description)
+
 
 #### da qui si definiscono le funzioni e gli operatori
 class EM_listitem_OT_to3D(bpy.types.Operator):
@@ -508,9 +514,10 @@ class EM_update_icon_list(bpy.types.Operator):
 class EM_select_list_item(bpy.types.Operator):
     bl_idname = "select.listitem"
     bl_label = "Select element in the list above from a 3D proxy"
+    bl_description = "Select the row in the stratigraphy manager corresponding to the active proxy in the scene"
     bl_options = {"REGISTER", "UNDO"}
 
-    list_type: StringProperty()
+    list_type: StringProperty() # type: ignore
 
     def execute(self, context):
         scene = context.scene
@@ -523,13 +530,19 @@ class EM_select_from_list_item(bpy.types.Operator):
     bl_label = "Select 3D obj from the list above"
     bl_options = {"REGISTER", "UNDO"}
 
-    list_type: StringProperty()
+    list_type: StringProperty() # type: ignore
+    specific_item: StringProperty(default="")  # type: ignore # Add this line
 
     def execute(self, context):
         scene = context.scene
-        list_type_cmd = "scene."+self.list_type+"[scene."+self.list_type+"_index]"
-        list_item = eval(list_type_cmd)
-        select_3D_obj(list_item.name)
+        if self.specific_item:
+            # Use the specific item name passed from the UI
+            select_3D_obj(self.specific_item)
+        else:
+            # Fallback to the old behavior using the active index
+            list_type_cmd = "scene."+self.list_type+"[scene."+self.list_type+"_index]"
+            list_item = eval(list_type_cmd)
+            select_3D_obj(list_item.name)
         return {'FINISHED'}
 
 class EM_not_in_matrix(bpy.types.Operator):
