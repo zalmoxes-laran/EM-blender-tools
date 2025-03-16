@@ -23,7 +23,6 @@ from bpy.types import (
 from .functions import *
 from .s3Dgraphy.nodes import StratigraphicNode
 
-
 class EM_filter_lists(bpy.types.Operator):
     bl_idname = "em.filter_lists"
     bl_label = "Filter Lists"
@@ -134,7 +133,7 @@ class EM_filter_lists(bpy.types.Operator):
         
         # Se la sincronizzazione è attiva, aggiorna la visibilità degli oggetti
         if scene.sync_list_visibility:
-            bpy.ops.em.sync_visibility()
+            bpy.ops.em.strat_sync_visibility()
         
         return {'FINISHED'}
 
@@ -170,9 +169,9 @@ class EM_reset_filters(bpy.types.Operator):
         
         return {'FINISHED'}
 
-class EM_toggle_visibility(bpy.types.Operator):
-    bl_idname = "em.toggle_visibility"
-    bl_label = "Toggle Visibility"
+class EM_strat_toggle_visibility(bpy.types.Operator):
+    bl_idname = "em.strat_toggle_visibility"
+    bl_label = "Toggle Stratigraphy Visibility"
     bl_description = "Toggle visibility of the selected proxy in the scene"
     bl_options = {"REGISTER", "UNDO"}
     
@@ -192,7 +191,7 @@ class EM_toggle_visibility(bpy.types.Operator):
                 item.is_visible = not obj.hide_viewport
                 
                 # Se l'oggetto è nascosto in una collezione, attivala
-                if not obj.hide_viewport and self.is_in_hidden_collection(obj, context):
+                if not obj.hide_viewport:
                     self.activate_object_collections(obj, context)
                     
                 return {'FINISHED'}
@@ -227,9 +226,9 @@ class EM_toggle_visibility(bpy.types.Operator):
         
         bpy.context.window_manager.popup_menu(draw, title="Collections Activated", icon='INFO')
 
-class EM_sync_visibility(bpy.types.Operator):
-    bl_idname = "em.sync_visibility"
-    bl_label = "Sync Visibility"
+class EM_strat_sync_visibility(bpy.types.Operator):
+    bl_idname = "em.strat_sync_visibility"
+    bl_label = "Sync Stratigraphy Visibility"
     bl_description = "Synchronize proxy visibility with the current list (shows only proxies in the filtered list)"
     bl_options = {"REGISTER", "UNDO"}
     
@@ -266,9 +265,9 @@ class EM_sync_visibility(bpy.types.Operator):
         self.report({'INFO'}, f"Visibility synchronized: {shown_count} shown, {hidden_count} hidden")
         return {'FINISHED'}
 
-class EM_activate_proxy_collections(bpy.types.Operator):
-    bl_idname = "em.activate_collections"
-    bl_label = "Activate Collections"
+class EM_strat_activate_collections(bpy.types.Operator):
+    bl_idname = "em.strat_activate_collections"
+    bl_label = "Activate Stratigraphy Collections"
     bl_description = "Activate all collections containing proxies in the current list"
     bl_options = {"REGISTER", "UNDO"}
     
@@ -326,20 +325,27 @@ class EM_ToolsPanel:
         # Aggiungiamo i controlli per i filtri
         row = layout.row(align=True)
         row.label(text="Filters:")
-        row.prop(scene, "filter_by_epoch", text="Epoch", toggle=True, icon='SORTTIME')
-        row.prop(scene, "filter_by_activity", text="Activity", toggle=True, icon='GROUP')
+        
+        # Verifichiamo che le proprietà esistano prima di usarle
+        if hasattr(scene, "filter_by_epoch"):
+            row.prop(scene, "filter_by_epoch", text="Epoch", toggle=True, icon='SORTTIME')
+        
+        if hasattr(scene, "filter_by_activity"):
+            row.prop(scene, "filter_by_activity", text="Activity", toggle=True, icon='GROUP')
         
         # Reset filtri
-        if scene.filter_by_epoch or scene.filter_by_activity:
-            row.operator("em.reset_filters", text="", icon='X')
+        if hasattr(scene, "filter_by_epoch") and hasattr(scene, "filter_by_activity"):
+            if scene.filter_by_epoch or scene.filter_by_activity:
+                row.operator("em.reset_filters", text="", icon='X')
 
         # Aggiungi opzione per sincronizzare la visibilità
         row = layout.row(align=True)
-        row.prop(scene, "sync_list_visibility", text="Sync Visibility", 
-                 icon='HIDE_OFF' if scene.sync_list_visibility else 'HIDE_ON')
+        if hasattr(scene, "sync_list_visibility"):
+            row.prop(scene, "sync_list_visibility", text="Sync Visibility", 
+                    icon='HIDE_OFF' if scene.sync_list_visibility else 'HIDE_ON')
         
         # Tasto per attivare tutte le collezioni con proxy
-        row.operator("em.activate_collections", text="", icon='OUTLINER_COLLECTION')
+        row.operator("em.strat_activate_collections", text="", icon='OUTLINER_COLLECTION')
         
         # Mostra numero elementi nella lista
         row.label(text=" Rows: " + str(len(scene.em_list)))
@@ -347,7 +353,7 @@ class EM_ToolsPanel:
         row = layout.row()
 
         if scene.em_list_index >= 0 and len(scene.em_list) > 0:
-            row.template_list("EM_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
+            row.template_list("EM_STRAT_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
             item = scene.em_list[scene.em_list_index]
             box = layout.box()
             row = box.row(align=True)
@@ -356,14 +362,17 @@ class EM_ToolsPanel:
             row.prop(item, "name", text="")
             
             # Aggiunta toggle visibilità
-            icon = 'HIDE_OFF' if item.is_visible else 'HIDE_ON'
-            op = row.operator("em.toggle_visibility", text="", icon=icon)
-            op.index = scene.em_list_index
+            if hasattr(item, "is_visible"):
+                icon = 'HIDE_OFF' if item.is_visible else 'HIDE_ON'
+                op = row.operator("em.strat_toggle_visibility", text="", icon=icon)
+                if op:
+                    op.index = scene.em_list_index
             
             split = row.split()
             col = split.column()
             op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
-            op.list_type = "em_list"
+            if op:
+                op.list_type = "em_list"
             
             row = box.row()
             row.prop(item, "description", text="", slider=True, emboss=True)
@@ -372,7 +381,8 @@ class EM_ToolsPanel:
             if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
                 col = split.column()
                 op = col.operator("select.fromlistitem", text='Proxy3D from List item', icon="MESH_CUBE")
-                op.list_type = "em_list"
+                if op:
+                    op.list_type = "em_list"
             else:
                 col = split.column()
                 col.label(text="", icon='MESH_CUBE') 
@@ -380,7 +390,8 @@ class EM_ToolsPanel:
                 if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
                     col = split.column(align=True)
                     op = col.operator("select.listitem", text='List item from 3DProxy', icon="LONGDISPLAY")
-                    op.list_type = "em_list"
+                    if op:
+                        op.list_type = "em_list"
                 else:
                     col = split.column()
                     col.label(text="", icon='LONGDISPLAY')             
@@ -415,25 +426,36 @@ class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_idname = "VIEW3D_PT_ToolsPanel"
     bl_context = "objectmode"
 
-# Custom list drawing with visibility icon
-class EM_UL_List(bpy.types.UIList):
+# Custom list drawing with visibility icon - renamed to avoid conflicts
+class EM_STRAT_UL_List(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         icons_style = 'OUTLINER'
         scene = context.scene
         
-        # Visibility toggle
-        vis_icon = 'HIDE_OFF' if item.is_visible else 'HIDE_ON'
-        row = layout.row(align=True)
-        op = row.operator("em.toggle_visibility", text="", icon=vis_icon, emboss=False)
-        op.index = index
+        # Create layout with proper spacing
+        split = layout.split(factor=0.08, align=True)
         
-        # Icon showing if the object exists in scene
-        row.label(text="", icon=item.icon)
+        # First column: Visibility toggle
+        col1 = split.column(align=True)
+        if hasattr(item, "is_visible"):
+            vis_icon = 'HIDE_OFF' if item.is_visible else 'HIDE_ON'
+            op = col1.operator("em.strat_toggle_visibility", text="", icon=vis_icon, emboss=False)
+            if op:  # Check if operator was created successfully
+                op.index = index
         
-        # Name and description
-        row = layout.row(align=True)
-        row.label(text=item.name)
-        row.label(text=item.description)
+        # Second column: Icon showing if object exists in scene
+        split2 = split.split(factor=0.03, align=True)
+        col2 = split2.column(align=True)
+        col2.label(text="", icon=item.icon)
+        
+        # Third column: Name
+        split3 = split2.split(factor=0.3, align=True)
+        col3 = split3.column(align=True)
+        col3.label(text=item.name)
+        
+        # Fourth column: Description
+        col4 = split3.column(align=True)
+        col4.label(text=item.description)
 
 #### da qui si definiscono le funzioni e gli operatori
 class EM_listitem_OT_to3D(bpy.types.Operator):
@@ -572,7 +594,7 @@ def filter_list_update(self, context):
 def sync_visibility_update(self, context):
     if self.sync_list_visibility:
         try:
-            bpy.ops.em.sync_visibility()
+            bpy.ops.em.strat_sync_visibility()
         except Exception as e:
             print(f"Error syncing visibility: {e}")
 
@@ -580,7 +602,7 @@ def sync_visibility_update(self, context):
 #####################################################################
 
 classes = [
-    EM_UL_List,
+    EM_STRAT_UL_List,
     EM_listitem_OT_to3D,
     VIEW3D_PT_ToolsPanel,
     EM_update_icon_list,
@@ -589,9 +611,9 @@ classes = [
     EM_not_in_matrix,
     EM_filter_lists, 
     EM_reset_filters,
-    EM_toggle_visibility,
-    EM_sync_visibility,
-    EM_activate_proxy_collections
+    EM_strat_toggle_visibility,
+    EM_strat_sync_visibility,
+    EM_strat_activate_collections
 ]
 
 def register():
