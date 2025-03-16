@@ -846,3 +846,100 @@ def update_or_create_link_node(graph, source_node, url, preserve_existing=True):
                 edge_target=link_node.node_id,
                 edge_type="has_linked_resource"
             )
+
+
+def is_graph_available(context):
+    """
+    Check if a valid graph is available in the current context.
+    
+    Args:
+        context: Blender context
+        
+    Returns:
+        tuple: (bool, graph) where bool indicates if a graph is available,
+               and graph is the actual graph object or None
+    """
+    if not hasattr(context.scene, 'em_tools'):
+        return False, None
+        
+    em_tools = context.scene.em_tools
+    
+    # Check if graphml_files collection exists and has items
+    if not hasattr(em_tools, 'graphml_files') or len(em_tools.graphml_files) == 0:
+        return False, None
+        
+    # Check if active_file_index is valid
+    if em_tools.active_file_index < 0 or em_tools.active_file_index >= len(em_tools.graphml_files):
+        return False, None
+        
+    try:
+        # Get the active graphml file
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+        
+        # Try to get the actual graph
+        from .s3Dgraphy import get_graph
+        graph = get_graph(graphml.name)
+        
+        return bool(graph), graph
+    except Exception as e:
+        print(f"Error accessing graph: {str(e)}")
+        return False, None
+
+def update_visibility_icons(context, list_type="em_list"):
+    """
+    Updates the visibility icons for all items in the list.
+    
+    Args:
+        context: Blender context
+        list_type: Type of list to update
+    """
+    scene = context.scene
+    list_items = getattr(scene, list_type, None)
+    
+    if not list_items:
+        return
+        
+    for item in list_items:
+        obj = bpy.data.objects.get(item.name)
+        if obj:
+            item.is_visible = not obj.hide_viewport
+
+def check_and_activate_collection(obj_name):
+    """
+    Checks if an object is in a hidden collection and activates it.
+    
+    Args:
+        obj_name: Name of the object to check
+        
+    Returns:
+        tuple: (bool, list) where bool indicates if any collections were activated,
+               and list contains the names of activated collections
+    """
+    import bpy
+    activated_collections = []
+    obj = bpy.data.objects.get(obj_name)
+    
+    if not obj:
+        return False, []
+    
+    # Find all collections containing this object
+    for collection in bpy.data.collections:
+        if obj.name in collection.objects and collection.hide_viewport:
+            collection.hide_viewport = False
+            activated_collections.append(collection.name)
+            
+    return bool(activated_collections), activated_collections
+
+def update_em_list_with_visibility_info(context):
+    """
+    Update the visibility status of all items in the em_list.
+    
+    Args:
+        context: Blender context
+    """
+    scene = context.scene
+    
+    for item in scene.em_list:
+        obj = bpy.data.objects.get(item.name)
+        if obj:
+            item.is_visible = not obj.hide_viewport

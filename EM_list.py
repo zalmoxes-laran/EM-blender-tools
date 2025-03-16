@@ -1,13 +1,11 @@
-import bpy # type: ignore
+import bpy
 import xml.etree.ElementTree as ET
 import os
-import bpy.props as prop # type: ignore
-from bpy.types import Panel # type: ignore
+import bpy.props as prop
+from bpy.types import Panel
 from .populate_lists import populate_blender_lists_from_graph
 
-#from bpy.props import StringProperty, BoolProperty, IntProperty, CollectionProperty, BoolVectorProperty, PointerProperty
-
-from bpy.props import (BoolProperty, # type: ignore
+from bpy.props import (BoolProperty,
                        FloatProperty,
                        StringProperty,
                        EnumProperty,
@@ -17,19 +15,19 @@ from bpy.props import (BoolProperty, # type: ignore
                        FloatVectorProperty,
                        )
 
-from bpy.types import ( # type: ignore
+from bpy.types import (
         AddonPreferences,
         PropertyGroup,
         )
 
 from .functions import *
-from .s3Dgraphy.nodes import StratigraphicNode  
+from .s3Dgraphy.nodes import StratigraphicNode
 
 
 class EM_filter_lists(bpy.types.Operator):
     bl_idname = "em.filter_lists"
     bl_label = "Filter Lists"
-    bl_description = "Apply filters to US/USV list"
+    bl_description = "Apply filters to stratigraphy list"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
@@ -37,7 +35,7 @@ class EM_filter_lists(bpy.types.Operator):
         em_tools = scene.em_tools
         
         # Verifica se c'è un grafo attivo
-        from .functions import is_graph_available as check_graph  # Rinomina l'importazione per evitare conflitti
+        from .functions import is_graph_available as check_graph
         graph_exists, graph = check_graph(context)
 
         if not graph_exists:
@@ -55,23 +53,33 @@ class EM_filter_lists(bpy.types.Operator):
             
             # Applica filtro per epoca se attivo
             if scene.filter_by_epoch:
-                active_epoch = scene.epoch_list[scene.epoch_list_index].name if scene.epoch_list_index >= 0 and len(scene.epoch_list) > 0 else None
-                if active_epoch:
-                    epoch_node = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
-                    if not epoch_node or epoch_node.name != active_epoch:
-                        # Verifica anche i nodi "survive_in_epoch"
-                        survived_epochs = graph.get_connected_nodes_by_edge_type(node.node_id, "survive_in_epoch")
-                        survived_in_active_epoch = any(epoch.name == active_epoch for epoch in survived_epochs)
-                        if not survived_in_active_epoch:
-                            include_node = False
+                if scene.epoch_list_index >= 0 and len(scene.epoch_list) > 0:
+                    active_epoch = scene.epoch_list[scene.epoch_list_index].name
+                    if active_epoch:
+                        epoch_node = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
+                        if not epoch_node or epoch_node.name != active_epoch:
+                            # Verifica anche i nodi "survive_in_epoch"
+                            survived_epochs = graph.get_connected_nodes_by_edge_type(node.node_id, "survive_in_epoch")
+                            survived_in_active_epoch = any(epoch.name == active_epoch for epoch in survived_epochs)
+                            if not survived_in_active_epoch:
+                                include_node = False
+                else:
+                    # Se non ci sono epoche nella lista, disattiva il filtro
+                    scene.filter_by_epoch = False
+                    self.report({'INFO'}, "No epochs available, filter disabled")
             
             # Applica filtro per attività se attivo
             if scene.filter_by_activity and include_node:
-                active_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name if scene.activity_manager.active_index >= 0 and len(scene.activity_manager.activities) > 0 else None
-                if active_activity:
-                    activity_nodes = graph.get_connected_nodes_by_edge_type(node.node_id, "has_activity")
-                    if not any(activity.name == active_activity for activity in activity_nodes):
-                        include_node = False
+                if scene.activity_manager.active_index >= 0 and len(scene.activity_manager.activities) > 0:
+                    active_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
+                    if active_activity:
+                        activity_nodes = graph.get_connected_nodes_by_edge_type(node.node_id, "has_activity")
+                        if not any(activity.name == active_activity for activity in activity_nodes):
+                            include_node = False
+                else:
+                    # Se non ci sono attività nella lista, disattiva il filtro
+                    scene.filter_by_activity = False
+                    self.report({'INFO'}, "No activities available, filter disabled")
             
             # Se il nodo passa tutti i filtri, aggiungilo alla lista
             if include_node:
@@ -92,6 +100,13 @@ class EM_filter_lists(bpy.types.Operator):
             em_item.id_node = node.node_id
             em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
             
+            # Verifica se l'oggetto è visibile o nascosto in scena
+            obj = bpy.data.objects.get(node.name)
+            if obj:
+                em_item.is_visible = not obj.hide_viewport
+            else:
+                em_item.is_visible = True  # Default per oggetti non in scena
+            
             # Aggiungi altre proprietà come fatto in populate_stratigraphic_node
             if hasattr(node, 'attributes'):
                 em_item.shape = node.attributes.get('shape', "")
@@ -109,6 +124,17 @@ class EM_filter_lists(bpy.types.Operator):
                 if item.name == current_selected:
                     scene.em_list_index = i
                     break
+        
+        # Reimposta l'indice a 0 se la lista non è vuota, altrimenti a -1
+        if len(scene.em_list) > 0:
+            scene.em_list_index = 0
+        else:
+            scene.em_list_index = -1
+            self.report({'INFO'}, "No items match the current filters")
+        
+        # Se la sincronizzazione è attiva, aggiorna la visibilità degli oggetti
+        if scene.sync_list_visibility:
+            bpy.ops.em.sync_visibility()
         
         return {'FINISHED'}
 
@@ -144,12 +170,149 @@ class EM_reset_filters(bpy.types.Operator):
         
         return {'FINISHED'}
 
+class EM_toggle_visibility(bpy.types.Operator):
+    bl_idname = "em.toggle_visibility"
+    bl_label = "Toggle Visibility"
+    bl_description = "Toggle visibility of the selected proxy in the scene"
+    bl_options = {"REGISTER", "UNDO"}
+    
+    index: IntProperty(default=-1)  # -1 means use the active index
+    
+    def execute(self, context):
+        scene = context.scene
+        index = self.index if self.index >= 0 else scene.em_list_index
+        
+        if index >= 0 and index < len(scene.em_list):
+            item = scene.em_list[index]
+            obj = bpy.data.objects.get(item.name)
+            
+            if obj:
+                # Toggle visibility
+                obj.hide_viewport = not obj.hide_viewport
+                item.is_visible = not obj.hide_viewport
+                
+                # Se l'oggetto è nascosto in una collezione, attivala
+                if not obj.hide_viewport and self.is_in_hidden_collection(obj, context):
+                    self.activate_object_collections(obj, context)
+                    
+                return {'FINISHED'}
+            else:
+                self.report({'WARNING'}, f"Object '{item.name}' not found in scene")
+        
+        return {'CANCELLED'}
+    
+    def is_in_hidden_collection(self, obj, context):
+        """Verifica se l'oggetto è in una collezione nascosta."""
+        for collection in bpy.data.collections:
+            if obj.name in collection.objects and collection.hide_viewport:
+                return True
+        return False
+    
+    def activate_object_collections(self, obj, context):
+        """Attiva tutte le collezioni che contengono l'oggetto."""
+        activated_collections = []
+        
+        for collection in bpy.data.collections:
+            if obj.name in collection.objects and collection.hide_viewport:
+                collection.hide_viewport = False
+                activated_collections.append(collection.name)
+        
+        if activated_collections:
+            self.show_activation_message(", ".join(activated_collections))
+    
+    def show_activation_message(self, collection_names):
+        def draw(self, context):
+            self.layout.label(text="The following collections have been activated:")
+            self.layout.label(text=collection_names)
+        
+        bpy.context.window_manager.popup_menu(draw, title="Collections Activated", icon='INFO')
+
+class EM_sync_visibility(bpy.types.Operator):
+    bl_idname = "em.sync_visibility"
+    bl_label = "Sync Visibility"
+    bl_description = "Synchronize proxy visibility with the current list (shows only proxies in the filtered list)"
+    bl_options = {"REGISTER", "UNDO"}
+    
+    def execute(self, context):
+        scene = context.scene
+        
+        if not scene.sync_list_visibility:
+            return {'CANCELLED'}
+        
+        # Create a set of names that should be visible
+        visible_names = {item.name for item in scene.em_list}
+        
+        # Process all mesh objects
+        hidden_count = 0
+        shown_count = 0
+        
+        for obj in bpy.data.objects:
+            if obj.type == 'MESH':
+                if obj.name in visible_names:
+                    if obj.hide_viewport:
+                        obj.hide_viewport = False
+                        shown_count += 1
+                else:
+                    if not obj.hide_viewport:
+                        obj.hide_viewport = True
+                        hidden_count += 1
+        
+        # Update visibility icons in the list
+        for item in scene.em_list:
+            obj = bpy.data.objects.get(item.name)
+            if obj:
+                item.is_visible = not obj.hide_viewport
+        
+        self.report({'INFO'}, f"Visibility synchronized: {shown_count} shown, {hidden_count} hidden")
+        return {'FINISHED'}
+
+class EM_activate_proxy_collections(bpy.types.Operator):
+    bl_idname = "em.activate_collections"
+    bl_label = "Activate Collections"
+    bl_description = "Activate all collections containing proxies in the current list"
+    bl_options = {"REGISTER", "UNDO"}
+    
+    def execute(self, context):
+        scene = context.scene
+        
+        # Create a set of names that are in the list
+        proxy_names = {item.name for item in scene.em_list}
+        activated_collections = []
+        
+        # Process all collections
+        for collection in bpy.data.collections:
+            contains_proxy = False
+            
+            for obj in collection.objects:
+                if obj.name in proxy_names:
+                    contains_proxy = True
+                    break
+            
+            if contains_proxy and collection.hide_viewport:
+                collection.hide_viewport = False
+                activated_collections.append(collection.name)
+        
+        if activated_collections:
+            self.show_activation_message(", ".join(activated_collections))
+            self.report({'INFO'}, f"Activated {len(activated_collections)} collections")
+        else:
+            self.report({'INFO'}, "No hidden collections with proxies found")
+        
+        return {'FINISHED'}
+    
+    def show_activation_message(self, collection_names):
+        def draw(self, context):
+            self.layout.label(text="The following collections have been activated:")
+            self.layout.label(text=collection_names)
+        
+        bpy.context.window_manager.popup_menu(draw, title="Collections Activated", icon='INFO')
+
 
 #####################################################################
-#US/USV Manager
+# Stratigraphy Manager (formerly US/USV Manager)
 
 class EM_ToolsPanel:
-    bl_label = "US/USV Manager"
+    bl_label = "Stratigraphy Manager"  # Renamed from "US/USV Manager"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_options = {'DEFAULT_CLOSED'}
@@ -162,7 +325,6 @@ class EM_ToolsPanel:
         
         # Aggiungiamo i controlli per i filtri
         row = layout.row(align=True)
-
         row.label(text="Filters:")
         row.prop(scene, "filter_by_epoch", text="Epoch", toggle=True, icon='SORTTIME')
         row.prop(scene, "filter_by_activity", text="Activity", toggle=True, icon='GROUP')
@@ -171,8 +333,16 @@ class EM_ToolsPanel:
         if scene.filter_by_epoch or scene.filter_by_activity:
             row.operator("em.reset_filters", text="", icon='X')
 
+        # Aggiungi opzione per sincronizzare la visibilità
+        row = layout.row(align=True)
+        row.prop(scene, "sync_list_visibility", text="Sync Visibility", 
+                 icon='HIDE_OFF' if scene.sync_list_visibility else 'HIDE_ON')
+        
+        # Tasto per attivare tutte le collezioni con proxy
+        row.operator("em.activate_collections", text="", icon='OUTLINER_COLLECTION')
+        
+        # Mostra numero elementi nella lista
         row.label(text=" Rows: " + str(len(scene.em_list)))
-
 
         row = layout.row()
 
@@ -184,10 +354,17 @@ class EM_ToolsPanel:
             split = row.split()
             col = split.column()
             row.prop(item, "name", text="")
+            
+            # Aggiunta toggle visibilità
+            icon = 'HIDE_OFF' if item.is_visible else 'HIDE_ON'
+            op = row.operator("em.toggle_visibility", text="", icon=icon)
+            op.index = scene.em_list_index
+            
             split = row.split()
             col = split.column()
             op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
             op.list_type = "em_list"
+            
             row = box.row()
             row.prop(item, "description", text="", slider=True, emboss=True)
 
@@ -230,7 +407,7 @@ class EM_ToolsPanel:
                                         ctx['region'] = area.regions[-1]
                                         bpy.ops.view3d.view_selected(ctx)
         else:
-            row.label(text="No US/USV here :-(")
+            row.label(text="No stratigraphic units here :-(")
 
 
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
@@ -238,7 +415,25 @@ class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_idname = "VIEW3D_PT_ToolsPanel"
     bl_context = "objectmode"
 
-#US/USV Manager
+# Custom list drawing with visibility icon
+class EM_UL_List(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        icons_style = 'OUTLINER'
+        scene = context.scene
+        
+        # Visibility toggle
+        vis_icon = 'HIDE_OFF' if item.is_visible else 'HIDE_ON'
+        row = layout.row(align=True)
+        op = row.operator("em.toggle_visibility", text="", icon=vis_icon, emboss=False)
+        op.index = index
+        
+        # Icon showing if the object exists in scene
+        row.label(text="", icon=item.icon)
+        
+        # Name and description
+        row = layout.row(align=True)
+        row.label(text=item.name)
+        row.label(text=item.description)
 
 #### da qui si definiscono le funzioni e gli operatori
 class EM_listitem_OT_to3D(bpy.types.Operator):
@@ -246,7 +441,7 @@ class EM_listitem_OT_to3D(bpy.types.Operator):
     bl_label = "Use element's name from the list above to rename selected 3D object"
     bl_options = {"REGISTER", "UNDO"}
 
-    list_type: StringProperty() # type: ignore
+    list_type: StringProperty()
 
     @classmethod
     def poll(cls, context):
@@ -274,7 +469,7 @@ class EM_update_icon_list(bpy.types.Operator):
     bl_label = "Update only the icons"
     bl_options = {"REGISTER", "UNDO"}
 
-    list_type: StringProperty() # type: ignore
+    list_type: StringProperty()
 
     def execute(self, context):
         if self.list_type == "all":
@@ -290,7 +485,7 @@ class EM_select_list_item(bpy.types.Operator):
     bl_label = "Select element in the list above from a 3D proxy"
     bl_options = {"REGISTER", "UNDO"}
 
-    list_type: StringProperty() # type: ignore
+    list_type: StringProperty()
 
     def execute(self, context):
         scene = context.scene
@@ -303,7 +498,7 @@ class EM_select_from_list_item(bpy.types.Operator):
     bl_label = "Select 3D obj from the list above"
     bl_options = {"REGISTER", "UNDO"}
 
-    list_type: StringProperty() # type: ignore
+    list_type: StringProperty()
 
     def execute(self, context):
         scene = context.scene
@@ -348,17 +543,44 @@ class EM_not_in_matrix(bpy.types.Operator):
 
 
 def filter_list_update(self, context):
-    # Controlla se l'operatore è disponibile prima di chiamarlo
-    if hasattr(bpy.ops.em, "filter_lists"):
+    # Check if there's a valid graph before calling the operator
+    from .functions import is_graph_available as check_graph
+    graph_exists, _ = check_graph(context)
+    
+    if graph_exists:
+        # Controlla se l'operatore è disponibile prima di chiamarlo
+        if hasattr(bpy.ops.em, "filter_lists"):
+            try:
+                bpy.ops.em.filter_lists()
+            except Exception as e:
+                print(f"Error updating filtered list: {e}")
+    else:
+        # Show message to load a graph first
+        bpy.context.window_manager.popup_menu(
+            lambda self, context: self.layout.label(text="Please load a graph before filtering"),
+            title="No Graph Available",
+            icon='ERROR'
+        )
+        # Reset the filter that was just toggled
+        if hasattr(self, "name"):
+            if self.name == "filter_by_epoch":
+                context.scene.filter_by_epoch = False
+            elif self.name == "filter_by_activity":
+                context.scene.filter_by_activity = False
+
+
+def sync_visibility_update(self, context):
+    if self.sync_list_visibility:
         try:
-            bpy.ops.em.filter_lists()
+            bpy.ops.em.sync_visibility()
         except Exception as e:
-            print(f"Error updating filtered list: {e}")
+            print(f"Error syncing visibility: {e}")
 
 #SETUP MENU
 #####################################################################
 
 classes = [
+    EM_UL_List,
     EM_listitem_OT_to3D,
     VIEW3D_PT_ToolsPanel,
     EM_update_icon_list,
@@ -366,35 +588,56 @@ classes = [
     EM_select_list_item,
     EM_not_in_matrix,
     EM_filter_lists, 
-    EM_reset_filters 
-    ]
+    EM_reset_filters,
+    EM_toggle_visibility,
+    EM_sync_visibility,
+    EM_activate_proxy_collections
+]
 
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    bpy.types.Scene.filter_by_epoch = BoolProperty(
-        name="Filter by Epoch",
-        description="Show only elements from the active epoch",
-        default=False,
-        update=filter_list_update
-    )
+    # Register new properties directly on Scene
+    if not hasattr(bpy.types.Scene, "filter_by_epoch"):
+        bpy.types.Scene.filter_by_epoch = BoolProperty(
+            name="Filter by Epoch",
+            description="Show only elements from the active epoch",
+            default=False,
+            update=filter_list_update
+        )
 
-    bpy.types.Scene.filter_by_activity = BoolProperty(
-        name="Filter by Activity",
-        description="Show only elements from the active activity",
-        default=False,
-        update=filter_list_update
-    )
+    if not hasattr(bpy.types.Scene, "filter_by_activity"):
+        bpy.types.Scene.filter_by_activity = BoolProperty(
+            name="Filter by Activity",
+            description="Show only elements from the active activity",
+            default=False,
+            update=filter_list_update
+        )
+
+    if not hasattr(bpy.types.Scene, "sync_list_visibility"):
+        bpy.types.Scene.sync_list_visibility = BoolProperty(
+            name="Sync Visibility",
+            description="Synchronize proxy visibility with the current list (shows only proxies in the filtered list)",
+            default=False,
+            update=sync_visibility_update
+        )
 
 
 def unregister():
-    for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
+    # Remove scene properties if they exist
+    if hasattr(bpy.types.Scene, "filter_by_epoch"):
+        del bpy.types.Scene.filter_by_epoch
     
-    # Rimuovi le proprietà dei filtri
-    del bpy.types.Scene.filter_by_epoch
-    del bpy.types.Scene.filter_by_activity
-
-
-
+    if hasattr(bpy.types.Scene, "filter_by_activity"):
+        del bpy.types.Scene.filter_by_activity
+    
+    if hasattr(bpy.types.Scene, "sync_list_visibility"):
+        del bpy.types.Scene.sync_list_visibility
+    
+    # Unregister classes in reverse order
+    for cls in reversed(classes):
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception as e:
+            print(f"Error unregistering {cls.__name__}: {e}")

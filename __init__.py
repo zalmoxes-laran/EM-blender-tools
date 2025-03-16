@@ -253,6 +253,7 @@ class EM_Other_Settings(PropertyGroup):
     em_proxy_sync2_zoom: BoolProperty(name="Option to zoom to proxy", default=False) # type: ignore
     soloing_mode: BoolProperty(name="Soloing mode", default=False) # type: ignore
 
+
 class EMListItem(bpy.types.PropertyGroup):
     """ Group of properties representing an item in the list """
 
@@ -310,6 +311,11 @@ class EMListItem(bpy.types.PropertyGroup):
            name="fill color",
            description="",
            default="Empty") # type: ignore
+           
+    is_visible: prop.BoolProperty(
+           name="Visible",
+           description="Whether this item is visible in the viewport",
+           default=True) # type: ignore
 
 class EMreusedUS(bpy.types.PropertyGroup):
     """ Group of properties representing an item in the list """

@@ -64,6 +64,8 @@ def populate_reuse_US_table(scene, node, index, graph):
             
     return index
 
+# Update to the populate_stratigraphic_node function in populate_lists.py
+
 def populate_stratigraphic_node(scene, node, index, graph):
     scene.em_list.add()
     em_item = scene.em_list[-1]
@@ -75,6 +77,13 @@ def populate_stratigraphic_node(scene, node, index, graph):
     em_item.border_style = node.attributes.get('border_style', "")
     em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
     em_item.id_node = node.node_id
+    
+    # Set visibility status based on actual viewport visibility
+    obj = bpy.data.objects.get(node.name)
+    if obj:
+        em_item.is_visible = not obj.hide_viewport
+    else:
+        em_item.is_visible = True
     
     #em_item.epoch = node.epoch if node.epoch else ""
     #graph.print_connected_epoch_nodes_and_edge_types(node)
