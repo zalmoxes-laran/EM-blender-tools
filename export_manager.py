@@ -291,7 +291,7 @@ class EM_export(bpy.types.Operator):
             
             #section to activate light and background to make better visual effect
             context['environment'] = {
-                "mainpano":{"url":"samples/pano/defsky-grass.jpg"},
+                "mainpano":{"url":"samples/pano/pano.jpg"},
                 "lightprobes":{"auto":True},
                 "mainlight":{"direction":[-0.0846315900906896,-0.7511136796681608,-0.6547256938398531]}
             }

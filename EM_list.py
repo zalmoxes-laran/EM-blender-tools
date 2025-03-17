@@ -323,7 +323,9 @@ class EM_ToolsPanel:
         obj = context.object
         
         # Aggiungiamo i controlli per i filtri
-        row = layout.row(align=True)
+        #row = layout.row(align=True)
+        box = layout.box()
+        row = box.row(align=True)
         row.label(text=" Rows: " + str(len(scene.em_list)))
 
         #row.label(text="Filters:")
@@ -333,7 +335,7 @@ class EM_ToolsPanel:
             row.prop(scene, "filter_by_epoch", text="", toggle=True, icon='SORTTIME')
         
         if hasattr(scene, "filter_by_activity"):
-            row.prop(scene, "filter_by_activity", text="", toggle=True, icon='GROUP')
+            row.prop(scene, "filter_by_activity", text="", toggle=True, icon='NETWORK_DRIVE')
         
         # Reset filtri
         if hasattr(scene, "filter_by_epoch") and hasattr(scene, "filter_by_activity"):
@@ -359,12 +361,24 @@ class EM_ToolsPanel:
                 #col = split.column()
                 row.label(text="", icon='LONGDISPLAY')    
 
+        box = layout.box()
+        row = box.row(align=True)
+        #row = layout.row()
+        split = row.split()
+        col = split.column()
+        current_epoch = scene.epoch_list[scene.epoch_list_index].name
+        col.label(text=current_epoch, icon="SORTTIME")
+        col = split.column()
+        current_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
+        col.label(text=current_activity, icon="NETWORK_DRIVE")
 
         row = layout.row()
 
         if scene.em_list_index >= 0 and len(scene.em_list) > 0:
             row.template_list("EM_STRAT_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
             item = scene.em_list[scene.em_list_index]
+ 
+                   
             box = layout.box()
             row = box.row(align=True)
             split = row.split()
