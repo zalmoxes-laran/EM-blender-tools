@@ -1,5 +1,5 @@
-import bpy
-from bpy.props import (
+import bpy # type: ignore
+from bpy.props import ( # type: ignore
     StringProperty,
     BoolProperty,
     CollectionProperty,
@@ -20,6 +20,7 @@ from .s3Dgraphy.nodes.representation_model_node import RepresentationModelNode
 
 from bpy_extras.io_utils import ImportHelper, ExportHelper # type: ignore
 
+import os as os
 
 class RM_OT_select_from_object(Operator):
     bl_idname = "rm.select_from_object"
@@ -72,14 +73,14 @@ class RM_OT_add_tileset(Operator):
         name="Tileset Name",
         description="Name of the tileset object",
         default="Tileset"
-    )
+    ) # type: ignore
     
     tileset_path: StringProperty(
         name="Tileset Path",
         description="Path to the Cesium tileset zip file (relative or absolute)",
         default="",
         subtype='FILE_PATH'
-    )
+    ) # type: ignore
     
     def invoke(self, context, event):
         # Open a dialog to get the tileset name and path
@@ -136,7 +137,8 @@ class RM_OT_add_tileset(Operator):
             
             if graph:
                 # Create a RM node in the graph
-                from ..s3Dgraphy.nodes.representation_model_node import RepresentationModelNode
+                from .s3Dgraphy.nodes.representation_model_node import RepresentationModelNode
+
                 
                 model_node_id = f"{obj.name}_model"
                 model_node = RepresentationModelNode(
@@ -232,13 +234,13 @@ class RM_OT_set_tileset_path(Operator, ImportHelper):
     filter_glob: StringProperty(
         default="*.zip",
         options={'HIDDEN'}
-    )
+    ) # type: ignore
     
     object_name: StringProperty(
         name="Object Name",
         description="Name of the object to update",
         default=""
-    )
+    ) # type: ignore
     
     def execute(self, context):
         obj = bpy.data.objects.get(self.object_name)
@@ -283,12 +285,12 @@ class RMEpochItem(PropertyGroup):
         name="Epoch ID",
         description="ID of the epoch node in the graph",
         default=""
-    )
+    ) # type: ignore
     is_first_epoch: BoolProperty(
         name="Is First Epoch",
         description="Whether this is the first epoch for the RM",
         default=False
-    )
+    ) # type: ignore
 
 # Classe PropertyGroup per rappresentare un modello RM nella lista
 class RMItem(PropertyGroup):
@@ -297,40 +299,40 @@ class RMItem(PropertyGroup):
         name="Name",
         description="Name of the RM model",
         default="Unnamed"
-    )
+    ) # type: ignore
     first_epoch: StringProperty(
         name="First Epoch",
         description="First epoch this RM belongs to",
         default=""
-    )
+    ) # type: ignore
     is_publishable: BoolProperty(
         name="Publishable",
         description="Whether this RM model is publishable",
         default=True
-    )
+    ) # type: ignore
     node_id: StringProperty(
         name="Node ID",
         description="ID of the RM node in the graph",
         default=""
-    )
+    ) # type: ignore
     object_exists: BoolProperty(
         name="Object Exists",
         description="Whether the object exists in the scene",
         default=False
-    )
+    ) # type: ignore
     epoch_mismatch: BoolProperty(
         name="Epoch Mismatch",
         description="Indicates if there's a mismatch between the graph and the object epochs",
         default=False
-    )
+    ) # type: ignore
     epochs: CollectionProperty(
         type=RMEpochItem,
         name="Associated Epochs"
-    )
+    ) # type: ignore
     active_epoch_index: IntProperty(
         name="Active Epoch Index",
         default=0
-    )
+    ) # type: ignore
 
 # UI List per mostrare i modelli RM
 # UI List for showing the models RM with tileset indicator
@@ -422,7 +424,7 @@ class RM_OT_update_list(Operator):
         name="Update from Graph",
         description="Update the list using graph data. If False, uses only scene objects.",
         default=True
-    )
+    ) # type: ignore
     
     def execute(self, context):
         try:
@@ -658,7 +660,7 @@ class RM_OT_resolve_mismatches(Operator):
         name="Use Graph Epochs",
         description="If True, use epochs from graph. If False, use epochs from scene objects",
         default=True
-    )
+    ) # type: ignore
     
     def execute(self, context):
         scene = context.scene
@@ -817,7 +819,7 @@ class RM_OT_promote_to_rm(Operator):
             ('RM_LIST', 'RM List Object', 'Add the object from RM list to the epoch')
         ],
         default='SELECTED'
-    )
+    ) # type: ignore
     
     def execute(self, context):
         scene = context.scene
@@ -1108,17 +1110,17 @@ class RM_OT_remove_epoch(Operator):
     bl_label = "Remove Epoch"
     bl_description = "Remove the epoch association from this RM model"
     
-    epoch_name: StringProperty()
+    epoch_name: StringProperty() # type: ignore
     rm_index: IntProperty(
         name="RM Index",
         description="Index of the RM item in the list",
         default=-1
-    )
+    ) # type: ignore
     remove_from_selected: BoolProperty(
         name="Remove from Selected Objects",
         description="If True, remove epoch from selected objects instead of from RM list",
         default=False
-    )
+    ) # type: ignore
     
     def execute(self, context):
         scene = context.scene
@@ -1409,7 +1411,7 @@ class RM_OT_select_from_list(Operator):
         name="RM Index",
         description="Index of the RM item in the list",
         default=-1
-    )
+    ) # type: ignore
     
     def execute(self, context):
         try:
@@ -1468,7 +1470,7 @@ class RM_OT_toggle_publishable(Operator):
         name="RM Index",
         description="Index of the RM item in the list",
         default=-1
-    )
+    ) # type: ignore
     
     def execute(self, context):
         scene = context.scene
@@ -1508,7 +1510,7 @@ class RM_OT_add_epoch(Operator):
         name="RM Index",
         description="Index of the RM item in the list",
         default=-1
-    )
+    ) # type: ignore
     
     def execute(self, context):
         scene = context.scene
@@ -1599,25 +1601,25 @@ class RMSettings(PropertyGroup):
         name="Zoom to Selected",
         description="Zoom to the selected object when clicked in the list",
         default=True
-    )
+    ) # type: ignore
     
     show_mismatches: BoolProperty(
         name="Show Epoch Mismatches",
         description="Highlight objects with mismatches between scene and graph epochs",
         default=True
-    )
+    ) # type: ignore
     
     auto_update_on_load: BoolProperty(
         name="Auto Update on Graph Load",
         description="Automatically update RM list when a graph is loaded",
         default=True
-    )
+    ) # type: ignore
     
     show_settings: BoolProperty(
         name="Show Settings",
         description="Show or hide the settings section",
         default=False
-    )
+    ) # type: ignore
 
 # Il pannello principale RM Manager
 class VIEW3D_PT_RM_Manager(Panel):
