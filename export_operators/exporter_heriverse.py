@@ -313,30 +313,43 @@ class HERIVERSE_OT_export(Operator):
             else:
                 # Multiple objects with same mesh - potential for instancing
                 try:
-                    # Select all objects in this group
-                    parent_obj = None
-                    children = []
+                    # Reset selection
+                    bpy.ops.object.select_all(action='DESELECT')
                     
-                    # Find a potential parent
+                    # Find a good parent candidate (one with children in scene)
+                    parent_obj = None
                     for obj in objects:
-                        if len(obj.children) > 0:
+                        # Check if object is a parent and has children
+                        if obj.children and len(obj.children) > 0:
                             parent_obj = obj
+                            print(f"Found parent object for instancing: {obj.name} with {len(obj.children)} children")
                             break
                     
                     if not parent_obj:
                         # If no parent found, use the first object
                         parent_obj = objects[0]
+                        print(f"No parent with children found, using {parent_obj.name} as parent")
                     
-                    # Select parent first
-                    parent_obj.hide_viewport = False
+                    # Make sure parent is visible and selected first
+                    if parent_obj.hide_viewport:
+                        parent_obj.hide_viewport = False
                     parent_obj.select_set(True)
                     bpy.context.view_layer.objects.active = parent_obj
                     
-                    # Then select all others as children
+                    # Select all objects with the same mesh
                     for obj in objects:
                         if obj != parent_obj:
-                            obj.hide_viewport = False
+                            if obj.hide_viewport:
+                                obj.hide_viewport = False
                             obj.select_set(True)
+                    
+                    # Also select any children of the parent, even if they're not in the RM list
+                    for child in parent_obj.children:
+                        if child.type == 'MESH':
+                            if child.hide_viewport:
+                                child.hide_viewport = False
+                            child.select_set(True)
+                            print(f"Selected child object: {child.name}")
                     
                     # Export with instancing enabled
                     export_file = os.path.join(export_folder, clean_filename(parent_obj.name))
@@ -420,7 +433,10 @@ class HERIVERSE_OT_export(Operator):
             # Set compression settings
             scene.render.image_settings.file_format = 'JPEG'
             scene.render.image_settings.quality = scene.heriverse_texture_quality
-            
+            max_res = scene.heriverse_texture_max_res  # Store the value to ensure it's used consistently
+
+            print(f"Using texture compression settings: Max Resolution = {max_res}, Quality = {scene.heriverse_texture_quality}")
+
             # Process each texture in the directory
             for filename in os.listdir(textures_dir):
                 if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
@@ -428,17 +444,18 @@ class HERIVERSE_OT_export(Operator):
                     
                     # Load the image
                     img = bpy.data.images.load(texture_path)
+                    print(f"Processing texture: {filename}, Original size: {img.size[0]}x{img.size[1]}")
                     
                     # Check if resizing is needed
-                    need_resize = (img.size[0] > scene.heriverse_texture_max_res or 
-                                img.size[1] > scene.heriverse_texture_max_res)
+                    need_resize = (img.size[0] > max_res or img.size[1] > max_res)
                     
                     if need_resize:
                         # Calculate new dimensions
                         max_dim = max(img.size[0], img.size[1])
-                        scale_factor = scene.heriverse_texture_max_res / max_dim
+                        scale_factor = max_res / max_dim  # Use the stored value
                         new_width = int(img.size[0] * scale_factor)
                         new_height = int(img.size[1] * scale_factor)
+                        print(f"Resizing {filename} from {img.size[0]}x{img.size[1]} to {new_width}x{new_height}")
                         
                         print(f"Resizing {filename} from {img.size[0]}x{img.size[1]} to {new_width}x{new_height}")
                         img.scale(new_width, new_height)
