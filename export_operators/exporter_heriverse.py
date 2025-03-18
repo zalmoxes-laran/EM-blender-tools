@@ -175,26 +175,80 @@ class HERIVERSE_OT_export(Operator):
         
         return exported_count
 
-    # Updated export_rm function to only export publishable models
+    # Miglioramento della funzione export_panorama
+    def export_panorama(self, context, project_path):
+        """Export default panorama (defsky.jpg) to the project"""
+        scene = context.scene
+        
+        if not scene.heriverse_export_panorama:
+            return False
+            
+        try:
+            # Create panorama directory
+            panorama_path = os.path.join(project_path, "panorama")
+            os.makedirs(panorama_path, exist_ok=True)
+            
+            # Get addon path to find resources
+            addon_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            resources_path = os.path.join(addon_path, "resources")
+            
+            # Cerca in diversi percorsi possibili per trovare defsky.jpg
+            possible_paths = [
+                os.path.join(resources_path, "panorama", "defsky.jpg"),
+                os.path.join(resources_path, "defsky.jpg"),
+                os.path.join(addon_path, "panorama", "defsky.jpg"),
+                os.path.join(addon_path, "defsky.jpg")
+            ]
+            
+            source_file = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    source_file = path
+                    break
+                    
+            if not source_file:
+                # Se non troviamo il file, creiamo un'immagine di segnaposto
+                self.report({'WARNING'}, "Default panorama file not found, creating placeholder")
+                
+                # Crea un'immagine vuota
+                img = bpy.data.images.new("defsky", 1024, 512)
+                img.filepath = os.path.join(panorama_path, "defsky.jpg")
+                img.file_format = 'JPEG'
+                img.save()
+                
+                return True
+                
+            # Copy the file
+            dest_file = os.path.join(panorama_path, "defsky.jpg")
+            shutil.copy2(source_file, dest_file)
+            print(f"Copied default panorama from {source_file} to {dest_file}")
+            return True
+            
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to export panorama: {str(e)}")
+            return False
+
+    # Modifica alla funzione export_rm per supportare GPU instances
     def export_rm(self, context, export_folder):
-        """Export representation models"""
+        """Export representation models with GPU instancing support"""
         scene = context.scene
         export_vars = context.window_manager.export_vars
         
         # Deseleziona tutto prima di iniziare
         bpy.ops.object.select_all(action='DESELECT')
         
-        exported_count = 0
+        # Raggruppa gli oggetti per mesh condivisa
+        mesh_groups = {}
         for obj in bpy.data.objects:
-            # Skip objects without epochs
+            # Skip objects without epochs or that aren't publishable
             if not hasattr(obj, "EM_ep_belong_ob") or len(obj.EM_ep_belong_ob) == 0:
                 continue
                 
-            # Skip if object is a tileset (handled separately)
+            # Skip if object is a tileset
             if "tileset_path" in obj:
                 continue
                 
-            # Skip if object is not publishable in the RM list
+            # Skip if object is not publishable
             is_publishable = True
             for rm_item in scene.rm_list:
                 if rm_item.name == obj.name:
@@ -202,46 +256,208 @@ class HERIVERSE_OT_export(Operator):
                     break
                     
             if not is_publishable:
-                print(f"Skipping RM {obj.name} (not publishable)")
                 continue
                 
-            try:
-                # Verifica che l'oggetto sia effettivamente accessibile
-                if obj.hide_viewport:
-                    print(f"Object {obj.name} is hidden in viewport, making it temporarily visible")
-                    obj.hide_viewport = False
+            # Group objects by mesh data
+            if obj.type == 'MESH' and obj.data:
+                mesh_name = obj.data.name
+                if mesh_name not in mesh_groups:
+                    mesh_groups[mesh_name] = []
+                mesh_groups[mesh_name].append(obj)
+        
+        exported_count = 0
+        
+        # Process each group
+        for mesh_name, objects in mesh_groups.items():
+            if len(objects) == 1:
+                # Single object, export normally
+                obj = objects[0]
+                try:
+                    # Make sure object is visible
+                    was_hidden = obj.hide_viewport
+                    if was_hidden:
+                        obj.hide_viewport = False
+                    
+                    obj.select_set(True)
+                    export_file = os.path.join(export_folder, clean_filename(obj.name))
+                    
+                    bpy.ops.export_scene.gltf(
+                        filepath=str(export_file),
+                        export_format='GLTF_SEPARATE',
+                        export_copyright=scene.EMviq_model_author_name,
+                        export_texcoords=True,
+                        export_normals=True,
+                        export_draco_mesh_compression_enable=export_vars.heriverse_use_draco,
+                        export_draco_mesh_compression_level=export_vars.heriverse_draco_level,
+                        export_materials='EXPORT',
+                        use_selection=True,
+                        export_apply=True,
+                        check_existing=False
+                    )
+                    
+                    # Reset visibility
+                    obj.hide_viewport = was_hidden
+                    obj.select_set(False)
+                    
+                    exported_count += 1
+                    print(f"Exported RM: {obj.name}")
+                    
+                    # Compressione texture (dopo l'esportazione)
+                    if scene.heriverse_enable_compression:
+                        self.compress_textures_for_model(export_file, scene)
+                    
+                except Exception as e:
+                    self.report({'WARNING'}, f"Failed to export RM {obj.name}: {str(e)}")
+                    obj.select_set(False)
+            
+            else:
+                # Multiple objects with same mesh - potential for instancing
+                try:
+                    # Select all objects in this group
+                    parent_obj = None
+                    children = []
+                    
+                    # Find a potential parent
+                    for obj in objects:
+                        if len(obj.children) > 0:
+                            parent_obj = obj
+                            break
+                    
+                    if not parent_obj:
+                        # If no parent found, use the first object
+                        parent_obj = objects[0]
+                    
+                    # Select parent first
+                    parent_obj.hide_viewport = False
+                    parent_obj.select_set(True)
+                    bpy.context.view_layer.objects.active = parent_obj
+                    
+                    # Then select all others as children
+                    for obj in objects:
+                        if obj != parent_obj:
+                            obj.hide_viewport = False
+                            obj.select_set(True)
+                    
+                    # Export with instancing enabled
+                    export_file = os.path.join(export_folder, clean_filename(parent_obj.name))
+                    
+                    bpy.ops.export_scene.gltf(
+                        filepath=str(export_file),
+                        export_format='GLTF_SEPARATE',
+                        export_copyright=scene.EMviq_model_author_name,
+                        export_texcoords=True,
+                        export_normals=True,
+                        export_draco_mesh_compression_enable=export_vars.heriverse_use_draco,
+                        export_draco_mesh_compression_level=export_vars.heriverse_draco_level,
+                        export_materials='EXPORT',
+                        use_selection=True,
+                        export_apply=True,
+                        export_extras=True,
+                        export_gpu_instances=True,  # Enable GPU instancing
+                        check_existing=False
+                    )
+                    
+                    print(f"Exported instanced group: {parent_obj.name} with {len(objects)} instances")
+                    exported_count += 1
+                    
+                    # Compressione texture (dopo l'esportazione)
+                    if scene.heriverse_enable_compression:
+                        self.compress_textures_for_model(export_file, scene)
+                    
+                except Exception as e:
+                    self.report({'WARNING'}, f"Failed to export instanced group {mesh_name}: {str(e)}")
                 
-                obj.select_set(True)
-                export_file = os.path.join(export_folder, clean_filename(obj.name))
-                
-                bpy.ops.export_scene.gltf(
-                    filepath=str(export_file),
-                    export_format='GLTF_SEPARATE',
-                    export_copyright=scene.EMviq_model_author_name,
-                    export_texcoords=True,
-                    export_normals=True,
-                    export_draco_mesh_compression_enable=export_vars.heriverse_use_draco,
-                    export_draco_mesh_compression_level=export_vars.heriverse_draco_level,
-                    export_materials='EXPORT',
-                    use_selection=True,
-                    export_apply=True,
-                    check_existing=False
-                )
-                
-                if export_vars.heriverse_separate_textures:
-                    textures_dir = os.path.join(os.path.dirname(export_file), "textures")
-                    os.makedirs(textures_dir, exist_ok=True)
-                    self.export_textures(obj, textures_dir, context)
-                
-                exported_count += 1
-                print(f"Exported RM: {obj.name}")
-            except Exception as e:
-                self.report({'WARNING'}, f"Failed to export RM {obj.name}: {str(e)}")
-            finally:
-                obj.select_set(False)
+                finally:
+                    # Deselect all
+                    bpy.ops.object.select_all(action='DESELECT')
         
         self.report({'INFO'}, f"Exported {exported_count} RM models")
         return exported_count > 0
+
+
+
+    def compress_textures_for_model(self, model_path, scene):
+        """Compress textures for an exported model, EMviq style"""
+        try:
+            # Get base directory where textures might be stored
+            base_dir = os.path.dirname(model_path)
+            model_name = os.path.splitext(os.path.basename(model_path))[0]
+            
+            # Possibili percorsi delle texture
+            possible_texture_dirs = [
+                os.path.join(base_dir, f"{model_name}_img"),  # Il percorso che stavi cercando
+                os.path.join(base_dir, "textures"),           # Percorso alternativo comune
+                os.path.join(base_dir, f"{model_name}", "textures"),  # Percorso GLTF separato
+                os.path.dirname(base_dir)                     # Directory superiore
+            ]
+            
+            textures_dir = None
+            for dir_path in possible_texture_dirs:
+                if os.path.exists(dir_path) and os.path.isdir(dir_path):
+                    textures_dir = dir_path
+                    break
+            
+            if not textures_dir:
+                # Cerca nelle sottodirectory
+                for root, dirs, files in os.walk(base_dir):
+                    for dir_name in dirs:
+                        if "texture" in dir_name.lower() or "img" in dir_name.lower():
+                            textures_dir = os.path.join(root, dir_name)
+                            break
+                    if textures_dir:
+                        break
+            
+            if not textures_dir:
+                print(f"No texture directory found for {model_path}")
+                return
+            
+            print(f"Compressing textures in: {textures_dir}")
+            
+            # Store original render settings
+            original_format = scene.render.image_settings.file_format
+            original_quality = scene.render.image_settings.quality
+            
+            # Set compression settings
+            scene.render.image_settings.file_format = 'JPEG'
+            scene.render.image_settings.quality = scene.heriverse_texture_quality
+            
+            # Process each texture in the directory
+            for filename in os.listdir(textures_dir):
+                if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    texture_path = os.path.join(textures_dir, filename)
+                    
+                    # Load the image
+                    img = bpy.data.images.load(texture_path)
+                    
+                    # Check if resizing is needed
+                    need_resize = (img.size[0] > scene.heriverse_texture_max_res or 
+                                img.size[1] > scene.heriverse_texture_max_res)
+                    
+                    if need_resize:
+                        # Calculate new dimensions
+                        max_dim = max(img.size[0], img.size[1])
+                        scale_factor = scene.heriverse_texture_max_res / max_dim
+                        new_width = int(img.size[0] * scale_factor)
+                        new_height = int(img.size[1] * scale_factor)
+                        
+                        print(f"Resizing {filename} from {img.size[0]}x{img.size[1]} to {new_width}x{new_height}")
+                        img.scale(new_width, new_height)
+                    
+                    # Save with compression
+                    img.save_render(texture_path)
+                    print(f"Compressed: {filename}")
+                    
+                    # Remove the image from memory
+                    bpy.data.images.remove(img)
+            
+            # Restore original settings
+            scene.render.image_settings.file_format = original_format
+            scene.render.image_settings.quality = original_quality
+            
+        except Exception as e:
+            print(f"Error compressing textures: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
     def export_textures(self, obj, textures_dir, context):
         """Export textures for an object with optional compression"""
@@ -386,41 +602,6 @@ class HERIVERSE_OT_export(Operator):
         
         return zip_path
 
-    def export_panorama(self, context, project_path):
-        """Export default panorama (defsky.jpg) to the project"""
-        scene = context.scene
-        
-        if not scene.heriverse_export_panorama:
-            return False
-            
-        try:
-            # Create panorama directory
-            panorama_path = os.path.join(project_path, "panorama")
-            os.makedirs(panorama_path, exist_ok=True)
-            
-            # Get addon path to find resources
-            addon_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            resources_path = os.path.join(addon_path, "resources", "panorama")
-            
-            # Source file
-            source_file = os.path.join(resources_path, "defsky.jpg")
-            
-            # Destination file
-            dest_file = os.path.join(panorama_path, "defsky.jpg")
-            
-            # Check if source file exists
-            if not os.path.exists(source_file):
-                self.report({'WARNING'}, f"Default panorama file not found at {source_file}")
-                return False
-                
-            # Copy the file
-            shutil.copy2(source_file, dest_file)
-            print(f"Copied default panorama to {dest_file}")
-            return True
-            
-        except Exception as e:
-            self.report({'ERROR'}, f"Failed to export panorama: {str(e)}")
-            return False
 
     def execute(self, context):
         scene = context.scene
@@ -430,23 +611,27 @@ class HERIVERSE_OT_export(Operator):
             print("\n=== Starting Heriverse Export ===")
             
             # Verifiche preliminari
-            if not export_vars.heriverse_export_path:
+            if not scene.heriverse_export_path:
                 self.report({'ERROR'}, "Export path not specified")
                 return {'CANCELLED'}
             
-            print(f"Export path: {export_vars.heriverse_export_path}")
+            print(f"Export path: {scene.heriverse_export_path}")
                 
             # Setup dei percorsi
-            output_dir = bpy.path.abspath(export_vars.heriverse_export_path)
-            project_name = export_vars.heriverse_project_name or os.path.splitext(os.path.basename(bpy.data.filepath))[0]
+            output_dir = bpy.path.abspath(scene.heriverse_export_path)
+            project_name = scene.heriverse_project_name or os.path.splitext(os.path.basename(bpy.data.filepath))[0]
             project_name = f"{project_name}_multigraph"
             project_path = os.path.join(output_dir, project_name)
             
             print(f"Project path: {project_path}")
+            print(f"Project name: {project_name}")
             
             # Crea la directory del progetto
             os.makedirs(project_path, exist_ok=True)
             print("Created project directory")
+
+
+   
             
             # Salva lo stato delle collezioni
             collection_states = {}
@@ -553,6 +738,15 @@ class HERIVERSE_OT_export(Operator):
                         print("DosCo export completed successfully")
                     else:
                         print("DosCo export failed or was skipped")
+                
+                # Nel metodo execute, dopo tutti gli altri export
+                if scene.heriverse_export_panorama:
+                    print("\n--- Exporting Panorama ---")
+                    result = self.export_panorama(context, project_path)
+                    if result:
+                        print("Panorama export completed successfully")
+                    else:
+                        print("Panorama export failed or was skipped")                
 
             finally:
                 # Ripristina lo stato delle collezioni
