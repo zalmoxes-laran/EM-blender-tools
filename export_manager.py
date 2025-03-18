@@ -60,10 +60,11 @@ class EM_ExportPanel:
 
         if export_vars.heriverse_expanded:
             row = box.row()
-            row.prop(export_vars, "heriverse_export_path", text="Export Path")
+            # Use scene properties instead of export_vars
+            row.prop(scene, "heriverse_export_path", text="Export Path")
             
             row = box.row()
-            row.prop(export_vars, "heriverse_project_name", text="Project Name")
+            row.prop(scene, "heriverse_project_name", text="Project Name")
             
             row = box.row()
             row.prop(export_vars, "heriverse_export_all_graphs", text="Export All Graphs")
@@ -81,7 +82,10 @@ class EM_ExportPanel:
             col.prop(export_vars, "heriverse_export_rm", text="Export RM")
             
             row = box.row()
-            row.prop(export_vars, "heriverse_create_zip", text="Create ZIP")
+            col = row.column()
+            col.prop(export_vars, "heriverse_create_zip", text="Create ZIP")
+            col = row.column()
+            col.prop(scene, "heriverse_export_panorama", text="Add Panorama")
             
             row = box.row()
             row.operator("export.heriverse", text="Export Heriverse Project", icon='EXPORT')
@@ -100,6 +104,23 @@ class EM_ExportPanel:
                 if export_vars.heriverse_use_draco:
                     col.prop(export_vars, "heriverse_draco_level", text="Compression Level")
                 col.prop(export_vars, "heriverse_separate_textures", text="Separate Textures")
+                
+                # Add texture compression options when separate textures is enabled
+                if export_vars.heriverse_separate_textures:
+                    box_comp = box.box()
+                    row_comp = box_comp.row()
+                    row_comp.label(text="Texture Compression:")
+                    
+                    row_comp = box_comp.row()
+                    row_comp.prop(scene, "heriverse_enable_compression", text="Enable Compression")
+                    
+                    if scene.heriverse_enable_compression:
+                        row_comp = box_comp.row()
+                        row_comp.prop(scene, "heriverse_texture_max_res", text="Max Size")
+                        row_comp.prop(scene, "heriverse_texture_quality", text="Quality")
+                        
+                        row_comp = box_comp.row()
+                        row_comp.label(text="Quality: 100=lossless, 80=good, 60=compressed, 40=heavily compressed")
 
 
         # EMviq Export Section
@@ -886,7 +907,54 @@ def register():
         subtype='PASSWORD'
     )
 
-    bpy.types.Scene.enable_image_compression = BoolProperty(name="Tex compression", description = "Use compression settings for textures. If disabled, original images (size and compression) will be used.",default=True)
+    bpy.types.Scene.enable_image_compression = BoolProperty(
+        name="Tex compression", 
+        description="Use compression settings for textures. If disabled, original images (size and compression) will be used.",
+        default=True
+    )
+    
+    # Add new Heriverse properties to the Scene
+    bpy.types.Scene.heriverse_export_path = bpy.props.StringProperty(
+        name="Heriverse Export Path",
+        description="Path where to export Heriverse project",
+        subtype='DIR_PATH',
+        default=""
+    )
+    
+    bpy.types.Scene.heriverse_project_name = bpy.props.StringProperty(
+        name="Heriverse Project Name",
+        description="Name of the Heriverse project",
+        default=""
+    )
+    
+    bpy.types.Scene.heriverse_export_panorama = bpy.props.BoolProperty(
+        name="Export Default Panorama",
+        description="Export the default panorama (defsky.jpg) to the project",
+        default=True
+    )
+    
+    # Texture compression options
+    bpy.types.Scene.heriverse_enable_compression = bpy.props.BoolProperty(
+        name="Enable Texture Compression",
+        description="Enable compression for textures in Heriverse export",
+        default=True
+    )
+    
+    bpy.types.Scene.heriverse_texture_max_res = bpy.props.IntProperty(
+        name="Max Resolution",
+        description="Maximum resolution for texture edges",
+        default=4096,
+        min=512,
+        max=8192
+    )
+    
+    bpy.types.Scene.heriverse_texture_quality = bpy.props.IntProperty(
+        name="Texture Quality",
+        description="JPEG compression quality (100=lossless, 80=good, 60=compressed, 40=heavily compressed)",
+        default=80,
+        min=10,
+        max=100
+    )
 
 
 def unregister():
@@ -895,3 +963,11 @@ def unregister():
 
     del bpy.types.Scene.password
     del bpy.types.Scene.enable_image_compression
+    
+    # Remove Heriverse properties
+    del bpy.types.Scene.heriverse_export_path
+    del bpy.types.Scene.heriverse_project_name
+    del bpy.types.Scene.heriverse_export_panorama
+    del bpy.types.Scene.heriverse_enable_compression
+    del bpy.types.Scene.heriverse_texture_max_res
+    del bpy.types.Scene.heriverse_texture_quality

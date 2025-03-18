@@ -231,7 +231,7 @@ class HERIVERSE_OT_export(Operator):
                 if export_vars.heriverse_separate_textures:
                     textures_dir = os.path.join(os.path.dirname(export_file), "textures")
                     os.makedirs(textures_dir, exist_ok=True)
-                    self.export_textures(obj, textures_dir)
+                    self.export_textures(obj, textures_dir, context)
                 
                 exported_count += 1
                 print(f"Exported RM: {obj.name}")
@@ -243,8 +243,10 @@ class HERIVERSE_OT_export(Operator):
         self.report({'INFO'}, f"Exported {exported_count} RM models")
         return exported_count > 0
 
-    def export_textures(self, obj, textures_dir):
-        """Export textures for an object"""
+    def export_textures(self, obj, textures_dir, context):
+        """Export textures for an object with optional compression"""
+        scene = context.scene
+        
         for mat_slot in obj.material_slots:
             if mat_slot.material and mat_slot.material.use_nodes:
                 for node in mat_slot.material.node_tree.nodes:
@@ -254,13 +256,83 @@ class HERIVERSE_OT_export(Operator):
                             if image.packed_file:
                                 image_path = os.path.join(textures_dir, clean_filename(image.name))
                                 print(f"Exporting packed texture: {image.name}")
-                                image.save_render(image_path)
+                                
+                                # If compression is enabled
+                                if scene.heriverse_enable_compression:
+                                    # Store original settings
+                                    original_format = scene.render.image_settings.file_format
+                                    original_quality = scene.render.image_settings.quality
+                                    
+                                    # Apply compression settings
+                                    scene.render.image_settings.file_format = 'JPEG'
+                                    scene.render.image_settings.quality = scene.heriverse_texture_quality
+                                    
+                                    # If image needs scaling
+                                    needs_scaling = (image.size[0] > scene.heriverse_texture_max_res or 
+                                                    image.size[1] > scene.heriverse_texture_max_res)
+                                    
+                                    if needs_scaling:
+                                        # Create a temporary copy and scale it
+                                        temp_image = image.copy()
+                                        max_dim = max(temp_image.size[0], temp_image.size[1])
+                                        scale_factor = scene.heriverse_texture_max_res / max_dim
+                                        new_width = int(temp_image.size[0] * scale_factor)
+                                        new_height = int(temp_image.size[1] * scale_factor)
+                                        temp_image.scale(new_width, new_height)
+                                        temp_image.save_render(image_path)
+                                        bpy.data.images.remove(temp_image)
+                                    else:
+                                        # Just save with compression settings
+                                        image.save_render(image_path)
+                                        
+                                    # Restore original settings
+                                    scene.render.image_settings.file_format = original_format
+                                    scene.render.image_settings.quality = original_quality
+                                else:
+                                    # Export without compression
+                                    image.save_render(image_path)
                             elif image.filepath:
                                 src_path = bpy.path.abspath(image.filepath)
                                 if os.path.exists(src_path):
                                     dst_path = os.path.join(textures_dir, clean_filename(os.path.basename(image.filepath)))
                                     print(f"Copying external texture: {os.path.basename(image.filepath)}")
-                                    shutil.copy2(src_path, dst_path)
+                                    
+                                    # If compression is enabled, load and process the image
+                                    if scene.heriverse_enable_compression:
+                                        # Create a temporary image
+                                        temp_image = bpy.data.images.load(src_path)
+                                        
+                                        # Store original settings
+                                        original_format = scene.render.image_settings.file_format
+                                        original_quality = scene.render.image_settings.quality
+                                        
+                                        # Apply compression settings
+                                        scene.render.image_settings.file_format = 'JPEG'
+                                        scene.render.image_settings.quality = scene.heriverse_texture_quality
+                                        
+                                        # Check if scaling is needed
+                                        needs_scaling = (temp_image.size[0] > scene.heriverse_texture_max_res or 
+                                                        temp_image.size[1] > scene.heriverse_texture_max_res)
+                                        
+                                        if needs_scaling:
+                                            max_dim = max(temp_image.size[0], temp_image.size[1])
+                                            scale_factor = scene.heriverse_texture_max_res / max_dim
+                                            new_width = int(temp_image.size[0] * scale_factor)
+                                            new_height = int(temp_image.size[1] * scale_factor)
+                                            temp_image.scale(new_width, new_height)
+                                        
+                                        # Save with compression
+                                        temp_image.save_render(dst_path)
+                                        
+                                        # Clean up
+                                        bpy.data.images.remove(temp_image)
+                                        
+                                        # Restore original settings
+                                        scene.render.image_settings.file_format = original_format
+                                        scene.render.image_settings.quality = original_quality
+                                    else:
+                                        # Simple copy without compression
+                                        shutil.copy2(src_path, dst_path)
                         except Exception as e:
                             self.report({'WARNING'}, f"Failed to export texture for {obj.name}: {str(e)}")
 
@@ -313,6 +385,42 @@ class HERIVERSE_OT_export(Operator):
         )
         
         return zip_path
+
+    def export_panorama(self, context, project_path):
+        """Export default panorama (defsky.jpg) to the project"""
+        scene = context.scene
+        
+        if not scene.heriverse_export_panorama:
+            return False
+            
+        try:
+            # Create panorama directory
+            panorama_path = os.path.join(project_path, "panorama")
+            os.makedirs(panorama_path, exist_ok=True)
+            
+            # Get addon path to find resources
+            addon_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            resources_path = os.path.join(addon_path, "resources", "panorama")
+            
+            # Source file
+            source_file = os.path.join(resources_path, "defsky.jpg")
+            
+            # Destination file
+            dest_file = os.path.join(panorama_path, "defsky.jpg")
+            
+            # Check if source file exists
+            if not os.path.exists(source_file):
+                self.report({'WARNING'}, f"Default panorama file not found at {source_file}")
+                return False
+                
+            # Copy the file
+            shutil.copy2(source_file, dest_file)
+            print(f"Copied default panorama to {dest_file}")
+            return True
+            
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to export panorama: {str(e)}")
+            return False
 
     def execute(self, context):
         scene = context.scene
