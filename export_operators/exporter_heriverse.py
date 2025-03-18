@@ -89,7 +89,14 @@ class HERIVERSE_OT_export(Operator):
     bl_label = "Export Heriverse Project"
     bl_description = "Export project in Heriverse format with models, proxies and documentation"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
+
+    def __init__(self):
+        super().__init__()
+        self.instanced_objects = set()
+        self.exported_models = {}
+        self.stato_collezioni = {}
+
     def export_proxies(self, context, export_folder):
         """Export proxy models"""
         scene = context.scene
@@ -239,16 +246,21 @@ class HERIVERSE_OT_export(Operator):
         
         # Raggruppa gli oggetti per mesh condivisa
         mesh_groups = {}
+        instanced_objects = set()
+        exported_models = {}
+        
+        # Step 1: Raccogli tutti gli oggetti RM pubblicabili
+        publishable_rm_objects = []
         for obj in bpy.data.objects:
-            # Skip objects without epochs or that aren't publishable
-            if not hasattr(obj, "EM_ep_belong_ob") or len(obj.EM_ep_belong_ob) == 0:
+            # Skip oggetti che non sono mesh o non hanno epoche
+            if not (obj.type == 'MESH' and hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0):
                 continue
                 
-            # Skip if object is a tileset
+            # Skip se oggetto è un tileset
             if "tileset_path" in obj:
                 continue
                 
-            # Skip if object is not publishable
+            # Skip se oggetto non è pubblicabile
             is_publishable = True
             for rm_item in scene.rm_list:
                 if rm_item.name == obj.name:
@@ -258,16 +270,21 @@ class HERIVERSE_OT_export(Operator):
             if not is_publishable:
                 continue
                 
-            # Group objects by mesh data
-            if obj.type == 'MESH' and obj.data:
+            publishable_rm_objects.append(obj)
+        
+        # Step 2: Raggruppa per mesh condivisa
+        for obj in publishable_rm_objects:
+            if obj.data:
                 mesh_name = obj.data.name
                 if mesh_name not in mesh_groups:
                     mesh_groups[mesh_name] = []
                 mesh_groups[mesh_name].append(obj)
         
+        print(f"Found {len(mesh_groups)} different meshes in {len(publishable_rm_objects)} publishable RM objects")
+        
         exported_count = 0
         
-        # Process each group
+        # Step 3: Process each group
         for mesh_name, objects in mesh_groups.items():
             if len(objects) == 1:
                 # Single object, export normally
@@ -313,47 +330,35 @@ class HERIVERSE_OT_export(Operator):
             else:
                 # Multiple objects with same mesh - potential for instancing
                 try:
-                    # Reset selection
+                    # Step 3.1: Deselect all
                     bpy.ops.object.select_all(action='DESELECT')
                     
-                    # Find a good parent candidate (one with children in scene)
-                    parent_obj = None
+                    # Step 3.2: Find most suitable primary object for this group
+                    # Preferisci oggetti con nomi più corti o senza numeri alla fine
+                    sorted_objects = sorted(objects, key=lambda obj: (len(obj.name), obj.name))
+                    primary_obj = sorted_objects[0]
+                    
+                    # Step 3.3: Assicurati che tutti gli oggetti siano visibili
                     for obj in objects:
-                        # Check if object is a parent and has children
-                        if obj.children and len(obj.children) > 0:
-                            parent_obj = obj
-                            print(f"Found parent object for instancing: {obj.name} with {len(obj.children)} children")
-                            break
+                        was_hidden = obj.hide_viewport
+                        if was_hidden:
+                            obj.hide_viewport = False
                     
-                    if not parent_obj:
-                        # If no parent found, use the first object
-                        parent_obj = objects[0]
-                        print(f"No parent with children found, using {parent_obj.name} as parent")
+                    # Step 3.4: Seleziona e imposta active l'oggetto primario
+                    primary_obj.select_set(True)
+                    bpy.context.view_layer.objects.active = primary_obj
                     
-                    # Make sure parent is visible and selected first
-                    if parent_obj.hide_viewport:
-                        parent_obj.hide_viewport = False
-                    parent_obj.select_set(True)
-                    bpy.context.view_layer.objects.active = parent_obj
-                    
-                    # Select all objects with the same mesh
+                    # Step 3.5: Seleziona gli altri oggetti nel gruppo
                     for obj in objects:
-                        if obj != parent_obj:
-                            if obj.hide_viewport:
-                                obj.hide_viewport = False
+                        if obj != primary_obj:
                             obj.select_set(True)
+                            # Aggiungi alla lista di oggetti istanziati
+                            instanced_objects.add(obj.name)
                     
-                    # Also select any children of the parent, even if they're not in the RM list
-                    for child in parent_obj.children:
-                        if child.type == 'MESH':
-                            if child.hide_viewport:
-                                child.hide_viewport = False
-                            child.select_set(True)
-                            print(f"Selected child object: {child.name}")
+                    # Step 3.6: Prepara il nome del file
+                    export_file = os.path.join(export_folder, clean_filename(primary_obj.name))
                     
-                    # Export with instancing enabled
-                    export_file = os.path.join(export_folder, clean_filename(parent_obj.name))
-                    
+                    # Step 3.7: Export with instancing enabled
                     bpy.ops.export_scene.gltf(
                         filepath=str(export_file),
                         export_format='GLTF_SEPARATE',
@@ -366,28 +371,77 @@ class HERIVERSE_OT_export(Operator):
                         use_selection=True,
                         export_apply=True,
                         export_extras=True,
-                        export_gpu_instances=True,  # Enable GPU instancing
+                        export_gpu_instances=True,  # Always enable GPU instancing
                         check_existing=False
                     )
                     
-                    print(f"Exported instanced group: {parent_obj.name} with {len(objects)} instances")
+                    # Step 3.8: Registra il gruppo di istanze per l'esportazione JSON
+                    exported_models[primary_obj.name] = [obj.name for obj in objects]
+                    
+                    print(f"Exported instanced group: {primary_obj.name} with {len(objects)} instances")
                     exported_count += 1
                     
-                    # Compressione texture (dopo l'esportazione)
+                    # Step 3.9: Compressione texture (dopo l'esportazione)
                     if scene.heriverse_enable_compression:
                         self.compress_textures_for_model(export_file, scene)
                     
                 except Exception as e:
                     self.report({'WARNING'}, f"Failed to export instanced group {mesh_name}: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
                 
                 finally:
-                    # Deselect all
+                    # Step 3.10: Deselect all e ripristina visibilità
                     bpy.ops.object.select_all(action='DESELECT')
+                    for obj in objects:
+                        if hasattr(obj, 'was_hidden') and obj.was_hidden:
+                            obj.hide_viewport = True
         
         self.report({'INFO'}, f"Exported {exported_count} RM models")
+        
+        # Aggiungi i dati di instancing alle proprietà dell'operatore per uso nell'esportazione JSON
+        self.instanced_objects = instanced_objects
+        self.exported_models = exported_models
+        
         return exported_count > 0
 
-
+    def update_json_for_instancing(self, json_data):
+        """
+        Aggiorna i dati JSON per riflettere le relazioni di instancing.
+        Da chiamare dopo l'esportazione del JSON principale.
+        """
+        # Verifica se abbiamo dati di istanziazione
+        if not hasattr(self, 'instanced_objects') or not hasattr(self, 'exported_models'):
+            return json_data
+        
+        if len(self.instanced_objects) == 0:
+            return json_data
+        
+        # Itera attraverso tutti i grafi nel JSON
+        if 'graphs' in json_data:
+            for graph_id, graph_data in json_data['graphs'].items():
+                # Modifica i nodi RM per riflettere l'instancing
+                if 'nodes' in graph_data and 'representation_models' in graph_data['nodes']:
+                    rm_nodes = graph_data['nodes']['representation_models']
+                    
+                    # Per ogni modello primario, aggiungi informazioni sulle istanze
+                    for primary_name, instances in self.exported_models.items():
+                        if primary_name in rm_nodes:
+                            primary_node = rm_nodes[primary_name]
+                            
+                            # Aggiungi informazioni sulle istanze
+                            if 'data' not in primary_node:
+                                primary_node['data'] = {}
+                            
+                            primary_node['data']['instances'] = instances
+                            primary_node['data']['is_instance_group'] = True
+                    
+                    # Rimuovi i nodi assorbiti come istanze
+                    for rm_name in list(rm_nodes.keys()):
+                        if rm_name in self.instanced_objects:
+                            del rm_nodes[rm_name]
+        
+        return json_data
 
     def compress_textures_for_model(self, model_path, scene):
         """Compress textures for an exported model, EMviq style"""
@@ -674,6 +728,22 @@ class HERIVERSE_OT_export(Operator):
                     
                     if result == {'FINISHED'}:
                         print("JSON export completed successfully")
+
+                        if hasattr(self, 'instanced_objects') and len(self.instanced_objects) > 0:
+                            # Leggi il file JSON
+                            with open(json_path, 'r') as f:
+                                json_data = json.load(f)
+                            
+                            # Aggiorna con informazioni sulle istanze
+                            json_data = self.update_json_for_instancing(json_data)
+                            
+                            # Scrivi il file JSON aggiornato
+                            with open(json_path, 'w') as f:
+                                json.dump(json_data, f, indent=4)
+                                
+                            print(f"Updated JSON with instancing information for {len(self.instanced_objects)} objects")
+
+
                     else:
                         self.report({'ERROR'}, "JSON export failed")
                         return {'CANCELLED'}
