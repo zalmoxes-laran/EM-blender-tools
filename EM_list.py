@@ -369,8 +369,11 @@ class EM_ToolsPanel:
         current_epoch = scene.epoch_list[scene.epoch_list_index].name
         col.label(text=current_epoch, icon="SORTTIME")
         col = split.column()
-        current_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
-        col.label(text=current_activity, icon="NETWORK_DRIVE")
+        if len(scene.activity_manager.activities) > 0:
+            current_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
+            col.label(text=current_activity, icon="NETWORK_DRIVE")
+        else:
+            col.label(text="No activities", icon="WARNING_LARGE")
 
         row = layout.row()
 
