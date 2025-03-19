@@ -235,6 +235,108 @@ class HERIVERSE_OT_export(Operator):
             self.report({'ERROR'}, f"Failed to export panorama: {str(e)}")
             return False
 
+    def compress_textures_in_folder(self, folder_path, scene):
+        """
+        Compresses all textures in a folder and its subfolders in a single pass.
+        
+        Args:
+            folder_path (str): Path to the folder containing textures to compress
+            scene (bpy.types.Scene): Blender scene containing compression settings
+        """
+        if not scene.heriverse_enable_compression:
+            return
+            
+        # Import required libraries
+        import os
+        
+        try:
+            # Import Pillow
+            from PIL import Image
+            
+            print(f"\n=== Compressing all textures in {folder_path} ===")
+            
+            # Settings
+            max_res = scene.heriverse_texture_max_res
+            quality = scene.heriverse_texture_quality
+            
+            # Track statistics
+            total_processed = 0
+            total_resized = 0
+            total_size_before = 0
+            total_size_after = 0
+            
+            # Process all image files in the directory and subdirectories
+            for root, dirs, files in os.walk(folder_path):
+                for filename in files:
+                    if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.tga')):
+                        file_path = os.path.join(root, filename)
+                        
+                        try:
+                            # Get original file size
+                            file_size_before = os.path.getsize(file_path)
+                            total_size_before += file_size_before
+                            
+                            # Open the image with Pillow
+                            img = Image.open(file_path)
+                            
+                            # Check if resizing is needed
+                            width, height = img.size
+                            needs_resize = max(width, height) > max_res
+                            
+                            if needs_resize:
+                                # Calculate new dimensions while preserving aspect ratio
+                                if width > height:
+                                    new_width = max_res
+                                    new_height = int(height * (max_res / width))
+                                else:
+                                    new_height = max_res
+                                    new_width = int(width * (max_res / height))
+                                    
+                                # Use high-quality resampling
+                                img = img.resize((new_width, new_height), Image.LANCZOS)
+                                total_resized += 1
+                            
+                            # Save with appropriate format and compression
+                            if img.mode == 'RGBA' and filename.lower().endswith('.png'):
+                                # Save as PNG with compression for transparency
+                                img.save(file_path, 'PNG', optimize=True)
+                            else:
+                                # Convert to RGB if needed and save as JPEG
+                                if img.mode != 'RGB':
+                                    img = img.convert('RGB')
+                                img.save(file_path, 'JPEG', quality=quality, optimize=True)
+                            
+                            # Get new file size
+                            file_size_after = os.path.getsize(file_path)
+                            total_size_after += file_size_after
+                            
+                            total_processed += 1
+                            
+                        except Exception as e:
+                            print(f"Error processing {filename}: {str(e)}")
+            
+            # Calculate size reduction
+            size_reduction_mb = (total_size_before - total_size_after) / (1024 * 1024)
+            percentage_reduction = ((total_size_before - total_size_after) / total_size_before * 100) if total_size_before > 0 else 0
+            
+            print(f"Texture compression summary:")
+            print(f"- Total textures processed: {total_processed}")
+            print(f"- Textures resized: {total_resized}")
+            print(f"- Size before: {total_size_before / (1024 * 1024):.2f} MB")
+            print(f"- Size after: {total_size_after / (1024 * 1024):.2f} MB")
+            print(f"- Size reduction: {size_reduction_mb:.2f} MB ({percentage_reduction:.1f}%)")
+            
+            return total_processed
+            
+        except ImportError:
+            print("PIL (Pillow) library not available, skipping texture compression")
+            return 0
+        except Exception as e:
+            print(f"Error during texture compression: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return 0
+
     # Modifica alla funzione export_rm per supportare GPU instances
     def export_rm(self, context, export_folder):
         """Export representation models with GPU instancing support"""
@@ -328,10 +430,6 @@ class HERIVERSE_OT_export(Operator):
                     exported_count += 1
                     print(f"Exported RM: {obj.name}")
                     
-                    # Compressione texture (dopo l'esportazione)
-                    if scene.heriverse_enable_compression:
-                        self.compress_textures_for_model(export_file, scene)
-                    
                 except Exception as e:
                     self.report({'WARNING'}, f"Failed to export RM {obj.name}: {str(e)}")
                     obj.select_set(False)
@@ -393,10 +491,6 @@ class HERIVERSE_OT_export(Operator):
                     print(f"Exported instanced group: {primary_obj.name} with {len(objects)} instances")
                     exported_count += 1
                     
-                    # Step 3.9: Compressione texture (dopo l'esportazione)
-                    if scene.heriverse_enable_compression:
-                        self.compress_textures_for_model(export_file, scene)
-                    
                 except Exception as e:
                     self.report({'WARNING'}, f"Failed to export instanced group {mesh_name}: {str(e)}")
                     import traceback
@@ -454,100 +548,6 @@ class HERIVERSE_OT_export(Operator):
                             del rm_nodes[rm_name]
         
         return json_data
-
-    def compress_textures_for_model(self, model_path, scene):
-        """Compress textures using Pillow for better color preservation"""
-
-        try:
-            # Import Pillow
-            from PIL import Image
-            
-            # Get base directory where textures might be stored
-            base_dir = os.path.dirname(model_path)
-            model_name = os.path.splitext(os.path.basename(model_path))[0]
-            
-            print(f"\n=== Compressing textures for {model_name} using Pillow ===")
-            
-            # Find texture directories (similar to before)
-            possible_texture_dirs = [
-                os.path.join(base_dir, f"{model_name}_img"),
-                os.path.join(base_dir, "textures"),
-                os.path.join(base_dir, f"{model_name}", "textures"),
-                base_dir
-            ]
-            
-            # Add any subdirectories that might contain textures
-            for root, dirs, files in os.walk(base_dir):
-                for dir_name in dirs:
-                    if "texture" in dir_name.lower() or "img" in dir_name.lower():
-                        possible_texture_dirs.append(os.path.join(root, dir_name))
-            
-            # Find directories that contain images
-            texture_dirs = []
-            for dir_path in possible_texture_dirs:
-                if os.path.exists(dir_path) and os.path.isdir(dir_path):
-                    image_count = sum(1 for f in os.listdir(dir_path) 
-                                    if f.lower().endswith(('.jpg', '.jpeg', '.png')))
-                    if image_count > 0:
-                        texture_dirs.append(dir_path)
-            
-            if not texture_dirs:
-                print(f"No texture directories found for {model_path}")
-                return
-                
-            print(f"Found texture directories: {texture_dirs}")
-            
-            # Process all textures with Pillow
-            max_res = scene.heriverse_texture_max_res
-            quality = scene.heriverse_texture_quality
-            total_processed = 0
-            
-            for texture_dir in texture_dirs:
-                for filename in os.listdir(texture_dir):
-                    if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
-                        file_path = os.path.join(texture_dir, filename)
-                        
-                        try:
-                            # Open the image with Pillow
-                            img = Image.open(file_path)
-                            
-                            # Check if resizing is needed
-                            width, height = img.size
-                            if max(width, height) > max_res:
-                                # Calculate new dimensions while preserving aspect ratio
-                                if width > height:
-                                    new_width = max_res
-                                    new_height = int(height * (max_res / width))
-                                else:
-                                    new_height = max_res
-                                    new_width = int(width * (max_res / height))
-                                    
-                                # Use high-quality resampling
-                                img = img.resize((new_width, new_height), Image.LANCZOS)
-                                print(f"Resized {filename} from {width}x{height} to {new_width}x{new_height}")
-                            
-                            # Ensure we're preserving color modes
-                            if img.mode == 'RGBA' and filename.lower().endswith('.png'):
-                                # Save as PNG with alpha
-                                img.save(file_path, 'PNG', optimize=True)
-                            else:
-                                # Convert to RGB if needed and save as JPEG
-                                if img.mode != 'RGB':
-                                    img = img.convert('RGB')
-                                img.save(file_path, 'JPEG', quality=quality, optimize=True)
-                                
-                            total_processed += 1
-                            print(f"Processed {filename} with Pillow")
-                            
-                        except Exception as e:
-                            print(f"Error processing {filename}: {str(e)}")
-                            
-            print(f"Total textures processed with Pillow: {total_processed}")
-            
-        except Exception as e:
-            print(f"Error in compress_textures_for_model: {str(e)}")
-            import traceback
-            traceback.print_exc()
 
     def export_textures(self, obj, textures_dir, context):
         """Export textures for an object with optional compression"""
@@ -692,7 +692,6 @@ class HERIVERSE_OT_export(Operator):
         
         return zip_path
 
-
     def execute(self, context):
         scene = context.scene
         export_vars = context.window_manager.export_vars
@@ -815,6 +814,8 @@ class HERIVERSE_OT_export(Operator):
                         print("No Proxy collection found")
 
                 # Esporta i modelli RM se richiesto
+                models_exported = False
+                models_path = None
                 if export_vars.heriverse_export_rm:
                     print("\n--- Starting RM Export ---")
                     models_path = os.path.join(project_path, "models")
@@ -838,6 +839,7 @@ class HERIVERSE_OT_export(Operator):
                             layer_collection.exclude = False
                     
                     result = self.export_rm(context, models_path)
+                    models_exported = result
                     if result:
                         print("RM export completed successfully")
                     else:
@@ -865,7 +867,12 @@ class HERIVERSE_OT_export(Operator):
                     if result:
                         print("Panorama export completed successfully")
                     else:
-                        print("Panorama export failed or was skipped")                
+                        print("Panorama export failed or was skipped")
+                
+                # Compress all textures at once if texture compression is enabled and RM models were exported
+                if scene.heriverse_enable_compression and models_exported and models_path:
+                    print("\n--- Starting Texture Compression ---")
+                    self.compress_textures_in_folder(models_path, scene)
 
             finally:
                 # Ripristina lo stato delle collezioni
