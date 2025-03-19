@@ -388,16 +388,23 @@ class EM_ToolsPanel:
             col = split.column()
             row.prop(item, "name", text="")
             
+            # type node
+            split = row.split()
+            col = split.column()
+            row.label(text="  Type: "+item.node_type)
+            #row.prop(item, "node_type", text="")
+
             # Aggiunta toggle visibilità
             if hasattr(item, "is_visible"):
                 icon = 'HIDE_OFF' if item.is_visible else 'HIDE_ON'
                 op = row.operator("em.strat_toggle_visibility", text="", icon=icon)
                 if op:
                     op.index = scene.em_list_index
-            
+
+            # link proxy and US
             split = row.split()
             col = split.column()
-            op = col.operator("listitem.toobj", icon="PASTEDOWN", text='')
+            op = col.operator("listitem.toobj", icon="LINK_BLEND", text='')
             if op:
                 op.list_type = "em_list"
             

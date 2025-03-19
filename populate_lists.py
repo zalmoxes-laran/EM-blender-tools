@@ -77,6 +77,8 @@ def populate_stratigraphic_node(scene, node, index, graph):
     em_item.border_style = node.attributes.get('border_style', "")
     em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
     em_item.id_node = node.node_id
+    em_item.node_type = node.node_type  # Save the node type in the list
+
     
     # Set visibility status based on actual viewport visibility
     obj = bpy.data.objects.get(node.name)

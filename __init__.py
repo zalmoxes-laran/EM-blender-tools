@@ -325,6 +325,12 @@ class EMListItem(bpy.types.PropertyGroup):
            description="Whether this item is visible in the viewport",
            default=True) # type: ignore
 
+    node_type: prop.StringProperty(
+           name="Node Type",
+           description="The type of this node",
+           default="") # type: ignore
+
+
 class EMreusedUS(bpy.types.PropertyGroup):
     """ Group of properties representing an item in the list """
 

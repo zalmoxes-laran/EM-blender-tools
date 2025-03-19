@@ -150,7 +150,7 @@ class JSONExporter:
             # Add node to appropriate category
             if node.node_type == "author":
                 nodes["authors"][node.node_id] = node_data
-            elif node.node_type in ["US", "USVs", "SF", "USVn", "USD"]:
+            elif node.node_type in ["US", "USVs", "SF", "USVn", "USD", "VSF", "serSU", "serUSVn", "serUSVs", "TSU", "SE", "unknown"]:
                 nodes["stratigraphic"][node.node_type][node.node_id] = node_data
             elif node.node_type == "epoch":
                 node_data = {
