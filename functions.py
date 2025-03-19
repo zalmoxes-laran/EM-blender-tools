@@ -19,6 +19,213 @@ from .s3Dgraphy.utils.utils import get_material_color
 from .s3Dgraphy.nodes.link_node import LinkNode
 from .s3Dgraphy import load_graph, get_graph
 
+import platform
+from pathlib import Path
+
+def normalize_path(path):
+    """
+    Normalizza un percorso per renderlo compatibile con il sistema operativo corrente.
+    
+    Args:
+        path (str): Percorso da normalizzare
+        
+    Returns:
+        str: Percorso normalizzato
+    """
+    if not path:
+        return ""
+        
+    # Converti in oggetto Path
+    path_obj = Path(path)
+    
+    # Gestione percorsi assoluti
+    if os.path.isabs(path):
+        # Windows utilizza '\' come separatore ma può accettare anche '/'
+        # macOS e Linux utilizzano '/'
+        return str(path_obj)
+    
+    # Se il percorso è relativo, lo rendiamo assoluto
+    abs_path = bpy.path.abspath(path)
+    return str(Path(abs_path))
+
+def create_directory(path):
+    """
+    Crea una directory se non esiste.
+    
+    Args:
+        path (str): Percorso della directory da creare
+        
+    Returns:
+        str: Percorso normalizzato della directory creata
+        
+    Raises:
+        OSError: Se non è possibile creare la directory
+    """
+    if not path:
+        raise ValueError("Path cannot be empty")
+        
+    # Normalizza il percorso
+    norm_path = normalize_path(path)
+    
+    # Crea la directory se non esiste
+    os.makedirs(norm_path, exist_ok=True)
+    
+    return norm_path
+
+def check_export_path(context, show_message=True):
+    """
+    Verifica che il percorso di export sia valido e accessibile.
+    
+    Args:
+        context (bpy.context): Contesto Blender
+        show_message (bool): Se True, mostra un messaggio di errore
+        
+    Returns:
+        bool: True se il percorso è valido, False altrimenti
+    """
+    scene = context.scene
+    
+    # Verifica se esiste un percorso di export
+    if not scene.heriverse_export_path:
+        if show_message:
+            show_popup_message(
+                context,
+                "Export path not specified",
+                "Please set an export path in the Heriverse Export panel",
+                'ERROR'
+            )
+        return False
+    
+    # Normalizza e verifica il percorso
+    try:
+        export_path = normalize_path(scene.heriverse_export_path)
+        
+        # Verifica se la directory esiste o può essere creata
+        if not os.path.exists(export_path):
+            try:
+                os.makedirs(export_path, exist_ok=True)
+            except Exception as e:
+                if show_message:
+                    show_popup_message(
+                        context,
+                        "Export directory error",
+                        f"Cannot create export directory: {str(e)}",
+                        'ERROR'
+                    )
+                return False
+        
+        # Verifica se abbiamo permessi di scrittura
+        if not os.access(export_path, os.W_OK):
+            if show_message:
+                show_popup_message(
+                    context,
+                    "Permission error",
+                    f"Cannot write to export directory: {export_path}",
+                    'ERROR'
+                )
+            return False
+            
+        return True
+        
+    except Exception as e:
+        if show_message:
+            show_popup_message(
+                context,
+                "Path error",
+                f"Invalid export path: {str(e)}",
+                'ERROR'
+            )
+        return False
+
+def check_graph_loaded(context, show_message=True):
+    """
+    Verifica che almeno un grafo sia caricato.
+    
+    Args:
+        context (bpy.context): Contesto Blender
+        show_message (bool): Se True, mostra un messaggio di errore
+        
+    Returns:
+        bool: True se almeno un grafo è caricato, False altrimenti
+    """
+    from .s3Dgraphy import get_all_graph_ids
+    
+    graph_ids = get_all_graph_ids()
+    
+    if not graph_ids:
+        if show_message:
+            show_popup_message(
+                context,
+                "No graph loaded",
+                "Please load a GraphML file first in the EM Setup panel",
+                'ERROR'
+            )
+        return False
+    
+    return True
+
+def check_active_graph(context, show_message=True):
+    """
+    Verifica che ci sia un grafo attivo.
+    
+    Args:
+        context (bpy.context): Contesto Blender
+        show_message (bool): Se True, mostra un messaggio di errore
+        
+    Returns:
+        tuple: (bool, graph) dove bool indica se c'è un grafo attivo,
+               e graph è l'oggetto grafo o None
+    """
+    from .s3Dgraphy import get_graph
+    
+    em_tools = context.scene.em_tools
+    
+    # Verifica se c'è un file GraphML attivo
+    if em_tools.active_file_index < 0 or em_tools.active_file_index >= len(em_tools.graphml_files):
+        if show_message:
+            show_popup_message(
+                context,
+                "No active GraphML file",
+                "Please select a GraphML file in the EM Setup panel",
+                'ERROR'
+            )
+        return False, None
+    
+    # Prova a ottenere il grafo attivo
+    graphml = em_tools.graphml_files[em_tools.active_file_index]
+    graph = get_graph(graphml.name)
+    
+    if not graph:
+        if show_message:
+            show_popup_message(
+                context,
+                "Graph not loaded",
+                f"Graph '{graphml.name}' is not properly loaded. Try reloading it.",
+                'ERROR'
+            )
+        return False, None
+    
+    return True, graph
+
+def show_popup_message(context, title, message, icon='INFO'):
+    """
+    Mostra un messaggio popup all'utente.
+    
+    Args:
+        context (bpy.context): Contesto Blender
+        title (str): Titolo del popup
+        message (str): Messaggio da mostrare
+        icon (str): Icona da mostrare (INFO, ERROR, WARNING, etc.)
+    """
+    def draw(self, context):
+        lines = message.split('\n')
+        for line in lines:
+            self.layout.label(text=line)
+    
+    context.window_manager.popup_menu(draw, title=title, icon=icon)
+
+
+##################
 
 def is_graph_available(context):
     """
