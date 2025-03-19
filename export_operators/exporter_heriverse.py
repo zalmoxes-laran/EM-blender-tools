@@ -1,5 +1,5 @@
 import bpy
-from bpy.props import BoolProperty, StringProperty
+from bpy.props import BoolProperty, StringProperty, IntProperty
 from bpy.types import Operator, AddonPreferences, Panel
 from bpy_extras.io_utils import ExportHelper
 from ..s3Dgraphy.exporter.json_exporter import JSONExporter
@@ -31,7 +31,7 @@ def clean_filename(filename: str) -> str:
         
     # Remove any other non-ASCII characters
     filename = ''.join(c for c in filename if c.isascii())
-    
+        
     return filename
 
 class JSON_OT_exportEMformat(Operator, ExportHelper):
@@ -46,13 +46,13 @@ class JSON_OT_exportEMformat(Operator, ExportHelper):
         name="Use File Dialog",
         description="Use the file dialog to choose where to save the JSON",
         default=True
-    ) # type: ignore
+    )
 
     filepath: StringProperty(
         name="File Path",
         description="Path to save the JSON file",
         default=""
-    ) # type: ignore
+    )
 
     def invoke(self, context, event):
         if self.use_file_dialog:
@@ -272,13 +272,19 @@ class HERIVERSE_OT_export(Operator):
                 
             publishable_rm_objects.append(obj)
         
-        # Step 2: Raggruppa per mesh condivisa
-        for obj in publishable_rm_objects:
-            if obj.data:
-                mesh_name = obj.data.name
-                if mesh_name not in mesh_groups:
-                    mesh_groups[mesh_name] = []
-                mesh_groups[mesh_name].append(obj)
+        # Step 2: Raggruppa per mesh condivisa (solo se GPU instancing è abilitato)
+        if export_vars.heriverse_use_gpu_instancing:
+            for obj in publishable_rm_objects:
+                if obj.data:
+                    mesh_name = obj.data.name
+                    if mesh_name not in mesh_groups:
+                        mesh_groups[mesh_name] = []
+                    mesh_groups[mesh_name].append(obj)
+        else:
+            # Se GPU instancing è disabilitato, ogni oggetto va da solo
+            for obj in publishable_rm_objects:
+                mesh_name = f"{obj.name}_unique"
+                mesh_groups[mesh_name] = [obj]
         
         print(f"Found {len(mesh_groups)} different meshes in {len(publishable_rm_objects)} publishable RM objects")
         
@@ -286,7 +292,7 @@ class HERIVERSE_OT_export(Operator):
         
         # Step 3: Process each group
         for mesh_name, objects in mesh_groups.items():
-            if len(objects) == 1:
+            if len(objects) == 1 or not export_vars.heriverse_use_gpu_instancing:
                 # Single object, export normally
                 obj = objects[0]
                 try:
@@ -309,6 +315,9 @@ class HERIVERSE_OT_export(Operator):
                         export_materials='EXPORT',
                         use_selection=True,
                         export_apply=True,
+                        export_image_format='AUTO',
+                        export_texture_dir="",
+                        export_keep_originals=False,
                         check_existing=False
                     )
                     
@@ -327,8 +336,8 @@ class HERIVERSE_OT_export(Operator):
                     self.report({'WARNING'}, f"Failed to export RM {obj.name}: {str(e)}")
                     obj.select_set(False)
             
-            else:
-                # Multiple objects with same mesh - potential for instancing
+            elif len(objects) > 1 and export_vars.heriverse_use_gpu_instancing:
+                # Multiple objects with same mesh - instancing enabled
                 try:
                     # Step 3.1: Deselect all
                     bpy.ops.object.select_all(action='DESELECT')
@@ -371,8 +380,11 @@ class HERIVERSE_OT_export(Operator):
                         use_selection=True,
                         export_apply=True,
                         export_extras=True,
-                        export_gpu_instances=True,  # Always enable GPU instancing
-                        check_existing=False
+                        export_gpu_instances=True,  # Sempre attivo per l'instancing
+                        check_existing=False,
+                        export_image_format='AUTO',
+                        export_texture_dir="",
+                        export_keep_originals=False
                     )
                     
                     # Step 3.8: Registra il gruppo di istanze per l'esportazione JSON
@@ -450,6 +462,11 @@ class HERIVERSE_OT_export(Operator):
             base_dir = os.path.dirname(model_path)
             model_name = os.path.splitext(os.path.basename(model_path))[0]
             
+            # Log per debug
+            print(f"\n=== Compressing textures for {model_name} ===")
+            print(f"Base directory: {base_dir}")
+            print(f"Model name: {model_name}")
+            
             # Possibili percorsi delle texture
             possible_texture_dirs = [
                 os.path.join(base_dir, f"{model_name}_img"),  # Il percorso che stavi cercando
@@ -458,27 +475,36 @@ class HERIVERSE_OT_export(Operator):
                 os.path.dirname(base_dir)                     # Directory superiore
             ]
             
-            textures_dir = None
+            # Cerca ricorsivamente nelle sottodirectory
+            all_subdirs = []
+            for root, dirs, files in os.walk(base_dir):
+                all_subdirs.append(root)
+                for dir_name in dirs:
+                    if "texture" in dir_name.lower() or "img" in dir_name.lower():
+                        possible_texture_dirs.append(os.path.join(root, dir_name))
+                
+            possible_texture_dirs.extend(all_subdirs)
+            
+            print(f"Possibili percorsi texture: {possible_texture_dirs}")
+            
+            textures_dirs_found = []
             for dir_path in possible_texture_dirs:
                 if os.path.exists(dir_path) and os.path.isdir(dir_path):
-                    textures_dir = dir_path
-                    break
-            
-            if not textures_dir:
-                # Cerca nelle sottodirectory
-                for root, dirs, files in os.walk(base_dir):
-                    for dir_name in dirs:
-                        if "texture" in dir_name.lower() or "img" in dir_name.lower():
-                            textures_dir = os.path.join(root, dir_name)
+                    # Verifica se contiene immagini
+                    has_images = False
+                    for filename in os.listdir(dir_path):
+                        if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+                            has_images = True
                             break
-                    if textures_dir:
-                        break
+                    
+                    if has_images:
+                        textures_dirs_found.append(dir_path)
             
-            if not textures_dir:
-                print(f"No texture directory found for {model_path}")
+            if not textures_dirs_found:
+                print(f"No texture directories with images found for {model_path}")
                 return
             
-            print(f"Compressing textures in: {textures_dir}")
+            print(f"Texture directories found: {textures_dirs_found}")
             
             # Store original render settings
             original_format = scene.render.image_settings.file_format
@@ -487,46 +513,80 @@ class HERIVERSE_OT_export(Operator):
             # Set compression settings
             scene.render.image_settings.file_format = 'JPEG'
             scene.render.image_settings.quality = scene.heriverse_texture_quality
-            max_res = scene.heriverse_texture_max_res  # Store the value to ensure it's used consistently
-
-            print(f"Using texture compression settings: Max Resolution = {max_res}, Quality = {scene.heriverse_texture_quality}")
-
-            # Process each texture in the directory
-            for filename in os.listdir(textures_dir):
-                if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
-                    texture_path = os.path.join(textures_dir, filename)
-                    
-                    # Load the image
-                    img = bpy.data.images.load(texture_path)
-                    print(f"Processing texture: {filename}, Original size: {img.size[0]}x{img.size[1]}")
-                    
-                    # Check if resizing is needed
-                    need_resize = (img.size[0] > max_res or img.size[1] > max_res)
-                    
-                    if need_resize:
-                        # Calculate new dimensions
-                        max_dim = max(img.size[0], img.size[1])
-                        scale_factor = max_res / max_dim  # Use the stored value
-                        new_width = int(img.size[0] * scale_factor)
-                        new_height = int(img.size[1] * scale_factor)
-                        print(f"Resizing {filename} from {img.size[0]}x{img.size[1]} to {new_width}x{new_height}")
+            max_res = scene.heriverse_texture_max_res
+            
+            print(f"Compression settings: Format={scene.render.image_settings.file_format}, Quality={scene.heriverse_texture_quality}, MaxRes={max_res}")
+            
+            # Process all texture directories with images
+            total_processed = 0
+            
+            for textures_dir in textures_dirs_found:
+                dir_processed = 0
+                
+                for filename in os.listdir(textures_dir):
+                    if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+                        texture_path = os.path.join(textures_dir, filename)
+                        print(f"Processing texture: {texture_path}")
                         
-                        print(f"Resizing {filename} from {img.size[0]}x{img.size[1]} to {new_width}x{new_height}")
-                        img.scale(new_width, new_height)
-                    
-                    # Save with compression
-                    img.save_render(texture_path)
-                    print(f"Compressed: {filename}")
-                    
-                    # Remove the image from memory
-                    bpy.data.images.remove(img)
+                        # Carica l'immagine utilizzando Blender
+                        try:
+                            img = None
+                            
+                            # Verifica se l'immagine è già caricata
+                            for loaded_img in bpy.data.images:
+                                if loaded_img.filepath == texture_path:
+                                    img = loaded_img
+                                    break
+                            
+                            # Se non è già caricata, caricala
+                            if img is None:
+                                img = bpy.data.images.load(texture_path)
+                            
+                            print(f"Image loaded: {img.name}, Size: {img.size[0]}x{img.size[1]}")
+                            
+                            # Verifica se necessita ridimensionamento
+                            need_resize = (img.size[0] > max_res or img.size[1] > max_res)
+                            
+                            # Crea una copia temporanea per non modificare l'originale
+                            temp_img = img.copy()
+                            
+                            if need_resize:
+                                max_dim = max(temp_img.size[0], temp_img.size[1])
+                                scale_factor = max_res / max_dim
+                                new_width = int(temp_img.size[0] * scale_factor)
+                                new_height = int(temp_img.size[1] * scale_factor)
+                                print(f"Resizing from {temp_img.size[0]}x{temp_img.size[1]} to {new_width}x{new_height}")
+                                
+                                # Ridimensiona
+                                temp_img.scale(new_width, new_height)
+                            
+                            # Salva con la compressione
+                            print(f"Saving compressed image to: {texture_path}")
+                            temp_img.filepath_raw = texture_path  # Imposta il percorso di output
+                            temp_img.file_format = 'JPEG'
+                            temp_img.save_render(texture_path)
+                            
+                            # Rimuovi l'immagine temporanea
+                            bpy.data.images.remove(temp_img)
+                            
+                            dir_processed += 1
+                            total_processed += 1
+                            
+                        except Exception as e:
+                            print(f"Error processing image {filename}: {str(e)}")
+                            import traceback
+                            traceback.print_exc()
+                
+                print(f"Processed {dir_processed} textures in {textures_dir}")
             
             # Restore original settings
             scene.render.image_settings.file_format = original_format
             scene.render.image_settings.quality = original_quality
             
+            print(f"Total textures processed: {total_processed}")
+            
         except Exception as e:
-            print(f"Error compressing textures: {str(e)}")
+            print(f"Error in compress_textures_for_model: {str(e)}")
             import traceback
             traceback.print_exc()
 
@@ -696,14 +756,12 @@ class HERIVERSE_OT_export(Operator):
             
             print(f"Project path: {project_path}")
             print(f"Project name: {project_name}")
+            print(f"Using GPU instancing: {export_vars.heriverse_use_gpu_instancing}")
             
             # Crea la directory del progetto
             os.makedirs(project_path, exist_ok=True)
             print("Created project directory")
 
-
-   
-            
             # Salva lo stato delle collezioni
             collection_states = {}
             for collection in bpy.data.collections:
@@ -859,7 +917,7 @@ class HERIVERSE_OT_export(Operator):
             print(traceback.format_exc())
             self.report({'ERROR'}, f"Export failed: {str(e)}")
             return {'CANCELLED'}
-        
+
 def find_layer_collection(layer_collection, collection_name):
     """Trova ricorsivamente un layer_collection dato il nome della collection"""
     if layer_collection.name == collection_name:

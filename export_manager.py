@@ -105,6 +105,9 @@ class EM_ExportPanel:
                     col.prop(export_vars, "heriverse_draco_level", text="Compression Level")
                 col.prop(export_vars, "heriverse_separate_textures", text="Separate Textures")
                 
+                # Add the GPU instancing option here
+                col.prop(export_vars, "heriverse_use_gpu_instancing", text="Use GPU Instancing")
+                
                 # Add texture compression options when separate textures is enabled
                 if export_vars.heriverse_separate_textures:
                     box_comp = box.box()
@@ -121,6 +124,7 @@ class EM_ExportPanel:
                         
                         row_comp = box_comp.row()
                         row_comp.label(text="Quality: 100=lossless, 80=good, 60=compressed, 40=heavily compressed")
+
 
 
         # EMviq Export Section

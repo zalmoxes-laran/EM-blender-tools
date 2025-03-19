@@ -23,7 +23,7 @@ bl_info = {
     "version": (1, 5, 0),  # This is fine as a tuple
     "blender": (4, 0, 0),  # Make sure this matches the minimum Blender version you support
     "location": "3D View > Toolbox",
-    "warning": "dev20",
+    "warning": "1.5.0 dev21",
     "wiki_url": "",
     "category": "Tools",
 }
@@ -394,101 +394,109 @@ class EM_epochs_belonging_ob(bpy.types.PropertyGroup):
            default="Untitled") # type: ignore
 
 class ExportVars(bpy.types.PropertyGroup):
-       format_file : bpy.props.EnumProperty(
-              items=[
-              ('gltf','gltf','gltf','', 0),
-              ('obj','obj','obj','', 1),
-              ('fbx','fbx','fbx','', 2),
-              ],
-              default='gltf'
-       ) # type: ignore
+    format_file : bpy.props.EnumProperty(
+            items=[
+            ('gltf','gltf','gltf','', 0),
+            ('obj','obj','obj','', 1),
+            ('fbx','fbx','fbx','', 2),
+            ],
+            default='gltf'
+    ) # type: ignore
 
-       heriverse_expanded: BoolProperty(
-              name="Show Heriverse export options",
-              description="Expand/Collapse Heriverse export options",
-              default=False
-       ) # type: ignore
+    heriverse_expanded: BoolProperty(
+            name="Show Heriverse export options",
+            description="Expand/Collapse Heriverse export options",
+            default=False
+    ) # type: ignore
 
 
-       emviq_expanded: BoolProperty(
-              name="Show Emviq export options",
-              description="Expand/Collapse Emviq export options",
-              default=False
-       ) # type: ignore
+    emviq_expanded: BoolProperty(
+            name="Show Emviq export options",
+            description="Expand/Collapse Emviq export options",
+            default=False
+    ) # type: ignore
 
-       heriverse_project_name: StringProperty(
-              name="Project Name", 
-              description="Name of the Heriverse project",
-              default=""
-       ) # type: ignore
+    heriverse_project_name: StringProperty(
+            name="Project Name", 
+            description="Name of the Heriverse project",
+            default=""
+    ) # type: ignore
 
-       heriverse_export_path: StringProperty(
-              name="Export Path",
-              description="Path where to export Heriverse project",
-              subtype='DIR_PATH'
-       ) # type: ignore
+    heriverse_export_path: StringProperty(
+            name="Export Path",
+            description="Path where to export Heriverse project",
+            subtype='DIR_PATH'
+    ) # type: ignore
 
-       heriverse_export_all_graphs: BoolProperty(
-              name="Export all graphs",
-              description="Export all loaded graphs instead of just the selected one",
-              default=False
-       ) # type: ignore
+    heriverse_export_all_graphs: BoolProperty(
+            name="Export all graphs",
+            description="Export all loaded graphs instead of just the selected one",
+            default=False
+    ) # type: ignore
 
-       heriverse_overwrite_json: BoolProperty(
-              name="Overwrite JSON",
-              description="Overwrite existing JSON file",
-              default=True
-       ) # type: ignore
+    heriverse_overwrite_json: BoolProperty(
+            name="Overwrite JSON",
+            description="Overwrite existing JSON file",
+            default=True
+    ) # type: ignore
 
-       heriverse_export_dosco: BoolProperty(
-              name="Export DosCo files",
-              description="Copy DosCo files to output",
-              default=True
-       ) # type: ignore
+    heriverse_export_dosco: BoolProperty(
+            name="Export DosCo files",
+            description="Copy DosCo files to output",
+            default=True
+    ) # type: ignore
 
-       heriverse_export_proxies: BoolProperty(
-              name="Export proxies",
-              description="Export proxy models",
-              default=True
-       ) # type: ignore
+    heriverse_export_proxies: BoolProperty(
+            name="Export proxies",
+            description="Export proxy models",
+            default=True
+    ) # type: ignore
 
-       heriverse_export_rm: BoolProperty(
-              name="Export RM",
-              description="Export representation models",
-              default=True
-       ) # type: ignore
+    heriverse_export_rm: BoolProperty(
+            name="Export RM",
+            description="Export representation models",
+            default=True
+    ) # type: ignore
 
-       heriverse_create_zip: BoolProperty(
-              name="Create ZIP archive",
-              description="Create a ZIP archive of the exported project",
-              default=True
-       ) # type: ignore
+    heriverse_create_zip: BoolProperty(
+            name="Create ZIP archive",
+            description="Create a ZIP archive of the exported project",
+            default=True
+    ) # type: ignore
 
-       heriverse_advanced_options: BoolProperty(
-       name="Show advanced options",
-       description="Show advanced export options like compression settings",
-       default=False
-       ) # type: ignore
+    heriverse_advanced_options: BoolProperty(
+    name="Show advanced options",
+    description="Show advanced export options like compression settings",
+    default=False
+    ) # type: ignore
 
-       heriverse_use_draco: BoolProperty(
-       name="Use Draco compression",
-       description="Enable Draco mesh compression for smaller file size",
-       default=True
-       ) # type: ignore
+    heriverse_use_draco: BoolProperty(
+    name="Use Draco compression",
+    description="Enable Draco mesh compression for smaller file size",
+    default=True
+    ) # type: ignore
 
-       heriverse_draco_level: IntProperty(
-       name="Compression Level",
-       description="Draco compression level (higher = smaller files but slower)",
-       min=1,
-       max=10,
-       default=6
-       ) # type: ignore
+    heriverse_draco_level: IntProperty(
+    name="Compression Level",
+    description="Draco compression level (higher = smaller files but slower)",
+    min=1,
+    max=10,
+    default=6
+    ) # type: ignore
 
-       heriverse_separate_textures: BoolProperty(
-       name="Export textures separately",
-       description="Export textures as separate files instead of embedding",
-       default=True
-       ) # type: ignore
+    heriverse_separate_textures: BoolProperty(
+    name="Export textures separately",
+    description="Export textures as separate files instead of embedding",
+    default=True
+    ) # type: ignore
+
+
+    heriverse_use_gpu_instancing: BoolProperty(
+        name="Use GPU Instancing",
+        description="Enable GPU instancing for models with shared meshes (improved performance)",
+        default=True
+    ) # type: ignore
+
 
 class ExportTablesVars(bpy.types.PropertyGroup):
        table_type : bpy.props.EnumProperty(
@@ -784,6 +792,9 @@ def register_full_addon():
             description="Define the maximum resolution of the bigger side (it depends if it is a squared landscape or portrait image) of the output images",
         )
 
+        bpy.types.WindowManager.export_vars = bpy.props.PointerProperty(type=ExportVars)
+
+
         if not hasattr(bpy.types.WindowManager, 'em_addon_settings'):
             bpy.types.WindowManager.em_addon_settings = bpy.props.PointerProperty(type=EMAddonSettings)
 
@@ -914,6 +925,8 @@ def unregister():
             del bpy.types.Scene.selected_epoch_us_list_index
             del bpy.types.Scene.selected_epoch_us_list
             
+            del bpy.types.WindowManager.export_vars
+
             # Unregister modules
             from . import (
                 activity_manager,
