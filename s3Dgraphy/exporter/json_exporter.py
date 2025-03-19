@@ -126,7 +126,7 @@ class JSONExporter:
         """Process all nodes in the graph, organizing them by type."""
         nodes = {
             "authors": {},
-            "stratigraphic": {"US": {}, "USVs": {}, "SF": {}, "USVn": {}, "USD": {}},
+            "stratigraphic": {"US": {}, "USVs": {}, "SF": {}, "VSF": {},"USVn": {}, "USD": {}, "serSU": {}, "serUSVn": {}, "serUSVs": {}, "TSU": {}, "SE": {}, "unknown": {}},
             "epochs": {},
             "groups": {},
             "properties": {},
