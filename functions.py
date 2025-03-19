@@ -25,28 +25,24 @@ from pathlib import Path
 def normalize_path(path):
     """
     Normalizza un percorso per renderlo compatibile con il sistema operativo corrente.
+    Gestisce correttamente i percorsi relativi espandendoli.
     
     Args:
         path (str): Percorso da normalizzare
         
     Returns:
-        str: Percorso normalizzato
+        str: Percorso normalizzato assoluto
     """
     if not path:
         return ""
-        
-    # Converti in oggetto Path
-    path_obj = Path(path)
     
-    # Gestione percorsi assoluti
-    if os.path.isabs(path):
-        # Windows utilizza '\' come separatore ma può accettare anche '/'
-        # macOS e Linux utilizzano '/'
-        return str(path_obj)
-    
-    # Se il percorso è relativo, lo rendiamo assoluto
+    # Prima espandi il percorso relativo a un percorso assoluto usando bpy.path.abspath
     abs_path = bpy.path.abspath(path)
-    return str(Path(abs_path))
+    
+    # Poi converti in oggetto Path per normalizzare i separatori di percorso
+    path_obj = Path(abs_path)
+    
+    return str(path_obj)
 
 def create_directory(path):
     """

@@ -5,6 +5,7 @@ from ..s3Dgraphy.nodes.group_node import GroupNode
 
 from ..populate_lists import *
 from ..functions import *
+from ..functions import normalize_path, show_popup_message
 
 
 class EM_import_GraphML(bpy.types.Operator):
@@ -32,21 +33,31 @@ class EM_import_GraphML(bpy.types.Operator):
 
             # Verifica che il campo path sia valorizzato
             if not graphml.graphml_path:
-                self.report({'ERROR'}, "GraphML path is not specified.")
+                error_msg = "GraphML path is not specified."
+                self.report({'ERROR'}, error_msg)
+                show_popup_message(context, "Path Error", error_msg, 'ERROR')
                 return {'CANCELLED'}
 
             print(f"Il file GraphML da caricare è {graphml.graphml_path}")
-            graphml_file = bpy.path.abspath(graphml.graphml_path)
+            # Usa normalize_path invece di bpy.path.abspath
+            graphml_file = normalize_path(graphml.graphml_path)
+            
+            # Verifica che il file esista
+            if not os.path.exists(graphml_file):
+                error_msg = f"GraphML file not found: {graphml_file}"
+                self.report({'ERROR'}, error_msg)
+                show_popup_message(context, "File Error", error_msg, 'ERROR')
+                return {'CANCELLED'}
 
             # Define a unique graph_id, e.g., based on the file name
             graph_id = os.path.splitext(os.path.basename(graphml_file))[0]
             graphml.name = graph_id
 
-            # Recupera gli altri percorsi (DosCo, XLSX, EMdb)
-            dosco_dir = graphml.dosco_dir
-            xlsx_filepath = graphml.xlsx_filepath
-            #xlsx_sf_filepath = graphml.xlsx_sf_filepath
-            emdb_filepath = graphml.emdb_filepath
+            # Recupera gli altri percorsi (DosCo, XLSX, EMdb) e normalizzali
+            dosco_dir = normalize_path(graphml.dosco_dir) if graphml.dosco_dir else ""
+            xlsx_filepath = normalize_path(graphml.xlsx_filepath) if graphml.xlsx_filepath else ""
+            #xlsx_sf_filepath = normalize_path(graphml.xlsx_sf_filepath) if graphml.xlsx_sf_filepath else ""
+            emdb_filepath = normalize_path(graphml.emdb_filepath) if graphml.emdb_filepath else ""
 
 
             # Clear Blender Lists
@@ -64,8 +75,16 @@ class EM_import_GraphML(bpy.types.Operator):
                 load_graph(graphml_file, graph_id=graph_id, overwrite=True)
                 print(f"Graph '{graph_id}' loaded successfully.")
             except ValueError as e:
-                print(f"Error loading graph: {e}")
+                error_msg = f"Error loading graph: {e}"
+                print(error_msg)
                 self.report({'ERROR'}, str(e))
+                show_popup_message(context, "Graph Loading Error", str(e), 'ERROR')
+                return {'CANCELLED'}
+            except Exception as e:
+                error_msg = f"Unexpected error loading graph: {e}"
+                print(error_msg)
+                self.report({'ERROR'}, error_msg)
+                show_popup_message(context, "Graph Loading Error", error_msg, 'ERROR')
                 return {'CANCELLED'}
 
             # Ora ottieni il grafo utilizzando `get_graph(graph_id)`
@@ -73,7 +92,9 @@ class EM_import_GraphML(bpy.types.Operator):
             graph_instance = get_graph(graph_id)
 
             if graph_instance is None:
-                self.report({'ERROR'}, "Errore: il grafo non è stato caricato correttamente.")
+                error_msg = "Errore: il grafo non è stato caricato correttamente."
+                self.report({'ERROR'}, error_msg)
+                show_popup_message(context, "Graph Error", error_msg, 'ERROR')
                 return {'CANCELLED'}
 
             # Aggiorna il nome nella UI con l'ID effettivo del grafo
@@ -198,8 +219,6 @@ class EM_import_GraphML(bpy.types.Operator):
                 us_node = us.name
         return us_node
     
-
-
 classes = [
     EM_import_GraphML
     ]

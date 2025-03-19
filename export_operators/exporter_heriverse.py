@@ -458,8 +458,11 @@ class HERIVERSE_OT_export(Operator):
     def compress_textures_for_model(self, model_path, scene):
         """Compress textures for an exported model, EMviq style"""
         try:
+            # Import utility function
+            from ..functions import normalize_path
+            
             # Get base directory where textures might be stored
-            base_dir = os.path.dirname(model_path)
+            base_dir = os.path.dirname(normalize_path(model_path))
             model_name = os.path.splitext(os.path.basename(model_path))[0]
             
             # Log per debug
@@ -469,10 +472,10 @@ class HERIVERSE_OT_export(Operator):
             
             # Possibili percorsi delle texture
             possible_texture_dirs = [
-                os.path.join(base_dir, f"{model_name}_img"),  # Il percorso che stavi cercando
-                os.path.join(base_dir, "textures"),           # Percorso alternativo comune
-                os.path.join(base_dir, f"{model_name}", "textures"),  # Percorso GLTF separato
-                os.path.dirname(base_dir)                     # Directory superiore
+                os.path.join(base_dir, f"{model_name}_img"),
+                os.path.join(base_dir, "textures"),
+                os.path.join(base_dir, f"{model_name}", "textures"),
+                os.path.dirname(base_dir)
             ]
             
             # Cerca ricorsivamente nelle sottodirectory
@@ -489,16 +492,17 @@ class HERIVERSE_OT_export(Operator):
             
             textures_dirs_found = []
             for dir_path in possible_texture_dirs:
-                if os.path.exists(dir_path) and os.path.isdir(dir_path):
+                normalized_path = normalize_path(dir_path)
+                if os.path.exists(normalized_path) and os.path.isdir(normalized_path):
                     # Verifica se contiene immagini
                     has_images = False
-                    for filename in os.listdir(dir_path):
+                    for filename in os.listdir(normalized_path):
                         if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
                             has_images = True
                             break
                     
                     if has_images:
-                        textures_dirs_found.append(dir_path)
+                        textures_dirs_found.append(normalized_path)
             
             if not textures_dirs_found:
                 print(f"No texture directories with images found for {model_path}")
@@ -738,18 +742,24 @@ class HERIVERSE_OT_export(Operator):
         scene = context.scene
         export_vars = context.window_manager.export_vars
         
+        # Import utility functions from the main module
+        from ..functions import normalize_path, create_directory, check_export_path, check_graph_loaded, show_popup_message
+        
         try:
             print("\n=== Starting Heriverse Export ===")
             
-            # Verifiche preliminari
-            if not scene.heriverse_export_path:
-                self.report({'ERROR'}, "Export path not specified")
+            # Check if at least one graph is loaded
+            if not check_graph_loaded(context):
+                return {'CANCELLED'}
+            
+            # Check if export path is valid
+            if not check_export_path(context):
                 return {'CANCELLED'}
             
             print(f"Export path: {scene.heriverse_export_path}")
                 
-            # Setup dei percorsi
-            output_dir = bpy.path.abspath(scene.heriverse_export_path)
+            # Setup dei percorsi (con normalizzazione)
+            output_dir = normalize_path(scene.heriverse_export_path)
             project_name = scene.heriverse_project_name or os.path.splitext(os.path.basename(bpy.data.filepath))[0]
             project_name = f"{project_name}_multigraph"
             project_path = os.path.join(output_dir, project_name)
@@ -759,8 +769,12 @@ class HERIVERSE_OT_export(Operator):
             print(f"Using GPU instancing: {export_vars.heriverse_use_gpu_instancing}")
             
             # Crea la directory del progetto
-            os.makedirs(project_path, exist_ok=True)
-            print("Created project directory")
+            try:
+                os.makedirs(project_path, exist_ok=True)
+                print("Created project directory")
+            except Exception as e:
+                show_popup_message(context, "Directory Error", f"Failed to create project directory: {str(e)}", 'ERROR')
+                return {'CANCELLED'}
 
             # Salva lo stato delle collezioni
             collection_states = {}
@@ -777,6 +791,11 @@ class HERIVERSE_OT_export(Operator):
                     # Esporta il JSON direttamente usando il nuovo JSONExporter
                     json_path = os.path.join(project_path, "project.json")
                     print(f"Exporting JSON to: {json_path}")
+                    
+                    # Verifica che esista almeno un grafo valido
+                    if not check_graph_loaded(context):
+                        show_popup_message(context, "Export Error", "No valid graph found. Please load a GraphML file first.")
+                        return {'CANCELLED'}
                     
                     # Usa l'operatore JSON con i parametri corretti
                     result = bpy.ops.export.heriversejson(
