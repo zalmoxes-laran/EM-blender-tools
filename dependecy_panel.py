@@ -5,21 +5,29 @@ from .blender_pip import Pip
 
 # Dictionary of required modules with minimum versions
 REQUIRED_MODULES = {
-    "pandas": "1.3.0",  # Minima versione richiesta
+    "pandas": "1.3.0",  # Minimum required version
     "numpy": "1.20.0",
     "networkx": "2.5.0",
     "openpyxl": "3.0.0",
     "pytz": "2020.1",
-    "python-dateutil": "2.8.1",
     "six": "1.15.0",
-    "tzdata": "2021.1"
+    "tzdata": "2022.7",
+    "Pillow": "8.2.0",
+    "matplotlib": "3.10.1",  # Added for Pillow dependencies
+    "contourpy": "1.0.1",
+    "cycler": "0.10",
+    "kiwisolver": "1.3.1",
+    "pyparsing": "2.4.7",
+    "python-dateutil": "2.8.1"
 }
 
 # Group modules into categories
 MODULE_GROUPS = {
     "ALL": list(REQUIRED_MODULES.keys()),
-    "EMdb_xlsx": ["pandas", "pytz", "python-dateutil", "numpy", "six", "openpyxl", "tzdata"],
-    "NetworkX": ["networkx"]
+    #"EMdb_xlsx": ["pandas", "pytz", "python-dateutil", "numpy", "six", "openpyxl", "tzdata"],
+    "EMdb_xlsx": ["pandas", "pytz", "numpy", "six", "openpyxl", "tzdata"],
+    "NetworkX": ["networkx"],
+    "Pillow": ["Pillow", "matplotlib", "numpy", "contourpy", "cycler", "kiwisolver", "pyparsing", "python-dateutil", "six"]
 }
 
 class VIEW3D_PT_EM_MissingModules(Panel):
@@ -77,7 +85,7 @@ class VIEW3D_PT_EM_MissingModules(Panel):
                 # Controlla versione minima
                 import pkg_resources
                 if pkg_resources.parse_version(module_version) < pkg_resources.parse_version(min_version):
-                    missing_modules.append(f"{module_name} (attuale: {module_version}, richiesta: {min_version})")
+                    missing_modules.append(f"{module_name} (present: {module_version}, requested: {min_version})")
                 else:
                     installed_modules.append(f"{module_name} {module_version}")
                     
@@ -87,7 +95,7 @@ class VIEW3D_PT_EM_MissingModules(Panel):
         # Intestazione
         box = layout.box()
         if missing_modules:
-            box.label(text="Moduli mancanti o obsoleti", icon='ERROR')
+            box.label(text="Missing or obsolete modules", icon='ERROR')
             
             for module in missing_modules:
                 box.label(text=f"• {module}")
@@ -97,24 +105,24 @@ class VIEW3D_PT_EM_MissingModules(Panel):
             
             # Bottone per installare tutto
             if len(missing_modules) > 1:
-                op = row.operator("install_em_missing.modules", icon="PACKAGE", text="Installa tutti i moduli")
+                op = row.operator("install_em_missing.modules", icon="PACKAGE", text="Install all modules")
                 op.is_install = True
                 op.module_group = "ALL"
             else:
                 module_name = missing_modules[0].split(" ")[0]  # Estrai solo il nome del modulo
-                op = row.operator("install_em_missing.modules", icon="PACKAGE", text=f"Installa {module_name}")
+                op = row.operator("install_em_missing.modules", icon="PACKAGE", text=f"Install {module_name}")
                 op.is_install = True
                 op.module_group = "SINGLE"
                 op.single_module = module_name
         else:
-            box.label(text="Tutti i moduli richiesti sono installati", icon='CHECKMARK')
+            box.label(text="All required modules are installed", icon='CHECKMARK')
         
         # Moduli installati (espandibile)
         if installed_modules:
             box = layout.box()
             row = box.row()
             row.prop(context.scene, "em_deps_show_installed", 
-                    text="Moduli installati",
+                    text="Installed modules",
                     icon='TRIA_DOWN' if context.scene.em_deps_show_installed else 'TRIA_RIGHT',
                     emboss=False)
             
@@ -126,42 +134,42 @@ class VIEW3D_PT_EM_MissingModules(Panel):
         box = layout.box()
         row = box.row()
         row.prop(context.scene, "em_deps_advanced", 
-                text="Opzioni avanzate",
+                text="Advanced Options",
                 icon='TRIA_DOWN' if context.scene.em_deps_advanced else 'TRIA_RIGHT',
                 emboss=False)
         
         if context.scene.em_deps_advanced:
             # Gruppi di moduli
             row = box.row()
-            row.label(text="Gruppi di moduli:")
+            row.label(text="Groups of modules:")
             
             for group_name, module_list in MODULE_GROUPS.items():
                 if group_name != "ALL":  # "ALL" è gestito sopra
                     row = box.row()
-                    op = row.operator("install_em_missing.modules", text=f"Installa gruppo {group_name}")
+                    op = row.operator("install_em_missing.modules", text=f"Install group {group_name}")
                     op.is_install = True
                     op.module_group = group_name
             
             # Disinstallazione
             row = box.row()
-            row.label(text="Disinstallazione:")
+            row.label(text="Uninstalling:")
             
             row = box.row()
-            row.prop(context.scene, "em_deps_module_to_remove", text="Modulo")
+            row.prop(context.scene, "em_deps_module_to_remove", text="Module to remove")
             
             row = box.row()
-            op = row.operator("install_em_missing.modules", text="Disinstalla modulo", icon="TRASH")
+            op = row.operator("install_em_missing.modules", text="Uninstall module", icon="TRASH")
             op.is_install = False
             op.module_group = "SINGLE"
             op.single_module = context.scene.em_deps_module_to_remove
             
             # Debug info
             row = box.row()
-            row.operator("install_em_missing.debug_info", text="Mostra info di debug", icon="CONSOLE")
+            row.operator("install_em_missing.debug_info", text="Show debug info", icon="CONSOLE")
         
         # Avviso di riavvio
         box = layout.box()
-        box.label(text="⚠️ Riavvia Blender dopo l'installazione", icon='INFO')
+        box.label(text="⚠️ Restart Blender after installation", icon='INFO')
 
 # Operatore per installare/disinstallare moduli
 class OBJECT_OT_install_em_missing_modules(bpy.types.Operator):
@@ -181,6 +189,7 @@ class OBJECT_OT_install_em_missing_modules(bpy.types.Operator):
             ("ALL", "Tutti i moduli", "Installa tutti i moduli necessari"),
             ("EMdb_xlsx", "EMdb_xlsx", "Moduli per importazione Excel"),
             ("NetworkX", "NetworkX", "Moduli per grafica e rete"),
+            ("Pillow", "Pillow", "Moduli per immagini"),
             ("SINGLE", "Singolo modulo", "Installa un singolo modulo specifico")
         ],
         default="ALL"

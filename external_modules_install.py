@@ -18,7 +18,11 @@ def check_external_modules():
         # Controlla networkx
         has_networkx = Pip.is_module_installed("networkx")
         networkx_version = Pip.get_module_version("networkx") if has_networkx else None
-        
+
+        # Controlla networkx
+        has_pillow = Pip.is_module_installed("pillow")
+        pillow_version = Pip.get_module_version("pillow") if has_pillow else None
+
         # Aggiorna le preferenze dell'addon
         user_preferences = bpy.context.preferences
         addon_prefs = user_preferences.addons.get(__package__, None)
@@ -29,9 +33,11 @@ def check_external_modules():
         print("\n=== External Modules Status ===")
         print(f"pandas: {'Installato (v' + pandas_version + ')' if has_pandas else 'Non installato'}")
         print(f"networkx: {'Installato (v' + networkx_version + ')' if has_networkx else 'Non installato'}")
-        
+        print(f"pillow: {'Installato (v' + pillow_version + ')' if has_pillow else 'Non installato'}")
+        print("===============================\n")
+
         # Restituisce True se entrambi i moduli sono disponibili
-        return has_pandas and has_networkx
+        return has_pandas and has_networkx and has_pillow
         
     except Exception as e:
         print(f"Errore durante la verifica dei moduli esterni: {e}")

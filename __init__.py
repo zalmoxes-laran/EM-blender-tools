@@ -84,6 +84,7 @@ def check_dependencies():
     try:
         import pandas
         import networkx 
+        import PIL
         return True
     except ImportError as e:
         print(f"Missing dependencies: {e}")
@@ -104,31 +105,38 @@ class EmPreferences(bpy.types.AddonPreferences):
               ) # type: ignore
 
     def draw(self, context):
-              layout = self.layout
-              layout.label(text="xlsx setup")
-              #layout.prop(self, "filepath", text="Credentials path:")
-              if self.is_external_module:
-                     layout.label(text="Pandas module (to read xlsx files) is correctly installed")
-              else:
-                     layout.label(text="Pandas module is missing: install with the button below")
-                     row = layout.row()
-                     #row.label(text="")
-              row = layout.row()              
-              op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Install pandas modules (waiting some minutes is normal)')
-              op.is_install = True
-              op.list_modules_to_install = "EMdb_xlsx"
-              row = layout.row()
-              op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Uninstall pandas modules (waiting some minutes is normal)')
-              op.is_install = False
-              op.list_modules_to_install = "EMdb_xlsx"
-              row = layout.row()              
-              op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Install NetworkX modules (waiting some minutes is normal)')
-              op.is_install = True
-              op.list_modules_to_install = "NetworkX"
-              row = layout.row()
-              op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Uninstall NetworkX modules (waiting some minutes is normal)')
-              op.is_install = False
-              op.list_modules_to_install = "NetworkX"
+            layout = self.layout
+            layout.label(text="xlsx setup")
+            #layout.prop(self, "filepath", text="Credentials path:")
+            if self.is_external_module:
+                    layout.label(text="Pandas module (to read xlsx files) is correctly installed")
+            else:
+                    layout.label(text="Pandas module is missing: install with the button below")
+                    row = layout.row()
+                    #row.label(text="")
+            row = layout.row()              
+            op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Install pandas modules (waiting some minutes is normal)')
+            op.is_install = True
+            op.list_modules_to_install = "EMdb_xlsx"
+            row = layout.row()
+            op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Uninstall pandas modules (waiting some minutes is normal)')
+            op.is_install = False
+            op.list_modules_to_install = "EMdb_xlsx"
+            row = layout.row()              
+            op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Install NetworkX modules (waiting some minutes is normal)')
+            op.is_install = True
+            op.list_modules_to_install = "NetworkX"
+            row = layout.row()
+            op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Uninstall NetworkX modules (waiting some minutes is normal)')
+            op.is_install = False
+            op.list_modules_to_install = "NetworkX"
+            row = layout.row()
+            op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Install Pillow modules (waiting some minutes is normal)')
+            op.is_install = True
+            op.list_modules_to_install = "Pillow"
+            row = layout.row()
+            op = row.operator("install_em_missing.modules", icon="STICKY_UVS_DISABLE", text='Uninstall Pillow modules (waiting some minutes is normal)')
+            op.is_install = False
 
 class EMAddonSettings(bpy.types.PropertyGroup):
     preserve_web_url: bpy.props.BoolProperty(

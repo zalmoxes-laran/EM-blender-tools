@@ -456,138 +456,93 @@ class HERIVERSE_OT_export(Operator):
         return json_data
 
     def compress_textures_for_model(self, model_path, scene):
-        """Compress textures for an exported model, EMviq style"""
+        """Compress textures using Pillow for better color preservation"""
+
         try:
-            # Import utility function
-            from ..functions import normalize_path
+            # Import Pillow
+            from PIL import Image
             
             # Get base directory where textures might be stored
-            base_dir = os.path.dirname(normalize_path(model_path))
+            base_dir = os.path.dirname(model_path)
             model_name = os.path.splitext(os.path.basename(model_path))[0]
             
-            # Log per debug
-            print(f"\n=== Compressing textures for {model_name} ===")
-            print(f"Base directory: {base_dir}")
-            print(f"Model name: {model_name}")
+            print(f"\n=== Compressing textures for {model_name} using Pillow ===")
             
-            # Possibili percorsi delle texture
+            # Find texture directories (similar to before)
             possible_texture_dirs = [
                 os.path.join(base_dir, f"{model_name}_img"),
                 os.path.join(base_dir, "textures"),
                 os.path.join(base_dir, f"{model_name}", "textures"),
-                os.path.dirname(base_dir)
+                base_dir
             ]
             
-            # Cerca ricorsivamente nelle sottodirectory
-            all_subdirs = []
+            # Add any subdirectories that might contain textures
             for root, dirs, files in os.walk(base_dir):
-                all_subdirs.append(root)
                 for dir_name in dirs:
                     if "texture" in dir_name.lower() or "img" in dir_name.lower():
                         possible_texture_dirs.append(os.path.join(root, dir_name))
-                
-            possible_texture_dirs.extend(all_subdirs)
             
-            print(f"Possibili percorsi texture: {possible_texture_dirs}")
-            
-            textures_dirs_found = []
+            # Find directories that contain images
+            texture_dirs = []
             for dir_path in possible_texture_dirs:
-                normalized_path = normalize_path(dir_path)
-                if os.path.exists(normalized_path) and os.path.isdir(normalized_path):
-                    # Verifica se contiene immagini
-                    has_images = False
-                    for filename in os.listdir(normalized_path):
-                        if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
-                            has_images = True
-                            break
-                    
-                    if has_images:
-                        textures_dirs_found.append(normalized_path)
+                if os.path.exists(dir_path) and os.path.isdir(dir_path):
+                    image_count = sum(1 for f in os.listdir(dir_path) 
+                                    if f.lower().endswith(('.jpg', '.jpeg', '.png')))
+                    if image_count > 0:
+                        texture_dirs.append(dir_path)
             
-            if not textures_dirs_found:
-                print(f"No texture directories with images found for {model_path}")
+            if not texture_dirs:
+                print(f"No texture directories found for {model_path}")
                 return
+                
+            print(f"Found texture directories: {texture_dirs}")
             
-            print(f"Texture directories found: {textures_dirs_found}")
-            
-            # Store original render settings
-            original_format = scene.render.image_settings.file_format
-            original_quality = scene.render.image_settings.quality
-            
-            # Set compression settings
-            scene.render.image_settings.file_format = 'JPEG'
-            scene.render.image_settings.quality = scene.heriverse_texture_quality
+            # Process all textures with Pillow
             max_res = scene.heriverse_texture_max_res
-            
-            print(f"Compression settings: Format={scene.render.image_settings.file_format}, Quality={scene.heriverse_texture_quality}, MaxRes={max_res}")
-            
-            # Process all texture directories with images
+            quality = scene.heriverse_texture_quality
             total_processed = 0
             
-            for textures_dir in textures_dirs_found:
-                dir_processed = 0
-                
-                for filename in os.listdir(textures_dir):
+            for texture_dir in texture_dirs:
+                for filename in os.listdir(texture_dir):
                     if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
-                        texture_path = os.path.join(textures_dir, filename)
-                        print(f"Processing texture: {texture_path}")
+                        file_path = os.path.join(texture_dir, filename)
                         
-                        # Carica l'immagine utilizzando Blender
                         try:
-                            img = None
+                            # Open the image with Pillow
+                            img = Image.open(file_path)
                             
-                            # Verifica se l'immagine è già caricata
-                            for loaded_img in bpy.data.images:
-                                if loaded_img.filepath == texture_path:
-                                    img = loaded_img
-                                    break
+                            # Check if resizing is needed
+                            width, height = img.size
+                            if max(width, height) > max_res:
+                                # Calculate new dimensions while preserving aspect ratio
+                                if width > height:
+                                    new_width = max_res
+                                    new_height = int(height * (max_res / width))
+                                else:
+                                    new_height = max_res
+                                    new_width = int(width * (max_res / height))
+                                    
+                                # Use high-quality resampling
+                                img = img.resize((new_width, new_height), Image.LANCZOS)
+                                print(f"Resized {filename} from {width}x{height} to {new_width}x{new_height}")
                             
-                            # Se non è già caricata, caricala
-                            if img is None:
-                                img = bpy.data.images.load(texture_path)
-                            
-                            print(f"Image loaded: {img.name}, Size: {img.size[0]}x{img.size[1]}")
-                            
-                            # Verifica se necessita ridimensionamento
-                            need_resize = (img.size[0] > max_res or img.size[1] > max_res)
-                            
-                            # Crea una copia temporanea per non modificare l'originale
-                            temp_img = img.copy()
-                            
-                            if need_resize:
-                                max_dim = max(temp_img.size[0], temp_img.size[1])
-                                scale_factor = max_res / max_dim
-                                new_width = int(temp_img.size[0] * scale_factor)
-                                new_height = int(temp_img.size[1] * scale_factor)
-                                print(f"Resizing from {temp_img.size[0]}x{temp_img.size[1]} to {new_width}x{new_height}")
+                            # Ensure we're preserving color modes
+                            if img.mode == 'RGBA' and filename.lower().endswith('.png'):
+                                # Save as PNG with alpha
+                                img.save(file_path, 'PNG', optimize=True)
+                            else:
+                                # Convert to RGB if needed and save as JPEG
+                                if img.mode != 'RGB':
+                                    img = img.convert('RGB')
+                                img.save(file_path, 'JPEG', quality=quality, optimize=True)
                                 
-                                # Ridimensiona
-                                temp_img.scale(new_width, new_height)
-                            
-                            # Salva con la compressione
-                            print(f"Saving compressed image to: {texture_path}")
-                            temp_img.filepath_raw = texture_path  # Imposta il percorso di output
-                            temp_img.file_format = 'JPEG'
-                            temp_img.save_render(texture_path)
-                            
-                            # Rimuovi l'immagine temporanea
-                            bpy.data.images.remove(temp_img)
-                            
-                            dir_processed += 1
                             total_processed += 1
+                            print(f"Processed {filename} with Pillow")
                             
                         except Exception as e:
-                            print(f"Error processing image {filename}: {str(e)}")
-                            import traceback
-                            traceback.print_exc()
-                
-                print(f"Processed {dir_processed} textures in {textures_dir}")
-            
-            # Restore original settings
-            scene.render.image_settings.file_format = original_format
-            scene.render.image_settings.quality = original_quality
-            
-            print(f"Total textures processed: {total_processed}")
+                            print(f"Error processing {filename}: {str(e)}")
+                            
+            print(f"Total textures processed with Pillow: {total_processed}")
             
         except Exception as e:
             print(f"Error in compress_textures_for_model: {str(e)}")

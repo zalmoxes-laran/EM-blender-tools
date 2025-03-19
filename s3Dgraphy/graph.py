@@ -18,7 +18,7 @@ from typing import List
 rules_path = os.path.join(os.path.dirname(__file__), "./JSON_config/em_connection_rules.json")
 with open(rules_path) as f:
     connection_rules = json.load(f)["rules"]
-    print('regole caricate !')
+    print('s3Dgraphy rules are correctly loaded.')
 
 class Graph:
     """
