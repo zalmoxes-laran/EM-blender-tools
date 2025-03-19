@@ -752,22 +752,38 @@ classes = [
 ]
 
 def register():
-    # Itera sulla lista per registrare le classi
-    for cls in classes:
-        bpy.utils.register_class(cls)
+    # Register AuxiliaryFileProperties only if not already registered
+    try:
+        bpy.utils.register_class(AuxiliaryFileProperties)
+    except ValueError:
+        print("AuxiliaryFileProperties already registered, skipping")
 
-    bpy.types.Scene.em_tools = bpy.props.PointerProperty(type=EMToolsSettings)
+    # Iterate through the rest of the classes and register them safely
+    for cls in classes:
+        # Skip the AuxiliaryFileProperties class as we already handled it
+        if cls == AuxiliaryFileProperties:
+            continue
+            
+        try:
+            bpy.utils.register_class(cls)
+        except ValueError as e:
+            print(f"Warning: Class registration error for {cls.__name__}: {e}")
+
+    # Create your properties
+    if not hasattr(bpy.types.Scene, 'em_tools'):
+        bpy.types.Scene.em_tools = bpy.props.PointerProperty(type=EMToolsSettings)
 
 def unregister():
-    # Itera sulla lista per cancellare la registrazione delle classi
+    # Safely unregister window manager property
+    if hasattr(bpy.types.Scene, 'em_tools'):
+        del bpy.types.Scene.em_tools
 
+    # Unregister classes in reverse order
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
         except Exception as e:
-            print(f"Errore durante la deregistrazione di {cls.__name__}: {e}")
-
-    del bpy.types.Scene.em_tools
+            print(f"Error unregistering {cls.__name__}: {e}")
 
 if __name__ == "__main__":
     register()

@@ -600,8 +600,6 @@ def register_full_addon():
                 except ValueError as e:
                     print(f"Warning: Class '{cls_name}' already registered: {e}")
 
-
-
         # Initialize graph property
         bpy.types.Scene.em_graph = None
 
@@ -613,212 +611,210 @@ def register_full_addon():
             update=lambda self, context: bpy.ops.epoch_manager.update_us_list()
         )
 
-        bpy.types.WindowManager.export_vars = bpy.props.PointerProperty(type=ExportVars)
-        bpy.types.WindowManager.export_tables_vars = bpy.props.PointerProperty(type=ExportTablesVars)
+        # Ensure WindowManager properties don't get registered twice
+        if not hasattr(bpy.types.WindowManager, 'export_vars'):
+            bpy.types.WindowManager.export_vars = bpy.props.PointerProperty(type=ExportVars)
+        
+        if not hasattr(bpy.types.WindowManager, 'export_tables_vars'):
+            bpy.types.WindowManager.export_tables_vars = bpy.props.PointerProperty(type=ExportTablesVars)
 
-        bpy.types.Scene.emviq_error_list = prop.CollectionProperty(type=EMviqListErrors)
-        bpy.types.Scene.emviq_error_list_index = prop.IntProperty(
-            name="Index for my_list", 
-            default=0, 
-            update=functions.switch_paradata_lists
-        )
+        # Scene collection properties
+        if not hasattr(bpy.types.Scene, 'emviq_error_list'):
+            bpy.types.Scene.emviq_error_list = prop.CollectionProperty(type=EMviqListErrors)
+            bpy.types.Scene.emviq_error_list_index = prop.IntProperty(
+                name="Index for my_list", 
+                default=0, 
+                update=functions.switch_paradata_lists
+            )
 
-        bpy.types.Scene.em_list = prop.CollectionProperty(type=EMListItem)
-        bpy.types.Scene.em_list_index = prop.IntProperty(
-            name="Index for my_list", 
-            default=0, 
-            update=functions.switch_paradata_lists
-        )
-        bpy.types.Scene.em_reused = prop.CollectionProperty(type=EMreusedUS)
-        bpy.types.Scene.epoch_list = prop.CollectionProperty(type=EPOCHListItem)
+        # Other scene collection properties
+        scene_collections = [
+            ('em_list', EMListItem),
+            ('em_reused', EMreusedUS),
+            ('epoch_list', EPOCHListItem),
+            ('edges_list', EDGESListItem),
+            ('em_sources_list', EMListParadata),
+            ('em_properties_list', EMListParadata),
+            ('em_extractors_list', EMListParadata),
+            ('em_combiners_list', EMListParadata),
+            ('em_v_sources_list', EMListParadata),
+            ('em_v_properties_list', EMListParadata),
+            ('em_v_extractors_list', EMListParadata),
+            ('em_v_combiners_list', EMListParadata),
+        ]
+        
+        for prop_name, prop_type in scene_collections:
+            if not hasattr(bpy.types.Scene, prop_name):
+                setattr(bpy.types.Scene, prop_name, prop.CollectionProperty(type=prop_type))
 
-        bpy.types.Scene.epoch_list_index = bpy.props.IntProperty(
-            name="Index for epoch_list",
-            default=0,
-            update=lambda self, context: bpy.ops.epoch_manager.update_us_list()
-        )
+        # Scene index properties
+        scene_indices = [
+            ('em_list_index', 0, functions.switch_paradata_lists),
+            ('em_sources_list_index', 0, None),
+            ('em_properties_list_index', 0, None),
+            ('em_extractors_list_index', 0, None),
+            ('em_combiners_list_index', 0, None),
+            ('em_v_sources_list_index', 0, None),
+            ('em_v_properties_list_index', 0, functions.stream_properties),
+            ('em_v_extractors_list_index', 0, functions.stream_extractors),
+            ('em_v_combiners_list_index', 0, functions.stream_combiners),
+        ]
+        
+        for prop_name, default, update_func in scene_indices:
+            if not hasattr(bpy.types.Scene, prop_name):
+                if update_func:
+                    setattr(bpy.types.Scene, prop_name, 
+                            prop.IntProperty(name=f"Index for {prop_name}", default=default, update=update_func))
+                else:
+                    setattr(bpy.types.Scene, prop_name, 
+                            prop.IntProperty(name=f"Index for {prop_name}", default=default))
 
-        bpy.types.Scene.edges_list = prop.CollectionProperty(type=EDGESListItem)
+        # Other scene properties
+        scene_props = [
+            ('paradata_streaming_mode', BoolProperty, 
+                {"name": "Paradata streaming mode", "description": "Enable/disable tables streaming mode", 
+                 "default": True, "update": functions.switch_paradata_lists}),
+            ('prop_paradata_streaming_mode', BoolProperty,
+                {"name": "Properties Paradata streaming mode", "description": "Enable/disable property table streaming mode",
+                 "default": True, "update": functions.stream_properties}),
+            ('comb_paradata_streaming_mode', BoolProperty,
+                {"name": "Combiners Paradata streaming mode", "description": "Enable/disable combiner table streaming mode",
+                 "default": True, "update": functions.stream_combiners}),
+            ('extr_paradata_streaming_mode', BoolProperty,
+                {"name": "Extractors Paradata streaming mode", "description": "Enable/disable extractor table streaming mode",
+                 "default": True, "update": functions.stream_extractors}),
+            ('proxy_shader_mode', BoolProperty,
+                {"name": "Proxy shader mode", "description": "Enable additive shader for proxies",
+                 "default": True, "update": functions.proxy_shader_mode_function}),
+        ]
+        
+        for prop_name, prop_type, prop_kwargs in scene_props:
+            if not hasattr(bpy.types.Scene, prop_name):
+                setattr(bpy.types.Scene, prop_name, prop_type(**prop_kwargs))
 
-        bpy.types.Scene.em_sources_list = prop.CollectionProperty(type=EMListParadata)
-        bpy.types.Scene.em_sources_list_index = prop.IntProperty(name="Index for sources list", default=0)
-        bpy.types.Scene.em_properties_list = prop.CollectionProperty(type=EMListParadata)
-        bpy.types.Scene.em_properties_list_index = prop.IntProperty(name="Index for properties list", default=0)
-        bpy.types.Scene.em_extractors_list = prop.CollectionProperty(type=EMListParadata)
-        bpy.types.Scene.em_extractors_list_index = prop.IntProperty(name="Index for extractors list", default=0)
-        bpy.types.Scene.em_combiners_list = prop.CollectionProperty(type=EMListParadata)
-        bpy.types.Scene.em_combiners_list_index = prop.IntProperty(name="Index for combiners list", default=0)
+        # Other string properties
+        scene_string_props = [
+            ('EM_file', "Define the path to the EM GraphML file", ''),
+            ('EMviq_folder', "Define the path to export the EMviq collection", ''),
+            ('EMviq_scene_folder', "Define the path to export the EMviq scene", ''),
+            ('EMviq_project_name', "Define the name of the EMviq project", ''),
+            ('EMviq_user_name', "Define the name of the EMviq user", ''),
+            ('EMviq_user_password', "Define the name of the EMviq user", 'PASSWORD'),
+            ('ATON_path', "Define the path to the ATON framework (root folder)", ''),
+            ('EMviq_model_author_name', "Define the nameof the author(s) of the models", ''),
+        ]
+        
+        for prop_name, description, subtype in scene_string_props:
+            if not hasattr(bpy.types.Scene, prop_name):
+                if subtype:
+                    setattr(bpy.types.Scene, prop_name, StringProperty(
+                        name=prop_name, default="", description=description, subtype=subtype))
+                else:
+                    setattr(bpy.types.Scene, prop_name, StringProperty(
+                        name=prop_name, default="", description=description))
 
-        bpy.types.Scene.em_v_sources_list = prop.CollectionProperty(type=EMListParadata)
-        bpy.types.Scene.em_v_sources_list_index = prop.IntProperty(name="Index for sources list", default=0)
-        bpy.types.Scene.em_v_properties_list = prop.CollectionProperty(type=EMListParadata)
-        bpy.types.Scene.em_v_properties_list_index = prop.IntProperty(
-            name="Index for properties list", 
-            default=0, 
-            update=functions.stream_properties
-        )
-        bpy.types.Scene.em_v_extractors_list = prop.CollectionProperty(type=EMListParadata)
-        bpy.types.Scene.em_v_extractors_list_index = prop.IntProperty(
-            name="Index for extractors list", 
-            default=0, 
-            update=functions.stream_extractors
-        )
-        bpy.types.Scene.em_v_combiners_list = prop.CollectionProperty(type=EMListParadata)
-        bpy.types.Scene.em_v_combiners_list_index = prop.IntProperty(
-            name="Index for combiners list", 
-            default=0, 
-            update=functions.stream_combiners
-        )
+        # Other property groups
+        if not hasattr(bpy.types.Scene, 'em_settings'):
+            bpy.types.Scene.em_settings = PointerProperty(type=EM_Other_Settings)
+        
+        # Display mode properties
+        scene_mode_props = [
+            ('proxy_display_mode', "Proxy display mode", "select"),
+            ('proxy_blend_mode', "Proxy blend mode", "BLEND"),
+        ]
+        
+        for prop_name, name, default in scene_mode_props:
+            if not hasattr(bpy.types.Scene, prop_name):
+                setattr(bpy.types.Scene, prop_name, StringProperty(
+                    name=name, default=default, description=f"{name} for current display mode"))
 
-        bpy.types.Scene.paradata_streaming_mode = BoolProperty(
-            name="Paradata streaming mode", 
-            description="Enable/disable tables streaming mode",
-            default=True, 
-            update=functions.switch_paradata_lists
-        )
-        bpy.types.Scene.prop_paradata_streaming_mode = BoolProperty(
-            name="Properties Paradata streaming mode",
-            description="Enable/disable property table streaming mode",
-            default=True, 
-            update=functions.stream_properties
-        )
-        bpy.types.Scene.comb_paradata_streaming_mode = BoolProperty(
-            name="Combiners Paradata streaming mode",
-            description="Enable/disable combiner table streaming mode",
-            default=True, 
-            update=functions.stream_combiners
-        )
-        bpy.types.Scene.extr_paradata_streaming_mode = BoolProperty(
-            name="Extractors Paradata streaming mode",
-            description="Enable/disable extractor table streaming mode",
-            default=True, 
-            update=functions.stream_extractors
-        )
+        # Alpha property
+        if not hasattr(bpy.types.Scene, 'proxy_display_alpha'):
+            bpy.types.Scene.proxy_display_alpha = FloatProperty(
+                name="alpha", description="The alphavalue for proxies",
+                min=0, max=1, default=0.5, update=functions.update_display_mode)
 
-        bpy.types.Scene.proxy_shader_mode = BoolProperty(
-            name="Proxy shader mode",
-            description="Enable additive shader for proxies",
-            default=True, 
-            update=functions.proxy_shader_mode_function
-        )
-        bpy.types.Scene.EM_file = StringProperty(
-            name="EM GraphML file",
-            default="",
-            description="Define the path to the EM GraphML file",
-            subtype='FILE_PATH'
-        )
-
-        bpy.types.Scene.EMviq_folder = StringProperty(
-            name="EMviq collection export folder",
-            default="",
-            description="Define the path to export the EMviq collection",
-            subtype='DIR_PATH'
-        )
-
-        bpy.types.Scene.EMviq_scene_folder = StringProperty(
-            name="EMviq scene export folder",
-            default="",
-            description="Define the path to export the EMviq scene",
-            subtype='DIR_PATH'
-        )
-
-        bpy.types.Scene.EMviq_project_name = StringProperty(
-            name="EMviq project name",
-            default="",
-            description="Define the name of the EMviq project"
-        )
-
-        bpy.types.Scene.EMviq_user_name = StringProperty(
-            name="EMviq user name",
-            default="",
-            description="Define the name of the EMviq user"
-        )
-
-        bpy.types.Scene.EMviq_user_password = StringProperty(
-            name="EMviq user name",
-            default="",
-            description="Define the name of the EMviq user",
-            subtype='PASSWORD'
-        )
-
-        bpy.types.Scene.ATON_path = StringProperty(
-            name="ATON path",
-            default="",
-            description="Define the path to the ATON framework (root folder)",
-            subtype='DIR_PATH'
-        )
-
-        bpy.types.Scene.EMviq_model_author_name = StringProperty(
-            name="Name of the author(s) of the models",
-            default="",
-            description="Define the nameof the author(s) of the models"
-        )
-
-        bpy.types.Scene.em_settings = PointerProperty(type=EM_Other_Settings)
-        #bpy.types.Scene.rm_settings = PointerProperty(type=EM_Other_Settings)
-        bpy.types.Scene.proxy_display_mode = StringProperty(
-            name="Proxy display mode",
-            default="select",
-            description="Proxy current display mode"
-        )
-        bpy.types.Scene.proxy_blend_mode = StringProperty(
-            name="Proxy blend mode",
-            default="BLEND",
-            description="EM proxy blend mode for current display mode"
-        )
-        bpy.types.Scene.proxy_display_alpha = FloatProperty(
-            name="alpha",
-            description="The alphavalue for proxies",
-            min=0,
-            max=1,
-            default=0.5,
-            update=functions.update_display_mode
-        )
-
+        # Add menu function
         bpy.types.VIEW3D_MT_mesh_add.append(functions.menu_func)
 
-        bpy.types.Object.EM_ep_belong_ob = CollectionProperty(type=EM_epochs_belonging_ob)
-        bpy.types.Object.EM_ep_belong_ob_index = IntProperty()
+        # Object properties
+        if not hasattr(bpy.types.Object, 'EM_ep_belong_ob'):
+            bpy.types.Object.EM_ep_belong_ob = CollectionProperty(type=EM_epochs_belonging_ob)
+            bpy.types.Object.EM_ep_belong_ob_index = IntProperty()
 
-        bpy.types.Scene.EM_gltf_export_quality = IntProperty(
-            name="export quality",
-            default=100,
-            description="Define the quality of the output images. 100 is maximum quality but at a cost of bigger weight (no optimization); 80 is compressed with near lossless quality but still hight in weight; 60 is a good middle way; 40 is hardly optimized with some evident loss in quality (sometimes it can work).",
-        )
+        # GLTF export properties
+        scene_gltf_props = [
+            ('EM_gltf_export_quality', "export quality", 
+                "Define the quality of the output images. 100 is maximum quality but at a cost of bigger weight (no optimization); 80 is compressed with near lossless quality but still hight in weight; 60 is a good middle way; 40 is hardly optimized with some evident loss in quality (sometimes it can work).",
+                100),
+            ('EM_gltf_export_maxres', "export max resolution", 
+                "Define the maximum resolution of the bigger side (it depends if it is a squared landscape or portrait image) of the output images",
+                4096),
+        ]
+        
+        for prop_name, name, description, default in scene_gltf_props:
+            if not hasattr(bpy.types.Scene, prop_name):
+                setattr(bpy.types.Scene, prop_name, IntProperty(
+                    name=name, description=description, default=default))
 
-        bpy.types.Scene.EM_gltf_export_maxres = IntProperty(
-            name="export max resolution",
-            default=4096,
-            description="Define the maximum resolution of the bigger side (it depends if it is a squared landscape or portrait image) of the output images",
-        )
-
-        bpy.types.WindowManager.export_vars = bpy.props.PointerProperty(type=ExportVars)
-
-
+        # Ensure WindowManager settings is only registered once
         if not hasattr(bpy.types.WindowManager, 'em_addon_settings'):
             bpy.types.WindowManager.em_addon_settings = bpy.props.PointerProperty(type=EMAddonSettings)
 
-
-        # Register modules
-        em_setup.register()
-        visual_manager.register()
-        external_modules_install.register()
-        EMdb_excel.register()
-        activity_manager.register()
-        EM_list.register()
+        # Register modules - skipping any that fail
+        try: em_setup.register()
+        except Exception as e: print(f"Error registering em_setup: {e}")
         
-        epoch_manager.register()
-        us_list_per_epoch.register()
-        paradata_manager.register()
-        rm_manager.register()
-        export_manager.register()
-        em_statistics.register()
-        server.register()
-        graph2geometry.register()
-        importer_graphml.register()
-        exporter_heriverse.register()
-        import_EMdb.register()
-        graphml_converter.register()
+        try: visual_manager.register()
+        except Exception as e: print(f"Error registering visual_manager: {e}")
+        
+        try: external_modules_install.register()
+        except Exception as e: print(f"Error registering external_modules_install: {e}")
+        
+        try: EMdb_excel.register()
+        except Exception as e: print(f"Error registering EMdb_excel: {e}")
+        
+        try: activity_manager.register()
+        except Exception as e: print(f"Error registering activity_manager: {e}")
+        
+        try: EM_list.register()
+        except Exception as e: print(f"Error registering EM_list: {e}")
+        
+        try: epoch_manager.register()
+        except Exception as e: print(f"Error registering epoch_manager: {e}")
+        
+        try: us_list_per_epoch.register()
+        except Exception as e: print(f"Error registering us_list_per_epoch: {e}")
+        
+        try: paradata_manager.register()
+        except Exception as e: print(f"Error registering paradata_manager: {e}")
+        
+        try: rm_manager.register()
+        except Exception as e: print(f"Error registering rm_manager: {e}")
+        
+        try: export_manager.register()
+        except Exception as e: print(f"Error registering export_manager: {e}")
+        
+        try: em_statistics.register()
+        except Exception as e: print(f"Error registering em_statistics: {e}")
+        
+        try: server.register()
+        except Exception as e: print(f"Error registering server: {e}")
+        
+        try: graph2geometry.register()
+        except Exception as e: print(f"Error registering graph2geometry: {e}")
+        
+        try: importer_graphml.register()
+        except Exception as e: print(f"Error registering importer_graphml: {e}")
+        
+        try: exporter_heriverse.register()
+        except Exception as e: print(f"Error registering exporter_heriverse: {e}")
+        
+        try: import_EMdb.register()
+        except Exception as e: print(f"Error registering import_EMdb: {e}")
+        
+        try: graphml_converter.register()
+        except Exception as e: print(f"Error registering graphml_converter: {e}")
 
         # Execute external modules check
         from .external_modules_install import check_external_modules
@@ -861,73 +857,7 @@ def unregister():
             # Import functions module here to ensure it's available during unregistration
             from . import functions
             
-            # Unregister all components in reverse order
-            if hasattr(bpy.types.WindowManager, 'em_addon_settings'):
-                del bpy.types.WindowManager.em_addon_settings
-            del bpy.types.Scene.EM_gltf_export_maxres
-            del bpy.types.Scene.EM_gltf_export_quality
-            del bpy.types.Object.EM_ep_belong_ob_index
-            del bpy.types.Object.EM_ep_belong_ob
-            
-            bpy.types.VIEW3D_MT_mesh_add.remove(functions.menu_func)
-            
-            del bpy.types.Scene.proxy_display_alpha
-            del bpy.types.Scene.proxy_blend_mode
-            del bpy.types.Scene.proxy_display_mode
-            #del bpy.types.Scene.rm_settings
-            del bpy.types.Scene.em_settings
-            
-            del bpy.types.Scene.EMviq_model_author_name
-            del bpy.types.Scene.ATON_path
-            del bpy.types.Scene.EMviq_user_password
-            del bpy.types.Scene.EMviq_user_name
-            del bpy.types.Scene.EMviq_project_name
-            del bpy.types.Scene.EMviq_scene_folder
-            del bpy.types.Scene.EMviq_folder
-            del bpy.types.Scene.EM_file
-            del bpy.types.Scene.proxy_shader_mode
-            
-            del bpy.types.Scene.extr_paradata_streaming_mode
-            del bpy.types.Scene.comb_paradata_streaming_mode
-            del bpy.types.Scene.prop_paradata_streaming_mode
-            del bpy.types.Scene.paradata_streaming_mode
-            
-            del bpy.types.Scene.em_v_combiners_list_index
-            del bpy.types.Scene.em_v_combiners_list
-            del bpy.types.Scene.em_v_extractors_list_index
-            del bpy.types.Scene.em_v_extractors_list
-            del bpy.types.Scene.em_v_properties_list_index
-            del bpy.types.Scene.em_v_properties_list
-            del bpy.types.Scene.em_v_sources_list_index
-            del bpy.types.Scene.em_v_sources_list
-            
-            del bpy.types.Scene.em_combiners_list_index
-            del bpy.types.Scene.em_combiners_list
-            del bpy.types.Scene.em_extractors_list_index
-            del bpy.types.Scene.em_extractors_list
-            del bpy.types.Scene.em_properties_list_index
-            del bpy.types.Scene.em_properties_list
-            del bpy.types.Scene.em_sources_list_index
-            del bpy.types.Scene.em_sources_list
-            
-            del bpy.types.Scene.edges_list
-            del bpy.types.Scene.epoch_list_index
-            del bpy.types.Scene.epoch_list
-            del bpy.types.Scene.em_reused
-            del bpy.types.Scene.em_list_index
-            del bpy.types.Scene.em_list
-            del bpy.types.Scene.emviq_error_list_index
-            del bpy.types.Scene.emviq_error_list
-            
-            del bpy.types.WindowManager.export_tables_vars
-            del bpy.types.WindowManager.export_vars
-            
-            del bpy.types.Scene.selected_epoch_us_list_index
-            del bpy.types.Scene.selected_epoch_us_list
-            
-            del bpy.types.WindowManager.export_vars
-
-            # Unregister modules
+            # Unregister modules first
             from . import (
                 activity_manager,
                 graph2geometry,
@@ -941,33 +871,53 @@ def unregister():
                 visual_manager,
                 em_setup,
                 rm_manager,
-                paradata_manager
+                paradata_manager,
+                us_list_per_epoch
             )
             
             from .export_operators import exporter_heriverse
             from .import_operators import importer_graphml, import_EMdb 
             from .operators import graphml_converter
 
-            graphml_converter.unregister()
-            import_EMdb.unregister()
-            exporter_heriverse.unregister()
-            importer_graphml.unregister()
-            activity_manager.unregister()
-            graph2geometry.unregister()
-            server.unregister()
-            rm_manager.unregister()
-            us_list_per_epoch.unregister()
-            paradata_manager.unregister()
-            epoch_manager.unregister()
-            em_statistics.unregister()
-            export_manager.unregister()
-            EM_list.unregister()
-            EMdb_excel.unregister()
-            external_modules_install.unregister()
-            visual_manager.unregister()
-            em_setup.unregister()
+            # Safely unregister modules
+            try: graphml_converter.unregister()
+            except: pass
+            try: import_EMdb.unregister()
+            except: pass
+            try: exporter_heriverse.unregister()
+            except: pass
+            try: importer_graphml.unregister()
+            except: pass
+            try: activity_manager.unregister()
+            except: pass
+            try: graph2geometry.unregister()
+            except: pass
+            try: server.unregister()
+            except: pass
+            try: rm_manager.unregister()
+            except: pass
+            try: us_list_per_epoch.unregister()
+            except: pass
+            try: paradata_manager.unregister()
+            except: pass
+            try: epoch_manager.unregister()
+            except: pass
+            try: em_statistics.unregister()
+            except: pass
+            try: export_manager.unregister()
+            except: pass
+            try: EM_list.unregister()
+            except: pass
+            try: EMdb_excel.unregister()
+            except: pass
+            try: external_modules_install.unregister()
+            except: pass
+            try: visual_manager.unregister()
+            except: pass
+            try: em_setup.unregister()
+            except: pass
             
-            # Unregister UI classes
+            # Safely unregister UI classes
             from . import paradata_manager, visual_tools
             
             classes = (
@@ -983,7 +933,73 @@ def unregister():
                 except Exception:
                     pass
             
-            del bpy.types.Scene.em_graph
+            # Safely remove properties
+            props_to_remove = [
+                (bpy.types.WindowManager, 'export_vars'),
+                (bpy.types.WindowManager, 'export_tables_vars'),
+                (bpy.types.WindowManager, 'em_addon_settings'),
+                (bpy.types.Scene, 'EM_gltf_export_maxres'),
+                (bpy.types.Scene, 'EM_gltf_export_quality'),
+                (bpy.types.Object, 'EM_ep_belong_ob_index'),
+                (bpy.types.Object, 'EM_ep_belong_ob'),
+                (bpy.types.Scene, 'proxy_display_alpha'),
+                (bpy.types.Scene, 'proxy_blend_mode'),
+                (bpy.types.Scene, 'proxy_display_mode'),
+                (bpy.types.Scene, 'em_settings'),
+                (bpy.types.Scene, 'EMviq_model_author_name'),
+                (bpy.types.Scene, 'ATON_path'),
+                (bpy.types.Scene, 'EMviq_user_password'),
+                (bpy.types.Scene, 'EMviq_user_name'),
+                (bpy.types.Scene, 'EMviq_project_name'),
+                (bpy.types.Scene, 'EMviq_scene_folder'),
+                (bpy.types.Scene, 'EMviq_folder'),
+                (bpy.types.Scene, 'EM_file'),
+                (bpy.types.Scene, 'proxy_shader_mode'),
+                (bpy.types.Scene, 'extr_paradata_streaming_mode'),
+                (bpy.types.Scene, 'comb_paradata_streaming_mode'),
+                (bpy.types.Scene, 'prop_paradata_streaming_mode'),
+                (bpy.types.Scene, 'paradata_streaming_mode'),
+                (bpy.types.Scene, 'em_v_combiners_list_index'),
+                (bpy.types.Scene, 'em_v_combiners_list'),
+                (bpy.types.Scene, 'em_v_extractors_list_index'),
+                (bpy.types.Scene, 'em_v_extractors_list'),
+                (bpy.types.Scene, 'em_v_properties_list_index'),
+                (bpy.types.Scene, 'em_v_properties_list'),
+                (bpy.types.Scene, 'em_v_sources_list_index'),
+                (bpy.types.Scene, 'em_v_sources_list'),
+                (bpy.types.Scene, 'em_combiners_list_index'),
+                (bpy.types.Scene, 'em_combiners_list'),
+                (bpy.types.Scene, 'em_extractors_list_index'),
+                (bpy.types.Scene, 'em_extractors_list'),
+                (bpy.types.Scene, 'em_properties_list_index'),
+                (bpy.types.Scene, 'em_properties_list'),
+                (bpy.types.Scene, 'em_sources_list_index'),
+                (bpy.types.Scene, 'em_sources_list'),
+                (bpy.types.Scene, 'edges_list'),
+                (bpy.types.Scene, 'epoch_list_index'),
+                (bpy.types.Scene, 'epoch_list'),
+                (bpy.types.Scene, 'em_reused'),
+                (bpy.types.Scene, 'em_list_index'),
+                (bpy.types.Scene, 'em_list'),
+                (bpy.types.Scene, 'emviq_error_list_index'),
+                (bpy.types.Scene, 'emviq_error_list'),
+                (bpy.types.Scene, 'selected_epoch_us_list_index'),
+                (bpy.types.Scene, 'selected_epoch_us_list'),
+                (bpy.types.Scene, 'em_graph')
+            ]
+            
+            for prop_owner, prop_name in props_to_remove:
+                if hasattr(prop_owner, prop_name):
+                    try:
+                        delattr(prop_owner, prop_name)
+                    except:
+                        pass
+            
+            # Remove VIEW3D_MT_mesh_add function
+            try:
+                bpy.types.VIEW3D_MT_mesh_add.remove(functions.menu_func)
+            except:
+                pass
             
         except Exception as e:
             import traceback
@@ -991,7 +1007,10 @@ def unregister():
             traceback.print_exc()
     else:
         # Unregister only dependency panel
-        dependecy_panel.unregister()
+        try:
+            dependecy_panel.unregister()
+        except:
+            pass
     
     # Unregister base classes
     for cls in reversed(base_classes):
@@ -999,4 +1018,4 @@ def unregister():
             bpy.utils.unregister_class(cls)
         except Exception:
             pass
-    
+
