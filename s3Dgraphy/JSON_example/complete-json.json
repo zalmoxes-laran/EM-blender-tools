@@ -274,7 +274,7 @@
                         "to": "epoch_imperial"
                     }
                 ],
-                "has_activity": [
+                "is_in_activity": [
                     {
                         "id": "act_1",
                         "from": "US01",

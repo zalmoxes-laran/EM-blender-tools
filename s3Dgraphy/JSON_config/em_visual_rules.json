@@ -320,7 +320,7 @@
             },
             "label": "Survives In Epoch"
         },
-        "has_activity": {
+        "is_in_activity": {
             "style": {
                 "color": "#1E90FF",
                 "line_style": "solid",

@@ -31,7 +31,7 @@ EDGE_TYPES = {
         "label": "Survives In Epoch",
         "description": "Indicates that a node continues to exist in a given epoch."
     },
-    "has_activity": {
+    "is_in_activity": {
         "label": "Part of Activity",
         "description": "Indicates that a node is part of a specific activity."
     },

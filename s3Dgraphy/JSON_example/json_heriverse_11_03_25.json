@@ -3547,7 +3547,7 @@
                 "to": "row_0"
               }
             ],
-            "has_activity": [
+            "is_in_activity": [
               {
                 "id": "n0::n7::n0_has_activity_n0::n7",
                 "from": "n0::n7::n0",

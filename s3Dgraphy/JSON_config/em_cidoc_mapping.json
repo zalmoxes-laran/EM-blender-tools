@@ -26,7 +26,7 @@
           "description": "Represents transformation over time between objects.",
           "allowed_targets": ["StratigraphicUnit"]
         },
-        "has_activity": {
+        "is_in_activity": {
           "cidoc_property": "P14_carried_out_by",
           "description": "Indicates node participation in a specific activity.",
           "allowed_targets": ["ActivityNodeGroup"]

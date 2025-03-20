@@ -307,12 +307,12 @@ class GraphMLImporter:
 
                 # Creare l'arco 'is_grouped_in' dopo aver aggiunto il nodo al grafo
                 if not self.graph.find_edge_by_nodes(subnode_id, group_id):
-                    edge_id = f"{subnode_id}_has_activity_{group_id}"
+                    edge_id = f"{subnode_id}_is_in_activity_{group_id}"
                     self.graph.add_edge(
                         edge_id=edge_id,
                         edge_source=subnode_id,
                         edge_target=group_id,
-                        edge_type="has_activity"
+                        edge_type="is_in_activity"
                     )
 
     def extract_epochs(self, node_element, graph):
@@ -806,7 +806,7 @@ class GraphMLImporter:
             nodedescription = ''
         return nodedescription, node_y_pos, node_id
 
-    def EM_extract_edge_type(self, edge_element):
+    def EM_extract_edge_type(self, edge):
         """
         Extracts the semantic type of the edge from the GraphML data.
         
@@ -817,7 +817,7 @@ class GraphMLImporter:
             str: The edge type representing the semantic relationship.
         """
         edge_type = "generic_connection"  # Default edge type
-        data_element = edge_element.find('./{http://graphml.graphdrawing.org/xmlns}data[@key="d10"]')
+        data_element = edge.find('./{http://graphml.graphdrawing.org/xmlns}data[@key="d10"]')
 
         if data_element is not None:
             # Extract graphical line style and map it to a semantic relationship
@@ -839,11 +839,12 @@ class GraphMLImporter:
                     edge_type = "generic_connection"  # Default to "generic_connection" if unknown style
 
             # Post-processing basato sui tipi di nodi collegati
-            if edge_type == "has_data_provenance":
-                source_node = self.graph.find_node_by_id(edge_element.attrib['source'])
-                target_node = self.graph.find_node_by_id(edge_element.attrib['target'])
-                
-                if source_node and target_node:
+            source_node = self.graph.find_node_by_id(edge.attrib['source'])
+            target_node = self.graph.find_node_by_id(edge.attrib['target'])
+            
+            if source_node and target_node:
+                # Logica esistente per has_data_provenance
+                if edge_type == "has_data_provenance":
                     # Se il source è un nodo stratigrafico e il target è una property
                     if (isinstance(source_node, StratigraphicNode) and 
                         isinstance(target_node, PropertyNode)):
@@ -856,9 +857,28 @@ class GraphMLImporter:
                     if (isinstance(source_node, CombinerNode) and 
                         isinstance(target_node, ExtractorNode)):
                         edge_type = "combines"
-                    # Qui possiamo aggiungere altri pattern specifici
-                    # elif (...):
-                    #     edge_type = "altro_tipo"
+                
+                # NUOVA LOGICA: Post-processing per generic_connection
+                if edge_type == "generic_connection":
+                    source_type = source_node.node_type if hasattr(source_node, 'node_type') else ""
+                    target_type = target_node.node_type if hasattr(target_node, 'node_type') else ""
+                    
+                    # Log per debug
+                    print(f"Checking generic connection: {source_type} -> {target_type}")
+                    
+                    # Nodi ParadataNode (e sottoclassi) collegati a ParadataNodeGroup
+                    if (isinstance(source_node, (DocumentNode, ExtractorNode, CombinerNode, ParadataNode)) and 
+                        target_type == "ParadataNodeGroup"):
+                        edge_type = "is_in_paradata_nodegroup"
+                        print(f"Converted to is_in_paradata_nodegroup")
+                    
+                    # ParadataNodeGroup collegato a ActivityNodeGroup
+                    elif source_type == "ParadataNodeGroup" and target_type == "ActivityNodeGroup":
+                        edge_type = "has_paradata_nodegroup"
+                        print(f"Converted to has_paradata_nodegroup")
+                    
+                    # Eventuali altre regole specifiche per generic_connection
+                    # elif ...
 
         return edge_type
 

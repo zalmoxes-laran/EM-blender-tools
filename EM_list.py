@@ -72,7 +72,7 @@ class EM_filter_lists(bpy.types.Operator):
                 if scene.activity_manager.active_index >= 0 and len(scene.activity_manager.activities) > 0:
                     active_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
                     if active_activity:
-                        activity_nodes = graph.get_connected_nodes_by_edge_type(node.node_id, "has_activity")
+                        activity_nodes = graph.get_connected_nodes_by_edge_type(node.node_id, "is_in_activity")
                         if not any(activity.name == active_activity for activity in activity_nodes):
                             include_node = False
                 else:

@@ -197,10 +197,15 @@ class JSONExporter:
             "contrasts_with": [],
             "has_first_epoch": [],
             "survive_in_epoch": [],
-            "has_activity": [],
+            "is_in_activity": [],
             "has_property": [],
             "has_timebranch": [],
+            "is_in_timebranch": [],
+            "extracted_from": [],
+            "combines": [],
             "has_linked_resource": [],
+            "is_in_paradata_nodegroup": [],
+            "has_paradata_nodegroup": [],
             "generic_connection": []
         }
         

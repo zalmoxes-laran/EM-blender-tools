@@ -65,7 +65,7 @@
         }
       },
       {
-        "type": "has_activity",
+        "type": "is_in_activity",
         "label": "Part of Activity",
         "description": "Indicates that a node is part of a specific activity.",
         "allowed_connections": {
