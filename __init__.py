@@ -23,7 +23,7 @@ bl_info = {
     "version": (1, 5, 0),  # This is fine as a tuple
     "blender": (4, 0, 0),  # Make sure this matches the minimum Blender version you support
     "location": "3D View > Toolbox",
-    "warning": "1.5.0 dev21",
+    "warning": "1.5.0 dev22",
     "wiki_url": "",
     "category": "Tools",
 }

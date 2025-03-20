@@ -69,7 +69,7 @@
         "label": "Part of Activity",
         "description": "Indicates that a node is part of a specific activity.",
         "allowed_connections": {
-          "source": ["StratigraphicNode"],
+          "source": ["StratigraphicNode", "ParadataNode", "GroupNode"],
           "target": ["ActivityNodeGroup"]
         }
       },
