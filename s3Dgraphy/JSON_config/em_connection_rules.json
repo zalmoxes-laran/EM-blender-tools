@@ -69,7 +69,7 @@
         "label": "Part of Activity",
         "description": "Indicates that a node is part of a specific activity.",
         "allowed_connections": {
-          "source": ["StratigraphicNode", "ParadataNode", "GroupNode"],
+          "source": ["StratigraphicNode", "ParadataNode", "ParadataNodeGroup", "DocumentNode", "ExtractorNode", "CombinerNode", "PropertyNode"],
           "target": ["ActivityNodeGroup"]
         }
       },
@@ -101,9 +101,18 @@
         }
       },
       {
-        "type": "has_timebranch",
+        "type": "is_in_timebranch",
         "label": "Included in Timebranch",
         "description": "Indicates that a node belongs to a specific time branch.",
+        "allowed_connections": {
+          "source": ["StratigraphicNode"],
+          "target": ["TimeBranchNodeGroup"]
+        }
+      },
+      {
+        "type": "has_timebranch",
+        "label": "Connected to a Timebranch",
+        "description": "Indicates that a node is connected to a specific time branch.",
         "allowed_connections": {
           "source": ["StratigraphicNode"],
           "target": ["TimeBranchNodeGroup"]
@@ -161,6 +170,24 @@
         "allowed_connections": {
             "source": ["Node"],  
             "target": ["SemanticShapeNode"]
+        }
+      },
+      {
+        "type": "is_in_paradata_nodegroup",
+        "label": "Belongs to a Paradata Node Group",
+        "description": "Indicates that a node belongs to a paradata node group.",
+        "allowed_connections": {
+            "source": ["DocumentNode", "ExtractorNode", "CombinerNode", "ParadataNode"],
+            "target": ["ParadataNodeGroup"]
+        }
+      },
+      {
+        "type": "has_paradata_nodegroup",
+        "label": "Is connected to a Paradata Node Group",
+        "description": "Indicates that a node is connected to a paradata node group.",
+        "allowed_connections": {
+            "source": ["StratigraphicNode"],
+            "target": ["ParadataNodeGroup"]
         }
       }
 

@@ -48,9 +48,13 @@ EDGE_TYPES = {
         "description": "Indicates that a node combines information from various sources."
     },
     "has_timebranch": {
+        "label": "Connected to a Timebranch",
+        "description": "Indicates that a node is connected to a specific time branch."
+    },
+    "is_in_timebranch": {
         "label": "Included in Timebranch",
         "description": "Indicates that a node belongs to a specific time branch."
-    },
+    },    
     "generic_connection": {
         "label": "Generic Connection",
         "description": "Represents a non-specific connection between two nodes."
@@ -62,7 +66,16 @@ EDGE_TYPES = {
     "has_representation_model": {
         "label": "Has Representation Model",
         "description": "Connects any node to its representation model in 3D space."
-    }
+    },
+
+    "is_in_paradata_nodegroup": {
+        "label": "Belongs to a Paradata Node Group",
+        "description": "Indicates that a node is included into a paradata node group."
+    },
+    "has_paradata_nodegroup": {
+        "label": "Is connected to a Paradata Node Group",
+        "description": "Indicates that a node belongs to a paradata node group."
+    },
 }
 
 class Edge:
