@@ -46,13 +46,13 @@ class JSON_OT_exportEMformat(Operator, ExportHelper):
         name="Use File Dialog",
         description="Use the file dialog to choose where to save the JSON",
         default=True
-    )
+    ) # type: ignore
 
     filepath: StringProperty(
         name="File Path",
         description="Path to save the JSON file",
         default=""
-    )
+    ) # type: ignore
 
     def invoke(self, context, event):
         if self.use_file_dialog:

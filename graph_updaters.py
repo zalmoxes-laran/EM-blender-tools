@@ -121,7 +121,7 @@ def update_representation_models(graph):
                              node.name == epoch_prop.epoch), None)
             
             if epoch_node:
-                edge_id = f"{model_node_id}_belongs_to_{epoch_node.node_id}"
+                edge_id = f"{model_node_id}_has_representation_model_{epoch_node.node_id}"
                 if not graph.find_edge_by_id(edge_id):
                     graph.add_edge(
                         edge_id=edge_id,

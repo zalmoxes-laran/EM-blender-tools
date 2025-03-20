@@ -132,7 +132,7 @@
         "label": "Has author",
         "description": "Represents the connection of a node with its author.",
         "allowed_connections": {
-          "source": ["StratigraphicNode", "ParadataNode", "GroupNode"],
+          "source": ["Graph","StratigraphicNode", "ParadataNode", "GroupNode", "DocumentNode", "ExtractorNode", "CombinerNode", "PropertyNode"],
           "target": ["AuthorNode"]
         }
       },

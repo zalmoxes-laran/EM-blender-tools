@@ -238,7 +238,6 @@ class GraphMLImporter:
         
         return link_node
         
-
     def handle_group_node(self, node_element):
         """
         Gestisce un nodo di tipo gruppo dal file GraphML.
@@ -305,15 +304,38 @@ class GraphMLImporter:
                     # Gestire i nodi EpochNode se necessario
                     self.extract_epochs(subnode, self.graph)
 
-                # Creare l'arco 'is_grouped_in' dopo aver aggiunto il nodo al grafo
+                # Creare l'arco appropriato in base al tipo di gruppo
                 if not self.graph.find_edge_by_nodes(subnode_id, group_id):
-                    edge_id = f"{subnode_id}_is_in_activity_{group_id}"
-                    self.graph.add_edge(
-                        edge_id=edge_id,
-                        edge_source=subnode_id,
-                        edge_target=group_id,
-                        edge_type="is_in_activity"
-                    )
+                    # Ottieni il nodo gruppo e il nodo figlio
+                    sub_node = self.graph.find_node_by_id(subnode_id)
+                    
+                    if sub_node:
+                        # Determina il tipo di edge in base al tipo di gruppo
+                        edge_type = "generic_connection"  # Fallback sicuro
+                        
+                        if group_node_type == "ActivityNodeGroup":
+                            edge_type = "is_in_activity"
+                            edge_id_prefix = "is_in_activity"
+                        elif group_node_type == "ParadataNodeGroup":
+                            edge_type = "is_in_paradata_nodegroup"
+                            edge_id_prefix = "is_in_paradata_nodegroup"
+                        elif group_node_type == "TimeBranchNodeGroup":
+                            edge_type = "is_in_timebranch"
+                            edge_id_prefix = "is_in_timebranch"
+                        else:
+                            # Per altri tipi di gruppo non specificati
+                            edge_id_prefix = "grouped_in"
+                        
+                        # Crea l'edge con il tipo appropriato
+                        edge_id = f"{subnode_id}_{edge_id_prefix}_{group_id}"
+                        self.graph.add_edge(
+                            edge_id=edge_id,
+                            edge_source=subnode_id,
+                            edge_target=group_id,
+                            edge_type=edge_type
+                        )
+                        
+                        print(f"Created edge: {sub_node.node_type} -{edge_type}-> {group_node_type}")
 
     def extract_epochs(self, node_element, graph):
         """
@@ -507,7 +529,8 @@ class GraphMLImporter:
         list_of_physical_stratigraphic_nodes = ["US", "serSU"]
 
         # Assegna le epoche ai nodi
-        for node in (node for node in self.graph.nodes if isinstance(node, (StratigraphicNode, GroupNode))):
+        #for node in (node for node in self.graph.nodes if isinstance(node, (StratigraphicNode, GroupNode))): PRECEDENTEMENTE associavo anche i nodi di gruppo alle epoche. Ora non più.
+        for node in (node for node in self.graph.nodes if isinstance(node, (StratigraphicNode))):
             connected_continuity_node = self.graph.get_connected_node_by_type(node, "BR")
 
             for epoch in (n for n in self.graph.nodes if isinstance(n, EpochNode)):

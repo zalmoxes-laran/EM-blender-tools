@@ -165,7 +165,7 @@ class RM_OT_add_tileset(Operator):
                 
                 if epoch_node:
                     # Add the edge connecting the model to the epoch
-                    edge_id = f"{model_node_id}_belongs_to_{epoch_node.node_id}"
+                    edge_id = f"{model_node_id}_has_first_epoch_{epoch_node.node_id}"
                     if not graph.find_edge_by_id(edge_id):
                         graph.add_edge(
                             edge_id=edge_id,
@@ -727,7 +727,7 @@ class RM_OT_resolve_mismatches(Operator):
                                     break
                             
                             if epoch_node:
-                                edge_id = f"{model_node_id}_belongs_to_{epoch_node.node_id}"
+                                edge_id = f"{model_node_id}_has_representation_model_{epoch_node.node_id}"
                                 if not graph.find_edge_by_id(edge_id):
                                     graph.add_edge(
                                         edge_id=edge_id,
@@ -909,7 +909,10 @@ class RM_OT_promote_to_rm(Operator):
                         
                         if epoch_node:
                             edge_type = "has_first_epoch" if i == 0 else "survive_in_epoch"
-                            edge_id = f"{model_node_id}_belongs_to_{epoch_node.node_id}"
+                            if edge_type == "has_first_epoch":
+                                edge_id = f"{model_node_id}_has_first_epoch_{epoch_node.node_id}"
+                            else:
+                                edge_id = f"{model_node_id}_survive_in_epoch_{epoch_node.node_id}"    
                             graph.add_edge(
                                 edge_id=edge_id,
                                 edge_source=model_node_id,
@@ -1580,7 +1583,7 @@ class RM_OT_add_epoch(Operator):
         ep_item.epoch = active_epoch.name
         
         # Crea un edge nel grafo
-        edge_id = f"{rm_item.node_id}_belongs_to_{epoch_node.node_id}"
+        edge_id = f"{rm_item.node_id}_has_representation_model_{epoch_node.node_id}"
         if not graph.find_edge_by_id(edge_id):
             graph.add_edge(
                 edge_id=edge_id,

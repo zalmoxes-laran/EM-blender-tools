@@ -206,7 +206,9 @@ class JSONExporter:
             "has_linked_resource": [],
             "is_in_paradata_nodegroup": [],
             "has_paradata_nodegroup": [],
-            "generic_connection": []
+            "has_semantic_shape": [],
+            "has_representation_model": [],
+            "generic_connection": []            
         }
         
         for edge in graph.edges:
