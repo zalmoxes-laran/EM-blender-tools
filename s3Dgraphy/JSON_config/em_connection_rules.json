@@ -119,15 +119,6 @@
         }
       },
       {
-        "type": "generic_connection",
-        "label": "Generic Connection",
-        "description": "Represents a non-specific connection between two nodes.",
-        "allowed_connections": {
-          "source": ["StratigraphicNode", "PropertyNode"],
-          "target": ["StratigraphicNode", "PropertyNode"]
-        }
-      },
-      {
         "type": "has_author",
         "label": "Has author",
         "description": "Represents the connection of a node with its author.",
@@ -189,8 +180,16 @@
             "source": ["StratigraphicNode"],
             "target": ["ParadataNodeGroup"]
         }
+      },
+      {
+        "type": "generic_connection",
+        "label": "Generic Connection",
+        "description": "Represents a non-specific connection between two nodes.",
+        "allowed_connections": {
+          "source": ["StratigraphicNode", "PropertyNode"],
+          "target": ["StratigraphicNode", "PropertyNode"]
+        }
       }
-
     ]
   }
   
