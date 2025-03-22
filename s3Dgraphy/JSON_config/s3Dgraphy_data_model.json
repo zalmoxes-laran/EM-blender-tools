@@ -1,0 +1,1060 @@
+{
+    "s3Dgraphy_data_model_version": "1.5.0",
+    "description": "s3Dgraphy datamodel including nodes with CIDOC-CRM mappings and visual rules",
+    "components": [
+      "CIDOC-CRM",
+      "CRMarchaeo",
+      "CRMsci",
+      "CRMdig",
+      "CRMgeo",
+      "CRMinf",
+      "CRMs3D"
+    ],
+    "base_nodes": {
+      "Node": {
+        "class": "Node",
+        "description": "Base class for all nodes in the graph with CIDOC mapping",
+        "s3Dgraphy_file": "base_node.py",
+        "mapping": {
+          "cidoc": "E1 CRM Entity",
+          "cidoc_s3d": null
+        },
+        "properties": {
+          "name": "P1_is_identified_by",
+          "description": "P3_has_note"
+        },
+        "visual_rules": {
+          "default_style": {
+            "border_color": "#000000",
+            "fill_color": "#FFFFFF",
+            "border_style": "solid"
+          }
+        }
+      }
+    },
+    "stratigraphic_nodes": {
+      "StratigraphicNode": {
+        "class": "StratigraphicNode",
+        "parent": "Node",
+        "description": "Base class for all stratigraphic units within the graph structure. Inherits from Node and provides additional functionality specific to stratigraphy.",
+        "s3Dgraphy_file": "stratigraphic_node.py",
+        "mapping": {
+          "cidoc": "A8 Stratigraphic Unit",
+          "cidoc_s3d": null
+        },
+        "properties": {
+          "name": "P1_is_identified_by",
+          "description": "P3_has_note",
+          "symbol": null,
+          "label": null
+        },
+        "visual_rules": {
+          "default_style": {
+            "border_color": "#000000",
+            "fill_color": "#FFFFFF",
+            "border_style": "solid"
+          }
+        },
+        "subtypes": {
+          "US": {
+            "class": "StratigraphicUnit",
+            "parent": "StratigraphicNode",
+            "abbreviation": "US",
+            "label": "US (or SU)",
+            "description": "Stratigraphic Unit (SU) or negative stratigraphic unit. Represents a physical stratigraphic unit (positive or negative). It corresponds to an identifiable physical layer or interface in archaeological documentation.",
+            "s3Dgraphy_file": "stratigraphic_node.py",
+            "mapping": {
+              "cidoc": "A2 Stratigraphic Volume Unit",
+              "cidoc_s3d": null,
+              "alternative": "E26 Physical Feature + A8 Stratigraphic Unit"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note",
+              "symbol": "white rectangle",
+              "label": "US (or SU)"
+            },
+            "visual_rules": {
+              "style": {
+                "material": {
+                  "rgba_color": {
+                    "r": 0.328,
+                    "g": 0.033,
+                    "b": 0.033,
+                    "a": 1.0
+                  },
+                  "hex_color": "#540909"
+                },
+                "border_color": "#540909",
+                "fill_color": "#F0F0F0",
+                "border_style": "solid",
+                "shape": "rectangle"
+              },
+              "3d_file": "src/3D/US.glb",
+              "2d_file_rast": "src/2D/US.png",
+              "2d_file_vect": "src/2D/US.svg",
+              "label_position": "over"
+            }
+          },
+          "USVs": {
+            "class": "StructuralVirtualStratigraphicUnit",
+            "parent": "StratigraphicNode",
+            "abbreviation": "USVs",
+            "label": "USV/s",
+            "description": "Structural Virtual Stratigraphic Unit (USV/s). Represents a virtual reconstruction of structural elements, such as walls, columns, or other architectural components that are no longer physically present but can be reconstructed based on archaeological evidence.",
+            "s3Dgraphy_file": "stratigraphic_node.py",
+            "mapping": {
+              "cidoc": "A2 Stratigraphic Volume Unit",
+              "cidoc_s3d": "VirtualStratigraphicStructuralUnit",
+              "alternative": "E89 Propositional Object + A8 Stratigraphic Unit"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note",
+              "symbol": "black parallelogram",
+              "label": "USV/s"
+            },
+            "visual_rules": {
+              "style": {
+                "material": {
+                  "rgba_color": {
+                    "r": 0.018,
+                    "g": 0.275,
+                    "b": 0.799,
+                    "a": 1.0
+                  },
+                  "hex_color": "#0546CC"
+                },
+                "border_color": "#0546CC",
+                "fill_color": "#CCCCCC",
+                "border_style": "solid",
+                "shape": "parallelogram"
+              },
+              "3d_file": "src/3D/USVs.glb",
+              "2d_file_rast": "src/2D/USVs.png",
+              "2d_file_vect": "src/2D/USVs.svg",
+              "label_position": "over"
+            }
+          },
+          "USVn": {
+            "class": "NonStructuralVirtualStratigraphicUnit",
+            "parent": "StratigraphicNode",
+            "abbreviation": "USVn",
+            "label": "USV/n",
+            "description": "Non-structural Virtual Stratigraphic Unit (USV/n). Represents a virtual reconstruction of non-structural elements, such as furniture, decorations, or other non-load bearing components that are no longer physically present but can be reconstructed based on archaeological evidence.",
+            "s3Dgraphy_file": "stratigraphic_node.py",
+            "mapping": {
+              "cidoc": "A2 Stratigraphic Volume Unit",
+              "cidoc_s3d": "VirtualStratigraphicNonStructuralUnit",
+              "alternative": "E89 Propositional Object + A8 Stratigraphic Unit"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note",
+              "symbol": "black hexagon",
+              "label": "USV/n"
+            },
+            "visual_rules": {
+              "style": {
+                "material": {
+                  "rgba_color": {
+                    "r": 0.031,
+                    "g": 0.191,
+                    "b": 0.026,
+                    "a": 1.0
+                  },
+                  "hex_color": "#083107"
+                },
+                "border_color": "#083107",
+                "fill_color": "#000000",
+                "border_style": "solid",
+                "shape": "hexagon"
+              },
+              "3d_file": "src/3D/USVn.glb",
+              "2d_file_rast": "src/2D/USVn.png",
+              "2d_file_vect": "src/2D/USVn.svg",
+              "label_position": "over"
+            }
+          },
+          "SF": {
+            "class": "SpecialFindUnit",
+            "parent": "StratigraphicNode",
+            "abbreviation": "SF",
+            "label": "Special Find",
+            "description": "Not in situ element that needs repositioning. Represents an object of particular interest found in stratigraphic contexts, such as architectural artifacts, coins, or other significant objects that are not in their original position.",
+            "s3Dgraphy_file": "stratigraphic_node.py",
+            "mapping": {
+              "cidoc": "E19 Physical Object",
+              "cidoc_s3d": "RepositionableObject",
+              "alternative": null
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note",
+              "symbol": "white octagon",
+              "label": "Special Find"
+            },
+            "visual_rules": {
+              "style": {
+                "material": {
+                  "rgba_color": {
+                    "r": 0.686,
+                    "g": 0.508,
+                    "b": 0.029,
+                    "a": 1.0
+                  },
+                  "hex_color": "#AF8208"
+                },
+                "border_color": "#AF8208",
+                "fill_color": "#CCCCCC",
+                "border_style": "solid",
+                "shape": "octagon"
+              },
+              "3d_file": "src/3D/SF.glb",
+              "2d_file_rast": "src/2D/SF.png",
+              "2d_file_vect": "src/2D/SF.svg",
+              "label_position": "over"
+            }
+          },
+          "VSF": {
+            "class": "VirtualSpecialFindUnit",
+            "parent": "StratigraphicNode",
+            "abbreviation": "VSF",
+            "label": "Virtual Special Find",
+            "description": "Hypothetical reconstruction of a fragmented Special Find. Represents a virtual reconstruction of a special find that is fragmented or incomplete, based on archaeological evidence and reasonable inferences.",
+            "s3Dgraphy_file": "stratigraphic_node.py",
+            "mapping": {
+              "cidoc": "E89 Propositional Object",
+              "cidoc_s3d": "VirtualReconstructedObject",
+              "alternative": "E89 Propositional Object + E19 Physical Object"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note",
+              "symbol": "black octagon",
+              "label": "Virtual Special Find"
+            },
+            "visual_rules": {
+              "style": {
+                "material": {
+                  "rgba_color": {
+                    "r": 0.439,
+                    "g": 0.346,
+                    "b": 0.119,
+                    "a": 1.0
+                  },
+                  "hex_color": "#70581E"
+                },
+                "border_color": "#70581E",
+                "fill_color": "#CCCCCC",
+                "border_style": "solid",
+                "shape": "octagon"
+              },
+              "3d_file": "src/3D/VSF.glb",
+              "2d_file_rast": "src/2D/VSF.png",
+              "2d_file_vect": "src/2D/VSF.svg",
+              "label_position": "over"
+            }
+          },
+          "serSU": {
+            "class": "SeriesOfStratigraphicUnit",
+            "parent": "StratigraphicNode",
+            "abbreviation": "serSU",
+            "label": "US series",
+            "description": "Series of Stratigraphic Units (SU). Represents a grouping of multiple related stratigraphic units for organizational or analytical purposes.",
+            "s3Dgraphy_file": "stratigraphic_node.py",
+            "mapping": {
+              "cidoc": "A6 Group Declaration Event",
+              "cidoc_s3d": null,
+              "alternative": "E78 Collection + A8 Stratigraphic Unit"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note",
+              "symbol": "white ellipse",
+              "label": "US series"
+            },
+            "visual_rules": {
+              "style": {
+                "material": {
+                  "rgba_color": {
+                    "r": 0.5,
+                    "g": 0.5,
+                    "b": 0.5,
+                    "a": 1.0
+                  },
+                  "hex_color": "#808080"
+                },
+                "border_color": "#9B3333",
+                "fill_color": "#EFEFEF",
+                "border_style": "solid",
+                "shape": "ellipse"
+              },
+              "3d_file": "src/3D/serSU.glb",
+              "2d_file_rast": "src/2D/serSU.png",
+              "2d_file_vect": "src/2D/serSU.svg",
+              "label_position": "over"
+            }
+          },
+          "serUSVn": {
+            "class": "SeriesOfNonStructuralVirtualStratigraphicUnit",
+            "parent": "StratigraphicNode",
+            "abbreviation": "serUSVn",
+            "label": "USVn series",
+            "description": "Series of non-structural Virtual Stratigraphic Units. Represents a grouping of multiple non-structural virtual stratigraphic units.",
+            "s3Dgraphy_file": "stratigraphic_node.py",
+            "mapping": {
+              "cidoc": "E78 Collection",
+              "cidoc_s3d": "VirtualStratigraphicSeriesCollection",
+              "alternative": "E78 Collection + A3 Stratigraphic Interface"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note",
+              "symbol": "black ellipse green border",
+              "label": "USVn series"
+            },
+            "visual_rules": {
+              "style": {
+                "material": {
+                  "rgba_color": {
+                    "r": 0.15,
+                    "g": 0.35,
+                    "b": 0.15,
+                    "a": 1.0
+                  },
+                  "hex_color": "#275925"
+                },
+                "border_color": "#31792D",
+                "fill_color": "#000000",
+                "border_style": "solid",
+                "shape": "ellipse"
+              },
+              "3d_file": "src/3D/serUSV.glb",
+              "2d_file_rast": "src/2D/serUSV.png",
+              "2d_file_vect": "src/2D/serUSV.svg",
+              "label_position": "over"
+            }
+          },
+          "serUSVs": {
+            "class": "SeriesOfStructuralVirtualStratigraphicUnit",
+            "parent": "StratigraphicNode",
+            "abbreviation": "serUSVs",
+            "label": "USVs series",
+            "description": "Series of Structural Virtual Stratigraphic Units. Represents a grouping of multiple structural virtual stratigraphic units.",
+            "s3Dgraphy_file": "stratigraphic_node.py",
+            "mapping": {
+              "cidoc": "E78 Collection",
+              "cidoc_s3d": "VirtualStratigraphicSeriesCollection",
+              "alternative": "E78 Collection + A3 Stratigraphic Interface"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note",
+              "symbol": "black ellipse blue border",
+              "label": "USVs series"
+            },
+            "visual_rules": {
+              "style": {
+                "material": {
+                  "rgba_color": {
+                    "r": 0.14,
+                    "g": 0.14,
+                    "b": 0.56,
+                    "a": 1.0
+                  },
+                  "hex_color": "#24248F"
+                },
+                "border_color": "#248FE7",
+                "fill_color": "#000000",
+                "border_style": "solid",
+                "shape": "ellipse"
+              },
+              "3d_file": "src/3D/serUSV.glb",
+              "2d_file_rast": "src/2D/serUSV.png",
+              "2d_file_vect": "src/2D/serUSV.svg",
+              "label_position": "over"
+            }
+          },
+          "USD": {
+            "class": "DocumentaryStratigraphicUnit",
+            "parent": "StratigraphicNode",
+            "abbreviation": "USD",
+            "label": "USD",
+            "description": "Documentary Stratigraphic Unit. Represents a conceptual stratigraphic unit based on historical or documentary sources rather than direct physical evidence.",
+            "s3Dgraphy_file": "stratigraphic_node.py",
+            "mapping": {
+              "cidoc": "E31 Document",
+              "cidoc_s3d": "DocumentaryStratigraphicUnit",
+              "alternative": "E31 Document + E73 Information Object"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note",
+              "symbol": "white round rectangle",
+              "label": "USD"
+            },
+            "visual_rules": {
+              "style": {
+                "material": {
+                  "rgba_color": {
+                    "r": 0.549,
+                    "g": 0.103,
+                    "b": 0.000,
+                    "a": 1.0
+                  },
+                  "hex_color": "#8C1A00"
+                },
+                "border_color": "#8C1A00",
+                "fill_color": "#F5F5F5",
+                "border_style": "solid",
+                "shape": "rounded_rectangle"
+              },
+              "3d_file": "src/3D/USD.glb",
+              "2d_file_rast": "src/2D/USD.png",
+              "2d_file_vect": "src/2D/USD.svg",
+              "label_position": "over"
+            }
+          },
+          "TSU": {
+            "class": "TransformationStratigraphicUnit",
+            "parent": "StratigraphicNode",
+            "abbreviation": "TSU",
+            "label": "TSU",
+            "description": "Transformation Unit. Represents a process of change in a stratigraphic unit.",
+            "s3Dgraphy_file": "stratigraphic_node.py",
+            "mapping": {
+              "cidoc": "A5 Stratigraphic Modification",
+              "cidoc_s3d": null,
+              "alternative": "S18 Alteration"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note",
+              "symbol": "dotted white rectangle",
+              "label": "TSU"
+            },
+            "visual_rules": {
+              "style": {
+                "material": {
+                  "rgba_color": {
+                    "r": 0.5,
+                    "g": 0.5,
+                    "b": 0.5,
+                    "a": 1.0
+                  },
+                  "hex_color": "#808080"
+                },
+                "border_color": "#AAAAAA",
+                "fill_color": "#DDDDDD",
+                "border_style": "dotted",
+                "shape": "rectangle"
+              },
+              "3d_file": "src/3D/TSU.glb",
+              "2d_file_rast": "src/2D/TSU.png",
+              "2d_file_vect": "src/2D/TSU.svg",
+              "label_position": "over"
+            }
+          },
+          "BR": {
+            "class": "ContinuityNode",
+            "parent": "StratigraphicNode",
+            "abbreviation": "BR",
+            "label": "continuity node",
+            "description": "End of life of a US/USV. Marks the point where a stratigraphic unit ceases to exist.",
+            "s3Dgraphy_file": "stratigraphic_node.py",
+            "mapping": {
+              "cidoc": "E64 End of Existence",
+              "cidoc_s3d": null,
+              "alternative": "A5 Stratigraphic Modification"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note",
+              "symbol": "black rhombus",
+              "label": "continuity node"
+            },
+            "visual_rules": {
+              "style": {
+                "material": {
+                  "rgba_color": {
+                    "r": 0.0,
+                    "g": 0.0,
+                    "b": 0.0,
+                    "a": 1.0
+                  },
+                  "hex_color": "#000000"
+                },
+                "border_color": "#000000",
+                "fill_color": "#FFFFFF",
+                "border_style": "solid",
+                "shape": "diamond"
+              },
+              "3d_file": "src/3D/BR.glb",
+              "2d_file_rast": "src/2D/continuity.png",
+              "2d_file_vect": "src/2D/continuity.svg",
+              "label_position": "center"
+            }
+          },
+          "SE": {
+            "class": "StratigraphicEventNode",
+            "parent": "StratigraphicNode",
+            "abbreviation": "SE",
+            "label": "stratigraphic event node",
+            "description": "A stratigraphic event is the process or event that leads to the formation or alteration of a stratigraphic unit. It is distinct from the unit itself, which represents the result or outcome of the event. The event can be thought of as a precursor and can be paired with its resulting unit to provide a more detailed temporal range. This allows for the documentation of both the initial moment of action (e.g., the start of construction, a collapse, or an incision) and the final state (the resulting unit that persists over time).",
+            "s3Dgraphy_file": "stratigraphic_node.py",
+            "mapping": {
+              "cidoc": "A4 Stratigraphic Genesis",
+              "cidoc_s3d": null,
+              "alternative": "S17 Physical Genesis"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note",
+              "symbol": "to be defined",
+              "label": "stratigraphic event node"
+            },
+            "visual_rules": {
+              "style": {
+                "material": {
+                  "rgba_color": {
+                    "r": 0.5,
+                    "g": 0.0,
+                    "b": 0.0,
+                    "a": 1.0
+                  },
+                  "hex_color": "#800000"
+                },
+                "border_color": "#FF0000",
+                "fill_color": "#FFFFFF",
+                "border_style": "dashed",
+                "shape": "triangle"
+              },
+              "3d_file": null,
+              "2d_file_rast": null,
+              "2d_file_vect": null,
+              "label_position": "over",
+              "file_status": "to be created"
+            }
+          }
+        }
+      }
+    },
+    "temporal_nodes": {
+      "EpochNode": {
+        "class": "EpochNode",
+        "parent": "Node",
+        "abbreviation": "EP",
+        "label": "Epoch",
+        "description": "Node representing a temporal epoch. It is a convenient grouping that allows attributing a series of actions to a temporal delta. Once the specific chronology data, expressed as start_time and end_time properties of individual SUs, is defined through dating elements, these epoch nodes are ignored where such specific data are available.",
+        "s3Dgraphy_file": "epoch_node.py",
+        "mapping": {
+          "cidoc": "E4 Period",
+          "cidoc_s3d": "StratigraphicTimeframe",
+          "alternative": null
+        },
+        "properties": {
+          "name": "P1_is_identified_by",
+          "description": "P3_has_note",
+          "start_time": "P82a_begin_of_the_begin",
+          "end_time": "P82b_end_of_the_end",
+          "color": "P90_has_value"
+        },
+        "visual_rules": {
+          "style": {
+            "border_color": "#009933",
+            "fill_color": "#FFFFFF",
+            "border_style": "solid",
+            "shape": "rectangle",
+            "color_property": "color"
+          },
+          "3d_file": "src/3D/epoch.glb",
+          "2d_file_rast": "src/2D/epoch.png",
+          "2d_file_vect": "src/2D/epoch.svg",
+          "label_position": "over"
+        }
+      }
+    },
+    "group_nodes": {
+      "GroupNode": {
+        "class": "GroupNode",
+        "parent": "Node",
+        "description": "Node that represents a group of nodes. These groups can be of various types: see subclasses below.",
+        "s3Dgraphy_file": "group_node.py",
+        "mapping": {
+          "cidoc": "E78 Collection",
+          "cidoc_s3d": null,
+          "alternative": "E89 Propositional Object"
+        },
+        "properties": {
+          "name": "P1_is_identified_by",
+          "description": "P3_has_note"
+        },
+        "visual_rules": {
+          "default_style": {
+            "border_color": "#000000",
+            "fill_color": "#FFFFFF",
+            "border_style": "solid"
+          }
+        },
+        "subtypes": {
+          "ActivityNodeGroup": {
+            "class": "ActivityNodeGroup",
+            "parent": "GroupNode",
+            "abbreviation": "ANG",
+            "label": "Activity Node Group",
+            "description": "Group node for activities. An activity is a logical group of actions that are kept together for a narrative purpose and information order (e.g., construction of a room of a building in year x, restoration activities of various parts of that room 20 years later).",
+            "s3Dgraphy_file": "group_node.py",
+            "mapping": {
+              "cidoc": "E7 Activity",
+              "cidoc_s3d": "StratigraphicActivity",
+              "alternative": "E7 Activity + E78 Collection"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note"
+            },
+            "visual_rules": {
+              "style": {
+                "border_color": "#9966CC",
+                "fill_color": "#FFFFFF",
+                "border_style": "dashed",
+                "shape": "ellipse",
+                "background_color": "#CCFFFF"
+              },
+              "3d_file": "src/3D/activity.glb",
+              "2d_file_rast": "src/2D/activity.png",
+              "2d_file_vect": "src/2D/activity.svg",
+              "label_position": "over"
+            }
+          },
+          "ParadataNodeGroup": {
+            "class": "ParadataNodeGroup",
+            "parent": "GroupNode",
+            "abbreviation": "PNG",
+            "label": "Paradata Node Group",
+            "description": "Group node for paradata. This group brings together all paradata related to a stratigraphic unit: typically named '[US_name]_PD' (ParaData).",
+            "s3Dgraphy_file": "group_node.py",
+            "mapping": {
+              "cidoc": "E78 Collection",
+              "cidoc_s3d": "ParadataCollection",
+              "alternative": "I4 Proposition Set + E78 Collection"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note"
+            },
+            "visual_rules": {
+              "style": {
+                "border_color": "#FF6600",
+                "fill_color": "#FFFFFF",
+                "border_style": "solid",
+                "shape": "ellipse",
+                "background_color": "#FFCC99"
+              },
+              "3d_file": null,
+              "2d_file_rast": null,
+              "2d_file_vect": null,
+              "label_position": "over",
+              "file_status": "to be created"
+            }
+          },
+          "TimeBranchNodeGroup": {
+            "class": "TimeBranchNodeGroup",
+            "parent": "GroupNode",
+            "abbreviation": "TBNG",
+            "label": "Time Branch Node Group",
+            "description": "Group node to aggregate all elements belonging to a time branch. Two TB can be connected by a 'contrasts_with' edge.",
+            "s3Dgraphy_file": "group_node.py",
+            "mapping": {
+              "cidoc": "E4 Period",
+              "cidoc_s3d": "AlternativeTemporalBranch",
+              "alternative": "I2 Belief + E4 Period"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note"
+            },
+            "visual_rules": {
+              "style": {
+                "border_color": "#006600",
+                "fill_color": "#FFFFFF",
+                "border_style": "solid",
+                "shape": "ellipse",
+                "background_color": "#99CC00"
+              },
+              "3d_file": null,
+              "2d_file_rast": null,
+              "2d_file_vect": null,
+              "label_position": "over",
+              "file_status": "to be created"
+            }
+          }
+        }
+      }
+    },
+    "paradata_nodes": {
+      "ParadataNode": {
+        "class": "ParadataNode",
+        "parent": "Node",
+        "description": "Base class for nodes representing metadata or information on how the data was generated.",
+        "s3Dgraphy_file": "paradata_node.py",
+        "mapping": {
+          "cidoc": "E31 Document",
+          "cidoc_s3d": "ParadataEntity",
+          "alternative": "I1 Argumentation + E31 Document"
+        },
+        "properties": {
+          "name": "P1_is_identified_by",
+          "description": "P3_has_note",
+          "url": "P1_is_identified_by"
+        },
+        "visual_rules": {
+          "default_style": {
+            "border_color": "#000000",
+            "fill_color": "#FFFFFF",
+            "border_style": "solid"
+          }
+        },
+        "subtypes": {
+          "PropertyNode": {
+            "class": "PropertyNode",
+            "parent": "ParadataNode",
+            "abbreviation": "PROP",
+            "label": "Property",
+            "description": "Node that represents a property associated with another node. Attributes: value (any): Value of the property. property_type (str): Type of property (e.g. 'Height', 'Length', etc.). data (dict): Additional metadata, such as 'author', 'time_start', 'time_end'.",
+            "s3Dgraphy_file": "property_node.py",
+            "mapping": {
+              "cidoc": "E54 Dimension",
+              "cidoc_s3d": "StratigraphicProperty",
+              "alternative": "S9 Property Type + E54 Dimension"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note",
+              "url": "P1_is_identified_by",
+              "value": "P90_has_value",
+              "property_type": "P2_has_type"
+            },
+            "visual_rules": {
+              "style": {
+                "border_color": "#666666",
+                "fill_color": "#FFFFFF",
+                "border_style": "dashed",
+                "shape": "circle"
+              },
+              "3d_file": "src/3D/property.glb",
+              "2d_file_rast": "src/2D/property.png",
+              "2d_file_vect": "src/2D/property.svg",
+              "label_position": "over"
+            }
+          },
+          "DocumentNode": {
+            "class": "DocumentNode",
+            "parent": "ParadataNode",
+            "abbreviation": "DOC",
+            "label": "Document",
+            "description": "Node that represents a document or source. Attributes: data (dict): Additional metadata, such as 'url_type'.",
+            "s3Dgraphy_file": "document_node.py",
+            "mapping": {
+              "cidoc": "E31 Document",
+              "cidoc_s3d": null,
+              "alternative": "I14 Provenance Belief"
+            },
+            "properties": {
+              "name": "P102_has_title",
+              "description": "P3_has_note",
+              "url": "P1_is_identified_by"
+            },
+            "visual_rules": {
+              "style": {
+                "border_color": "#000000",
+                "fill_color": "#E0E0E0",
+                "border_style": "solid",
+                "shape": "ellipse"
+              },
+              "3d_file": "src/3D/document.glb",
+              "2d_file_rast": "src/2D/document.png",
+              "2d_file_vect": "src/2D/document.svg",
+              "label_position": "over"
+            }
+          },
+          "ExtractorNode": {
+            "class": "ExtractorNode",
+            "parent": "ParadataNode",
+            "abbreviation": "EXT",
+            "label": "Extractor",
+            "description": "Node that represents the extraction of information from a source. Attributes: source (str): Source from which the information was extracted. data (dict): Additional metadata, such as 'author', 'url_type', 'icon', etc.",
+            "s3Dgraphy_file": "extractor_node.py",
+            "mapping": {
+              "cidoc": "E7 Activity",
+              "cidoc_s3d": "InformationExtraction",
+              "alternative": "I7 Belief Adoption"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note",
+              "url": "P1_is_identified_by",
+              "source": "J7_is_based_on_evidence_from"
+            },
+            "visual_rules": {
+              "style": {
+                "border_color": "#0033CC",
+                "fill_color": "#F0F0F0",
+                "border_style": "solid",
+                "shape": "pentagon"
+              },
+              "3d_file": "src/3D/extractor.glb",
+              "2d_file_rast": "src/2D/extractor.png",
+              "2d_file_vect": "src/2D/extractor.svg",
+              "label_position": "bottom"
+            }
+          },
+          "CombinerNode": {
+            "class": "CombinerNode",
+            "parent": "ParadataNode",
+            "abbreviation": "COMB",
+            "label": "Combiner",
+            "description": "Node that represents reasoning that combines information from multiple sources. Attributes: sources (list): List of combined sources. data (dict): Additional metadata, such as 'author'.",
+            "s3Dgraphy_file": "combiner_node.py",
+            "mapping": {
+              "cidoc": "E7 Activity",
+              "cidoc_s3d": "InformationCombination",
+              "alternative": "I5 Inference Making"
+            },
+            "properties": {
+              "name": "P1_is_identified_by",
+              "description": "P3_has_note",
+              "url": "P1_is_identified_by",
+              "sources": "J1_used_as_premise"
+            },
+            "visual_rules": {
+              "style": {
+                "border_color": "#FFCC00",
+                "fill_color": "#FFFFFF",
+                "border_style": "dashed",
+                "shape": "hexagon"
+              },
+              "3d_file": "src/3D/combiner.glb",
+              "2d_file_rast": "src/2D/combiner.png",
+              "2d_file_vect": "src/2D/combiner.svg",
+              "label_position": "bottom"
+            }
+          }
+        }
+      }
+    },
+    "reference_nodes": {
+      "GeoPositionNode": {
+        "class": "GeoPositionNode",
+        "parent": "Node",
+        "abbreviation": "GEO",
+        "label": "Geo Position",
+        "description": "Class to represent a GeoPosition node in the graph. Attributes: type (str): Node type, set to 'geo_position'. data (dict): Data related to geographic position.",
+        "s3Dgraphy_file": "geo_position_node.py",
+        "mapping": {
+          "cidoc": "E53 Place",
+          "cidoc_s3d": null,
+          "alternative": "SP5 Geometric Place Expression"
+        },
+        "properties": {
+          "name": "P1_is_identified_by",
+          "epsg": "P168_place_is_located_at",
+          "shift_x": "Q9_is_expressed_in_terms_of",
+          "shift_y": "Q9_is_expressed_in_terms_of",
+          "shift_z": "Q9_is_expressed_in_terms_of"
+        },
+        "visual_rules": {
+          "style": {
+            "border_color": "#0066FF",
+            "fill_color": "#CCCCFF",
+            "border_style": "solid",
+            "shape": "ellipse"
+          },
+          "3d_file": null,
+          "2d_file_rast": null,
+          "2d_file_vect": null,
+          "label_position": "over",
+          "file_status": "to be created"
+        }
+      },
+      "LinkNode": {
+        "class": "LinkNode",
+        "parent": "Node",
+        "abbreviation": "LINK",
+        "label": "Link",
+        "description": "Class to represent a link node (LinkNode) in the graph. Attributes: url (str): URL of the link. url_type (str): Type of URL (e.g., 'External link', 'Image'). description (str): Description of the link.",
+        "s3Dgraphy_file": "link_node.py",
+        "mapping": {
+          "cidoc": "E73 Information Object",
+          "cidoc_s3d": "ExternalResourceReference",
+          "alternative": "E73 Information Object + E36 Visual Item"
+        },
+        "properties": {
+          "name": "P1_is_identified_by",
+          "description": "P3_has_note",
+          "url": "P1_is_identified_by",
+          "url_type": "P2_has_type"
+        },
+        "visual_rules": {
+          "style": {
+            "border_color": "#003366",
+            "fill_color": "#99CCFF",
+            "border_style": "solid",
+            "shape": "ellipse"
+          },
+          "3d_file": null,
+          "2d_file_rast": null,
+          "2d_file_vect": null,
+          "label_position": "over",
+          "file_status": "to be created"
+        },
+        "resource_types": {
+          "3d_model": ["gltf", "obj", "fbx", "3ds", "blend"],
+          "proxy_model": ["glb"],
+          "image": ["jpg", "jpeg", "png", "tif", "tiff", "bmp"],
+          "document": ["pdf", "doc", "docx", "txt"],
+          "web_page": ["http", "https"],
+          "video": ["mp4", "avi", "mov"],
+          "point_cloud": ["e57", "pts", "las", "laz"]
+        }
+      }
+    },
+    "visualization_nodes": {
+      "RepresentationModelNode": {
+        "class": "RepresentationModelNode",
+        "parent": "Node",
+        "abbreviation": "RM",
+        "label": "Representation Model",
+        "description": "Node that represents a 3D model or a spatialized image. Attributes: node_type (str): Node type, set to 'representation_model'. type (str): The type of representation ('RM', 'spatialized_image' or 'generic'). url (str): URL of the resource (e.g. .gltf file).",
+        "s3Dgraphy_file": "representation_model_node.py",
+        "mapping": {
+          "cidoc": "D1 Digital Object",
+          "cidoc_s3d": "VisualRepresentationInstance",
+          "alternative": "D1 Digital Object + SP6 Declarative Place + E52 Time-Span"
+        },
+        "properties": {
+          "name": "P1_is_identified_by",
+          "description": "P3_has_note",
+          "url": "P1_is_identified_by",
+          "type": "P2_has_type"
+        },
+        "visual_rules": {
+          "style": {
+            "border_color": "#660066",
+            "fill_color": "#FFCCFF",
+            "border_style": "solid",
+            "shape": "triangle"
+          },
+          "3d_file": null,
+          "2d_file_rast": null,
+          "2d_file_vect": null,
+          "label_position": "over",
+          "file_status": "to be created"
+        },
+        "valid_types": {
+          "RM": "Representation Model - 3D Model",
+          "spatialized_image": "Spatialized Image",
+          "generic": "Generic Representation"
+        }
+      },
+      "SemanticShapeNode": {
+        "class": "SemanticShapeNode",
+        "parent": "Node",
+        "abbreviation": "SS",
+        "label": "Semantic Shape",
+        "description": "Node that represents a semantic shape in 3D space. Can be a proxy of a stratigraphic unit or a generic annotation. Supports the definition of convex shapes (convexshapes) and spheres (spheres) for geometric representation.",
+        "s3Dgraphy_file": "semantic_shape_node.py",
+        "mapping": {
+          "cidoc": "E36 Visual Item",
+          "cidoc_s3d": "SymbolicSpatialRepresentation",
+          "alternative": "SP5 Geometric Place Expression + E36 Visual Item"
+        },
+        "properties": {
+          "name": "P1_is_identified_by",
+          "description": "P3_has_note",
+          "url": "P1_is_identified_by",
+          "type": "P2_has_type"
+        },
+        "visual_rules": {
+          "style": {
+            "border_color": "#990000",
+            "fill_color": "#FFCCCC",
+            "border_style": "solid",
+            "shape": "cube"
+          },
+          "3d_file": null,
+          "2d_file_rast": null,
+          "2d_file_vect": null,
+          "label_position": "over",
+          "file_status": "to be created"
+        },
+        "type_options": ["proxy", "generic"]
+      }
+    },
+    "rights_nodes": {
+      "AuthorNode": {
+        "class": "AuthorNode",
+        "parent": "Node",
+        "abbreviation": "AUTH",
+        "label": "Author",
+        "description": "Class to represent an author node in the graph. Attributes: orcid (str): ORCID identifier of the author (optional). name (str): Name of the author (optional). surname (str): Surname of the author (optional).",
+        "s3Dgraphy_file": "author_node.py",
+        "mapping": {
+          "cidoc": "E39 Actor",
+          "cidoc_s3d": null,
+          "alternative": "E21 Person"
+        },
+        "properties": {
+          "name": "P131_is_identified_by",
+          "orcid": "P48_has_preferred_identifier",
+          "surname": "P131_is_identified_by"
+        },
+        "visual_rules": {
+          "style": {
+            "border_color": "#FF6600",
+            "fill_color": "#FFFFFF",
+            "border_style": "solid",
+            "shape": "star"
+          },
+          "3d_file": "src/3D/actor.glb",
+          "2d_file_rast": "src/2D/actor.png",
+          "2d_file_vect": "src/2D/actor.svg",
+          "label_position": "over"
+        }
+      }
+    },
+    "fallback_nodes": {
+      "UnknownNode": {
+        "class": "UnknownNode",
+        "parent": "StratigraphicNode",
+        "abbreviation": "UNK",
+        "label": "Unknown node",
+        "description": "Fallback node for unrecognized types. This type of node should not normally appear in the system but serves exclusively to handle anomalies in the data.",
+        "s3Dgraphy_file": "stratigraphic_node.py",
+        "mapping": {
+          "cidoc": "E1 CRM Entity",
+          "cidoc_s3d": null,
+          "alternative": null
+        },
+        "properties": {
+          "name": "P1_is_identified_by",
+          "description": "P3_has_note",
+          "symbol": "question mark",
+          "label": "Unknown node"
+        },
+        "visual_rules": {
+          "style": {
+            "border_color": "#FF0000",
+            "fill_color": "#FFFFFF",
+            "border_style": "dotted",
+            "shape": "question_mark"
+          },
+          "3d_file": "src/3D/unknown.glb",
+          "2d_file_rast": "src/2D/unknown.png",
+          "2d_file_vect": "src/2D/unknown.svg",
+          "label_position": "center"
+        }
+      }
+    }
+  }
