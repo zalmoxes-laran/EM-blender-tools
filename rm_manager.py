@@ -336,6 +336,7 @@ class RMItem(PropertyGroup):
 
 # UI List per mostrare i modelli RM
 # UI List for showing the models RM with tileset indicator
+# Modify the RM_UL_List class's draw_item method
 class RM_UL_List(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         try:
@@ -382,6 +383,10 @@ class RM_UL_List(UIList):
                 if hasattr(item, 'is_publishable'):
                     row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
                 
+                # Add trash bin button for demote functionality
+                op = row.operator("rm.demote_from_rm_list", text="", icon='TRASH', emboss=False)
+                op.rm_index = index
+                
             elif self.layout_type in {'GRID'}:
                 layout.alignment = 'CENTER'
                 layout.label(text="", icon=obj_icon)
@@ -390,6 +395,87 @@ class RM_UL_List(UIList):
             # In caso di errore, mostra un elemento base
             row = layout.row()
             row.label(text=f"Error: {str(e)}", icon='ERROR')
+
+# New operator for demoting directly from the list
+class RM_OT_demote_from_rm_list(Operator):
+    bl_idname = "rm.demote_from_rm_list"
+    bl_label = "Demote RM"
+    bl_description = "Remove this object from all epochs and the graph"
+    
+    rm_index: IntProperty(
+        name="RM Index",
+        description="Index of the RM item in the list",
+        default=-1
+    ) # type: ignore
+    
+    def execute(self, context):
+        scene = context.scene
+        
+        # Check if we have a valid index
+        if self.rm_index < 0 or self.rm_index >= len(scene.rm_list):
+            self.report({'ERROR'}, "Invalid RM index")
+            return {'CANCELLED'}
+            
+        # Get the RM item and the corresponding object
+        rm_item = scene.rm_list[self.rm_index]
+        obj = bpy.data.objects.get(rm_item.name)
+        
+        if not obj:
+            self.report({'ERROR'}, f"Object {rm_item.name} not found in scene")
+            return {'CANCELLED'}
+            
+        # First select the object to make it visible in the viewport
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        context.view_layer.objects.active = obj
+        
+        # Make sure we can see the object (unhide if hidden)
+        was_hidden = obj.hide_viewport
+        if was_hidden:
+            obj.hide_viewport = False
+            
+        # Get the graph
+        graph = None
+        if context.scene.em_tools.active_file_index >= 0:
+            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+            from .s3Dgraphy import get_graph
+            graph = get_graph(graphml.name)
+            
+        # Remove all epochs from the object
+        while len(obj.EM_ep_belong_ob) > 0:
+            obj.EM_ep_belong_ob.remove(0)
+            
+        # Remove from graph if available
+        if graph:
+            model_node_id = f"{obj.name}_model"
+            model_node = graph.find_node_by_id(model_node_id)
+            
+            if model_node:
+                # Find and remove all edges associated with the node
+                edges_to_remove = []
+                for edge in graph.edges:
+                    if edge.edge_source == model_node_id or edge.edge_target == model_node_id:
+                        edges_to_remove.append(edge.edge_id)
+                
+                # Remove the edges
+                for edge_id in edges_to_remove:
+                    graph.remove_edge(edge_id)
+                
+                # Remove the node
+                graph.remove_node(model_node_id)
+                
+        # Remove from the list
+        scene.rm_list.remove(self.rm_index)
+        
+        # Update the list index if needed
+        if scene.rm_list_index >= len(scene.rm_list):
+            scene.rm_list_index = max(0, len(scene.rm_list) - 1)
+        
+        # Restore visibility state
+        obj.hide_viewport = was_hidden
+        
+        self.report({'INFO'}, f"Removed {obj.name} from RM models")
+        return {'FINISHED'}
 
 # UI List per mostrare le epoche associate a un RM
 class RM_UL_EpochList(UIList):
@@ -1796,7 +1882,8 @@ classes = [
     RM_OT_select_from_object,  # New operator to select list item from active object
     RM_OT_add_tileset,         # New operator to add tileset object
     RM_OT_set_tileset_path,    # New operator to set tileset path
-    VIEW3D_PT_RM_Tileset_Properties  # New panel for tileset properties
+    VIEW3D_PT_RM_Tileset_Properties,  # New panel for tileset properties
+    RM_OT_demote_from_rm_list, # New operator to demote selected objects from RM list
 ]
 
 def register():
