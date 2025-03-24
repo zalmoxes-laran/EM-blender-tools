@@ -210,7 +210,22 @@ class HERIVERSE_OT_export(Operator):
                 self.report({'WARNING'}, f"Failed to export tileset {obj.name}: {str(e)}")
                 import traceback
                 traceback.print_exc()
-        
+
+        if graph:
+            for obj in tileset_objects:
+                if "tileset_path" in obj:
+                    # Crea o aggiorna il nodo RM per il tileset
+                    model_node_id = f"{obj.name}_model"
+                    model_node = graph.find_node_by_id(model_node_id)
+                    
+                    if model_node:
+                        # Usa il nome del file estratto come base per l'URL
+                        tileset_filename = os.path.basename(obj["tileset_path"])
+                        tileset_name = os.path.splitext(tileset_filename)[0]
+                        
+                        # Aggiorna l'URL del nodo
+                        model_node.url = f"tilesets/{tileset_name}/tileset.json"
+
         # Mostra un resoconto
         if exported_count > 0 or skipped_count > 0:
             self.report({'INFO'}, f"Tilesets: {exported_count} extracted, {skipped_count} skipped (already extracted)")
@@ -777,6 +792,7 @@ class HERIVERSE_OT_export(Operator):
                 update_graph_with_scene_data()
                 
                 if export_vars.heriverse_overwrite_json:
+                    update_graph_with_scene_data()
                     # Esporta il JSON direttamente usando il nuovo JSONExporter
                     json_path = os.path.join(project_path, "project.json")
                     print(f"Exporting JSON to: {json_path}")

@@ -139,9 +139,6 @@ class RM_OT_add_tileset(Operator):
                 # Create a RM node in the graph
                 from .s3Dgraphy.nodes.representation_model_node import RepresentationModelNode
 
-
-
-
                 # Ottieni il nome base del tileset senza estensione
                 tileset_filename = os.path.basename(self.tileset_path)
                 tileset_name = os.path.splitext(tileset_filename)[0]
