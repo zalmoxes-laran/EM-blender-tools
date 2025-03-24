@@ -125,7 +125,12 @@ class EM_ExportPanel:
                         row_comp = box_comp.row()
                         row_comp.label(text="Quality: 100=lossless, 80=good, 60=compressed, 40=heavily compressed")
 
-
+                # Nuova opzione per i tileset
+                box_tileset = box.box()
+                row_tileset = box_tileset.row()
+                row_tileset.label(text="Cesium Tileset Options:")
+                row_tileset = box_tileset.row()
+                row_tileset.prop(export_vars, "heriverse_skip_extracted_tilesets")
 
         # EMviq Export Section
         box = layout.box()

@@ -138,12 +138,16 @@ class HERIVERSE_OT_export(Operator):
         # Create tilesets directory if it doesn't exist
         os.makedirs(export_folder, exist_ok=True)
         
+        # Ottieni le variabili di esportazione
+        export_vars = context.window_manager.export_vars
+        
         # Find all tileset objects
         tileset_objects = [obj for obj in bpy.data.objects if "tileset_path" in obj]
         
         exported_count = 0
+        skipped_count = 0
         for obj in tileset_objects:
-            # Skip if object is not publishable in the RM list
+            # Verifica se l'oggetto è pubblicabile
             is_publishable = True
             for rm_item in context.scene.rm_list:
                 if rm_item.name == obj.name:
@@ -160,27 +164,58 @@ class HERIVERSE_OT_export(Operator):
                     print(f"Skipping tileset {obj.name} (empty path)")
                     continue
                     
-                # Make sure the path is absolute
+                # Percorso assoluto
                 abs_path = bpy.path.abspath(tileset_path)
                 
                 if not os.path.exists(abs_path):
                     self.report({'WARNING'}, f"Tileset file not found: {abs_path}")
                     continue
                     
-                # Get the filename without path
+                # Nome del file senza estensione
                 filename = os.path.basename(abs_path)
+                tileset_name = os.path.splitext(filename)[0]
                 
-                # Copy the zip file to the export folder
-                dst_path = os.path.join(export_folder, filename)
-                shutil.copy2(abs_path, dst_path)
+                # Crea directory per questo tileset
+                tileset_dir = os.path.join(export_folder, tileset_name)
+                os.makedirs(tileset_dir, exist_ok=True)
                 
-                print(f"Copied tileset: {obj.name} -> {filename}")
-                exported_count += 1
+                # Verifica se il tileset è già stato estratto
+                tileset_json_path = os.path.join(tileset_dir, "tileset.json")
+                if export_vars.heriverse_skip_extracted_tilesets and os.path.exists(tileset_json_path):
+                    print(f"Skipping extraction of tileset '{filename}' (already extracted)")
+                    skipped_count += 1
+                else:
+                    # Estrai il file ZIP
+                    print(f"Extracting tileset '{filename}' - this may take some time...")
+                    import zipfile
+                    with zipfile.ZipFile(abs_path, 'r') as zip_ref:
+                        zip_ref.extractall(tileset_dir)
+                    print(f"Extracted tileset: {obj.name} -> {tileset_dir}")
+                    exported_count += 1
                 
+                # Aggiorna l'URL nel grafo
+                if hasattr(context.scene, 'em_tools') and context.scene.em_tools.active_file_index >= 0:
+                    graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+                    graph = get_graph(graphml.name)
+                    
+                    if graph:
+                        model_node_id = f"{obj.name}_model"
+                        model_node = graph.find_node_by_id(model_node_id)
+                        
+                        if model_node:
+                            # Aggiorna URL per puntare al file tileset.json
+                            model_node.url = f"tilesets/{tileset_name}/tileset.json"
+                            
             except Exception as e:
                 self.report({'WARNING'}, f"Failed to export tileset {obj.name}: {str(e)}")
+                import traceback
+                traceback.print_exc()
         
-        return exported_count
+        # Mostra un resoconto
+        if exported_count > 0 or skipped_count > 0:
+            self.report({'INFO'}, f"Tilesets: {exported_count} extracted, {skipped_count} skipped (already extracted)")
+        
+        return exported_count + skipped_count
 
     # Miglioramento della funzione export_panorama
     def export_panorama(self, context, project_path):

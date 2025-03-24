@@ -139,15 +139,22 @@ class RM_OT_add_tileset(Operator):
                 # Create a RM node in the graph
                 from .s3Dgraphy.nodes.representation_model_node import RepresentationModelNode
 
-                
+
+
+
+                # Ottieni il nome base del tileset senza estensione
+                tileset_filename = os.path.basename(self.tileset_path)
+                tileset_name = os.path.splitext(tileset_filename)[0]
                 model_node_id = f"{obj.name}_model"
+
                 model_node = RepresentationModelNode(
                     node_id=model_node_id,
                     name=f"Model for {obj.name}",
                     type="RM",
-                    url=f"tilesets/{os.path.basename(self.tileset_path)}"
+                    url=f"tilesets/{tileset_name}/tileset.json"  # Percorso al tileset.json interno
                 )
-                
+
+
                 # Add tileset marker attribute
                 model_node.attributes['is_tileset'] = True
                 model_node.attributes['tileset_path'] = self.tileset_path

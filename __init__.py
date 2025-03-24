@@ -511,6 +511,12 @@ class ExportVars(bpy.types.PropertyGroup):
         default=True
     ) # type: ignore
 
+    heriverse_skip_extracted_tilesets: BoolProperty(
+        name="Skip Previously Extracted Tilesets",
+        description="Skip tileset extraction if already extracted in the destination folder",
+        default=True
+    ) # type: ignore
+
 
 class ExportTablesVars(bpy.types.PropertyGroup):
        table_type : bpy.props.EnumProperty(
