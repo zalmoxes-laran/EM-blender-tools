@@ -585,7 +585,7 @@ def register_full_addon():
             EMdb_excel,
             external_modules_install,
             em_statistics,
-            server,
+            #server,
             graph2geometry,
             activity_manager,
             rm_manager,
@@ -818,8 +818,8 @@ def register_full_addon():
         try: em_statistics.register()
         except Exception as e: print(f"Error registering em_statistics: {e}")
         
-        try: server.register()
-        except Exception as e: print(f"Error registering server: {e}")
+        #try: server.register()
+        #except Exception as e: print(f"Error registering server: {e}")
         
         try: graph2geometry.register()
         except Exception as e: print(f"Error registering graph2geometry: {e}")
@@ -838,7 +838,7 @@ def register_full_addon():
 
         # Execute external modules check
         from .external_modules_install import check_external_modules
-        check_external_modules()
+        #check_external_modules()
 
         print("EM Tools: Full addon registration complete")
         return True
@@ -881,7 +881,7 @@ def unregister():
             from . import (
                 activity_manager,
                 graph2geometry,
-                server,
+                #server,
                 epoch_manager,
                 em_statistics,
                 export_manager,
@@ -912,8 +912,8 @@ def unregister():
             except: pass
             try: graph2geometry.unregister()
             except: pass
-            try: server.unregister()
-            except: pass
+            #try: server.unregister()
+            #except: pass
             try: rm_manager.unregister()
             except: pass
             try: us_list_per_epoch.unregister()

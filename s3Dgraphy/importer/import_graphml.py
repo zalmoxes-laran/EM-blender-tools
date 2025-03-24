@@ -335,7 +335,7 @@ class GraphMLImporter:
                             edge_type=edge_type
                         )
                         
-                        print(f"Created edge: {sub_node.node_type} -{edge_type}-> {group_node_type}")
+                        #print(f"Created edge: {sub_node.node_type} -{edge_type}-> {group_node_type}")
 
     def extract_epochs(self, node_element, graph):
         """

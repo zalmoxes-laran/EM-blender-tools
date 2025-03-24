@@ -20,8 +20,8 @@ def check_external_modules():
         networkx_version = Pip.get_module_version("networkx") if has_networkx else None
 
         # Controlla networkx
-        has_pillow = Pip.is_module_installed("pillow")
-        pillow_version = Pip.get_module_version("pillow") if has_pillow else None
+        has_pillow = Pip.is_module_installed("PIL")
+        pillow_version = Pip.get_module_version("PIL") if has_pillow else None
 
         # Aggiorna le preferenze dell'addon
         user_preferences = bpy.context.preferences
@@ -71,7 +71,7 @@ class OBJECT_OT_install_external_modules(Operator):
                     self.report({'ERROR'}, f"Failed to uninstall {self.module_name}: {message}")
             
             # Aggiorna lo stato dei moduli
-            check_external_modules()
+            #check_external_modules()
             
             return {'FINISHED'}
             
