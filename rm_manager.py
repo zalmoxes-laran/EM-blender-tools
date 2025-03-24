@@ -195,16 +195,22 @@ class VIEW3D_PT_RM_Tileset_Properties(Panel):
     
     @classmethod
     def poll(cls, context):
-        # Only show if an object is selected and it has the tileset_path property
-        obj = context.object
-        if not obj:
-            return False
-            
-        return "tileset_path" in obj
+        # Show when a tileset is selected in the RM list
+        scene = context.scene
+        if scene.rm_list_index >= 0 and scene.rm_list_index < len(scene.rm_list):
+            rm_item = scene.rm_list[scene.rm_list_index]
+            obj = bpy.data.objects.get(rm_item.name)
+            # Check if it's a tileset
+            return obj and "tileset_path" in obj
+        return False
     
     def draw(self, context):
         layout = self.layout
-        obj = context.object
+        scene = context.scene
+        
+        # Get the selected RM item and corresponding object
+        rm_item = scene.rm_list[scene.rm_list_index]
+        obj = bpy.data.objects.get(rm_item.name)
         
         # Display the tileset path
         layout.label(text="Tileset Properties:")
@@ -1768,7 +1774,12 @@ class VIEW3D_PT_RM_Manager(Panel):
             box = layout.box()
             box.label(text=f"Active Epoch: {active_epoch.name}", icon='TIME')
             row = box.row()
-            row.operator("rm.add_tileset", text="Add Cesium Tileset", icon='ORIENTATION_GLOBAL')
+            # Modificato il testo per chiarire che si possono aggiungere più tilesets
+            row.operator("rm.add_tileset", text="Add New Cesium Tileset", icon='ORIENTATION_GLOBAL')
+            
+            # Aggiunto un hint per chiarire
+            row = box.row()
+            row.label(text="You can add multiple tilesets to the same epoch", icon='INFO')
         else:
             box = layout.box()
             box.label(text="Select an epoch to manage RM objects", icon='INFO')
