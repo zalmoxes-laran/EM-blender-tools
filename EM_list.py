@@ -175,7 +175,7 @@ class EM_strat_toggle_visibility(bpy.types.Operator):
     bl_description = "Toggle visibility of the selected proxy in the scene"
     bl_options = {"REGISTER", "UNDO"}
     
-    index: IntProperty(default=-1)  # -1 means use the active index
+    index: IntProperty(default=-1)  # type: ignore # -1 means use the active index
     
     def execute(self, context):
         scene = context.scene
@@ -226,28 +226,57 @@ class EM_strat_toggle_visibility(bpy.types.Operator):
         
         bpy.context.window_manager.popup_menu(draw, title="Collections Activated", icon='INFO')
 
+
+
+
 class EM_strat_sync_visibility(bpy.types.Operator):
     bl_idname = "em.strat_sync_visibility"
     bl_label = "Sync Stratigraphy Visibility"
-    bl_description = "Synchronize proxy visibility with the current list (shows only proxies in the filtered list)"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_description = "Synchronize visibility of proxies and RM objects with the current selections"
+    bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
         scene = context.scene
         
-        if not scene.sync_list_visibility:
-            return {'CANCELLED'}
+        # Handle proxy visibility sync
+        if scene.sync_list_visibility:
+            self.sync_proxy_visibility(context)
+            
+        # Handle RM visibility sync
+        if scene.sync_rm_visibility:
+            self.sync_rm_visibility(context)
+            
+        return {'FINISHED'}
+    
+    def sync_proxy_visibility(self, context):
+        """Synchronize proxy object visibility with the em_list"""
+        scene = context.scene
         
-        # Create a set of names that should be visible
-        visible_names = {item.name for item in scene.em_list}
+        # Create a set of proxy names that should be visible
+        visible_proxy_names = {item.name for item in scene.em_list}
         
-        # Process all mesh objects
+        # Process only objects that match proxy names or are in the 'Proxy' collection
+        proxy_collection = bpy.data.collections.get('Proxy')
+        proxy_objects = []
+        
+        # Build list of proxy objects
+        if proxy_collection:
+            # Add objects from Proxy collection
+            proxy_objects.extend(proxy_collection.objects)
+        
+        # Also add any objects with matching names from em_list
+        for obj_name in visible_proxy_names:
+            obj = bpy.data.objects.get(obj_name)
+            if obj and obj.type == 'MESH' and obj not in proxy_objects:
+                proxy_objects.append(obj)
+        
+        # Hide/Show only proxy objects based on the list
         hidden_count = 0
         shown_count = 0
         
-        for obj in bpy.data.objects:
-            if obj.type == 'MESH':
-                if obj.name in visible_names:
+        for obj in proxy_objects:
+            if obj.type == 'MESH':  # Ensure we only process mesh objects
+                if obj.name in visible_proxy_names:
                     if obj.hide_viewport:
                         obj.hide_viewport = False
                         shown_count += 1
@@ -256,14 +285,79 @@ class EM_strat_sync_visibility(bpy.types.Operator):
                         obj.hide_viewport = True
                         hidden_count += 1
         
-        # Update visibility icons in the list
+        # Update visibility icons in the em_list
         for item in scene.em_list:
             obj = bpy.data.objects.get(item.name)
             if obj:
                 item.is_visible = not obj.hide_viewport
         
-        self.report({'INFO'}, f"Visibility synchronized: {shown_count} shown, {hidden_count} hidden")
-        return {'FINISHED'}
+        self.report({'INFO'}, f"Proxy visibility synchronized: {shown_count} shown, {hidden_count} hidden")
+
+    def sync_rm_visibility(self, context):
+        """Synchronize RM object visibility based on active epoch"""
+        scene = context.scene
+        
+        # Check if we have an active epoch
+        if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
+            self.report({'WARNING'}, "No active epoch selected")
+            return
+            
+        active_epoch = scene.epoch_list[scene.epoch_list_index]
+        active_epoch_name = active_epoch.name
+        
+        # Get RM objects from the RM list
+        rm_objects = []
+        
+        # Find objects in the scene that are registered as RM in the rm_list
+        for item in scene.rm_list:
+            obj = bpy.data.objects.get(item.name)
+            if obj and obj.type == 'MESH':
+                rm_objects.append((obj, item))
+        
+        # Also check for objects in the RM collection
+        rm_collection = bpy.data.collections.get('RM')
+        if rm_collection:
+            for obj in rm_collection.objects:
+                if obj.type == 'MESH' and not any(o[0] == obj for o in rm_objects):
+                    # Try to find matching RM item
+                    rm_item = None
+                    for item in scene.rm_list:
+                        if item.name == obj.name:
+                            rm_item = item
+                            break
+                    
+                    if rm_item:
+                        rm_objects.append((obj, rm_item))
+        
+        # Hide/Show RM objects based on epoch association
+        hidden_count = 0
+        shown_count = 0
+        
+        for obj, rm_item in rm_objects:
+            # Check if this RM belongs to the active epoch
+            belongs_to_active_epoch = False
+            
+            # Check the first epoch and any additional epochs
+            if rm_item.first_epoch == active_epoch_name:
+                belongs_to_active_epoch = True
+            else:
+                # Check additional epochs
+                for epoch_item in rm_item.epochs:
+                    if epoch_item.name == active_epoch_name:
+                        belongs_to_active_epoch = True
+                        break
+            
+            # Handle visibility
+            if belongs_to_active_epoch:
+                if obj.hide_viewport:
+                    obj.hide_viewport = False
+                    shown_count += 1
+            else:
+                if not obj.hide_viewport:
+                    obj.hide_viewport = True
+                    hidden_count += 1
+        
+        self.report({'INFO'}, f"RM visibility synchronized: {shown_count} shown, {hidden_count} hidden for epoch '{active_epoch_name}'")
 
 class EM_strat_activate_collections(bpy.types.Operator):
     bl_idname = "em.strat_activate_collections"
@@ -333,7 +427,8 @@ class EM_ToolsPanel:
         # Verifichiamo che le proprietà esistano prima di usarle
         if hasattr(scene, "filter_by_epoch"):
             row.prop(scene, "filter_by_epoch", text="", toggle=True, icon='SORTTIME')
-        
+
+
         if hasattr(scene, "filter_by_activity"):
             row.prop(scene, "filter_by_activity", text="", toggle=True, icon='NETWORK_DRIVE')
         
@@ -342,9 +437,16 @@ class EM_ToolsPanel:
             if scene.filter_by_epoch or scene.filter_by_activity:
                 row.operator("em.reset_filters", text="", icon='X')
 
+
         if hasattr(scene, "sync_list_visibility"):
             row.prop(scene, "sync_list_visibility", text="Sync", 
                     icon='HIDE_OFF' if scene.sync_list_visibility else 'HIDE_ON')
+
+
+
+        # Add new toggle for RM sync
+        row.prop(scene, "sync_rm_visibility", text="", 
+                icon= 'OBJECT_DATA') # 'RESTRICT_VIEW_OFF' if scene.sync_rm_visibility else 'RESTRICT_VIEW_ON')
 
         # Tasto per attivare tutte le collezioni con proxy
         row.operator("em.strat_activate_collections", text="", icon='OUTLINER_COLLECTION')
@@ -685,6 +787,13 @@ def register():
             update=sync_visibility_update
         )
 
+    if not hasattr(bpy.types.Scene, "sync_rm_visibility"):
+        bpy.types.Scene.sync_rm_visibility = BoolProperty(
+            name="Sync RM Visibility",
+            description="Synchronize Representation Model visibility based on active epoch",
+            default=False,
+            update=sync_visibility_update  # Re-use the same update function
+        )
 
 def unregister():
     # Remove scene properties if they exist
@@ -696,7 +805,10 @@ def unregister():
     
     if hasattr(bpy.types.Scene, "sync_list_visibility"):
         del bpy.types.Scene.sync_list_visibility
-    
+
+    if hasattr(bpy.types.Scene, "sync_rm_visibility"):
+        del bpy.types.Scene.sync_rm_visibility
+
     # Unregister classes in reverse order
     for cls in reversed(classes):
         try:
