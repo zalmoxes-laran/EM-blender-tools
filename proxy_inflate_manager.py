@@ -32,8 +32,6 @@ class VIEW3D_PT_ProxyInflatePanel(Panel):
             row = box.row()
             row.prop(scene, "proxy_inflate_offset", text="Offset")
             
-            row = box.row()
-            row.prop(scene, "proxy_inflate_merge_threshold", text="Merge Threshold")
         else:
             row = box.row()
             row.label(text="Settings not available. Please reload addon.")
@@ -95,7 +93,6 @@ class EM_OT_ProxyAddInflate(Operator):
                     mod.use_quality_normals = True
                     mod.use_rim = True
                     mod.use_rim_only = False
-                    mod.merge_threshold = context.scene.proxy_inflate_merge_threshold
                     count += 1
         
         # Update stats
@@ -226,7 +223,6 @@ class EM_OT_ProxyInflateAll(Operator):
                         if hasattr(context.scene, "proxy_inflate_thickness"):
                             mod.thickness = context.scene.proxy_inflate_thickness
                             mod.offset = context.scene.proxy_inflate_offset
-                            mod.merge_threshold = context.scene.proxy_inflate_merge_threshold
                         else:
                             mod.thickness = 0.01
                             mod.offset = 0.0
@@ -251,7 +247,6 @@ class EM_OT_ProxyInflateAll(Operator):
                         if hasattr(context.scene, "proxy_inflate_thickness"):
                             mod.thickness = context.scene.proxy_inflate_thickness
                             mod.offset = context.scene.proxy_inflate_offset
-                            mod.merge_threshold = context.scene.proxy_inflate_merge_threshold
                         else:
                             mod.thickness = 0.01
                             mod.offset = 0.0
@@ -316,12 +311,10 @@ def auto_inflate_for_export(context, objects_to_export):
                 if hasattr(context.scene, "proxy_inflate_thickness"):
                     mod.thickness = context.scene.proxy_inflate_thickness
                     mod.offset = context.scene.proxy_inflate_offset
-                    mod.merge_threshold = context.scene.proxy_inflate_merge_threshold
                 else:
                     # Default values if properties don't exist
                     mod.thickness = 0.01
                     mod.offset = 0.0
-                    mod.merge_threshold = 0.0001
                 
                 mod.use_even_offset = True
                 mod.use_quality_normals = True
@@ -374,17 +367,7 @@ def register():
         min=-1.0,
         max=1.0
     )
-    
-    bpy.types.Scene.proxy_inflate_merge_threshold = FloatProperty(
-        name="Merge Threshold",
-        description="Distance within which to merge vertices",
-        default=0.0001,
-        min=0.00001,
-        soft_max=0.01,
-        precision=5,
-        unit='LENGTH'
-    )
-    
+       
     bpy.types.Scene.proxy_auto_inflate_on_export = BoolProperty(
         name="Auto-Inflate on Export",
         description="Automatically add inflation to proxies without it during export",
@@ -404,7 +387,6 @@ def unregister():
     # Remove scene properties
     del bpy.types.Scene.proxy_inflate_thickness
     del bpy.types.Scene.proxy_inflate_offset
-    del bpy.types.Scene.proxy_inflate_merge_threshold
     del bpy.types.Scene.proxy_auto_inflate_on_export
     del bpy.types.Scene.proxy_inflate_stats
     

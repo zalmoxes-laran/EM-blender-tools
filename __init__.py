@@ -837,7 +837,7 @@ def register_full_addon():
         try: graphml_converter.register()
         except Exception as e: print(f"Error registering graphml_converter: {e}")
 
-        try: proxy_inflate_manager.unregister()
+        try: proxy_inflate_manager.register()
         except Exception as e: print(f"Error registering proxy_inflate_manager: {e}")
 
         # Execute external modules check
