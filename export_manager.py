@@ -282,10 +282,10 @@ class EM_export(bpy.types.Operator):
         else:
             base_dir_scenes = self.createfolder(os.path.join(base_dir,"data","scenes",utente_aton), progetto_aton)
 
-        if os.path.exists(os.path.join(base_dir,"data","collections",utente_aton,progetto_aton)):
-            base_dir_collections = os.path.join(base_dir,"data","collections",utente_aton,progetto_aton)
+        if os.path.exists(os.path.join(base_dir,"data","collections",utente_aton+"-collections","models",progetto_aton)):
+            base_dir_collections = os.path.join(base_dir,"data","collections",utente_aton+"-collections","models",progetto_aton)
         else:
-            base_dir_collections = self.createfolder(os.path.join(base_dir,"data","collections",utente_aton), progetto_aton)
+            base_dir_collections = self.createfolder(os.path.join(base_dir,"data","collections",utente_aton+"-collections","models"), progetto_aton)
 
         # Export proxies
         if self.em_export_type == 'Proxies' or self.em_export_type == "EMviq":
@@ -298,7 +298,9 @@ class EM_export(bpy.types.Operator):
         if self.em_export_type == "GraphML" or self.em_export_type == "EMviq":
     
             em_file_4_emviq = os.path.join(base_dir_scenes, "em.graphml")
-            em_file_fixed_path = bpy.path.abspath(scene.EM_file)
+            em_file_fixed_path = scene.em_tools.graphml_files[scene.em_tools.active_file_index]['graphml_path']
+
+            #em_file_fixed_path = bpy.path.abspath(scene.EM_file)
             shutil.copyfile(em_file_fixed_path, em_file_4_emviq)
 
         # Export Representation Models and Scene JSON file
@@ -421,7 +423,7 @@ class EM_export(bpy.types.Operator):
 
                             #exec(epochname_var + '_urls.append("' + epochname_var +'/'+ ob.name + '.' + format_file +'")')
                             #but here we want to set the osgjs file format (the emviq server will convert the obj to osgjs)
-                            exec(epochname_var + '_urls.append("'+utente_aton+'/'+progetto_aton+'/' + epochname_var +'/'+ ob.name + '.gltf")')
+                            exec(epochname_var + '_urls.append("'+utente_aton+'-collections'+'/models/'+progetto_aton+'/' + epochname_var +'/'+ ob.name + '.gltf")')
                         ob.select_set(False)
             # in case the object is in different epochs, I set up a "shared" folder instead of a folder for each epoch
             if len(ob.EM_ep_belong_ob) >= 2:
@@ -462,7 +464,7 @@ class EM_export(bpy.types.Operator):
                                     pass
                                     #print("sure, it was defined.")
                                 
-                                exec(epochname_var + '_urls.append("'+utente_aton+'/'+progetto_aton+'/shared/'+ ob.name + '.gltf")')
+                                exec(epochname_var + '_urls.append("'+utente_aton+'-collections'+'/models/'+progetto_aton+'/' +'/shared/'+ ob.name + '.gltf")')
                                 #exec(epochname_var + '_urls.append("rm/shared/' + ob.name + '.osgjs")')
                             ob.select_set(False)
         print(f'E ora di trovare le cartelle per comprimere le immagini: parto dalla folder {export_folder}')
