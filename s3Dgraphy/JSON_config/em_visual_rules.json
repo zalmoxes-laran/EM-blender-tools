@@ -1,6 +1,6 @@
 {
     "formal_language": "EM",
-    "version": "1.5",
+    "version": "1.5.0",
     "node_styles": {
         "US": {
             "file_3d": "src/3D/US.glb",
@@ -299,7 +299,7 @@
         "contrasts_with": {
             "style": {
                 "color": "#800080",
-                "line_style": "solid",
+                "line_style": "dashed-dotted",
                 "width": 1.5
             },
             "label": "Contrasting Properties"
