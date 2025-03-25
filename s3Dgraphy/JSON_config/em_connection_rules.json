@@ -1,5 +1,5 @@
 {
-    "em_connection_rules_version": "1.5",
+    "em_connection_rules_version": "1.5.0",
     "rules": [
       {
         "type": "is_before",
