@@ -589,7 +589,8 @@ def register_full_addon():
             graph2geometry,
             activity_manager,
             rm_manager,
-            us_list_per_epoch
+            us_list_per_epoch,
+            proxy_inflate_manager
         )
 
         from .import_operators import importer_graphml
@@ -836,6 +837,9 @@ def register_full_addon():
         try: graphml_converter.register()
         except Exception as e: print(f"Error registering graphml_converter: {e}")
 
+        try: proxy_inflate_manager.unregister()
+        except Exception as e: print(f"Error registering proxy_inflate_manager: {e}")
+
         # Execute external modules check
         from .external_modules_install import check_external_modules
         #check_external_modules()
@@ -892,7 +896,8 @@ def unregister():
                 em_setup,
                 rm_manager,
                 paradata_manager,
-                us_list_per_epoch
+                us_list_per_epoch,
+                proxy_inflate_manager
             )
             
             from .export_operators import exporter_heriverse
@@ -935,6 +940,8 @@ def unregister():
             try: visual_manager.unregister()
             except: pass
             try: em_setup.unregister()
+            except: pass
+            try: proxy_inflate_manager.unregister()
             except: pass
             
             # Safely unregister UI classes
