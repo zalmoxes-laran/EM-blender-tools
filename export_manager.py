@@ -86,9 +86,6 @@ class EM_ExportPanel:
             col.prop(export_vars, "heriverse_create_zip", text="Create ZIP")
             col = row.column()
             col.prop(scene, "heriverse_export_panorama", text="Add Panorama")
-            
-            row = box.row()
-            row.operator("export.heriverse", text="Export Heriverse Project", icon='EXPORT')
 
 
             # Advanced options section
@@ -131,6 +128,9 @@ class EM_ExportPanel:
                 row_tileset.label(text="Cesium Tileset Options:")
                 row_tileset = box_tileset.row()
                 row_tileset.prop(export_vars, "heriverse_skip_extracted_tilesets")
+
+            row = box.row()
+            row.operator("export.heriverse", text="Export Heriverse Project", icon='WORLD_DATA')
 
         # EMviq Export Section
         box = layout.box()

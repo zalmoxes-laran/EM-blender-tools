@@ -138,14 +138,28 @@ class HERIVERSE_OT_export(Operator):
         # Create tilesets directory if it doesn't exist
         os.makedirs(export_folder, exist_ok=True)
         
-        # Ottieni le variabili di esportazione
+        # Get export variables
         export_vars = context.window_manager.export_vars
+        
+        # Initialize graph to None at the beginning
+        graph = None
+        # Try to get the graph if available
+        if hasattr(context.scene, 'em_tools') and context.scene.em_tools.active_file_index >= 0:
+            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+            graph = get_graph(graphml.name)
         
         # Find all tileset objects
         tileset_objects = [obj for obj in bpy.data.objects if "tileset_path" in obj]
         
+        # If no tilesets, return early
+        if not tileset_objects:
+            print("No tileset objects found in scene")
+            return 0
+        
         exported_count = 0
         skipped_count = 0
+        
+        # Process each tileset
         for obj in tileset_objects:
             # Verifica se l'oggetto è pubblicabile
             is_publishable = True
@@ -211,7 +225,7 @@ class HERIVERSE_OT_export(Operator):
                 import traceback
                 traceback.print_exc()
 
-        if graph:
+        if graph and tileset_objects:
             for obj in tileset_objects:
                 if "tileset_path" in obj:
                     # Crea o aggiorna il nodo RM per il tileset
