@@ -441,19 +441,7 @@
             },
             "properties": {
               "name": "P1_is_identified_by",
-              "description": "P3_has_note",
-              "url": "P1_is_identified_by",
-              "sources": "J1_used_as_premise"
-            },
-            "visual_rules": {
-              "style": {
-                "border_color": "#FFCC00",
-                "fill_color": "#FFFFFF",
-                "border_style": "dashed",
-                "shape": "hexagon"
-              },
-
-              "label_position": "bottom"
+              "description": "P3_has_note"
             }
           }
         }
@@ -478,19 +466,6 @@
           "shift_x": "Q9_is_expressed_in_terms_of",
           "shift_y": "Q9_is_expressed_in_terms_of",
           "shift_z": "Q9_is_expressed_in_terms_of"
-        },
-        "visual_rules": {
-          "style": {
-            "border_color": "#0066FF",
-            "fill_color": "#CCCCFF",
-            "border_style": "solid",
-            "shape": "ellipse"
-          },
-          "3d_file": null,
-          "2d_file_rast": null,
-          "2d_file_vect": null,
-          "label_position": "over",
-          "file_status": "to be created"
         }
       },
       "LinkNode": {
@@ -511,19 +486,6 @@
           "url": "P1_is_identified_by",
           "url_type": "P2_has_type"
         },
-        "visual_rules": {
-          "style": {
-            "border_color": "#003366",
-            "fill_color": "#99CCFF",
-            "border_style": "solid",
-            "shape": "ellipse"
-          },
-          "3d_file": null,
-          "2d_file_rast": null,
-          "2d_file_vect": null,
-          "label_position": "over",
-          "file_status": "to be created"
-        },
         "resource_types": {
           "3d_model": ["gltf", "obj", "fbx", "3ds", "blend"],
           "proxy_model": ["glb"],
@@ -541,7 +503,7 @@
         "parent": "Node",
         "abbreviation": "RM",
         "label": "Representation Model",
-        "description": "Node that represents a 3D model or a spatialized image. Attributes: node_type (str): Node type, set to 'representation_model'. type (str): The type of representation ('RM', 'spatialized_image' or 'generic'). url (str): URL of the resource (e.g. .gltf file).",
+        "description": "Node that represents a 3D model or a spatialized image.",
         "s3Dgraphy_file": "representation_model_node.py",
         "mapping": {
           "cidoc": "D1 Digital Object",
@@ -554,21 +516,57 @@
           "url": "P1_is_identified_by",
           "type": "P2_has_type"
         },
-        "visual_rules": {
-          "style": {
-            "border_color": "#660066",
-            "fill_color": "#FFCCFF",
-            "border_style": "solid",
-            "shape": "triangle"
-          },
-          "3d_file": null,
-          "2d_file_rast": null,
-          "2d_file_vect": null,
-          "label_position": "over",
-          "file_status": "to be created"
+        "valid_types": {
+          "3Dmodel": "Representation Model - 3D Model",
+          "spatialized_image": "Spatialized Image",
+          "generic": "Generic Representation"
+        }
+      },
+
+      "RepresentationModelDocNode": {
+        "class": "RepresentationModelDocNode",
+        "parent": "Node",
+        "abbreviation": "RMDoc",
+        "label": "Representation Model Document",
+        "description": "Node that represents a 3D model or a spatialized image. It is used to instanciate documents, extractors or combiner nodes within the scene. An example is an hystorical photo positioned in its original position.",
+        "s3Dgraphy_file": "representation_model_node.py",
+        "mapping": {
+          "cidoc": "D1 Digital Object",
+          "cidoc_s3d": "VisualRepresentationInstance",
+          "alternative": "D1 Digital Object + SP6 Declarative Place + E52 Time-Span"
+        },
+        "properties": {
+          "name": "P1_is_identified_by",
+          "description": "P3_has_note",
+          "url": "P1_is_identified_by",
+          "type": "P2_has_type"
         },
         "valid_types": {
-          "RM": "Representation Model - 3D Model",
+          "3Dmodel": "Representation Model - 3D Model",
+          "spatialized_image": "Spatialized Image",
+          "generic": "Generic Representation"
+        }
+      },
+      "RepresentationModelSpecialFindNode": {
+        "class": "RepresentationModelSpecialFindNode",
+        "parent": "Node",
+        "abbreviation": "RMSF",
+        "label": "Representation Model Special Find",
+        "description": "Node that represents a 3D model or a spatialized image. It is used to instanciate special finds in the scene. An example is a scanned 3D model of a capital repositioned in its original position according to an anastylosis hypothesis.",
+        "s3Dgraphy_file": "representation_model_node.py",
+        "mapping": {
+          "cidoc": "D1 Digital Object",
+          "cidoc_s3d": "VisualRepresentationInstance",
+          "alternative": "D1 Digital Object + SP6 Declarative Place + E52 Time-Span"
+        },
+        "properties": {
+          "name": "P1_is_identified_by",
+          "description": "P3_has_note",
+          "url": "P1_is_identified_by",
+          "type": "P2_has_type"
+        },
+        "valid_types": {
+          "3Dmodel": "Representation Model - 3D Model",
           "spatialized_image": "Spatialized Image",
           "generic": "Generic Representation"
         }
@@ -591,19 +589,6 @@
           "url": "P1_is_identified_by",
           "type": "P2_has_type"
         },
-        "visual_rules": {
-          "style": {
-            "border_color": "#990000",
-            "fill_color": "#FFCCCC",
-            "border_style": "solid",
-            "shape": "cube"
-          },
-          "3d_file": null,
-          "2d_file_rast": null,
-          "2d_file_vect": null,
-          "label_position": "over",
-          "file_status": "to be created"
-        },
         "type_options": ["proxy", "generic"]
       }
     },
@@ -624,18 +609,6 @@
           "name": "P131_is_identified_by",
           "orcid": "P48_has_preferred_identifier",
           "surname": "P131_is_identified_by"
-        },
-        "visual_rules": {
-          "style": {
-            "border_color": "#FF6600",
-            "fill_color": "#FFFFFF",
-            "border_style": "solid",
-            "shape": "star"
-          },
-          "3d_file": "src/3D/actor.glb",
-          "2d_file_rast": "src/2D/actor.png",
-          "2d_file_vect": "src/2D/actor.svg",
-          "label_position": "over"
         }
       }
     },
@@ -657,18 +630,6 @@
           "description": "P3_has_note",
           "symbol": "question mark",
           "label": "Unknown node"
-        },
-        "visual_rules": {
-          "style": {
-            "border_color": "#FF0000",
-            "fill_color": "#FFFFFF",
-            "border_style": "dotted",
-            "shape": "question_mark"
-          },
-          "3d_file": "src/3D/unknown.glb",
-          "2d_file_rast": "src/2D/unknown.png",
-          "2d_file_vect": "src/2D/unknown.svg",
-          "label_position": "center"
         }
       }
     }

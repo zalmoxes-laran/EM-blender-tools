@@ -233,7 +233,8 @@
                       "g": 0.0,
                       "b": 0.0,
                       "a": 1.0
-                    },
+                    }
+                },
                 "border_color": "#000000",
                 "fill_color": "#FFFFFF",
                 "border_style": "dashed",
@@ -241,7 +242,7 @@
             },
             "label_position": "over"
         },
-        "property": {
+        "PROP": {
             "3d_file": "src/3D/property.glb",
             "2d_file_rast": "src/2D/property.png",
             "2d_file_vect": "src/2D/property.svg",
@@ -252,7 +253,8 @@
                       "g": 0.0,
                       "b": 0.0,
                       "a": 1.0
-                    },
+                    }
+                },
                 "border_color": "#000000",
                 "fill_color": "#FFFFFF",
                 "border_style": "dashed",
@@ -260,7 +262,7 @@
             },
             "label_position": "over"
         },
-        "combiner": {
+        "COMB": {
             "3d_file": "src/3D/combiner.glb",
             "2d_file_rast": "src/2D/combiner.png",
             "2d_file_vect": "src/2D/combiner.svg",
@@ -271,7 +273,8 @@
                       "g": 0.0,
                       "b": 0.0,
                       "a": 1.0
-                    },
+                    }
+                },
                 "border_color": "#FFCC00",
                 "fill_color": "#FFFFFF",
                 "border_style": "dashed",
@@ -279,7 +282,7 @@
             },
             "label_position": "bottom"
         },
-        "extractor": {
+        "EXT": {
             "3d_file": "src/3D/extractor.glb",
             "2d_file_rast": "src/2D/extractor.png",
             "2d_file_vect": "src/2D/extractor.svg",
@@ -290,7 +293,8 @@
                       "g": 0.0,
                       "b": 0.0,
                       "a": 1.0
-                    },
+                    }
+                },
                 "border_color": "#0033CC",
                 "fill_color": "#F0F0F0",
                 "border_style": "solid",
@@ -298,7 +302,7 @@
             },
             "label_position": "bottom"
         },
-        "document": {
+        "DOC": {
             "3d_file": "src/3D/document.glb",
             "2d_file_rast": "src/2D/document.png",
             "2d_file_vect": "src/2D/document.svg",
@@ -309,7 +313,8 @@
                       "g": 0.0,
                       "b": 0.0,
                       "a": 1.0
-                    },
+                    }
+                },
                 "border_color": "#000000",
                 "fill_color": "#E0E0E0",
                 "border_style": "solid",
@@ -317,11 +322,19 @@
             },
             "label_position": "over"
         },
-        "epoch": {
+        "EP": {
             "3d_file": "src/3D/epoch.glb",
             "2d_file_rast": "src/2D/epoch.png",
             "2d_file_vect": "src/2D/epoch.svg",
             "style": {
+                "material": {
+                    "rgba_color": {
+                      "r": 0.5,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    }
+                },
                 "border_color": "#009933",
                 "fill_color": "#FFFFFF",
                 "border_style": "solid",
@@ -329,10 +342,19 @@
             },
             "label_position": "over"
         },
-        "activity": {
+        "ANG": {
             "file_3d": "src/3D/activity.glb",
-            "file_2d": "src/2D/activity.png",
+            "2d_file_rast": "src/2D/activity.png",
+            "2d_file_vect": "src/2D/activity.svg",
             "style": {
+                "material": {
+                    "rgba_color": {
+                      "r": 0.5,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    }
+                },  
                 "border_color": "#9966CC",
                 "fill_color": "#FFFFFF",
                 "border_style": "dashed",
@@ -340,10 +362,18 @@
             },
             "label_position": "over"
         },
-        "actor": {
-            "file_3d": "src/3D/actor.glb",
-            "file_2d": "src/2D/actor.png",
+        "AUTH": {
+            "file_3d": "src/3D/author.glb",
+            "2d_file_rast": "src/2D/author.png",
+            "2d_file_vect": "src/2D/author.svg",
             "style": {
+                "material": {
+                    "rgba_color": {
+                      "r": 0.5,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    },
                 "border_color": "#FF6600",
                 "fill_color": "#FFFFFF",
                 "border_style": "solid",
@@ -351,10 +381,134 @@
             },
             "label_position": "over"
         },
+        "LINK": {
+            "file_3d": "src/3D/link.glb",
+            "2d_file_rast": "src/2D/link.png",
+            "2d_file_vect": "src/2D/link.svg",
+            "style": {
+                "material": {
+                    "rgba_color": {
+                      "r": 0.5,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    },
+                "border_color": "#FF6600",
+                "fill_color": "#FFFFFF",
+                "border_style": "solid",
+                "shape": "chain"
+            },
+            "label_position": "over"
+        },
+        "GEO": {
+            "file_3d": "src/3D/geo.glb",
+            "2d_file_rast": "src/2D/geo.png",
+            "2d_file_vect": "src/2D/geo.svg",
+            "style": {
+                "material": {
+                    "rgba_color": {
+                      "r": 0.5,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    },
+                "border_color": "#FF6600",
+                "fill_color": "#FFFFFF",
+                "border_style": "solid",
+                "shape": "globe"
+            },
+            "label_position": "over"
+        },
+        "RM": {
+            "file_3d": "src/3D/rm.glb",
+            "2d_file_rast": "src/2D/rm.png",
+            "2d_file_vect": "src/2D/rm.svg",
+            "style": {
+                "material": {
+                    "rgba_color": {
+                      "r": 0.5,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    },
+                "border_color": "#FF6600",
+                "fill_color": "#FFFFFF",
+                "border_style": "solid",
+                "shape": "model"
+            },
+            "label_position": "over"
+        },
+        "RMDoc": {
+            "file_3d": "src/3D/rmdoc.glb",
+            "2d_file_rast": "src/2D/rmdoc.png",
+            "2d_file_vect": "src/2D/rmdoc.svg",
+            "style": {
+                "material": {
+                    "rgba_color": {
+                      "r": 0.5,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    },
+                "border_color": "#FF6600",
+                "fill_color": "#FFFFFF",
+                "border_style": "solid",
+                "shape": "model"
+            },
+            "label_position": "over"
+        },
+
+        "RMSF": {
+            "file_3d": "src/3D/rmsf.glb",
+            "2d_file_rast": "src/2D/rmsf.png",
+            "2d_file_vect": "src/2D/rmsf.svg",
+            "style": {
+                "material": {
+                    "rgba_color": {
+                      "r": 0.5,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    },
+                "border_color": "#FF6600",
+                "fill_color": "#FFFFFF",
+                "border_style": "solid",
+                "shape": "model"
+            },
+            "label_position": "over"
+        },
+
+        "SS": {
+            "file_3d": "src/3D/ss.glb",
+            "2d_file_rast": "src/2D/ss.png",
+            "2d_file_vect": "src/2D/ss.svg",
+            "style": {
+                "material": {
+                    "rgba_color": {
+                      "r": 0.5,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    },
+                "border_color": "#FF6600",
+                "fill_color": "#FFFFFF",
+                "border_style": "solid",
+                "shape": "model"
+            },
+            "label_position": "over"
+        },
+
         "unknown": {
             "file_3d": "src/3D/unknown.glb",
             "file_2d": "src/2D/unknown.png",
             "style": {
+                "material": {
+                    "rgba_color": {
+                      "r": 0.5,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    },
                 "border_color": "#FF0000",
                 "fill_color": "#FFFFFF",
                 "border_style": "dotted",
