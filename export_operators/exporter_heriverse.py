@@ -240,6 +240,14 @@ class HERIVERSE_OT_export(Operator):
                         # Aggiorna l'URL del nodo
                         model_node.url = f"tilesets/{tileset_name}/tileset.json"
 
+                        if not hasattr(model_node, 'data'):
+                            model_node.data = {}
+                            
+                        if 'transform' not in model_node.data:
+                            model_node.data['transform'] = {
+                                'rotation': ["-1.57079632679", "0.0", "0.0"]  # -90 gradi in radianti
+                            }
+
         # Mostra un resoconto
         if exported_count > 0 or skipped_count > 0:
             self.report({'INFO'}, f"Tilesets: {exported_count} extracted, {skipped_count} skipped (already extracted)")
@@ -606,6 +614,18 @@ class HERIVERSE_OT_export(Operator):
                             primary_node['data']['instances'] = instances
                             primary_node['data']['is_instance_group'] = True
                     
+
+                    for rm_name, rm_node in rm_nodes.items():
+                        if 'data' in rm_node and 'url' in rm_node['data']:
+                            url = rm_node['data']['url']
+                            if url and 'tileset.json' in url:
+                                if 'transform' not in rm_node['data']:
+                                    rm_node['data']['transform'] = {
+                                        'rotation': ["-1.57079632679", "0.0", "0.0"]
+                                    }
+
+
+
                     # Rimuovi i nodi assorbiti come istanze
                     for rm_name in list(rm_nodes.keys()):
                         if rm_name in self.instanced_objects:

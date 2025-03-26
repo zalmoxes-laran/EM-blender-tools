@@ -183,7 +183,14 @@ class JSONExporter:
             elif node.node_type == "semantic_shape":
                 nodes["semantic_shapes"][node.node_id] = node_data
             elif node.node_type == "representation_model":
+                # Check if this is a tileset.json file and add Y-up transformation if needed
+                if 'url' in node_data['data'] and 'tileset.json' in node_data['data']['url']:
+                    if 'transform' not in node_data['data']:
+                        node_data['data']['transform'] = {
+                            'rotation': ["-1.57079632679", "0.0", "0.0"]
+                        }
                 nodes["representation_models"][node.node_id] = node_data
+
         return nodes
         
     def _process_edges(self, graph: Graph) -> Dict[str, List[Dict[str, Any]]]:
