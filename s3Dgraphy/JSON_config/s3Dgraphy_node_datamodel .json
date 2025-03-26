@@ -1,6 +1,6 @@
 {
     "s3Dgraphy_data_model_version": "1.5.0",
-    "description": "s3Dgraphy datamodel including nodes with CIDOC-CRM mappings and visual rules",
+    "description": "s3Dgraphy nodes datamodel including node types with CIDOC-CRM mappings",
     "components": [
       "CIDOC-CRM",
       "CRMarchaeo",
@@ -10,7 +10,7 @@
       "CRMinf",
       "CRMs3D"
     ],
-    "base_nodes": {
+    "node_types": {
       "Node": {
         "class": "Node",
         "description": "Base class for all nodes in the graph with CIDOC mapping",

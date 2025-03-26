@@ -161,7 +161,6 @@
             },
             "label_position": "over"
         },
-
         "serUSVs": {
             "file_3d": "src/3D/serUSVs.glb",
             "2d_file_rast": "src/2D/serUSVs.png",
@@ -373,12 +372,13 @@
                       "g": 0.0,
                       "b": 0.0,
                       "a": 1.0
-                    },
+                    }
+                },
                 "border_color": "#FF6600",
                 "fill_color": "#FFFFFF",
                 "border_style": "solid",
                 "shape": "star"
-            },
+                },
             "label_position": "over"
         },
         "LINK": {
@@ -392,7 +392,8 @@
                       "g": 0.0,
                       "b": 0.0,
                       "a": 1.0
-                    },
+                    }
+                },
                 "border_color": "#FF6600",
                 "fill_color": "#FFFFFF",
                 "border_style": "solid",
@@ -411,7 +412,8 @@
                       "g": 0.0,
                       "b": 0.0,
                       "a": 1.0
-                    },
+                    }
+                },
                 "border_color": "#FF6600",
                 "fill_color": "#FFFFFF",
                 "border_style": "solid",
@@ -430,7 +432,8 @@
                       "g": 0.0,
                       "b": 0.0,
                       "a": 1.0
-                    },
+                    }
+                },
                 "border_color": "#FF6600",
                 "fill_color": "#FFFFFF",
                 "border_style": "solid",
@@ -449,7 +452,8 @@
                       "g": 0.0,
                       "b": 0.0,
                       "a": 1.0
-                    },
+                    }
+                },
                 "border_color": "#FF6600",
                 "fill_color": "#FFFFFF",
                 "border_style": "solid",
@@ -457,7 +461,6 @@
             },
             "label_position": "over"
         },
-
         "RMSF": {
             "file_3d": "src/3D/rmsf.glb",
             "2d_file_rast": "src/2D/rmsf.png",
@@ -469,7 +472,8 @@
                       "g": 0.0,
                       "b": 0.0,
                       "a": 1.0
-                    },
+                    }
+                },
                 "border_color": "#FF6600",
                 "fill_color": "#FFFFFF",
                 "border_style": "solid",
@@ -477,7 +481,6 @@
             },
             "label_position": "over"
         },
-
         "SS": {
             "file_3d": "src/3D/ss.glb",
             "2d_file_rast": "src/2D/ss.png",
@@ -489,7 +492,8 @@
                       "g": 0.0,
                       "b": 0.0,
                       "a": 1.0
-                    },
+                    }
+                },
                 "border_color": "#FF6600",
                 "fill_color": "#FFFFFF",
                 "border_style": "solid",
@@ -497,7 +501,6 @@
             },
             "label_position": "over"
         },
-
         "unknown": {
             "file_3d": "src/3D/unknown.glb",
             "file_2d": "src/2D/unknown.png",
@@ -508,7 +511,8 @@
                       "g": 0.0,
                       "b": 0.0,
                       "a": 1.0
-                    },
+                    }
+                },
                 "border_color": "#FF0000",
                 "fill_color": "#FFFFFF",
                 "border_style": "dotted",
@@ -621,6 +625,126 @@
                 "width": 1
             },
             "label": "Generic Connection"
-        }
+        },
+        "has_linked_resource": {
+            "style": {
+              "color": "#9400D3",
+              "line_style": "solid",
+              "width": 1.5
+            },
+            "label": "Has Link"
+          },
+          "has_semantic_shape": {
+            "style": {
+              "color": "#4B0082",
+              "line_style": "dotted",
+              "width": 1.5
+            },
+            "label": "Has Semantic Shape"
+          },
+          "has_representation_model": {
+            "style": {
+              "color": "#8A2BE2",
+              "line_style": "dashed",
+              "width": 1.5
+            },
+            "label": "Has Representation Model"
+          },
+          "is_in_paradata_nodegroup": {
+            "style": {
+              "color": "#FF7F50",
+              "line_style": "solid",
+              "width": 1.5
+            },
+            "label": "Belongs to a Paradata Node Group"
+          },
+          "has_paradata_nodegroup": {
+            "style": {
+              "color": "#FF4500",
+              "line_style": "solid",
+              "width": 1.5
+            },
+            "label": "Is connected to a Paradata Node Group"
+          },
+          "has_author": {
+            "style": {
+              "color": "#DA70D6",
+              "line_style": "dashed",
+              "width": 1.5
+            },
+            "label": "Has Author"
+          },
+          "has_geoposition": {
+            "style": {
+              "color": "#2E8B57",
+              "line_style": "dotted",
+              "width": 1.5
+            },
+            "label": "Has Geoposition"
+          },
+          "isInstanceOf": {
+            "style": {
+              "color": "#6A5ACD",
+              "line_style": "dashed",
+              "width": 1.5
+            },
+            "label": "Is Instance Of"
+          },
+          "isInstancedAs": {
+            "style": {
+              "color": "#483D8B",
+              "line_style": "dashed",
+              "width": 1.5
+            },
+            "label": "Is Instanced As"
+          },
+          "associatedWithEpoch": {
+            "style": {
+              "color": "#228B22",
+              "line_style": "solid",
+              "width": 1.5
+            },
+            "label": "Associated With Epoch"
+          },
+          "positionedAt": {
+            "style": {
+              "color": "#20B2AA",
+              "line_style": "dotted",
+              "width": 1.5
+            },
+            "label": "Positioned At"
+          },
+          "represents": {
+            "style": {
+              "color": "#00CED1",
+              "line_style": "solid",
+              "width": 1.5
+            },
+            "label": "Represents"
+          },
+          "applies_to": {
+            "style": {
+              "color": "#8B0000",
+              "line_style": "dashed",
+              "width": 1.5
+            },
+            "label": "Applies To"
+          },
+          "restricts": {
+            "style": {
+              "color": "#B22222",
+              "line_style": "dashed-dotted",
+              "width": 1.5
+            },
+            "label": "Restricts"
+          },
+          "is_in_timebranch": {
+            "style": {
+              "color": "#4169E1",
+              "line_style": "solid",
+              "width": 1.5
+            },
+            "label": "Included in Timebranch"
+          }
     }
 }
