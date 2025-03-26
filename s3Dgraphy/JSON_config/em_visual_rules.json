@@ -14,7 +14,7 @@
                         "a": 1.0
                     }
                 },
-                "border_color": "#FFFFFF",
+                "border_color": "#540909",
                 "fill_color": "#F0F0F0",
                 "border_style": "solid",
                 "shape": "rectangle"
@@ -23,7 +23,8 @@
         },
         "USVn": {
             "file_3d": "src/3D/USVn.glb",
-            "file_2d": "src/2D/USVn.png",
+            "2d_file_rast": "src/2D/US.png",
+            "2d_file_vect": "src/2D/US.svg",
             "style": {
                 "material": {
                     "color": {
@@ -33,7 +34,7 @@
                         "a": 1.0
                     }
                 },
-                "border_color": "#FF0000",
+                "border_color": "#083107",
                 "fill_color": "#000000",
                 "border_style": "solid",
                 "shape": "hexagon"
@@ -41,8 +42,9 @@
             "label_position": "over"
         },
         "USVs": {
-            "file_3d": "src/3D/USVs.glb",
-            "file_2d": "src/2D/USVs.png",
+            "3d_file": "src/3D/USVs.glb",
+            "2d_file_rast": "src/2D/USVs.png",
+            "2d_file_vect": "src/2D/USVs.svg",
             "style": {
                 "material": {
                     "color": {
@@ -52,7 +54,7 @@
                         "a": 1.0
                     }
                 },
-                "border_color": "#000000",
+                "border_color": "#0546CC",
                 "fill_color": "#CCCCCC",
                 "border_style": "solid",
                 "shape": "parallelogram"
@@ -60,8 +62,9 @@
             "label_position": "over"
         },
         "VSF": {
-            "file_3d": "src/3D/VSF.glb",
-            "file_2d": "src/2D/VSF.png",
+            "3d_file": "src/3D/VSF.glb",
+            "2d_file_rast": "src/2D/VSF.png",
+            "2d_file_vect": "src/2D/VSF.svg",
             "style": {
                 "material": {
                     "color": {
@@ -71,7 +74,7 @@
                         "a": 1.0
                     }
                 },
-                "border_color": "#000000",
+                "border_color": "#70581E",
                 "fill_color": "#CCCCCC",
                 "border_style": "solid",
                 "shape": "octagon"
@@ -79,8 +82,9 @@
             "label_position": "over"
         },
         "SF": {
-            "file_3d": "src/3D/SF.glb",
-            "file_2d": "src/2D/SF.png",
+            "3d_file": "src/3D/SF.glb",
+            "2d_file_rast": "src/2D/SF.png",
+            "2d_file_vect": "src/2D/SF.svg",
             "style": {
                 "material": {
                     "color": {
@@ -90,7 +94,7 @@
                         "a": 1.0
                     }
                 },
-                "border_color": "#FFFFFF",
+                "border_color": "#AF8208",
                 "fill_color": "#CCCCCC",
                 "border_style": "solid",
                 "shape": "octagon"
@@ -98,8 +102,9 @@
             "label_position": "over"
         },
         "USD": {
-            "file_3d": "src/3D/USD.glb",
-            "file_2d": "src/2D/USD.png",
+            "3d_file": "src/3D/USD.glb",
+            "2d_file_rast": "src/2D/USD.png",
+            "2d_file_vect": "src/2D/USD.svg",
             "style": {
                 "material": {
                     "color": {
@@ -109,31 +114,47 @@
                         "a": 1.0
                     }
                 },
-                "border_color": "#AAAAAA",
+                "border_color": "#8C1A00",
                 "fill_color": "#F5F5F5",
                 "border_style": "solid",
                 "shape": "rounded_rectangle"
             },
             "label_position": "over"
         },
-    
-
         "serSU": {
-            "file_3d": "src/3D/serSU.glb",
-            "file_2d": "src/2D/serSU.png",
+            "3d_file": "src/3D/serSU.glb",
+            "2d_file_rast": "src/2D/serSU.png",
+            "2d_file_vect": "src/2D/serSU.svg",
             "style": {
-                "border_color": "#FFFFFF",
+                "material": {
+                    "color": {
+                        "r": 0.328,
+                        "g": 0.033,
+                        "b": 0.033,
+                        "a": 1.0
+                    }
+                },
+                "border_color": "#540909",
                 "fill_color": "#EFEFEF",
                 "border_style": "solid",
                 "shape": "ellipse"
             },
             "label_position": "over"
         },
-        "serUSV": {
-            "file_3d": "src/3D/serUSV.glb",
-            "file_2d": "src/2D/serUSV.png",
+        "serUSVn": {
+            "3d_file": "src/3D/serUSV.glb",
+            "2d_file_rast": "src/2D/serUSV.png",
+            "2d_file_vect": "src/2D/serUSV.svg",
             "style": {
-                "border_color": "#007F00",
+                "material": {
+                    "color": {
+                        "r": 0.031,
+                        "g": 0.191,
+                        "b": 0.026,
+                        "a": 1.0
+                    }
+                },
+                "border_color": "#083107",
                 "fill_color": "#000000",
                 "border_style": "solid",
                 "shape": "ellipse"
@@ -141,11 +162,40 @@
             "label_position": "over"
         },
 
-        "TSU": {
-            "file_3d": "src/3D/TSU.glb",
-            "file_2d": "src/2D/TSU.png",
+        "serUSVs": {
+            "file_3d": "src/3D/serUSVs.glb",
+            "2d_file_rast": "src/2D/serUSVs.png",
+            "2d_file_vect": "src/2D/serUSV.svg",
             "style": {
-                "border_color": "#AAAAAA",
+                "material": {
+                    "color": {
+                        "r": 0.018,
+                        "g": 0.275,
+                        "b": 0.799,
+                        "a": 1.0
+                    }
+                },
+                "border_color": "#0546CC",
+                "fill_color": "#000000",
+                "border_style": "solid",
+                "shape": "ellipse"
+            },
+            "label_position": "over"
+        },
+        "TSU": {
+            "3d_file": "src/3D/TSU.glb",
+            "2d_file_rast": "src/2D/TSU.png",
+            "2d_file_vect": "src/2D/TSU.svg",
+            "style": {
+                "material": {
+                    "color": {
+                        "r": 0.328,
+                        "g": 0.033,
+                        "b": 0.033,
+                        "a": 1.0
+                    }
+                },
+                "border_color": "#808080",
                 "fill_color": "#DDDDDD",
                 "border_style": "dotted",
                 "shape": "rectangle"
@@ -153,9 +203,18 @@
             "label_position": "over"
         },
         "BR": {
-            "file_3d": "src/3D/BR.glb",
-            "file_2d": "src/2D/BR.png",
+            "3d_file": "src/3D/BR.glb",
+            "2d_file_rast": "src/2D/continuity.png",
+            "2d_file_vect": "src/2D/continuity.svg",
             "style": {
+                "material": {
+                    "rgba_color": {
+                      "r": 0.0,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    }
+                },
                 "border_color": "#000000",
                 "fill_color": "#FFFFFF",
                 "border_style": "solid",
@@ -164,10 +223,18 @@
             "label_position": "center"
         },
         "SE": {
-            "file_3d": "src/3D/SE.glb",
-            "file_2d": "src/2D/SE.png",
+            "3d_file": "src/3D/SE.glb",
+            "2d_file_rast": "src/3D/SE.png",
+            "2d_file_vect": "src/3D/SE.svg",
             "style": {
-                "border_color": "#FF0000",
+                "material": {
+                    "rgba_color": {
+                      "r": 0.5,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    },
+                "border_color": "#000000",
                 "fill_color": "#FFFFFF",
                 "border_style": "dashed",
                 "shape": "triangle"
@@ -175,10 +242,18 @@
             "label_position": "over"
         },
         "property": {
-            "file_3d": "src/3D/property.glb",
-            "file_2d": "src/2D/property.png",
+            "3d_file": "src/3D/property.glb",
+            "2d_file_rast": "src/2D/property.png",
+            "2d_file_vect": "src/2D/property.svg",
             "style": {
-                "border_color": "#666666",
+                "material": {
+                    "rgba_color": {
+                      "r": 0.5,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    },
+                "border_color": "#000000",
                 "fill_color": "#FFFFFF",
                 "border_style": "dashed",
                 "shape": "circle"
@@ -186,9 +261,17 @@
             "label_position": "over"
         },
         "combiner": {
-            "file_3d": "src/3D/combiner.glb",
-            "file_2d": "src/2D/combiner.png",
+            "3d_file": "src/3D/combiner.glb",
+            "2d_file_rast": "src/2D/combiner.png",
+            "2d_file_vect": "src/2D/combiner.svg",
             "style": {
+                "material": {
+                    "rgba_color": {
+                      "r": 0.5,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    },
                 "border_color": "#FFCC00",
                 "fill_color": "#FFFFFF",
                 "border_style": "dashed",
@@ -197,9 +280,17 @@
             "label_position": "bottom"
         },
         "extractor": {
-            "file_3d": "src/3D/extractor.glb",
-            "file_2d": "src/2D/extractor.png",
+            "3d_file": "src/3D/extractor.glb",
+            "2d_file_rast": "src/2D/extractor.png",
+            "2d_file_vect": "src/2D/extractor.svg",
             "style": {
+                "material": {
+                    "rgba_color": {
+                      "r": 0.5,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    },
                 "border_color": "#0033CC",
                 "fill_color": "#F0F0F0",
                 "border_style": "solid",
@@ -208,9 +299,17 @@
             "label_position": "bottom"
         },
         "document": {
-            "file_3d": "src/3D/document.glb",
-            "file_2d": "src/2D/document.png",
+            "3d_file": "src/3D/document.glb",
+            "2d_file_rast": "src/2D/document.png",
+            "2d_file_vect": "src/2D/document.svg",
             "style": {
+                "material": {
+                    "rgba_color": {
+                      "r": 0.5,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 1.0
+                    },
                 "border_color": "#000000",
                 "fill_color": "#E0E0E0",
                 "border_style": "solid",
@@ -219,8 +318,9 @@
             "label_position": "over"
         },
         "epoch": {
-            "file_3d": "src/3D/epoch.glb",
-            "file_2d": "src/2D/epoch.png",
+            "3d_file": "src/3D/epoch.glb",
+            "2d_file_rast": "src/2D/epoch.png",
+            "2d_file_vect": "src/2D/epoch.svg",
             "style": {
                 "border_color": "#009933",
                 "fill_color": "#FFFFFF",

@@ -22,13 +22,6 @@
         "properties": {
           "name": "P1_is_identified_by",
           "description": "P3_has_note"
-        },
-        "visual_rules": {
-          "default_style": {
-            "border_color": "#000000",
-            "fill_color": "#FFFFFF",
-            "border_style": "solid"
-          }
         }
       }
     },
@@ -44,16 +37,7 @@
         },
         "properties": {
           "name": "P1_is_identified_by",
-          "description": "P3_has_note",
-          "symbol": null,
-          "label": null
-        },
-        "visual_rules": {
-          "default_style": {
-            "border_color": "#000000",
-            "fill_color": "#FFFFFF",
-            "border_style": "solid"
-          }
+          "description": "P3_has_note"
         },
         "subtypes": {
           "US": {
@@ -61,6 +45,7 @@
             "parent": "StratigraphicNode",
             "abbreviation": "US",
             "label": "US (or SU)",
+            "symbol": "white rectangle",
             "description": "Stratigraphic Unit (SU) or negative stratigraphic unit. Represents a physical stratigraphic unit (positive or negative). It corresponds to an identifiable physical layer or interface in archaeological documentation.",
             "s3Dgraphy_file": "stratigraphic_node.py",
             "mapping": {
@@ -70,30 +55,7 @@
             },
             "properties": {
               "name": "P1_is_identified_by",
-              "description": "P3_has_note",
-              "symbol": "white rectangle",
-              "label": "US (or SU)"
-            },
-            "visual_rules": {
-              "style": {
-                "material": {
-                  "rgba_color": {
-                    "r": 0.328,
-                    "g": 0.033,
-                    "b": 0.033,
-                    "a": 1.0
-                  },
-                  "hex_color": "#540909"
-                },
-                "border_color": "#540909",
-                "fill_color": "#F0F0F0",
-                "border_style": "solid",
-                "shape": "rectangle"
-              },
-              "3d_file": "src/3D/US.glb",
-              "2d_file_rast": "src/2D/US.png",
-              "2d_file_vect": "src/2D/US.svg",
-              "label_position": "over"
+              "description": "P3_has_note"
             }
           },
           "USVs": {
@@ -101,6 +63,7 @@
             "parent": "StratigraphicNode",
             "abbreviation": "USVs",
             "label": "USV/s",
+            "symbol": "black parallelogram",
             "description": "Structural Virtual Stratigraphic Unit (USV/s). Represents a virtual reconstruction of structural elements, such as walls, columns, or other architectural components that are no longer physically present but can be reconstructed based on archaeological evidence.",
             "s3Dgraphy_file": "stratigraphic_node.py",
             "mapping": {
@@ -110,30 +73,7 @@
             },
             "properties": {
               "name": "P1_is_identified_by",
-              "description": "P3_has_note",
-              "symbol": "black parallelogram",
-              "label": "USV/s"
-            },
-            "visual_rules": {
-              "style": {
-                "material": {
-                  "rgba_color": {
-                    "r": 0.018,
-                    "g": 0.275,
-                    "b": 0.799,
-                    "a": 1.0
-                  },
-                  "hex_color": "#0546CC"
-                },
-                "border_color": "#0546CC",
-                "fill_color": "#CCCCCC",
-                "border_style": "solid",
-                "shape": "parallelogram"
-              },
-              "3d_file": "src/3D/USVs.glb",
-              "2d_file_rast": "src/2D/USVs.png",
-              "2d_file_vect": "src/2D/USVs.svg",
-              "label_position": "over"
+              "description": "P3_has_note"
             }
           },
           "USVn": {
@@ -141,6 +81,7 @@
             "parent": "StratigraphicNode",
             "abbreviation": "USVn",
             "label": "USV/n",
+            "symbol": "black hexagon",
             "description": "Non-structural Virtual Stratigraphic Unit (USV/n). Represents a virtual reconstruction of non-structural elements, such as furniture, decorations, or other non-load bearing components that are no longer physically present but can be reconstructed based on archaeological evidence.",
             "s3Dgraphy_file": "stratigraphic_node.py",
             "mapping": {
@@ -150,30 +91,7 @@
             },
             "properties": {
               "name": "P1_is_identified_by",
-              "description": "P3_has_note",
-              "symbol": "black hexagon",
-              "label": "USV/n"
-            },
-            "visual_rules": {
-              "style": {
-                "material": {
-                  "rgba_color": {
-                    "r": 0.031,
-                    "g": 0.191,
-                    "b": 0.026,
-                    "a": 1.0
-                  },
-                  "hex_color": "#083107"
-                },
-                "border_color": "#083107",
-                "fill_color": "#000000",
-                "border_style": "solid",
-                "shape": "hexagon"
-              },
-              "3d_file": "src/3D/USVn.glb",
-              "2d_file_rast": "src/2D/USVn.png",
-              "2d_file_vect": "src/2D/USVn.svg",
-              "label_position": "over"
+              "description": "P3_has_note"
             }
           },
           "SF": {
@@ -181,6 +99,7 @@
             "parent": "StratigraphicNode",
             "abbreviation": "SF",
             "label": "Special Find",
+            "symbol": "white octagon",
             "description": "Not in situ element that needs repositioning. Represents an object of particular interest found in stratigraphic contexts, such as architectural artifacts, coins, or other significant objects that are not in their original position.",
             "s3Dgraphy_file": "stratigraphic_node.py",
             "mapping": {
@@ -190,30 +109,7 @@
             },
             "properties": {
               "name": "P1_is_identified_by",
-              "description": "P3_has_note",
-              "symbol": "white octagon",
-              "label": "Special Find"
-            },
-            "visual_rules": {
-              "style": {
-                "material": {
-                  "rgba_color": {
-                    "r": 0.686,
-                    "g": 0.508,
-                    "b": 0.029,
-                    "a": 1.0
-                  },
-                  "hex_color": "#AF8208"
-                },
-                "border_color": "#AF8208",
-                "fill_color": "#CCCCCC",
-                "border_style": "solid",
-                "shape": "octagon"
-              },
-              "3d_file": "src/3D/SF.glb",
-              "2d_file_rast": "src/2D/SF.png",
-              "2d_file_vect": "src/2D/SF.svg",
-              "label_position": "over"
+              "description": "P3_has_note"
             }
           },
           "VSF": {
@@ -221,6 +117,7 @@
             "parent": "StratigraphicNode",
             "abbreviation": "VSF",
             "label": "Virtual Special Find",
+            "symbol": "black octagon",
             "description": "Hypothetical reconstruction of a fragmented Special Find. Represents a virtual reconstruction of a special find that is fragmented or incomplete, based on archaeological evidence and reasonable inferences.",
             "s3Dgraphy_file": "stratigraphic_node.py",
             "mapping": {
@@ -230,30 +127,7 @@
             },
             "properties": {
               "name": "P1_is_identified_by",
-              "description": "P3_has_note",
-              "symbol": "black octagon",
-              "label": "Virtual Special Find"
-            },
-            "visual_rules": {
-              "style": {
-                "material": {
-                  "rgba_color": {
-                    "r": 0.439,
-                    "g": 0.346,
-                    "b": 0.119,
-                    "a": 1.0
-                  },
-                  "hex_color": "#70581E"
-                },
-                "border_color": "#70581E",
-                "fill_color": "#CCCCCC",
-                "border_style": "solid",
-                "shape": "octagon"
-              },
-              "3d_file": "src/3D/VSF.glb",
-              "2d_file_rast": "src/2D/VSF.png",
-              "2d_file_vect": "src/2D/VSF.svg",
-              "label_position": "over"
+              "description": "P3_has_note"
             }
           },
           "serSU": {
@@ -261,6 +135,7 @@
             "parent": "StratigraphicNode",
             "abbreviation": "serSU",
             "label": "US series",
+            "symbol": "white ellipse",
             "description": "Series of Stratigraphic Units (SU). Represents a grouping of multiple related stratigraphic units for organizational or analytical purposes.",
             "s3Dgraphy_file": "stratigraphic_node.py",
             "mapping": {
@@ -270,30 +145,7 @@
             },
             "properties": {
               "name": "P1_is_identified_by",
-              "description": "P3_has_note",
-              "symbol": "white ellipse",
-              "label": "US series"
-            },
-            "visual_rules": {
-              "style": {
-                "material": {
-                  "rgba_color": {
-                    "r": 0.5,
-                    "g": 0.5,
-                    "b": 0.5,
-                    "a": 1.0
-                  },
-                  "hex_color": "#808080"
-                },
-                "border_color": "#9B3333",
-                "fill_color": "#EFEFEF",
-                "border_style": "solid",
-                "shape": "ellipse"
-              },
-              "3d_file": "src/3D/serSU.glb",
-              "2d_file_rast": "src/2D/serSU.png",
-              "2d_file_vect": "src/2D/serSU.svg",
-              "label_position": "over"
+              "description": "P3_has_note"
             }
           },
           "serUSVn": {
@@ -301,6 +153,7 @@
             "parent": "StratigraphicNode",
             "abbreviation": "serUSVn",
             "label": "USVn series",
+            "symbol": "black ellipse green border",
             "description": "Series of non-structural Virtual Stratigraphic Units. Represents a grouping of multiple non-structural virtual stratigraphic units.",
             "s3Dgraphy_file": "stratigraphic_node.py",
             "mapping": {
@@ -310,30 +163,7 @@
             },
             "properties": {
               "name": "P1_is_identified_by",
-              "description": "P3_has_note",
-              "symbol": "black ellipse green border",
-              "label": "USVn series"
-            },
-            "visual_rules": {
-              "style": {
-                "material": {
-                  "rgba_color": {
-                    "r": 0.15,
-                    "g": 0.35,
-                    "b": 0.15,
-                    "a": 1.0
-                  },
-                  "hex_color": "#275925"
-                },
-                "border_color": "#31792D",
-                "fill_color": "#000000",
-                "border_style": "solid",
-                "shape": "ellipse"
-              },
-              "3d_file": "src/3D/serUSV.glb",
-              "2d_file_rast": "src/2D/serUSV.png",
-              "2d_file_vect": "src/2D/serUSV.svg",
-              "label_position": "over"
+              "description": "P3_has_note"
             }
           },
           "serUSVs": {
@@ -353,27 +183,6 @@
               "description": "P3_has_note",
               "symbol": "black ellipse blue border",
               "label": "USVs series"
-            },
-            "visual_rules": {
-              "style": {
-                "material": {
-                  "rgba_color": {
-                    "r": 0.14,
-                    "g": 0.14,
-                    "b": 0.56,
-                    "a": 1.0
-                  },
-                  "hex_color": "#24248F"
-                },
-                "border_color": "#248FE7",
-                "fill_color": "#000000",
-                "border_style": "solid",
-                "shape": "ellipse"
-              },
-              "3d_file": "src/3D/serUSV.glb",
-              "2d_file_rast": "src/2D/serUSV.png",
-              "2d_file_vect": "src/2D/serUSV.svg",
-              "label_position": "over"
             }
           },
           "USD": {
@@ -381,6 +190,7 @@
             "parent": "StratigraphicNode",
             "abbreviation": "USD",
             "label": "USD",
+            "symbol": "white round rectangle with orange border",
             "description": "Documentary Stratigraphic Unit. Represents a conceptual stratigraphic unit based on historical or documentary sources rather than direct physical evidence.",
             "s3Dgraphy_file": "stratigraphic_node.py",
             "mapping": {
@@ -390,30 +200,7 @@
             },
             "properties": {
               "name": "P1_is_identified_by",
-              "description": "P3_has_note",
-              "symbol": "white round rectangle",
-              "label": "USD"
-            },
-            "visual_rules": {
-              "style": {
-                "material": {
-                  "rgba_color": {
-                    "r": 0.549,
-                    "g": 0.103,
-                    "b": 0.000,
-                    "a": 1.0
-                  },
-                  "hex_color": "#8C1A00"
-                },
-                "border_color": "#8C1A00",
-                "fill_color": "#F5F5F5",
-                "border_style": "solid",
-                "shape": "rounded_rectangle"
-              },
-              "3d_file": "src/3D/USD.glb",
-              "2d_file_rast": "src/2D/USD.png",
-              "2d_file_vect": "src/2D/USD.svg",
-              "label_position": "over"
+              "description": "P3_has_note"
             }
           },
           "TSU": {
@@ -421,6 +208,7 @@
             "parent": "StratigraphicNode",
             "abbreviation": "TSU",
             "label": "TSU",
+            "symbol": "dotted white rectangle with red border",
             "description": "Transformation Unit. Represents a process of change in a stratigraphic unit.",
             "s3Dgraphy_file": "stratigraphic_node.py",
             "mapping": {
@@ -430,30 +218,7 @@
             },
             "properties": {
               "name": "P1_is_identified_by",
-              "description": "P3_has_note",
-              "symbol": "dotted white rectangle",
-              "label": "TSU"
-            },
-            "visual_rules": {
-              "style": {
-                "material": {
-                  "rgba_color": {
-                    "r": 0.5,
-                    "g": 0.5,
-                    "b": 0.5,
-                    "a": 1.0
-                  },
-                  "hex_color": "#808080"
-                },
-                "border_color": "#AAAAAA",
-                "fill_color": "#DDDDDD",
-                "border_style": "dotted",
-                "shape": "rectangle"
-              },
-              "3d_file": "src/3D/TSU.glb",
-              "2d_file_rast": "src/2D/TSU.png",
-              "2d_file_vect": "src/2D/TSU.svg",
-              "label_position": "over"
+              "description": "P3_has_note"
             }
           },
           "BR": {
@@ -461,6 +226,7 @@
             "parent": "StratigraphicNode",
             "abbreviation": "BR",
             "label": "continuity node",
+            "symbol": "black rhombus",
             "description": "End of life of a US/USV. Marks the point where a stratigraphic unit ceases to exist.",
             "s3Dgraphy_file": "stratigraphic_node.py",
             "mapping": {
@@ -471,29 +237,7 @@
             "properties": {
               "name": "P1_is_identified_by",
               "description": "P3_has_note",
-              "symbol": "black rhombus",
               "label": "continuity node"
-            },
-            "visual_rules": {
-              "style": {
-                "material": {
-                  "rgba_color": {
-                    "r": 0.0,
-                    "g": 0.0,
-                    "b": 0.0,
-                    "a": 1.0
-                  },
-                  "hex_color": "#000000"
-                },
-                "border_color": "#000000",
-                "fill_color": "#FFFFFF",
-                "border_style": "solid",
-                "shape": "diamond"
-              },
-              "3d_file": "src/3D/BR.glb",
-              "2d_file_rast": "src/2D/continuity.png",
-              "2d_file_vect": "src/2D/continuity.svg",
-              "label_position": "center"
             }
           },
           "SE": {
@@ -501,6 +245,7 @@
             "parent": "StratigraphicNode",
             "abbreviation": "SE",
             "label": "stratigraphic event node",
+            "symbol": "to be defined",
             "description": "A stratigraphic event is the process or event that leads to the formation or alteration of a stratigraphic unit. It is distinct from the unit itself, which represents the result or outcome of the event. The event can be thought of as a precursor and can be paired with its resulting unit to provide a more detailed temporal range. This allows for the documentation of both the initial moment of action (e.g., the start of construction, a collapse, or an incision) and the final state (the resulting unit that persists over time).",
             "s3Dgraphy_file": "stratigraphic_node.py",
             "mapping": {
@@ -511,30 +256,7 @@
             "properties": {
               "name": "P1_is_identified_by",
               "description": "P3_has_note",
-              "symbol": "to be defined",
               "label": "stratigraphic event node"
-            },
-            "visual_rules": {
-              "style": {
-                "material": {
-                  "rgba_color": {
-                    "r": 0.5,
-                    "g": 0.0,
-                    "b": 0.0,
-                    "a": 1.0
-                  },
-                  "hex_color": "#800000"
-                },
-                "border_color": "#FF0000",
-                "fill_color": "#FFFFFF",
-                "border_style": "dashed",
-                "shape": "triangle"
-              },
-              "3d_file": null,
-              "2d_file_rast": null,
-              "2d_file_vect": null,
-              "label_position": "over",
-              "file_status": "to be created"
             }
           }
         }
@@ -559,19 +281,6 @@
           "start_time": "P82a_begin_of_the_begin",
           "end_time": "P82b_end_of_the_end",
           "color": "P90_has_value"
-        },
-        "visual_rules": {
-          "style": {
-            "border_color": "#009933",
-            "fill_color": "#FFFFFF",
-            "border_style": "solid",
-            "shape": "rectangle",
-            "color_property": "color"
-          },
-          "3d_file": "src/3D/epoch.glb",
-          "2d_file_rast": "src/2D/epoch.png",
-          "2d_file_vect": "src/2D/epoch.svg",
-          "label_position": "over"
         }
       }
     },
@@ -590,13 +299,6 @@
           "name": "P1_is_identified_by",
           "description": "P3_has_note"
         },
-        "visual_rules": {
-          "default_style": {
-            "border_color": "#000000",
-            "fill_color": "#FFFFFF",
-            "border_style": "solid"
-          }
-        },
         "subtypes": {
           "ActivityNodeGroup": {
             "class": "ActivityNodeGroup",
@@ -613,19 +315,6 @@
             "properties": {
               "name": "P1_is_identified_by",
               "description": "P3_has_note"
-            },
-            "visual_rules": {
-              "style": {
-                "border_color": "#9966CC",
-                "fill_color": "#FFFFFF",
-                "border_style": "dashed",
-                "shape": "ellipse",
-                "background_color": "#CCFFFF"
-              },
-              "3d_file": "src/3D/activity.glb",
-              "2d_file_rast": "src/2D/activity.png",
-              "2d_file_vect": "src/2D/activity.svg",
-              "label_position": "over"
             }
           },
           "ParadataNodeGroup": {
@@ -643,20 +332,6 @@
             "properties": {
               "name": "P1_is_identified_by",
               "description": "P3_has_note"
-            },
-            "visual_rules": {
-              "style": {
-                "border_color": "#FF6600",
-                "fill_color": "#FFFFFF",
-                "border_style": "solid",
-                "shape": "ellipse",
-                "background_color": "#FFCC99"
-              },
-              "3d_file": null,
-              "2d_file_rast": null,
-              "2d_file_vect": null,
-              "label_position": "over",
-              "file_status": "to be created"
             }
           },
           "TimeBranchNodeGroup": {
@@ -674,20 +349,6 @@
             "properties": {
               "name": "P1_is_identified_by",
               "description": "P3_has_note"
-            },
-            "visual_rules": {
-              "style": {
-                "border_color": "#006600",
-                "fill_color": "#FFFFFF",
-                "border_style": "solid",
-                "shape": "ellipse",
-                "background_color": "#99CC00"
-              },
-              "3d_file": null,
-              "2d_file_rast": null,
-              "2d_file_vect": null,
-              "label_position": "over",
-              "file_status": "to be created"
             }
           }
         }
@@ -709,13 +370,6 @@
           "description": "P3_has_note",
           "url": "P1_is_identified_by"
         },
-        "visual_rules": {
-          "default_style": {
-            "border_color": "#000000",
-            "fill_color": "#FFFFFF",
-            "border_style": "solid"
-          }
-        },
         "subtypes": {
           "PropertyNode": {
             "class": "PropertyNode",
@@ -735,18 +389,6 @@
               "url": "P1_is_identified_by",
               "value": "P90_has_value",
               "property_type": "P2_has_type"
-            },
-            "visual_rules": {
-              "style": {
-                "border_color": "#666666",
-                "fill_color": "#FFFFFF",
-                "border_style": "dashed",
-                "shape": "circle"
-              },
-              "3d_file": "src/3D/property.glb",
-              "2d_file_rast": "src/2D/property.png",
-              "2d_file_vect": "src/2D/property.svg",
-              "label_position": "over"
             }
           },
           "DocumentNode": {
@@ -763,20 +405,7 @@
             },
             "properties": {
               "name": "P102_has_title",
-              "description": "P3_has_note",
-              "url": "P1_is_identified_by"
-            },
-            "visual_rules": {
-              "style": {
-                "border_color": "#000000",
-                "fill_color": "#E0E0E0",
-                "border_style": "solid",
-                "shape": "ellipse"
-              },
-              "3d_file": "src/3D/document.glb",
-              "2d_file_rast": "src/2D/document.png",
-              "2d_file_vect": "src/2D/document.svg",
-              "label_position": "over"
+              "description": "P3_has_note"
             }
           },
           "ExtractorNode": {
@@ -796,18 +425,6 @@
               "description": "P3_has_note",
               "url": "P1_is_identified_by",
               "source": "J7_is_based_on_evidence_from"
-            },
-            "visual_rules": {
-              "style": {
-                "border_color": "#0033CC",
-                "fill_color": "#F0F0F0",
-                "border_style": "solid",
-                "shape": "pentagon"
-              },
-              "3d_file": "src/3D/extractor.glb",
-              "2d_file_rast": "src/2D/extractor.png",
-              "2d_file_vect": "src/2D/extractor.svg",
-              "label_position": "bottom"
             }
           },
           "CombinerNode": {
@@ -835,9 +452,7 @@
                 "border_style": "dashed",
                 "shape": "hexagon"
               },
-              "3d_file": "src/3D/combiner.glb",
-              "2d_file_rast": "src/2D/combiner.png",
-              "2d_file_vect": "src/2D/combiner.svg",
+
               "label_position": "bottom"
             }
           }
