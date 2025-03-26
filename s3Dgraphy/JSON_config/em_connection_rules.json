@@ -51,7 +51,7 @@
         "label": "Has First Epoch",
         "description": "Indicates the initial epoch associated with a node.",
         "allowed_connections": {
-          "source": ["StratigraphicNode"],
+          "source": ["StratigraphicNode", "RepresentationModelDocNode","RepresentationModelNode","RepresentationModelSpecialFindNode"],
           "target": ["EpochNode"]
         }
       },
@@ -60,7 +60,7 @@
         "label": "Survives In Epoch",
         "description": "Indicates that a node continues to exist in a given epoch.",
         "allowed_connections": {
-          "source": ["StratigraphicNode"],
+          "source": ["StratigraphicNode", "RepresentationModelDocNode","RepresentationModelNode","RepresentationModelSpecialFindNode"],
           "target": ["EpochNode"]
         }
       },
@@ -141,7 +141,7 @@
         "label": "Has a linked resource",
         "description": "Represents a connection between a node and a linked resource node",
         "allowed_connections": {
-          "source": ["StratigraphicNode", "ParadataNode"],
+          "source": ["StratigraphicNode", "ParadataNode","RepresentationModelNode","RepresentationModelDocNode","RepresentationModelSpecialFindNode"],
           "target": ["LinkNode"]
         }
       },
@@ -151,7 +151,7 @@
         "description": "Represents a connection between a stratigraphic, extractor or document node and representation 3D model",
         "allowed_connections": {
           "source": ["StratigraphicNode", "ExtractorNode", "DocumentNode"],
-          "target": ["RepresentationModelNode"]
+          "target": ["RepresentationModelNode","RepresentationModelDocNode","RepresentationModelSpecialFindNode"]
         }
       },
       {
