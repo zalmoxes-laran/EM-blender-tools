@@ -76,6 +76,15 @@ EDGE_TYPES = {
         "label": "Is connected to a Paradata Node Group",
         "description": "Indicates that a node belongs to a paradata node group."
     },
+    "has_license": {
+        "label": "Has License",
+        "description": "Indica che una risorsa è soggetta a una licenza specifica."
+    },
+
+    "has_embargo": {
+        "label": "Has Embargo",
+        "description": "Indica che una licenza ha un embargo temporale associato."
+    }
 }
 
 class Edge:

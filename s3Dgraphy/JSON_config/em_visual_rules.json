@@ -682,62 +682,6 @@
             },
             "label": "Has Geoposition"
           },
-          "isInstanceOf": {
-            "style": {
-              "color": "#6A5ACD",
-              "line_style": "dashed",
-              "width": 1.5
-            },
-            "label": "Is Instance Of"
-          },
-          "isInstancedAs": {
-            "style": {
-              "color": "#483D8B",
-              "line_style": "dashed",
-              "width": 1.5
-            },
-            "label": "Is Instanced As"
-          },
-          "associatedWithEpoch": {
-            "style": {
-              "color": "#228B22",
-              "line_style": "solid",
-              "width": 1.5
-            },
-            "label": "Associated With Epoch"
-          },
-          "positionedAt": {
-            "style": {
-              "color": "#20B2AA",
-              "line_style": "dotted",
-              "width": 1.5
-            },
-            "label": "Positioned At"
-          },
-          "represents": {
-            "style": {
-              "color": "#00CED1",
-              "line_style": "solid",
-              "width": 1.5
-            },
-            "label": "Represents"
-          },
-          "applies_to": {
-            "style": {
-              "color": "#8B0000",
-              "line_style": "dashed",
-              "width": 1.5
-            },
-            "label": "Applies To"
-          },
-          "restricts": {
-            "style": {
-              "color": "#B22222",
-              "line_style": "dashed-dotted",
-              "width": 1.5
-            },
-            "label": "Restricts"
-          },
           "is_in_timebranch": {
             "style": {
               "color": "#4169E1",

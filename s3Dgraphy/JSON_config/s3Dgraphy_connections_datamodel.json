@@ -59,7 +59,7 @@
     "has_data_provenance": {
       "name": "has_data_provenance",
       "label": "Data Provenance",
-      "description": "Indicates the provenance of data, often linking to extractor nodes or combiner nodes.",
+      "description": "Indicates the provenance of data, often linking to source nodes.",
       "mapping": {
         "cidoc": "P70i_is_documented_in",
         "cidoc_extension": "CIDOC-CRM",
@@ -97,7 +97,7 @@
         "extension_name": "CRMarchaeo"
       },
       "allowed_connections": {
-        "source": ["StratigraphicNode", "RepresentationModelDocNode", "RepresentationModelNode", "RepresentationModelSpecialFindNode"],
+        "source": ["StratigraphicNode", "RepresentationModelNode", "RepresentationModelDocNode", "RepresentationModelSpecialFindNode"],
         "target": ["EpochNode"]
       }
     },
@@ -112,7 +112,7 @@
         "extension_name": "CRMarchaeo"
       },
       "allowed_connections": {
-        "source": ["StratigraphicNode", "RepresentationModelDocNode", "RepresentationModelNode", "RepresentationModelSpecialFindNode"],
+        "source": ["StratigraphicNode", "RepresentationModelNode", "RepresentationModelDocNode", "RepresentationModelSpecialFindNode"],
         "target": ["EpochNode"]
       }
     },
@@ -217,7 +217,7 @@
         "extension_name": "CRMdig"
       },
       "allowed_connections": {
-        "source": ["Graph", "StratigraphicNode", "ParadataNode", "GroupNode", "DocumentNode", "ExtractorNode", "CombinerNode", "PropertyNode"],
+        "source": ["GraphNode", "StratigraphicNode", "ParadataNode", "GroupNode", "DocumentNode", "ExtractorNode", "CombinerNode", "PropertyNode"],
         "target": ["AuthorNode"]
       }
     },
@@ -232,7 +232,7 @@
         "extension_name": "CRMgeo"
       },
       "allowed_connections": {
-        "source": ["StratigraphicNode", "ParadataNode"],
+        "source": ["StratigraphicNode", "ParadataNode", "RepresentationModelNode", "RepresentationModelDocNode", "RepresentationModelSpecialFindNode"],
         "target": ["GeoPositionNode"]
       }
     },
@@ -311,6 +311,36 @@
         "target": ["ParadataNodeGroup"]
       }
     },
+    "has_license": {
+      "name": "has_license",
+      "label": "Has License",
+      "description": "Indicates that a resource is subject to a specific license.",
+      "mapping": {
+        "cidoc": "P104_is_subject_to",
+        "cidoc_extension": "CIDOC-CRM",
+        "extension_mapping": null,
+        "extension_name": null
+      },
+      "allowed_connections": {
+        "source": ["Node", "GraphNode"],
+        "target": ["LicenseNode"]
+      }
+    },
+    "has_embargo": {
+      "name": "has_embargo",
+      "label": "Has Embargo",
+      "description": "Indicates that a license has a temporal embargo associated.",
+      "mapping": {
+        "cidoc": "P104_is_subject_to",
+        "cidoc_extension": "CIDOC-CRM",
+        "extension_mapping": null,
+        "extension_name": null
+      },
+      "allowed_connections": {
+        "source": ["LicenseNode"],
+        "target": ["EmbargoNode"]
+      }
+    },
     "generic_connection": {
       "name": "generic_connection",
       "label": "Generic Connection",
@@ -324,111 +354,6 @@
       "allowed_connections": {
         "source": ["StratigraphicNode", "PropertyNode"],
         "target": ["StratigraphicNode", "PropertyNode"]
-      }
-    },
-    "isInstanceOf": {
-      "name": "isInstanceOf",
-      "label": "Is Instance Of",
-      "description": "Connects an external 3D model reference to its instance in a scene.",
-      "mapping": {
-        "cidoc": null,
-        "cidoc_extension": null,
-        "extension_mapping": "CIDOC-S3D:instantiatedAs",
-        "extension_name": "CIDOC-S3D"
-      },
-      "allowed_connections": {
-        "source": ["LinkNode"],
-        "target": ["RepresentationModelNode", "RepresentationModelDocNode", "RepresentationModelSpecialFindNode"]
-      }
-    },
-    "isInstancedAs": {
-      "name": "isInstancedAs",
-      "label": "Is Instanced As",
-      "description": "Connects an external 3D model reference to its instance in a scene.",
-      "mapping": {
-        "cidoc": null,
-        "cidoc_extension": null,
-        "extension_mapping": "CIDOC-S3D:instantiatedAs",
-        "extension_name": "CIDOC-S3D"
-      },
-      "allowed_connections": {
-        "source": ["LinkNode"],
-        "target": ["RepresentationModelNode", "RepresentationModelDocNode", "RepresentationModelSpecialFindNode"]
-      }
-    },
-    "associatedWithEpoch": {
-      "name": "associatedWithEpoch",
-      "label": "Associated With Epoch",
-      "description": "Associates a visual model with a specific time period for temporal visualization.",
-      "mapping": {
-        "cidoc": "P4_has_time-span",
-        "cidoc_extension": "CIDOC-CRM",
-        "extension_mapping": "CIDOC-S3D:hasTemporalVisualization",
-        "extension_name": "CIDOC-S3D"
-      },
-      "allowed_connections": {
-        "source": ["RepresentationModelNode", "RepresentationModelDocNode", "RepresentationModelSpecialFindNode"],
-        "target": ["EpochNode"]
-      }
-    },
-    "positionedAt": {
-      "name": "positionedAt",
-      "label": "Positioned At",
-      "description": "Specifies the spatial positioning of a representation model.",
-      "mapping": {
-        "cidoc": "P53_has_former_or_current_location",
-        "cidoc_extension": "CIDOC-CRM",
-        "extension_mapping": null,
-        "extension_name": null
-      },
-      "allowed_connections": {
-        "source": ["RepresentationModelNode", "RepresentationModelDocNode", "RepresentationModelSpecialFindNode"],
-        "target": ["GeoPositionNode"]
-      }
-    },
-    "represents": {
-      "name": "represents",
-      "label": "Represents",
-      "description": "Indicates that a semantic shape represents a specific stratigraphic node.",
-      "mapping": {
-        "cidoc": "P138_represents",
-        "cidoc_extension": "CIDOC-CRM",
-        "extension_mapping": null,
-        "extension_name": null
-      },
-      "allowed_connections": {
-        "source": ["SemanticShapeNode"],
-        "target": ["StratigraphicNode"]
-      }
-    },
-    "applies_to": {
-      "name": "applies_to",
-      "label": "Applies To",
-      "description": "Indicates that a license applies to a specific node or set of nodes.",
-      "mapping": {
-        "cidoc": "P104_is_subject_to",
-        "cidoc_extension": "CIDOC-CRM",
-        "extension_mapping": null,
-        "extension_name": null
-      },
-      "allowed_connections": {
-        "source": ["LicenseNode"],
-        "target": ["Node"]
-      }
-    },
-    "restricts": {
-      "name": "restricts",
-      "label": "Restricts",
-      "description": "Indicates that an embargo restricts access to a licensed resource.",
-      "mapping": {
-        "cidoc": "P104_is_subject_to",
-        "cidoc_extension": "CIDOC-CRM",
-        "extension_mapping": null,
-        "extension_name": null
-      },
-      "allowed_connections": {
-        "source": ["EmbargoNode"],
-        "target": ["LicenseNode"]
       }
     }
   }

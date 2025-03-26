@@ -21,6 +21,8 @@ from .geo_position_node import GeoPositionNode
 from .representation_model_node import RepresentationModelNode
 from .author_node import AuthorNode
 from .link_node import LinkNode
+from .embargo_node import EmbargoNode
+from .license_node import LicenseNode
 
 # Define what is available for import when using 'from nodes import *'
 __all__ = [
@@ -39,5 +41,7 @@ __all__ = [
     "GeoPositionNode", 
     "RepresentationModelNode",
     "AuthorNode", 
-    "LinkNode"
+    "LinkNode",
+    "EmbargoNode",
+    "LicenseNode"
 ]
