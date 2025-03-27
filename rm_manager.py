@@ -823,12 +823,14 @@ class RM_OT_resolve_mismatches(Operator):
                                     break
                             
                             if epoch_node:
-                                edge_id = f"{model_node_id}_has_representation_model_{epoch_node.node_id}"
+                                edge_id = f"{epoch_node.node_id}_has_representation_model_{model_node_id}"
                                 if not graph.find_edge_by_id(edge_id):
                                     graph.add_edge(
                                         edge_id=edge_id,
-                                        edge_source=model_node_id,
-                                        edge_target=epoch_node.node_id,
+                                        #edge_source=model_node_id,
+                                        #edge_target=epoch_node.node_id,
+                                        edge_source=epoch_node.node_id,
+                                        edge_target=model_node_id,
                                         edge_type="has_representation_model"
                                     )
                 
@@ -1679,12 +1681,14 @@ class RM_OT_add_epoch(Operator):
         ep_item.epoch = active_epoch.name
         
         # Crea un edge nel grafo
-        edge_id = f"{rm_item.node_id}_has_representation_model_{epoch_node.node_id}"
+        edge_id = f"{epoch_node.node_id}_has_representation_model_{rm_item.node_id}"
         if not graph.find_edge_by_id(edge_id):
             graph.add_edge(
                 edge_id=edge_id,
-                edge_source=rm_item.node_id,
-                edge_target=epoch_node.node_id,
+                #edge_source=rm_item.node_id,
+                #edge_target=epoch_node.node_id,
+                edge_source=epoch_node.node_id,
+                edge_target=rm_item.node_id,
                 edge_type="has_representation_model"
             )
         

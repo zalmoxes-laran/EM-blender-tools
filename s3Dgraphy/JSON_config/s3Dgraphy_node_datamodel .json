@@ -1,5 +1,5 @@
 {
-    "s3Dgraphy_data_model_version": "1.5.0",
+    "s3Dgraphy_data_model_version": "1.5.1",
     "description": "s3Dgraphy nodes datamodel including node types with CIDOC-CRM mappings",
     "components": [
       "CIDOC-CRM",

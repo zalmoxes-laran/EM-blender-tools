@@ -140,12 +140,14 @@ def update_representation_models(graph):
                         break
                 
                 if epoch_node:
-                    edge_id = f"{model_node_id}_has_representation_model_{epoch_node.node_id}"
+                    edge_id = f"{epoch_node.node_id}_has_representation_model_{model_node_id}"
                     if not graph.find_edge_by_id(edge_id):
                         graph.add_edge(
                             edge_id=edge_id,
-                            edge_source=model_node_id,
-                            edge_target=epoch_node.node_id,
+                            #edge_source=model_node_id,
+                            #edge_target=epoch_node.node_id,
+                            edge_source=epoch_node.node_id,
+                            edge_target=model_node_id,
                             edge_type="has_representation_model"
                         )
                         edges_added += 1

@@ -1,5 +1,5 @@
 {
-  "s3Dgraphy_connections_model_version": "1.5.0",
+  "s3Dgraphy_connections_model_version": "1.5.1",
   "description": "s3Dgraphy connections datamodel including edge types with CIDOC-CRM mappings",
   "components": [
     "CIDOC-CRM",
