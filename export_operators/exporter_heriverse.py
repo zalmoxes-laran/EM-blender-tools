@@ -675,9 +675,6 @@ class HERIVERSE_OT_export(Operator):
         
         self.report({'INFO'}, f"Exported {exported_count} RM models")
         
-        # Aggiungi i dati di instancing alle proprietà dell'operatore per uso nell'esportazione JSON
-        self.instanced_objects = instanced_objects
-        self.exported_models = exported_models
         
         return exported_count > 0
 
