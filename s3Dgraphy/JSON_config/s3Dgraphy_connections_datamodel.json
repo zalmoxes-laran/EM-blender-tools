@@ -254,7 +254,7 @@
     "has_representation_model": {
       "name": "has_representation_model",
       "label": "Has Representation Model",
-      "description": "Connects any node to its representation model in 3D space.",
+      "description": "Connects epochs with their representation models in 3D space.",
       "mapping": {
         "cidoc": "P138i_has_representation",
         "cidoc_extension": "CIDOC-CRM",
@@ -262,10 +262,43 @@
         "extension_name": "CIDOC-S3D"
       },
       "allowed_connections": {
-        "source": ["StratigraphicNode", "ExtractorNode", "DocumentNode"],
-        "target": ["RepresentationModelNode", "RepresentationModelDocNode", "RepresentationModelSpecialFindNode"]
+        "source": ["EpochNode","StratigraphicNode"],
+        "target": ["RepresentationModelNode"]
       }
     },
+
+    "has_representation_model_doc": {
+      "name": "has_representation_model_doc",
+      "label": "Has Document Representation Model",
+      "description": "Connects extractors, combiners and documents node to their representation model in 3D space.",
+      "mapping": {
+        "cidoc": "P138i_has_representation",
+        "cidoc_extension": "CIDOC-CRM",
+        "extension_mapping": "CIDOC-S3D:has3DRepresentation",
+        "extension_name": "CIDOC-S3D"
+      },
+      "allowed_connections": {
+        "source": ["ExtractorNode", "DocumentNode", "CombinerNode"],
+        "target": ["RepresentationModelDocNode", "RepresentationModelSpecialFindNode"]
+      }
+    },
+
+    "has_representation_model_sf": {
+      "name": "has_representation_model_doc",
+      "label": "Has Document Representation Model",
+      "description": "Connects extractors, combiners and documents node to their representation model in 3D space.",
+      "mapping": {
+        "cidoc": "P138i_has_representation",
+        "cidoc_extension": "CIDOC-CRM",
+        "extension_mapping": "CIDOC-S3D:has3DRepresentation",
+        "extension_name": "CIDOC-S3D"
+      },
+      "allowed_connections": {
+        "source": ["SpecialFindUnit"],
+        "target": ["RepresentationModelSpecialFindNode"]
+      }
+    },
+
     "has_semantic_shape": {
       "name": "has_semantic_shape",
       "label": "Has Semantic Shape",
@@ -352,8 +385,8 @@
         "extension_name": "CRMarchaeo"
       },
       "allowed_connections": {
-        "source": ["StratigraphicNode", "PropertyNode"],
-        "target": ["StratigraphicNode", "PropertyNode"]
+        "source": ["Node"],
+        "target": ["Node"]
       }
     }
   }
