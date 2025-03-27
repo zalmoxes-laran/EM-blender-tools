@@ -191,6 +191,24 @@ class JSONExporter:
                         }
                 nodes["representation_models"][node.node_id] = node_data
 
+                # Cerca eventuali LinkNode collegati
+                for edge in graph.edges:
+                    if edge.edge_source == node.node_id and edge.edge_type == "has_linked_resource":
+                        link_node = graph.find_node_by_id(edge.edge_target)
+                        if link_node and link_node.node_type == "link":
+                            # Aggiungi il nodo Link
+                            link_data = {
+                                "type": link_node.node_type,
+                                "name": link_node.name,
+                                "description": link_node.description,
+                                "data": {
+                                    "url": link_node.data.get("url", ""),
+                                    "url_type": link_node.data.get("url_type", "")
+                                }
+                            }
+                            nodes["links"][link_node.node_id] = link_data
+
+
         return nodes
         
     def _process_edges(self, graph: Graph) -> Dict[str, List[Dict[str, Any]]]:

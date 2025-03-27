@@ -1,15 +1,17 @@
 import bpy
-from bpy.props import BoolProperty, StringProperty, IntProperty
-from bpy.types import Operator, AddonPreferences, Panel
-from bpy_extras.io_utils import ExportHelper
+from bpy.props import BoolProperty, StringProperty, IntProperty # type: ignore
+from bpy.types import Operator, AddonPreferences, Panel # type: ignore
+from bpy_extras.io_utils import ExportHelper # type: ignore
 from ..s3Dgraphy.exporter.json_exporter import JSONExporter
-from bpy_extras.io_utils import ExportHelper
+from bpy_extras.io_utils import ExportHelper # type: ignore
 import os
 import shutil
 
 from ..s3Dgraphy import get_graph, get_all_graph_ids
 from ..functions import *
 from ..graph_updaters import *
+
+from ..s3Dgraphy.nodes.link_node import LinkNode
 
 def clean_filename(filename: str) -> str:
     """
@@ -141,9 +143,8 @@ class HERIVERSE_OT_export(Operator):
         # Get export variables
         export_vars = context.window_manager.export_vars
         
-        # Initialize graph to None at the beginning
+        # Ottieni il grafo attivo
         graph = None
-        # Try to get the graph if available
         if hasattr(context.scene, 'em_tools') and context.scene.em_tools.active_file_index >= 0:
             graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
             graph = get_graph(graphml.name)
@@ -195,9 +196,12 @@ class HERIVERSE_OT_export(Operator):
                 
                 # Verifica se il tileset è già stato estratto
                 tileset_json_path = os.path.join(tileset_dir, "tileset.json")
+                tileset_extracted = False
+                
                 if export_vars.heriverse_skip_extracted_tilesets and os.path.exists(tileset_json_path):
                     print(f"Skipping extraction of tileset '{filename}' (already extracted)")
                     skipped_count += 1
+                    tileset_extracted = True
                 else:
                     # Estrai il file ZIP
                     print(f"Extracting tileset '{filename}' - this may take some time...")
@@ -206,47 +210,63 @@ class HERIVERSE_OT_export(Operator):
                         zip_ref.extractall(tileset_dir)
                     print(f"Extracted tileset: {obj.name} -> {tileset_dir}")
                     exported_count += 1
+                    tileset_extracted = True
                 
-                # Aggiorna l'URL nel grafo
-                if hasattr(context.scene, 'em_tools') and context.scene.em_tools.active_file_index >= 0:
-                    graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
-                    graph = get_graph(graphml.name)
-                    
-                    if graph:
-                        model_node_id = f"{obj.name}_model"
-                        model_node = graph.find_node_by_id(model_node_id)
-                        
-                        if model_node:
-                            # Aggiorna URL per puntare al file tileset.json
-                            model_node.url = f"tilesets/{tileset_name}/tileset.json"
-                            
-            except Exception as e:
-                self.report({'WARNING'}, f"Failed to export tileset {obj.name}: {str(e)}")
-                import traceback
-                traceback.print_exc()
-
-        if graph and tileset_objects:
-            for obj in tileset_objects:
-                if "tileset_path" in obj:
-                    # Crea o aggiorna il nodo RM per il tileset
+                # Se il tileset è stato estratto correttamente (o era già estratto),
+                # aggiorna o crea il nodo Link nel grafo
+                if tileset_extracted and graph:
                     model_node_id = f"{obj.name}_model"
                     model_node = graph.find_node_by_id(model_node_id)
                     
                     if model_node:
-                        # Usa il nome del file estratto come base per l'URL
-                        tileset_filename = os.path.basename(obj["tileset_path"])
-                        tileset_name = os.path.splitext(tileset_filename)[0]
+                        # Percorso relativo al tileset.json
+                        relative_tileset_path = f"tilesets/{tileset_name}/tileset.json"
                         
-                        # Aggiorna l'URL del nodo
-                        model_node.url = f"tilesets/{tileset_name}/tileset.json"
-
+                        # Aggiorna l'URL nel nodo RM
+                        model_node.url = relative_tileset_path
+                        
+                        # Assicurati che ci sia la trasformazione per orientare correttamente il tileset
                         if not hasattr(model_node, 'data'):
                             model_node.data = {}
-                            
+                        
                         if 'transform' not in model_node.data:
                             model_node.data['transform'] = {
                                 'rotation': ["-1.57079632679", "0.0", "0.0"]  # -90 gradi in radianti
                             }
+                        
+                        # Crea o aggiorna il nodo Link
+                        link_node_id = f"{model_node_id}_link"
+                        link_node = LinkNode(
+                            node_id=link_node_id,
+                            name=f"Tileset Link for {obj.name}",
+                            description=f"Link to Cesium tileset for {obj.name}",
+                            url=relative_tileset_path,
+                            url_type="3d_model"
+                        )
+                        
+                        # Aggiungi o aggiorna il nodo nel grafo
+                        existing_link = graph.find_node_by_id(link_node_id)
+                        if existing_link:
+                            existing_link.url = relative_tileset_path
+                            print(f"Updated existing link node for tileset: {obj.name}")
+                        else:
+                            graph.add_node(link_node)
+                            print(f"Created new link node for tileset: {obj.name}")
+                            
+                            # Crea l'edge tra il nodo RM e il LinkNode
+                            edge_id = f"{model_node_id}_has_linked_resource_{link_node_id}"
+                            if not graph.find_edge_by_id(edge_id):
+                                graph.add_edge(
+                                    edge_id=edge_id,
+                                    edge_source=model_node_id,
+                                    edge_target=link_node_id,
+                                    edge_type="has_linked_resource"
+                                )
+                        
+            except Exception as e:
+                self.report({'WARNING'}, f"Failed to export tileset {obj.name}: {str(e)}")
+                import traceback
+                traceback.print_exc()
 
         # Mostra un resoconto
         if exported_count > 0 or skipped_count > 0:
@@ -414,15 +434,15 @@ class HERIVERSE_OT_export(Operator):
         """Export representation models with GPU instancing support"""
         scene = context.scene
         export_vars = context.window_manager.export_vars
-        
+                
         # Deseleziona tutto prima di iniziare
         bpy.ops.object.select_all(action='DESELECT')
         
         # Raggruppa gli oggetti per mesh condivisa
         mesh_groups = {}
-        instanced_objects = set()
-        exported_models = {}
-        
+        self.instanced_objects = set()
+        self.exported_models = {}
+
         # Step 1: Raccogli tutti gli oggetti RM pubblicabili
         publishable_rm_objects = []
         for obj in bpy.data.objects:
@@ -462,6 +482,12 @@ class HERIVERSE_OT_export(Operator):
         
         print(f"Found {len(mesh_groups)} different meshes in {len(publishable_rm_objects)} publishable RM objects")
         
+        # Ottieni il grafo attivo
+        graph = None
+        if context.scene.em_tools.active_file_index >= 0:
+            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+            graph = get_graph(graphml.name)
+        
         exported_count = 0
         
         # Step 3: Process each group
@@ -481,7 +507,7 @@ class HERIVERSE_OT_export(Operator):
                     bpy.ops.export_scene.gltf(
                         filepath=str(export_file),
                         export_format='GLTF_SEPARATE',
-                        export_copyright=scene.EMviq_model_author_name,
+                        export_copyright=scene.EMviq_model_author_name if hasattr(scene, 'EMviq_model_author_name') else "",
                         export_texcoords=True,
                         export_normals=True,
                         export_draco_mesh_compression_enable=export_vars.heriverse_use_draco,
@@ -494,6 +520,42 @@ class HERIVERSE_OT_export(Operator):
                         export_keep_originals=False,
                         check_existing=False
                     )
+                    
+                    # Crea o aggiorna il nodo Link
+                    if graph:
+                        model_node_id = f"{obj.name}_model"
+                        model_node = graph.find_node_by_id(model_node_id)
+                        
+                        if model_node:
+                            # Percorso relativo per l'export
+                            gltf_path = f"models/{clean_filename(obj.name)}.gltf"
+                            
+                            # Crea un nuovo LinkNode
+                            link_node_id = f"{model_node_id}_link"
+                            link_node = LinkNode(
+                                node_id=link_node_id,
+                                name=f"GLTF Link for {obj.name}",
+                                description=f"Link to exported GLTF for {obj.name}",
+                                url=gltf_path,
+                                url_type="3d_model"
+                            )
+                            
+                            # Aggiungi o aggiorna il nodo nel grafo
+                            existing_link = graph.find_node_by_id(link_node_id)
+                            if existing_link:
+                                existing_link.url = gltf_path
+                            else:
+                                graph.add_node(link_node)
+                                
+                                # Crea l'edge tra il nodo RM e il LinkNode
+                                edge_id = f"{model_node_id}_has_linked_resource_{link_node_id}"
+                                if not graph.find_edge_by_id(edge_id):
+                                    graph.add_edge(
+                                        edge_id=edge_id,
+                                        edge_source=model_node_id,
+                                        edge_target=link_node_id,
+                                        edge_type="has_linked_resource"
+                                    )
                     
                     # Reset visibility
                     obj.hide_viewport = was_hidden
@@ -532,7 +594,7 @@ class HERIVERSE_OT_export(Operator):
                         if obj != primary_obj:
                             obj.select_set(True)
                             # Aggiungi alla lista di oggetti istanziati
-                            instanced_objects.add(obj.name)
+                            self.instanced_objects.add(obj.name)
                     
                     # Step 3.6: Prepara il nome del file
                     export_file = os.path.join(export_folder, clean_filename(primary_obj.name))
@@ -541,7 +603,7 @@ class HERIVERSE_OT_export(Operator):
                     bpy.ops.export_scene.gltf(
                         filepath=str(export_file),
                         export_format='GLTF_SEPARATE',
-                        export_copyright=scene.EMviq_model_author_name,
+                        export_copyright=scene.EMviq_model_author_name if hasattr(scene, 'EMviq_model_author_name') else "",
                         export_texcoords=True,
                         export_normals=True,
                         export_draco_mesh_compression_enable=export_vars.heriverse_use_draco,
@@ -557,8 +619,44 @@ class HERIVERSE_OT_export(Operator):
                         export_keep_originals=False
                     )
                     
+                    # Crea o aggiorna il nodo Link per l'oggetto primario
+                    if graph:
+                        model_node_id = f"{primary_obj.name}_model"
+                        model_node = graph.find_node_by_id(model_node_id)
+                        
+                        if model_node:
+                            # Percorso relativo per l'export
+                            gltf_path = f"models/{clean_filename(primary_obj.name)}.gltf"
+                            
+                            # Crea un nuovo LinkNode
+                            link_node_id = f"{model_node_id}_link"
+                            link_node = LinkNode(
+                                node_id=link_node_id,
+                                name=f"GLTF Link for {primary_obj.name}",
+                                description=f"Link to exported GLTF for {primary_obj.name}",
+                                url=gltf_path,
+                                url_type="3d_model"
+                            )
+                            
+                            # Aggiungi o aggiorna il nodo nel grafo
+                            existing_link = graph.find_node_by_id(link_node_id)
+                            if existing_link:
+                                existing_link.url = gltf_path
+                            else:
+                                graph.add_node(link_node)
+                                
+                                # Crea l'edge tra il nodo RM e il LinkNode
+                                edge_id = f"{model_node_id}_has_linked_resource_{link_node_id}"
+                                if not graph.find_edge_by_id(edge_id):
+                                    graph.add_edge(
+                                        edge_id=edge_id,
+                                        edge_source=model_node_id,
+                                        edge_target=link_node_id,
+                                        edge_type="has_linked_resource"
+                                    )
+                    
                     # Step 3.8: Registra il gruppo di istanze per l'esportazione JSON
-                    exported_models[primary_obj.name] = [obj.name for obj in objects]
+                    self.exported_models[primary_obj.name] = [obj.name for obj in objects]
                     
                     print(f"Exported instanced group: {primary_obj.name} with {len(objects)} instances")
                     exported_count += 1
@@ -601,7 +699,7 @@ class HERIVERSE_OT_export(Operator):
                 # Modifica i nodi RM per riflettere l'instancing
                 if 'nodes' in graph_data and 'representation_models' in graph_data['nodes']:
                     rm_nodes = graph_data['nodes']['representation_models']
-                    
+
                     # Per ogni modello primario, aggiungi informazioni sulle istanze
                     for primary_name, instances in self.exported_models.items():
                         if primary_name in rm_nodes:
@@ -614,7 +712,6 @@ class HERIVERSE_OT_export(Operator):
                             primary_node['data']['instances'] = instances
                             primary_node['data']['is_instance_group'] = True
                     
-
                     for rm_name, rm_node in rm_nodes.items():
                         if 'data' in rm_node and 'url' in rm_node['data']:
                             url = rm_node['data']['url']
@@ -623,14 +720,24 @@ class HERIVERSE_OT_export(Operator):
                                     rm_node['data']['transform'] = {
                                         'rotation': ["-1.57079632679", "0.0", "0.0"]
                                     }
-
-
-
                     # Rimuovi i nodi assorbiti come istanze
                     for rm_name in list(rm_nodes.keys()):
                         if rm_name in self.instanced_objects:
                             del rm_nodes[rm_name]
-        
+
+                if 'edges' in graph_data:
+                    for edge_type in graph_data['edges']:
+                        # Lavora su una copia della lista per poterla modificare durante l'iterazione
+                        edges_to_keep = []
+                        for edge in graph_data['edges'][edge_type]:
+                            # Mantieni l'edge solo se né from né to sono nei nodi saltati
+                            if (edge['from'] not in self.instanced_objects and 
+                                edge['to'] not in self.instanced_objects):
+                                edges_to_keep.append(edge)
+                        
+                        # Sostituisci con la lista filtrata
+                        graph_data['edges'][edge_type] = edges_to_keep
+
         return json_data
 
     def export_textures(self, obj, textures_dir, context):
