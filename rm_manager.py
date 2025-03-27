@@ -588,10 +588,6 @@ class RM_OT_update_list(Operator):
                     item_index = existing_objects[obj.name]["index"]
                     item = rm_list[item_index]
                     
-                    # Debug print
-                    print(f"Aggiornamento oggetto: {obj.name}")
-                    print(f"Epoche trovate: {scene_epochs}")
-                    
                     # Pulisci le epoche precedenti
                     while len(item.epochs) > 0:
                         item.epochs.remove(0)

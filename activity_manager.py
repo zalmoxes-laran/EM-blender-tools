@@ -75,14 +75,14 @@ class ACTIVITY_OT_refresh_list(Operator):
                 self.report({'WARNING'}, f"Nessun grafo trovato con ID: {graphml.name}")
                 return {'CANCELLED'}
 
-            print("Eseguo l'update della lista delle attività")
+            #print("Eseguo l'update della lista delle attività")
             context.scene.activity_manager.activities.clear()
 
             for node in graph_data.nodes:
                 if isinstance(node, ActivityNodeGroup):
                     item = context.scene.activity_manager.activities.add()
                     item.name = node.name
-                    print(f"Provo a cercare un nodo epoca per il nodo {node.name}")
+                    
                     epoch_node = graph_data.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
                     if epoch_node:
                         item.epoch_name = epoch_node.name

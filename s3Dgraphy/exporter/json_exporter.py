@@ -139,77 +139,125 @@ class JSONExporter:
             "representation_models": {} 
         }
         
+        # Prima fase: elabora tutti i nodi ed edge del grafo
+        rm_links = {}  # Dizionario per memorizzare relazioni RM -> Link
+        
+        # Raccogli prima tutte le relazioni has_linked_resource
+        for edge in graph.edges:
+            if edge.edge_type == "has_linked_resource":
+                source_node = graph.find_node_by_id(edge.edge_source)
+                target_node = graph.find_node_by_id(edge.edge_target)
+                
+                if source_node and target_node and target_node.node_type == "link":
+                    if source_node.node_id not in rm_links:
+                        rm_links[source_node.node_id] = []
+                    
+                    rm_links[source_node.node_id].append({
+                        "link_id": target_node.node_id,
+                        "url": target_node.data.get("url", "") if hasattr(target_node, "data") else "",
+                        "url_type": target_node.data.get("url_type", "") if hasattr(target_node, "data") else ""
+                    })
+                    print(f"Found link relationship: {source_node.node_id} -> {target_node.node_id}")
+        
+        # Ora elabora tutti i nodi
         for node in graph.nodes:
-            node_data = {
-                "type": node.node_type,
-                "name": node.name,
-                "description": node.description,
-                "data": node.data.copy() if hasattr(node, 'data') else {}  # Copiamo esplicitamente i dati
-            }
-
-            # Add node to appropriate category
+            # Gestisci ogni tipo di nodo in modo specifico
             if node.node_type == "author":
+                node_data = self._prepare_node_data(node)
                 nodes["authors"][node.node_id] = node_data
+                
             elif node.node_type in ["US", "USVs", "SF", "USVn", "USD", "VSF", "serSU", "serUSVn", "serUSVs", "TSU", "SE", "unknown"]:
+                node_data = self._prepare_node_data(node)
                 nodes["stratigraphic"][node.node_type][node.node_id] = node_data
+                
             elif node.node_type == "epoch":
                 node_data = {
                     "type": node.node_type,
                     "name": node.name,
                     "description": node.description,
                     "data": {
-                        "start_time": node.start_time,  # Aggiungo il valore start_time
-                        "end_time": node.end_time,      # Aggiungo il valore end_time
+                        "start_time": node.start_time if hasattr(node, 'start_time') else None,
+                        "end_time": node.end_time if hasattr(node, 'end_time') else None,
                         "color": node.color if hasattr(node, 'color') else None,
                         "min_y": node.min_y if hasattr(node, 'min_y') else None,
                         "max_y": node.max_y if hasattr(node, 'max_y') else None
                     }
                 }
                 nodes["epochs"][node.node_id] = node_data
+                
             elif node.node_type in ["ActivityNodeGroup", "TimeBranchNodeGroup", "ParadataNodeGroup"]:
+                node_data = self._prepare_node_data(node)
                 nodes["groups"][node.node_id] = node_data
+                
             elif node.node_type == "property":
+                node_data = self._prepare_node_data(node)
                 nodes["properties"][node.node_id] = node_data
+                
             elif node.node_type == "document":
+                node_data = self._prepare_node_data(node)
                 nodes["documents"][node.node_id] = node_data
+                
             elif node.node_type == "extractor":
+                node_data = self._prepare_node_data(node)
                 nodes["extractors"][node.node_id] = node_data
+                
             elif node.node_type == "combiner":
+                node_data = self._prepare_node_data(node)
                 nodes["combiners"][node.node_id] = node_data
+                
             elif node.node_type == "link":
+                node_data = self._prepare_node_data(node)
                 nodes["links"][node.node_id] = node_data
+                print(f"Added link node to JSON: {node.node_id}")
+                
             elif node.node_type == "geo_position":
+                node_data = self._prepare_node_data(node)
                 nodes["geo"][node.node_id] = node_data
+                
             elif node.node_type == "semantic_shape":
+                node_data = self._prepare_node_data(node)
                 nodes["semantic_shapes"][node.node_id] = node_data
+                
             elif node.node_type == "representation_model":
+                # Prepara i dati del nodo senza includere l'URL
+                node_data = {
+                    "type": node.node_type,
+                    "name": node.name,
+                    "description": node.description,
+                    "data": {}
+                }
+                
+                # Copia tutti gli attributi tranne URL
+                if hasattr(node, 'data') and isinstance(node.data, dict):
+                    for key, value in node.data.items():
+                        if key != 'url':  # Escludiamo url
+                            node_data['data'][key] = value
+                
+                # Aggiungi le risorse collegate se ce ne sono
+                #if node.node_id in rm_links:
+                #    node_data['data']['linked_resources'] = rm_links[node.node_id]
+                #    print(f"Added linked_resources to RM node: {node.node_id}")
+                
                 # Check if this is a tileset.json file and add Y-up transformation if needed
-                if 'url' in node_data['data'] and 'tileset.json' in node_data['data']['url']:
+                if hasattr(node, 'data') and 'url' in node.data and 'tileset.json' in node.data['url']:
                     if 'transform' not in node_data['data']:
                         node_data['data']['transform'] = {
                             'rotation': ["-1.57079632679", "0.0", "0.0"]
                         }
+                
                 nodes["representation_models"][node.node_id] = node_data
-
-                # Cerca eventuali LinkNode collegati
-                for edge in graph.edges:
-                    if edge.edge_source == node.node_id and edge.edge_type == "has_linked_resource":
-                        link_node = graph.find_node_by_id(edge.edge_target)
-                        if link_node and link_node.node_type == "link":
-                            # Aggiungi il nodo Link
-                            link_data = {
-                                "type": link_node.node_type,
-                                "name": link_node.name,
-                                "description": link_node.description,
-                                "data": {
-                                    "url": link_node.data.get("url", ""),
-                                    "url_type": link_node.data.get("url_type", "")
-                                }
-                            }
-                            nodes["links"][link_node.node_id] = link_data
-
-
+        
         return nodes
+
+    def _prepare_node_data(self, node):
+        """Helper method to prepare standard node data."""
+        node_data = {
+            "type": node.node_type,
+            "name": node.name,
+            "description": node.description,
+            "data": node.data.copy() if hasattr(node, 'data') else {}
+        }
+        return node_data
         
     def _process_edges(self, graph: Graph) -> Dict[str, List[Dict[str, Any]]]:
         """Process all edges in the graph, organizing them by type."""

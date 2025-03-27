@@ -74,7 +74,19 @@ class EM_ExportPanel:
             col.prop(export_vars, "heriverse_overwrite_json", text="Export JSON")
             col = row.column()
             col.prop(export_vars, "heriverse_export_dosco", text="Export DosCo")
-            
+    
+
+            if export_vars.heriverse_overwrite_json and not export_vars.heriverse_export_rm:
+                warning_box = box.box()
+                warning_box.alert = True
+                row = warning_box.row()
+                row.label(text="⚠️ Warning: JSON export without RM export!", icon='ERROR')
+                row = warning_box.row()
+                row.label(text="Links between RM nodes and models will be missing")
+                row = warning_box.row()
+                row.label(text="in the JSON if RM Export is not enabled.")
+
+
             row = box.row()
             col = row.column()
             col.prop(export_vars, "heriverse_export_proxies", text="Export Proxies")

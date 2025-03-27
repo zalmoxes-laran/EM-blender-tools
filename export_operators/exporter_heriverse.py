@@ -928,7 +928,103 @@ class HERIVERSE_OT_export(Operator):
             try:
                 # Update the graph before exporting
                 update_graph_with_scene_data()
+
+               # STEP 1 Export Cesium tilesets if requested
+                tilesets_exported = False
+                if export_vars.heriverse_export_rm:
+                    print("\n--- Starting Tileset Export ---")
+                    tilesets_path = os.path.join(project_path, "tilesets")
+                    os.makedirs(tilesets_path, exist_ok=True)
+                    
+                    count = self.export_tilesets(context, tilesets_path)
+                    tilesets_exported = count > 0
+                    if tilesets_exported:
+                        print(f"Exported {count} tileset files")
+                    else:
+                        print("No tilesets were exported")
+
+                # STEP 2: Esporta i proxy se richiesto
+                if export_vars.heriverse_export_proxies:
+                    print("\n--- Starting Proxy Export ---")
+                    proxy_path = os.path.join(project_path, "proxies")
+                    os.makedirs(proxy_path, exist_ok=True)
+                    
+                    proxy_collection = bpy.data.collections.get('Proxy')
+                    if proxy_collection:
+                        print(f"Found Proxy collection with {len(proxy_collection.objects)} objects")
+                        layer_collection = find_layer_collection(context.view_layer.layer_collection, 'Proxy')
+                        if layer_collection:
+                            layer_collection.exclude = False
+                            result = self.export_proxies(context, proxy_path)
+                            if result:
+                                print("Proxy export completed successfully")
+                            else:
+                                print("No proxies were exported")
+                    else:
+                        print("No Proxy collection found")
+
+                # STEP 3: Esporta i modelli RM se richiesto
+                models_exported = False
+                models_path = None
+                if export_vars.heriverse_export_rm:
+                    print("\n--- Starting RM Export ---")
+                    models_path = os.path.join(project_path, "models")
+                    os.makedirs(models_path, exist_ok=True)
+                    
+                    # Make sure all collections containing RM objects are visible
+                    rm_objects = [obj for obj in bpy.data.objects 
+                                if hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0]
+                    
+                    # Get all collections containing RM objects
+                    rm_collections = set()
+                    for obj in rm_objects:
+                        for collection in bpy.data.collections:
+                            if obj.name in collection.objects:
+                                rm_collections.add(collection.name)
+                    
+                    # Make them all visible for export
+                    for col_name in rm_collections:
+                        layer_collection = find_layer_collection(context.view_layer.layer_collection, col_name)
+                        if layer_collection:
+                            layer_collection.exclude = False
+                    
+                    result = self.export_rm(context, models_path)
+                    models_exported = result
+                    if result:
+                        print("RM export completed successfully")
+                    else:
+                        print("No RM models were exported")
+
+                # STEP 4: Esporta i file DosCo se richiesto
+                if export_vars.heriverse_export_dosco:
+                    print("\n--- Starting DosCo Export ---")
+                    active_graph_id = None
+                    if not export_vars.heriverse_export_all_graphs and context.scene.em_tools.active_file_index >= 0:
+                        active_file = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+                        active_graph_id = active_file.name
+
+                    dosco_path = os.path.join(project_path, "dosco")
+                    result = self.export_dosco(context, active_graph_id, dosco_path)
+                    if result:
+                        print("DosCo export completed successfully")
+                    else:
+                        print("DosCo export failed or was skipped")
                 
+                # STEP 5: Export panorama if requested
+                if scene.heriverse_export_panorama:
+                    print("\n--- Exporting Panorama ---")
+                    result = self.export_panorama(context, project_path)
+                    if result:
+                        print("Panorama export completed successfully")
+                    else:
+                        print("Panorama export failed or was skipped")
+                
+                # STEP 6: Compress all textures at once if texture compression is enabled and RM models were exported
+                if scene.heriverse_enable_compression and models_exported and models_path:
+                    print("\n--- Starting Texture Compression ---")
+                    self.compress_textures_in_folder(models_path, scene)
+
+                # STEP 7: Export JSON
                 if export_vars.heriverse_overwrite_json:
                     update_graph_with_scene_data()
                     # Esporta il JSON direttamente usando il nuovo JSONExporter
@@ -968,101 +1064,6 @@ class HERIVERSE_OT_export(Operator):
                         self.report({'ERROR'}, "JSON export failed")
                         return {'CANCELLED'}
 
-                # Export Cesium tilesets if requested
-                tilesets_exported = False
-                if export_vars.heriverse_export_rm:
-                    print("\n--- Starting Tileset Export ---")
-                    tilesets_path = os.path.join(project_path, "tilesets")
-                    os.makedirs(tilesets_path, exist_ok=True)
-                    
-                    count = self.export_tilesets(context, tilesets_path)
-                    tilesets_exported = count > 0
-                    if tilesets_exported:
-                        print(f"Exported {count} tileset files")
-                    else:
-                        print("No tilesets were exported")
-
-                # Esporta i proxy se richiesto
-                if export_vars.heriverse_export_proxies:
-                    print("\n--- Starting Proxy Export ---")
-                    proxy_path = os.path.join(project_path, "proxies")
-                    os.makedirs(proxy_path, exist_ok=True)
-                    
-                    proxy_collection = bpy.data.collections.get('Proxy')
-                    if proxy_collection:
-                        print(f"Found Proxy collection with {len(proxy_collection.objects)} objects")
-                        layer_collection = find_layer_collection(context.view_layer.layer_collection, 'Proxy')
-                        if layer_collection:
-                            layer_collection.exclude = False
-                            result = self.export_proxies(context, proxy_path)
-                            if result:
-                                print("Proxy export completed successfully")
-                            else:
-                                print("No proxies were exported")
-                    else:
-                        print("No Proxy collection found")
-
-                # Esporta i modelli RM se richiesto
-                models_exported = False
-                models_path = None
-                if export_vars.heriverse_export_rm:
-                    print("\n--- Starting RM Export ---")
-                    models_path = os.path.join(project_path, "models")
-                    os.makedirs(models_path, exist_ok=True)
-                    
-                    # Make sure all collections containing RM objects are visible
-                    rm_objects = [obj for obj in bpy.data.objects 
-                                if hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0]
-                    
-                    # Get all collections containing RM objects
-                    rm_collections = set()
-                    for obj in rm_objects:
-                        for collection in bpy.data.collections:
-                            if obj.name in collection.objects:
-                                rm_collections.add(collection.name)
-                    
-                    # Make them all visible for export
-                    for col_name in rm_collections:
-                        layer_collection = find_layer_collection(context.view_layer.layer_collection, col_name)
-                        if layer_collection:
-                            layer_collection.exclude = False
-                    
-                    result = self.export_rm(context, models_path)
-                    models_exported = result
-                    if result:
-                        print("RM export completed successfully")
-                    else:
-                        print("No RM models were exported")
-
-                # Esporta i file DosCo se richiesto
-                if export_vars.heriverse_export_dosco:
-                    print("\n--- Starting DosCo Export ---")
-                    active_graph_id = None
-                    if not export_vars.heriverse_export_all_graphs and context.scene.em_tools.active_file_index >= 0:
-                        active_file = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
-                        active_graph_id = active_file.name
-
-                    dosco_path = os.path.join(project_path, "dosco")
-                    result = self.export_dosco(context, active_graph_id, dosco_path)
-                    if result:
-                        print("DosCo export completed successfully")
-                    else:
-                        print("DosCo export failed or was skipped")
-                
-                # Nel metodo execute, dopo tutti gli altri export
-                if scene.heriverse_export_panorama:
-                    print("\n--- Exporting Panorama ---")
-                    result = self.export_panorama(context, project_path)
-                    if result:
-                        print("Panorama export completed successfully")
-                    else:
-                        print("Panorama export failed or was skipped")
-                
-                # Compress all textures at once if texture compression is enabled and RM models were exported
-                if scene.heriverse_enable_compression and models_exported and models_path:
-                    print("\n--- Starting Texture Compression ---")
-                    self.compress_textures_in_folder(models_path, scene)
-
             finally:
                 # Ripristina lo stato delle collezioni
                 for collection_name, was_excluded in collection_states.items():
@@ -1070,7 +1071,7 @@ class HERIVERSE_OT_export(Operator):
                     if layer_collection:
                         layer_collection.exclude = was_excluded
 
-            # Crea ZIP se richiesto
+            # STEP 8: Crea ZIP se richiesto
             if export_vars.heriverse_create_zip:
                 print("\n--- Creating ZIP Archive ---")
                 zip_path = self.create_project_zip(project_path)
