@@ -16,7 +16,7 @@ from bpy.types import ( # type: ignore
 )
 
 from .s3Dgraphy import get_graph
-from .s3Dgraphy.nodes.representation_model_node import RepresentationModelNode
+from .s3Dgraphy.nodes.representation_node import RepresentationModelNode
 
 from bpy_extras.io_utils import ImportHelper, ExportHelper # type: ignore
 
@@ -137,7 +137,7 @@ class RM_OT_add_tileset(Operator):
             
             if graph:
                 # Create a RM node in the graph
-                from .s3Dgraphy.nodes.representation_model_node import RepresentationModelNode
+                from .s3Dgraphy.nodes.representation_node import RepresentationModelNode
 
                 # Ottieni il nome base del tileset senza estensione
                 tileset_filename = os.path.basename(self.tileset_path)

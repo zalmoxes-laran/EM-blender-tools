@@ -504,7 +504,7 @@
         "abbreviation": "RM",
         "label": "Representation Model",
         "description": "Node that represents a 3D model or a spatialized image.",
-        "s3Dgraphy_file": "representation_model_node.py",
+        "s3Dgraphy_file": "representation_node.py",
         "mapping": {
           "cidoc": "D1 Digital Object",
           "cidoc_s3d": "VisualRepresentationInstance",
@@ -529,7 +529,7 @@
         "abbreviation": "RMDoc",
         "label": "Representation Model Document",
         "description": "Node that represents a 3D model or a spatialized image. It is used to instanciate documents, extractors or combiner nodes within the scene. An example is an hystorical photo positioned in its original position.",
-        "s3Dgraphy_file": "representation_model_node.py",
+        "s3Dgraphy_file": "representation_node.py",
         "mapping": {
           "cidoc": "D1 Digital Object",
           "cidoc_s3d": "VisualRepresentationInstance",
@@ -553,7 +553,7 @@
         "abbreviation": "RMSF",
         "label": "Representation Model Special Find",
         "description": "Node that represents a 3D model or a spatialized image. It is used to instanciate special finds in the scene. An example is a scanned 3D model of a capital repositioned in its original position according to an anastylosis hypothesis.",
-        "s3Dgraphy_file": "representation_model_node.py",
+        "s3Dgraphy_file": "representation_node.py",
         "mapping": {
           "cidoc": "D1 Digital Object",
           "cidoc_s3d": "VisualRepresentationInstance",
