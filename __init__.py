@@ -517,6 +517,12 @@ class ExportVars(bpy.types.PropertyGroup):
         default=True
     ) # type: ignore
 
+    heriverse_export_rmdoc: BoolProperty(
+        name="Export ParaData Objects",
+        description="Export 3D objects associated with ParaData nodes (Documents, Extractors, Combiners)",
+        default=True
+    ) # type: ignore
+
 
 class ExportTablesVars(bpy.types.PropertyGroup):
        table_type : bpy.props.EnumProperty(

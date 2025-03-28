@@ -118,7 +118,7 @@ def update_representation_models(graph):
                 node_id=model_node_id,
                 name=f"Model for {obj.name}",
                 type=model_type,
-                url=url
+                #url=url
             )
             
             # Aggiungi attributi per i tilesets

@@ -12,6 +12,7 @@ from ..functions import *
 from ..graph_updaters import *
 
 from ..s3Dgraphy.nodes.link_node import LinkNode
+from ..s3Dgraphy.nodes.representation_node import RepresentationModelDocNode
 
 def clean_filename(filename: str) -> str:
     """
@@ -675,8 +676,248 @@ class HERIVERSE_OT_export(Operator):
         
         self.report({'INFO'}, f"Exported {exported_count} RM models")
         
-        
         return exported_count > 0
+
+    def get_y_up_transform():
+        """Returns the standard transform for converting z-up to y-up models"""
+        return {
+            "position": ["0.0", "0.0", "0.0"],
+            "rotation": ["-1.57079632679", "0.0", "0.0"],  # -90 degrees in radians around X axis
+            "scale": ["1.0", "1.0", "1.0"]
+        }
+
+    def export_paradata_objects(self, context, export_folder):
+        """Export paradata objects (documents, extractors, combiners) as RMDoc"""
+        scene = context.scene
+        export_vars = context.window_manager.export_vars
+        
+        # Ottieni il grafo attivo
+        graph = None
+        if context.scene.em_tools.active_file_index >= 0:
+            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+            graph = get_graph(graphml.name)
+        
+        if not graph:
+            return 0
+        
+        # Deseleziona tutto prima di iniziare
+        bpy.ops.object.select_all(action='DESELECT')
+        
+        # Conta elementi esportati
+        exported_count = 0
+        
+        # Lista di nodi paradata da controllare
+        paradata_nodes = []
+        paradata_nodes.extend([node for node in graph.nodes if node.node_type == "document"])
+        paradata_nodes.extend([node for node in graph.nodes if node.node_type == "extractor"])
+        paradata_nodes.extend([node for node in graph.nodes if node.node_type == "combiner"])
+        
+        # Per ogni nodo paradata, controlla se esiste un oggetto corrispondente
+        for paradata_node in paradata_nodes:
+            obj = bpy.data.objects.get(paradata_node.name)
+            
+            if obj and obj.type == 'MESH':
+                try:
+                    # Salva lo stato dell'oggetto
+                    was_hidden = obj.hide_viewport
+                    was_select = obj.hide_select
+                    
+                    # Assicurati che l'oggetto sia visibile e selezionabile
+                    obj.hide_viewport = False
+                    obj.hide_select = False
+                    
+                    # Seleziona l'oggetto
+                    obj.select_set(True)
+                    
+                    # Prepara il nome file
+                    export_file = os.path.join(export_folder, clean_filename(obj.name))
+                    
+                    # Esporta come GLTF
+                    bpy.ops.export_scene.gltf(
+                        filepath=str(export_file),
+                        export_format='GLTF_SEPARATE',
+                        export_copyright=scene.EMviq_model_author_name if hasattr(scene, 'EMviq_model_author_name') else "",
+                        export_texcoords=True,
+                        export_normals=True,
+                        export_draco_mesh_compression_enable=export_vars.heriverse_use_draco,
+                        export_draco_mesh_compression_level=export_vars.heriverse_draco_level,
+                        export_materials='EXPORT',
+                        use_selection=True,
+                        export_apply=True
+                    )
+                    
+                    # Crea nodo RMDoc e LinkNode se il grafo è disponibile
+                    if graph:
+                        # Crea un nodo RMDoc
+
+                        
+                        # Percorso relativo per l'export
+                        gltf_path = f"models_docs/{clean_filename(obj.name)}.gltf"
+                        
+                        # ID del nodo RMDoc
+                        rmdoc_node_id = f"{paradata_node.node_id}_model_doc"
+                        
+                        # Verifica se il nodo RMDoc esiste già
+                        rmdoc_node = graph.find_node_by_id(rmdoc_node_id)
+                        if not rmdoc_node:
+                            # Crea transform con rotazione Y-up
+                            transform = {
+                                "position": ["0.0", "0.0", "0.0"],
+                                "rotation": ["0.0", "0.0", "0.0"],
+                                "scale": ["1.0", "1.0", "1.0"]
+                            }
+                            
+                            # Crea il nodo RMDoc
+                            rmdoc_node = RepresentationModelDocNode(
+                                node_id=rmdoc_node_id,
+                                name=f"RM for {paradata_node.name}",
+                                type="RM",
+                                transform=transform,
+                                description=f"Representation model for {paradata_node.node_type} {paradata_node.name}"
+                            )
+                            
+                            # Aggiungi al grafo
+                            graph.add_node(rmdoc_node)
+                            
+                            # Collega il nodo RMDoc al nodo paradata
+                            edge_id = f"{paradata_node.node_id}_has_representation_model_{rmdoc_node_id}"
+                            if not graph.find_edge_by_id(edge_id):
+                                graph.add_edge(
+                                    edge_id=edge_id,
+                                    edge_source=paradata_node.node_id,
+                                    edge_target=rmdoc_node_id,
+                                    edge_type="has_representation_model_doc"
+                                )
+                        
+                        # Crea o aggiorna il nodo Link
+                        link_node_id = f"{rmdoc_node_id}_link"
+                        link_node = LinkNode(
+                            node_id=link_node_id,
+                            name=f"GLTF Link for {paradata_node.name}",
+                            description=f"Link to exported GLTF for {paradata_node.node_type} {paradata_node.name}",
+                            url=gltf_path,
+                            url_type="3d_model"
+                        )
+                        
+                        # Aggiungi o aggiorna il nodo nel grafo
+                        existing_link = graph.find_node_by_id(link_node_id)
+                        if existing_link:
+                            existing_link.url = gltf_path
+                        else:
+                            graph.add_node(link_node)
+                            
+                            # Crea l'edge tra il nodo RMDoc e il LinkNode
+                            edge_id = f"{rmdoc_node_id}_has_linked_resource_{link_node_id}"
+                            if not graph.find_edge_by_id(edge_id):
+                                graph.add_edge(
+                                    edge_id=edge_id,
+                                    edge_source=rmdoc_node_id,
+                                    edge_target=link_node_id,
+                                    edge_type="has_linked_resource"
+                                )
+                    
+                    # Ripristina lo stato dell'oggetto
+                    obj.hide_viewport = was_hidden
+                    obj.hide_select = was_select
+                    obj.select_set(False)
+                    
+                    exported_count += 1
+                    print(f"Exported Paradata RM: {obj.name}")
+
+                    self.compress_paradata_textures(export_folder, scene)
+
+                    
+                except Exception as e:
+                    self.report({'WARNING'}, f"Failed to export Paradata RM {obj.name}: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+                    # Deseleziona l'oggetto in caso di errore
+                    obj.select_set(False)
+        
+        return exported_count
+
+    def compress_paradata_textures(self, folder_path, scene):
+        """
+        Comprime le texture degli oggetti ParaData
+        
+        Args:
+            folder_path (str): Percorso della cartella contenente i modelli ParaData
+            scene (bpy.types.Scene): Scena Blender con le impostazioni
+        """
+        # Verifica se PIL è disponibile
+        try:
+            from PIL import Image
+            pil_available = True
+        except ImportError:
+            self.report({'WARNING'}, "PIL (Pillow) library not available, skipping ParaData texture compression")
+            return
+        
+        max_res = scene.heriverse_rmdoc_texture_max_res
+        quality = scene.heriverse_rmdoc_texture_quality
+        
+        # Trova tutti i file texture nella cartella
+        processed_count = 0
+        total_size_before = 0
+        total_size_after = 0
+        
+        # Percorri i file nella cartella cercando texture
+        for root, dirs, files in os.walk(folder_path):
+            for filename in files:
+                if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    file_path = os.path.join(root, filename)
+                    
+                    try:
+                        # Dimensione originale
+                        file_size_before = os.path.getsize(file_path)
+                        total_size_before += file_size_before
+                        
+                        # Apri l'immagine con PIL
+                        img = Image.open(file_path)
+                        width, height = img.size
+                        
+                        # Verifica se è necessario ridimensionare
+                        needs_resize = max(width, height) > max_res
+                        
+                        if needs_resize:
+                            # Mantieni proporzioni durante il ridimensionamento
+                            if width > height:
+                                new_width = max_res
+                                new_height = int(height * (max_res / width))
+                            else:
+                                new_height = max_res
+                                new_width = int(width * (max_res / height))
+                            
+                            # Ridimensiona con alta qualità
+                            img = img.resize((new_width, new_height), Image.LANCZOS)
+                        
+                        # Salva con il livello di qualità specificato
+                        if img.mode in ['RGBA', 'LA'] or (img.mode == 'P' and 'transparency' in img.info):
+                            # Salva PNG per immagini con trasparenza
+                            img.save(file_path, 'PNG', optimize=True)
+                        else:
+                            # Converti in RGB se necessario e salva come JPEG
+                            if img.mode != 'RGB':
+                                img = img.convert('RGB')
+                            img.save(file_path, 'JPEG', quality=quality, optimize=True)
+                        
+                        # Dimensione dopo la compressione
+                        file_size_after = os.path.getsize(file_path)
+                        total_size_after += file_size_after
+                        
+                        processed_count += 1
+                        
+                    except Exception as e:
+                        print(f"Error processing texture {filename}: {str(e)}")
+        
+        # Calcola statistiche
+        if processed_count > 0:
+            size_reduction_mb = (total_size_before - total_size_after) / (1024 * 1024)
+            reduction_percent = (total_size_before - total_size_after) / total_size_before * 100 if total_size_before > 0 else 0
+            
+            print(f"ParaData texture compression: processed {processed_count} files")
+            print(f"Size before: {total_size_before / (1024 * 1024):.2f} MB")
+            print(f"Size after: {total_size_after / (1024 * 1024):.2f} MB")
+            print(f"Reduction: {size_reduction_mb:.2f} MB ({reduction_percent:.1f}%)")
 
     def update_json_for_instancing(self, json_data):
         """
@@ -966,6 +1207,7 @@ class HERIVERSE_OT_export(Operator):
                 # STEP 3: Esporta i modelli RM se richiesto
                 models_exported = False
                 models_path = None
+                models_docs_path = None
                 if export_vars.heriverse_export_rm:
                     print("\n--- Starting RM Export ---")
                     models_path = os.path.join(project_path, "models")
@@ -995,6 +1237,21 @@ class HERIVERSE_OT_export(Operator):
                     else:
                         print("No RM models were exported")
 
+                # STEP 3.1: Esporta i modelli RMDoc se richiesto
+                if export_vars.heriverse_export_rmdoc:
+                    print("\n--- Starting RM Export ---")
+                    models_docs_path = os.path.join(project_path, "models_docs")
+                    os.makedirs(models_docs_path, exist_ok=True)
+
+                    # Aggiungi l'export degli oggetti ParaData
+                    print("\n--- Starting ParaData Objects Export ---")
+                    paradata_count = self.export_paradata_objects(context, models_docs_path)
+                    if paradata_count > 0:
+                        print(f"Exported {paradata_count} ParaData objects")
+                    else:
+                        print("No ParaData objects were exported")
+
+
                 # STEP 4: Esporta i file DosCo se richiesto
                 if export_vars.heriverse_export_dosco:
                     print("\n--- Starting DosCo Export ---")
@@ -1018,7 +1275,8 @@ class HERIVERSE_OT_export(Operator):
                         print("Panorama export completed successfully")
                     else:
                         print("Panorama export failed or was skipped")
-                
+
+
                 # STEP 6: Compress all textures at once if texture compression is enabled and RM models were exported
                 if scene.heriverse_enable_compression and models_exported and models_path:
                     print("\n--- Starting Texture Compression ---")

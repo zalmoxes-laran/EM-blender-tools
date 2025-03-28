@@ -92,7 +92,10 @@ class EM_ExportPanel:
             col.prop(export_vars, "heriverse_export_proxies", text="Export Proxies")
             col = row.column() 
             col.prop(export_vars, "heriverse_export_rm", text="Export RM")
-            
+            row = box.row()
+            col = row.column()
+            col.prop(export_vars, "heriverse_export_rmdoc", text="Export ParaData Obj")
+
             row = box.row()
             col = row.column()
             col.prop(export_vars, "heriverse_create_zip", text="Create ZIP")
@@ -133,6 +136,21 @@ class EM_ExportPanel:
                         
                         row_comp = box_comp.row()
                         row_comp.label(text="Quality: 100=lossless, 80=good, 60=compressed, 40=heavily compressed")
+
+
+                if export_vars.heriverse_export_rmdoc:
+                    box_pd = box.box()
+                    row_pd = box_pd.row()
+                    row_pd.label(text="ParaData Texture Options:")
+                    row_pd = box_pd.row()
+                    row_pd.prop(scene, "heriverse_paradata_texture_compression", text="Compress ParaData Textures")
+                    if scene.heriverse_paradata_texture_compression:
+                        row_pd = box.row()
+
+                        row_pd = box_pd.row()
+                        row_pd.prop(scene, "heriverse_rmdoc_texture_max_res", text="Max Size")
+                        row_pd.prop(scene, "heriverse_rmdoc_texture_quality", text="Quality")
+
 
                 # Nuova opzione per i tileset
                 box_tileset = box.box()
@@ -979,6 +997,36 @@ def register():
         max=100
     )
 
+    # Aggiungi queste proprietà alla classe Blender
+    bpy.types.Scene.heriverse_paradata_texture_compression = bpy.props.BoolProperty(
+        name="Compress ParaData Textures",
+        description="Enable compression for textures in ParaData objects",
+        default=True
+    )
+
+    bpy.types.Scene.heriverse_paradata_texture_quality = bpy.props.IntProperty(
+        name="ParaData Texture Quality",
+        description="JPEG compression quality for ParaData textures",
+        min=10,
+        max=100,
+        default=75
+    )
+
+    bpy.types.Scene.heriverse_rmdoc_texture_max_res = bpy.props.IntProperty(
+        name="ParaData Max Resolution",
+        description="Maximum resolution for ParaData textures",
+        default=2048,
+        min=512,
+        max=8192
+    )
+
+    bpy.types.Scene.heriverse_rmdoc_texture_quality = bpy.props.IntProperty(
+        name="ParaData Quality",
+        description="JPEG compression quality for ParaData textures (100=lossless, 80=good, 60=compressed, 40=heavily compressed)",
+        default=60,
+        min=10,
+        max=100
+    )
 
 def unregister():
     for cls in classes:
@@ -988,6 +1036,10 @@ def unregister():
     del bpy.types.Scene.enable_image_compression
     
     # Remove Heriverse properties
+    del bpy.types.Scene.heriverse_rmdoc_texture_quality
+    del bpy.types.Scene.heriverse_rmdoc_texture_max_res
+    del bpy.types.Scene.heriverse_paradata_texture_compression
+    del bpy.types.Scene.heriverse_paradata_texture_quality
     del bpy.types.Scene.heriverse_export_path
     del bpy.types.Scene.heriverse_project_name
     del bpy.types.Scene.heriverse_export_panorama
