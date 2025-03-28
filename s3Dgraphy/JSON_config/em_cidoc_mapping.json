@@ -1,0 +1,167 @@
+
+{
+  "mapping_version": "1.5",
+  "components": ["CIDOC-archeo", "CIDOC-inf", "CIDOC-sci"],
+  "nodes": {
+    "StratigraphicUnit": {
+      "description": "Physical stratigraphic layer or unit, can be positive or negative.",
+      "cidoc_class": "E26_Physical_Object",
+      "node_properties": {
+        "name": "P1_is_identified_by",
+        "description": "P3_has_note"
+      },
+      "relations": {
+        "is_before": {
+          "cidoc_property": "P120_occurs_before",
+          "description": "Represents the chronological order of stratigraphic layers or units.",
+          "allowed_targets": ["StratigraphicUnit", "StructuralVirtualStratigraphicUnit"]
+        },
+        "has_same_time": {
+          "cidoc_property": "P81a",
+          "description": "Indicates two elements are contemporaneous.",
+          "allowed_targets": ["StratigraphicUnit"]
+        },
+        "changed_from": {
+          "cidoc_property": "P184_changed_from",
+          "description": "Represents transformation over time between objects.",
+          "allowed_targets": ["StratigraphicUnit"]
+        },
+        "is_in_activity": {
+          "cidoc_property": "P14_carried_out_by",
+          "description": "Indicates node participation in a specific activity.",
+          "allowed_targets": ["ActivityNodeGroup"]
+        }
+      }
+    },
+    "StructuralVirtualStratigraphicUnit": {
+      "description": "Virtual structural unit within a stratigraphic context.",
+      "cidoc_class": "E26_Physical_Object",
+      "node_properties": {
+        "name": "P1_is_identified_by",
+        "construction_type": "P2_has_type",
+        "material": "P45_consists_of"
+      },
+      "relations": {
+        "is_before": {
+          "cidoc_property": "P120_occurs_before",
+          "description": "Represents the chronological order of stratigraphic layers or units.",
+          "allowed_targets": ["StratigraphicUnit", "StructuralVirtualStratigraphicUnit"]
+        },
+        "survive_in_epoch": {
+          "cidoc_property": "P83_falls_within",
+          "description": "Indicates node continuity within an epoch.",
+          "allowed_targets": ["EpochNode"]
+        }
+      }
+    },
+    "NonStructuralVirtualStratigraphicUnit": {
+      "description": "Non-structural virtual stratigraphic unit.",
+      "cidoc_class": "E26_Physical_Object",
+      "node_properties": {
+        "name": "P1_is_identified_by",
+        "material": "P45_consists_of"
+      },
+      "relations": {
+        "has_property": {
+          "cidoc_property": "P46_is_composed_of",
+          "description": "Connects a node with one of its attributes.",
+          "allowed_targets": ["PropertyNode"]
+        }
+      }
+    },
+    "SpecialFindUnit": {
+      "description": "Object of special interest found in stratigraphic layers.",
+      "cidoc_class": "E20_Biological_Object",
+      "node_properties": {
+        "name": "P1_is_identified_by",
+        "preservation_state": "P44_has_condition",
+        "description": "P3_has_note"
+      },
+      "relations": {
+        "is_associated_with": {
+          "cidoc_property": "P12_occurred_in_the_presence_of",
+          "description": "Indicates the association with a specific context or node.",
+          "allowed_targets": ["StratigraphicUnit", "ActivityNodeGroup"]
+        }
+      }
+    },
+    "DocumentaryStratigraphicUnit": {
+      "description": "Documentary unit representing a conceptual stratigraphic context.",
+      "cidoc_class": "E28_Conceptual_Object",
+      "node_properties": {
+        "name": "P1_is_identified_by",
+        "description": "P3_has_note"
+      },
+      "relations": {
+        "documents": {
+          "cidoc_property": "P70_documents",
+          "description": "Indicates documentation of a unit.",
+          "allowed_targets": ["StratigraphicUnit", "DocumentNode"]
+        }
+      }
+    },
+    "ActivityNodeGroup": {
+      "description": "Represents an activity or set of actions in stratigraphic context.",
+      "cidoc_class": "E7_Activity",
+      "node_properties": {
+        "activity_name": "P1_is_identified_by",
+        "description": "P3_has_note"
+      },
+      "relations": {
+        "contains_activity": {
+          "cidoc_property": "P9_consists_of",
+          "description": "Indicates activity containment.",
+          "allowed_targets": ["StratigraphicUnit"]
+        }
+      }
+    },
+    "GeoPositionNode": {
+      "description": "Defines geospatial coordinates such as latitude, longitude, and altitude.",
+      "cidoc_class": "E53_Place",
+      "node_properties": {
+        "latitude": "P168_place_is_located_at",
+        "longitude": "P168_place_is_located_at",
+        "altitude": "P168_place_is_located_at"
+      },
+      "relations": {
+        "defines_location": {
+          "cidoc_property": "P89_falls_within",
+          "description": "Links node to a geographic location.",
+          "allowed_targets": ["StratigraphicUnit", "SpecialFindUnit"]
+        }
+      }
+    },
+    "DocumentNode": {
+      "description": "Represents a document for reference or evidence.",
+      "cidoc_class": "E31_Document",
+      "node_properties": {
+        "title": "P102_has_title",
+        "author": "P94i_was_created_by",
+        "date": "P4_has_time-span"
+      },
+      "relations": {
+        "is_documented_by": {
+          "cidoc_property": "P70_documents",
+          "description": "Associates a document with the unit.",
+          "allowed_targets": ["StratigraphicUnit", "ActivityNodeGroup"]
+        }
+      }
+    },
+    "EpochNode": {
+      "description": "Defines a specific period for dating and chronology.",
+      "cidoc_class": "E4_Period",
+      "node_properties": {
+        "start_time": "P4_has_time-span",
+        "end_time": "P4_has_time-span",
+        "label": "P1_is_identified_by"
+      },
+      "relations": {
+        "defines_time_of": {
+          "cidoc_property": "P10_falls_within",
+          "description": "Specifies the time range for an epoch.",
+          "allowed_targets": ["StratigraphicUnit", "ActivityNodeGroup"]
+        }
+      }
+    }
+  }
+}
