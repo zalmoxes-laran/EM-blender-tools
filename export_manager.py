@@ -111,14 +111,17 @@ class EM_ExportPanel:
                     emboss=False)
 
             if export_vars.heriverse_advanced_options:
-                col = box.column(align=True)
-                col.prop(export_vars, "heriverse_use_draco", text="Use Draco Compression")
+                box_pd = box.box()
+                row_pd = box_pd.row()
+                row_pd.prop(export_vars, "heriverse_use_draco", text="Use Draco Compression")
+                row_pd = box_pd.row()
                 if export_vars.heriverse_use_draco:
-                    col.prop(export_vars, "heriverse_draco_level", text="Compression Level")
-                col.prop(export_vars, "heriverse_separate_textures", text="Separate Textures")
-                
+                    row_pd.prop(export_vars, "heriverse_draco_level", text="Compression Level")
+                    row_pd = box_pd.row()
+                row_pd.prop(export_vars, "heriverse_separate_textures", text="Separate Textures")
+                row_pd = box_pd.row()
                 # Add the GPU instancing option here
-                col.prop(export_vars, "heriverse_use_gpu_instancing", text="Use GPU Instancing")
+                row_pd.prop(export_vars, "heriverse_use_gpu_instancing", text="Use GPU Instancing")
                 
                 # Add texture compression options when separate textures is enabled
                 if export_vars.heriverse_separate_textures:
@@ -139,11 +142,14 @@ class EM_ExportPanel:
 
 
                 if export_vars.heriverse_export_rmdoc:
+
                     box_pd = box.box()
                     row_pd = box_pd.row()
-                    row_pd.label(text="ParaData Texture Options:")
+                    row_pd.label(text="ParaData Export Options:")
                     row_pd = box_pd.row()
-                    row_pd.prop(scene, "heriverse_paradata_texture_compression", text="Compress ParaData Textures")
+                    row_pd.prop(scene, "heriverse_preserve_rmdoc_transform", text="Preserve Transforms for each RMDoc")
+                    row_pd = box_pd.row()
+                    row_pd.prop(scene, "heriverse_paradata_texture_compression", text="Compress Textures")
                     if scene.heriverse_paradata_texture_compression:
                         row_pd = box.row()
 
@@ -1028,6 +1034,12 @@ def register():
         max=100
     )
 
+    bpy.types.Scene.heriverse_preserve_rmdoc_transform = bpy.props.BoolProperty(
+        name="Preserve ParaData Transforms",
+        description="Save and restore original position, rotation and scale of ParaData objects during export",
+        default=True
+    )
+
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
@@ -1046,3 +1058,4 @@ def unregister():
     del bpy.types.Scene.heriverse_enable_compression
     del bpy.types.Scene.heriverse_texture_max_res
     del bpy.types.Scene.heriverse_texture_quality
+    del bpy.types.Scene.heriverse_preserve_rmdoc_transform

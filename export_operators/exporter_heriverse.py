@@ -691,6 +691,10 @@ class HERIVERSE_OT_export(Operator):
         scene = context.scene
         export_vars = context.window_manager.export_vars
         
+        # Se l'export degli RMDoc non è abilitato, esci
+        if not export_vars.heriverse_export_rmdoc:
+            return 0
+        
         # Ottieni il grafo attivo
         graph = None
         if context.scene.em_tools.active_file_index >= 0:
@@ -712,6 +716,9 @@ class HERIVERSE_OT_export(Operator):
         paradata_nodes.extend([node for node in graph.nodes if node.node_type == "extractor"])
         paradata_nodes.extend([node for node in graph.nodes if node.node_type == "combiner"])
         
+        # Memorizza oggetto attivo originale
+        original_active = context.view_layer.objects.active
+        
         # Per ogni nodo paradata, controlla se esiste un oggetto corrispondente
         for paradata_node in paradata_nodes:
             obj = bpy.data.objects.get(paradata_node.name)
@@ -726,8 +733,42 @@ class HERIVERSE_OT_export(Operator):
                     obj.hide_viewport = False
                     obj.hide_select = False
                     
-                    # Seleziona l'oggetto
+                    # Salva la trasformazione originale
+                    original_location = obj.location.copy()
+                    original_rotation = obj.rotation_euler.copy() if obj.rotation_mode == 'XYZ' else obj.rotation_quaternion.copy()
+                    original_rotation_mode = obj.rotation_mode
+                    original_scale = obj.scale.copy()
+                    
+                    # Seleziona l'oggetto e rendilo attivo
                     obj.select_set(True)
+                    context.view_layer.objects.active = obj
+                    
+                    # Salva la trasformazione per il nodo RMDoc
+                    # Converti in stringhe per memorizzazione nel nodo
+                    transform = {
+                        "position": [f"{original_location.x}", f"{original_location.y}", f"{original_location.z}"],
+                        "rotation": [],
+                        "scale": [f"{original_scale.x}", f"{original_scale.y}", f"{original_scale.z}"]
+                    }
+                    
+                    # Gestisci la rotazione in base alla modalità
+                    if original_rotation_mode == 'XYZ':
+                        transform["rotation"] = [f"{original_rotation.x}", f"{original_rotation.y}", f"{original_rotation.z}"]
+                    else:
+                        # Converti quaternione in euler per il nodo
+                        euler = original_rotation.to_euler('XYZ')
+                        transform["rotation"] = [f"{euler.x}", f"{euler.y}", f"{euler.z}"]
+                    
+                    # Azzera le trasformazioni per l'esportazione
+                    obj.location = (0, 0, 0)
+                    if obj.rotation_mode == 'XYZ':
+                        obj.rotation_euler = (0, 0, 0)
+                    else:
+                        obj.rotation_quaternion = (1, 0, 0, 0)
+                    obj.scale = (1, 1, 1)
+                    
+                    # Applica la trasformazione per sicurezza
+                    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
                     
                     # Prepara il nome file
                     export_file = os.path.join(export_folder, clean_filename(obj.name))
@@ -748,26 +789,17 @@ class HERIVERSE_OT_export(Operator):
                     
                     # Crea nodo RMDoc e LinkNode se il grafo è disponibile
                     if graph:
-                        # Crea un nodo RMDoc
 
-                        
                         # Percorso relativo per l'export
                         gltf_path = f"models_docs/{clean_filename(obj.name)}.gltf"
                         
                         # ID del nodo RMDoc
-                        rmdoc_node_id = f"{paradata_node.node_id}_model_doc"
+                        rmdoc_node_id = f"{paradata_node.node_id}_modeldoc"
                         
                         # Verifica se il nodo RMDoc esiste già
                         rmdoc_node = graph.find_node_by_id(rmdoc_node_id)
                         if not rmdoc_node:
-                            # Crea transform con rotazione Y-up
-                            transform = {
-                                "position": ["0.0", "0.0", "0.0"],
-                                "rotation": ["0.0", "0.0", "0.0"],
-                                "scale": ["1.0", "1.0", "1.0"]
-                            }
-                            
-                            # Crea il nodo RMDoc
+                            # Crea il nodo RMDoc con la trasformazione salvata
                             rmdoc_node = RepresentationModelDocNode(
                                 node_id=rmdoc_node_id,
                                 name=f"RM for {paradata_node.name}",
@@ -775,6 +807,9 @@ class HERIVERSE_OT_export(Operator):
                                 transform=transform,
                                 description=f"Representation model for {paradata_node.node_type} {paradata_node.name}"
                             )
+                            
+                            # Imposta l'URL nel dizionario data
+                            rmdoc_node.data["url"] = gltf_path
                             
                             # Aggiungi al grafo
                             graph.add_node(rmdoc_node)
@@ -788,6 +823,11 @@ class HERIVERSE_OT_export(Operator):
                                     edge_target=rmdoc_node_id,
                                     edge_type="has_representation_model_doc"
                                 )
+                        else:
+                            # Aggiorna il nodo esistente
+                            rmdoc_node.transform = transform
+                            rmdoc_node.data["transform"] = transform
+                            rmdoc_node.data["url"] = gltf_path
                         
                         # Crea o aggiorna il nodo Link
                         link_node_id = f"{rmdoc_node_id}_link"
@@ -816,6 +856,15 @@ class HERIVERSE_OT_export(Operator):
                                     edge_type="has_linked_resource"
                                 )
                     
+                    # Ripristina la trasformazione originale
+                    obj.location = original_location
+                    if original_rotation_mode == 'XYZ':
+                        obj.rotation_euler = original_rotation
+                    else:
+                        obj.rotation_mode = original_rotation_mode
+                        obj.rotation_quaternion = original_rotation
+                    obj.scale = original_scale
+                    
                     # Ripristina lo stato dell'oggetto
                     obj.hide_viewport = was_hidden
                     obj.hide_select = was_select
@@ -823,16 +872,33 @@ class HERIVERSE_OT_export(Operator):
                     
                     exported_count += 1
                     print(f"Exported Paradata RM: {obj.name}")
-
-                    self.compress_paradata_textures(export_folder, scene)
-
                     
                 except Exception as e:
                     self.report({'WARNING'}, f"Failed to export Paradata RM {obj.name}: {str(e)}")
                     import traceback
                     traceback.print_exc()
+                    
+                    # Tenta di ripristinare l'oggetto in caso di errore
+                    try:
+                        obj.location = original_location
+                        if original_rotation_mode == 'XYZ':
+                            obj.rotation_euler = original_rotation
+                        else:
+                            obj.rotation_mode = original_rotation_mode
+                            obj.rotation_quaternion = original_rotation
+                        obj.scale = original_scale
+                    except:
+                        pass
+                    
                     # Deseleziona l'oggetto in caso di errore
                     obj.select_set(False)
+        
+        # Ripristina oggetto attivo originale
+        context.view_layer.objects.active = original_active
+        
+        # Compressione texture
+        if exported_count > 0:
+            self.compress_paradata_textures(export_folder, scene)
         
         return exported_count
 
