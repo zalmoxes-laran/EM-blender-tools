@@ -79,8 +79,6 @@ class JSONExporter:
         with open(self.output_path, 'w', encoding='utf-8') as f:
             json.dump(export_data, f, indent=4, ensure_ascii=False)
 
-
-
     def _process_graph(self, graph: Graph) -> Dict[str, Any]:
         """Process a single graph into its JSON representation."""
         
@@ -136,7 +134,8 @@ class JSONExporter:
             "links": {},
             "geo": {},
             "semantic_shapes": {},      
-            "representation_models": {} 
+            "representation_models": {},
+            "representation_model_doc": {}
         }
         
         # Prima fase: elabora tutti i nodi ed edge del grafo
@@ -246,7 +245,28 @@ class JSONExporter:
                         }
                 
                 nodes["representation_models"][node.node_id] = node_data
-        
+
+
+            elif node.node_type == "representation_model_doc":
+                # Prepare the node data similar to other types
+                node_data = self._prepare_node_data(node)
+                
+                # If this node has linked resources, include them
+                if node.node_id in rm_links:
+                    node_data['data']['linked_resources'] = rm_links[node.node_id]
+                    print(f"Added linked_resources to RMDoc node: {node.node_id}")
+                
+                # Check if this is a tileset.json file and add Y-up transformation if needed
+                if hasattr(node, 'data') and 'url' in node.data and 'tileset.json' in node.data['url']:
+                    if 'transform' not in node_data['data']:
+                        node_data['data']['transform'] = {
+                            'rotation': ["-1.57079632679", "0.0", "0.0"]
+                        }
+                
+                # Add the node to the collection
+                nodes["representation_model_doc"][node.node_id] = node_data
+
+
         return nodes
 
     def _prepare_node_data(self, node):
