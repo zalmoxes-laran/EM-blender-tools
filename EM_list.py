@@ -513,10 +513,7 @@ class EM_ToolsPanel:
             row = box.row()
             row.prop(item, "description", text="", slider=True, emboss=True)
 
-            split = layout.split()
 
-            col = split.column(align=True)
-            col.prop(scene, "paradata_streaming_mode", text='Paradata', icon="SHORTDISPLAY")
 
             if scene.em_settings.em_proxy_sync is True:
                 if obj is not None:

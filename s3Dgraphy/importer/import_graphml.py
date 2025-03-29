@@ -31,6 +31,9 @@ class GraphMLImporter:
     def __init__(self, filepath, graph=None):
         self.filepath = filepath
         self.graph = graph if graph is not None else Graph(graph_id="imported_graph")
+        # Dizionario per la deduplicazione dei nodi documento
+        self.document_nodes_map = {}  # nome documento -> node_id
+        self.duplicate_id_map = {}    # id originale -> id deduplicated
 
     def parse(self):
         """
@@ -82,6 +85,12 @@ class GraphMLImporter:
             edge_target = str(edge.attrib['target'])
             edge_type = self.EM_extract_edge_type(edge)
 
+            # Rimappa gli ID duplicati
+            if edge_source in self.duplicate_id_map:
+                edge_source = self.duplicate_id_map[edge_source]
+            if edge_target in self.duplicate_id_map:
+                edge_target = self.duplicate_id_map[edge_target]
+
             # Aggiunta dell'arco al grafo
             self.graph.add_edge(edge_id, edge_source, edge_target, edge_type)
 
@@ -113,23 +122,29 @@ class GraphMLImporter:
             stratigraphic_node.attributes['border_style'] = borderstyle
             self.graph.add_node(stratigraphic_node)
 
+
         elif self.EM_check_node_document(node_element):
             # Creazione del nodo documento e aggiunta al grafo
             nodename, node_id, nodedescription, nodeurl, _ = self.EM_extract_document_node(node_element)
-            document_node = DocumentNode(
-                node_id=node_id,
-                name=nodename,
-                description=nodedescription,
-                url=nodeurl
-            )
-
-            self.graph.add_node(document_node)
-
-
-            # Se c'è un URL valido, crea un nodo Link
-            if nodeurl and nodeurl.strip() != 'Empty':
-                link_node = self._create_link_node(document_node, nodeurl)
-                
+            # Controlla se esiste già un documento con lo stesso nome
+            if nodename in self.document_nodes_map:
+                # Usa il nodo documento esistente
+                existing_doc_id = self.document_nodes_map[nodename]
+                self.duplicate_id_map[node_id] = existing_doc_id
+                print(f"Deduplicating document node: {nodename} (ID: {node_id} -> {existing_doc_id})")
+            else:
+                # Crea nuovo documento e registralo
+                document_node = DocumentNode(
+                    node_id=node_id,
+                    name=nodename,
+                    description=nodedescription,
+                    url=nodeurl
+                )
+                self.graph.add_node(document_node)
+                self.document_nodes_map[nodename] = node_id
+                # Se c'è un URL valido, crea un nodo Link
+                if nodeurl and nodeurl.strip() != 'Empty':
+                    link_node = self._create_link_node(document_node, nodeurl)
 
         elif self.EM_check_node_property(node_element):
             # Creazione del nodo proprietà e aggiunta al grafo

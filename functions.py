@@ -1100,7 +1100,7 @@ def update_or_create_link_node(graph, source_node, url, preserve_existing=True):
     existing_link = graph.find_node_by_id(link_node_id)
     
     if existing_link:
-        if preserve_existing and is_valid_url(existing_link.url):
+        if preserve_existing and is_valid_url(existing_link.data.get("url", "")):
             return
         # Aggiorna l'URL del nodo link esistente
         existing_link.url = url

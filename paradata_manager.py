@@ -80,6 +80,8 @@ class EM_ParadataPanel:
         
         # Sezione Proprietà
         row = layout.row()
+        row.prop(scene, "paradata_streaming_mode", text='Paradata', icon="SHORTDISPLAY")
+        row = layout.row()
         row.label(text="Properties: (" + str(eval(len_property_var)) + ")")
         row.prop(scene, "prop_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
         row = layout.row()
