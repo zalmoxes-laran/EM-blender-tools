@@ -22,6 +22,81 @@ from .s3Dgraphy import load_graph, get_graph
 import platform
 from pathlib import Path
 
+def convert_material_to_principled(material):
+    """
+    Convert a material using old shaders (like Diffuse BSDF) to use Principled BSDF
+    Preserves texture connections from the original shader
+    Returns True if conversion was needed, False otherwise
+    """
+    if not material or not material.use_nodes:
+        return False
+        
+    # Check if already using Principled BSDF connected to output
+    output_node = None
+    principled_node = None
+    
+    for node in material.node_tree.nodes:
+        if node.type == 'OUTPUT_MATERIAL':
+            output_node = node
+        elif node.type == 'BSDF_PRINCIPLED':
+            principled_node = node
+            
+    # If we already have a properly connected Principled BSDF, no need to convert
+    if output_node and principled_node:
+        for link in material.node_tree.links:
+            if link.from_node == principled_node and link.to_node == output_node:
+                return False
+    
+    # Store the original texture nodes
+    texture_nodes = []
+    for node in material.node_tree.nodes:
+        if node.type == 'TEX_IMAGE' and node.image:
+            texture_nodes.append({
+                'node': node,
+                'image': node.image,
+                'location': node.location.copy()
+            })
+    
+    # Find the output node
+    if not output_node:
+        for node in material.node_tree.nodes:
+            if node.type == 'OUTPUT_MATERIAL':
+                output_node = node
+                output_location = node.location.copy()
+                break
+    else:
+        output_location = output_node.location.copy()
+    
+    # If still no output node, we'll need to create one
+    if not output_node:
+        output_location = (300, 0)
+    
+    # Clear all nodes - we'll rebuild from scratch
+    material.node_tree.nodes.clear()
+    
+    # Create the output node
+    output_node = material.node_tree.nodes.new('ShaderNodeOutputMaterial')
+    output_node.location = output_location
+    
+    # Create the Principled BSDF node
+    principled = material.node_tree.nodes.new('ShaderNodeBsdfPrincipled')
+    principled.location = (output_location[0] - 300, output_location[1])
+    
+    # Connect Principled to Output
+    material.node_tree.links.new(principled.outputs['BSDF'], output_node.inputs['Surface'])
+    
+    # Recreate and reconnect texture nodes
+    for tex_info in texture_nodes:
+        tex_node = material.node_tree.nodes.new('ShaderNodeTexImage')
+        tex_node.location = tex_info['location']
+        tex_node.image = tex_info['image']
+        
+        # Connect to Base Color by default
+        material.node_tree.links.new(tex_node.outputs['Color'], principled.inputs['Base Color'])
+        print(f"Connected texture {tex_info['image'].name} to Base Color of Principled BSDF")
+    
+    return True
+
 def normalize_path(path):
     """
     Normalizza un percorso per renderlo compatibile con il sistema operativo corrente.

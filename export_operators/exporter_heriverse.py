@@ -773,6 +773,16 @@ class HERIVERSE_OT_export(Operator):
                     # Prepara il nome file
                     export_file = os.path.join(export_folder, clean_filename(obj.name))
                     
+                    # Convert any non-Principled BSDF materials before export
+                    materials_converted = []
+                    for mat_slot in obj.material_slots:
+                        if mat_slot.material:
+                            if convert_material_to_principled(mat_slot.material):
+                                materials_converted.append(mat_slot.material.name)
+                                
+                    if materials_converted:
+                        print(f"Converted materials to Principled BSDF for {obj.name}: {', '.join(materials_converted)}")
+
                     # Esporta come GLTF
                     bpy.ops.export_scene.gltf(
                         filepath=str(export_file),
