@@ -229,9 +229,10 @@ class HERIVERSE_OT_export(Operator):
                         # Assicurati che ci sia la trasformazione per orientare correttamente il tileset
                         if not hasattr(model_node, 'data'):
                             model_node.data = {}
-                                            
-                        model_node.data['transform'] = model_node.data.get('transform', {})
-                        model_node.data['transform']['rotation'] = ["-1.57079632679", "0.0", "0.0"]  # -90 gradi in radianti
+
+                        model_node.transform = model_node.data.get('transform', {})
+                        model_node.transform['rotation'] = ["-1.57079632679", "0.0", "0.0"]
+                        model_node.data['transform'] = model_node.transform
                         
                         # Crea o aggiorna il nodo Link
                         link_node_id = f"{model_node_id}_link"
