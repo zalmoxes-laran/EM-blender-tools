@@ -232,40 +232,14 @@ class JSONExporter:
                         if key != 'url':  # Escludiamo url
                             node_data['data'][key] = value
                 
-                # Aggiungi le risorse collegate se ce ne sono
-                #if node.node_id in rm_links:
-                #    node_data['data']['linked_resources'] = rm_links[node.node_id]
-                #    print(f"Added linked_resources to RM node: {node.node_id}")
-                
-                # Check if this is a tileset.json file and add Y-up transformation if needed
-                if hasattr(node, 'data') and 'url' in node.data and 'tileset.json' in node.data['url']:
-                    if 'transform' not in node_data['data']:
-                        node_data['data']['transform'] = {
-                            'rotation': ["-1.57079632679", "0.0", "0.0"]
-                        }
-                
                 nodes["representation_models"][node.node_id] = node_data
-
 
             elif node.node_type == "representation_model_doc":
                 # Prepare the node data similar to other types
                 node_data = self._prepare_node_data(node)
                 
-                # If this node has linked resources, include them
-                if node.node_id in rm_links:
-                    node_data['data']['linked_resources'] = rm_links[node.node_id]
-                    print(f"Added linked_resources to RMDoc node: {node.node_id}")
-                
-                # Check if this is a tileset.json file and add Y-up transformation if needed
-                if hasattr(node, 'data') and 'url' in node.data and 'tileset.json' in node.data['url']:
-                    if 'transform' not in node_data['data']:
-                        node_data['data']['transform'] = {
-                            'rotation': ["-1.57079632679", "0.0", "0.0"]
-                        }
-                
                 # Add the node to the collection
                 nodes["representation_model_doc"][node.node_id] = node_data
-
 
         return nodes
 
