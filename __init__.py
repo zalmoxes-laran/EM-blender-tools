@@ -596,7 +596,8 @@ def register_full_addon():
             activity_manager,
             rm_manager,
             us_list_per_epoch,
-            proxy_inflate_manager
+            proxy_inflate_manager,
+            anastylosis_manager
         )
 
         from .import_operators import importer_graphml
@@ -815,7 +816,10 @@ def register_full_addon():
         
         try: paradata_manager.register()
         except Exception as e: print(f"Error registering paradata_manager: {e}")
-        
+
+        try: anastylosis_manager.register()
+        except Exception as e: print(f"Error registering paradata_manager: {e}")
+
         try: rm_manager.register()
         except Exception as e: print(f"Error registering rm_manager: {e}")
         
@@ -903,7 +907,8 @@ def unregister():
                 rm_manager,
                 paradata_manager,
                 us_list_per_epoch,
-                proxy_inflate_manager
+                proxy_inflate_manager,
+                anastylosis_manager,
             )
             
             from .export_operators import exporter_heriverse
@@ -926,6 +931,8 @@ def unregister():
             #try: server.unregister()
             #except: pass
             try: rm_manager.unregister()
+            except: pass
+            try: anastylosis_manager.unregister()
             except: pass
             try: us_list_per_epoch.unregister()
             except: pass
