@@ -1250,6 +1250,7 @@ class HERIVERSE_OT_export(Operator):
     def export_rmsf_models(self, context, export_folder):
         """Export Special Find models (RMSF)"""
         scene = context.scene
+        export_vars = context.window_manager.export_vars
         
         # Store original collection states
         collection_states = {}
@@ -1309,14 +1310,41 @@ class HERIVERSE_OT_export(Operator):
             exported_count = 0
             
             for item in publishable_models:
-                # Get object
+                # Important: Use item.name which refers to the actual 3D object
                 obj = bpy.data.objects.get(item.name)
                 if not obj:
+                    print(f"Object '{item.name}' not found in scene, skipping export")
                     continue
+                
+                print(f"Processing object '{item.name}' linked to SF/VSF '{item.sf_node_name}'")
                     
                 # Select object and make it active
-                obj.select_set(True)
-                context.view_layer.objects.active = obj
+                try:
+                    obj.select_set(True)
+                    context.view_layer.objects.active = obj
+                except Exception as e:
+                    print(f"Could not select object '{item.name}': {str(e)}")
+                    continue
+                
+                # Save original object transform data
+                original_location = obj.location.copy()
+                original_rotation = obj.rotation_euler.copy() if obj.rotation_mode == 'XYZ' else obj.rotation_quaternion.copy()
+                original_rotation_mode = obj.rotation_mode
+                original_scale = obj.scale.copy()
+                
+                # Create the transform dictionary (like in RMDoc)
+                transform = {
+                    "position": [f"{original_location.x}", f"{original_location.y}", f"{original_location.z}"],
+                    "scale": [f"{original_scale.x}", f"{original_scale.y}", f"{original_scale.z}"]
+                }
+                
+                # Handle rotation based on mode
+                if original_rotation_mode == 'XYZ':
+                    transform["rotation"] = [f"{original_rotation.x}", f"{original_rotation.y}", f"{original_rotation.z}"]
+                else:
+                    # Convert quaternion to euler for the node
+                    euler = original_rotation.to_euler('XYZ')
+                    transform["rotation"] = [f"{euler.x}", f"{euler.y}", f"{euler.z}"]
                 
                 # Prepare file path
                 export_file = os.path.join(export_folder, clean_filename(obj.name))
@@ -1329,30 +1357,96 @@ class HERIVERSE_OT_export(Operator):
                         export_copyright=scene.EMviq_model_author_name if hasattr(scene, 'EMviq_model_author_name') else "",
                         export_texcoords=True,
                         export_normals=True,
-                        export_draco_mesh_compression_enable=self.heriverse_use_draco,
-                        export_draco_mesh_compression_level=self.heriverse_draco_level,
+                        export_draco_mesh_compression_enable=export_vars.heriverse_use_draco,
+                        export_draco_mesh_compression_level=export_vars.heriverse_draco_level,
                         export_materials='EXPORT',
                         use_selection=True,
                         export_apply=True
                     )
                     
-                    # Update LinkNode URL if needed
+                    # Create/update nodes and edges in the graph
                     if graph:
-                        # Get RMSF node
-                        rmsf_node = graph.find_node_by_id(item.node_id)
-                        if rmsf_node:
-                            # Update link node
-                            link_node_id = f"{item.node_id}_link"
-                            link_node = graph.find_node_by_id(link_node_id)
-                            if link_node:
-                                gltf_path = f"models_sf/{clean_filename(obj.name)}.gltf"
-                                link_node.url = gltf_path
+                        # Get SF or VSF node if it's linked
+                        sf_node = None
+                        if item.sf_node_id:
+                            sf_node = graph.find_node_by_id(item.sf_node_id)
+                        
+                        # Create or update RMSF node
+                        rmsf_node_id = f"{item.name}_rmsf"
+                        rmsf_node = graph.find_node_by_id(rmsf_node_id)
+                        
+                        if not rmsf_node:
+                            # Create RepresentationModelSpecialFindNode
+                            from ..s3Dgraphy.nodes.representation_node import RepresentationModelSpecialFindNode
+                            rmsf_node = RepresentationModelSpecialFindNode(
+                                node_id=rmsf_node_id,
+                                name=f"RMSF for {item.name}",
+                                type="RM",
+                                transform=transform,
+                                description=f"Representation model for {item.sf_node_name or 'Special Find'}"
+                            )
+                            graph.add_node(rmsf_node)
+                            print(f"Created RMSF node: {rmsf_node_id}")
+                        else:
+                            # Update existing node
+                            rmsf_node.transform = transform
+                            if hasattr(rmsf_node, 'data'):
+                                rmsf_node.data["transform"] = transform
+                            print(f"Updated RMSF node: {rmsf_node_id}")
+                        
+                        # Connect SF node to RMSF node if SF node exists
+                        if sf_node:
+                            edge_id = f"{sf_node.node_id}_has_representation_model_{rmsf_node_id}"
+                            if not graph.find_edge_by_id(edge_id):
+                                graph.add_edge(
+                                    edge_id=edge_id,
+                                    edge_source=sf_node.node_id,
+                                    edge_target=rmsf_node_id,
+                                    edge_type="has_representation_model"
+                                )
+                                print(f"Created edge: {sf_node.node_id} -> {rmsf_node_id}")
+                        
+                        # Create or update Link node
+                        link_node_id = f"{rmsf_node_id}_link"
+                        gltf_path = f"models_sf/{clean_filename(obj.name)}.gltf"
+                        
+                        from ..s3Dgraphy.nodes.link_node import LinkNode
+                        link_node = graph.find_node_by_id(link_node_id)
+                        
+                        if not link_node:
+                            # Create new LinkNode
+                            link_node = LinkNode(
+                                node_id=link_node_id,
+                                name=f"GLTF Link for {item.name}",
+                                description=f"Link to exported GLTF for {item.sf_node_name or 'Special Find'}",
+                                url=gltf_path,
+                                url_type="3d_model"
+                            )
+                            graph.add_node(link_node)
+                            print(f"Created Link node: {link_node_id}")
+                        else:
+                            # Update existing node
+                            link_node.url = gltf_path
+                            print(f"Updated Link node URL to {gltf_path}")
+                        
+                        # Create edge between RMSF and Link if not exists
+                        edge_id = f"{rmsf_node_id}_has_linked_resource_{link_node_id}"
+                        if not graph.find_edge_by_id(edge_id):
+                            graph.add_edge(
+                                edge_id=edge_id,
+                                edge_source=rmsf_node_id,
+                                edge_target=link_node_id,
+                                edge_type="has_linked_resource"
+                            )
+                            print(f"Created edge: {rmsf_node_id} -> {link_node_id}")
                     
                     exported_count += 1
-                    print(f"Exported anastylosis model: {obj.name}")
+                    print(f"Successfully exported anastylosis model: {obj.name}")
                     
                 except Exception as e:
                     self.report({'WARNING'}, f"Failed to export anastylosis model {obj.name}: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
                     
                 # Deselect object
                 obj.select_set(False)
@@ -1360,6 +1454,7 @@ class HERIVERSE_OT_export(Operator):
             # Compress textures if enabled
             if exported_count > 0 and scene.heriverse_enable_compression:
                 self.compress_textures_in_folder(export_folder, scene)
+                print(f"Compressed textures for {exported_count} anastylosis models")
             
             self.report({'INFO'}, f"Exported {exported_count} anastylosis models")
             return exported_count > 0

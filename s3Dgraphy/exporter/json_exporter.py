@@ -135,7 +135,8 @@ class JSONExporter:
             "geo": {},
             "semantic_shapes": {},      
             "representation_models": {},
-            "representation_model_doc": {}
+            "representation_model_doc": {},
+            "representation_model_sf": {}
         }
         
         # Prima fase: elabora tutti i nodi ed edge del grafo
@@ -240,6 +241,13 @@ class JSONExporter:
                 
                 # Add the node to the collection
                 nodes["representation_model_doc"][node.node_id] = node_data
+
+            elif node.node_type == "representation_model_sf":
+                # Prepare the node data similar to other types
+                node_data = self._prepare_node_data(node)
+                
+                # Add the node to the collection
+                nodes["representation_model_sf"][node.node_id] = node_data
 
         return nodes
 
