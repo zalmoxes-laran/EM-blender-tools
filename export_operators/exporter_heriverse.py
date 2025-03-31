@@ -694,201 +694,212 @@ class HERIVERSE_OT_export(Operator):
         if not export_vars.heriverse_export_rmdoc:
             return 0
         
-        # Ottieni il grafo attivo
-        graph = None
-        if context.scene.em_tools.active_file_index >= 0:
-            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
-            graph = get_graph(graphml.name)
+        # Store original collection states
+        collection_states = {}
+        for collection in bpy.data.collections:
+            # Get the layer collection
+            layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+            if layer_collection:
+                collection_states[collection.name] = {
+                    'exclude': layer_collection.exclude,
+                    'hide_viewport': collection.hide_viewport
+                }
         
-        if not graph:
-            return 0
+        # Store original object states
+        object_states = {}
+        for ob in bpy.data.objects:
+            if ob.type == 'MESH':
+                object_states[ob.name] = {
+                    'hide_viewport': ob.hide_viewport,
+                    'hide_select': ob.hide_select
+                }
         
-        # Deseleziona tutto prima di iniziare
-        bpy.ops.object.select_all(action='DESELECT')
-        
-        # Conta elementi esportati
-        exported_count = 0
-        
-        # Lista di nodi paradata da controllare
-        paradata_nodes = []
-        paradata_nodes.extend([node for node in graph.nodes if node.node_type == "document"])
-        paradata_nodes.extend([node for node in graph.nodes if node.node_type == "extractor"])
-        paradata_nodes.extend([node for node in graph.nodes if node.node_type == "combiner"])
-        
-        # Memorizza oggetto attivo originale
-        original_active = context.view_layer.objects.active
-        
-        # Per ogni nodo paradata, controlla se esiste un oggetto corrispondente
-        for paradata_node in paradata_nodes:
-            obj = bpy.data.objects.get(paradata_node.name)
+        try:
+            # Make all collections visible
+            for collection in bpy.data.collections:
+                layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+                if layer_collection:
+                    layer_collection.exclude = False
+                collection.hide_viewport = False
             
-            if obj and obj.type == 'MESH':
-                try:
-                    # Salva lo stato dell'oggetto
-                    was_hidden = obj.hide_viewport
-                    was_select = obj.hide_select
-                    
-                    # Assicurati che l'oggetto sia visibile e selezionabile
-                    obj.hide_viewport = False
-                    obj.hide_select = False
-                    
-                    # Salva la trasformazione originale
-                    original_location = obj.location.copy()
-                    original_rotation = obj.rotation_euler.copy() if obj.rotation_mode == 'XYZ' else obj.rotation_quaternion.copy()
-                    original_rotation_mode = obj.rotation_mode
-                    original_scale = obj.scale.copy()
-                    
-                    # Seleziona l'oggetto e rendilo attivo
-                    obj.select_set(True)
-                    context.view_layer.objects.active = obj
-                    
-                    # Salva la trasformazione per il nodo RMDoc
-                    # Converti in stringhe per memorizzazione nel nodo
-                    transform = {
-                        "position": [f"{original_location.x}", f"{original_location.y}", f"{original_location.z}"],
-                        "rotation": [],
-                        "scale": [f"{original_scale.x}", f"{original_scale.y}", f"{original_scale.z}"]
-                    }
-                    
-                    # Gestisci la rotazione in base alla modalità
-                    if original_rotation_mode == 'XYZ':
-                        transform["rotation"] = [f"{original_rotation.x}", f"{original_rotation.y}", f"{original_rotation.z}"]
-                    else:
-                        # Converti quaternione in euler per il nodo
-                        euler = original_rotation.to_euler('XYZ')
-                        transform["rotation"] = [f"{euler.x}", f"{euler.y}", f"{euler.z}"]
-                    
-                    # Azzera le trasformazioni per l'esportazione
-                    obj.location = (0, 0, 0)
-                    if obj.rotation_mode == 'XYZ':
-                        obj.rotation_euler = (0, 0, 0)
-                    else:
-                        obj.rotation_quaternion = (1, 0, 0, 0)
-                    obj.scale = (1, 1, 1)
-                    
-                    # Applica la trasformazione per sicurezza
-                    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-                    
-                    # Prepara il nome file
-                    export_file = os.path.join(export_folder, clean_filename(obj.name))
-                    
-                    # Convert any non-Principled BSDF materials before export
-                    materials_converted = []
-                    for mat_slot in obj.material_slots:
-                        if mat_slot.material:
-                            if convert_material_to_principled(mat_slot.material):
-                                materials_converted.append(mat_slot.material.name)
-                                
-                    if materials_converted:
-                        print(f"Converted materials to Principled BSDF for {obj.name}: {', '.join(materials_converted)}")
-
-                    # Esporta come GLTF
-                    bpy.ops.export_scene.gltf(
-                        filepath=str(export_file),
-                        export_format='GLTF_SEPARATE',
-                        export_copyright=scene.EMviq_model_author_name if hasattr(scene, 'EMviq_model_author_name') else "",
-                        export_texcoords=True,
-                        export_normals=True,
-                        export_draco_mesh_compression_enable=export_vars.heriverse_use_draco,
-                        export_draco_mesh_compression_level=export_vars.heriverse_draco_level,
-                        export_materials='EXPORT',
-                        use_selection=True,
-                        export_apply=True
-                    )
-                    
-                    # Crea nodo RMDoc e LinkNode se il grafo è disponibile
-                    if graph:
-
-                        # Percorso relativo per l'export
-                        gltf_path = f"models_docs/{clean_filename(obj.name)}.gltf"
+            # Make all objects visible and selectable
+            for ob in bpy.data.objects:
+                if ob.type == 'MESH':
+                    ob.hide_viewport = False
+                    ob.hide_select = False
+        
+            # Ottieni il grafo attivo
+            graph = None
+            if context.scene.em_tools.active_file_index >= 0:
+                graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+                graph = get_graph(graphml.name)
+            
+            if not graph:
+                return 0
+            
+            # Deseleziona tutto prima di iniziare
+            bpy.ops.object.select_all(action='DESELECT')
+            
+            # Conta elementi esportati
+            exported_count = 0
+            
+            # Lista di nodi paradata da controllare
+            paradata_nodes = []
+            paradata_nodes.extend([node for node in graph.nodes if node.node_type == "document"])
+            paradata_nodes.extend([node for node in graph.nodes if node.node_type == "extractor"])
+            paradata_nodes.extend([node for node in graph.nodes if node.node_type == "combiner"])
+            
+            # Memorizza oggetto attivo originale
+            original_active = context.view_layer.objects.active
+            
+            # Per ogni nodo paradata, controlla se esiste un oggetto corrispondente
+            for paradata_node in paradata_nodes:
+                obj = bpy.data.objects.get(paradata_node.name)
+                
+                if obj and obj.type == 'MESH':
+                    try:
+                        # Salva lo stato dell'oggetto
+                        was_hidden = obj.hide_viewport
+                        was_select = obj.hide_select
                         
-                        # ID del nodo RMDoc
-                        rmdoc_node_id = f"{paradata_node.node_id}_modeldoc"
+                        # Assicurati che l'oggetto sia visibile e selezionabile
+                        obj.hide_viewport = False
+                        obj.hide_select = False
                         
-                        # Verifica se il nodo RMDoc esiste già
-                        rmdoc_node = graph.find_node_by_id(rmdoc_node_id)
-                        if not rmdoc_node:
-                            # Crea il nodo RMDoc con la trasformazione salvata
-                            rmdoc_node = RepresentationModelDocNode(
-                                node_id=rmdoc_node_id,
-                                name=f"RM for {paradata_node.name}",
-                                type="RM",
-                                transform=transform,
-                                description=f"Representation model for {paradata_node.node_type} {paradata_node.name}"
-                            )
-                            
-                            # Imposta l'URL nel dizionario data
-                            rmdoc_node.data["url"] = gltf_path
-                            
-                            # Aggiungi al grafo
-                            graph.add_node(rmdoc_node)
-                            
-                            # Collega il nodo RMDoc al nodo paradata
-                            edge_id = f"{paradata_node.node_id}_has_representation_model_{rmdoc_node_id}"
-                            if not graph.find_edge_by_id(edge_id):
-                                graph.add_edge(
-                                    edge_id=edge_id,
-                                    edge_source=paradata_node.node_id,
-                                    edge_target=rmdoc_node_id,
-                                    edge_type="has_representation_model_doc"
-                                )
+                        # Salva la trasformazione originale
+                        original_location = obj.location.copy()
+                        original_rotation = obj.rotation_euler.copy() if obj.rotation_mode == 'XYZ' else obj.rotation_quaternion.copy()
+                        original_rotation_mode = obj.rotation_mode
+                        original_scale = obj.scale.copy()
+                        
+                        # Seleziona l'oggetto e rendilo attivo
+                        obj.select_set(True)
+                        context.view_layer.objects.active = obj
+                        
+                        # Salva la trasformazione per il nodo RMDoc
+                        # Converti in stringhe per memorizzazione nel nodo
+                        transform = {
+                            "position": [f"{original_location.x}", f"{original_location.y}", f"{original_location.z}"],
+                            "rotation": [],
+                            "scale": [f"{original_scale.x}", f"{original_scale.y}", f"{original_scale.z}"]
+                        }
+                        
+                        # Gestisci la rotazione in base alla modalità
+                        if original_rotation_mode == 'XYZ':
+                            transform["rotation"] = [f"{original_rotation.x}", f"{original_rotation.y}", f"{original_rotation.z}"]
                         else:
-                            # Aggiorna il nodo esistente
-                            rmdoc_node.transform = transform
-                            rmdoc_node.data["transform"] = transform
-                            rmdoc_node.data["url"] = gltf_path
+                            # Converti quaternione in euler per il nodo
+                            euler = original_rotation.to_euler('XYZ')
+                            transform["rotation"] = [f"{euler.x}", f"{euler.y}", f"{euler.z}"]
                         
-                        # Crea o aggiorna il nodo Link
-                        link_node_id = f"{rmdoc_node_id}_link"
-                        link_node = LinkNode(
-                            node_id=link_node_id,
-                            name=f"GLTF Link for {paradata_node.name}",
-                            description=f"Link to exported GLTF for {paradata_node.node_type} {paradata_node.name}",
-                            url=gltf_path,
-                            url_type="3d_model"
+                        # Azzera le trasformazioni per l'esportazione
+                        obj.location = (0, 0, 0)
+                        if obj.rotation_mode == 'XYZ':
+                            obj.rotation_euler = (0, 0, 0)
+                        else:
+                            obj.rotation_quaternion = (1, 0, 0, 0)
+                        obj.scale = (1, 1, 1)
+                        
+                        # Applica la trasformazione per sicurezza
+                        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+                        
+                        # Prepara il nome file
+                        export_file = os.path.join(export_folder, clean_filename(obj.name))
+                        
+                        # Convert any non-Principled BSDF materials before export
+                        materials_converted = []
+                        for mat_slot in obj.material_slots:
+                            if mat_slot.material:
+                                if convert_material_to_principled(mat_slot.material):
+                                    materials_converted.append(mat_slot.material.name)
+                                    
+                        if materials_converted:
+                            print(f"Converted materials to Principled BSDF for {obj.name}: {', '.join(materials_converted)}")
+
+                        # Esporta come GLTF
+                        bpy.ops.export_scene.gltf(
+                            filepath=str(export_file),
+                            export_format='GLTF_SEPARATE',
+                            export_copyright=scene.EMviq_model_author_name if hasattr(scene, 'EMviq_model_author_name') else "",
+                            export_texcoords=True,
+                            export_normals=True,
+                            export_draco_mesh_compression_enable=export_vars.heriverse_use_draco,
+                            export_draco_mesh_compression_level=export_vars.heriverse_draco_level,
+                            export_materials='EXPORT',
+                            use_selection=True,
+                            export_apply=True
                         )
                         
-                        # Aggiungi o aggiorna il nodo nel grafo
-                        existing_link = graph.find_node_by_id(link_node_id)
-                        if existing_link:
-                            existing_link.url = gltf_path
-                        else:
-                            graph.add_node(link_node)
+                        # Crea nodo RMDoc e LinkNode se il grafo è disponibile
+                        if graph:
+
+                            # Percorso relativo per l'export
+                            gltf_path = f"models_docs/{clean_filename(obj.name)}.gltf"
                             
-                            # Crea l'edge tra il nodo RMDoc e il LinkNode
-                            edge_id = f"{rmdoc_node_id}_has_linked_resource_{link_node_id}"
-                            if not graph.find_edge_by_id(edge_id):
-                                graph.add_edge(
-                                    edge_id=edge_id,
-                                    edge_source=rmdoc_node_id,
-                                    edge_target=link_node_id,
-                                    edge_type="has_linked_resource"
+                            # ID del nodo RMDoc
+                            rmdoc_node_id = f"{paradata_node.node_id}_modeldoc"
+                            
+                            # Verifica se il nodo RMDoc esiste già
+                            rmdoc_node = graph.find_node_by_id(rmdoc_node_id)
+                            if not rmdoc_node:
+                                # Crea il nodo RMDoc con la trasformazione salvata
+                                rmdoc_node = RepresentationModelDocNode(
+                                    node_id=rmdoc_node_id,
+                                    name=f"RM for {paradata_node.name}",
+                                    type="RM",
+                                    transform=transform,
+                                    description=f"Representation model for {paradata_node.node_type} {paradata_node.name}"
                                 )
-                    
-                    # Ripristina la trasformazione originale
-                    obj.location = original_location
-                    if original_rotation_mode == 'XYZ':
-                        obj.rotation_euler = original_rotation
-                    else:
-                        obj.rotation_mode = original_rotation_mode
-                        obj.rotation_quaternion = original_rotation
-                    obj.scale = original_scale
-                    
-                    # Ripristina lo stato dell'oggetto
-                    obj.hide_viewport = was_hidden
-                    obj.hide_select = was_select
-                    obj.select_set(False)
-                    
-                    exported_count += 1
-                    print(f"Exported Paradata RM: {obj.name}")
-                    
-                except Exception as e:
-                    self.report({'WARNING'}, f"Failed to export Paradata RM {obj.name}: {str(e)}")
-                    import traceback
-                    traceback.print_exc()
-                    
-                    # Tenta di ripristinare l'oggetto in caso di errore
-                    try:
+                                
+                                # Imposta l'URL nel dizionario data
+                                rmdoc_node.data["url"] = gltf_path
+                                
+                                # Aggiungi al grafo
+                                graph.add_node(rmdoc_node)
+                                
+                                # Collega il nodo RMDoc al nodo paradata
+                                edge_id = f"{paradata_node.node_id}_has_representation_model_{rmdoc_node_id}"
+                                if not graph.find_edge_by_id(edge_id):
+                                    graph.add_edge(
+                                        edge_id=edge_id,
+                                        edge_source=paradata_node.node_id,
+                                        edge_target=rmdoc_node_id,
+                                        edge_type="has_representation_model_doc"
+                                    )
+                            else:
+                                # Aggiorna il nodo esistente
+                                rmdoc_node.transform = transform
+                                rmdoc_node.data["transform"] = transform
+                                rmdoc_node.data["url"] = gltf_path
+                            
+                            # Crea o aggiorna il nodo Link
+                            link_node_id = f"{rmdoc_node_id}_link"
+                            link_node = LinkNode(
+                                node_id=link_node_id,
+                                name=f"GLTF Link for {paradata_node.name}",
+                                description=f"Link to exported GLTF for {paradata_node.node_type} {paradata_node.name}",
+                                url=gltf_path,
+                                url_type="3d_model"
+                            )
+                            
+                            # Aggiungi o aggiorna il nodo nel grafo
+                            existing_link = graph.find_node_by_id(link_node_id)
+                            if existing_link:
+                                existing_link.url = gltf_path
+                            else:
+                                graph.add_node(link_node)
+                                
+                                # Crea l'edge tra il nodo RMDoc e il LinkNode
+                                edge_id = f"{rmdoc_node_id}_has_linked_resource_{link_node_id}"
+                                if not graph.find_edge_by_id(edge_id):
+                                    graph.add_edge(
+                                        edge_id=edge_id,
+                                        edge_source=rmdoc_node_id,
+                                        edge_target=link_node_id,
+                                        edge_type="has_linked_resource"
+                                    )
+                        
+                        # Ripristina la trasformazione originale
                         obj.location = original_location
                         if original_rotation_mode == 'XYZ':
                             obj.rotation_euler = original_rotation
@@ -896,20 +907,60 @@ class HERIVERSE_OT_export(Operator):
                             obj.rotation_mode = original_rotation_mode
                             obj.rotation_quaternion = original_rotation
                         obj.scale = original_scale
-                    except:
-                        pass
-                    
-                    # Deseleziona l'oggetto in caso di errore
-                    obj.select_set(False)
-        
-        # Ripristina oggetto attivo originale
-        context.view_layer.objects.active = original_active
-        
-        # Compressione texture
-        if exported_count > 0:
-            self.compress_paradata_textures(export_folder, scene)
-        
-        return exported_count
+                        
+                        # Ripristina lo stato dell'oggetto
+                        obj.hide_viewport = was_hidden
+                        obj.hide_select = was_select
+                        obj.select_set(False)
+                        
+                        exported_count += 1
+                        print(f"Exported Paradata RM: {obj.name}")
+                        
+                    except Exception as e:
+                        self.report({'WARNING'}, f"Failed to export Paradata RM {obj.name}: {str(e)}")
+                        import traceback
+                        traceback.print_exc()
+                        
+                        # Tenta di ripristinare l'oggetto in caso di errore
+                        try:
+                            obj.location = original_location
+                            if original_rotation_mode == 'XYZ':
+                                obj.rotation_euler = original_rotation
+                            else:
+                                obj.rotation_mode = original_rotation_mode
+                                obj.rotation_quaternion = original_rotation
+                            obj.scale = original_scale
+                        except:
+                            pass
+                        
+                        # Deseleziona l'oggetto in caso di errore
+                        obj.select_set(False)
+            
+            # Ripristina oggetto attivo originale
+            context.view_layer.objects.active = original_active
+            
+            # Compressione texture
+            if exported_count > 0:
+                self.compress_paradata_textures(export_folder, scene)
+            
+            return exported_count
+            
+        finally:
+            # Restore original collection states
+            for collection_name, state in collection_states.items():
+                collection = bpy.data.collections.get(collection_name)
+                if collection:
+                    layer_collection = find_layer_collection(context.view_layer.layer_collection, collection_name)
+                    if layer_collection:
+                        layer_collection.exclude = state['exclude']
+                    collection.hide_viewport = state['hide_viewport']
+            
+            # Restore original object states
+            for object_name, state in object_states.items():
+                obj = bpy.data.objects.get(object_name)
+                if obj:
+                    obj.hide_viewport = state['hide_viewport']
+                    obj.hide_select = state['hide_select']
 
     def compress_paradata_textures(self, folder_path, scene):
         """
@@ -1196,6 +1247,140 @@ class HERIVERSE_OT_export(Operator):
         
         return zip_path
 
+    def export_rmsf_models(self, context, export_folder):
+        """Export Special Find models (RMSF)"""
+        scene = context.scene
+        
+        # Store original collection states
+        collection_states = {}
+        for collection in bpy.data.collections:
+            # Get the layer collection
+            layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+            if layer_collection:
+                collection_states[collection.name] = {
+                    'exclude': layer_collection.exclude,
+                    'hide_viewport': collection.hide_viewport
+                }
+        
+        # Store original object states
+        object_states = {}
+        for ob in bpy.data.objects:
+            if ob.type == 'MESH':
+                object_states[ob.name] = {
+                    'hide_viewport': ob.hide_viewport,
+                    'hide_select': ob.hide_select
+                }
+        
+        try:
+            # Make all collections visible
+            for collection in bpy.data.collections:
+                layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+                if layer_collection:
+                    layer_collection.exclude = False
+                collection.hide_viewport = False
+            
+            # Make all objects visible and selectable
+            for ob in bpy.data.objects:
+                if ob.type == 'MESH':
+                    ob.hide_viewport = False
+                    ob.hide_select = False
+            
+            # Deselect all objects first
+            bpy.ops.object.select_all(action='DESELECT')
+            
+            # Get publishable anastylosis models
+            publishable_models = [item for item in scene.anastylosis_list if item.is_publishable]
+            
+            if not publishable_models:
+                self.report({'INFO'}, "No publishable anastylosis models found")
+                return False
+            
+            # Get the graph
+            graph = None
+            if context.scene.em_tools.active_file_index >= 0:
+                graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+                graph = get_graph(graphml.name)
+                
+            if not graph:
+                self.report({'ERROR'}, "No active graph available")
+                return False
+            
+            # Export each model
+            exported_count = 0
+            
+            for item in publishable_models:
+                # Get object
+                obj = bpy.data.objects.get(item.name)
+                if not obj:
+                    continue
+                    
+                # Select object and make it active
+                obj.select_set(True)
+                context.view_layer.objects.active = obj
+                
+                # Prepare file path
+                export_file = os.path.join(export_folder, clean_filename(obj.name))
+                
+                # Export as GLTF
+                try:
+                    bpy.ops.export_scene.gltf(
+                        filepath=str(export_file),
+                        export_format='GLTF_SEPARATE',
+                        export_copyright=scene.EMviq_model_author_name if hasattr(scene, 'EMviq_model_author_name') else "",
+                        export_texcoords=True,
+                        export_normals=True,
+                        export_draco_mesh_compression_enable=self.heriverse_use_draco,
+                        export_draco_mesh_compression_level=self.heriverse_draco_level,
+                        export_materials='EXPORT',
+                        use_selection=True,
+                        export_apply=True
+                    )
+                    
+                    # Update LinkNode URL if needed
+                    if graph:
+                        # Get RMSF node
+                        rmsf_node = graph.find_node_by_id(item.node_id)
+                        if rmsf_node:
+                            # Update link node
+                            link_node_id = f"{item.node_id}_link"
+                            link_node = graph.find_node_by_id(link_node_id)
+                            if link_node:
+                                gltf_path = f"models_sf/{clean_filename(obj.name)}.gltf"
+                                link_node.url = gltf_path
+                    
+                    exported_count += 1
+                    print(f"Exported anastylosis model: {obj.name}")
+                    
+                except Exception as e:
+                    self.report({'WARNING'}, f"Failed to export anastylosis model {obj.name}: {str(e)}")
+                    
+                # Deselect object
+                obj.select_set(False)
+            
+            # Compress textures if enabled
+            if exported_count > 0 and scene.heriverse_enable_compression:
+                self.compress_textures_in_folder(export_folder, scene)
+            
+            self.report({'INFO'}, f"Exported {exported_count} anastylosis models")
+            return exported_count > 0
+            
+        finally:
+            # Restore original collection states
+            for collection_name, state in collection_states.items():
+                collection = bpy.data.collections.get(collection_name)
+                if collection:
+                    layer_collection = find_layer_collection(context.view_layer.layer_collection, collection_name)
+                    if layer_collection:
+                        layer_collection.exclude = state['exclude']
+                    collection.hide_viewport = state['hide_viewport']
+            
+            # Restore original object states
+            for object_name, state in object_states.items():
+                obj = bpy.data.objects.get(object_name)
+                if obj:
+                    obj.hide_viewport = state['hide_viewport']
+                    obj.hide_select = state['hide_select']
+
     def execute(self, context):
         scene = context.scene
         export_vars = context.window_manager.export_vars
@@ -1325,6 +1510,20 @@ class HERIVERSE_OT_export(Operator):
                         print(f"Exported {paradata_count} ParaData objects")
                     else:
                         print("No ParaData objects were exported")
+
+
+                # STEP 3.2: Export SF models if requested
+                sf_models_exported = False
+                if export_vars.heriverse_export_rmsf:
+                    print("\n--- Starting Special Finds Models Export ---")
+                    sf_models_path = os.path.join(project_path, "models_sf")
+                    os.makedirs(sf_models_path, exist_ok=True)
+                    
+                    sf_models_exported = self.export_rmsf_models(context, sf_models_path)
+                    if sf_models_exported:
+                        print("Special Finds models export completed successfully")
+                    else:
+                        print("No Special Finds models were exported")
 
 
                 # STEP 4: Esporta i file DosCo se richiesto

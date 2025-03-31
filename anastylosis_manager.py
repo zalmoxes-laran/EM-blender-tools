@@ -247,8 +247,8 @@ class ANASTYLOSIS_OT_update_list(Operator):
 # Operator to link an object to a SF/VSF node
 class ANASTYLOSIS_OT_link_to_sf(Operator):
     bl_idname = "anastylosis.link_to_sf"
-    bl_label = "Link to SpecialFind"
-    bl_description = "Link this object to a SpecialFind or VirtualSpecialFind node"
+    bl_label = "Link to Active SpecialFind"
+    bl_description = "Link this object to the currently active SpecialFind in Stratigraphy Manager"
     
     anastylosis_index: IntProperty(
         name="Anastylosis Index",
@@ -259,7 +259,7 @@ class ANASTYLOSIS_OT_link_to_sf(Operator):
     def execute(self, context):
         scene = context.scene
         
-        # Get item from list
+        # Get item from anastylosis list
         if self.anastylosis_index < 0:
             self.anastylosis_index = scene.anastylosis_list_index
             
@@ -275,6 +275,13 @@ class ANASTYLOSIS_OT_link_to_sf(Operator):
             self.report({'ERROR'}, f"Object {item.name} not found in scene")
             return {'CANCELLED'}
         
+        # Get active stratigraphy item
+        if scene.em_list_index < 0 or scene.em_list_index >= len(scene.em_list):
+            self.report({'ERROR'}, "No active stratigraphy unit selected")
+            return {'CANCELLED'}
+            
+        active_strat_item = scene.em_list[scene.em_list_index]
+        
         # Get graph
         graph = None
         if context.scene.em_tools.active_file_index >= 0:
@@ -285,48 +292,98 @@ class ANASTYLOSIS_OT_link_to_sf(Operator):
             self.report({'ERROR'}, "No active graph available")
             return {'CANCELLED'}
         
-        # Collect all SF and VSF nodes for selection
-        sf_nodes = []
-        for node in graph.nodes:
-            if node.node_type in ["SF", "VSF"]:
-                sf_nodes.append((node.node_id, node.name, f"{'Virtual ' if node.node_type == 'VSF' else ''}SpecialFind"))
-        
-        if not sf_nodes:
-            self.report({'ERROR'}, "No SpecialFind nodes found in the graph")
+        # Get SF node
+        sf_node = graph.find_node_by_id(active_strat_item.id_node)
+        if not sf_node:
+            self.report({'ERROR'}, f"SpecialFind node {active_strat_item.id_node} not found in graph")
+            return {'CANCELLED'}
+            
+        # Check if it's actually a SF or VSF
+        if sf_node.node_type not in ["SF", "VSF"]:
+            self.report({'ERROR'}, f"Active node is not a SpecialFind (type: {sf_node.node_type})")
             return {'CANCELLED'}
         
-        # Store in scene properties for the popup
-        scene.anastylosis_temp_obj_name = item.name
-        scene.anastylosis_temp_rmsf_id = item.node_id
+        # Proceed with linking
+        # Get or create RMSF node
+        rmsf_id = f"{item.name}_rmsf"
+        rmsf_node = graph.find_node_by_id(rmsf_id)
         
-        # Store SF nodes in scene property for popup
-        scene.anastylosis_sf_nodes.clear()
-        for node_id, node_name, node_desc in sf_nodes:
-            item = scene.anastylosis_sf_nodes.add()
-            item.node_id = node_id
-            item.name = node_name
-            item.description = node_desc
+        if not rmsf_node:
+            # Get object transform
+            transform = {
+                "position": [f"{obj.location.x}", f"{obj.location.y}", f"{obj.location.z}"],
+                "scale": [f"{obj.scale.x}", f"{obj.scale.y}", f"{obj.scale.z}"]
+            }
+            
+            # Handle rotation based on rotation mode
+            if obj.rotation_mode == 'QUATERNION':
+                quat = obj.rotation_quaternion
+                euler = quat.to_euler('XYZ')
+                transform["rotation"] = [f"{euler.x}", f"{euler.y}", f"{euler.z}"]
+            else:
+                transform["rotation"] = [f"{obj.rotation_euler.x}", f"{obj.rotation_euler.y}", f"{obj.rotation_euler.z}"]
+            
+            # Create RMSF node
+            rmsf_node = RepresentationModelSpecialFindNode(
+                node_id=rmsf_id,
+                name=f"RMSF for {item.name}",
+                type="RM",
+                transform=transform,
+                description=f"Representation model for {sf_node.node_type} {sf_node.name}"
+            )
+            
+            # Add node to graph
+            graph.add_node(rmsf_node)
         
-        # Show popup for selection
-        return context.window_manager.invoke_props_dialog(self, width=400)
+        # Create or update edge
+        edge_id = f"{sf_node.node_id}_has_representation_model_{rmsf_id}"
+        existing_edge = graph.find_edge_by_id(edge_id)
+        
+        if not existing_edge:
+            graph.add_edge(
+                edge_id=edge_id,
+                edge_source=sf_node.node_id,
+                edge_target=rmsf_id,
+                edge_type="has_representation_model"
+            )
+        
+        # Create a LinkNode to store the URL
+        link_node_id = f"{rmsf_id}_link"
+        link_node = graph.find_node_by_id(link_node_id)
+        
+        if not link_node:
+            # Create new LinkNode
+            gltf_path = f"models_sf/{item.name}.gltf"
+            link_node = LinkNode(
+                node_id=link_node_id,
+                name=f"GLTF Link for {item.name}",
+                description=f"Link to exported GLTF for {sf_node.node_type} {sf_node.name}",
+                url=gltf_path,
+                url_type="3d_model"
+            )
+            graph.add_node(link_node)
+            
+            # Create edge between RMSF and LinkNode
+            edge_id = f"{rmsf_id}_has_linked_resource_{link_node_id}"
+            graph.add_edge(
+                edge_id=edge_id,
+                edge_source=rmsf_id,
+                edge_target=link_node_id,
+                edge_type="has_linked_resource"
+            )
+        
+        # Update the anastylosis list
+        item.sf_node_id = sf_node.node_id
+        item.sf_node_name = sf_node.name
+        item.is_virtual = sf_node.node_type == "VSF"
+        item.node_id = rmsf_id
+        
+        # Refresh the list
+        bpy.ops.anastylosis.update_list(from_graph=True)
+        
+        self.report({'INFO'}, f"Linked {item.name} to {sf_node.node_type} {sf_node.name}")
+        return {'FINISHED'}
     
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        
-        layout.label(text=f"Select SpecialFind node for {scene.anastylosis_temp_obj_name}:")
-        
-        # List all SF/VSF nodes
-        for i, item in enumerate(scene.anastylosis_sf_nodes):
-            box = layout.box()
-            row = box.row()
-            icon = 'MESH_ICOSPHERE' if "Virtual" not in item.description else 'OUTLINER_OB_EMPTY'
-            op = row.operator("anastylosis.confirm_link", text=item.name, icon=icon)
-            op.sf_node_index = i
-    
-    def invoke(self, context, event):
-        return self.execute(context)
-
 # Operator to confirm SF/VSF link selection
 class ANASTYLOSIS_OT_confirm_link(Operator):
     bl_idname = "anastylosis.confirm_link"
@@ -498,7 +555,9 @@ class ANASTYLOSIS_OT_select_from_list(Operator):
         if hasattr(scene, 'anastylosis_settings') and scene.anastylosis_settings.zoom_to_selected:
             for area in context.screen.areas:
                 if area.type == 'VIEW_3D':
-                    override = {'area': area}
+                    # Create proper override
+                    override = context.copy()
+                    override['area'] = area
                     bpy.ops.view3d.view_selected(override)
                     break
         
@@ -617,7 +676,7 @@ class ANASTYLOSIS_OT_add_selected(Operator):
             item.node_id = f"{obj.name}_rmsf"
             
             # If we have a graph, create RMSF node
-            if graph and scene.anastylosis_settings.create_nodes_on_add:
+            if graph:
                 # Check if node already exists
                 existing_node = graph.find_node_by_id(item.node_id)
                 if not existing_node:
@@ -656,80 +715,11 @@ class ANASTYLOSIS_OT_add_selected(Operator):
         self.report({'INFO'}, f"Added {added_count} objects to anastylosis list")
         return {'FINISHED'}
 
-# Operator to export anastylosis models
-class ANASTYLOSIS_OT_export_models(Operator):
-    bl_idname = "anastylosis.export_models"
-    bl_label = "Export Anastylosis Models"
-    bl_description = "Export all publishable anastylosis models for the Heriverse project"
-    
-    def execute(self, context):
-        scene = context.scene
-        
-        # Check if we have a graph
-        graph = None
-        if context.scene.em_tools.active_file_index >= 0:
-            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
-            graph = get_graph(graphml.name)
-        
-        if not graph:
-            self.report({'ERROR'}, "No active graph available")
-            return {'CANCELLED'}
-        
-        # Get all publishable models
-        publishable_models = [item for item in scene.anastylosis_list if item.is_publishable]
-        
-        if not publishable_models:
-            self.report({'WARNING'}, "No publishable anastylosis models found")
-            return {'CANCELLED'}
-        
-        # Export each model
-        export_count = 0
-        for item in publishable_models:
-            # Get object
-            obj = bpy.data.objects.get(item.name)
-            if not obj:
-                continue
-                
-            # Select object
-            bpy.ops.object.select_all(action='DESELECT')
-            obj.select_set(True)
-            context.view_layer.objects.active = obj
-            
-            # Get RMSF node
-            rmsf_node = graph.find_node_by_id(item.node_id)
-            if not rmsf_node:
-                continue
-            
-            # Export GLTF
-            # Note: In a real implementation, you would define the export path and handle file saving,
-            # but for this prototype, we'll just log the info
-            
-            self.report({'INFO'}, f"Would export {item.name} as GLTF")
-            export_count += 1
-            
-            # Update LinkNode URLs
-            link_node_id = f"{item.node_id}_link"
-
-            link_node = graph.find_node_by_id(link_node_id)
-            if link_node:
-                # Update URL to match export path
-                gltf_path = f"models_sf/{item.name}.gltf"
-                link_node.url = gltf_path
-            
-        self.report({'INFO'}, f"Exported {export_count} anastylosis models")
-        return {'FINISHED'}
-
 # Settings for Anastylosis Manager
 class AnastylisisSettings(PropertyGroup):
     zoom_to_selected: BoolProperty(
         name="Zoom to Selected",
         description="Zoom to the selected object when clicked in the list",
-        default=True
-    )
-    
-    create_nodes_on_add: BoolProperty(
-        name="Create Nodes on Add",
-        description="Automatically create RMSF nodes when adding objects to the list",
         default=True
     )
     
@@ -802,23 +792,18 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
                 row.label(text=f"Connected to: {item.sf_node_name}", icon=sf_icon)
                 
                 # Add button to unlink
-                row = box.row()
-                op = row.operator("anastylosis.remove_from_list", text="Unlink from SpecialFind", icon='UNLINKED')
-                op.anastylosis_index = scene.anastylosis_list_index
+                #row = box.row()
+                #op = row.operator("anastylosis.remove_from_list", text="Unlink from SpecialFind", icon='TRASH')
+                #op.anastylosis_index = scene.anastylosis_list_index
             else:
                 box = layout.box()
                 row = box.row()
                 row.label(text="Not connected to any SpecialFind", icon='INFO')
                 
-                row = box.row()
-                op = row.operator("anastylosis.link_to_sf", text="Link to SpecialFind", icon='LINKED')
-                op.anastylosis_index = scene.anastylosis_list_index
+                #row = box.row()
+                #op = row.operator("anastylosis.link_to_sf", text="Link to SpecialFind", icon='LINKED')
+                #op.anastylosis_index = scene.anastylosis_list_index
                 
-        # Export button
-        if len(scene.anastylosis_list) > 0:
-            box = layout.box()
-            row = box.row()
-            row.operator("anastylosis.export_models", icon='EXPORT')
         
         # Settings (collapsible)
         box = layout.box()
@@ -831,8 +816,7 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
         if scene.anastylosis_settings.show_settings:
             row = box.row()
             row.prop(scene.anastylosis_settings, "zoom_to_selected")
-            row = box.row()
-            row.prop(scene.anastylosis_settings, "create_nodes_on_add")
+
 
 # Handler to update list when a graph is loaded
 @bpy.app.handlers.persistent
@@ -869,7 +853,6 @@ classes = [
     ANASTYLOSIS_OT_select_from_list,
     ANASTYLOSIS_OT_remove_from_list,
     ANASTYLOSIS_OT_add_selected,
-    ANASTYLOSIS_OT_export_models,
     AnastylisisSettings,
     AnastylosisSFNodeItem,
     ANASTYLOSIS_OT_confirm_link,

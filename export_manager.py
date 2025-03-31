@@ -94,7 +94,9 @@ class EM_ExportPanel:
             col.prop(export_vars, "heriverse_export_rm", text="Export RM")
             row = box.row()
             col = row.column()
-            col.prop(export_vars, "heriverse_export_rmdoc", text="Export ParaData Obj")
+            col.prop(export_vars, "heriverse_export_rmdoc", text="Export RM Doc")
+            col = row.column()
+            col.prop(export_vars, "heriverse_export_rmsf", text="Export RM SF")
 
             row = box.row()
             col = row.column()

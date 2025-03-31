@@ -523,6 +523,12 @@ class ExportVars(bpy.types.PropertyGroup):
         default=True
     ) # type: ignore
 
+    heriverse_export_rmsf: BoolProperty(
+        name="Export Special Finds Models",
+        description="Export 3D models associated with Special Finds (SF) nodes",
+        default=True
+    ) # type: ignore
+
 
 class ExportTablesVars(bpy.types.PropertyGroup):
        table_type : bpy.props.EnumProperty(
