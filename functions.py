@@ -757,7 +757,6 @@ def em_setup_mat_cycles(matname, R, G, B, A=1.0):
 
 def set_materials_using_EM_list(context):
     em_list_lenght = len(context.scene.em_list)
-    #print(str(em_list_lenght))
     counter = 0
     while counter < em_list_lenght:
         current_ob_em_list = context.scene.em_list[counter]
@@ -765,24 +764,36 @@ def set_materials_using_EM_list(context):
         consolidate_EM_material_presence(overwrite_mats)
         if current_ob_em_list.icon == 'RESTRICT_INSTANCED_OFF':
             current_ob_scene = context.scene.objects[current_ob_em_list.name]
-            current_ob_scene.name
-            ob_material_name = 'US'
-            if current_ob_em_list.shape == 'rectangle':
-                ob_material_name = 'US'
-            if current_ob_em_list.shape == 'ellipse_white':
-                ob_material_name = 'US'
-            if current_ob_em_list.shape ==  'ellipse':
-                ob_material_name = 'USVn'
-            if current_ob_em_list.shape ==  'parallelogram':
-                ob_material_name = 'USVs'
-            if current_ob_em_list.shape ==  'hexagon':
-                ob_material_name = 'USVn'
-            if current_ob_em_list.shape ==  'octagon':
-                ob_material_name = 'VSF'
-            if current_ob_em_list.shape ==  'octagon_white':
-                ob_material_name = 'SF'
-            if current_ob_em_list.shape == 'roundrectangle':
-                ob_material_name = 'USD'
+            ob_material_name = 'US'  # Default
+            
+            # Check the node_type first (most reliable method)
+            if hasattr(current_ob_em_list, 'node_type') and current_ob_em_list.node_type:
+                if current_ob_em_list.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD']:
+                    ob_material_name = current_ob_em_list.node_type
+            else:
+                # Fallback to shape + border style
+                if current_ob_em_list.shape == 'rectangle':
+                    ob_material_name = 'US'
+                elif current_ob_em_list.shape == 'ellipse_white':
+                    ob_material_name = 'US'
+                elif current_ob_em_list.shape == 'ellipse':
+                    ob_material_name = 'USVn'
+                elif current_ob_em_list.shape == 'parallelogram':
+                    ob_material_name = 'USVs'
+                elif current_ob_em_list.shape == 'hexagon':
+                    ob_material_name = 'USVn'
+                elif current_ob_em_list.shape == 'octagon':
+                    # Check border style for octagon shapes
+                    if current_ob_em_list.border_style == '#D8BD30':
+                        ob_material_name = 'SF'
+                    elif current_ob_em_list.border_style == '#B19F61':
+                        ob_material_name = 'VSF'
+                    else:
+                        # Default for octagon without recognized border
+                        ob_material_name = 'VSF'
+                elif current_ob_em_list.shape == 'roundrectangle':
+                    ob_material_name = 'USD'
+                
             mat = bpy.data.materials[ob_material_name]
             current_ob_scene.data.materials.clear()
             current_ob_scene.data.materials.append(mat)
