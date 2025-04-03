@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 from .s3Dgraphy.utils.utils import get_material_color
 from .s3Dgraphy.nodes.link_node import LinkNode
-from .s3Dgraphy import load_graph, get_graph
+from .s3Dgraphy import load_graph_from_file, get_graph
 
 import platform
 from pathlib import Path

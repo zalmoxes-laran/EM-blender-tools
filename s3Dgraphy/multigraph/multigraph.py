@@ -7,7 +7,7 @@ class MultiGraphManager:
     def __init__(self):
         self.graphs = {}
 
-    def load_graph(filepath, graph_id=None, overwrite=False):
+    def load_graph(self, filepath, graph_id=None, overwrite=False):
         """
         Carica un grafo da un file GraphML.
         
@@ -109,7 +109,7 @@ class MultiGraphManager:
 
 multi_graph_manager = MultiGraphManager()
 
-def load_graph(filepath, graph_id=None, overwrite=False):
+def load_graph_from_file(filepath, graph_id=None, overwrite=False):
     print(f"Loading graph: {filepath}, graph_id: {graph_id}, overwrite: {overwrite}")
     multi_graph_manager.load_graph(filepath, graph_id, overwrite)
 

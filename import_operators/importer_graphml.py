@@ -1,11 +1,12 @@
 import bpy # type: ignore
-from ..s3Dgraphy import load_graph, get_graph
+from ..s3Dgraphy import get_graph
 from ..s3Dgraphy import remove_graph
 from ..s3Dgraphy.nodes.group_node import GroupNode
 
 from ..populate_lists import *
 from ..functions import *
 from ..functions import normalize_path, show_popup_message
+from ..s3Dgraphy.multigraph.multigraph import load_graph_from_file
 
 
 class EM_import_GraphML(bpy.types.Operator):
@@ -54,7 +55,8 @@ class EM_import_GraphML(bpy.types.Operator):
 
             try:
                 # Carica il grafo - l'ID verrà estratto dal file
-                graph_id = load_graph(graphml_file, overwrite=True)
+                
+                graph_id = load_graph_from_file(graphml_file, overwrite=True)
                 print(f"Graph loaded successfully with ID: {graph_id}")
                 
                 # Ora ottieni il grafo utilizzando l'ID restituito

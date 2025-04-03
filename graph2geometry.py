@@ -5,7 +5,7 @@ from .external_modules_install import check_external_modules
 from .blender_pip import Pip
 import logging
 
-from .s3Dgraphy import load_graph, get_graph
+from .s3Dgraphy import load_graph_from_file, get_graph
 
 log = logging.getLogger(__name__)
 

@@ -8,9 +8,9 @@ allowing loading, retrieving, and removing of individual graph instances
 within a multi-graph structure.
 """
 
-from .multigraph import MultiGraphManager, load_graph, get_graph, get_all_graph_ids, remove_graph
+from .multigraph import MultiGraphManager, load_graph_from_file, get_graph, get_all_graph_ids, remove_graph
 
 # Define what is available for import when using 'from multigraph import *'
 __all__ = [
-    "MultiGraphManager", "load_graph", "get_graph", "get_all_graph_ids", "remove_graph"
+    "MultiGraphManager", "load_graph_from_file", "get_graph", "get_all_graph_ids", "remove_graph"
 ]
