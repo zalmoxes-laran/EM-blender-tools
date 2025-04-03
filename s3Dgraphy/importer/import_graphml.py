@@ -218,8 +218,6 @@ class GraphMLImporter:
                 # Creazione del nome prefissato
                 stratigraphic_node.name = f"{graph_code}_{nodename}"
 
-################################## da qui non ho più modificato ma andrebe fatto
-
             # Aggiunta di runtime properties
             stratigraphic_node.attributes['shape'] = nodeshape
             stratigraphic_node.attributes['y_pos'] = float(node_y_pos)
@@ -245,6 +243,17 @@ class GraphMLImporter:
                     description=nodedescription,
                     url=nodeurl
                 )
+
+                # Per DocumentNode
+                document_node.attributes['original_id'] = original_id
+                document_node.attributes['graph_id'] = self.graph.graph_id
+
+                # Prefissa il nome con il codice del grafo
+                graph_code = self.graph.attributes.get('graph_code')
+                if graph_code:
+                    document_node.attributes['original_name'] = nodename
+                    document_node.name = f"{graph_code}_{nodename}"
+
                 self.graph.add_node(document_node)
                 self.document_nodes_map[nodename] = node_id
                 # Se c'è un URL valido, crea un nodo Link
@@ -262,6 +271,17 @@ class GraphMLImporter:
                 data={},  # Popola 'data' se necessario
                 url=nodeurl
             )
+
+            # Per PropertyNode
+            property_node.attributes['original_id'] = original_id
+            property_node.attributes['graph_id'] = self.graph.graph_id
+
+            # Prefissa il nome con il codice del grafo
+            graph_code = self.graph.attributes.get('graph_code')
+            if graph_code:
+                property_node.attributes['original_name'] = nodename
+                property_node.name = f"{graph_code}_{nodename}"
+
             self.graph.add_node(property_node)
 
         elif self.EM_check_node_extractor(node_element):
@@ -273,6 +293,15 @@ class GraphMLImporter:
                 description=nodedescription,
                 source=nodeurl
             )
+            # Per extractor_node
+            extractor_node.attributes['original_id'] = original_id
+            extractor_node.attributes['graph_id'] = self.graph.graph_id
+
+            # Prefissa il nome con il codice del grafo
+            graph_code = self.graph.attributes.get('graph_code')
+            if graph_code:
+                extractor_node.attributes['original_name'] = nodename
+                extractor_node.name = f"{graph_code}_{nodename}"
 
             self.graph.add_node(extractor_node)
 
@@ -290,6 +319,17 @@ class GraphMLImporter:
                 description=nodedescription,
                 sources=[nodeurl]
             )
+
+            # Per combiner_node
+            combiner_node.attributes['original_id'] = original_id
+            combiner_node.attributes['graph_id'] = self.graph.graph_id
+
+            # Prefissa il nome con il codice del grafo
+            graph_code = self.graph.attributes.get('graph_code')
+            if graph_code:
+                combiner_node.attributes['original_name'] = nodename
+                combiner_node.name = f"{graph_code}_{nodename}"
+
             self.graph.add_node(combiner_node)
 
         elif self.EM_check_node_continuity(node_element):

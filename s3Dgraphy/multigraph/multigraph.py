@@ -1,6 +1,7 @@
 import os
 from ..graph import Graph
 from ..importer.import_graphml import GraphMLImporter
+import xml.etree.ElementTree as ET
 
 class MultiGraphManager:
     def __init__(self):
@@ -17,16 +18,14 @@ class MultiGraphManager:
         
         Returns:
             Graph: L'istanza del grafo caricato
-        
-        Raises:
-            ValueError: Se il grafo esiste già e overwrite=False
         """
         print(f"Loading graph: {filepath}, graph_id: {graph_id}, overwrite: {overwrite}")
 
-        # Crea un grafo temporaneo per leggere preliminarmente l'ID
-        import xml.etree.ElementTree as ET
-        from ..importer.import_graphml import GraphMLImporter
+        # Questa è la differenza: non richiamiamo un metodo della classe ma usiamo direttamente
+        # il codice qui
         
+        # Crea un grafo temporaneo per leggere preliminarmente l'ID
+
         temp_graph = Graph(graph_id="temp")
         importer = GraphMLImporter(filepath, temp_graph)
         
