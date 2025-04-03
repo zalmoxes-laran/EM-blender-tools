@@ -12,10 +12,40 @@ from .s3Dgraphy.nodes.combiner_node import CombinerNode  # Import diretto
 from .s3Dgraphy.nodes.epoch_node import EpochNode  # Import diretto
 
 
-def populate_blender_lists_from_graph(context, graph):
-    scene = context.scene
+def get_connected_epoch_for_node(graph, node):
+    """
+    Trova l'epoca collegata a un nodo.
+    
+    Args:
+        graph: L'istanza del grafo
+        node: Il nodo per cui cercare l'epoca
+        
+    Returns:
+        str: Il nome dell'epoca o None se non trovata
+    """
+    for edge in graph.edges:
+        if edge.edge_source == node.node_id and edge.edge_type in ['has_first_epoch', 'survive_in_epoch']:
+            target_node = graph.find_node_by_id(edge.edge_target)
+            if target_node and hasattr(target_node, 'node_type') and target_node.node_type == 'epoch':
+                return target_node.name
+    return None
 
-    # Inizializza gli indici delle liste
+def populate_blender_lists_from_graph(context, graph):
+    """
+    Popola le liste di Blender con i dati dal grafo.
+    
+    Args:
+        context: Il contesto Blender
+        graph: L'istanza del grafo
+    """
+    from .s3Dgraphy.utils.utils import get_original_node_name, get_graph_code_from_node
+    
+    scene = context.scene
+    
+    # Memorizza il codice del grafo per riferimenti futuri
+    graph_code = graph.attributes.get('graph_code')
+
+    # Inizializza gli indici delle liste lo tengo ??########
     em_list_index_ema = 0
     em_sources_index_ema = 0
     em_properties_index_ema = 0
@@ -24,9 +54,35 @@ def populate_blender_lists_from_graph(context, graph):
     em_edges_index_ema = 0
     em_epoch_list_ema = 0
     em_reused_index_ema = 0
+    ##########
 
-    # Popolamento delle liste
-    for node in graph.nodes:
+        # Popolamento delle liste
+    for node in [n for n in graph.nodes if hasattr(n, 'node_type') and n.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']]:
+        item = scene.em_list.add()
+        
+        # Usa il nome del nodo (che potrebbe già includere il prefisso)
+        item.name = node.name
+        
+        # Memorizza l'ID del nodo per riferimenti incrociati
+        item.id_node = node.node_id
+        item.description = node.description
+        
+        # Memorizza il tipo di nodo per riferimenti futuri
+        item.node_type = node.node_type
+        
+        # Estrai informazioni aggiuntive dagli attributi
+        item.shape = node.attributes.get('shape', '')
+        item.y_pos = node.attributes.get('y_pos', 0.0)
+        item.fill_color = node.attributes.get('fill_color', '#FFFFFF')
+        item.border_style = node.attributes.get('border_style', '#000000')
+        
+        # Imposta l'icona in base alla presenza dell'oggetto in scena
+        item.icon = check_objs_in_scene_and_provide_icon_for_list_element(item.name)
+        
+        # Recupera l'epoca del nodo
+        connected_epoch = get_connected_epoch_for_node(graph, node)
+        item.epoch = connected_epoch if connected_epoch else "Unknown"
+
         if isinstance(node, StratigraphicNode):
             populate_stratigraphic_node(scene, node, em_list_index_ema, graph)
             em_list_index_ema += 1

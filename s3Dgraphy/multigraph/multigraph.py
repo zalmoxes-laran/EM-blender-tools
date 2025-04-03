@@ -6,20 +6,64 @@ class MultiGraphManager:
     def __init__(self):
         self.graphs = {}
 
-    def load_graph(self, filepath, graph_id=None, overwrite=False):
-        print(f"MultiGraphManager: load_graph called with graph_id={graph_id}, overwrite={overwrite}")
+    def load_graph(filepath, graph_id=None, overwrite=False):
+        """
+        Carica un grafo da un file GraphML.
+        
+        Args:
+            filepath (str): Percorso del file GraphML
+            graph_id (str, optional): ID da assegnare al grafo. Se None, verrà estratto dal file.
+            overwrite (bool): Se sovrascrivere un grafo esistente con lo stesso ID
+        
+        Returns:
+            Graph: L'istanza del grafo caricato
+        
+        Raises:
+            ValueError: Se il grafo esiste già e overwrite=False
+        """
+        print(f"Loading graph: {filepath}, graph_id: {graph_id}, overwrite: {overwrite}")
+
+        # Crea un grafo temporaneo per leggere preliminarmente l'ID
+        import xml.etree.ElementTree as ET
+        from ..importer.import_graphml import GraphMLImporter
+        
+        temp_graph = Graph(graph_id="temp")
+        importer = GraphMLImporter(filepath, temp_graph)
+        
+        # Estrai l'ID dal file se non è stato specificato
         if graph_id is None:
-            graph_id = os.path.splitext(os.path.basename(filepath))[0]
+            try:
+                tree = ET.parse(filepath)
+                extracted_id, _ = importer.extract_graph_id_and_code(tree)
+                if extracted_id:
+                    graph_id = extracted_id
+                    print(f"Using graph ID from file: {graph_id}")
+                else:
+                    import os
+                    # Fallback al nome del file
+                    graph_id = os.path.splitext(os.path.basename(filepath))[0]
+                    print(f"Using filename as graph ID: {graph_id}")
+            except Exception as e:
+                import os
+                print(f"Error extracting graph ID: {e}. Using filename as ID.")
+                graph_id = os.path.splitext(os.path.basename(filepath))[0]
+        
+        # Verifica se il grafo esiste già
+        if graph_id in multi_graph_manager.graphs and not overwrite:
+            raise ValueError(f"Graph with ID '{graph_id}' already exists. Use overwrite=True to replace it.")
 
-        if graph_id in self.graphs and not overwrite:
-            raise ValueError(f"Un grafo con ID '{graph_id}' esiste già. Usa overwrite=True per sovrascriverlo.")
-
+        # Crea un nuovo grafo con l'ID determinato
         graph = Graph(graph_id=graph_id)
+        
+        # Carica il grafo con il parser completo
         importer = GraphMLImporter(filepath, graph)
         graph = importer.parse()
 
-        self.graphs[graph_id] = graph
+        # Registra il grafo nel manager
+        multi_graph_manager.graphs[graph_id] = graph
         print(f"Graph '{graph_id}' loaded successfully with overwrite={overwrite}.")
+        
+        return graph
 
     def get_graph(self, graph_id):
         return self.graphs.get(graph_id)

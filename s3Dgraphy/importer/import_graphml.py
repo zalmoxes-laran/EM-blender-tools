@@ -12,12 +12,11 @@ from ..nodes.property_node import PropertyNode
 from ..nodes.epoch_node import EpochNode
 from ..nodes.group_node import GroupNode, ParadataNodeGroup, ActivityNodeGroup, TimeBranchNodeGroup
 from ..nodes.link_node import *
-
 from ..edges.edge import Edge
 from ..utils.utils import convert_shape2type, get_stratigraphic_node_class
 import re
-
 from ..edges.edge import EDGE_TYPES
+import uuid
 
 class GraphMLImporter:
     """
@@ -35,6 +34,49 @@ class GraphMLImporter:
         self.document_nodes_map = {}  # nome documento -> node_id
         self.duplicate_id_map = {}    # id originale -> id deduplicated
 
+    def extract_graph_id_and_code(self, tree):
+        """
+        Estrae l'ID e il codice del grafo dal file GraphML.
+        
+        Args:
+            tree: ElementTree XML del file GraphML
+            
+        Returns:
+            tuple: (graph_id, graph_code) dove graph_id è l'ID effettivo e graph_code è il codice
+                human-readable (es. VDL16). Entrambi potrebbero essere None se non trovati.
+        """
+        graph_id = None
+        graph_code = None
+        
+        # Cerca nei NodeLabel per trovare l'intestazione del grafo
+        for nodelabel in tree.findall('.//{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
+            RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
+            ColumnNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}ColumnNodeLabelModelParameter')
+            
+            if RowNodeLabelModelParameter is None and ColumnNodeLabelModelParameter is None:
+                try:
+                    stringa_pulita, vocabolario = self.estrai_stringa_e_vocabolario(nodelabel.text)
+                    
+                    # Estrai l'ID (che adesso useremo come codice)
+                    if 'ID' in vocabolario:
+                        graph_code = vocabolario['ID']
+                        print(f"Found graph code: {graph_code}")
+                        
+                        # Per retrocompatibilità, usiamo anche questo come ID se non esiste un ID specifico
+                        if not graph_id:
+                            graph_id = vocabolario['ID']
+                    
+                    # Se c'è un ID specifico nel vocabolario, usalo come ID effettivo
+                    if 'graph_id' in vocabolario:
+                        graph_id = vocabolario['graph_id']
+                        print(f"Found specific graph ID: {graph_id}")
+                        
+                    break
+                except Exception as e:
+                    print(f"Error extracting graph ID from node label: {e}")
+        
+        return graph_id, graph_code
+
     def parse(self):
         """
         Esegue il parsing del file GraphML e popola l'istanza di Graph.
@@ -42,11 +84,31 @@ class GraphMLImporter:
         Returns:
             Graph: Istanza di Graph popolata con nodi e archi dal file GraphML.
         """
+        import uuid
+        
         tree = ET.parse(self.filepath)
+        
+        # Prima estrai il codice del grafo
+        graph_id, graph_code = self.extract_graph_id_and_code(tree)
+        
+        # Se abbiamo trovato un codice, aggiungilo come attributo al grafo
+        if graph_code:
+            self.graph.attributes['graph_code'] = graph_code
+            
+        # Genera un ID univoco per il grafo se non esiste
+        if not graph_id:
+            graph_id = str(uuid.uuid4())
+        
+        # Imposta l'ID univoco nel grafo
+        self.graph.graph_id = graph_id
+        
+        # Memorizza gli ID originali per la mappatura
+        self.id_mapping = {}  # {original_id: uuid_id}
+        
+        # Prosegui con il parsing normale
         self.parse_nodes(tree)
         self.parse_edges(tree)
         self.connect_nodes_to_epochs()
-        #self.graph.display_warnings()
         return self.graph
 
     def parse_nodes(self, tree):
@@ -76,23 +138,44 @@ class GraphMLImporter:
         Args:
             tree (ElementTree): Albero XML del file GraphML.
         """
+        import uuid
+        
         alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
 
         for edge in alledges:
             # Estrazione dei dettagli dell'arco
-            edge_id = str(edge.attrib['id'])
-            edge_source = str(edge.attrib['source'])
-            edge_target = str(edge.attrib['target'])
+            original_edge_id = str(edge.attrib['id'])
+            original_source_id = str(edge.attrib['source'])
+            original_target_id = str(edge.attrib['target'])
             edge_type = self.EM_extract_edge_type(edge)
 
             # Rimappa gli ID duplicati
-            if edge_source in self.duplicate_id_map:
-                edge_source = self.duplicate_id_map[edge_source]
-            if edge_target in self.duplicate_id_map:
-                edge_target = self.duplicate_id_map[edge_target]
+            if original_source_id in self.duplicate_id_map:
+                original_source_id = self.duplicate_id_map[original_source_id]
+            if original_target_id in self.duplicate_id_map:
+                original_target_id = self.duplicate_id_map[original_target_id]
 
-            # Aggiunta dell'arco al grafo
-            self.graph.add_edge(edge_id, edge_source, edge_target, edge_type)
+            # Ottieni gli UUID corrispondenti dalla mappatura
+            source_uuid = self.id_mapping.get(original_source_id)
+            target_uuid = self.id_mapping.get(original_target_id)
+            
+            # Genera un nuovo UUID per l'edge
+            edge_uuid = str(uuid.uuid4())
+
+            if source_uuid is not None and target_uuid is not None:
+                try:
+                    # Aggiunta dell'arco al grafo usando UUID
+                    edge = self.graph.add_edge(edge_uuid, source_uuid, target_uuid, edge_type)
+                    
+                    # Aggiungi attributi di tracciamento all'edge
+                    edge.attributes = edge.attributes if hasattr(edge, 'attributes') else {}
+                    edge.attributes['original_id'] = original_edge_id
+                    edge.attributes['original_source_id'] = original_source_id
+                    edge.attributes['original_target_id'] = original_target_id
+                except Exception as e:
+                    print(f"Error adding edge {original_edge_id} ({edge_type}): {e}")
+            else:
+                print(f"Warning: Could not resolve UUID for edge {original_edge_id} - Source: {original_source_id} -> Target: {original_target_id}")
 
     def process_node_element(self, node_element):
         """
@@ -101,6 +184,15 @@ class GraphMLImporter:
         Args:
             node_element (Element): Elemento nodo XML dal file GraphML.
         """
+
+        # Estrai l'ID originale
+        original_id = self.getnode_id(node_element)
+        
+        # Genera un nuovo UUID per questo nodo
+        uuid_id = str(uuid.uuid4())
+        
+        # Memorizza la mappatura per uso futuro
+        self.id_mapping[original_id] = uuid_id
 
         if self.EM_check_node_us(node_element):
             # Creazione del nodo stratigrafico e aggiunta al grafo
@@ -113,7 +205,20 @@ class GraphMLImporter:
                 name=nodename,
                 description=nodedescription
             )
-            #print(f"Created node {stratigraphic_node.name} with node_type {stratigraphic_node.node_type}")
+
+            # Aggiungi attributi di tracciamento
+            stratigraphic_node.attributes['original_id'] = original_id
+            stratigraphic_node.attributes['graph_id'] = self.graph.graph_id
+            
+            # Prefissa il nome con il codice del grafo se disponibile
+            graph_code = self.graph.attributes.get('graph_code')
+            if graph_code:
+                # Memorizza il nome originale prima di modificarlo
+                stratigraphic_node.attributes['original_name'] = nodename
+                # Creazione del nome prefissato
+                stratigraphic_node.name = f"{graph_code}_{nodename}"
+
+################################## da qui non ho più modificato ma andrebe fatto
 
             # Aggiunta di runtime properties
             stratigraphic_node.attributes['shape'] = nodeshape

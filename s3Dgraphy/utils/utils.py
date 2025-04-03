@@ -176,3 +176,45 @@ def get_material_color(matname, rules_path=None):
         if matname in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD']:
             return (0.5, 0.5, 0.5, 1.0)
         return None
+    
+def get_original_node_id(node):
+    """
+    Recupera l'ID originale di un nodo.
+    
+    Args:
+        node: Il nodo da cui estrarre l'ID originale
+        
+    Returns:
+        str: L'ID originale o l'ID corrente se non disponibile
+    """
+    return node.attributes.get('original_id', node.node_id)
+
+def get_original_node_name(node):
+    """
+    Recupera il nome originale di un nodo (senza prefisso del grafo).
+    
+    Args:
+        node: Il nodo da cui estrarre il nome originale
+        
+    Returns:
+        str: Il nome originale o il nome corrente se non disponibile
+    """
+    return node.attributes.get('original_name', node.name)
+
+def get_graph_code_from_node(node):
+    """
+    Estrae il codice del grafo da un nodo.
+    
+    Args:
+        node: Il nodo da cui estrarre il codice
+        
+    Returns:
+        str: Il codice del grafo o None se non disponibile
+    """
+    # Se il nome è prefissato (contiene _)
+    if '_' in node.name:
+        return node.name.split('_', 1)[0]
+    
+    # Altrimenti, cerca negli attributi
+    return node.attributes.get('graph_code')
+

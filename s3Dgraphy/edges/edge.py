@@ -78,12 +78,12 @@ EDGE_TYPES = {
     },
     "has_license": {
         "label": "Has License",
-        "description": "Indica che una risorsa è soggetta a una licenza specifica."
+        "description": "Indicates that a resource is subject to a specific licence."
     },
 
     "has_embargo": {
         "label": "Has Embargo",
-        "description": "Indica che una licenza ha un embargo temporale associato."
+        "description": "Indicates that a licence has an associated time embargo."
     }
 }
 
@@ -110,6 +110,9 @@ class Edge:
         self.edge_type = edge_type
         self.label = EDGE_TYPES[edge_type]["label"]
         self.description = EDGE_TYPES[edge_type]["description"]
+
+        self.attributes = {}
+
 
     def to_dict(self):
         """

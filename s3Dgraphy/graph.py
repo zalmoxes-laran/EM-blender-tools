@@ -46,7 +46,8 @@ class Graph:
         self.nodes = []
         self.edges = []
         self.warnings = []
-
+        self.attributes = {}
+        
         # Initialize and add geo_position node if not already present
         if not any(node.node_type == "geo_position" for node in self.nodes):
             geo_node = GeoPositionNode(node_id=f"geo_{graph_id}")

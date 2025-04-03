@@ -19,13 +19,8 @@ class EM_import_GraphML(bpy.types.Operator):
 
     def execute(self, context):
         # Setup scene variable
-
         scene = context.scene
         em_tools = scene.em_tools
-
-        # Recupera il file GraphML selezionato tramite l'indice
-        #if self.graphml_index >= 0 and self.graphml_index < len(em_tools):
-        #    graphml = em_tools.graphml_files[self.graphml_index]
 
         if self.graphml_index >= 0 and em_tools.graphml_files[self.graphml_index]:
             # Ottieni il file GraphML selezionato
@@ -49,90 +44,69 @@ class EM_import_GraphML(bpy.types.Operator):
                 show_popup_message(context, "File Error", error_msg, 'ERROR')
                 return {'CANCELLED'}
 
-            # Define a unique graph_id, e.g., based on the file name
-            graph_id = os.path.splitext(os.path.basename(graphml_file))[0]
-            graphml.name = graph_id
-
             # Recupera gli altri percorsi (DosCo, XLSX, EMdb) e normalizzali
             dosco_dir = normalize_path(graphml.dosco_dir) if graphml.dosco_dir else ""
             xlsx_filepath = normalize_path(graphml.xlsx_filepath) if graphml.xlsx_filepath else ""
-            #xlsx_sf_filepath = normalize_path(graphml.xlsx_sf_filepath) if graphml.xlsx_sf_filepath else ""
             emdb_filepath = normalize_path(graphml.emdb_filepath) if graphml.emdb_filepath else ""
-
 
             # Clear Blender Lists
             clear_lists(context)
 
-            # Rimuovi il grafo esistente se presente
             try:
-                remove_graph(graph_id)
-                print(f"Existing graph '{graph_id}' removed successfully.")
-            except KeyError:
-                print(f"No existing graph with ID '{graph_id}' found to remove.")
+                # Carica il grafo - l'ID verrà estratto dal file
+                graph_id = load_graph(graphml_file, overwrite=True)
+                print(f"Graph loaded successfully with ID: {graph_id}")
+                
+                # Ora ottieni il grafo utilizzando l'ID restituito
+                graph_instance = get_graph(graph_id)
 
-            try:
-                # Carica il grafo con overwrite=True
-                load_graph(graphml_file, graph_id=graph_id, overwrite=True)
-                print(f"Graph '{graph_id}' loaded successfully.")
-            except ValueError as e:
+                if graph_instance is None:
+                    error_msg = "Errore: il grafo non è stato caricato correttamente."
+                    self.report({'ERROR'}, error_msg)
+                    show_popup_message(context, "Graph Error", error_msg, 'ERROR')
+                    return {'CANCELLED'}
+
+                # Aggiorna il nome nella UI con l'ID effettivo del grafo
+                graphml.name = graph_instance.graph_id
+                
+                # Aggiorna anche il codice del grafo se disponibile
+                if 'graph_code' in graph_instance.attributes:
+                    graphml.graph_code = graph_instance.attributes['graph_code']
+                
+                print(f"Updated display name to graph ID: {graph_instance.graph_id}")
+                print(f"Graph code: {graphml.graph_code if hasattr(graphml, 'graph_code') else 'Not available'}")
+
+                # Now populate the Blender lists from the graph
+                populate_blender_lists_from_graph(context, graph_instance)
+
+                # verifica post importazione: controlla che il contatore della lista delle UUSS sia nel range (può succedere di ricaricare ed avere una lista più corta di UUSS). In caso di necessità porta a 0 l'indice
+                self.check_index_coherence(scene)
+                
+                # Integrazione di dati esterni: aggiunta dei percorsi effettivi di documenti estrattori e combiners dal DosCo
+                em_settings = bpy.context.window_manager.em_addon_settings
+                if em_settings.overwrite_url_with_dosco_filepath:
+                    inspect_load_dosco_files()
+                
+                #per aggiornare i nomi delle proprietà usando come prefisso in nome del nodo padre
+                self.newnames_forproperties_from_fathernodes(scene)
+                
+                #crea liste derivate per lo streaming dei paradati
+                create_derived_lists(scene.em_list[scene.em_list_index])
+                
+                #setup dei materiali di scena dopo l'importazione del graphml
+                self.post_import_material_setup(context)
+
+                bpy.ops.epoch_manager.update_us_list
+
+                bpy.ops.activity.refresh_list(graphml_index=self.graphml_index)
+
+
+            except Exception as e:
                 error_msg = f"Error loading graph: {e}"
                 print(error_msg)
                 self.report({'ERROR'}, str(e))
                 show_popup_message(context, "Graph Loading Error", str(e), 'ERROR')
                 return {'CANCELLED'}
-            except Exception as e:
-                error_msg = f"Unexpected error loading graph: {e}"
-                print(error_msg)
-                self.report({'ERROR'}, error_msg)
-                show_popup_message(context, "Graph Loading Error", error_msg, 'ERROR')
-                return {'CANCELLED'}
-
-            # Ora ottieni il grafo utilizzando `get_graph(graph_id)`
-            print(f"Getting graph with ID: {graph_id}")
-            graph_instance = get_graph(graph_id)
-
-            if graph_instance is None:
-                error_msg = "Errore: il grafo non è stato caricato correttamente."
-                self.report({'ERROR'}, error_msg)
-                show_popup_message(context, "Graph Error", error_msg, 'ERROR')
-                return {'CANCELLED'}
-
-            # Aggiorna il nome nella UI con l'ID effettivo del grafo
-            graphml.name = graph_instance.graph_id
-            print(f"Updated display name to graph ID: {graph_instance.graph_id}")
-
-            # Now populate the Blender lists from the graph
-            populate_blender_lists_from_graph(context, graph_instance)
-
-            #for reused in scene.em_reused:
-            #    print(f"Reused {reused.em_element} in {reused.epoch}")
-
-            # verifica post importazione: controlla che il contatore della lista delle UUSS sia nel range (può succedere di ricaricare ed avere una lista più corta di UUSS). In caso di necessità porta a 0 l'indice
-            self.check_index_coherence(scene)
-            
-            # Integrazione di dati esterni: aggiunta dei percorsi effettivi di documenti estrattori e combiners dal DosCo
-            em_settings = bpy.context.window_manager.em_addon_settings
-            if em_settings.overwrite_url_with_dosco_filepath:
-                inspect_load_dosco_files()
-            
-            #per aggiornare i nomi delle proprietà usando come prefisso in nome del nodo padre
-            self.newnames_forproperties_from_fathernodes(scene)
-            
-            #crea liste derivate per lo streaming dei paradati
-            create_derived_lists(scene.em_list[scene.em_list_index])
-            
-            #setup dei materiali di scena dopo l'importazione del graphml
-            self.post_import_material_setup(context)
-
-            bpy.ops.epoch_manager.update_us_list
-
-            bpy.ops.activity.refresh_list(graphml_index=self.graphml_index)
-
-            # After loading the graph
-            #scene.em_graph = graph  # Replace 'loaded_graph' with your graph variable
-
-            # Stampa tutti gli archi di tipo 'is_grouped_in'
-            #\self.print_groups_and_contents(graph_instance)
 
         return {'FINISHED'}
             

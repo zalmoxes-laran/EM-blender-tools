@@ -1232,3 +1232,41 @@ def update_em_list_with_visibility_info(context):
         obj = bpy.data.objects.get(item.name)
         if obj:
             item.is_visible = not obj.hide_viewport
+
+
+def generate_blender_object_name(node):
+    """
+    Genera un nome univoco per un oggetto Blender basato sul nodo.
+    
+    Args:
+        node: Il nodo per cui generare il nome
+        
+    Returns:
+        str: Il nome univoco per l'oggetto Blender
+    """
+    # Se il nome è già prefissato, usalo direttamente
+    if '_' in node.name:
+        return node.name
+    
+    # Altrimenti, costruisci il nome con il prefisso
+    prefix = ""
+    graph_code = node.attributes.get('graph_code')
+    
+    if graph_code:
+        prefix = f"{graph_code}_"
+    else:
+        # Prova a ricavare il codice dal graph_id
+        graph_id = node.attributes.get('graph_id')
+        if graph_id:
+            # Usa le prime lettere dell'ID per un prefisso sintetico
+            prefix = f"{graph_id[:5]}_"
+    
+    # Se non abbiamo un prefisso, usa il nome direttamente
+    if not prefix:
+        return node.name
+    
+    # Assicurati che il nome non superi i limiti di Blender
+    max_name_length = 60 - len(prefix)
+    safe_name = node.name[:max_name_length]
+    
+    return f"{prefix}{safe_name}"

@@ -61,6 +61,12 @@ class EMToolsProperties(bpy.types.PropertyGroup):
     emdb_filepath: bpy.props.StringProperty(name="EMdb File (sqlite)", subtype='FILE_PATH') # type: ignore
     is_graph: bpy.props.BoolProperty(name="Graph Exists", default=False)  # type: ignore # Aggiungi questa riga
 
+    graph_code: bpy.props.StringProperty(
+        name="Graph Code",
+        description="Human-readable code for the graph (e.g. VDL16)",
+        default=""
+    ) # type: ignore
+
     auxiliary_files: bpy.props.CollectionProperty(type=AuxiliaryFileProperties) # type: ignore
     active_auxiliary_index: bpy.props.IntProperty() # type: ignore
 
@@ -401,6 +407,11 @@ class EM_SetupPanel(bpy.types.Panel):
                 # Path to GraphML
                 row = layout.row(align=True)
                 row.prop(active_file, "graphml_path", text="Path")
+
+                # Graph Code (if available)
+                if hasattr(active_file, 'graph_code') and active_file.graph_code:
+                    row = layout.row(align=True)
+                    row.prop(active_file, "graph_code", text="Graph Code")
 
                 # Expanded settings
                 box = layout.box()
