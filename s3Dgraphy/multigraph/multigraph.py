@@ -17,7 +17,7 @@ class MultiGraphManager:
             overwrite (bool): Se sovrascrivere un grafo esistente con lo stesso ID
         
         Returns:
-            Graph: L'istanza del grafo caricato
+            str: L'ID del grafo caricato
         """
         print(f"Loading graph: {filepath}, graph_id: {graph_id}, overwrite: {overwrite}")
 
@@ -25,7 +25,10 @@ class MultiGraphManager:
         # il codice qui
         
         # Crea un grafo temporaneo per leggere preliminarmente l'ID
-
+        import os
+        import xml.etree.ElementTree as ET
+        from ..importer.import_graphml import GraphMLImporter
+        
         temp_graph = Graph(graph_id="temp")
         importer = GraphMLImporter(filepath, temp_graph)
         
@@ -38,12 +41,10 @@ class MultiGraphManager:
                     graph_id = extracted_id
                     print(f"Using graph ID from file: {graph_id}")
                 else:
-                    import os
                     # Fallback al nome del file
                     graph_id = os.path.splitext(os.path.basename(filepath))[0]
                     print(f"Using filename as graph ID: {graph_id}")
             except Exception as e:
-                import os
                 print(f"Error extracting graph ID: {e}. Using filename as ID.")
                 graph_id = os.path.splitext(os.path.basename(filepath))[0]
         
@@ -62,7 +63,7 @@ class MultiGraphManager:
         multi_graph_manager.graphs[graph_id] = graph
         print(f"Graph '{graph_id}' loaded successfully with overwrite={overwrite}.")
         
-        return graph
+        return graph_id
 
     def get_graph(self, graph_id):
         return self.graphs.get(graph_id)
