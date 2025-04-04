@@ -115,21 +115,29 @@ class GraphMLImporter:
     def parse_nodes(self, tree):
         """
         Esegue il parsing dei nodi dal file GraphML.
-
-        Args:
-            tree (ElementTree): Albero XML del file GraphML.
         """
-        allnodes = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
-
-        for node_element in allnodes:
+        # Prima raccogli tutti gli ID dei nodi per identificare potenziali duplicati
+        all_node_ids = {}  # {node_id: count}
+        
+        for node_element in tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node'):
+            node_id = self.getnode_id(node_element)
+            all_node_ids[node_id] = all_node_ids.get(node_id, 0) + 1
+        
+        # Registra i nodi con più occorrenze
+        duplicate_ids = {node_id for node_id, count in all_node_ids.items() if count > 1}
+        if duplicate_ids:
+            print(f"Attenzione: rilevati {len(duplicate_ids)} ID di nodi duplicati nel file GraphML:")
+            for node_id in duplicate_ids:
+                print(f"  - {node_id}")
+        
+        # Ora processa i nodi normalmente
+        for node_element in tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node'):
             node_type = self._check_node_type(node_element)
             if node_type == 'node_simple':
                 self.process_node_element(node_element)
             elif node_type == 'node_swimlane':
-                # Parsing dei nodi EpochNode
                 self.extract_epochs(node_element, self.graph)
             elif node_type == 'node_group':
-                # Parsing dei nodi Group
                 self.handle_group_node(node_element)
 
     def parse_edges(self, tree):
@@ -210,9 +218,17 @@ class GraphMLImporter:
             node_element (Element): Elemento nodo XML dal file GraphML.
         """
 
+        node_counter = getattr(self, '_node_counter', 0)
+        self._node_counter = node_counter + 1
+
         # Estrai l'ID originale
         original_id = self.getnode_id(node_element)
         
+        # Se abbiamo già mappato questo ID originale, non creare un nuovo nodo
+        if original_id in self.id_mapping:
+            print(f"Skipping already processed node with original ID: {original_id}")
+            return
+
         # Genera un nuovo UUID per questo nodo
         uuid_id = str(uuid.uuid4())
         
@@ -248,6 +264,9 @@ class GraphMLImporter:
             stratigraphic_node.attributes['y_pos'] = float(node_y_pos)
             stratigraphic_node.attributes['fill_color'] = fillcolor
             stratigraphic_node.attributes['border_style'] = borderstyle
+
+            print(f"Node {self._node_counter}: {stratigraphic_node.node_id} (Original ID: {original_id}, Type: {stratigraphic_node.node_type})")
+
             self.graph.add_node(stratigraphic_node)
 
         elif self.EM_check_node_document(node_element):
@@ -399,6 +418,8 @@ class GraphMLImporter:
                 description=""
             )
             self.graph.add_node(generic_node)
+
+
 
     def _create_link_node(self, source_node, url):
         """
