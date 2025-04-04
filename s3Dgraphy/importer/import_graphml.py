@@ -33,6 +33,7 @@ class GraphMLImporter:
         # Dizionario per la deduplicazione dei nodi documento
         self.document_nodes_map = {}  # nome documento -> node_id
         self.duplicate_id_map = {}    # id originale -> id deduplicated
+        self.id_mapping = {}          # id originale -> uuid
 
     def extract_graph_id_and_code(self, tree):
         """
@@ -148,7 +149,7 @@ class GraphMLImporter:
             original_source_id = str(edge.attrib['source'])
             original_target_id = str(edge.attrib['target'])
             edge_type = self.EM_extract_edge_type(edge)
-
+            
             # Rimappa gli ID duplicati
             if original_source_id in self.duplicate_id_map:
                 original_source_id = self.duplicate_id_map[original_source_id]
@@ -158,7 +159,7 @@ class GraphMLImporter:
             # Ottieni gli UUID corrispondenti dalla mappatura
             source_uuid = self.id_mapping.get(original_source_id)
             target_uuid = self.id_mapping.get(original_target_id)
-            
+
             # Genera un nuovo UUID per l'edge
             edge_uuid = str(uuid.uuid4())
 
@@ -201,7 +202,7 @@ class GraphMLImporter:
             stratigraphic_type = convert_shape2type(nodeshape, borderstyle)[0]
             node_class = get_stratigraphic_node_class(stratigraphic_type)  # Ottieni la classe usando la funzione
             stratigraphic_node = node_class(
-                node_id=self.getnode_id(node_element),
+                node_id=uuid_id,
                 name=nodename,
                 description=nodedescription
             )
@@ -238,7 +239,7 @@ class GraphMLImporter:
             else:
                 # Crea nuovo documento e registralo
                 document_node = DocumentNode(
-                    node_id=node_id,
+                    node_id=uuid_id,
                     name=nodename,
                     description=nodedescription,
                     url=nodeurl
@@ -255,7 +256,7 @@ class GraphMLImporter:
                     document_node.name = f"{graph_code}_{nodename}"
 
                 self.graph.add_node(document_node)
-                self.document_nodes_map[nodename] = node_id
+                self.document_nodes_map[nodename] = uuid_id  # Salva l'ID del nodo documento per deduplicazione futura
                 # Se c'è un URL valido, crea un nodo Link
                 if nodeurl and nodeurl.strip() != 'Empty':
                     link_node = self._create_link_node(document_node, nodeurl)
@@ -264,7 +265,7 @@ class GraphMLImporter:
             # Creazione del nodo proprietà e aggiunta al grafo
             nodename, node_id, nodedescription, nodeurl, _ = self.EM_extract_property_node(node_element)
             property_node = PropertyNode(
-                node_id=node_id,
+                node_id=uuid_id,
                 name=nodename,
                 description=nodedescription,
                 value=nodeurl,
@@ -288,7 +289,7 @@ class GraphMLImporter:
             # Creazione del nodo extractor e aggiunta al grafo
             nodename, node_id, nodedescription, nodeurl, _ = self.EM_extract_extractor_node(node_element)
             extractor_node = ExtractorNode(
-                node_id=node_id,
+                node_id=uuid_id,
                 name=nodename,
                 description=nodedescription,
                 source=nodeurl
@@ -314,7 +315,7 @@ class GraphMLImporter:
             # Creazione del nodo combiner e aggiunta al grafo
             nodename, node_id, nodedescription, nodeurl, _ = self.EM_extract_combiner_node(node_element)
             combiner_node = CombinerNode(
-                node_id=node_id,
+                node_id=uuid_id,
                 name=nodename,
                 description=nodedescription,
                 sources=[nodeurl]
@@ -336,7 +337,7 @@ class GraphMLImporter:
             # Creazione del nodo continuity e aggiunta al grafo
             nodedescription, node_y_pos, node_id = self.EM_extract_continuity(node_element)
             continuity_node = ContinuityNode(
-                node_id=node_id,
+                node_id=uuid_id,
                 name="continuity_node",
                 #stratigraphic_type="BR",
                 description=nodedescription
@@ -349,7 +350,7 @@ class GraphMLImporter:
             node_id = self.getnode_id(node_element)
             node_name = self.EM_extract_generic_node_name(node_element)
             generic_node = Node(
-                node_id=node_id,
+                node_id=uuid_id,
                 name=node_name,
                 #node_type="Generic",
                 description=""
@@ -405,8 +406,13 @@ class GraphMLImporter:
         Args:
             node_element (Element): Elemento nodo XML dal file GraphML.
         """
+        
+        # Estrarre l'ID originale, il nome e la descrizione del gruppo
+        original_id = self.getnode_id(node_element)
+        uuid_id = str(uuid.uuid4())
+        self.id_mapping[original_id] = uuid_id        
+        
         # Estrarre l'ID, il nome e la descrizione del gruppo
-        group_id = self.getnode_id(node_element)
         group_name = self.EM_extract_group_node_name(node_element)
         group_description = self.EM_extract_group_node_description(node_element)
         group_background_color = self.EM_extract_group_node_background_color(node_element)
@@ -417,32 +423,36 @@ class GraphMLImporter:
 
         if group_node_type == 'ActivityNodeGroup':
             group_node = ActivityNodeGroup(
-                node_id=group_id,
+                node_id=uuid_id,
                 name=group_name,
                 description=group_description,
                 y_pos=group_y_pos
             )
         elif group_node_type == 'ParadataNodeGroup':
             group_node = ParadataNodeGroup(
-                node_id=group_id,
+                node_id=uuid_id,
                 name=group_name,
                 description=group_description,
                 y_pos=group_y_pos
             )
         elif group_node_type == 'TimeBranchNodeGroup':
             group_node = TimeBranchNodeGroup(
-                node_id=group_id,
+                node_id=uuid_id,
                 name=group_name,
                 description=group_description,
                 y_pos=group_y_pos
             )
         else:
             group_node = GroupNode(
-                node_id=group_id,
+                node_id=uuid_id,
                 name=group_name,
                 description=group_description,
                 y_pos=group_y_pos
             )
+
+        # Aggiungi attributi di tracciamento
+        group_node.attributes['original_id'] = original_id
+        group_node.attributes['graph_id'] = self.graph.graph_id
 
         # Aggiungere il nodo gruppo al grafo
         self.graph.add_node(group_node)
@@ -452,7 +462,7 @@ class GraphMLImporter:
         if subgraph is not None:
             subnodes = subgraph.findall('{http://graphml.graphdrawing.org/xmlns}node')
             for subnode in subnodes:
-                subnode_id = self.getnode_id(subnode)
+                subnode_original_id = self.getnode_id(subnode)
                 subnode_type = self._check_node_type(subnode)
                 if subnode_type == 'node_simple':
                     # Processare e aggiungere il nodo al grafo
@@ -464,38 +474,37 @@ class GraphMLImporter:
                     # Gestire i nodi EpochNode se necessario
                     self.extract_epochs(subnode, self.graph)
 
-                # Creare l'arco appropriato in base al tipo di gruppo
-                if not self.graph.find_edge_by_nodes(subnode_id, group_id):
-                    # Ottieni il nodo gruppo e il nodo figlio
-                    sub_node = self.graph.find_node_by_id(subnode_id)
+                # Qui devi usare la mappatura UUID per creare l'arco
+                if subnode_original_id in self.id_mapping:
+                    subnode_uuid = self.id_mapping[subnode_original_id]
                     
-                    if sub_node:
-                        # Determina il tipo di edge in base al tipo di gruppo
-                        edge_type = "generic_connection"  # Fallback sicuro
-                        
-                        if group_node_type == "ActivityNodeGroup":
-                            edge_type = "is_in_activity"
-                            edge_id_prefix = "is_in_activity"
-                        elif group_node_type == "ParadataNodeGroup":
-                            edge_type = "is_in_paradata_nodegroup"
-                            edge_id_prefix = "is_in_paradata_nodegroup"
-                        elif group_node_type == "TimeBranchNodeGroup":
-                            edge_type = "is_in_timebranch"
-                            edge_id_prefix = "is_in_timebranch"
-                        else:
-                            # Per altri tipi di gruppo non specificati
-                            edge_id_prefix = "grouped_in"
-                        
-                        # Crea l'edge con il tipo appropriato
-                        edge_id = f"{subnode_id}_{edge_id_prefix}_{group_id}"
+                    # Creare l'arco appropriato in base al tipo di gruppo
+                    edge_type = "generic_connection"  # Fallback sicuro
+                    
+                    if group_node_type == "ActivityNodeGroup":
+                        edge_type = "is_in_activity"
+                        edge_id_prefix = "is_in_activity"
+                    elif group_node_type == "ParadataNodeGroup":
+                        edge_type = "is_in_paradata_nodegroup"
+                        edge_id_prefix = "is_in_paradata_nodegroup"
+                    elif group_node_type == "TimeBranchNodeGroup":
+                        edge_type = "is_in_timebranch"
+                        edge_id_prefix = "is_in_timebranch"
+                    else:
+                        # Per altri tipi di gruppo non specificati
+                        edge_id_prefix = "grouped_in"
+                    
+                    # Crea l'edge con gli UUID
+                    edge_id = f"{subnode_uuid}_{edge_id_prefix}_{uuid_id}"
+                    try:
                         self.graph.add_edge(
                             edge_id=edge_id,
-                            edge_source=subnode_id,
-                            edge_target=group_id,
+                            edge_source=subnode_uuid,  # Usa UUID
+                            edge_target=uuid_id,      # Usa UUID
                             edge_type=edge_type
                         )
-                        
-                        #print(f"Created edge: {sub_node.node_type} -{edge_type}-> {group_node_type}")
+                    except Exception as e:
+                        print(f"Error creating edge from {subnode_uuid} to {uuid_id}: {e}")
 
     def extract_epochs(self, node_element, graph):
         """
@@ -512,27 +521,26 @@ class GraphMLImporter:
         y_max = y_start
 
         for row in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}Table/{http://www.yworks.com/xml/graphml}Rows/{http://www.yworks.com/xml/graphml}Row'):
-            id_row = row.attrib['id']
+            original_id = row.attrib['id']
+            uuid_id = str(uuid.uuid4())
+            self.id_mapping[original_id] = uuid_id
+            
             h_row = float(row.attrib['height'])
-
-            #for attribrow in row.attrib:
-            #    print(f"Attibuto: {attribrow}")
-            #print(f"Il testo dela row è: {row.text}")
 
             y_min = y_max
             y_max += h_row
 
             epoch_node = EpochNode(
-                node_id=id_row,
+                node_id=uuid_id,
                 name="temp",
                 start_time=-10000,
                 end_time=10000
             )
+        
+            epoch_node.attributes['original_id'] = original_id  # Traccia l'ID originale
             epoch_node.min_y = y_min
             epoch_node.max_y = y_max
             self.graph.add_node(epoch_node)
-            #print(f"Ho creato un nodo epoca con id {id_row}")
-
 
         for nodelabel in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
             RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
