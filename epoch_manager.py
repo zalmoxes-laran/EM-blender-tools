@@ -521,6 +521,19 @@ class EM_UpdateUSListOperator(bpy.types.Operator):
 
 def update_filtered_lists_if_needed(self, context):
     # Aggiorna la lista US per la visualizzazione nell'altro pannello
+    scene = context.scene
+    
+    # Controllo di sicurezza: verifica che la lista epoch_list esista e che l'indice sia valido
+    if len(scene.epoch_list) == 0:
+        # Reset dell'indice a 0 se non ci sono epoche
+        scene.epoch_list_index = 0
+        return  # Non c'è nulla da aggiornare
+    
+    # Verifica che l'indice sia in range
+    if scene.epoch_list_index >= len(scene.epoch_list):
+        scene.epoch_list_index = 0
+    
+    # Ora procedi con l'aggiornamento standard
     bpy.ops.epoch_manager.update_us_list()
     
     # Se il filtro per epoca è attivo, aggiorna anche la lista principale

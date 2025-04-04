@@ -15,16 +15,15 @@ from .s3Dgraphy.nodes.epoch_node import EpochNode  # Import diretto
 def get_connected_epoch_for_node(graph, node):
     """
     Trova l'epoca collegata a un nodo.
-    
-    Args:
-        graph: L'istanza del grafo
-        node: Il nodo per cui cercare l'epoca
-        
-    Returns:
-        str: Il nome dell'epoca o None se non trovata
     """
+    # Accedi all'ID originale tramite gli attributi
+    node_id_to_check = node.attributes.get('original_id', node.node_id)
+    
     for edge in graph.edges:
-        if edge.edge_source == node.node_id and edge.edge_type in ['has_first_epoch', 'survive_in_epoch']:
+        # Controlla prima gli attributi per l'ID originale della sorgente
+        edge_source = edge.attributes.get('original_source_id', edge.edge_source)
+        
+        if edge_source == node_id_to_check and edge.edge_type in ['has_first_epoch', 'survive_in_epoch']:
             target_node = graph.find_node_by_id(edge.edge_target)
             if target_node and hasattr(target_node, 'node_type') and target_node.node_type == 'epoch':
                 return target_node.name
@@ -64,7 +63,7 @@ def populate_blender_lists_from_graph(context, graph):
         item.name = node.name
         
         # Memorizza l'ID del nodo per riferimenti incrociati
-        item.id_node = node.node_id
+        item.id_node = node.attributes.get('original_id', node.node_id)
         item.description = node.description
         
         # Memorizza il tipo di nodo per riferimenti futuri

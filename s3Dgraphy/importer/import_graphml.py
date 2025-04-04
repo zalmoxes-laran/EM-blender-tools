@@ -250,7 +250,6 @@ class GraphMLImporter:
             stratigraphic_node.attributes['border_style'] = borderstyle
             self.graph.add_node(stratigraphic_node)
 
-
         elif self.EM_check_node_document(node_element):
             # Creazione del nodo documento e aggiunta al grafo
             nodename, node_id, nodedescription, nodeurl, _ = self.EM_extract_document_node(node_element)

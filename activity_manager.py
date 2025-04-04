@@ -101,7 +101,7 @@ class ACTIVITY_OT_refresh_list(Operator):
 class ActivityManagerProperties(PropertyGroup):
     activities: CollectionProperty(type=ActivityItem) # type: ignore
     active_index: IntProperty(
-        update=lambda self, context: update_filtered_lists_if_needed(self, context)
+        update=lambda self, context: update_activity_filtered_lists_if_needed(self, context)
     ) # type: ignore
 
 
@@ -131,7 +131,7 @@ class VIEW3D_PT_activity_manager(Panel):
         )
 
 
-def update_filtered_lists_if_needed(self, context):
+def update_activity_filtered_lists_if_needed(self, context):
     # Se il filtro per attività è attivo, aggiorna la lista principale
     if context.scene.filter_by_activity:
         bpy.ops.em.filter_lists()
