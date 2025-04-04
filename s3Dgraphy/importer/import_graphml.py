@@ -135,49 +135,73 @@ class GraphMLImporter:
     def parse_edges(self, tree):
         """
         Esegue il parsing degli archi dal file GraphML.
-
-        Args:
-            tree (ElementTree): Albero XML del file GraphML.
         """
-        import uuid
-        
         alledges = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}edge')
-
+        print(f"Found {len(alledges)} edges in GraphML")
+        
+        # Prima traccia tutti gli ID originali e le loro relazioni
+        edge_original_mappings = []
+        
         for edge in alledges:
-            # Estrazione dei dettagli dell'arco
             original_edge_id = str(edge.attrib['id'])
             original_source_id = str(edge.attrib['source'])
             original_target_id = str(edge.attrib['target'])
             edge_type = self.EM_extract_edge_type(edge)
             
-            # Rimappa gli ID duplicati
+            # Gestisci gli ID duplicati
             if original_source_id in self.duplicate_id_map:
+                print(f"Remapping source: {original_source_id} -> {self.duplicate_id_map[original_source_id]}")
                 original_source_id = self.duplicate_id_map[original_source_id]
             if original_target_id in self.duplicate_id_map:
+                print(f"Remapping target: {original_target_id} -> {self.duplicate_id_map[original_target_id]}")
                 original_target_id = self.duplicate_id_map[original_target_id]
-
-            # Ottieni gli UUID corrispondenti dalla mappatura
+            
+            # Salva le mappature originali
+            edge_original_mappings.append({
+                'original_edge_id': original_edge_id,
+                'original_source_id': original_source_id,
+                'original_target_id': original_target_id,
+                'edge_type': edge_type
+            })
+        
+        # Ora crea gli archi usando gli UUID
+        for mapping in edge_original_mappings:
+            original_edge_id = mapping['original_edge_id']
+            original_source_id = mapping['original_source_id'] 
+            original_target_id = mapping['original_target_id']
+            edge_type = mapping['edge_type']
+            
+            # Ottieni gli UUID corrispondenti
             source_uuid = self.id_mapping.get(original_source_id)
             target_uuid = self.id_mapping.get(original_target_id)
-
-            # Genera un nuovo UUID per l'edge
-            edge_uuid = str(uuid.uuid4())
-
+            
             if source_uuid is not None and target_uuid is not None:
                 try:
-                    # Aggiunta dell'arco al grafo usando UUID
+                    # Genera un nuovo UUID per l'edge
+                    edge_uuid = str(uuid.uuid4())
+                    
+                    # Crea l'arco
                     edge = self.graph.add_edge(edge_uuid, source_uuid, target_uuid, edge_type)
                     
-                    # Aggiungi attributi di tracciamento all'edge
+                    # Aggiungi attributi di tracciamento
                     edge.attributes = edge.attributes if hasattr(edge, 'attributes') else {}
-                    edge.attributes['original_id'] = original_edge_id
+                    edge.attributes['original_edge_id'] = original_edge_id
                     edge.attributes['original_source_id'] = original_source_id
                     edge.attributes['original_target_id'] = original_target_id
+                    
+                    print(f"Created edge {edge_uuid}: {original_edge_id} ({source_uuid} -> {target_uuid})")
+                    
                 except Exception as e:
                     print(f"Error adding edge {original_edge_id} ({edge_type}): {e}")
             else:
-                print(f"Warning: Could not resolve UUID for edge {original_edge_id} - Source: {original_source_id} -> Target: {original_target_id}")
-
+                # Report specifico sulla mappatura mancante
+                if source_uuid is None:
+                    print(f"Missing source UUID for edge {original_edge_id}: {original_source_id}")
+                if target_uuid is None:
+                    print(f"Missing target UUID for edge {original_edge_id}: {original_target_id}")
+                
+                print(f"Warning: Could not create edge {original_edge_id} - Source: {original_source_id} -> Target: {original_target_id}")
+                
     def process_node_element(self, node_element):
         """
         Processa un elemento nodo dal file GraphML e lo aggiunge al grafo.
@@ -231,32 +255,52 @@ class GraphMLImporter:
             # Creazione del nodo documento e aggiunta al grafo
             nodename, node_id, nodedescription, nodeurl, _ = self.EM_extract_document_node(node_element)
             # Controlla se esiste già un documento con lo stesso nome
+
             if nodename in self.document_nodes_map:
-                # Usa il nodo documento esistente
-                existing_doc_id = self.document_nodes_map[nodename]
-                self.duplicate_id_map[node_id] = existing_doc_id
-                print(f"Deduplicating document node: {nodename} (ID: {node_id} -> {existing_doc_id})")
+                # Ottieni UUID del documento esistente
+                existing_uuid = self.document_nodes_map[nodename]
+                
+                # Cerca il nodo documento esistente
+                existing_doc = self.graph.find_node_by_id(existing_uuid)
+                
+                if existing_doc and hasattr(existing_doc, 'attributes'):
+                    # Ottieni l'ID originale del documento esistente
+                    existing_original_id = existing_doc.attributes.get('original_id')
+                    
+                    if existing_original_id:
+                        # Mappa l'ID originale del nuovo documento all'ID originale del documento esistente
+                        self.duplicate_id_map[original_id] = existing_original_id
+                        print(f"Deduplicating document node: {nodename} (Original ID: {original_id} -> {existing_original_id})")
+                    else:
+                        # Non è stato possibile ottenere l'ID originale, usa l'UUID direttamente
+                        self.duplicate_id_map[original_id] = existing_uuid
+                        print(f"Deduplicating document node: {nodename} (Original ID: {original_id} -> UUID: {existing_uuid})")
+                else:
+                    # Non è stato possibile trovare il documento esistente, usa l'UUID direttamente
+                    self.duplicate_id_map[original_id] = existing_uuid
+                    print(f"Deduplicating document node: {nodename} (ID: {original_id} -> {existing_uuid})")
             else:
-                # Crea nuovo documento e registralo
+                # Crea nuovo documento
                 document_node = DocumentNode(
                     node_id=uuid_id,
                     name=nodename,
                     description=nodedescription,
                     url=nodeurl
                 )
-
-                # Per DocumentNode
+                
+                # Aggiungi attributi di tracciamento
                 document_node.attributes['original_id'] = original_id
                 document_node.attributes['graph_id'] = self.graph.graph_id
-
-                # Prefissa il nome con il codice del grafo
+                
+                # Prefissa il nome
                 graph_code = self.graph.attributes.get('graph_code')
                 if graph_code:
                     document_node.attributes['original_name'] = nodename
                     document_node.name = f"{graph_code}_{nodename}"
-
+                
+                # Aggiungi al grafo e memorizza UUID
                 self.graph.add_node(document_node)
-                self.document_nodes_map[nodename] = uuid_id  # Salva l'ID del nodo documento per deduplicazione futura
+                self.document_nodes_map[nodename] = uuid_id
                 # Se c'è un URL valido, crea un nodo Link
                 if nodeurl and nodeurl.strip() != 'Empty':
                     link_node = self._create_link_node(document_node, nodeurl)
@@ -696,25 +740,81 @@ class GraphMLImporter:
         # Definisce i tipi di nodi stratigrafici fisici che possono estendersi fino all'ultima epoca
         list_of_physical_stratigraphic_nodes = ["US", "serSU"]
 
-        # Assegna le epoche ai nodi
-        #for node in (node for node in self.graph.nodes if isinstance(node, (StratigraphicNode, GroupNode))): PRECEDENTEMENTE associavo anche i nodi di gruppo alle epoche. Ora non più.
-        for node in (node for node in self.graph.nodes if isinstance(node, (StratigraphicNode))):
-            connected_continuity_node = self.graph.get_connected_node_by_type(node, "BR")
-
-            for epoch in (n for n in self.graph.nodes if isinstance(n, EpochNode)):
+        # Crea indici per accesso rapido
+        epochs = [n for n in self.graph.nodes if hasattr(n, 'node_type') and n.node_type == "epoch"]
+        
+        # Crea un dizionario inverso per mappare UUID a ID originali
+        reverse_mapping = {}
+        for orig_id, uuid in self.id_mapping.items():
+            reverse_mapping[uuid] = orig_id
+        
+        # Debug info
+        print(f"Connect nodes to epochs: {len(self.graph.nodes)} nodes, {len(epochs)} epochs")
+        
+        # Usa una mappatura diretta per trovare i nodi continuity collegati a nodi stratigrafici
+        continuity_connections = {}  # orig_source_id -> continuity_node
+        
+        # Prima identifica le connessioni continuity dagli archi originali dal file GraphML
+        for edge in self.graph.edges:
+            # Prendi source e target originali dall'edge se disponibili
+            if hasattr(edge, 'attributes'):
+                orig_source_id = edge.attributes.get('original_source_id')
+                orig_target_id = edge.attributes.get('original_target_id')
+                
+                if orig_source_id and orig_target_id:
+                    # Verifica se il target è un nodo continuity
+                    target_node = self.graph.find_node_by_id(edge.edge_target)
+                    if target_node and hasattr(target_node, 'node_type') and target_node.node_type == "BR":
+                        continuity_connections[orig_source_id] = target_node
+                        print(f"Found continuity connection: {orig_source_id} -> {target_node.node_id}")
+        
+        # Per ogni nodo stratigrafico
+        for node in self.graph.nodes:
+            if not hasattr(node, 'attributes') or not 'y_pos' in node.attributes:
+                continue
+                
+            # Ottieni ID originale
+            orig_node_id = node.attributes.get('original_id')
+            if not orig_node_id:
+                orig_node_id = reverse_mapping.get(node.node_id)
+                
+            if not orig_node_id:
+                print(f"Warning: Could not find original ID for node {node.node_id}")
+                continue
+                
+            # Cerca il nodo continuity collegato
+            connected_continuity_node = None
+            if orig_node_id in continuity_connections:
+                connected_continuity_node = continuity_connections[orig_node_id]
+                print(f"Found continuity for node {node.name} ({node.node_id}): {connected_continuity_node.node_id}")
+            
+            # Connetti alle epoche appropriate
+            for epoch in epochs:
                 if epoch.min_y < node.attributes['y_pos'] < epoch.max_y:
-                    edge_id = f"{node.node_id}_{epoch.name}"
-                    self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "has_first_epoch")
-
-                elif connected_continuity_node:
+                    edge_id = f"{node.node_id}_{epoch.node_id}_first_epoch"
+                    try:
+                        self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "has_first_epoch")
+                        print(f"Connected node {node.name} to epoch {epoch.name} (first)")
+                    except Exception as e:
+                        print(f"Error connecting node {node.name} to epoch {epoch.name} (first): {e}")
+                    
+                elif connected_continuity_node and hasattr(connected_continuity_node, 'attributes') and 'y_pos' in connected_continuity_node.attributes:
                     if epoch.max_y >= connected_continuity_node.attributes['y_pos'] and epoch.min_y <= node.attributes['y_pos']:
-                        edge_id = f"{node.node_id}_{epoch.name}"
-                        self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch")
-
-                elif (not connected_continuity_node) and (node.node_type in list_of_physical_stratigraphic_nodes):
-                    if node.attributes['y_pos'] > epoch.max_y:
-                        edge_id = f"{node.node_id}_{epoch.name}"
-                        self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch")
+                        edge_id = f"{node.node_id}_{epoch.node_id}_survive"
+                        try:
+                            self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch")
+                            print(f"Connected node {node.name} to epoch {epoch.name} (survive with continuity)")
+                        except Exception as e:
+                            print(f"Error connecting node {node.name} to epoch {epoch.name} (survive): {e}")
+                    
+                elif hasattr(node, 'node_type') and node.node_type in list_of_physical_stratigraphic_nodes:
+                    if node.attributes['y_pos'] < epoch.min_y:  # Node appears before this epoch
+                        edge_id = f"{node.node_id}_{epoch.node_id}_survive"
+                        try:
+                            self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch")
+                            print(f"Connected node {node.name} to epoch {epoch.name} (physical)")
+                        except Exception as e:
+                            print(f"Error connecting node {node.name} to epoch {epoch.name} (physical): {e}")
 
     # Funzioni di supporto per l'estrazione dei dati dai nodi
 
