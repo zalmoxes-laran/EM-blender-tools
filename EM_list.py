@@ -417,12 +417,9 @@ class EM_ToolsPanel:
         obj = context.object
         
         # Aggiungiamo i controlli per i filtri
-        #row = layout.row(align=True)
         box = layout.box()
         row = box.row(align=True)
         row.label(text=" Rows: " + str(len(scene.em_list)))
-
-        #row.label(text="Filters:")
         
         # Verifichiamo che le proprietà esistano prima di usarle
         if hasattr(scene, "filter_by_epoch"):
@@ -441,8 +438,6 @@ class EM_ToolsPanel:
         if hasattr(scene, "sync_list_visibility"):
             row.prop(scene, "sync_list_visibility", text="Sync", 
                     icon='HIDE_OFF' if scene.sync_list_visibility else 'HIDE_ON')
-
-
 
         # Add new toggle for RM sync
         row.prop(scene, "sync_rm_visibility", text="", 
@@ -465,15 +460,28 @@ class EM_ToolsPanel:
 
         box = layout.box()
         row = box.row(align=True)
-        #row = layout.row()
         split = row.split()
         col = split.column()
-        current_epoch = scene.epoch_list[scene.epoch_list_index].name
-        col.label(text=current_epoch, icon="SORTTIME")
+
+        if len(scene.epoch_list) > 0 and scene.epoch_list_index < len(scene.epoch_list):
+                current_epoch = scene.epoch_list[scene.epoch_list_index].name
+                col.label(text=current_epoch, icon="SORTTIME")
+        else:
+            # Solo visualizza un messaggio
+            col.label(text="No epoch", icon="SORTTIME")
+            # Aggiungi un pulsante per resettare l'indice
+            op = col.operator("epoch_manager.reset_index", text="Reset Index", icon="FILE_REFRESH")
+            
+        
         col = split.column()
         if len(scene.activity_manager.activities) > 0:
-            current_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
-            col.label(text=current_activity, icon="NETWORK_DRIVE")
+
+            if len(scene.activity_manager.activities) > 0 and scene.activity_manager.active_index < len(scene.activity_manager.activities):
+                current_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
+                col.label(text=current_activity, icon="NETWORK_DRIVE")
+            else:
+                col.label(text="No activities", icon="WARNING_LARGE")
+
         else:
             col.label(text="No activities", icon="WARNING_LARGE")
 
@@ -483,7 +491,7 @@ class EM_ToolsPanel:
             row.template_list("EM_STRAT_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
             item = scene.em_list[scene.em_list_index]
  
-                   
+                
             box = layout.box()
             row = box.row(align=True)
             split = row.split()
@@ -494,7 +502,6 @@ class EM_ToolsPanel:
             split = row.split()
             col = split.column()
             row.label(text="  Type: "+item.node_type)
-            #row.prop(item, "node_type", text="")
 
             # Aggiunta toggle visibilità
             if hasattr(item, "is_visible"):
@@ -512,8 +519,6 @@ class EM_ToolsPanel:
             
             row = box.row()
             row.prop(item, "description", text="", slider=True, emboss=True)
-
-
 
             if scene.em_settings.em_proxy_sync is True:
                 if obj is not None:
