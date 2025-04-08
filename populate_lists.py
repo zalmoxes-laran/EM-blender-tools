@@ -37,14 +37,12 @@ def populate_blender_lists_from_graph(context, graph):
         context: Il contesto Blender
         graph: L'istanza del grafo
     """
-    from .s3Dgraphy.utils.utils import get_original_node_name, get_graph_code_from_node
-    
     scene = context.scene
     
     # Memorizza il codice del grafo per riferimenti futuri
     graph_code = graph.attributes.get('graph_code')
 
-    # Inizializza gli indici delle liste lo tengo ??########
+    # Inizializza gli indici delle liste
     em_list_index_ema = 0
     em_sources_index_ema = 0
     em_properties_index_ema = 0
@@ -53,55 +51,62 @@ def populate_blender_lists_from_graph(context, graph):
     em_edges_index_ema = 0
     em_epoch_list_ema = 0
     em_reused_index_ema = 0
-    ##########
-
-        # Popolamento delle liste
-    for node in [n for n in graph.nodes if hasattr(n, 'node_type') and n.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']]:
-        item = scene.em_list.add()
-        
-        # Usa il nome del nodo (che potrebbe già includere il prefisso)
-        item.name = node.name
-        
-        # Memorizza l'ID del nodo per riferimenti incrociati
-        item.id_node = node.attributes.get('original_id', node.node_id)
-        item.description = node.description
-        
-        # Memorizza il tipo di nodo per riferimenti futuri
-        item.node_type = node.node_type
-        
-        # Estrai informazioni aggiuntive dagli attributi
-        item.shape = node.attributes.get('shape', '')
-        item.y_pos = node.attributes.get('y_pos', 0.0)
-        item.fill_color = node.attributes.get('fill_color', '#FFFFFF')
-        item.border_style = node.attributes.get('border_style', '#000000')
-        
-        # Imposta l'icona in base alla presenza dell'oggetto in scena
-        item.icon = check_objs_in_scene_and_provide_icon_for_list_element(item.name)
-        
-        # Recupera l'epoca del nodo
-        connected_epoch = get_connected_epoch_for_node(graph, node)
-        item.epoch = connected_epoch if connected_epoch else "Unknown"
-
+    
+    # Classifica i nodi per tipo
+    stratigraphic_nodes = []
+    document_nodes = []
+    property_nodes = []
+    extractor_nodes = []
+    combiner_nodes = []
+    epoch_nodes = []
+    
+    for node in graph.nodes:
+        if hasattr(node, 'node_type'):
+            if node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']:
+                stratigraphic_nodes.append(node)
+            elif node.node_type == "document":
+                document_nodes.append(node)
+            elif node.node_type == "property":
+                property_nodes.append(node)
+            elif node.node_type == "extractor":
+                extractor_nodes.append(node)
+            elif node.node_type == "combiner":
+                combiner_nodes.append(node)
+            elif node.node_type == "epoch":
+                epoch_nodes.append(node)
+    
+    # Popola le liste con i nodi classificati
+    
+    # 1. Nodi stratigrafici
+    for node in stratigraphic_nodes:
         if isinstance(node, StratigraphicNode):
-            populate_stratigraphic_node(scene, node, em_list_index_ema, graph)
-            em_list_index_ema += 1
+            em_list_index_ema = populate_stratigraphic_node(scene, node, em_list_index_ema, graph)
             em_reused_index_ema = populate_reuse_US_table(scene, node, em_reused_index_ema, graph)
-        elif isinstance(node, DocumentNode):
-            em_sources_index_ema = populate_document_node(scene, node, em_sources_index_ema)
-            em_sources_index_ema +=1
-        elif isinstance(node, PropertyNode):
-            em_properties_index_ema = populate_property_node(scene, node, em_properties_index_ema)
-            em_properties_index_ema +=1
-        elif isinstance(node, ExtractorNode):
-            em_extractors_index_ema = populate_extractor_node(scene, node, em_extractors_index_ema)
-            em_extractors_index_ema +=1
-        elif isinstance(node, CombinerNode):
-            em_combiners_index_ema = populate_combiner_node(scene, node, em_combiners_index_ema)
-            em_combiners_index_ema +=1
-        elif isinstance(node, EpochNode):
-            em_epoch_list_ema = populate_epoch_node(scene, node, em_epoch_list_ema)
+    
+    # 2. Nodi documento
+    for node in document_nodes:
+        em_sources_index_ema = populate_document_node(scene, node, em_sources_index_ema)
+    
+    # 3. Nodi proprietà
+    for node in property_nodes:
+        em_properties_index_ema = populate_property_node(scene, node, em_properties_index_ema)
+    
+    # 4. Nodi estrattore
+    for node in extractor_nodes:
+        em_extractors_index_ema = populate_extractor_node(scene, node, em_extractors_index_ema)
+    
+    # 5. Nodi combinatore
+    for node in combiner_nodes:
+        em_combiners_index_ema = populate_combiner_node(scene, node, em_combiners_index_ema)
+    
+    # 6. Nodi epoca
+    for node in epoch_nodes:
+        em_epoch_list_ema = populate_epoch_node(scene, node, em_epoch_list_ema)
+    
+    # 7. Archi
     for edge in graph.edges:
         populate_edges(scene, edge, em_edges_index_ema)
+        em_edges_index_ema += 1
 
 def populate_reuse_US_table(scene, node, index, graph):
     survived_in_epoch = graph.get_connected_epoch_nodes_list_by_edge_type(node, "survive_in_epoch")
