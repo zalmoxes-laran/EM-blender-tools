@@ -134,7 +134,6 @@ def populate_stratigraphic_node(scene, node, index, graph):
     em_item.id_node = node.node_id
     em_item.node_type = node.node_type  # Save the node type in the list
 
-    
     # Set visibility status based on actual viewport visibility
     obj = bpy.data.objects.get(node.name)
     if obj:
@@ -142,15 +141,10 @@ def populate_stratigraphic_node(scene, node, index, graph):
     else:
         em_item.is_visible = True
     
-    #em_item.epoch = node.epoch if node.epoch else ""
-    #graph.print_connected_epoch_nodes_and_edge_types(node)
     first_epoch = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
     if not first_epoch: 
         graph.print_node_connections(node)
     em_item.epoch = first_epoch.name if first_epoch else ""
-
-    #print("Ho registrato l'epoca "+em_item.epoch+" per il nodo"+em_item.name)
-    #em_item.epoch = graph.get_epochs_list_for_stratigraphicnode(node.node_id)
     
     return index + 1
 
