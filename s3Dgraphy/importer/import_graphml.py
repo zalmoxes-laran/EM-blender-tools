@@ -573,80 +573,91 @@ class GraphMLImporter:
     def extract_epochs(self, node_element, graph):
         """
         Estrae gli EpochNode dal nodo swimlane nel file GraphML.
-
-        Args:
-            node_element (Element): Elemento nodo XML dal file GraphML.
-            graph (Graph): Istanza del grafo in cui aggiungere gli EpochNode.
         """
+        # Mappa per tenere traccia delle righe per ID
+        row_id_to_index = {}
+        epoch_nodes = []
+        
         geometry = node_element.find('.//{http://www.yworks.com/xml/graphml}Geometry')
         y_start = float(geometry.attrib['y'])
 
         y_min = y_start
         y_max = y_start
 
-        for row in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}Table/{http://www.yworks.com/xml/graphml}Rows/{http://www.yworks.com/xml/graphml}Row'):
+        # Crea prima tutti i nodi epoca
+        print(f"Creazione nodi epoca iniziali...")
+        rows = node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}Table/{http://www.yworks.com/xml/graphml}Rows/{http://www.yworks.com/xml/graphml}Row')
+        for i, row in enumerate(rows):
             original_id = row.attrib['id']
             uuid_id = str(uuid.uuid4())
             self.id_mapping[original_id] = uuid_id
+            row_id_to_index[original_id] = i
             
             h_row = float(row.attrib['height'])
-
             y_min = y_max
             y_max += h_row
 
             epoch_node = EpochNode(
                 node_id=uuid_id,
-                name="temp",
+                name=f"temp_{i}",  # Nome temporaneo con indice per debug
                 start_time=-10000,
                 end_time=10000
             )
         
-            epoch_node.attributes['original_id'] = original_id  # Traccia l'ID originale
+            epoch_node.attributes['original_id'] = original_id
             epoch_node.min_y = y_min
             epoch_node.max_y = y_max
             self.graph.add_node(epoch_node)
+            epoch_nodes.append(epoch_node)
+            print(f"Creato nodo epoca {i}: ID orig: {original_id}, UUID: {uuid_id}")
 
+        # Aggiorna i nomi e i colori delle epoche
+        print(f"Aggiornamento nomi epoche...")
         for nodelabel in node_element.findall('./{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
-            RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
-            ColumnNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}ColumnNodeLabelModelParameter')
-
-            #Extract generaldata from the EM
-            if RowNodeLabelModelParameter is None and ColumnNodeLabelModelParameter is None:
-                self.process_general_data(nodelabel, self.graph)
-
-            #Extract sectors as localdata from the EM
-            elif ColumnNodeLabelModelParameter is not None:
-                #print(f"Trovate colonne del grafo")
-                height = nodelabel.attrib["height"]
-                width = nodelabel.attrib["width"]
-                x = nodelabel.attrib["x"]
-                #print(f"La colonna {nodelabel.text} ha altezza: {height}, x: {x} e larghezza: {width}")
-
-            # here check if it is a swimlane (epoch)    
-            elif RowNodeLabelModelParameter is not None:
-
-                label_node = nodelabel.text
-                id_node = str(RowNodeLabelModelParameter.attrib['id'])
-
-                if 'backgroundColor' in nodelabel.attrib:
-                    e_color = str(nodelabel.attrib['backgroundColor'])
-                else:
-                    e_color = "#BCBCBC"
-
-                epoch_node = graph.find_node_by_id(id_node)
-
-                if epoch_node:
+            try:
+                row_param = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
+                if row_param is not None:
+                    label_text = nodelabel.text
+                    original_id = str(row_param.attrib['id'])
+                    
+                    # Ottieni il colore se presente
+                    e_color = nodelabel.attrib.get('backgroundColor', "#BCBCBC")
+                    
+                    print(f"Processando etichetta con ID orig: {original_id}")
+                    
+                    # Cerca l'UUID corrispondente
+                    uuid_id = self.id_mapping.get(original_id)
+                    if not uuid_id:
+                        print(f"WARNING: UUID non trovato per ID originale {original_id}")
+                        continue
+                    
+                    # Cerca il nodo epoca usando l'UUID
+                    epoch_node = self.graph.find_node_by_id(uuid_id)
+                    if not epoch_node:
+                        # Fallback: cerca usando l'indice se disponibile
+                        row_index = row_id_to_index.get(original_id)
+                        if row_index is not None and row_index < len(epoch_nodes):
+                            epoch_node = epoch_nodes[row_index]
+                            print(f"Trovato epoch_node usando indice di fallback: {row_index}")
+                        else:
+                            print(f"WARNING: Nodo epoca non trovato per UUID {uuid_id} o indice {row_index}")
+                            continue
+                    
+                    # Aggiorna le proprietà del nodo epoca
                     try:
-                        stringa_pulita, vocabolario = self.estrai_stringa_e_vocabolario(label_node)
+                        stringa_pulita, vocabolario = self.estrai_stringa_e_vocabolario(label_text)
                         epoch_node.set_name(stringa_pulita)
                         epoch_node.set_start_time(vocabolario.get('start', -10000))
                         epoch_node.set_end_time(vocabolario.get('end', 10000))
-                    except ValueError as e:
-                        epoch_node.set_name(label_node)
-
+                        print(f"Aggiornato nodo epoca: '{stringa_pulita}' (start={vocabolario.get('start')}, end={vocabolario.get('end')})")
+                    except Exception as e:
+                        epoch_node.set_name(label_text)
+                        print(f"Fallback al nome completo: {label_text}")
+                    
                     epoch_node.set_color(e_color)
-                    #print(f'Ho creato un nodo epoca chiamato {epoch_node.name}')
-
+                    print(f"Impostato colore: {e_color}")
+            except Exception as e:
+                print(f"ERROR durante l'elaborazione dell'etichetta: {e}")
 
     def process_general_data(self, nodelabel, graph):
         """
@@ -762,12 +773,22 @@ class GraphMLImporter:
 
         # Crea indici per accesso rapido
         epochs = [n for n in self.graph.nodes if hasattr(n, 'node_type') and n.node_type == "epoch"]
-        
+
+        print(f"Numero totale di epoche trovate: {len(epochs)}")
+        if len(epochs) == 0:
+            print("AVVISO: Nessuna epoca trovata nel grafo")
+            return
+
         # Crea un dizionario inverso per mappare UUID a ID originali
         reverse_mapping = {}
         for orig_id, uuid in self.id_mapping.items():
             reverse_mapping[uuid] = orig_id
-        
+
+        print(f"Numero totale di epoche trovate: {len(epochs)}")
+        if len(epochs) == 0:
+            print("AVVISO: Nessuna epoca trovata nel grafo")
+            return
+
         # Debug info
         print(f"Connect nodes to epochs: {len(self.graph.nodes)} nodes, {len(epochs)} epochs")
         

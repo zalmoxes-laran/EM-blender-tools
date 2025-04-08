@@ -20,53 +20,60 @@ class MultiGraphManager:
             str: L'ID del grafo caricato
         """
         print(f"Loading graph: {filepath}, graph_id: {graph_id}, overwrite: {overwrite}")
-
-        # Questa è la differenza: non richiamiamo un metodo della classe ma usiamo direttamente
-        # il codice qui
         
-        # Crea un grafo temporaneo per leggere preliminarmente l'ID
-        import os
-        import xml.etree.ElementTree as ET
-        from ..importer.import_graphml import GraphMLImporter
+        # ID temporaneo basato sul file se non specificato
+        original_id = graph_id if graph_id else os.path.splitext(os.path.basename(filepath))[0]
         
-        temp_graph = Graph(graph_id="temp")
-        importer = GraphMLImporter(filepath, temp_graph)
+        # Crea un grafo temporaneo con ID originale
+        graph = Graph(graph_id=original_id)
         
-        # Estrai l'ID dal file se non è stato specificato
-        if graph_id is None:
-            try:
-                tree = ET.parse(filepath)
-                extracted_id, _ = importer.extract_graph_id_and_code(tree)
-                if extracted_id:
-                    graph_id = extracted_id
-                    print(f"Using graph ID from file: {graph_id}")
-                else:
-                    # Fallback al nome del file
-                    graph_id = os.path.splitext(os.path.basename(filepath))[0]
-                    print(f"Using filename as graph ID: {graph_id}")
-            except Exception as e:
-                print(f"Error extracting graph ID: {e}. Using filename as ID.")
-                graph_id = os.path.splitext(os.path.basename(filepath))[0]
-        
-        # Verifica se il grafo esiste già
-        if graph_id in multi_graph_manager.graphs and not overwrite:
-            raise ValueError(f"Graph with ID '{graph_id}' already exists. Use overwrite=True to replace it.")
-
-        # Crea un nuovo grafo con l'ID determinato
-        graph = Graph(graph_id=graph_id)
-        
-        # Carica il grafo con il parser completo
+        # Carica il grafo con il parser
         importer = GraphMLImporter(filepath, graph)
         graph = importer.parse()
-
-        # Registra il grafo nel manager
-        multi_graph_manager.graphs[graph_id] = graph
-        print(f"Graph '{graph_id}' loaded successfully with overwrite={overwrite}.")
         
-        return graph_id
+        # Controlla se l'ID è cambiato durante il parsing
+        final_id = graph.graph_id
+        
+        # IMPORTANTE: Aggiungi il grafo sia con l'ID originale che con quello nuovo
+        # Questo crea una "mappa di alias" senza duplicare i grafi
+        if final_id != original_id:
+            print(f"INFO: Graph ID changed during parsing: {original_id} -> {final_id}")
+            
+            # Aggiungi il grafo con l'ID finale
+            self.graphs[final_id] = graph
+            
+            # Mantieni anche un riferimento con l'ID originale se necessario per retrocompatibilità
+            if overwrite or original_id not in self.graphs:
+                self.graphs[original_id] = graph
+        else:
+            # Se l'ID non è cambiato, aggiungi normalmente
+            self.graphs[original_id] = graph
+        
+        # Restituisci l'ID finale
+        return final_id
 
-    def get_graph(self, graph_id):
-        return self.graphs.get(graph_id)
+    def get_graph(graph_id=None):
+        """
+        Ottiene un grafo dal MultiGraphManager.
+        
+        Args:
+            graph_id (str, optional): ID del grafo da recuperare.
+                Se None e c'è un solo grafo, restituisce quel grafo.
+                Se None e ci sono più grafi, restituisce None invece di generare errore.
+        
+        Returns:
+            Graph: L'istanza del grafo richiesto, o None se non trovato.
+        """
+        if graph_id is None:
+            if len(multi_graph_manager.graphs) == 1:
+                return next(iter(multi_graph_manager.graphs.values()))
+            else:
+                # Invece di lanciare un errore, restituisci None o un valore di default
+                print("Attenzione: Più grafi caricati, specificare un 'graph_id'.")
+                return None  # Opzione 1: Restituisci None
+                # return list(multi_graph_manager.graphs.values())[0]  # Opzione 2: Restituisci il primo grafo
+        
+        return multi_graph_manager.get_graph(graph_id)
 
     def get_all_graph_ids(self):
         return list(self.graphs.keys())

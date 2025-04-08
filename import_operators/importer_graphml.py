@@ -52,33 +52,32 @@ class EM_import_GraphML(bpy.types.Operator):
 
             # Clear Blender Lists
             clear_lists(context)
-
+            
             try:
-                # Carica il grafo - l'ID verrà estratto dal file
+                # Carica il grafo e ottieni l'ID finale
+                final_graph_id = load_graph_from_file(graphml_file, overwrite=True)
+                print(f"Graph loaded with final ID: {final_graph_id}")
                 
-                graph_id = load_graph_from_file(graphml_file, overwrite=True)
-                print(f"Graph loaded successfully with ID: {graph_id}")
+                # Ottieni l'istanza del grafo
+                graph_instance = get_graph(final_graph_id)
                 
-                # Ora ottieni il grafo utilizzando l'ID restituito
-                graph_instance = get_graph(graph_id)
-
-                if graph_instance is None:
-                    error_msg = "Errore: il grafo non è stato caricato correttamente."
+                if graph_instance:
+                    # Aggiorna UI e continua con il popolamento
+                    graphml.name = final_graph_id
+                    # Aggiorna anche il codice del grafo se disponibile
+                    if 'graph_code' in graph_instance.attributes:
+                        graphml.graph_code = graph_instance.attributes['graph_code']
+                else: 
+                    error_msg = f"Grafo non trovato con ID: {final_graph_id}"
                     self.report({'ERROR'}, error_msg)
                     show_popup_message(context, "Graph Error", error_msg, 'ERROR')
                     return {'CANCELLED'}
+                                
 
-                # Aggiorna il nome nella UI con l'ID effettivo del grafo
-                graphml.name = graph_instance.graph_id
                 
-                # Aggiorna anche il codice del grafo se disponibile
-                if 'graph_code' in graph_instance.attributes:
-                    graphml.graph_code = graph_instance.attributes['graph_code']
+                print(f"Aggiornato ID nell'interfaccia a: {graphml.name}")
                 
-                print(f"Updated display name to graph ID: {graph_instance.graph_id}")
-                print(f"Graph code: {graphml.graph_code if hasattr(graphml, 'graph_code') else 'Not available'}")
-
-                # Now populate the Blender lists from the graph
+                # Ora procedi con il popolamento delle liste
                 populate_blender_lists_from_graph(context, graph_instance)
 
                 # verifica post importazione: controlla che il contatore della lista delle UUSS sia nel range (può succedere di ricaricare ed avere una lista più corta di UUSS). In caso di necessità porta a 0 l'indice

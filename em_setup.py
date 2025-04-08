@@ -279,35 +279,28 @@ class EMToolsSettings(bpy.types.PropertyGroup):
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files with icons to indicate graph presence and actions"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        """Disegna un elemento nella lista dei GraphML."""
 
-        graph_data = get_graph(item.name)
-        # Aggiungiamo stampe di debug
-        #print(f"Checking graph '{item.name}':")
-        #print(f"Graph data exists: {bool(graph_data)}")
+        # Prova tutti gli ID possibili per trovare il grafo
+        graph_data = None
+        if item.name:
+            graph_data = get_graph(item.name)
         
-        #if graph_data:
-            #print(f"Number of nodes: {len(graph_data.nodes)}")
-            #print(f"First few nodes: {[node.node_id for node in graph_data.nodes[:3]]}")
-        is_graph_present = bool(graph_data and len(graph_data.nodes) > 0)
-        #print(f"Is graph present: {is_graph_present}")
-
+        # Se non riesce a trovare il grafo con il nome attuale, prova con l'ID originale
+        if not graph_data and hasattr(item, 'original_id') and item.original_id:
+            graph_data = get_graph(item.original_id)
+        
+        is_graph_present = bool(graph_data and hasattr(graph_data, 'nodes') and len(graph_data.nodes) > 0)
+        
+        # Impostazione icona stato
+        status_icon = 'SEQUENCE_COLOR_04' if is_graph_present else 'SEQUENCE_COLOR_01'
+        
         # Mostra il nome del file nella lista
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             layout.prop(item, "name", text="", emboss=False)
-
-            # Creare un'area per i pulsanti
-            split = layout.split(factor=0.5, align=True)
-
-            # Bottone per indicare se il grafo esiste o meno
-            if is_graph_present:
-                status_icon = 'SEQUENCE_COLOR_04'  # Icona verde se il grafo esiste
-                #print(f"Setting green icon for {item.name}")
-            else:
-                status_icon = 'SEQUENCE_COLOR_01'  # Icona rossa se il grafo non esiste
-                #print(f"Setting red icon for {item.name}")
-
-            # Mostra semplicemente l'icona dello stato
-            row = split.row()
+            
+            # Mostra l'icona di stato
+            row = layout.row()
             row.label(text="", icon=status_icon)
 
             # Pulsante per ricaricare il file GraphML (con icona FILE_REFRESH)
