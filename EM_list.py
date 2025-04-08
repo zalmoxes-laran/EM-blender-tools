@@ -22,6 +22,7 @@ from bpy.types import (
 
 from .functions import *
 from .s3Dgraphy.nodes import StratigraphicNode
+from .populate_lists import populate_stratigraphic_node, EM_list_clear, check_if_current_obj_has_brother_inlist, select_3D_obj, update_icons, check_material_presence, em_setup_mat_cycles
 
 class EM_filter_lists(bpy.types.Operator):
     bl_idname = "em.filter_lists"
@@ -45,7 +46,8 @@ class EM_filter_lists(bpy.types.Operator):
         filtered_items = []
         
         # Ottieni i nodi stratigrafici dal grafo
-        strat_nodes = [node for node in graph.nodes if isinstance(node, StratigraphicNode)]
+        strat_nodes = [node for node in graph.nodes if hasattr(node, 'node_type') and 
+                       node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']]
         
         for node in strat_nodes:
             include_node = True
@@ -55,13 +57,26 @@ class EM_filter_lists(bpy.types.Operator):
                 if scene.epoch_list_index >= 0 and len(scene.epoch_list) > 0:
                     active_epoch = scene.epoch_list[scene.epoch_list_index].name
                     if active_epoch:
-                        epoch_node = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
-                        if not epoch_node or epoch_node.name != active_epoch:
-                            # Verifica anche i nodi "survive_in_epoch"
-                            survived_epochs = graph.get_connected_nodes_by_edge_type(node.node_id, "survive_in_epoch")
-                            survived_in_active_epoch = any(epoch.name == active_epoch for epoch in survived_epochs)
-                            if not survived_in_active_epoch:
-                                include_node = False
+                        # Cerca connessioni con l'epoca attiva
+                        created_in_epoch = False
+                        survives_in_epoch = False
+                        
+                        # Esamina tutti gli archi per trovare connessioni con l'epoca
+                        for edge in graph.edges:
+                            # Controllo per has_first_epoch
+                            if edge.edge_source == node.node_id and edge.edge_type == "has_first_epoch":
+                                epoch_node = graph.find_node_by_id(edge.edge_target)
+                                if epoch_node and hasattr(epoch_node, 'name') and epoch_node.name == active_epoch:
+                                    created_in_epoch = True
+                                    
+                            # Controllo per survive_in_epoch
+                            if edge.edge_source == node.node_id and edge.edge_type == "survive_in_epoch":
+                                epoch_node = graph.find_node_by_id(edge.edge_target)
+                                if epoch_node and hasattr(epoch_node, 'name') and epoch_node.name == active_epoch:
+                                    survives_in_epoch = True
+                        
+                        # Includi il nodo se è stato creato in questa epoca o sopravvive in questa epoca (quando l'opzione è attivata)
+                        include_node = created_in_epoch or (survives_in_epoch and scene.include_surviving_units)
                 else:
                     # Se non ci sono epoche nella lista, disattiva il filtro
                     scene.filter_by_epoch = False
@@ -72,9 +87,17 @@ class EM_filter_lists(bpy.types.Operator):
                 if scene.activity_manager.active_index >= 0 and len(scene.activity_manager.activities) > 0:
                     active_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
                     if active_activity:
-                        activity_nodes = graph.get_connected_nodes_by_edge_type(node.node_id, "is_in_activity")
-                        if not any(activity.name == active_activity for activity in activity_nodes):
-                            include_node = False
+                        in_activity = False
+                        
+                        # Cerca connessioni con l'attività attiva
+                        for edge in graph.edges:
+                            if edge.edge_source == node.node_id and edge.edge_type == "is_in_activity":
+                                activity_node = graph.find_node_by_id(edge.edge_target)
+                                if activity_node and hasattr(activity_node, 'name') and activity_node.name == active_activity:
+                                    in_activity = True
+                                    break
+                        
+                        include_node = in_activity
                 else:
                     # Se non ci sono attività nella lista, disattiva il filtro
                     scene.filter_by_activity = False
@@ -92,30 +115,9 @@ class EM_filter_lists(bpy.types.Operator):
         EM_list_clear(context, "em_list")
         
         # Ricostruisci la lista con gli elementi filtrati
-        for node in filtered_items:
-            em_item = scene.em_list.add()
-            em_item.name = node.name
-            em_item.description = node.description
-            em_item.id_node = node.node_id
-            em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
-            
-            # Verifica se l'oggetto è visibile o nascosto in scena
-            obj = bpy.data.objects.get(node.name)
-            if obj:
-                em_item.is_visible = not obj.hide_viewport
-            else:
-                em_item.is_visible = True  # Default per oggetti non in scena
-            
-            # Aggiungi altre proprietà come fatto in populate_stratigraphic_node
-            if hasattr(node, 'attributes'):
-                em_item.shape = node.attributes.get('shape', "")
-                em_item.y_pos = node.attributes.get('y_pos', 0.0)
-                em_item.fill_color = node.attributes.get('fill_color', "")
-                em_item.border_style = node.attributes.get('border_style', "")
-            
-            # Imposta l'epoca
-            first_epoch = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
-            em_item.epoch = first_epoch.name if first_epoch else ""
+        for i, node in enumerate(filtered_items):
+            # Usa la funzione esistente per popolare la lista
+            populate_stratigraphic_node(scene, node, i, graph)
         
         # Ripristina la selezione se possibile
         if current_selected:
@@ -424,7 +426,11 @@ class EM_ToolsPanel:
         # Verifichiamo che le proprietà esistano prima di usarle
         if hasattr(scene, "filter_by_epoch"):
             row.prop(scene, "filter_by_epoch", text="", toggle=True, icon='SORTTIME')
-
+            
+            # Se il filtro per epoca è attivo, mostra l'opzione per includere unità sopravvissute
+            if scene.filter_by_epoch:
+                sub_row = box.row(align=True)
+                sub_row.prop(scene, "include_surviving_units", text="Include Surviving Units")
 
         if hasattr(scene, "filter_by_activity"):
             row.prop(scene, "filter_by_activity", text="", toggle=True, icon='NETWORK_DRIVE')
@@ -796,6 +802,13 @@ def register():
             default=False,
             update=sync_visibility_update  # Re-use the same update function
         )
+
+    if not hasattr(bpy.types.Scene, "include_surviving_units"):
+        bpy.types.Scene.include_surviving_units = bpy.props.BoolProperty(
+            name="Include Surviving Units",
+            description="Include units that survive in this epoch but were created in previous epochs",
+            default=True
+        )       
 
 def unregister():
     # Remove scene properties if they exist

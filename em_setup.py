@@ -21,6 +21,98 @@ from .import_operators.import_EMdb import *
 
 from .operators.graphml_converter import GRAPHML_OT_convert_borders
 
+class EM_OT_manage_object_prefixes(bpy.types.Operator):
+    bl_idname = "em.manage_object_prefixes"
+    bl_label = "Manage Object Prefixes"
+    bl_description = "Add or remove graph code prefixes to/from selected objects"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    action: bpy.props.EnumProperty(
+        name="Action",
+        description="Whether to add or remove prefixes",
+        items=[
+            ('ADD', "Add Prefixes", "Add graph code prefixes to selected objects"),
+            ('REMOVE', "Remove Prefixes", "Remove existing prefixes from selected objects")
+        ],
+        default='ADD'
+    ) # type: ignore
+    
+    def invoke(self, context, event):
+        # Check if at least one object is selected
+        if not context.selected_objects:
+            self.report({'WARNING'}, "No objects selected")
+            return {'CANCELLED'}
+        
+        # Show a confirmation dialog
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "action", expand=True)
+        
+        # Get current graph code
+        em_tools = context.scene.em_tools
+        if em_tools.active_file_index >= 0 and em_tools.graphml_files:
+            graphml = em_tools.graphml_files[em_tools.active_file_index]
+            graph_code = graphml.graph_code if hasattr(graphml, 'graph_code') and graphml.graph_code not in ["MISSINGCODE", "TEMPCODE"] else None
+            
+            if self.action == 'ADD' and graph_code:
+                layout.label(text=f"Will add prefix: {graph_code}.")
+                layout.label(text=f"Example: SU001 → {graph_code}.SU001")
+            elif self.action == 'ADD' and not graph_code:
+                layout.label(text="Warning: No valid graph code available", icon='ERROR')
+                layout.label(text="Please set a valid graph code first")
+            else:  # REMOVE
+                layout.label(text="Will remove existing prefixes")
+                layout.label(text="Example: GT16.SU001 → SU001")
+    
+    def execute(self, context):
+        em_tools = context.scene.em_tools
+        
+        # Get the active graph code
+        graph_code = None
+        if em_tools.active_file_index >= 0 and em_tools.graphml_files:
+            graphml = em_tools.graphml_files[em_tools.active_file_index]
+            if hasattr(graphml, 'graph_code') and graphml.graph_code not in ["MISSINGCODE", "TEMPCODE"]:
+                graph_code = graphml.graph_code
+        
+        # Check if we have a valid graph code when adding prefixes
+        if self.action == 'ADD' and not graph_code:
+            self.report({'ERROR'}, "No valid graph code available. Please set a valid graph code first.")
+            return {'CANCELLED'}
+        
+        # Process selected objects
+        processed_count = 0
+        for obj in context.selected_objects:
+            if obj.type == 'MESH':  # Only process mesh objects
+                if self.action == 'ADD':
+                    # Check if object already has a prefix
+                    if '.' in obj.name:
+                        prefix, base_name = obj.name.split('.', 1)
+                        # If prefix is not the current graph code, replace it
+                        if prefix != graph_code:
+                            obj.name = f"{graph_code}.{base_name}"
+                            processed_count += 1
+                    else:
+                        # No prefix, add one
+                        obj.name = f"{graph_code}.{obj.name}"
+                        processed_count += 1
+                else:  # REMOVE
+                    # Check if object has a prefix
+                    if '.' in obj.name:
+                        prefix, base_name = obj.name.split('.', 1)
+                        obj.name = base_name
+                        processed_count += 1
+        
+        # Report results
+        action_str = "added to" if self.action == 'ADD' else "removed from"
+        self.report({'INFO'}, f"Prefixes {action_str} {processed_count} objects")
+        
+        # Update the em_list to reflect the name changes
+        if processed_count > 0:
+            bpy.ops.list_icon.update(list_type="all")
+        
+        return {'FINISHED'}
 
 class AuxiliaryFileProperties(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="File Name") # type: ignore
@@ -274,8 +366,6 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         description="Select pyArchInit table mapping"
     ) # type: ignore
 
-
-
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files with icons to indicate graph presence and actions"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -297,7 +387,9 @@ class EMTOOLS_UL_files(bpy.types.UIList):
         
         # Mostra il nome del file nella lista
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            layout.prop(item, "name", text="", emboss=False)
+            # Mostra il codice del grafo (graph_code) invece del nome (UUID)
+            graph_code = item.graph_code if hasattr(item, 'graph_code') and item.graph_code else item.name
+            layout.prop(item, "graph_code" if hasattr(item, 'graph_code') else "name", text="", emboss=False)
             
             # Mostra l'icona di stato
             row = layout.row()
@@ -322,7 +414,7 @@ class EMTOOLS_UL_files(bpy.types.UIList):
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
-            layout.label(text=item.name)
+            layout.label(text=item.graph_code if hasattr(item, 'graph_code') and item.graph_code else item.name)
 
 # Definisci la classe per memorizzare i file GraphML e lo stato del grafo
 class GraphMLFileItem(bpy.types.PropertyGroup):
@@ -401,9 +493,25 @@ class EM_SetupPanel(bpy.types.Panel):
                 row = layout.row(align=True)
                 row.prop(active_file, "graphml_path", text="Path")
 
-                # Graph Code (if available)
-                if hasattr(active_file, 'graph_code') and active_file.graph_code:
-                    row = layout.row(align=True)
+                # Mostra l'ID del grafo (non modificabile)
+                row = layout.row(align=True)
+                row.label(text=f"Graph ID: {active_file.name}")  # UUID
+
+                # Se abbiamo un codice per il grafo, mostriamolo come modificabile
+                row = layout.row(align=True)
+                if hasattr(active_file, 'graph_code'):
+                    #row.prop(active_file, "graph_code", text="Graph Code")
+                    
+                    # Aggiunge un avviso per MISSINGCODE o TEMPCODE
+                    if active_file.graph_code in ["MISSINGCODE", "TEMPCODE"]:
+                        warning_box = layout.box()
+                        warning_box.label(text="Warning: Missing or temporary graph code", icon='ERROR')
+                        warning_box.label(text="Please add a proper code in the GraphML header")
+                        op = warning_box.operator("wm.url_open", text="Learn how to fix this")
+                        op.url = "https://your-documentation-url.com/graphml-codes"
+                else:
+                    # Se non c'è la proprietà graph_code, dobbiamo prima aggiungerla alla classe
+                    active_file.graph_code = "MISSINGCODE"
                     row.prop(active_file, "graph_code", text="Graph Code")
 
                 # Expanded settings
@@ -558,7 +666,19 @@ class EM_SetupPanel(bpy.types.Panel):
         #col = split.column()
         col.prop(scene, "em_sources_list", text='')
 
-        layout.operator(GRAPHML_OT_convert_borders.bl_idname, text="Convert legacy GraphML (1.x->1.5)", icon='FILE_REFRESH')
+        # In EM_SetupPanel.draw() dopo la sezione esistente
+        # Aggiungiamo una sezione "Advanced"
+        box = layout.box()
+        row = box.row()
+        row.label(text="Advanced Tools", icon='TOOL_SETTINGS')
+
+        # Convert Legacy GraphML (manteniamo quello esistente)
+        row = box.row()
+        row.operator(GRAPHML_OT_convert_borders.bl_idname, text="Convert legacy GraphML (1.x->1.5)", icon='FILE_REFRESH')
+
+        # Manage Object Prefixes
+        row = box.row()
+        row.operator("em.manage_object_prefixes", text="Manage Object Prefixes", icon='SYNTAX_ON')
 
 def get_mapping_description(mapping_file, mapping_type="emdb"):
     """Recupera la descrizione del mapping dal file JSON."""
@@ -589,6 +709,9 @@ class EMToolsAddFile(bpy.types.Operator):
         em_tools = context.scene.em_tools
         new_file = em_tools.graphml_files.add()
         new_file.name = "New GraphML File"
+        # Aggiungi un graph_code predefinito
+        if hasattr(new_file, 'graph_code'):
+            new_file.graph_code = "TEMPCODE"
         em_tools.active_file_index = len(em_tools.graphml_files) - 1
         return {'FINISHED'}
 
@@ -752,7 +875,8 @@ classes = [
     AUXILIARY_MT_context_menu,
     AUXILIARY_OT_context_menu_invoke,
     AUXILIARY_OT_reload_file,
-    AUXILIARY_OT_import_now
+    AUXILIARY_OT_import_now,
+    EM_OT_manage_object_prefixes
 ]
 
 def register():
