@@ -1,3 +1,5 @@
+# s3Dgraphy/multigraph/multigraph.py
+
 import os
 from ..graph import Graph
 from ..importer.import_graphml import GraphMLImporter
@@ -52,7 +54,7 @@ class MultiGraphManager:
         # Restituisci l'ID finale
         return final_id
 
-    def get_graph(graph_id=None):
+    def get_graph(self, graph_id=None):
         """
         Ottiene un grafo dal MultiGraphManager.
         
@@ -65,15 +67,15 @@ class MultiGraphManager:
             Graph: L'istanza del grafo richiesto, o None se non trovato.
         """
         if graph_id is None:
-            if len(multi_graph_manager.graphs) == 1:
-                return next(iter(multi_graph_manager.graphs.values()))
+            if len(self.graphs) == 1:
+                return next(iter(self.graphs.values()))
             else:
                 # Invece di lanciare un errore, restituisci None o un valore di default
                 print("Attenzione: Più grafi caricati, specificare un 'graph_id'.")
                 return None  # Opzione 1: Restituisci None
-                # return list(multi_graph_manager.graphs.values())[0]  # Opzione 2: Restituisci il primo grafo
+                # return list(self.graphs.values())[0]  # Opzione 2: Restituisci il primo grafo
         
-        return multi_graph_manager.get_graph(graph_id)
+        return self.graphs.get(graph_id)
 
     def get_all_graph_ids(self):
         return list(self.graphs.keys())
@@ -118,14 +120,9 @@ multi_graph_manager = MultiGraphManager()
 
 def load_graph_from_file(filepath, graph_id=None, overwrite=False):
     print(f"Loading graph: {filepath}, graph_id: {graph_id}, overwrite: {overwrite}")
-    multi_graph_manager.load_graph(filepath, graph_id, overwrite)
+    return multi_graph_manager.load_graph(filepath, graph_id, overwrite)
 
 def get_graph(graph_id=None):
-    if graph_id is None:
-        if len(multi_graph_manager.graphs) == 1:
-            return next(iter(multi_graph_manager.graphs.values()))
-        else:
-            raise ValueError("Più grafi caricati, specifica un 'graph_id'.")
     return multi_graph_manager.get_graph(graph_id)
 
 def get_all_graph_ids():

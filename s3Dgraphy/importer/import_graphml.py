@@ -36,47 +36,56 @@ class GraphMLImporter:
         self.id_mapping = {}          # id originale -> uuid
 
     def extract_graph_id_and_code(self, tree):
-        """
-        Estrae l'ID e il codice del grafo dal file GraphML.
-        
-        Args:
-            tree: ElementTree XML del file GraphML
+            """
+            Estrae l'ID e il codice del grafo dal file GraphML.
             
-        Returns:
-            tuple: (graph_id, graph_code) dove graph_id è l'ID effettivo e graph_code è il codice
-                human-readable (es. VDL16). Entrambi potrebbero essere None se non trovati.
-        """
-        graph_id = None
-        graph_code = None
-        
-        # Cerca nei NodeLabel per trovare l'intestazione del grafo
-        for nodelabel in tree.findall('.//{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
-            RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
-            ColumnNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}ColumnNodeLabelModelParameter')
+            Args:
+                tree: ElementTree XML del file GraphML
+                
+            Returns:
+                tuple: (graph_id, graph_code) dove graph_id è l'ID effettivo e graph_code è il codice
+                    human-readable (es. VDL16). Entrambi potrebbero essere None se non trovati.
+            """
+            import uuid
+
+            graph_id = None
+            graph_code = None
             
-            if RowNodeLabelModelParameter is None and ColumnNodeLabelModelParameter is None:
-                try:
-                    stringa_pulita, vocabolario = self.estrai_stringa_e_vocabolario(nodelabel.text)
-                    
-                    # Estrai l'ID (che adesso useremo come codice)
-                    if 'ID' in vocabolario:
-                        graph_code = vocabolario['ID']
-                        print(f"Found graph code: {graph_code}")
+            # Cerca nei NodeLabel per trovare l'intestazione del grafo
+            for nodelabel in tree.findall('.//{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
+                RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
+                ColumnNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}ColumnNodeLabelModelParameter')
+                
+                if RowNodeLabelModelParameter is None and ColumnNodeLabelModelParameter is None:
+                    try:
+                        stringa_pulita, vocabolario = self.estrai_stringa_e_vocabolario(nodelabel.text)
                         
-                        # Per retrocompatibilità, usiamo anche questo come ID se non esiste un ID specifico
-                        if not graph_id:
-                            graph_id = vocabolario['ID']
-                    
-                    # Se c'è un ID specifico nel vocabolario, usalo come ID effettivo
-                    if 'graph_id' in vocabolario:
-                        graph_id = vocabolario['graph_id']
-                        print(f"Found specific graph ID: {graph_id}")
+                        # Estrai l'ID se presente nel vocabolario
+                        if 'ID' in vocabolario:
+                            graph_code = vocabolario['ID']
+                            print(f"Found graph code from vocabulary: {graph_code}")
                         
-                    break
-                except Exception as e:
-                    print(f"Error extracting graph ID from node label: {e}")
-        
-        return graph_id, graph_code
+                        # Se c'è un ID specifico nel vocabolario, usalo
+                        if 'graph_id' in vocabolario:
+                            graph_id = vocabolario['graph_id']
+                            print(f"Found specific graph ID: {graph_id}")
+                        
+                        break
+                    except Exception as e:
+                        print(f"Error extracting graph ID from node label: {e}")
+            
+            # Se non abbiamo trovato un graph_code, usiamo UUID
+            if not graph_code:
+                generated_uuid = str(uuid.uuid4())
+                graph_code = generated_uuid[:6].upper()  # Primi 6 caratteri in maiuscolo
+                print(f"Generated graph code from UUID: {graph_code}")
+            
+            # Se non abbiamo un graph_id, usiamo lo stesso UUID
+            if not graph_id:
+                graph_id = str(uuid.uuid4())
+                print(f"Generated graph ID from UUID: {graph_id}")
+            
+            return graph_id, graph_code
 
     def parse(self):
         """
