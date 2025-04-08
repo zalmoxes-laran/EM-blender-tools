@@ -520,25 +520,45 @@ class EM_UpdateUSListOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 def update_filtered_lists_if_needed(self, context):
-    # Aggiorna la lista US per la visualizzazione nell'altro pannello
+    """
+    Updates the US list and filtered lists when the epoch selection changes.
+    This function is called from the update callback for epoch_list_index.
+    """
     scene = context.scene
     
-    # Controllo di sicurezza: verifica che la lista epoch_list esista e che l'indice sia valido
+    # Safety check: verify that epoch_list exists and the index is valid
     if len(scene.epoch_list) == 0:
-        # Reset dell'indice a 0 se non ci sono epoche
+        # Reset the index to 0 if there are no epochs
         scene.epoch_list_index = 0
-        return  # Non c'è nulla da aggiornare
+        return  # Nothing to update
     
-    # Verifica che l'indice sia in range
+    # Verify the index is in range
     if scene.epoch_list_index >= len(scene.epoch_list):
         scene.epoch_list_index = 0
     
-    # Ora procedi con l'aggiornamento standard
-    bpy.ops.epoch_manager.update_us_list()
+    # Print debug info
+    print(f"\n--- Updating filtered lists for epoch change ---")
+    print(f"Current epoch index: {scene.epoch_list_index}")
+    if scene.epoch_list_index >= 0 and scene.epoch_list_index < len(scene.epoch_list):
+        active_epoch = scene.epoch_list[scene.epoch_list_index]
+        print(f"Active epoch: {active_epoch.name}")
     
-    # Se il filtro per epoca è attivo, aggiorna anche la lista principale
-    if context.scene.filter_by_epoch:
-        bpy.ops.em.filter_lists()
+    # Now proceed with standard update
+    try:
+        # First update the US list for the side panel
+        bpy.ops.epoch_manager.update_us_list()
+        
+        # If filtering by epoch is active, update the main list
+        if context.scene.filter_by_epoch:
+            print("Epoch filtering is active, updating filtered list")
+            bpy.ops.em.filter_lists()
+        else:
+            print("Epoch filtering is not active, skipping update")
+    
+    except Exception as e:
+        print(f"Error updating filtered lists: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 classes = [
@@ -570,11 +590,12 @@ def register():
         default=False
     )
 
-    # Aggiungi questo per aggiornare la lista quando cambia l'epoca selezionata
+    # Make sure to register the update callback correctly
+    # This is the key part that might be failing
     bpy.types.Scene.epoch_list_index = IntProperty(
         name="Index for epoch_list",
         default=0,
-        update=lambda self, context: update_filtered_lists_if_needed(self, context)
+        update=update_filtered_lists_if_needed
     )
 
 def unregister():

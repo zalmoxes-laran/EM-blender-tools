@@ -47,74 +47,105 @@ class EM_filter_lists(bpy.types.Operator):
         
         # Ottieni i nodi stratigrafici dal grafo
         strat_nodes = [node for node in graph.nodes if hasattr(node, 'node_type') and 
-                       node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']]
+                      node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']]
+        
+        # Debug: Print active epoch
+        active_epoch_name = None
+        if scene.filter_by_epoch and scene.epoch_list_index >= 0 and len(scene.epoch_list) > 0:
+            active_epoch_name = scene.epoch_list[scene.epoch_list_index].name
+            print(f"Active epoch: {active_epoch_name}")
+        
+        # Debug: Print active activity
+        active_activity_name = None  
+        if scene.filter_by_activity and scene.activity_manager.active_index >= 0 and len(scene.activity_manager.activities) > 0:
+            active_activity_name = scene.activity_manager.activities[scene.activity_manager.active_index].name
+            print(f"Active activity: {active_activity_name}")
         
         for node in strat_nodes:
+            print(f"\nEvaluating node: {node.name} (UUID: {node.node_id})")
             include_node = True
             
             # Applica filtro per epoca se attivo
-            if scene.filter_by_epoch:
-                if scene.epoch_list_index >= 0 and len(scene.epoch_list) > 0:
-                    active_epoch = scene.epoch_list[scene.epoch_list_index].name
-                    if active_epoch:
-                        # Cerca connessioni con l'epoca attiva
-                        created_in_epoch = False
-                        survives_in_epoch = False
+            if scene.filter_by_epoch and active_epoch_name:
+                include_node = False  # Reset per epoca, includi solo se corrisponde
+                
+                # Trova gli edge che collegano questo nodo alle epoche
+                created_in_epoch = False
+                survives_in_epoch = False
+                
+                # Trova tutte le epoche connesse a questo nodo
+                connected_epochs = []
+                
+                # Cerca direttamente per ID del nodo negli archi
+                for edge in graph.edges:
+                    if edge.edge_source == node.node_id:
+                        target_node = graph.find_node_by_id(edge.edge_target)
                         
-                        # Esamina tutti gli archi per trovare connessioni con l'epoca
-                        for edge in graph.edges:
-                            # Controllo per has_first_epoch
-                            if edge.edge_source == node.node_id and edge.edge_type == "has_first_epoch":
-                                epoch_node = graph.find_node_by_id(edge.edge_target)
-                                if epoch_node and hasattr(epoch_node, 'name') and epoch_node.name == active_epoch:
+                        if target_node and hasattr(target_node, 'node_type') and target_node.node_type == "epoch":
+                            if edge.edge_type == "has_first_epoch":
+                                connected_epochs.append({"name": target_node.name, "type": "created"})
+                                if target_node.name == active_epoch_name:
                                     created_in_epoch = True
+                                    print(f"  Node was created in active epoch: {active_epoch_name}")
                                     
-                            # Controllo per survive_in_epoch
-                            if edge.edge_source == node.node_id and edge.edge_type == "survive_in_epoch":
-                                epoch_node = graph.find_node_by_id(edge.edge_target)
-                                if epoch_node and hasattr(epoch_node, 'name') and epoch_node.name == active_epoch:
+                            elif edge.edge_type == "survive_in_epoch":
+                                connected_epochs.append({"name": target_node.name, "type": "survives"})
+                                if target_node.name == active_epoch_name:
                                     survives_in_epoch = True
-                        
-                        # Includi il nodo se è stato creato in questa epoca o sopravvive in questa epoca (quando l'opzione è attivata)
-                        include_node = created_in_epoch or (survives_in_epoch and scene.include_surviving_units)
+                                    print(f"  Node survives in active epoch: {active_epoch_name}")
+                
+                # Debug: mostro tutte le epoche connesse a questo nodo
+                if connected_epochs:
+                    print(f"  Connected epochs: {connected_epochs}")
                 else:
-                    # Se non ci sono epoche nella lista, disattiva il filtro
-                    scene.filter_by_epoch = False
-                    self.report({'INFO'}, "No epochs available, filter disabled")
+                    print(f"  No epochs connected to this node")
+                
+                # Includi il nodo se è stato creato in questa epoca o sopravvive in questa epoca (quando l'opzione è attivata)
+                include_node = created_in_epoch or (survives_in_epoch and scene.include_surviving_units)
+                
+                if include_node:
+                    print(f"  Node INCLUDED for epoch filter")
+                else:
+                    print(f"  Node EXCLUDED for epoch filter")
             
-            # Applica filtro per attività se attivo
-            if scene.filter_by_activity and include_node:
-                if scene.activity_manager.active_index >= 0 and len(scene.activity_manager.activities) > 0:
-                    active_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
-                    if active_activity:
-                        in_activity = False
-                        
-                        # Cerca connessioni con l'attività attiva
-                        for edge in graph.edges:
-                            if edge.edge_source == node.node_id and edge.edge_type == "is_in_activity":
-                                activity_node = graph.find_node_by_id(edge.edge_target)
-                                if activity_node and hasattr(activity_node, 'name') and activity_node.name == active_activity:
-                                    in_activity = True
-                                    break
-                        
-                        include_node = in_activity
+            # Applica filtro per attività se attivo e se il nodo è ancora incluso
+            if scene.filter_by_activity and include_node and active_activity_name:
+                in_activity = False
+                
+                # Cerca connessioni con l'attività attiva
+                for edge in graph.edges:
+                    if edge.edge_source == node.node_id and edge.edge_type == "is_in_activity":
+                        activity_node = graph.find_node_by_id(edge.edge_target)
+                        if activity_node and hasattr(activity_node, 'name') and activity_node.name == active_activity_name:
+                            in_activity = True
+                            print(f"  Node is in active activity: {active_activity_name}")
+                            break
+                
+                include_node = in_activity
+                
+                if include_node:
+                    print(f"  Node INCLUDED for activity filter")
                 else:
-                    # Se non ci sono attività nella lista, disattiva il filtro
-                    scene.filter_by_activity = False
-                    self.report({'INFO'}, "No activities available, filter disabled")
+                    print(f"  Node EXCLUDED for activity filter")
             
             # Se il nodo passa tutti i filtri, aggiungilo alla lista
             if include_node:
                 filtered_items.append(node)
+                print(f"  FINAL RESULT: Node {node.name} INCLUDED in filtered list")
+            else:
+                print(f"  FINAL RESULT: Node {node.name} EXCLUDED from filtered list")
         
         # Aggiorna la lista em_list con gli elementi filtrati
         # Salva l'elemento attualmente selezionato (se presente)
-        current_selected = scene.em_list[scene.em_list_index].name if scene.em_list_index >= 0 and len(scene.em_list) > 0 else None
+        current_selected = None
+        if scene.em_list_index >= 0 and len(scene.em_list) > 0:
+            current_selected = scene.em_list[scene.em_list_index].name
         
         # Pulisci la lista attuale
         EM_list_clear(context, "em_list")
         
         # Ricostruisci la lista con gli elementi filtrati
+        print(f"\nPopulating em_list with {len(filtered_items)} filtered items")
         for i, node in enumerate(filtered_items):
             # Usa la funzione esistente per popolare la lista
             populate_stratigraphic_node(scene, node, i, graph)
@@ -127,9 +158,9 @@ class EM_filter_lists(bpy.types.Operator):
                     break
         
         # Reimposta l'indice a 0 se la lista non è vuota, altrimenti a -1
-        if len(scene.em_list) > 0:
+        if len(scene.em_list) > 0 and scene.em_list_index < 0:
             scene.em_list_index = 0
-        else:
+        elif len(scene.em_list) == 0:
             scene.em_list_index = -1
             self.report({'INFO'}, "No items match the current filters")
         
@@ -452,6 +483,14 @@ class EM_ToolsPanel:
         # Tasto per attivare tutte le collezioni con proxy
         row.operator("em.strat_activate_collections", text="", icon='OUTLINER_COLLECTION')
 
+        # After the other filter buttons:
+        if hasattr(scene, "filter_by_epoch") and hasattr(scene, "filter_by_activity"):
+            if scene.filter_by_epoch or scene.filter_by_activity:
+                row.operator("em.reset_filters", text="", icon='X')
+                
+            # Add debug button
+            row.operator("em.debug_filters", text="", icon='CONSOLE')
+
         if obj:
             #split = row.split()
 
@@ -748,6 +787,129 @@ def sync_visibility_update(self, context):
         except Exception as e:
             print(f"Error syncing visibility: {e}")
 
+
+# Add this new operator to EM_list.py
+class EM_debug_filters(bpy.types.Operator):
+    bl_idname = "em.debug_filters"
+    bl_label = "Debug Filters"
+    bl_description = "Print debug information about the current epoch and connected nodes"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        scene = context.scene
+        
+        # Get current graph
+        from .functions import is_graph_available as check_graph
+        graph_exists, graph = check_graph(context)
+        
+        if not graph_exists:
+            self.report({'WARNING'}, "No active graph found. Please load a GraphML file first.")
+            return {'CANCELLED'}
+        
+        print("\n=== FILTER DEBUG INFORMATION ===")
+        
+        # Print active epoch info
+        print("\nActive Epoch Info:")
+        if scene.epoch_list_index >= 0 and len(scene.epoch_list) > 0:
+            active_epoch = scene.epoch_list[scene.epoch_list_index]
+            print(f"  Name: {active_epoch.name}")
+            print(f"  Start Time: {active_epoch.start_time}")
+            print(f"  End Time: {active_epoch.end_time}")
+            
+            # Find the epoch node in the graph
+            epoch_node = None
+            for node in graph.nodes:
+                if hasattr(node, 'node_type') and node.node_type == 'epoch' and node.name == active_epoch.name:
+                    epoch_node = node
+                    break
+            
+            if epoch_node:
+                print(f"  Found epoch node in graph: {epoch_node.node_id}")
+                
+                # Count nodes connected to this epoch
+                created_in_epoch = []
+                surviving_in_epoch = []
+                
+                for edge in graph.edges:
+                    if edge.edge_target == epoch_node.node_id:
+                        source_node = graph.find_node_by_id(edge.edge_source)
+                        if source_node and hasattr(source_node, 'node_type'):
+                            if edge.edge_type == "has_first_epoch":
+                                created_in_epoch.append(source_node)
+                            elif edge.edge_type == "survive_in_epoch":
+                                surviving_in_epoch.append(source_node)
+                
+                print(f"  Nodes created in this epoch: {len(created_in_epoch)}")
+                for node in created_in_epoch:
+                    print(f"    - {node.name} (Type: {node.node_type}, UUID: {node.node_id})")
+                
+                print(f"  Nodes surviving in this epoch: {len(surviving_in_epoch)}")
+                for node in surviving_in_epoch:
+                    print(f"    - {node.name} (Type: {node.node_type}, UUID: {node.node_id})")
+                    
+                # Check inclusion status
+                include_surviving = scene.include_surviving_units
+                print(f"  Include surviving units: {include_surviving}")
+                
+                # Total expected nodes
+                expected_total = len(created_in_epoch) + (len(surviving_in_epoch) if include_surviving else 0)
+                print(f"  Expected total nodes in filtered list: {expected_total}")
+                
+            else:
+                print(f"  WARNING: Could not find epoch node in graph!")
+        else:
+            print("  No active epoch selected")
+        
+        # Print active activity info
+        print("\nActive Activity Info:")
+        if scene.filter_by_activity and scene.activity_manager.active_index >= 0 and len(scene.activity_manager.activities) > 0:
+            active_activity = scene.activity_manager.activities[scene.activity_manager.active_index]
+            print(f"  Name: {active_activity.name}")
+            
+            # Find the activity node in the graph
+            activity_node = None
+            for node in graph.nodes:
+                if hasattr(node, 'node_type') and node.node_type == 'ActivityNodeGroup' and node.name == active_activity.name:
+                    activity_node = node
+                    break
+            
+            if activity_node:
+                print(f"  Found activity node in graph: {activity_node.node_id}")
+                
+                # Count nodes in this activity
+                nodes_in_activity = []
+                
+                for edge in graph.edges:
+                    if edge.edge_target == activity_node.node_id and edge.edge_type == "is_in_activity":
+                        source_node = graph.find_node_by_id(edge.edge_source)
+                        if source_node and hasattr(source_node, 'node_type'):
+                            nodes_in_activity.append(source_node)
+                
+                print(f"  Nodes in this activity: {len(nodes_in_activity)}")
+                for node in nodes_in_activity:
+                    print(f"    - {node.name} (Type: {node.node_type}, UUID: {node.node_id})")
+            else:
+                print(f"  WARNING: Could not find activity node in graph!")
+        else:
+            print("  No active activity selected")
+        
+        # Current filtered list info
+        print("\nCurrent Filtered List Info:")
+        print(f"  Items in em_list: {len(scene.em_list)}")
+        print(f"  Filter by epoch: {scene.filter_by_epoch}")
+        print(f"  Filter by activity: {scene.filter_by_activity}")
+        
+        # Compare with all stratigraphic nodes
+        strat_nodes = [node for node in graph.nodes if hasattr(node, 'node_type') and 
+                       node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']]
+        print(f"  Total stratigraphic nodes in graph: {len(strat_nodes)}")
+        
+        print("=== END FILTER DEBUG INFORMATION ===\n")
+        
+        self.report({'INFO'}, "Filter debug information printed to console")
+        return {'FINISHED'}
+
+
 #SETUP MENU
 #####################################################################
 
@@ -763,7 +925,8 @@ classes = [
     EM_reset_filters,
     EM_strat_toggle_visibility,
     EM_strat_sync_visibility,
-    EM_strat_activate_collections
+    EM_strat_activate_collections,
+    EM_debug_filters
 ]
 
 def register():
