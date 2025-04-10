@@ -138,8 +138,13 @@ class EM_filter_lists(bpy.types.Operator):
         # Aggiorna la lista em_list con gli elementi filtrati
         # Salva l'elemento attualmente selezionato (se presente)
         current_selected = None
-        if scene.em_list_index >= 0 and len(scene.em_list) > 0:
-            current_selected = scene.em_list[scene.em_list_index].name
+        if scene.em_list_index >= 0 and scene.em_list_index < len(scene.em_list):
+            try:
+                current_selected = scene.em_list[scene.em_list_index].name
+                print(f"Current selection: {current_selected}")
+            except IndexError:
+                print(f"IndexError: index {scene.em_list_index} out of range for list with {len(scene.em_list)} items")
+                current_selected = None
         
         # Pulisci la lista attuale
         EM_list_clear(context, "em_list")
@@ -150,19 +155,21 @@ class EM_filter_lists(bpy.types.Operator):
             # Usa la funzione esistente per popolare la lista
             populate_stratigraphic_node(scene, node, i, graph)
         
-        # Ripristina la selezione se possibile
-        if current_selected:
-            for i, item in enumerate(scene.em_list):
-                if item.name == current_selected:
-                    scene.em_list_index = i
-                    break
-        
-        # Reimposta l'indice a 0 se la lista non è vuota, altrimenti a -1
-        if len(scene.em_list) > 0 and scene.em_list_index < 0:
-            scene.em_list_index = 0
-        elif len(scene.em_list) == 0:
+        # IMPORTANTE: Reimposta l'indice in modo sicuro
+        if len(scene.em_list) == 0:
             scene.em_list_index = -1
             self.report({'INFO'}, "No items match the current filters")
+        else:
+            # Prima imposta a 0, poi prova a ripristinare la selezione
+            scene.em_list_index = 0
+            
+            # Ripristina la selezione se possibile
+            if current_selected:
+                for i, item in enumerate(scene.em_list):
+                    if item.name == current_selected:
+                        scene.em_list_index = i
+                        print(f"Restored selection to index {i}: {item.name}")
+                        break
         
         # Se la sincronizzazione è attiva, aggiorna la visibilità degli oggetti
         if scene.sync_list_visibility:
@@ -754,17 +761,39 @@ class EM_not_in_matrix(bpy.types.Operator):
 
 
 def filter_list_update(self, context):
+    """
+    Update callback for filter toggle buttons.
+    This function is called whenever a filter button is toggled.
+    """
+    scene = context.scene
+    
+    # Check which filter was toggled (self.name can be "filter_by_epoch" or "filter_by_activity")
+    filter_name = getattr(self, "name", None)
+    filter_value = getattr(scene, filter_name, False) if filter_name else False
+    
+    print(f"\n--- Filter toggle: {filter_name} = {filter_value} ---")
+    
     # Check if there's a valid graph before calling the operator
     from .functions import is_graph_available as check_graph
     graph_exists, _ = check_graph(context)
     
     if graph_exists:
-        # Controlla se l'operatore è disponibile prima di chiamarlo
-        if hasattr(bpy.ops.em, "filter_lists"):
+        # Only apply filtering if at least one filter is active
+        if scene.filter_by_epoch or scene.filter_by_activity:
             try:
                 bpy.ops.em.filter_lists()
             except Exception as e:
-                print(f"Error updating filtered list: {e}")
+                print(f"Error applying filters: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            # If all filters are off, reset to show all items
+            try:
+                bpy.ops.em.reset_filters()
+            except Exception as e:
+                print(f"Error resetting filters: {e}")
+                import traceback
+                traceback.print_exc()
     else:
         # Show message to load a graph first
         bpy.context.window_manager.popup_menu(
@@ -772,12 +801,11 @@ def filter_list_update(self, context):
             title="No Graph Available",
             icon='ERROR'
         )
+        
         # Reset the filter that was just toggled
-        if hasattr(self, "name"):
-            if self.name == "filter_by_epoch":
-                context.scene.filter_by_epoch = False
-            elif self.name == "filter_by_activity":
-                context.scene.filter_by_activity = False
+        if filter_name:
+            setattr(scene, filter_name, False)
+            print(f"Reset {filter_name} to False since no graph is available")
 
 
 def sync_visibility_update(self, context):

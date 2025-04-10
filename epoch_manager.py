@@ -12,6 +12,44 @@ from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode  # Import dire
 
 from .s3Dgraphy import get_graph
 
+def update_epoch_selection(self, context):
+    """
+    Update callback for epoch_list_index.
+    This function is called whenever the selected epoch changes.
+    """
+    scene = context.scene
+    
+    # Safety check: verify that epoch_list exists and the index is valid
+    if len(scene.epoch_list) == 0:
+        scene.epoch_list_index = 0
+        return
+    
+    # Verify the index is in range
+    if scene.epoch_list_index >= len(scene.epoch_list):
+        scene.epoch_list_index = 0
+    
+    # Debug info
+    print(f"\n--- Epoch selection changed to index {scene.epoch_list_index} ---")
+    active_epoch = scene.epoch_list[scene.epoch_list_index]
+    print(f"Active epoch: {active_epoch.name}")
+    
+    # First update the US list for the side panel
+    try:
+        bpy.ops.epoch_manager.update_us_list()
+    except Exception as e:
+        print(f"Error updating US list: {e}")
+    
+    # Only trigger filtering if epoch filtering is active
+    if scene.filter_by_epoch:
+        print(f"Filtering is active - updating stratigraphy list for epoch: {active_epoch.name}")
+        try:
+            bpy.ops.em.filter_lists()
+        except Exception as e:
+            print(f"Error filtering lists: {e}")
+            import traceback
+            traceback.print_exc()
+    else:
+        print("Epoch filtering is not active - skipping list update")
 
 class EM_UL_named_epoch_managers(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -590,12 +628,10 @@ def register():
         default=False
     )
 
-    # Make sure to register the update callback correctly
-    # This is the key part that might be failing
     bpy.types.Scene.epoch_list_index = IntProperty(
         name="Index for epoch_list",
         default=0,
-        update=update_filtered_lists_if_needed
+        update=update_epoch_selection
     )
 
 def unregister():
