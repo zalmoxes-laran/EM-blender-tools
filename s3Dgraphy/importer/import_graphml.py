@@ -118,6 +118,21 @@ class GraphMLImporter:
         self.parse_nodes(tree)
         self.parse_edges(tree)
         self.connect_nodes_to_epochs()
+        
+        br_nodes = [n for n in self.graph.nodes if hasattr(n, 'node_type') and n.node_type == "BR"]
+        print(f"\nTotal BR nodes included in the graph: {len(br_nodes)}")
+        for node in br_nodes:
+            print(f"  BR Node: UUID={node.node_id}, Original ID={node.attributes.get('original_id', 'Unknown')}, y_pos={node.attributes.get('y_pos', 'Unknown')}")
+
+        # Verifica se i nodi BR esistono nel grafo
+        if len(br_nodes) == 0:
+            print("\nWARNING: No BR (continuity) nodes found in the graph!")
+            print("Looking for nodes with _continuity in description...")
+            
+            for node in self.graph.nodes:
+                if hasattr(node, 'description') and '_continuity' in node.description:
+                    print(f"  Found node with _continuity in description: {node.node_id} (Type: {node.node_type if hasattr(node, 'node_type') else 'Unknown'})")
+        
         return self.graph
 
     def parse_nodes(self, tree):
@@ -409,10 +424,15 @@ class GraphMLImporter:
             continuity_node = ContinuityNode(
                 node_id=uuid_id,
                 name="continuity_node",
-                #stratigraphic_type="BR",
                 description=nodedescription
             )
+            
+            # Aggiungi attributi di tracciamento
+            continuity_node.attributes['original_id'] = original_id
+            continuity_node.attributes['graph_id'] = self.graph.graph_id
             continuity_node.attributes['y_pos'] = float(node_y_pos)
+            
+            print(f"Adding continuity node to graph: {continuity_node.node_id} (Original ID: {original_id})")
             self.graph.add_node(continuity_node)
 
         else:
@@ -776,6 +796,16 @@ class GraphMLImporter:
         """
         Assegna le epoche ai nodi nel grafo in base alla posizione Y e gestisce i nodi continuity.
         """
+        print("\n=== Connecting nodes to epochs ===")
+        
+        # Verifica se ci sono nodi BR (continuity)
+        br_nodes = [n for n in self.graph.nodes if hasattr(n, 'node_type') and n.node_type == "BR"]
+        print(f"Found {len(br_nodes)} BR (continuity) nodes for connection process")
+        
+        # Esegui una ricerca manuale nelle classi dei nodi per verificare che ContinuityNode esista e sia correttamente definito
+        
+        print(f"ContinuityNode class node_type: {ContinuityNode.node_type}")
+
         # Definisce i tipi di nodi stratigrafici fisici che possono estendersi fino all'ultima epoca
         list_of_physical_stratigraphic_nodes = ["US", "serSU"]
 
@@ -801,40 +831,31 @@ class GraphMLImporter:
         print(f"Connect nodes to epochs: {len(self.graph.nodes)} nodes, {len(epochs)} epochs")
         
         # Usa una mappatura diretta per trovare i nodi continuity collegati a nodi stratigrafici
-        continuity_connections = {}  # orig_source_id -> continuity_node
-        
-        # Prima identifica le connessioni continuity dagli archi originali dal file GraphML
+        continuity_connections = {}  # node_id -> continuity_node
+
+        # Prima identifica le connessioni continuity dagli archi
         for edge in self.graph.edges:
-            # Prendi source e target originali dall'edge se disponibili
-            if hasattr(edge, 'attributes'):
-                orig_source_id = edge.attributes.get('original_source_id')
-                orig_target_id = edge.attributes.get('original_target_id')
-                
-                if orig_source_id and orig_target_id:
-                    # Verifica se il target è un nodo continuity
-                    target_node = self.graph.find_node_by_id(edge.edge_target)
-                    if target_node and hasattr(target_node, 'node_type') and target_node.node_type == "BR":
-                        continuity_connections[orig_source_id] = target_node
-                        print(f"Found continuity connection: {orig_source_id} -> {target_node.node_id}")
+            # Usa direttamente source e target degli edge
+            source_id = edge.edge_source
+            target_id = edge.edge_target
+            
+            # Verifica se il source è un nodo continuity
+            source_node = self.graph.find_node_by_id(source_id)
+            if source_node and hasattr(source_node, 'node_type') and source_node.node_type == "BR":
+                continuity_connections[target_id] = source_node
+                print(f"Found continuity connection: {source_node.node_id} -> {target_id}")
         
         # Per ogni nodo stratigrafico
         for node in self.graph.nodes:
             if not hasattr(node, 'attributes') or not 'y_pos' in node.attributes:
                 continue
                 
-            # Ottieni ID originale
-            orig_node_id = node.attributes.get('original_id')
-            if not orig_node_id:
-                orig_node_id = reverse_mapping.get(node.node_id)
-                
-            if not orig_node_id:
-                print(f"Warning: Could not find original ID for node {node.node_id}")
-                continue
-                
-            # Cerca il nodo continuity collegato
             connected_continuity_node = None
-            if orig_node_id in continuity_connections:
-                connected_continuity_node = continuity_connections[orig_node_id]
+
+            # Cerca il nodo continuity collegato direttamente con l'UUID
+            connected_continuity_node = continuity_connections.get(node.node_id)
+            
+            if connected_continuity_node:
                 print(f"Found continuity for node {node.name} ({node.node_id}): {connected_continuity_node.node_id}")
             
             # Connetti alle epoche appropriate
@@ -848,16 +869,21 @@ class GraphMLImporter:
                         print(f"Error connecting node {node.name} to epoch {epoch.name} (first): {e}")
                     
                 elif connected_continuity_node and hasattr(connected_continuity_node, 'attributes') and 'y_pos' in connected_continuity_node.attributes:
-                    if epoch.max_y >= connected_continuity_node.attributes['y_pos'] and epoch.min_y <= node.attributes['y_pos']:
-                        edge_id = f"{node.node_id}_{epoch.node_id}_survive"
+                    y_pos = node.attributes['y_pos']
+                    continuity_y_pos = connected_continuity_node.attributes['y_pos']
+                    print(f"Node {node.name} (y_pos: {y_pos}) connected to continuity node {connected_continuity_node.node_id} (y_pos: {continuity_y_pos})")
+
+                    if epoch.max_y < y_pos and epoch.max_y > continuity_y_pos:
                         try:
+                            edge_id = f"{node.node_id}_{epoch.node_id}_survive"
                             self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch")
-                            print(f"Connected node {node.name} to epoch {epoch.name} (survive with continuity)")
+                            print(f"Connected node {node.name} to epoch {epoch.name} yeee (survive with continuity)")
                         except Exception as e:
                             print(f"Error connecting node {node.name} to epoch {epoch.name} (survive): {e}")
                     
                 elif hasattr(node, 'node_type') and node.node_type in list_of_physical_stratigraphic_nodes:
-                    if node.attributes['y_pos'] < epoch.min_y:  # Node appears before this epoch
+                    # L'epoca è più recente del nodo (cioè il max_y dell'epoca è più basso del y_pos del nodo)
+                    if epoch.max_y < node.attributes['y_pos']:
                         edge_id = f"{node.node_id}_{epoch.node_id}_survive"
                         try:
                             self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch")
@@ -1126,24 +1152,83 @@ class GraphMLImporter:
         return nodename, node_id, node_description, nodeurl, subnode_is_combiner
 
     def EM_check_node_continuity(self, node_element):
-        nodedescription, _, _ = self.EM_extract_continuity(node_element)
-        return nodedescription == "_continuity"
+        """
+        Verifica se un nodo è un nodo di continuità (BR).
+        
+        Args:
+            node_element: Elemento XML del nodo
+            
+        Returns:
+            bool: True se il nodo è di tipo continuity
+        """
+        # Cerca nei dati del nodo
+        for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+            if subnode.attrib.get('key') == 'd5':
+                # Verifica se il testo è "_continuity"
+                if subnode.text and "_continuity" in subnode.text:
+                    print(f"Found continuity node: {node_element.attrib['id']}")
+                    return True
+                    
+        # Verifica se è un SVGNode (alternativa)
+        svg_node = node_element.find('.//{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}SVGNode')
+        if svg_node is not None:
+            # Cerca di nuovo nei dati per confermare se è un nodo continuity
+            for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
+                if subnode.attrib.get('key') == 'd5' and subnode.text:
+                    if "_continuity" in subnode.text:
+                        print(f"Found SVG continuity node: {node_element.attrib['id']}")
+                        return True
+                        
+        return False
 
     def EM_extract_continuity(self, node_element):
+        """
+        Estrae informazioni da un nodo continuity.
+        
+        Args:
+            node_element: Elemento XML del nodo
+            
+        Returns:
+            tuple: (descrizione, posizione y, id)
+        """
         is_d5 = False
         node_y_pos = 0.0
         nodedescription = None
         node_id = node_element.attrib['id']
 
+        # Estrai descrizione dal campo d5
         for subnode in node_element.findall('.//{http://graphml.graphdrawing.org/xmlns}data'):
             if subnode.attrib.get('key') == 'd5':
                 is_d5 = True
                 nodedescription = subnode.text
+            
+            # Per SVGNode, estrai la posizione y
+            geometry = subnode.find('.//{http://www.yworks.com/xml/graphml}SVGNode/{http://www.yworks.com/xml/graphml}Geometry')
+            if geometry is not None:
+                y_str = geometry.attrib.get('y', '0.0')
+                try:
+                    node_y_pos = float(y_str)
+                    print(f"Extracted y position from SVGNode: {node_y_pos}")
+                except (ValueError, TypeError):
+                    print(f"Error converting y position to float: {y_str}")
+                    node_y_pos = 0.0
+            
+            # Fallback per i nodi non SVG
             if subnode.attrib.get('key') == 'd6':
-                for geometry in subnode.findall('.//{http://www.yworks.com/xml/graphml}Geometry'):
-                    node_y_pos = float(geometry.attrib['y'])
+                geometry = subnode.find('.//{http://www.yworks.com/xml/graphml}Geometry')
+                if geometry is not None:
+                    y_str = geometry.attrib.get('y', '0.0')
+                    try:
+                        node_y_pos = float(y_str)
+                    except (ValueError, TypeError):
+                        node_y_pos = 0.0
+        
         if not is_d5:
             nodedescription = ''
+            
+        if nodedescription == "_continuity":
+            print(f"Extracting continuity node: ID={node_id}, y_pos={node_y_pos}")
+            
         return nodedescription, node_y_pos, node_id
 
     def EM_extract_edge_type(self, edge):
