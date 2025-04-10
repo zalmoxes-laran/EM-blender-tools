@@ -67,8 +67,8 @@ class EM_filter_lists(bpy.types.Operator):
             
             # Applica filtro per epoca se attivo
             if scene.filter_by_epoch and active_epoch_name:
-                include_node = False  # Reset per epoca, includi solo se corrisponde
-                
+                include_node = False 
+
                 # Trova gli edge che collegano questo nodo alle epoche
                 created_in_epoch = False
                 survives_in_epoch = False
@@ -495,8 +495,12 @@ class EM_ToolsPanel:
             # Nota: abbiamo migliorato l'UI dell'opzione "Include Surviving Units"
             if scene.filter_by_epoch:
                 sub_row = box.row(align=True)
-                sub_row.prop(scene, "include_surviving_units", icon='LINKED')
-                # Aggiungiamo un'etichetta informativa per chiarire cosa fa questa opzione
+                # Usa l'operatore invece della proprietà
+                icon = 'CHECKBOX_HLT' if scene.include_surviving_units else 'CHECKBOX_DEHLT'
+                op = sub_row.operator("em.toggle_include_surviving", 
+                                    text="Include Surviving Units", 
+                                    icon=icon)                
+                # etichetta informativa per chiarire cosa fa questa opzione
                 sub_box = box.box()
                 sub_box.label(text="Survival Filter:", icon='INFO')
                 sub_box.label(text="- When enabled: Shows all units that exist in this epoch")
@@ -990,24 +994,25 @@ class EM_debug_filters(bpy.types.Operator):
         self.report({'INFO'}, "Filter debug information printed to console")
         return {'FINISHED'}
 
-def include_surviving_units_update(self, context):
-    """
-    Callback per l'opzione include_surviving_units.
-    Aggiorna il filtraggio quando l'opzione viene modificata.
-    """
-    scene = context.scene
+
+class EM_toggle_include_surviving(bpy.types.Operator):
+    bl_idname = "em.toggle_include_surviving"
+    bl_label = "Toggle Include Surviving Units"
+    bl_description = "Toggle whether to include units that survive in the current epoch"
+    bl_options = {"REGISTER", "UNDO"}
     
-    print(f"\n--- Include Surviving Units changed: {scene.include_surviving_units} ---")
-    
-    # Aggiorna il filtraggio solo se il filtro per epoca è attivo
-    if scene.filter_by_epoch:
-        # Riapplica il filtro per aggiornare la lista
-        try:
+    def execute(self, context):
+        scene = context.scene
+        # Invert the current value
+        scene.include_surviving_units = not scene.include_surviving_units
+        
+        print(f"Toggled include_surviving_units to: {scene.include_surviving_units}")
+        
+        # Manually reapply the filter if epoch filtering is active
+        if scene.filter_by_epoch:
             bpy.ops.em.filter_lists()
-        except Exception as e:
-            print(f"Error updating filter after include_surviving_units change: {e}")
-            import traceback
-            traceback.print_exc()
+            
+        return {'FINISHED'}
 
 
 #SETUP MENU
@@ -1026,7 +1031,8 @@ classes = [
     EM_strat_toggle_visibility,
     EM_strat_sync_visibility,
     EM_strat_activate_collections,
-    EM_debug_filters
+    EM_debug_filters,
+    EM_toggle_include_surviving
 ]
 
 def register():
@@ -1067,12 +1073,12 @@ def register():
         )
 
     if not hasattr(bpy.types.Scene, "include_surviving_units"):
+        print("Registering include_surviving_units property with update callback")
         bpy.types.Scene.include_surviving_units = bpy.props.BoolProperty(
             name="Include Surviving Units",
             description="Include units that survive in this epoch but were created in previous epochs",
-            default=True,
-            update=include_surviving_units_update  # callback di aggiornamento
-        )  
+            default=True
+        )
 
 def unregister():
     # Remove scene properties if they exist
