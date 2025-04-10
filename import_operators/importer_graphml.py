@@ -78,9 +78,25 @@ class EM_import_GraphML(bpy.types.Operator):
 
                 
                 print(f"Aggiornato ID nell'interfaccia a: {graphml.name}")
-                
+                # Imposta esplicitamente gli indici a 0 prima di popolare
+                scene.em_list_index = 0
+                scene.epoch_list_index = 0
+                if hasattr(scene, "em_sources_list_index"):
+                    scene.em_sources_list_index = 0
+                if hasattr(scene, "em_properties_list_index"):
+                    scene.em_properties_list_index = 0
+                if hasattr(scene, "em_extractors_list_index"):
+                    scene.em_extractors_list_index = 0
+                if hasattr(scene, "em_combiners_list_index"):
+                    scene.em_combiners_list_index = 0
                 # Ora procedi con il popolamento delle liste
                 populate_blender_lists_from_graph(context, graph_instance)
+                ensure_valid_index(scene.em_list, "em_list_index", context)
+                ensure_valid_index(scene.epoch_list, "epoch_list_index", context)
+                ensure_valid_index(scene.em_sources_list, "em_sources_list_index", context)
+                ensure_valid_index(scene.em_properties_list, "em_properties_list_index", context)
+                ensure_valid_index(scene.em_extractors_list, "em_extractors_list_index", context)
+                ensure_valid_index(scene.em_combiners_list, "em_combiners_list_index", context)
 
                 # verifica post importazione: controlla che il contatore della lista delle UUSS sia nel range (può succedere di ricaricare ed avere una lista più corta di UUSS). In caso di necessità porta a 0 l'indice
                 self.check_index_coherence(scene)

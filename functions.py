@@ -22,6 +22,49 @@ from .s3Dgraphy import load_graph_from_file, get_graph
 import platform
 from pathlib import Path
 
+
+def ensure_valid_index(collection_property, index_property_name, context=None):
+    """
+    Ensures that the index for a collection property is valid.
+    
+    Args:
+        collection_property: The collection property (e.g., scene.em_list)
+        index_property_name: The name of the index property (e.g., "em_list_index")
+        context: Blender context (optional, used for reporting)
+    
+    Returns:
+        bool: True if the index was valid or successfully corrected, False if the collection is empty
+    """
+    # Get the owner object that contains both properties
+    owner = collection_property.id_data
+    
+    # Get current index value
+    current_index = getattr(owner, index_property_name)
+    
+    # Check if collection is empty
+    if len(collection_property) == 0:
+        # Set index to -1 or 0 based on preference
+        setattr(owner, index_property_name, -1)
+        print(f"Collection is empty, reset {index_property_name} to -1")
+        return False
+    
+    # Check if index is out of range
+    if current_index < 0 or current_index >= len(collection_property):
+        # Reset to a valid index (first item)
+        setattr(owner, index_property_name, 0)
+        print(f"Index {current_index} out of range for collection (size {len(collection_property)}), reset to 0")
+        
+        # Report if context is provided
+        if context:
+            import bpy
+            bpy.context.window_manager.popup_menu(
+                lambda self, ctx: self.layout.label(text=f"Reset {index_property_name} to valid value"),
+                title="Index Out of Range",
+                icon='INFO'
+            )
+            
+    return True
+
 def convert_material_to_principled(material):
     """
     Convert a material using old shaders (like Diffuse BSDF) to use Principled BSDF

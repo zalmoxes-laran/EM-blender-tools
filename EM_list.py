@@ -154,6 +154,7 @@ class EM_filter_lists(bpy.types.Operator):
         for i, node in enumerate(filtered_items):
             # Usa la funzione esistente per popolare la lista
             populate_stratigraphic_node(scene, node, i, graph)
+          
         
         # IMPORTANTE: Reimposta l'indice in modo sicuro
         if len(scene.em_list) == 0:
@@ -186,26 +187,51 @@ class EM_reset_filters(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         
-        # Disattiva i filtri
-        scene.filter_by_epoch = False
-        scene.filter_by_activity = False
+        # Importante: memorizza lo stato attuale dei filtri
+        previous_epoch_filter = scene.filter_by_epoch
+        previous_activity_filter = scene.filter_by_activity
         
-        # Ricarica la lista completa
-        em_tools = scene.em_tools
-        if em_tools.active_file_index >= 0:
-            graphml = em_tools.graphml_files[em_tools.active_file_index]
-            graph = get_graph(graphml.name)
+        # Disattiva temporaneamente i callback di aggiornamento
+        # impostando una flag che sarà controllata nei callback
+        if hasattr(filter_list_update, "is_running"):
+            filter_list_update.is_running = True
+        
+        try:
+            # Disattiva i filtri senza innescare nuovi aggiornamenti
+            scene.filter_by_epoch = False
+            scene.filter_by_activity = False
             
-            if graph:
-                # Pulisci le liste Blender
-                EM_list_clear(context, "em_list")
+            # Ricarica SOLO la lista em_list, non le altre liste!
+            em_tools = scene.em_tools
+            if em_tools.active_file_index >= 0:
+                graphml = em_tools.graphml_files[em_tools.active_file_index]
+                graph = get_graph(graphml.name)
                 
-                # Ripopola usando la funzione esistente
-                populate_blender_lists_from_graph(context, graph)
-                
-                self.report({'INFO'}, "Filters reset, showing all items")
-            else:
-                self.report({'WARNING'}, "No active graph found")
+                if graph:
+                    # Pulisci SOLO la lista em_list
+                    EM_list_clear(context, "em_list")
+                    
+                    # Estrai solo i nodi stratigrafici dal grafo
+                    strat_nodes = [node for node in graph.nodes if hasattr(node, 'node_type') and 
+                                  node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']]
+                    
+                    # Ripopola SOLO la lista em_list
+                    for i, node in enumerate(strat_nodes):
+                        populate_stratigraphic_node(scene, node, i, graph)
+                    
+                    # Assicura che l'indice sia valido
+                    if len(scene.em_list) > 0:
+                        scene.em_list_index = 0
+                    else:
+                        scene.em_list_index = -1
+                    
+                    self.report({'INFO'}, "Filters reset, showing all items")
+                else:
+                    self.report({'WARNING'}, "No active graph found")
+        finally:
+            # Ripristina la possibilità di aggiornamenti
+            if hasattr(filter_list_update, "is_running"):
+                filter_list_update.is_running = False
         
         return {'FINISHED'}
 
@@ -466,9 +492,15 @@ class EM_ToolsPanel:
             row.prop(scene, "filter_by_epoch", text="", toggle=True, icon='SORTTIME')
             
             # Se il filtro per epoca è attivo, mostra l'opzione per includere unità sopravvissute
+            # Nota: abbiamo migliorato l'UI dell'opzione "Include Surviving Units"
             if scene.filter_by_epoch:
                 sub_row = box.row(align=True)
-                sub_row.prop(scene, "include_surviving_units", text="Include Surviving Units")
+                sub_row.prop(scene, "include_surviving_units", icon='LINKED')
+                # Aggiungiamo un'etichetta informativa per chiarire cosa fa questa opzione
+                sub_box = box.box()
+                sub_box.label(text="Survival Filter:", icon='INFO')
+                sub_box.label(text="- When enabled: Shows all units that exist in this epoch")
+                sub_box.label(text="- When disabled: Shows only units created in this epoch")
 
         if hasattr(scene, "filter_by_activity"):
             row.prop(scene, "filter_by_activity", text="", toggle=True, icon='NETWORK_DRIVE')
@@ -539,7 +571,7 @@ class EM_ToolsPanel:
 
         row = layout.row()
 
-        if scene.em_list_index >= 0 and len(scene.em_list) > 0:
+        if scene.em_list and ensure_valid_index(scene.em_list, "em_list_index"):
             row.template_list("EM_STRAT_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
             item = scene.em_list[scene.em_list_index]
  
@@ -767,45 +799,66 @@ def filter_list_update(self, context):
     """
     scene = context.scene
     
-    # Check which filter was toggled (self.name can be "filter_by_epoch" or "filter_by_activity")
-    filter_name = getattr(self, "name", None)
-    filter_value = getattr(scene, filter_name, False) if filter_name else False
+    # PREVENT RECURSIVE CALLS: Check if we're already inside this function
+    if hasattr(filter_list_update, "is_running") and filter_list_update.is_running:
+        print("Preventing recursive filter_list_update call")
+        return
     
-    print(f"\n--- Filter toggle: {filter_name} = {filter_value} ---")
+    # Set flag to prevent recursion
+    filter_list_update.is_running = True
     
-    # Check if there's a valid graph before calling the operator
-    from .functions import is_graph_available as check_graph
-    graph_exists, _ = check_graph(context)
-    
-    if graph_exists:
-        # Only apply filtering if at least one filter is active
-        if scene.filter_by_epoch or scene.filter_by_activity:
-            try:
-                bpy.ops.em.filter_lists()
-            except Exception as e:
-                print(f"Error applying filters: {e}")
-                import traceback
-                traceback.print_exc()
-        else:
-            # If all filters are off, reset to show all items
-            try:
-                bpy.ops.em.reset_filters()
-            except Exception as e:
-                print(f"Error resetting filters: {e}")
-                import traceback
-                traceback.print_exc()
-    else:
-        # Show message to load a graph first
-        bpy.context.window_manager.popup_menu(
-            lambda self, context: self.layout.label(text="Please load a graph before filtering"),
-            title="No Graph Available",
-            icon='ERROR'
-        )
+    try:
+        # Check which filter was toggled (self.name can be "filter_by_epoch" or "filter_by_activity")
+        filter_name = getattr(self, "name", None)
+        filter_value = getattr(scene, filter_name, False) if filter_name else False
         
-        # Reset the filter that was just toggled
-        if filter_name:
-            setattr(scene, filter_name, False)
-            print(f"Reset {filter_name} to False since no graph is available")
+        print(f"\n--- Filter toggle: {filter_name} = {filter_value} ---")
+        
+        # Check if there's a valid graph before proceeding
+        from .functions import is_graph_available as check_graph
+        graph_exists, _ = check_graph(context)
+        
+        if graph_exists:
+            # Only apply filtering if at least one filter is active
+            if scene.filter_by_epoch or scene.filter_by_activity:
+                try:
+                    bpy.ops.em.filter_lists()
+                except Exception as e:
+                    print(f"Error applying filters: {e}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                # If all filters are off, use our reset operator
+                # which is now fixed to not duplicate lists
+                try:
+                    bpy.ops.em.reset_filters()
+                except Exception as e:
+                    print(f"Error resetting filters: {e}")
+                    import traceback
+                    traceback.print_exc()
+        else:
+            # Show message to load a graph first
+            bpy.context.window_manager.popup_menu(
+                lambda self, context: self.layout.label(text="Please load a graph before filtering"),
+                title="No Graph Available",
+                icon='ERROR'
+            )
+            
+            # Reset the filter that was just toggled
+            if filter_name:
+                # Disable temporary to prevent another callback
+                old_is_running = getattr(filter_list_update, "is_running", False)
+                filter_list_update.is_running = True
+                
+                setattr(scene, filter_name, False)
+                print(f"Reset {filter_name} to False since no graph is available")
+                
+                # Restore previous state
+                filter_list_update.is_running = old_is_running
+    
+    finally:
+        # Reset the flag to allow future calls
+        filter_list_update.is_running = False
 
 
 def sync_visibility_update(self, context):
@@ -937,6 +990,25 @@ class EM_debug_filters(bpy.types.Operator):
         self.report({'INFO'}, "Filter debug information printed to console")
         return {'FINISHED'}
 
+def include_surviving_units_update(self, context):
+    """
+    Callback per l'opzione include_surviving_units.
+    Aggiorna il filtraggio quando l'opzione viene modificata.
+    """
+    scene = context.scene
+    
+    print(f"\n--- Include Surviving Units changed: {scene.include_surviving_units} ---")
+    
+    # Aggiorna il filtraggio solo se il filtro per epoca è attivo
+    if scene.filter_by_epoch:
+        # Riapplica il filtro per aggiornare la lista
+        try:
+            bpy.ops.em.filter_lists()
+        except Exception as e:
+            print(f"Error updating filter after include_surviving_units change: {e}")
+            import traceback
+            traceback.print_exc()
+
 
 #SETUP MENU
 #####################################################################
@@ -998,8 +1070,9 @@ def register():
         bpy.types.Scene.include_surviving_units = bpy.props.BoolProperty(
             name="Include Surviving Units",
             description="Include units that survive in this epoch but were created in previous epochs",
-            default=True
-        )       
+            default=True,
+            update=include_surviving_units_update  # callback di aggiornamento
+        )  
 
 def unregister():
     # Remove scene properties if they exist
