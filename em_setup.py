@@ -508,7 +508,7 @@ class EM_SetupPanel(bpy.types.Panel):
                         warning_box.label(text="Warning: Missing or temporary graph code", icon='ERROR')
                         warning_box.label(text="Please add a proper code in the GraphML header")
                         op = warning_box.operator("wm.url_open", text="Learn how to fix this")
-                        op.url = "https://your-documentation-url.com/graphml-codes"
+                        op.url = "https://docs.extendedmatrix.org/en/1.5.0dev/data_funnel.html#general-background-data"
                 else:
                     # Se non c'è la proprietà graph_code, dobbiamo prima aggiungerla alla classe
                     active_file.graph_code = "MISSINGCODE"
