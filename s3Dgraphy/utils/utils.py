@@ -25,11 +25,22 @@ from ..nodes.stratigraphic_node import (
 )
 
 
-def debug_graph_structure(graph, node_id=None):
+def debug_graph_structure(graph, node_id=None, max_depth=5, current_depth=0):
     """
     Stampa informazioni dettagliate sulla struttura del grafo.
     Se node_id è specificato, si concentra sulle relazioni di quel nodo.
+    
+    Args:
+        graph: Il grafo da analizzare
+        node_id: ID del nodo su cui concentrarsi (opzionale)
+        max_depth: Profondità massima di ricorsione
+        current_depth: Profondità corrente di ricorsione
     """
+    # Prevent infinite recursion
+    if current_depth >= max_depth:
+        print(f"Limite di profondità ricorsiva ({max_depth}) raggiunto.")
+        return
+        
     print("\n=== DEBUG STRUTTURA GRAFO ===")
     
     node_types = {}

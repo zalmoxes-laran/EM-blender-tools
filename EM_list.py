@@ -873,13 +873,37 @@ def sync_visibility_update(self, context):
             print(f"Error syncing visibility: {e}")
 
 
-# Add this new operator to EM_list.py
 class EM_debug_filters(bpy.types.Operator):
     bl_idname = "em.debug_filters"
     bl_label = "Debug Filters"
-    bl_description = "Print debug information about the current epoch and connected nodes"
+    bl_description = "Print debug information about the current graph and connections"
     bl_options = {"REGISTER", "UNDO"}
-
+    
+    debug_mode: bpy.props.EnumProperty(
+        items=[
+            ('FULL', "Full Graph", "Debug the entire graph structure"),
+            ('CURRENT', "Current Node", "Debug only the currently selected node")
+        ],
+        default='CURRENT',
+        name="Debug Mode"
+    )
+    
+    max_depth: bpy.props.IntProperty(
+        name="Max Recursion Depth",
+        description="Maximum recursion depth for graph traversal",
+        default=5,
+        min=1,
+        max=20
+    )
+    
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "debug_mode")
+        layout.prop(self, "max_depth")
+    
     def execute(self, context):
         scene = context.scene
         
@@ -891,108 +915,37 @@ class EM_debug_filters(bpy.types.Operator):
             self.report({'WARNING'}, "No active graph found. Please load a GraphML file first.")
             return {'CANCELLED'}
         
-        print("\n=== FILTER DEBUG INFORMATION ===")
-        
-        # Print active epoch info
-        print("\nActive Epoch Info:")
-        if scene.epoch_list_index >= 0 and len(scene.epoch_list) > 0:
-            active_epoch = scene.epoch_list[scene.epoch_list_index]
-            print(f"  Name: {active_epoch.name}")
-            print(f"  Start Time: {active_epoch.start_time}")
-            print(f"  End Time: {active_epoch.end_time}")
+        try:
+            # Import debug_graph_structure
+            from .s3Dgraphy.utils.utils import debug_graph_structure
             
-            # Find the epoch node in the graph
-            epoch_node = None
-            for node in graph.nodes:
-                if hasattr(node, 'node_type') and node.node_type == 'epoch' and node.name == active_epoch.name:
-                    epoch_node = node
-                    break
-            
-            if epoch_node:
-                print(f"  Found epoch node in graph: {epoch_node.node_id}")
-                
-                # Count nodes connected to this epoch
-                created_in_epoch = []
-                surviving_in_epoch = []
-                
-                for edge in graph.edges:
-                    if edge.edge_target == epoch_node.node_id:
-                        source_node = graph.find_node_by_id(edge.edge_source)
-                        if source_node and hasattr(source_node, 'node_type'):
-                            if edge.edge_type == "has_first_epoch":
-                                created_in_epoch.append(source_node)
-                            elif edge.edge_type == "survive_in_epoch":
-                                surviving_in_epoch.append(source_node)
-                
-                print(f"  Nodes created in this epoch: {len(created_in_epoch)}")
-                for node in created_in_epoch:
-                    print(f"    - {node.name} (Type: {node.node_type}, UUID: {node.node_id})")
-                
-                print(f"  Nodes surviving in this epoch: {len(surviving_in_epoch)}")
-                for node in surviving_in_epoch:
-                    print(f"    - {node.name} (Type: {node.node_type}, UUID: {node.node_id})")
-                    
-                # Check inclusion status
-                include_surviving = scene.include_surviving_units
-                print(f"  Include surviving units: {include_surviving}")
-                
-                # Total expected nodes
-                expected_total = len(created_in_epoch) + (len(surviving_in_epoch) if include_surviving else 0)
-                print(f"  Expected total nodes in filtered list: {expected_total}")
-                
+            if self.debug_mode == 'FULL':
+                # Debug full graph
+                debug_graph_structure(graph, max_depth=self.max_depth)
+                self.report({'INFO'}, "Full graph debug information printed to console")
             else:
-                print(f"  WARNING: Could not find epoch node in graph!")
-        else:
-            print("  No active epoch selected")
-        
-        # Print active activity info
-        print("\nActive Activity Info:")
-        if scene.filter_by_activity and scene.activity_manager.active_index >= 0 and len(scene.activity_manager.activities) > 0:
-            active_activity = scene.activity_manager.activities[scene.activity_manager.active_index]
-            print(f"  Name: {active_activity.name}")
+                # Debug current node
+                if scene.em_list_index >= 0 and len(scene.em_list) > 0:
+                    node_id = scene.em_list[scene.em_list_index].id_node
+                    debug_graph_structure(graph, node_id, max_depth=self.max_depth)
+                    self.report({'INFO'}, f"Node debug information printed to console for {scene.em_list[scene.em_list_index].name}")
+                else:
+                    # Fallback to full graph if no node is selected
+                    self.report({'WARNING'}, "No node selected, showing full graph information")
+                    debug_graph_structure(graph, max_depth=self.max_depth)
             
-            # Find the activity node in the graph
-            activity_node = None
-            for node in graph.nodes:
-                if hasattr(node, 'node_type') and node.node_type == 'ActivityNodeGroup' and node.name == active_activity.name:
-                    activity_node = node
-                    break
+            return {'FINISHED'}
             
-            if activity_node:
-                print(f"  Found activity node in graph: {activity_node.node_id}")
-                
-                # Count nodes in this activity
-                nodes_in_activity = []
-                
-                for edge in graph.edges:
-                    if edge.edge_target == activity_node.node_id and edge.edge_type == "is_in_activity":
-                        source_node = graph.find_node_by_id(edge.edge_source)
-                        if source_node and hasattr(source_node, 'node_type'):
-                            nodes_in_activity.append(source_node)
-                
-                print(f"  Nodes in this activity: {len(nodes_in_activity)}")
-                for node in nodes_in_activity:
-                    print(f"    - {node.name} (Type: {node.node_type}, UUID: {node.node_id})")
-            else:
-                print(f"  WARNING: Could not find activity node in graph!")
-        else:
-            print("  No active activity selected")
-        
-        # Current filtered list info
-        print("\nCurrent Filtered List Info:")
-        print(f"  Items in em_list: {len(scene.em_list)}")
-        print(f"  Filter by epoch: {scene.filter_by_epoch}")
-        print(f"  Filter by activity: {scene.filter_by_activity}")
-        
-        # Compare with all stratigraphic nodes
-        strat_nodes = [node for node in graph.nodes if hasattr(node, 'node_type') and 
-                       node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']]
-        print(f"  Total stratigraphic nodes in graph: {len(strat_nodes)}")
-        
-        print("=== END FILTER DEBUG INFORMATION ===\n")
-        
-        self.report({'INFO'}, "Filter debug information printed to console")
-        return {'FINISHED'}
+        except RecursionError as e:
+            self.report({'ERROR'}, f"Recursion error in debug function. Try reducing the max depth: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {'CANCELLED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Error during debug: {str(e)}")
+            import traceback
+            traceback.print_exc()  
+            return {'CANCELLED'}
 
 
 class EM_toggle_include_surviving(bpy.types.Operator):
