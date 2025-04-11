@@ -354,7 +354,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             
             # Importa get_graph e debug_graph_structure
             from .s3Dgraphy import get_graph
-            from .s3Dgraphy.utils import debug_graph_structure
+            #from .s3Dgraphy.utils import debug_graph_structure
             
             graph = get_graph(graphml.name)
             
@@ -363,14 +363,14 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
                 return {'FINISHED'}  # Non è un errore, le liste rimarranno vuote
                 
             # Debug della struttura del grafo
-            debug_graph_structure(graph)
+            #debug_graph_structure(graph)
             
             # Determina il nodo di partenza (stratigrafico selezionato o tutti)
             strat_node_id = None
             if scene.paradata_streaming_mode and scene.em_list_index >= 0 and len(scene.em_list) > 0:
                 strat_node_id = scene.em_list[scene.em_list_index].id_node
-                # Debug delle relazioni del nodo selezionato
-                debug_graph_structure(graph, strat_node_id)
+            #    # Debug delle relazioni del nodo selezionato
+            #    debug_graph_structure(graph, strat_node_id)
             
             # Aggiorna la lista delle proprietà
             self.update_property_list(scene, graph, strat_node_id)

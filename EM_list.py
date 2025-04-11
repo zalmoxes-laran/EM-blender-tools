@@ -886,7 +886,7 @@ class EM_debug_filters(bpy.types.Operator):
         ],
         default='CURRENT',
         name="Debug Mode"
-    )
+    ) # type: ignore
     
     max_depth: bpy.props.IntProperty(
         name="Max Recursion Depth",
@@ -894,7 +894,7 @@ class EM_debug_filters(bpy.types.Operator):
         default=5,
         min=1,
         max=20
-    )
+    ) # type: ignore
     
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
