@@ -107,7 +107,8 @@ class EM_import_GraphML(bpy.types.Operator):
                     inspect_load_dosco_files()
                 
                 #per aggiornare i nomi delle proprietà usando come prefisso in nome del nodo padre
-                self.newnames_forproperties_from_fathernodes(scene)
+                #self.newnames_forproperties_from_fathernodes(scene)
+                # ho disabilitato questa funzione perchè non mi sembra utile. Se serve, si può riabilitare
                 
                 #crea liste derivate per lo streaming dei paradati
                 create_derived_lists(scene.em_list[scene.em_list_index])

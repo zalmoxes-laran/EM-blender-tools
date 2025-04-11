@@ -526,8 +526,12 @@ class Graph:
         Returns:
             list: Lista di nodi proprietà connessi
         """
-        return [node for node in self.get_connected_nodes_by_edge_type(node_id, "has_property") 
+        #return [node for node in self.get_connected_nodes_by_edge_type(node_id, "has_property") 
+        #        if node.node_type == "property"]
+
+        return [node for node in self.get_connected_nodes_by_edge_type(node_id, "has_data_provenance") 
                 if node.node_type == "property"]
+
 
     def get_combiner_nodes_for_property(self, property_node_id):
         """

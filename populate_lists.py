@@ -156,41 +156,65 @@ def populate_stratigraphic_node(scene, node, index, graph):
 def populate_document_node(scene, node, index):
     source_already_in_list = False
     for source_item in scene.em_sources_list:
-        if source_item.name == node.name:
+        if source_item.id_node == node.node_id:  # Check by ID instead of name
             source_already_in_list = True
             break
 
     if not source_already_in_list:
         scene.em_sources_list.add()
         em_item = scene.em_sources_list[-1]
-        em_item.name = node.name
-        em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+        
+        # Add graph code prefix only for documents
+        graph_code = node.attributes.get('graph_code', '')
+        if graph_code:
+            em_item.name = f"{graph_code}.{node.name}"
+        else:
+            em_item.name = node.name
+            
+        em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(em_item.name)
         em_item.id_node = node.node_id
-        em_item.url = node.url if node.url is not None else ""
+        em_item.url = node.url if hasattr(node, 'url') and node.url is not None else ""
         em_item.icon_url = "CHECKBOX_HLT" if node.url else "CHECKBOX_DEHLT"
         em_item.description = node.description
         index += 1
 
     return index
 
+
+
 def populate_property_node(scene, node, index):
     scene.em_properties_list.add()
     em_item = scene.em_properties_list[-1]
-    em_item.name = node.name
+    
+    # IMPORTANT: Use the original node name without any graph code prefix
+    # If the node has an original_name attribute, use that (which is the name without prefixes)
+    if hasattr(node, 'attributes') and 'original_name' in node.attributes:
+        em_item.name = node.attributes['original_name']
+    else:
+        # Otherwise, use the node name directly
+        em_item.name = node.name
+    
     em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
     em_item.id_node = node.node_id
-    em_item.url = node.value if node.value is not None else ""
-    em_item.icon_url = "CHECKBOX_HLT" if node.value else "CHECKBOX_DEHLT"
+    em_item.url = node.value if hasattr(node, 'value') else ""
+    em_item.icon_url = "CHECKBOX_HLT" if em_item.url else "CHECKBOX_DEHLT"
     em_item.description = node.description
     return index + 1
 
 def populate_extractor_node(scene, node, index):
     scene.em_extractors_list.add()
     em_item = scene.em_extractors_list[-1]
-    em_item.name = node.name
-    em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+    
+    # Add graph code prefix only for extractors
+    graph_code = node.attributes.get('graph_code', '')
+    if graph_code:
+        em_item.name = f"{graph_code}.{node.name}"
+    else:
+        em_item.name = node.name
+    
+    em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(em_item.name)
     em_item.id_node = node.node_id
-    em_item.url = node.source if node.source is not None else ""
+    em_item.url = node.source if hasattr(node, 'source') and node.source is not None else ""
     em_item.icon_url = "CHECKBOX_HLT" if node.source else "CHECKBOX_DEHLT"
     em_item.description = node.description
     return index + 1

@@ -568,10 +568,10 @@ class EM_ToolsPanel:
                 current_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
                 col.label(text=current_activity, icon="NETWORK_DRIVE")
             else:
-                col.label(text="No activities", icon="WARNING_LARGE")
+                col.label(text="No activities", icon="ERROR")
 
         else:
-            col.label(text="No activities", icon="WARNING_LARGE")
+            col.label(text="No activities", icon="ERROR")
 
         row = layout.row()
 
