@@ -544,35 +544,16 @@ def create_derived_lists(node):
     else:
         print(f"Node found in graph: {found_node.name} (ID: {found_node.node_id})")
     
-    # Let's check edges that involve this node
+    # Get properties using has_data_provenance edges
     property_nodes = []
     
-    # First, check edges where this node is the source
-    print(f"Checking source edges for node {node.name} (ID: {node.id_node})")
     for edge in graph.edges:
-        if edge.edge_source == node.id_node:
-            edge_type = edge.edge_type
+        if edge.edge_source == node.id_node and edge.edge_type == "has_data_provenance":
             target_node = graph.find_node_by_id(edge.edge_target)
-
             if target_node and hasattr(target_node, 'node_type') and target_node.node_type == 'property':
-                if edge_type in ['has_property', 'has_data_provenance']:
-                    print(f"Trovata proprietà: {target_node.name} (ID: {target_node.node_id}) via {edge_type}")             
-                    property_nodes.append(target_node)
-                    is_property = True
-    
-    # Then, check edges where this node is the target
-    print(f"Checking target edges for node {node.name} (ID: {node.id_node})")
-    for edge in graph.edges:
-        if edge.edge_target == node.id_node:
-            source_node = graph.find_node_by_id(edge.edge_source)
-            if source_node:
-                print(f"  Edge from: {source_node.name} (Type: {source_node.node_type if hasattr(source_node, 'node_type') else 'Unknown'}) via {edge.edge_type}")
-                
-                # Check if the source is a property node
-                if hasattr(source_node, 'node_type') and source_node.node_type == 'property':
-                    print(f"  FOUND PROPERTY as source: {source_node.name} (ID: {source_node.node_id}) via {edge.edge_type}")
-                    property_nodes.append(source_node)
-                    is_property = True
+                print(f"Trovata proprietà: {target_node.name} (ID: {target_node.node_id}) via {edge.edge_type}")
+                property_nodes.append(target_node)
+                is_property = True
     
     # Aggiorniamo la lista delle proprietà
     if property_nodes:
@@ -588,6 +569,10 @@ def create_derived_lists(node):
             prop_index += 1
 
     print(f"Trovate {prop_index} proprietà per il nodo {node.id_node}")
+    
+    # Reset property index if needed
+    if scene.em_v_properties_list_index >= len(scene.em_v_properties_list):
+        scene.em_v_properties_list_index = 0 if len(scene.em_v_properties_list) > 0 else -1
 
     if is_property:
         if scene.prop_paradata_streaming_mode:

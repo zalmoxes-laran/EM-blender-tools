@@ -1271,9 +1271,19 @@ class GraphMLImporter:
                 # Logica esistente per has_data_provenance
                 if edge_type == "has_data_provenance":
                     # Se il source è un nodo stratigrafico e il target è una property
-                    if (isinstance(source_node, StratigraphicNode) and 
-                        isinstance(target_node, PropertyNode)):
+                    #if (isinstance(source_node, StratigraphicNode) and 
+                    #    isinstance(target_node, PropertyNode)):
+                    #    edge_type = "has_property"
+
+                    is_strat_node = hasattr(source_node, 'node_type') and source_node.node_type in [
+                            'US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs'
+                        ]
+                        
+                    if is_strat_node and isinstance(target_node, PropertyNode):
                         edge_type = "has_property"
+                        print(f"Converted to has_property: {source_node.node_type} -> PropertyNode")
+
+
                     # Se il source è un nodo extractor e il target è un document node
                     if (isinstance(source_node, ExtractorNode) and 
                         isinstance(target_node, DocumentNode)):

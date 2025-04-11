@@ -76,21 +76,26 @@ class EM_ParadataPanel:
         ##          Properties
         ###############################################################################
 
-        len_property_var = "len("+property_list_cmd+")"
+        # Safely get the property list length and index
+        property_list_length = len(eval(property_list_cmd))
+        property_list_index = eval(property_list_index_cmd)
+        
+        # Invece di modificare l'indice, controlla solo se è valido
+        property_index_valid = (property_list_length > 0 and 0 <= property_list_index < property_list_length)
         
         # Sezione Proprietà
         row = layout.row()
         row.prop(scene, "paradata_streaming_mode", text='Paradata', icon="SHORTDISPLAY")
         row = layout.row()
-        row.label(text="Properties: (" + str(eval(len_property_var)) + ")")
+        row.label(text="Properties: (" + str(property_list_length) + ")")
         row.prop(scene, "prop_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
         row = layout.row()
         row.template_list("EM_UL_properties_managers", "", scene, property_list_var, scene, property_list_index_var, rows=2)
         
         # Mostra sempre il box, anche se non ci sono elementi
         box = layout.box()
-        if eval(len_property_var) > 0 and eval(property_list_index_cmd) >= 0:
-            item_property = eval(property_list_cmd)[eval(property_list_index_cmd)]
+        if property_index_valid:
+            item_property = eval(property_list_cmd)[property_list_index]
             row = box.row()
             row.prop(item_property, "name", text="", icon='FILE_TEXT')
             row = box.row()
@@ -103,19 +108,24 @@ class EM_ParadataPanel:
         ##          Combiners
         ###############################################################################
 
-        len_combiner_var = "len("+combiner_list_cmd+")"
+        # Safely get the combiner list length and index
+        combiner_list_length = len(eval(combiner_list_cmd))
+        combiner_list_index = eval(combiner_list_index_cmd)
+        
+        # Invece di modificare l'indice, controlla solo se è valido
+        combiner_index_valid = (combiner_list_length > 0 and 0 <= combiner_list_index < combiner_list_length)
         
         # Sezione Combiners
         row = layout.row()
-        row.label(text="Combiners: (" + str(eval(len_combiner_var)) + ")")
+        row.label(text="Combiners: (" + str(combiner_list_length) + ")")
         row.prop(scene, "comb_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
         row = layout.row()
         row.template_list("EM_UL_combiners_managers", "", scene, combiner_list_var, scene, combiner_list_index_var, rows=1)
         
         # Mostra sempre il box, anche se non ci sono elementi
         box = layout.box()
-        if eval(len_combiner_var) > 0 and eval(combiner_list_index_cmd) >= 0:
-            item_property = eval(combiner_list_cmd)[eval(combiner_list_index_cmd)]
+        if combiner_index_valid:
+            item_property = eval(combiner_list_cmd)[combiner_list_index]
             row = box.row()
             row.prop(item_property, "name", text="", icon='FILE_TEXT')
             row = box.row()
@@ -133,19 +143,24 @@ class EM_ParadataPanel:
         ##          Extractors
         ###############################################################################
 
-        len_extractor_var = "len("+extractor_list_cmd+")"
+        # Safely get the extractor list length and index
+        extractor_list_length = len(eval(extractor_list_cmd))
+        extractor_list_index = eval(extractor_list_index_cmd)
+        
+        # Invece di modificare l'indice, controlla solo se è valido
+        extractor_index_valid = (extractor_list_length > 0 and 0 <= extractor_list_index < extractor_list_length)
         
         # Sezione Extractors
         row = layout.row()
-        row.label(text="Extractors: (" + str(eval(len_extractor_var)) + ")")
+        row.label(text="Extractors: (" + str(extractor_list_length) + ")")
         row.prop(scene, "extr_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
         row = layout.row()
         row.template_list("EM_UL_extractors_managers", "", scene, extractor_list_var, scene, extractor_list_index_var, rows=2)
         
         # Mostra sempre il box, anche se non ci sono elementi
         box = layout.box()
-        if eval(len_extractor_var) > 0 and eval(extractor_list_index_cmd) >= 0:
-            item_source = eval(extractor_list_cmd)[eval(extractor_list_index_cmd)]
+        if extractor_index_valid:
+            item_source = eval(extractor_list_cmd)[extractor_list_index]
             row = box.row()
             row.prop(item_source, "name", text="", icon='FILE_TEXT')
             op = row.operator("listitem.toobj", icon="PASTEDOWN", text='')
@@ -181,18 +196,23 @@ class EM_ParadataPanel:
         ##          Sources
         ###############################################################################
 
-        len_source_var = "len("+source_list_cmd+")"
+        # Safely get the source list length and index
+        source_list_length = len(eval(source_list_cmd))
+        source_list_index = eval(source_list_index_cmd)
+        
+        # Invece di modificare l'indice, controlla solo se è valido
+        source_index_valid = (source_list_length > 0 and 0 <= source_list_index < source_list_length)
         
         # Sezione Documents
         row = layout.row()
-        row.label(text="Docs: (" + str(eval(len_source_var)) + ")")
+        row.label(text="Docs: (" + str(source_list_length) + ")")
         row = layout.row()
         row.template_list("EM_UL_sources_managers", "", scene, source_list_var, scene, source_list_index_var, rows=2)
         
         # Mostra sempre il box, anche se non ci sono elementi
         box = layout.box()
-        if eval(len_source_var) > 0 and eval(source_list_index_cmd) >= 0:
-            item_source = eval(source_list_cmd)[eval(source_list_index_cmd)]
+        if source_index_valid:
+            item_source = eval(source_list_cmd)[source_list_index]
             row = box.row()
             row.prop(item_source, "name", text="", icon='FILE_TEXT')
             
@@ -224,6 +244,7 @@ class EM_ParadataPanel:
         else:
             row = box.row()
             row.label(text="Nessun documento disponibile")
+
 class VIEW3D_PT_ParadataPanel(Panel, EM_ParadataPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_ParadataPanel"
@@ -354,16 +375,30 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             # Aggiorna la lista delle proprietà
             self.update_property_list(scene, graph, strat_node_id)
             
-            # Se c'è una proprietà selezionata, aggiorna le liste dei combiner/extractor
-            if scene.em_v_properties_list_index >= 0 and len(scene.em_v_properties_list) > 0:
+            # Assicurati che l'indice delle proprietà sia valido
+            if len(scene.em_v_properties_list) > 0:
+                if scene.em_v_properties_list_index >= len(scene.em_v_properties_list):
+                    scene.em_v_properties_list_index = 0
+                    
+                # Solo se abbiamo proprietà e l'indice è valido, aggiorna le altre liste
                 prop_node_id = scene.em_v_properties_list[scene.em_v_properties_list_index].id_node
                 self.update_combiner_list(scene, graph, prop_node_id)
                 self.update_extractor_list(scene, graph, prop_node_id)
                 
-                # Se c'è un extractor selezionato, aggiorna la lista dei documenti
-                if scene.em_v_extractors_list_index >= 0 and len(scene.em_v_extractors_list) > 0:
+                # Assicurati che l'indice degli estrattori sia valido
+                if len(scene.em_v_extractors_list) > 0:
+                    if scene.em_v_extractors_list_index >= len(scene.em_v_extractors_list):
+                        scene.em_v_extractors_list_index = 0
+                    
+                    # Solo se abbiamo estrattori e l'indice è valido, aggiorna le liste dei documenti
                     ext_node_id = scene.em_v_extractors_list[scene.em_v_extractors_list_index].id_node
                     self.update_document_list(scene, graph, ext_node_id)
+            else:
+                # Se non ci sono proprietà, imposta l'indice a -1 e pulisci le altre liste
+                scene.em_v_properties_list_index = -1
+                scene.em_v_combiners_list.clear()
+                scene.em_v_extractors_list.clear()
+                scene.em_v_sources_list.clear()
             
             return {'FINISHED'}
         except Exception as e:
