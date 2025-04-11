@@ -493,19 +493,20 @@ class EM_ToolsPanel:
             
             # Se il filtro per epoca è attivo, mostra l'opzione per includere unità sopravvissute
             # Nota: abbiamo migliorato l'UI dell'opzione "Include Surviving Units"
+            # Se il filtro per epoca è attivo, mostra l'opzione per includere unità sopravvissute in formato compatto
             if scene.filter_by_epoch:
                 sub_row = box.row(align=True)
-                # Usa l'operatore invece della proprietà
                 icon = 'CHECKBOX_HLT' if scene.include_surviving_units else 'CHECKBOX_DEHLT'
-                op = sub_row.operator("em.toggle_include_surviving", 
-                                    text="Include Surviving Units", 
-                                    icon=icon)                
-                # etichetta informativa per chiarire cosa fa questa opzione
-                sub_box = box.box()
-                sub_box.label(text="Survival Filter:", icon='INFO')
-                sub_box.label(text="- When enabled: Shows all units that exist in this epoch")
-                sub_box.label(text="- When disabled: Shows only units created in this epoch")
 
+                # Usa un layout più compatto con checkbox + label + info icon
+                #sub_row.prop(scene, "include_surviving_units", text="Include Surviving Units")
+                op = sub_row.operator("em.toggle_include_surviving", 
+                    text="Include Surviving Units",
+                    icon=icon)
+                sub_row.operator("em.help_popup", text="", icon='QUESTION')
+                #help_op = sub_row.operator("wm.url_open", text="", icon='QUESTION')
+                #help_op.url = "https://docs.extendedmatrix.org/survival-filter"  # URL da modificare con la documentazione corretta
+        
         if hasattr(scene, "filter_by_activity"):
             row.prop(scene, "filter_by_activity", text="", toggle=True, icon='NETWORK_DRIVE')
         
@@ -629,6 +630,22 @@ class EM_ToolsPanel:
         else:
             row.label(text="No stratigraphic units here :-(")
 
+class EM_help_popup(bpy.types.Operator):
+    bl_idname = "em.help_popup"
+    bl_label = "Survival Filter Help"
+    bl_description = "Information about the survival filter"
+    
+    def execute(self, context):
+        def draw(self, context):
+            layout = self.layout
+            layout.label(text="Survival Filter:")
+            layout.label(text="- When enabled: Shows all units that exist in this epoch")
+            layout.label(text="- When disabled: Shows only units created in this epoch")
+            layout.separator()
+            layout.operator("wm.url_open", text="Open Documentation").url = "https://docs.extendedmatrix.org/survival-filter"
+        
+        bpy.context.window_manager.popup_menu(draw, title="Survival Filter Help")
+        return {'FINISHED'}
 
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     bl_category = "EM"
@@ -961,10 +978,10 @@ class EM_toggle_include_surviving(bpy.types.Operator):
         
         print(f"Toggled include_surviving_units to: {scene.include_surviving_units}")
         
-        # Manually reapply the filter if epoch filtering is active
-        if scene.filter_by_epoch:
-            bpy.ops.em.filter_lists()
-            
+        # Chiama direttamente la funzione di aggiornamento che viene eseguita quando cambia l'epoca
+        from .epoch_manager import update_epoch_selection
+        update_epoch_selection(scene, context)
+        
         return {'FINISHED'}
 
 
@@ -985,7 +1002,8 @@ classes = [
     EM_strat_sync_visibility,
     EM_strat_activate_collections,
     EM_debug_filters,
-    EM_toggle_include_surviving
+    EM_toggle_include_surviving,
+    EM_help_popup
 ]
 
 def register():
@@ -1026,11 +1044,11 @@ def register():
         )
 
     if not hasattr(bpy.types.Scene, "include_surviving_units"):
-        print("Registering include_surviving_units property with update callback")
         bpy.types.Scene.include_surviving_units = bpy.props.BoolProperty(
             name="Include Surviving Units",
             description="Include units that survive in this epoch but were created in previous epochs",
-            default=True
+            default=True,
+            update=lambda self, context: bpy.ops.em.filter_lists() if context.scene.filter_by_epoch else None
         )
 
 def unregister():

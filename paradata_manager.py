@@ -333,17 +333,27 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
     bl_idname = "em.update_paradata_lists"
     bl_label = "Update Paradata Lists"
     bl_description = "Update all paradata lists based on streaming settings"
-    
+
+    _is_running = False
+
     def execute(self, context):
         scene = context.scene
         em_tools = context.scene.em_tools
-        
+
+        # Check if we're already running to prevent recursion
+        if EM_OT_update_paradata_lists._is_running:
+            print("Preventing recursive call to update_paradata_lists")
+            return {'FINISHED'}
+            
+        # Set flag to indicate we're running
+        EM_OT_update_paradata_lists._is_running = True
+
         # Pulizia preventiva di tutte le liste
         scene.em_v_properties_list.clear()
         scene.em_v_combiners_list.clear()
         scene.em_v_extractors_list.clear()
         scene.em_v_sources_list.clear()
-        
+
         try:
             # Verifica se c'è un file GraphML attivo
             if em_tools.active_file_index < 0 or not em_tools.graphml_files:
@@ -406,6 +416,9 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             import traceback
             traceback.print_exc()
             return {'CANCELLED'}
+        finally:
+            # Always reset the running flag when done
+            EM_OT_update_paradata_lists._is_running = False
 
     def update_property_list(self, scene, graph, strat_node_id=None):
         """Aggiorna la lista delle proprietà"""
