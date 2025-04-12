@@ -73,20 +73,20 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
 
 - [X] **The EM color schema was moved outside the EM tools code and now is part of the s3Dgraphy library**
 
-### Tasks To Do
-
-- [ ] **Verify and Extend Property Nodes Using Nomenclature**
+- [X] **Verify and Extend Property Nodes Using Nomenclature**
   - Check if the property node should have subclasses using the nomenclature of qualia.
   - Find a nomenclature to describe stratigraphic units, possibly using the Getty vocabulary or specialized vocabularies developed in Ariadne.
   - *Note*: This task is closely linked to a similar task in the EM development.
 
+- [X] **Map to CIDOC Using Updated JSON**
+  - Ensure compatibility and standardization with CIDOC CRM.
+  - Update the JSON mapping file as needed.
+
+### Tasks To Do
+
 - [ ] **Redo the Turtle (`.ttl`) File**
   - Schematize how the data model works.
   - Ensure the data model is clearly defined and up-to-date.
-
-- [ ] **Map to CIDOC Using Updated JSON**
-  - Ensure compatibility and standardization with CIDOC CRM.
-  - Update the JSON mapping file as needed.
 
 - [ ] **Formalize EM Colors in s3Dgraphy Library**
   - Define and implement the color schemes used in Extended Matrix within the s3Dgraphy library.

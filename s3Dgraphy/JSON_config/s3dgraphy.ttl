@@ -1,0 +1,861 @@
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix s3dg:  <http://example.org/s3Dgraphy#> .
+@prefix crm:   <http://www.cidoc-crm.org/cidoc-crm/> .
+@prefix crmarchaeo: <http://www.cidoc-crm.org/cidoc-crm/CRMarchaeo/> .
+@prefix crmsci: <http://www.cidoc-crm.org/cidoc-crm/CRMsci/> .
+@prefix crmdig: <http://www.cidoc-crm.org/cidoc-crm/CRMdig/> .
+@prefix crmgeo: <http://www.cidoc-crm.org/cidoc-crm/CRMgeo/> .
+@prefix crminf: <http://www.cidoc-crm.org/cidoc-crm/CRMinf/> .
+@prefix crms3d: <http://www.cidoc-crm.org/cidoc-crm/CRMs3D/> .
+
+#################################################
+# Ontology Declaration
+#################################################
+s3dg:S3DgraphyOntology a owl:Ontology ;
+    rdfs:comment "Ontologia per s3Dgraphy con mappature CIDOC-CRM esplicite. Include definizioni di classi e relazioni basate sugli standard CIDOC-CRM." ;
+    owl:imports <http://www.cidoc-crm.org/cidoc-crm/> ;
+    owl:versionInfo "1.5.1" .
+
+#################################################
+# CLASSI PRINCIPALI (Nodi) 
+#################################################
+
+# Classe base: Node
+s3dg:Node a owl:Class ;
+    rdfs:label "Node" ;
+    rdfs:comment "Classe base per tutti i nodi del grafo." ;
+    owl:equivalentClass crm:E1_CRM_Entity .
+
+# Classe ParadataNode (sottoclasse di Node)
+s3dg:ParadataNode a owl:Class ;
+    rdfs:subClassOf s3dg:Node ;
+    rdfs:label "ParadataNode" ;
+    rdfs:comment "Classe base per nodi che rappresentano metadati su come sono stati generati i dati." ;
+    owl:equivalentClass crm:E31_Document ;
+    s3dg:cidocS3d "ParadataEntity" ;
+    s3dg:cidocAlternative "I1_Argumentation + E31_Document" .
+
+# Classe StratigraphicNode (sottoclasse di Node)
+s3dg:StratigraphicNode a owl:Class ;
+    rdfs:subClassOf s3dg:Node ;
+    rdfs:label "StratigraphicNode" ;
+    rdfs:comment "Classe base per le unità stratigrafiche all'interno del grafo." ;
+    owl:equivalentClass crmarchaeo:A8_Stratigraphic_Unit .
+
+# Sottoclassi di StratigraphicNode
+s3dg:US a owl:Class ;
+    rdfs:subClassOf s3dg:StratigraphicNode ;
+    rdfs:label "US" ;
+    rdfs:comment "Stratigraphic Unit (SU): unità fisica identificabile." ;
+    owl:equivalentClass crmarchaeo:A2_Stratigraphic_Volume_Unit ;
+    s3dg:cidocAlternative "E26_Physical_Feature + A8_Stratigraphic_Unit" .
+
+s3dg:USVs a owl:Class ;
+    rdfs:subClassOf s3dg:StratigraphicNode ;
+    rdfs:label "USVs" ;
+    rdfs:comment "Structural Virtual Stratigraphic Unit: ricostruzione virtuale di elementi strutturali." ;
+    owl:equivalentClass crmarchaeo:A2_Stratigraphic_Volume_Unit ;
+    s3dg:cidocS3d "VirtualStratigraphicStructuralUnit" ;
+    s3dg:cidocAlternative "E89_Propositional_Object + A8_Stratigraphic_Unit" .
+
+s3dg:USVn a owl:Class ;
+    rdfs:subClassOf s3dg:StratigraphicNode ;
+    rdfs:label "USVn" ;
+    rdfs:comment "Non-structural Virtual Stratigraphic Unit: ricostruzione virtuale di elementi non strutturali." ;
+    owl:equivalentClass crmarchaeo:A2_Stratigraphic_Volume_Unit ;
+    s3dg:cidocS3d "VirtualStratigraphicNonStructuralUnit" ;
+    s3dg:cidocAlternative "E89_Propositional_Object + A8_Stratigraphic_Unit" .
+
+s3dg:SF a owl:Class ;
+    rdfs:subClassOf s3dg:StratigraphicNode ;
+    rdfs:label "SF" ;
+    rdfs:comment "Special Find Unit: elemento di particolare interesse non in situ." ;
+    owl:equivalentClass crm:E19_Physical_Object ;
+    s3dg:cidocS3d "RepositionableObject" .
+
+s3dg:VSF a owl:Class ;
+    rdfs:subClassOf s3dg:StratigraphicNode ;
+    rdfs:label "VSF" ;
+    rdfs:comment "Virtual Special Find: ricostruzione virtuale di un reperto frammentato." ;
+    owl:equivalentClass crm:E89_Propositional_Object ;
+    s3dg:cidocS3d "VirtualReconstructedObject" ;
+    s3dg:cidocAlternative "E89_Propositional_Object + E19_Physical_Object" .
+
+s3dg:serSU a owl:Class ;
+    rdfs:subClassOf s3dg:StratigraphicNode ;
+    rdfs:label "serSU" ;
+    rdfs:comment "Serie di unità stratigrafiche." ;
+    owl:equivalentClass crmarchaeo:A6_Group_Declaration_Event ;
+    s3dg:cidocAlternative "E78_Collection + A8_Stratigraphic_Unit" .
+
+s3dg:serUSVn a owl:Class ;
+    rdfs:subClassOf s3dg:StratigraphicNode ;
+    rdfs:label "serUSVn" ;
+    rdfs:comment "Serie di unità virtuali non strutturali." ;
+    owl:equivalentClass crm:E78_Collection ;
+    s3dg:cidocS3d "VirtualStratigraphicSeriesCollection" ;
+    s3dg:cidocAlternative "E78_Collection + A3_Stratigraphic_Interface" .
+
+s3dg:serUSVs a owl:Class ;
+    rdfs:subClassOf s3dg:StratigraphicNode ;
+    rdfs:label "serUSVs" ;
+    rdfs:comment "Serie di unità virtuali strutturali." ;
+    owl:equivalentClass crm:E78_Collection ;
+    s3dg:cidocS3d "VirtualStratigraphicSeriesCollection" ;
+    s3dg:cidocAlternative "E78_Collection + A3_Stratigraphic_Interface" .
+
+s3dg:USD a owl:Class ;
+    rdfs:subClassOf s3dg:StratigraphicNode ;
+    rdfs:label "USD" ;
+    rdfs:comment "Documentary Stratigraphic Unit basata su fonti storiche/documentarie." ;
+    owl:equivalentClass crm:E31_Document ;
+    s3dg:cidocS3d "DocumentaryStratigraphicUnit" ;
+    s3dg:cidocAlternative "E31_Document + E73_Information_Object" .
+
+s3dg:TSU a owl:Class ;
+    rdfs:subClassOf s3dg:StratigraphicNode ;
+    rdfs:label "TSU" ;
+    rdfs:comment "Transformation Unit: rappresenta un processo di cambiamento in una unità stratigrafica." ;
+    owl:equivalentClass crmarchaeo:A5_Stratigraphic_Modification ;
+    s3dg:cidocAlternative "S18_Alteration" .
+
+s3dg:BR a owl:Class ;
+    rdfs:subClassOf s3dg:StratigraphicNode ;
+    rdfs:label "BR" ;
+    rdfs:comment "Continuity Node: marca la fine dell'esistenza di un'unità stratigrafica." ;
+    owl:equivalentClass crm:E64_End_of_Existence ;
+    s3dg:cidocAlternative "A5_Stratigraphic_Modification" .
+
+s3dg:SE a owl:Class ;
+    rdfs:subClassOf s3dg:StratigraphicNode ;
+    rdfs:label "SE" ;
+    rdfs:comment "Stratigraphic Event Node: evento che porta alla formazione o modifica di una unità stratigrafica." ;
+    owl:equivalentClass crmarchaeo:A4_Stratigraphic_Genesis ;
+    s3dg:cidocAlternative "S17_Physical_Genesis" .
+
+# Sottoclassi di ParadataNode
+s3dg:DocumentNode a owl:Class ;
+    rdfs:subClassOf s3dg:ParadataNode ;
+    rdfs:label "DocumentNode" ;
+    rdfs:comment "Nodo che rappresenta un documento o una fonte." ;
+    owl:equivalentClass crm:E31_Document ;
+    s3dg:cidocAlternative "I14_Provenance_Belief" .
+
+s3dg:PropertyNode a owl:Class ;
+    rdfs:subClassOf s3dg:ParadataNode ;
+    rdfs:label "PropertyNode" ;
+    rdfs:comment "Nodo che rappresenta una proprietà associata a un altro nodo." ;
+    owl:equivalentClass crm:E54_Dimension ;
+    s3dg:cidocS3d "StratigraphicProperty" ;
+    s3dg:cidocAlternative "S9_Property_Type + E54_Dimension" .
+
+s3dg:ExtractorNode a owl:Class ;
+    rdfs:subClassOf s3dg:ParadataNode ;
+    rdfs:label "ExtractorNode" ;
+    rdfs:comment "Nodo che rappresenta l'estrazione di informazioni da una fonte." ;
+    owl:equivalentClass crm:E7_Activity ;
+    s3dg:cidocS3d "InformationExtraction" ;
+    s3dg:cidocAlternative "I7_Belief_Adoption" .
+
+s3dg:CombinerNode a owl:Class ;
+    rdfs:subClassOf s3dg:ParadataNode ;
+    rdfs:label "CombinerNode" ;
+    rdfs:comment "Nodo che rappresenta un ragionamento che combina informazioni da più sorgenti." ;
+    owl:equivalentClass crm:E7_Activity ;
+    s3dg:cidocS3d "InformationCombination" ;
+    s3dg:cidocAlternative "I5_Inference_Making" .
+
+# Classe GroupNode (sottoclasse di Node)
+s3dg:GroupNode a owl:Class ;
+    rdfs:subClassOf s3dg:Node ;
+    rdfs:label "GroupNode" ;
+    rdfs:comment "Nodo che rappresenta un raggruppamento di nodi." ;
+    owl:equivalentClass crm:E78_Collection ;
+    s3dg:cidocAlternative "E89_Propositional_Object" .
+
+# Sottoclassi di GroupNode
+s3dg:ActivityNodeGroup a owl:Class ;
+    rdfs:subClassOf s3dg:GroupNode ;
+    rdfs:label "ActivityNodeGroup" ;
+    rdfs:comment "Gruppo di nodi rappresentante un'attività narrativa o logica." ;
+    owl:equivalentClass crm:E7_Activity ;
+    s3dg:cidocS3d "StratigraphicActivity" ;
+    s3dg:cidocAlternative "E7_Activity + E78_Collection" .
+
+s3dg:ParadataNodeGroup a owl:Class ;
+    rdfs:subClassOf s3dg:GroupNode ;
+    rdfs:label "ParadataNodeGroup" ;
+    rdfs:comment "Gruppo di nodi dedicato alle informazioni meta (paradata)." ;
+    owl:equivalentClass crm:E78_Collection ;
+    s3dg:cidocS3d "ParadataCollection" ;
+    s3dg:cidocAlternative "I4_Proposition_Set + E78_Collection" .
+
+s3dg:TimeBranchNodeGroup a owl:Class ;
+    rdfs:subClassOf s3dg:GroupNode ;
+    rdfs:label "TimeBranchNodeGroup" ;
+    rdfs:comment "Gruppo di nodi appartenenti a una specifica branch temporale." ;
+    owl:equivalentClass crm:E4_Period ;
+    s3dg:cidocS3d "AlternativeTemporalBranch" ;
+    s3dg:cidocAlternative "I2_Belief + E4_Period" .
+
+# Altre classi principali
+s3dg:EpochNode a owl:Class ;
+    rdfs:subClassOf s3dg:Node ;
+    rdfs:label "EpochNode" ;
+    rdfs:comment "Nodo che rappresenta un'epoca temporale." ;
+    owl:equivalentClass crm:E4_Period ;
+    s3dg:cidocS3d "StratigraphicTimeframe" .
+
+s3dg:GeoPositionNode a owl:Class ;
+    rdfs:subClassOf s3dg:Node ;
+    rdfs:label "GeoPositionNode" ;
+    rdfs:comment "Nodo che rappresenta una posizione geografica." ;
+    owl:equivalentClass crm:E53_Place ;
+    s3dg:cidocAlternative "SP5_Geometric_Place_Expression" .
+
+s3dg:LinkNode a owl:Class ;
+    rdfs:subClassOf s3dg:Node ;
+    rdfs:label "LinkNode" ;
+    rdfs:comment "Nodo che rappresenta una risorsa collegata esterna." ;
+    owl:equivalentClass crm:E73_Information_Object ;
+    s3dg:cidocS3d "ExternalResourceReference" ;
+    s3dg:cidocAlternative "E73_Information_Object + E36_Visual_Item" .
+
+s3dg:GraphNode a owl:Class ;
+    rdfs:subClassOf s3dg:Node ;
+    rdfs:label "GraphNode" ;
+    rdfs:comment "Nodo che rappresenta il grafo stesso come entità nel sistema." .
+
+s3dg:AuthorNode a owl:Class ;
+    rdfs:subClassOf s3dg:Node ;
+    rdfs:label "AuthorNode" ;
+    rdfs:comment "Nodo che rappresenta un autore." ;
+    owl:equivalentClass crm:E39_Actor ;
+    s3dg:cidocAlternative "E21_Person" .
+
+s3dg:LicenseNode a owl:Class ;
+    rdfs:subClassOf s3dg:Node ;
+    rdfs:label "LicenseNode" ;
+    rdfs:comment "Nodo che rappresenta una licenza." .
+
+s3dg:EmbargoNode a owl:Class ;
+    rdfs:subClassOf s3dg:Node ;
+    rdfs:label "EmbargoNode" ;
+    rdfs:comment "Nodo che rappresenta una restrizione temporale sull'accesso o distribuzione." .
+
+# Rappresentazioni 3D
+s3dg:RepresentationNode a owl:Class ;
+    rdfs:subClassOf s3dg:Node ;
+    rdfs:label "RepresentationNode" ;
+    rdfs:comment "Classe base per tutti i nodi di rappresentazione nello spazio 3D." ;
+    owl:equivalentClass crmdig:D1_Digital_Object ;
+    s3dg:cidocS3d "VisualRepresentationInstance" ;
+    s3dg:cidocAlternative "D1_Digital_Object + SP6_Declarative_Place + E52_Time-Span" .
+
+s3dg:RepresentationModelNode a owl:Class ;
+    rdfs:subClassOf s3dg:RepresentationNode ;
+    rdfs:label "RepresentationModelNode" ;
+    rdfs:comment "Nodo che rappresenta un modello 3D o un'immagine spazializzata." ;
+    owl:equivalentClass crmdig:D1_Digital_Object ;
+    s3dg:cidocS3d "VisualRepresentationInstance" ;
+    s3dg:cidocAlternative "D1_Digital_Object + SP6_Declarative_Place + E52_Time-Span" .
+
+s3dg:RepresentationModelDocNode a owl:Class ;
+    rdfs:subClassOf s3dg:RepresentationNode ;
+    rdfs:label "RepresentationModelDocNode" ;
+    rdfs:comment "Nodo che rappresenta un modello 3D o un'immagine spazializzata per documenti." ;
+    owl:equivalentClass crmdig:D1_Digital_Object ;
+    s3dg:cidocS3d "VisualRepresentationInstance" ;
+    s3dg:cidocAlternative "D1_Digital_Object + SP6_Declarative_Place + E52_Time-Span" .
+
+s3dg:RepresentationModelSpecialFindNode a owl:Class ;
+    rdfs:subClassOf s3dg:RepresentationNode ;
+    rdfs:label "RepresentationModelSpecialFindNode" ;
+    rdfs:comment "Nodo che rappresenta un modello 3D per reperti speciali." ;
+    owl:equivalentClass crmdig:D1_Digital_Object ;
+    s3dg:cidocS3d "VisualRepresentationInstance" ;
+    s3dg:cidocAlternative "D1_Digital_Object + SP6_Declarative_Place + E52_Time-Span" .
+
+s3dg:SemanticShapeNode a owl:Class ;
+    rdfs:subClassOf s3dg:Node ;
+    rdfs:label "SemanticShapeNode" ;
+    rdfs:comment "Nodo che rappresenta una forma semantica nello spazio 3D." ;
+    owl:equivalentClass crm:E36_Visual_Item ;
+    s3dg:cidocS3d "SymbolicSpatialRepresentation" ;
+    s3dg:cidocAlternative "SP5_Geometric_Place_Expression + E36_Visual_Item" .
+
+#################################################
+# OBJECT PROPERTIES (Relazioni)
+#################################################
+
+# Relazioni stratigrafiche
+s3dg:isBefore a owl:ObjectProperty ;
+    rdfs:label "isBefore" ;
+    rdfs:comment "Indica una sequenza temporale dove un elemento precede l'altro." ;
+    rdfs:domain s3dg:StratigraphicNode ;
+    rdfs:range s3dg:StratigraphicNode ;
+    owl:equivalentProperty crm:P120_occurs_before ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crmarchaeo:AP28_occurs_before ;
+    s3dg:cidocExtensionName "CRMarchaeo" .
+
+s3dg:hasSameTime a owl:ObjectProperty ;
+    rdfs:label "hasSameTime" ;
+    rdfs:comment "Indica che due elementi sono contemporanei." ;
+    rdfs:domain s3dg:StratigraphicNode ;
+    rdfs:range s3dg:StratigraphicNode ;
+    owl:equivalentProperty crm:P114_is_equal_in_time_to ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crmarchaeo:AP22_is_equal_in_time_to ;
+    s3dg:cidocExtensionName "CRMarchaeo" .
+
+s3dg:changedFrom a owl:ObjectProperty ;
+    rdfs:label "changedFrom" ;
+    rdfs:comment "Rappresenta un oggetto che cambia nel tempo." ;
+    rdfs:domain s3dg:StratigraphicNode ;
+    rdfs:range s3dg:StratigraphicNode ;
+    owl:equivalentProperty crm:P123_resulted_from ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crmarchaeo:AP4_produced_surface ;
+    s3dg:cidocExtensionName "CRMarchaeo" .
+
+# Relazioni con le epoche
+s3dg:hasFirstEpoch a owl:ObjectProperty ;
+    rdfs:label "hasFirstEpoch" ;
+    rdfs:comment "Indica l'epoca iniziale associata ad un nodo." ;
+    rdfs:domain s3dg:StratigraphicNode ;
+    rdfs:range s3dg:EpochNode ;
+    owl:equivalentProperty crm:P82a_begin_of_the_begin ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crmarchaeo:AP13_has_stratigraphic_relation ;
+    s3dg:cidocExtensionName "CRMarchaeo" .
+
+s3dg:surviveInEpoch a owl:ObjectProperty ;
+    rdfs:label "surviveInEpoch" ;
+    rdfs:comment "Indica che un nodo continua ad esistere in una data epoca." ;
+    rdfs:domain s3dg:StratigraphicNode ;
+    rdfs:range s3dg:EpochNode ;
+    owl:equivalentProperty crm:P10_falls_within ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crmarchaeo:AP13_has_stratigraphic_relation ;
+    s3dg:cidocExtensionName "CRMarchaeo" .
+
+# Relazioni di provenance
+s3dg:hasDataProvenance a owl:ObjectProperty ;
+    rdfs:label "hasDataProvenance" ;
+    rdfs:comment "Indica la provenienza dei dati, spesso collegando a nodi fonte." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range s3dg:ParadataNode ;
+    owl:equivalentProperty crm:P70i_is_documented_in ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crmdig:L22_created_derivative ;
+    s3dg:cidocExtensionName "CRMdig" .
+
+s3dg:hasProperty a owl:ObjectProperty ;
+    rdfs:label "hasProperty" ;
+    rdfs:comment "Collega un nodo ad una delle sue proprietà." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range s3dg:PropertyNode ;
+    owl:equivalentProperty crm:P43_has_dimension ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crmarchaeo:AP9_took_matter_from ;
+    s3dg:cidocExtensionName "CRMarchaeo" .
+
+s3dg:extractedFrom a owl:ObjectProperty ;
+    rdfs:label "extractedFrom" ;
+    rdfs:comment "Indica che l'informazione è derivata da una particolare fonte." ;
+    rdfs:domain s3dg:ExtractorNode ;
+    rdfs:range s3dg:DocumentNode ;
+    owl:equivalentProperty crm:P67_refers_to ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crminf:J7_is_based_on_evidence_from ;
+    s3dg:cidocExtensionName "CRMinf" .
+
+s3dg:combines a owl:ObjectProperty ;
+    rdfs:label "combines" ;
+    rdfs:comment "Indica che un nodo combina informazioni da varie fonti." ;
+    rdfs:domain s3dg:CombinerNode ;
+    rdfs:range s3dg:ExtractorNode ;
+    owl:equivalentProperty crm:P16_used_specific_object ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crminf:J1_used_as_premise ;
+    s3dg:cidocExtensionName "CRMinf" .
+
+# Relazioni con i gruppi
+s3dg:isInActivity a owl:ObjectProperty ;
+    rdfs:label "isInActivity" ;
+    rdfs:comment "Indica che un nodo fa parte di una specifica attività." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range s3dg:ActivityNodeGroup ;
+    owl:equivalentProperty crm:P9_consists_of ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crms3d:participatedInActivity ;
+    s3dg:cidocExtensionName "CIDOC-S3D" .
+
+s3dg:hasTimeBranch a owl:ObjectProperty ;
+    rdfs:label "hasTimeBranch" ;
+    rdfs:comment "Indica che un nodo è connesso a uno specifico ramo temporale." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range s3dg:TimeBranchNodeGroup ;
+    owl:equivalentProperty crm:P67_refers_to ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crms3d:belongsToAlternative ;
+    s3dg:cidocExtensionName "CIDOC-S3D" .
+
+s3dg:isInTimeBranch a owl:ObjectProperty ;
+    rdfs:label "isInTimeBranch" ;
+    rdfs:comment "Indica che un nodo appartiene a uno specifico ramo temporale." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range s3dg:TimeBranchNodeGroup ;
+    owl:equivalentProperty crm:P67_refers_to ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crms3d:belongsToAlternative ;
+    s3dg:cidocExtensionName "CIDOC-S3D" .
+
+s3dg:isInParadataNodeGroup a owl:ObjectProperty ;
+    rdfs:label "isInParadataNodeGroup" ;
+    rdfs:comment "Indica che un nodo è incluso in un gruppo di paradata." ;
+    rdfs:domain s3dg:ParadataNode ;
+    rdfs:range s3dg:ParadataNodeGroup ;
+    owl:equivalentProperty crm:P106_is_composed_of ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crms3d:isPartOfParadataGroup ;
+    s3dg:cidocExtensionName "CIDOC-S3D" .
+
+s3dg:hasParadataNodeGroup a owl:ObjectProperty ;
+    rdfs:label "hasParadataNodeGroup" ;
+    rdfs:comment "Indica che un nodo appartiene a un gruppo di paradata." ;
+    rdfs:domain s3dg:ParadataNodeGroup ;
+    rdfs:range s3dg:ActivityNodeGroup ;
+    owl:equivalentProperty crm:P70_documents ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crms3d:hasParadataDocumentation ;
+    s3dg:cidocExtensionName "CIDOC-S3D" .
+
+# Relazioni per le risorse collegate
+s3dg:hasLinkedResource a owl:ObjectProperty ;
+    rdfs:label "hasLinkedResource" ;
+    rdfs:comment "Collega un nodo alle sue risorse collegate." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range s3dg:LinkNode ;
+    owl:equivalentProperty crm:P67_refers_to ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crmdig:L19_stores ;
+    s3dg:cidocExtensionName "CRMdig" .
+
+s3dg:hasSemanticShape a owl:ObjectProperty ;
+    rdfs:label "hasSemanticShape" ;
+    rdfs:comment "Collega qualsiasi nodo alla sua rappresentazione di forma semantica nello spazio 3D." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range s3dg:SemanticShapeNode ;
+    owl:equivalentProperty crm:P138i_has_representation ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crms3d:hasSymbolicSpatialRepresentation ;
+    s3dg:cidocExtensionName "CIDOC-S3D" .
+
+s3dg:hasRepresentationModel a owl:ObjectProperty ;
+    rdfs:label "hasRepresentationModel" ;
+    rdfs:comment "Collega qualsiasi nodo al suo modello di rappresentazione nello spazio 3D." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range s3dg:RepresentationNode ;
+    owl:equivalentProperty crm:P138i_has_representation ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crms3d:has3DRepresentation ;
+    s3dg:cidocExtensionName "CIDOC-S3D" .
+
+# Altre relazioni
+s3dg:hasAuthor a owl:ObjectProperty ;
+    rdfs:label "hasAuthor" ;
+    rdfs:comment "Collega un nodo al suo autore." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range s3dg:AuthorNode ;
+    owl:equivalentProperty crm:P94_has_created ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crmdig:L10_had_input ;
+    s3dg:cidocExtensionName "CRMdig" .
+
+s3dg:hasLicense a owl:ObjectProperty ;
+    rdfs:label "hasLicense" ;
+    rdfs:comment "Indica che una risorsa è soggetta a una specifica licenza." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range s3dg:LicenseNode ;
+    owl:equivalentProperty crm:P104_is_subject_to ;
+    s3dg:cidocExtension "CIDOC-CRM" .
+
+s3dg:hasEmbargo a owl:ObjectProperty ;
+    rdfs:label "hasEmbargo" ;
+    rdfs:comment "Indica che una licenza ha un embargo temporale associato." ;
+    rdfs:domain s3dg:LicenseNode ;
+    rdfs:range s3dg:EmbargoNode ;
+    owl:equivalentProperty crm:P104_is_subject_to ;
+    s3dg:cidocExtension "CIDOC-CRM" .
+
+s3dg:contrastsWith a owl:ObjectProperty ;
+    rdfs:label "contrastsWith" ;
+    rdfs:comment "Rappresenta proprietà contrastanti o mutuamente esclusive." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range s3dg:Node ;
+    owl:equivalentProperty crm:P15_was_influenced_by ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crms3d:incompatibleWith ;
+    s3dg:cidocExtensionName "CIDOC-S3D" .
+
+s3dg:genericConnection a owl:ObjectProperty ;
+    rdfs:label "genericConnection" ;
+    rdfs:comment "Rappresenta una connessione non specifica tra due nodi." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range s3dg:Node ;
+    owl:equivalentProperty crm:P130_shows_features_of ;
+    s3dg:cidocExtension "CIDOC-CRM" ;
+    s3dg:cidocExtensionMapping crmarchaeo:AP11_has_physical_relation ;
+    s3dg:cidocExtensionName "CRMarchaeo" .
+
+#################################################
+# DATA PROPERTIES (Proprietà)
+#################################################
+
+# Proprietà base per tutti i nodi
+s3dg:nodeId a owl:DatatypeProperty ;
+    rdfs:label "nodeId" ;
+    rdfs:comment "Identificatore univoco per il nodo." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range xsd:string ;
+    owl:equivalentProperty crm:P48_has_preferred_identifier .
+
+s3dg:name a owl:DatatypeProperty ;
+    rdfs:label "name" ;
+    rdfs:comment "Nome del nodo." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range xsd:string ;
+    owl:equivalentProperty crm:P1_is_identified_by .
+
+s3dg:description a owl:DatatypeProperty ;
+    rdfs:label "description" ;
+    rdfs:comment "Descrizione del nodo." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range xsd:string ;
+    owl:equivalentProperty crm:P3_has_note .
+
+s3dg:url a owl:DatatypeProperty ;
+    rdfs:label "url" ;
+    rdfs:comment "URL associato al nodo." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range xsd:string ;
+    owl:equivalentProperty crm:P1_is_identified_by .
+
+s3dg:yPosition a owl:DatatypeProperty ;
+    rdfs:label "yPosition" ;
+    rdfs:comment "Posizione verticale del nodo." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range xsd:float .
+
+s3dg:graphMLSource a owl:DatatypeProperty ;
+    rdfs:label "graphMLSource" ;
+    rdfs:comment "File sorgente GraphML originale per il nodo." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range xsd:string .
+
+# Proprietà per PropertyNode
+s3dg:propertyValue a owl:DatatypeProperty ;
+    rdfs:label "propertyValue" ;
+    rdfs:comment "Valore di una proprietà." ;
+    rdfs:domain s3dg:PropertyNode ;
+    rdfs:range xsd:string ;
+    owl:equivalentProperty crm:P90_has_value .
+
+s3dg:propertyType a owl:DatatypeProperty ;
+    rdfs:label "propertyType" ;
+    rdfs:comment "Tipo di proprietà." ;
+    rdfs:domain s3dg:PropertyNode ;
+    rdfs:range xsd:string ;
+    owl:equivalentProperty crm:P2_has_type .
+
+# Proprietà per EpochNode
+s3dg:startTime a owl:DatatypeProperty ;
+    rdfs:label "startTime" ;
+    rdfs:comment "Tempo di inizio di un'epoca." ;
+    rdfs:domain s3dg:EpochNode ;
+    rdfs:range xsd:float ;
+    owl:equivalentProperty crm:P82a_begin_of_the_begin .
+
+s3dg:endTime a owl:DatatypeProperty ;
+    rdfs:label "endTime" ;
+    rdfs:comment "Tempo di fine di un'epoca." ;
+    rdfs:domain s3dg:EpochNode ;
+    rdfs:range xsd:float ;
+    owl:equivalentProperty crm:P82b_end_of_the_end .
+
+s3dg:color a owl:DatatypeProperty ;
+    rdfs:label "color" ;
+    rdfs:comment "Colore associato al nodo." ;
+    rdfs:domain s3dg:EpochNode ;
+    rdfs:range xsd:string ;
+    owl:equivalentProperty crm:P90_has_value .
+
+# Proprietà per LicenseNode
+s3dg:licenseType a owl:DatatypeProperty ;
+    rdfs:label "licenseType" ;
+    rdfs:comment "Tipo di licenza." ;
+    rdfs:domain s3dg:LicenseNode ;
+    rdfs:range xsd:string .
+
+# Proprietà per AuthorNode
+s3dg:orcid a owl:DatatypeProperty ;
+    rdfs:label "orcid" ;
+    rdfs:comment "Identificatore ORCID di un autore." ;
+    rdfs:domain s3dg:AuthorNode ;
+    rdfs:range xsd:string ;
+    owl:equivalentProperty crm:P48_has_preferred_identifier .
+
+# Proprietà per EmbargoNode
+s3dg:embargoStart a owl:DatatypeProperty ;
+    rdfs:label "embargoStart" ;
+    rdfs:comment "Data di inizio di un embargo." ;
+    rdfs:domain s3dg:EmbargoNode ;
+    rdfs:range xsd:date .
+
+s3dg:embargoEnd a owl:DatatypeProperty ;
+    rdfs:label "embargoEnd" ;
+    rdfs:comment "Data di fine di un embargo." ;
+    rdfs:domain s3dg:EmbargoNode ;
+    rdfs:range xsd:date .
+
+# Proprietà per GeoPositionNode
+s3dg:epsgCode a owl:DatatypeProperty ;
+    rdfs:label "epsgCode" ;
+    rdfs:comment "Codice EPSG per il sistema di riferimento delle coordinate." ;
+    rdfs:domain s3dg:GeoPositionNode ;
+    rdfs:range xsd:integer ;
+    owl:equivalentProperty crm:P168_place_is_defined_by .
+
+s3dg:shiftX a owl:DatatypeProperty ;
+    rdfs:label "shiftX" ;
+    rdfs:comment "Spostamento lungo l'asse X." ;
+    rdfs:domain s3dg:GeoPositionNode ;
+    rdfs:range xsd:float ;
+    owl:equivalentProperty crmgeo:Q9_is_expressed_in_terms_of .
+
+s3dg:shiftY a owl:DatatypeProperty ;
+    rdfs:label "shiftY" ;
+    rdfs:comment "Spostamento lungo l'asse Y." ;
+    rdfs:domain s3dg:GeoPositionNode ;
+    rdfs:range xsd:float ;
+    owl:equivalentProperty crmgeo:Q9_is_expressed_in_terms_of .
+
+s3dg:shiftZ a owl:DatatypeProperty ;
+    rdfs:label "shiftZ" ;
+    rdfs:comment "Spostamento lungo l'asse Z." ;
+    rdfs:domain s3dg:GeoPositionNode ;
+    rdfs:range xsd:float ;
+    owl:equivalentProperty crmgeo:Q9_is_expressed_in_terms_of .
+
+# Proprietà per RepresentationNode
+s3dg:position a owl:DatatypeProperty ;
+    rdfs:label "position" ;
+    rdfs:comment "Posizione nello spazio 3D." ;
+    rdfs:domain s3dg:RepresentationNode ;
+    rdfs:range xsd:string .
+
+s3dg:rotation a owl:DatatypeProperty ;
+    rdfs:label "rotation" ;
+    rdfs:comment "Rotazione nello spazio 3D." ;
+    rdfs:domain s3dg:RepresentationNode ;
+    rdfs:range xsd:string .
+
+s3dg:scale a owl:DatatypeProperty ;
+    rdfs:label "scale" ;
+    rdfs:comment "Scala nello spazio 3D." ;
+    rdfs:domain s3dg:RepresentationNode ;
+    rdfs:range xsd:string .
+
+# Proprietà per GraphNode
+s3dg:graphCode a owl:DatatypeProperty ;
+    rdfs:label "graphCode" ;
+    rdfs:comment "Codice leggibile da umani per il grafo." ;
+    rdfs:domain s3dg:GraphNode ;
+    rdfs:range xsd:string .
+
+# Proprietà per SemanticShapeNode
+s3dg:shapeType a owl:DatatypeProperty ;
+    rdfs:label "shapeType" ;
+    rdfs:comment "Tipo di forma semantica." ;
+    rdfs:domain s3dg:SemanticShapeNode ;
+    rdfs:range xsd:string .
+
+# Proprietà specifiche per CIDOC-CRM mapping
+s3dg:cidocMapping a owl:DatatypeProperty ;
+    rdfs:label "cidocMapping" ;
+    rdfs:comment "Mappatura verso CIDOC-CRM." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range xsd:string .
+
+s3dg:cidocClass a owl:DatatypeProperty ;
+    rdfs:label "cidocClass" ;
+    rdfs:comment "Classe CIDOC-CRM corrispondente." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range xsd:string .
+
+s3dg:cidocProperty a owl:DatatypeProperty ;
+    rdfs:label "cidocProperty" ;
+    rdfs:comment "Proprietà CIDOC-CRM corrispondente." ;
+    rdfs:domain owl:ObjectProperty ;
+    rdfs:range xsd:string .
+
+# Proprietà per gestire il versioning
+s3dg:versionInfo a owl:DatatypeProperty ;
+    rdfs:label "versionInfo" ;
+    rdfs:comment "Informazioni sulla versione." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range xsd:string .
+
+s3dg:dateCreated a owl:DatatypeProperty ;
+    rdfs:label "dateCreated" ;
+    rdfs:comment "Data di creazione del nodo." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range xsd:dateTime .
+
+s3dg:lastModified a owl:DatatypeProperty ;
+    rdfs:label "lastModified" ;
+    rdfs:comment "Data dell'ultima modifica del nodo." ;
+    rdfs:domain s3dg:Node ;
+    rdfs:range xsd:dateTime .
+
+#################################################
+# GUIDA ALLA CONVERSIONE DA PROPERTY GRAPH A RDF
+#################################################
+
+# Esempio di conversione per un nodo StratigraphicUnit (US)
+# 
+# Dato un nodo US nel grafo di proprietà:
+# {
+#   "node_id": "USM_001",
+#   "name": "Muro Nord",
+#   "description": "Muro in pietra calcarea",
+#   "node_type": "US"
+# }
+#
+# La conversione in triple RDF è:
+# <http://example.org/s3Dgraphy/USM_001> rdf:type s3dg:US .
+# <http://example.org/s3Dgraphy/USM_001> s3dg:nodeId "USM_001" .
+# <http://example.org/s3Dgraphy/USM_001> s3dg:name "Muro Nord" .
+# <http://example.org/s3Dgraphy/USM_001> s3dg:description "Muro in pietra calcarea" .
+# <http://example.org/s3Dgraphy/USM_001> rdf:type crmarchaeo:A2_Stratigraphic_Volume_Unit .
+#
+# Esempio di conversione per una proprietà
+# 
+# Dato un nodo PropertyNode nel grafo di proprietà:
+# {
+#   "node_id": "USM_001_Material",
+#   "name": "Material",
+#   "description": "Material description", 
+#   "node_type": "property",
+#   "value": "Limestone",
+#   "property_type": "Material"
+# }
+#
+# La conversione in triple RDF è:
+# <http://example.org/s3Dgraphy/USM_001_Material> rdf:type s3dg:PropertyNode .
+# <http://example.org/s3Dgraphy/USM_001_Material> s3dg:nodeId "USM_001_Material" .
+# <http://example.org/s3Dgraphy/USM_001_Material> s3dg:name "Material" .
+# <http://example.org/s3Dgraphy/USM_001_Material> s3dg:description "Material description" .
+# <http://example.org/s3Dgraphy/USM_001_Material> s3dg:propertyValue "Limestone" .
+# <http://example.org/s3Dgraphy/USM_001_Material> s3dg:propertyType "Material" .
+# <http://example.org/s3Dgraphy/USM_001_Material> rdf:type crm:E54_Dimension .
+#
+# Esempio di conversione per un arco che collega nodi
+#
+# Dato un arco nel grafo di proprietà:
+# {
+#   "edge_id": "rel_001",
+#   "edge_source": "USM_001",
+#   "edge_target": "USM_002",
+#   "edge_type": "is_before"
+# }
+#
+# La conversione in triple RDF è:
+# <http://example.org/s3Dgraphy/USM_001> s3dg:isBefore <http://example.org/s3Dgraphy/USM_002> .
+# <http://example.org/s3Dgraphy/USM_001> crm:P120_occurs_before <http://example.org/s3Dgraphy/USM_002> .
+#
+# Esempio di conversione per un arco "has_property":
+#
+# Dato un arco nel grafo di proprietà:
+# {
+#   "edge_id": "prop_001",
+#   "edge_source": "USM_001",
+#   "edge_target": "USM_001_Material",
+#   "edge_type": "has_property"
+# }
+#
+# La conversione in triple RDF è:
+# <http://example.org/s3Dgraphy/USM_001> s3dg:hasProperty <http://example.org/s3Dgraphy/USM_001_Material> .
+# <http://example.org/s3Dgraphy/USM_001> crm:P43_has_dimension <http://example.org/s3Dgraphy/USM_001_Material> .
+#
+# Esempio di conversione per un EpochNode:
+# 
+# Dato un nodo EpochNode nel grafo di proprietà:
+# {
+#   "node_id": "EPOCH_001",
+#   "name": "Epoca romana",
+#   "description": "Periodo romano", 
+#   "node_type": "epoch",
+#   "start_time": -27,
+#   "end_time": 476,
+#   "color": "#800020"
+# }
+#
+# La conversione in triple RDF è:
+# <http://example.org/s3Dgraphy/EPOCH_001> rdf:type s3dg:EpochNode .
+# <http://example.org/s3Dgraphy/EPOCH_001> s3dg:nodeId "EPOCH_001" .
+# <http://example.org/s3Dgraphy/EPOCH_001> s3dg:name "Epoca romana" .
+# <http://example.org/s3Dgraphy/EPOCH_001> s3dg:description "Periodo romano" .
+# <http://example.org/s3Dgraphy/EPOCH_001> s3dg:startTime "-27"^^xsd:float .
+# <http://example.org/s3Dgraphy/EPOCH_001> s3dg:endTime "476"^^xsd:float .
+# <http://example.org/s3Dgraphy/EPOCH_001> s3dg:color "#800020" .
+# <http://example.org/s3Dgraphy/EPOCH_001> rdf:type crm:E4_Period .
+#
+# Esempio di conversione per un AuthorNode:
+# 
+# Dato un nodo AuthorNode nel grafo di proprietà:
+# {
+#   "node_id": "AUTHOR_001",
+#   "name": "author",
+#   "node_type": "author",
+#   "data": {
+#     "orcid": "0000-0001-2345-6789",
+#     "name": "John",
+#     "surname": "Doe"
+#   }
+# }
+#
+# La conversione in triple RDF è:
+# <http://example.org/s3Dgraphy/AUTHOR_001> rdf:type s3dg:AuthorNode .
+# <http://example.org/s3Dgraphy/AUTHOR_001> s3dg:nodeId "AUTHOR_001" .
+# <http://example.org/s3Dgraphy/AUTHOR_001> s3dg:name "author" .
+# <http://example.org/s3Dgraphy/AUTHOR_001> s3dg:orcid "0000-0001-2345-6789" .
+# <http://example.org/s3Dgraphy/AUTHOR_001> s3dg:authorName "John" .
+# <http://example.org/s3Dgraphy/AUTHOR_001> s3dg:authorSurname "Doe" .
+# <http://example.org/s3Dgraphy/AUTHOR_001> rdf:type crm:E39_Actor .
+#
+# Esempio di conversione per un grafo intero:
+#
+# Un grafo completo in Property Graph può essere convertito in un modello RDF 
+# seguendo questi principi:
+#
+# 1. Ogni nodo diventa un insieme di triple con il nodo stesso come soggetto
+# 2. Ogni proprietà del nodo (attributi) diventa una tripla con predicato corrispondente
+# 3. Ogni relazione (arco) diventa una tripla con soggetto = source, predicato = tipo relazione, oggetto = target
+# 4. I tipi di nodi e relazioni hanno una mappatura CIDOC-CRM che può essere inclusa per compatibilità
+#
+# Per un grafo con multipli tipi di nodi e relazioni, è consigliabile:
+#
+# 1. Convertire prima tutti i nodi in triple RDF
+# 2. Convertire poi tutti gli archi in triple RDF
+# 3. Aggiungere le mappature CIDOC-CRM come triple separate (stessa risorsa, predicato diverso)
+# 4. Arricchire il modello con inferenze derivate dalle proprietà OWL
+#
+# La struttura URI per le risorse può seguire uno schema coerente come:
+# <http://example.org/s3Dgraphy/{node_id}> per i nodi
+# <http://example.org/s3Dgraphy/relation/{edge_id}> per le relazioni reificate
