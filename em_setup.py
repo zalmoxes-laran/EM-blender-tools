@@ -503,7 +503,7 @@ class EM_SetupPanel(bpy.types.Panel):
                     #row.prop(active_file, "graph_code", text="Graph Code")
                     
                     # Aggiunge un avviso per MISSINGCODE o TEMPCODE
-                    if active_file.graph_code in ["MISSINGCODE", "TEMPCODE"]:
+                    if active_file.graph_code in ["MISSINGCODE", "TEMPCODE", "xx"]:
                         warning_box = layout.box()
                         warning_box.label(text="Warning: Missing or temporary graph code", icon='ERROR')
                         warning_box.label(text="Please add a proper code in the GraphML header")
