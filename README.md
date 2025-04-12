@@ -207,6 +207,26 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
   - Develop visualization to show density of properties behind 3D models
   - Implement both quantitative and qualitative algorithms
 
+
+- [ ] **Add support for viewing images associated with stratigraphic units**
+  - Display images directly within the EM-Tools interface
+  - Implement image browser for units with multiple associated images
+
+- [ ] **Develop flexible image source options**
+  - Primary method: Import from JSON-LD Tropi files
+    - Automatically extract image references from Tropi export
+    - Maintain relationships between images and stratigraphic units
+  
+  - Alternative method: Excel-based referencing
+    - Use relative paths stored in Excel spreadsheets
+    - Implement folder-based association (folder name = stratigraphic unit name)
+    - Automatic association of all images within a matching folder
+
+- [ ] **Create image navigation interface**
+  - Show first image by default
+  - Implement controls to browse all images associated with a unit
+  - Add thumbnail view for quick selection
+
 ## Future Development
 
 - [ ] **Jupyter Notebook integration**
