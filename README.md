@@ -116,7 +116,7 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
 - [X] **Implement full multigraph management with graph ID as prefix**
   - Used to enrich node IDs and ensure uniqueness across multiple graphs
 
-- [X] **E-RIHS export with texture management**
+- [X] **Heriverse export with texture management**
   - Implemented optimized settings similar to Envik
 
 - [X] **Instanced GLTF export**
