@@ -613,7 +613,7 @@ class EM_ToolsPanel:
                 if obj is not None:
                     if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
                             select_list_element_from_obj_proxy(obj, "em_list")
-                    
+            '''        
             if scene.em_settings.em_proxy_sync2 is True:
                 if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
                     list_item = scene.em_list[scene.em_list_index]
@@ -627,6 +627,7 @@ class EM_ToolsPanel:
                                         ctx['area'] = area
                                         ctx['region'] = area.regions[-1]
                                         bpy.ops.view3d.view_selected(ctx)
+            '''
         else:
             row.label(text="No stratigraphic units here :-(")
 

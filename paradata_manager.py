@@ -544,7 +544,8 @@ classes = [
     EM_UL_sources_managers,
     EM_UL_extractors_managers,
     EM_UL_combiners_managers,
-    EM_OT_update_paradata_lists
+    EM_OT_update_paradata_lists,
+    EM_files_opener
     ]
 
 # Registration
