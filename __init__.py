@@ -93,7 +93,7 @@ def check_dependencies():
 # Verifica le dipendenze durante il caricamento
 DEPENDENCIES_INSTALLED = check_dependencies()
 
-from . import dependecy_panel, us_list_per_epoch
+from . import dependecy_panel
 
 class EmPreferences(bpy.types.AddonPreferences):
     bl_idname = __package__
