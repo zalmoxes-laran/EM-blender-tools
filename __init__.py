@@ -23,7 +23,7 @@ bl_info = {
     "version": (1, 5, 0),  # This is fine as a tuple
     "blender": (4, 0, 0),  # Make sure this matches the minimum Blender version you support
     "location": "3D View > Toolbox",
-    "warning": "1.5.0 dev29",
+    "warning": "1.5.0 dev30",
     "wiki_url": "",
     "category": "Tools",
 }
@@ -601,7 +601,6 @@ def register_full_addon():
             graph2geometry,
             activity_manager,
             rm_manager,
-            us_list_per_epoch,
             proxy_inflate_manager,
             anastylosis_manager
         )
@@ -817,9 +816,6 @@ def register_full_addon():
         try: epoch_manager.register()
         except Exception as e: print(f"Error registering epoch_manager: {e}")
         
-        try: us_list_per_epoch.register()
-        except Exception as e: print(f"Error registering us_list_per_epoch: {e}")
-        
         try: paradata_manager.register()
         except Exception as e: print(f"Error registering paradata_manager: {e}")
 
@@ -912,7 +908,6 @@ def unregister():
                 em_setup,
                 rm_manager,
                 paradata_manager,
-                us_list_per_epoch,
                 proxy_inflate_manager,
                 anastylosis_manager,
             )
@@ -939,8 +934,6 @@ def unregister():
             try: rm_manager.unregister()
             except: pass
             try: anastylosis_manager.unregister()
-            except: pass
-            try: us_list_per_epoch.unregister()
             except: pass
             try: paradata_manager.unregister()
             except: pass
