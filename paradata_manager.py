@@ -11,7 +11,7 @@ import urllib.request
 import tempfile
 from bpy.props import PointerProperty, StringProperty, BoolProperty # type: ignore
 
-
+from urllib.parse import urlparse
 
 class ParadataImageProps(bpy.types.PropertyGroup):
     """Properties for handling paradata images"""
@@ -28,6 +28,11 @@ class ParadataImageProps(bpy.types.PropertyGroup):
         name="Loaded Image",
         type=bpy.types.Image
     )
+    auto_load: BoolProperty(
+        name="Auto-load Images",
+        description="Automatically load images when selecting documents or extractors",
+        default=True
+    )
 
 class EM_OT_load_paradata_image(bpy.types.Operator):
     """Load an image from a URL or file path for the Paradata Manager"""
@@ -36,6 +41,55 @@ class EM_OT_load_paradata_image(bpy.types.Operator):
     bl_description = "Load an image from a URL or local file for preview"
     
     node_type: StringProperty()
+    
+    def is_valid_url(self, url):
+        """Check if the string is a valid URL"""
+        try:
+            result = urlparse(url)
+            return all([result.scheme, result.netloc])
+        except:
+            return False
+            
+    def build_file_path(self, context, path):
+        """Build a proper file path based on context and path information"""
+        scene = context.scene
+        em_tools = scene.em_tools
+        
+        # If it's a valid URL, return it as is
+        if self.is_valid_url(path):
+            return path, True
+            
+        # Not a URL, so should be a local file
+        # Check if we have a valid DosCo directory for the current graph
+        if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            return None, False
+            
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+        
+        # Try to get the DosCo directory for this specific graph
+        dosco_dir = graphml.dosco_dir
+        
+        # If empty, fall back to the global DosCo setting
+        if not dosco_dir:
+            dosco_dir = scene.EMDosCo_dir
+            
+        # If still empty, we can't proceed
+        if not dosco_dir:
+            return None, False
+            
+        # Normalize the path
+        dosco_dir = bpy.path.abspath(dosco_dir)
+        
+        # If the path already starts with the DosCo dir, don't concatenate
+        if path.startswith(dosco_dir):
+            full_path = path
+        else:
+            # Ensure path doesn't start with file separator
+            if path.startswith(os.path.sep):
+                path = path[1:]
+            full_path = os.path.join(dosco_dir, path)
+            
+        return full_path, False
     
     def execute(self, context):
         scene = context.scene
@@ -49,8 +103,8 @@ class EM_OT_load_paradata_image(bpy.types.Operator):
             self.report({'ERROR'}, "No valid item selected")
             return {'CANCELLED'}
         
-        # Skip if already loading
-        if scene.paradata_image.is_loading:
+        # Skip if already loading or path is empty
+        if scene.paradata_image.is_loading or not path:
             return {'CANCELLED'}
         
         # Clear any previous image
@@ -62,14 +116,22 @@ class EM_OT_load_paradata_image(bpy.types.Operator):
         scene.paradata_image.image_path = path
         
         try:
-            # Check if it's a URL or a local path
-            if is_valid_url(path):
+            # Build the proper path
+            full_path, is_url = self.build_file_path(context, path)
+            
+            if not full_path:
+                self.report({'ERROR'}, f"Cannot resolve path: {path}. Check DosCo directory settings.")
+                scene.paradata_image.is_loading = False
+                return {'CANCELLED'}
+            
+            # Load based on whether it's URL or local path
+            if is_url:
                 # Create a temporary file
                 temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
                 temp_file.close()
                 
                 # Download the image
-                urllib.request.urlretrieve(path, temp_file.name)
+                urllib.request.urlretrieve(full_path, temp_file.name)
                 
                 # Load the image into Blender
                 img = bpy.data.images.load(temp_file.name)
@@ -80,10 +142,7 @@ class EM_OT_load_paradata_image(bpy.types.Operator):
                 os.unlink(temp_file.name)
                 
             else:
-                # Try to load from the DosCo directory
-                base_dir = bpy.path.abspath(scene.EMDosCo_dir)
-                full_path = os.path.join(base_dir, path)
-                
+                # Check if the file exists
                 if os.path.exists(full_path) and os.path.isfile(full_path):
                     # Check if it's an image file (basic check)
                     img_exts = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff']
@@ -92,7 +151,7 @@ class EM_OT_load_paradata_image(bpy.types.Operator):
                         img.name = f"ParadataPreview_{os.path.basename(path)}"
                         img.use_fake_user = False  # No users
                     else:
-                        self.report({'WARNING'}, f"Not an image file: {path}")
+                        self.report({'WARNING'}, f"Not an image file: {full_path}")
                         scene.paradata_image.is_loading = False
                         return {'CANCELLED'}
                 else:
@@ -131,13 +190,17 @@ class EM_OT_save_paradata_image(bpy.types.Operator):
         return {'RUNNING_MODAL'}
     
     def invoke(self, context, event):
-        self.filepath = "paradata_image.png"
+        scene = context.scene
+        
+        # Use the original filename if available
+        if scene.paradata_image.image_path:
+            base_name = os.path.basename(scene.paradata_image.image_path)
+            self.filepath = base_name
+        else:
+            self.filepath = "paradata_image.png"
+            
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
-        
-    def draw(self, context):
-        layout = self.layout
-        layout.label(text="Save the image:")
         
     def execute(self, context):
         scene = context.scene
@@ -155,6 +218,157 @@ class EM_OT_save_paradata_image(bpy.types.Operator):
             return {'CANCELLED'}
             
         return {'FINISHED'}
+
+def sources_index_update(self, context):
+    """Function to call when sources list index changes"""
+    if hasattr(context.scene, "paradata_image") and context.scene.paradata_image.auto_load:
+        # Trigger image loading for selected source
+        auto_load_paradata_image(context, "em_v_sources_list")
+    
+def extractors_index_update(self, context):
+    """Function to call when extractors list index changes"""
+    if hasattr(context.scene, "paradata_image") and context.scene.paradata_image.auto_load:
+        # Trigger image loading for selected extractor
+        auto_load_paradata_image(context, "em_v_extractors_list")
+
+def auto_load_paradata_image(context, node_type):
+    """Helper function for auto-loading images when selection changes"""
+    scene = context.scene
+    
+    # Skip if auto-loading is disabled
+    if not hasattr(scene, "paradata_image") or not scene.paradata_image.auto_load:
+        return
+    
+    # Skip if already loading an image
+    if scene.paradata_image.is_loading:
+        return
+    
+    # Check if the URL might be an image
+    url = None
+    if node_type == "em_v_sources_list" and scene.em_v_sources_list_index >= 0 and len(scene.em_v_sources_list) > 0:
+        url = scene.em_v_sources_list[scene.em_v_sources_list_index].url
+    elif node_type == "em_v_extractors_list" and scene.em_v_extractors_list_index >= 0 and len(scene.em_v_extractors_list) > 0:
+        url = scene.em_v_extractors_list[scene.em_v_extractors_list_index].url
+    
+    if not url:
+        return
+    
+    # Skip web URLs for auto-loading (to avoid unnecessary downloads)
+    # unless explicitly containing image extensions in the URL
+    is_web_url = url.startswith(("http://", "https://"))
+    
+    # Quick check if the URL might be an image
+    img_exts = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.gif']
+    is_potential_image = any(url.lower().endswith(ext) for ext in img_exts)
+    
+    # For web URLs, only auto-load if they're obviously image URLs
+    if is_web_url and not is_potential_image:
+        for ext in img_exts:
+            if ext in url.lower():
+                is_potential_image = True
+                break
+    
+    # If it's a potential image or a local file, trigger the load operator
+    if is_potential_image or not is_web_url:
+        bpy.ops.em.load_paradata_image(node_type=node_type)
+    scene = context.scene
+    
+    # Skip if auto-loading is disabled
+    if not hasattr(scene, "paradata_image") or not scene.paradata_image.auto_load:
+        return
+    
+    # Skip if already loading an image
+    if scene.paradata_image.is_loading:
+        return
+    
+    # Check if the URL might be an image
+    url = None
+    if node_type == "em_v_sources_list" and scene.em_v_sources_list_index >= 0 and len(scene.em_v_sources_list) > 0:
+        url = scene.em_v_sources_list[scene.em_v_sources_list_index].url
+    elif node_type == "em_v_extractors_list" and scene.em_v_extractors_list_index >= 0 and len(scene.em_v_extractors_list) > 0:
+        url = scene.em_v_extractors_list[scene.em_v_extractors_list_index].url
+    
+    if not url:
+        return
+    
+    # Skip web URLs for auto-loading (to avoid unnecessary downloads)
+    # unless explicitly containing image extensions in the URL
+    is_web_url = url.startswith(("http://", "https://"))
+    
+    # Quick check if the URL might be an image
+    img_exts = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.gif']
+    is_potential_image = any(url.lower().endswith(ext) for ext in img_exts)
+    
+    # For web URLs, only auto-load if they're obviously image URLs
+    if is_web_url and not is_potential_image:
+        for ext in img_exts:
+            if ext in url.lower():
+                is_potential_image = True
+                break
+    
+    # If it's a potential image or a local file, trigger the load operator
+    if is_potential_image or not is_web_url:
+        bpy.ops.em.load_paradata_image(node_type=node_type)
+
+
+class ListIndexUpdateHandler:
+    """Helper class for correctly handling list index updates"""
+    
+    @staticmethod
+    def find_and_update_props():
+        """Find and update the list index properties to add our auto-load functionality"""
+        try:
+            # Get property definitions for sources and extractors indices
+            sources_prop = bpy.types.Scene.bl_rna.properties.get("em_v_sources_list_index")
+            extractors_prop = bpy.types.Scene.bl_rna.properties.get("em_v_extractors_list_index")
+            
+            # Make copies of original update function if they exist
+            if sources_prop and hasattr(sources_prop, "update"):
+                original_sources_update = sources_prop.update
+            else:
+                original_sources_update = None
+                
+            if extractors_prop and hasattr(extractors_prop, "update"):
+                original_extractors_update = extractors_prop.update
+            else:
+                original_extractors_update = None
+                
+            # Create wrappers that call both original and our new update
+            def sources_update_wrapper(self, context):
+                # Call original update if exists
+                if original_sources_update:
+                    original_sources_update(self, context)
+                # Call our update function
+                sources_index_update(self, context)
+                
+            def extractors_update_wrapper(self, context):
+                # Call original update if exists
+                if original_extractors_update:
+                    original_extractors_update(self, context)
+                # Call our update function
+                extractors_index_update(self, context)
+            
+            # Replace with our wrapped versions
+            if sources_prop:
+                setattr(bpy.types.Scene, "em_v_sources_list_index", bpy.props.IntProperty(
+                    name="Sources List Index",
+                    default=0,
+                    update=sources_update_wrapper
+                ))
+                
+            if extractors_prop:
+                setattr(bpy.types.Scene, "em_v_extractors_list_index", bpy.props.IntProperty(
+                    name="Extractors List Index",
+                    default=0,
+                    update=extractors_update_wrapper
+                ))
+                
+            print("Successfully installed auto-load update handlers")
+            return True
+            
+        except Exception as e:
+            print(f"Error installing update handlers: {str(e)}")
+            return False
 
 
 #####################################################################
@@ -404,56 +618,79 @@ class EM_ParadataPanel:
             op = row.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
             if op:  # Check if operator is valid
                 op.node_type = source_list_var
-
         else:
             row = box.row()
             row.label(text="Nessun documento disponibile")
 
+        ###############################################################################
+        ##          Image Preview
+        ###############################################################################
+        
         # Add image preview section at the end
         layout.separator()
-        layout.label(text="Image Preview:")
+        
+        # Split row for preview title and auto-load toggle
+        split = layout.split(factor=0.6)
+        split.label(text="Image Preview:")
+        
+        # Only show auto-load toggle if we have the property
+        if hasattr(scene, "paradata_image"):
+            split.prop(scene.paradata_image, "auto_load", text="Auto-load")
+        
         box = layout.box()
+        row = box.row()
         
-        # Image preview for documents or extractors
-        show_image_ui = False
+        # Determine if we should show image controls
+        show_image_preview = False
+        preview_node_type = None
         
-        # Check if we have a selected document with a valid URL
+        # Check if we have a source with a valid URL
         if source_index_valid:
             item_source = eval(source_list_cmd)[source_list_index]
             if item_source.url:
-                image_path = item_source.url
-                show_image_ui = True
+                url_path = item_source.url
+                # Check if it might be an image (basic check)
+                img_exts = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.gif']
+                if any(url_path.lower().endswith(ext) for ext in img_exts) or is_valid_url(url_path):
+                    show_image_preview = True
+                    preview_node_type = source_list_var
         
-        # Check if we have a selected extractor with a valid URL
+        # Check if we have an extractor with a valid URL
         elif extractor_index_valid:
             item_extractor = eval(extractor_list_cmd)[extractor_list_index]
             if item_extractor.url:
-                image_path = item_extractor.url
-                show_image_ui = True
+                url_path = item_extractor.url
+                # Check if it might be an image (basic check)
+                img_exts = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.gif']
+                if any(url_path.lower().endswith(ext) for ext in img_exts) or is_valid_url(url_path):
+                    show_image_preview = True
+                    preview_node_type = extractor_list_var
         
-        if show_image_ui:
+        if show_image_preview:
+            # Show load button
             row = box.row()
-            row.label(text="URL: " + image_path)
+            op = row.operator("em.load_paradata_image", icon="FILE_IMAGE", text="Load Image Preview")
+            op.node_type = preview_node_type
             
-            # Show image loading operators
-            row = box.row()
-            op = row.operator("em.load_paradata_image", text="Load Preview")
-            if source_index_valid:
-                op.node_type = source_list_var
-            else:
-                op.node_type = extractor_list_var
-            
-            # Show image if it's loaded
-            if scene.paradata_image.loaded_image:
+            # Show image if loaded
+            if hasattr(scene, "paradata_image") and scene.paradata_image.loaded_image:
                 row = box.row()
-                row.template_ID_preview(scene.paradata_image, "loaded_image", open="image.open", new="image.new", rows=3, cols=8)
+                # Use template_preview for better image display
+                row.template_preview(
+                    scene.paradata_image.loaded_image,
+                    show_buttons=False,
+                    preview_id="paradata_preview"
+                )
                 
-                # Show save button
+                # Add save button
                 row = box.row()
-                row.operator("em.save_paradata_image", text="Save Image")
+                row.operator("em.save_paradata_image", icon="EXPORT", text="Save Image")
+                
+                # Add a refresh button 
+                op = row.operator("em.load_paradata_image", icon="FILE_REFRESH", text="Reload")
+                op.node_type = preview_node_type
         else:
-            row = box.row()
-            row.label(text="Select a document or extractor with a valid image URL")
+            row.label(text="Select a document or extractor with an image URL")
 
 
 
@@ -763,27 +1000,30 @@ classes = [
     EM_files_opener,
     ParadataImageProps,
     EM_OT_load_paradata_image,
-    EM_OT_save_paradata_image
-    ]
+    EM_OT_save_paradata_image,
+    EM_OT_check_selection_changed
+]
 
 # Registration
 def register():
-
     for cls in classes:
         bpy.utils.register_class(cls)
-
+        
+    # Register image handling properties
     bpy.types.Scene.paradata_image = bpy.props.PointerProperty(type=ParadataImageProps)
 
 
 def unregister():
+    # Clean up images before unregistering
+    if hasattr(bpy.context.scene, "paradata_image") and bpy.context.scene.paradata_image.loaded_image:
+        try:
+            bpy.data.images.remove(bpy.context.scene.paradata_image.loaded_image)
+        except:
+            pass
         
-    for cls in classes:
+    for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
-    # Clean up any loaded images
-    if hasattr(bpy.types.Scene, "paradata_image") and bpy.context.scene.paradata_image.loaded_image:
-        bpy.data.images.remove(bpy.context.scene.paradata_image.loaded_image)
-
-    del bpy.types.Scene.paradata_image
-
-
+    # Remove properties
+    if hasattr(bpy.types.Scene, "paradata_image"):
+        del bpy.types.Scene.paradata_image
