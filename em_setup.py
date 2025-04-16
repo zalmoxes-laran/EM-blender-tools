@@ -554,19 +554,22 @@ class EM_SetupPanel(bpy.types.Panel):
                     box.prop(em_settings, "dosco_advanced_options", text="DosCo advanced options", icon="TRIA_DOWN" if em_settings.dosco_advanced_options else "TRIA_RIGHT", emboss=False)
 
                     if em_settings.dosco_advanced_options:
-                        #row = box.row()
                         box.label(text="Populate extractors, documents and combiners using DosCo files:")
+                        row = box.row()
+                        row.prop(em_settings, 'overwrite_url_with_dosco_filepath', text="Overwrite paths with DosCo files")
+                        
+                        # Add a more informative tooltip
+                        subbox = box.box()
+                        subbox.label(text="When enabled, node paths will be linked to files in DosCo")
+                        subbox.label(text="Examples:")
+                        subbox.label(text="Node GT16.D.01 → Searches for GT16.D.01 and D.01 in DosCo")
+                        
+                        row = box.row()
+                        row.prop(em_settings, 'preserve_web_url', text="Preserve web URLs (don't overwrite http/https)")
+                        
+                        # Add a button to manually trigger the operation
                         #row = box.row()
-                        box.prop(em_settings, 'overwrite_url_with_dosco_filepath', text = "Overwrite paths")
-                        box.prop(em_settings, 'preserve_web_url', text = "Preserve web urls (if any)")
-
-                    '''
-                    # source XLSX file
-                    box.prop(active_file, "xlsx_filepath", text="Source File (xlsx)")
-                    # EMdb file
-                    box.prop(active_file, "emdb_filepath", text="EMdb File (sqlite)")
-                    '''
-
+                        #row.operator("em.update_dosco_paths", text="Update Paths from DosCo", icon="FILE_REFRESH")
         else:
             # UI per modalità 3D GIS
             box = layout.box()

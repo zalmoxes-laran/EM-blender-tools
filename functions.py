@@ -1131,80 +1131,132 @@ def identify_node(name):
     return node_type
 
 def inspect_load_dosco_files():
-    context = bpy.context
-    scene = context.scene
+    """
+    Scans the DosCo directory and updates URLs for document, extractor, and combiner nodes
+    to point to their corresponding files. Handles graph code prefixes appropriately.
+    """
+    scene = bpy.context.scene
     em_tools = scene.em_tools
     em_settings = bpy.context.window_manager.em_addon_settings
-
-    if (em_tools.active_file_index >= 0 and 
-        em_tools.graphml_files[em_tools.active_file_index]):
+    
+    # Check if we have a valid active GraphML file
+    if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+        print("No active GraphML file to process DosCo files for")
+        return 0
         
-        # Ottieni il grafo attivo
-        graph_id = em_tools.graphml_files[em_tools.active_file_index].name
-        graph = get_graph(graph_id)
-        if not graph:
-            return
+    graphml = em_tools.graphml_files[em_tools.active_file_index]
+    
+    # Get the DosCo directory
+    dosco_dir = graphml.dosco_dir
+    if not dosco_dir:
+        print("No DosCo directory specified for this GraphML")
+        return 0
+        
+    # Normalize the path
+    dosco_dir = bpy.path.abspath(dosco_dir)
+    if not os.path.exists(dosco_dir):
+        print(f"DosCo directory doesn't exist: {dosco_dir}")
+        return 0
+    
+    # Get the graph code for prefix handling
+    graph_code = graphml.graph_code if hasattr(graphml, 'graph_code') else None
+    
+    # Track updated nodes for reporting
+    updated_count = 0
+    skipped_web_urls = 0
+    not_found_count = 0
+    
+    # Process documents, extractors, and combiners
+    for list_name in ["em_sources_list", "em_extractors_list", "em_combiners_list"]:
+        node_list = getattr(scene, list_name)
+        list_type = list_name.split('_')[1]  # sources, extractors, combiners
+        
+        for node in node_list:
+            # Skip if it's already a web URL and preserve_web_url is True
+            if em_settings.preserve_web_url and is_valid_url(node.url):
+                skipped_web_urls += 1
+                continue
+                
+            # Get the node name
+            node_name = node.name
+            
+            # If the node name has the graph code prefix, extract the base name
+            base_name = node_name
+            if graph_code and (node_name.startswith(f"{graph_code}.") or node_name.startswith(f"{graph_code}_")):
+                # Remove the prefix (both dot and underscore separators)
+                if f"{graph_code}." in node_name:
+                    base_name = node_name.split(f"{graph_code}.", 1)[1]
+                elif f"{graph_code}_" in node_name:
+                    base_name = node_name.split(f"{graph_code}_", 1)[1]
+            
+            # Try finding the file with the prefixed name first
+            file_path = find_file_in_dosco(dosco_dir, node_name)
+            
+            # If not found and we have a different base name (prefix removed), try that
+            if not file_path and base_name != node_name:
+                file_path = find_file_in_dosco(dosco_dir, base_name)
+            
+            # If file found, update the URL
+            if file_path:
+                # Get the relative path from the DosCo directory
+                rel_path = os.path.relpath(file_path, dosco_dir)
+                node.url = rel_path
+                updated_count += 1
+                print(f"Updated URL for {node_name}: {rel_path}")
+            else:
+                not_found_count += 1
+                print(f"No file found for {node_name} or {base_name} in DosCo directory")
+    
+    print(f"Updated {updated_count} node URLs from DosCo directory")
+    print(f"Skipped {skipped_web_urls} web URLs")
+    print(f"Could not find {not_found_count} files")
+    
+    return updated_count
 
-        dir_path = em_tools.graphml_files[em_tools.active_file_index].dosco_dir
-        abs_dir_path = bpy.path.abspath(dir_path)
-
-        extractor_pattern = re.compile(r"D\.\d+\.\d+")
-
-        for entry in os.listdir(abs_dir_path):
-            file_path = os.path.join(abs_dir_path, entry)
-            if os.path.isfile(file_path):
-                # Gestione estrattori
-                if extractor_pattern.match(entry):
-                    counter = 0
-                    for extractor_element in scene.em_extractors_list:
-                        if entry.startswith(extractor_element.name):
-                            if em_settings.preserve_web_url and is_valid_url(scene.em_extractors_list[counter].url):
-                                pass
-                            else:
-                                # Aggiorna la lista Blender
-                                scene.em_extractors_list[counter].url = entry
-                                scene.em_extractors_list[counter].icon_url = "CHECKBOX_HLT"
-                                
-                                # Aggiorna/crea nodo link nel grafo
-                                extractor_node = graph.find_node_by_id(extractor_element.id_node)
-                                if extractor_node:
-                                    update_or_create_link_node(graph, extractor_node, entry, em_settings.preserve_web_url)
-                        counter += 1
-
-                # Gestione combiners
-                elif entry.startswith("C."):
-                    counter = 0
-                    for combiner_element in scene.em_combiners_list:
-                        if entry.startswith(combiner_element.name):
-                            if not em_settings.preserve_web_url and not is_valid_url(scene.em_combiners_list[counter].url):
-                                # Aggiorna la lista Blender
-                                scene.em_combiners_list[counter].url = entry
-                                scene.em_combiners_list[counter].icon_url = "CHECKBOX_HLT"
-                                
-                                # Aggiorna/crea nodo link nel grafo
-                                combiner_node = graph.find_node_by_id(combiner_element.id_node)
-                                if combiner_node:
-                                    update_or_create_link_node(graph, combiner_node, entry, em_settings.preserve_web_url)
-                        counter += 1
-
-                # Gestione documenti
-                elif entry.startswith("D."):
-                    counter = 0
-                    for document_element in scene.em_sources_list:
-                        if entry.startswith(document_element.name):
-                            if em_settings.preserve_web_url and is_valid_url(scene.em_sources_list[counter].url):
-                                pass
-                            else:
-                                # Aggiorna la lista Blender
-                                scene.em_sources_list[counter].url = entry
-                                scene.em_sources_list[counter].icon_url = "CHECKBOX_HLT"
-                                
-                                # Aggiorna/crea nodo link nel grafo
-                                document_node = graph.find_node_by_id(document_element.id_node)
-                                if document_node:
-                                    update_or_create_link_node(graph, document_node, entry, em_settings.preserve_web_url)
-                        counter += 1
-    return
+def find_file_in_dosco(dosco_dir, node_name):
+    """
+    Searches for a file in the DosCo directory that matches the node identifier.
+    Makes a distinction between node IDs like "D.01" and "D.01.01".
+    
+    Args:
+        dosco_dir (str): Path to the DosCo directory
+        node_name (str): Name of the node to search for (like "D.01" or "C.05")
+        
+    Returns:
+        str or None: Full path to the found file, or None if not found
+    """
+    matches = []
+    
+    # Define a more precise pattern matching to distinguish between node IDs
+    # For example, D.01 should match "D.01_desc.jpg" but not "D.01.01_desc.jpg"
+    for root, _, files in os.walk(dosco_dir):
+        for file in files:
+            # Check if file starts with the exact node name followed by:
+            # - end of string, or
+            # - a delimiter like "_", ".", " ", or "-"
+            if (file.startswith(node_name) and 
+                (len(file) == len(node_name) or 
+                 file[len(node_name)] in ['_', '.', ' ', '-'])):
+                matches.append(os.path.join(root, file))
+    
+    # If we found multiple matches, prioritize by common file types
+    if matches:
+        # Define priority of file extensions
+        priority_extensions = ['.jpg', '.jpeg', '.png', '.pdf', '.doc', '.docx', '.txt', '.svg', '.mp4', '.mov']
+        
+        # Sort matches by extension priority
+        def get_priority(file_path):
+            ext = os.path.splitext(file_path)[1].lower()
+            try:
+                return priority_extensions.index(ext)
+            except ValueError:
+                return len(priority_extensions)  # Lower priority for unknown extensions
+        
+        sorted_matches = sorted(matches, key=get_priority)
+        return sorted_matches[0]  # Return the highest priority match
+    
+    # No matches found
+    return None
 
 def update_or_create_link_node(graph, source_node, url, preserve_existing=True):
     """
@@ -1362,13 +1414,13 @@ def generate_blender_object_name(node):
     graph_code = node.attributes.get('graph_code')
     
     if graph_code:
-        prefix = f"{graph_code}_"
+        prefix = f"{graph_code}."
     else:
         # Prova a ricavare il codice dal graph_id
         graph_id = node.attributes.get('graph_id')
         if graph_id:
             # Usa le prime lettere dell'ID per un prefisso sintetico
-            prefix = f"{graph_id[:5]}_"
+            prefix = f"{graph_id[:5]}."
     
     # Se non abbiamo un prefisso, usa il nome direttamente
     if not prefix:

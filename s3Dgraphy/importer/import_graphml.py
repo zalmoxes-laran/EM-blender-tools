@@ -350,7 +350,7 @@ class GraphMLImporter:
                 graph_code = self.graph.attributes.get('graph_code')
                 if graph_code:
                     document_node.attributes['original_name'] = nodename
-                    document_node.name = f"{graph_code}_{nodename}"
+                    document_node.name = f"{graph_code}.{nodename}"
                 
                 # Aggiungi al grafo e memorizza UUID
                 self.graph.add_node(document_node)
@@ -379,7 +379,7 @@ class GraphMLImporter:
             graph_code = self.graph.attributes.get('graph_code')
             if graph_code:
                 property_node.attributes['original_name'] = nodename
-                property_node.name = f"{graph_code}_{nodename}"
+                property_node.name = f"{graph_code}.{nodename}"
 
             self.graph.add_node(property_node)
 
@@ -400,7 +400,7 @@ class GraphMLImporter:
             graph_code = self.graph.attributes.get('graph_code')
             if graph_code:
                 extractor_node.attributes['original_name'] = nodename
-                extractor_node.name = f"{graph_code}_{nodename}"
+                extractor_node.name = f"{graph_code}.{nodename}"
 
             self.graph.add_node(extractor_node)
 
@@ -427,7 +427,7 @@ class GraphMLImporter:
             graph_code = self.graph.attributes.get('graph_code')
             if graph_code:
                 combiner_node.attributes['original_name'] = nodename
-                combiner_node.name = f"{graph_code}_{nodename}"
+                combiner_node.name = f"{graph_code}.{nodename}"
 
             self.graph.add_node(combiner_node)
 
