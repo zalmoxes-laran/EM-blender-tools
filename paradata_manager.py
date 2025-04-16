@@ -18,24 +18,28 @@ class ParadataImageProps(bpy.types.PropertyGroup):
     image_path: StringProperty(
         name="Image Path",
         description="Path or URL to the image"
-    )
+    )# type: ignore
     is_loading: BoolProperty(
         name="Is Loading",
         description="Whether the image is currently loading",
         default=False
-    )
+    )# type: ignore
     loaded_image: PointerProperty(
         name="Loaded Image",
         type=bpy.types.Image
-    )
+    )# type: ignore
     auto_load: BoolProperty(
         name="Auto-load Images",
         description="Automatically load images when selecting documents or extractors",
         default=True
-    )
+    ) # type: ignore
+
     # Track the last seen selections
-    last_source_index: IntProperty(default=-1)
-    last_extractor_index: IntProperty(default=-1)
+    last_source_index: IntProperty(default=-1)# type: ignore
+    last_extractor_index: IntProperty(default=-1)# type: ignore
+
+    image_collection: CollectionProperty(type=bpy.types.PropertyGroup)# type: ignore
+    active_image_index: IntProperty(default=0)# type: ignore
 
 def check_selection_changed(context):
     """Check if selection has changed and load images if needed"""
@@ -201,20 +205,8 @@ class EM_OT_load_paradata_image(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         
+        # Retrieve the path from the selected item
         path = eval("scene."+self.node_type+"[scene."+self.node_type+"_index].url")
-        # Get the URL from the selected item
-        #if self.node_type == "em_v_sources_list" and scene.em_v_sources_list_index >= 0 and len(scene.em_v_sources_list) > 0:
-        #    path = scene.em_v_sources_list[scene.em_v_sources_list_index].url
-        #    print(f"Loading image from source: {path}")
-        #elif self.node_type == "em_v_extractors_list" and scene.em_v_extractors_list_index >= 0 and len(scene.em_v_extractors_list) > 0:
-        #    path = scene.em_v_extractors_list[scene.em_v_extractors_list_index].url
-        #    print(f"Loading image from extractor: {path}")
-        #else:
-        #    self.report({'ERROR'}, "No valid item selected")
-        #    print(f"No valid item selected. node_type={self.node_type}")
-        #    print(f"em_v_sources_list_index={scene.em_v_sources_list_index}, len(scene.em_v_sources_list)={len(scene.em_v_sources_list) if hasattr(scene, 'em_v_sources_list') else 'N/A'}")
-        #    print(f"em_v_extractors_list_index={scene.em_v_extractors_list_index}, len(scene.em_v_extractors_list)={len(scene.em_v_extractors_list) if hasattr(scene, 'em_v_extractors_list') else 'N/A'}")
-        #    return {'CANCELLED'}
         
         # Skip if already loading or path is empty
         if scene.paradata_image.is_loading or not path:
@@ -681,70 +673,29 @@ class EM_ParadataPanel:
         ###############################################################################
         
         # Add image preview section at the end
-        layout.separator()
-        
-        # Split row for preview title and auto-load toggle
-        split = layout.split(factor=0.6)
-        split.label(text="Image Preview:")
-        
-        # Only show auto-load toggle if we have the property
-        if hasattr(scene, "paradata_image"):
-            split.prop(scene.paradata_image, "auto_load", text="Auto-load")
-        
+        #layout.separator()
+
+        # Image preview section
         box = layout.box()
         row = box.row()
         
-        # Determine if we should show image controls
-        show_image_preview = False
-        preview_node_type = None
-        
-        # Check if we have a source with a valid URL
-        if source_index_valid:
-            item_source = eval(source_list_cmd)[source_list_index]
-            if item_source.url:
-                url_path = item_source.url
-                # Check if it might be an image (basic check)
-                img_exts = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.gif']
-                if any(url_path.lower().endswith(ext) for ext in img_exts) or is_valid_url(url_path):
-                    show_image_preview = True
-                    preview_node_type = source_list_var
-        
-        # Check if we have an extractor with a valid URL
-        elif extractor_index_valid:
-            item_extractor = eval(extractor_list_cmd)[extractor_list_index]
-            if item_extractor.url:
-                url_path = item_extractor.url
-                # Check if it might be an image (basic check)
-                img_exts = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.gif']
-                if any(url_path.lower().endswith(ext) for ext in img_exts) or is_valid_url(url_path):
-                    show_image_preview = True
-                    preview_node_type = extractor_list_var
-        
-        if show_image_preview:
-            # Show load button
-            row = box.row()
-            op = row.operator("em.load_paradata_image", icon="FILE_IMAGE", text="Load Image Preview")
-            op.node_type = preview_node_type
+        # Multiple image preview logic
+        if scene.paradata_image.image_collection:
+            images = scene.paradata_image.image_collection
+            active_index = scene.paradata_image.active_image_index
             
-            # Show image if loaded
-            if hasattr(scene, "paradata_image") and scene.paradata_image.loaded_image:
+            # Navigation buttons
+            if len(images) > 1:
                 row = box.row()
-                # Use template_preview for better image display
-                row.template_preview(
-                    scene.paradata_image.loaded_image,
-                    show_buttons=False,
-                    preview_id="paradata_preview"
-                )
-                
-                # Add save button
+                row.operator("em.previous_image", text="", icon="TRIA_LEFT")
+                row.label(text=f"Image {active_index + 1} of {len(images)}")
+                row.operator("em.next_image", text="", icon="TRIA_RIGHT")
+            
+            # Display active image
+            if 0 <= active_index < len(images):
+                active_image = images[active_index].image
                 row = box.row()
-                row.operator("em.save_paradata_image", icon="EXPORT", text="Save Image")
-                
-                # Add a refresh button 
-                op = row.operator("em.load_paradata_image", icon="FILE_REFRESH", text="Reload")
-                op.node_type = preview_node_type
-        else:
-            row.label(text="Select a document or extractor with an image URL")
+                row.template_preview(active_image, show_buttons=False)
 
 
 
@@ -755,6 +706,36 @@ class VIEW3D_PT_ParadataPanel(Panel, EM_ParadataPanel):
     bl_idname = "VIEW3D_PT_ParadataPanel"
     bl_context = "objectmode"
 
+
+class EM_OT_previous_image(bpy.types.Operator):
+    """Go to previous image"""
+    bl_idname = "em.previous_image"
+    bl_label = "Previous Image"
+    
+    def execute(self, context):
+        scene = context.scene
+        images = scene.paradata_image.image_collection
+        
+        if len(images) > 1:
+            scene.paradata_image.active_image_index = \
+                (scene.paradata_image.active_image_index - 1) % len(images)
+        
+        return {'FINISHED'}
+
+class EM_OT_next_image(bpy.types.Operator):
+    """Go to next image"""
+    bl_idname = "em.next_image"
+    bl_label = "Next Image"
+    
+    def execute(self, context):
+        scene = context.scene
+        images = scene.paradata_image.image_collection
+        
+        if len(images) > 1:
+            scene.paradata_image.active_image_index = \
+                (scene.paradata_image.active_image_index + 1) % len(images)
+        
+        return {'FINISHED'}
 
 class EM_UL_sources_managers(UIList):
 
@@ -1065,8 +1046,9 @@ classes = [
     EM_files_opener,
     ParadataImageProps,
     EM_OT_load_paradata_image,
-    EM_OT_save_paradata_image
-
+    EM_OT_save_paradata_image,
+    EM_OT_previous_image,
+    EM_OT_next_image
 ]
 
 # Registration
