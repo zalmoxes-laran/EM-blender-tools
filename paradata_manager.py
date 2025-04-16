@@ -4,9 +4,158 @@ import os
 import sys
 import bpy.props as prop # type: ignore
 import subprocess
-from bpy.props import StringProperty # type: ignore
 from bpy.types import Panel, UIList # type: ignore
 from .functions import *
+
+import urllib.request
+import tempfile
+from bpy.props import PointerProperty, StringProperty, BoolProperty # type: ignore
+
+
+
+class ParadataImageProps(bpy.types.PropertyGroup):
+    """Properties for handling paradata images"""
+    image_path: StringProperty(
+        name="Image Path",
+        description="Path or URL to the image"
+    )
+    is_loading: BoolProperty(
+        name="Is Loading",
+        description="Whether the image is currently loading",
+        default=False
+    )
+    loaded_image: PointerProperty(
+        name="Loaded Image",
+        type=bpy.types.Image
+    )
+
+class EM_OT_load_paradata_image(bpy.types.Operator):
+    """Load an image from a URL or file path for the Paradata Manager"""
+    bl_idname = "em.load_paradata_image"
+    bl_label = "Load Paradata Image"
+    bl_description = "Load an image from a URL or local file for preview"
+    
+    node_type: StringProperty()
+    
+    def execute(self, context):
+        scene = context.scene
+        
+        # Get the URL from the selected item
+        if self.node_type == "em_v_sources_list" and scene.em_v_sources_list_index >= 0 and len(scene.em_v_sources_list) > 0:
+            path = scene.em_v_sources_list[scene.em_v_sources_list_index].url
+        elif self.node_type == "em_v_extractors_list" and scene.em_v_extractors_list_index >= 0 and len(scene.em_v_extractors_list) > 0:
+            path = scene.em_v_extractors_list[scene.em_v_extractors_list_index].url
+        else:
+            self.report({'ERROR'}, "No valid item selected")
+            return {'CANCELLED'}
+        
+        # Skip if already loading
+        if scene.paradata_image.is_loading:
+            return {'CANCELLED'}
+        
+        # Clear any previous image
+        if scene.paradata_image.loaded_image:
+            bpy.data.images.remove(scene.paradata_image.loaded_image)
+            scene.paradata_image.loaded_image = None
+        
+        scene.paradata_image.is_loading = True
+        scene.paradata_image.image_path = path
+        
+        try:
+            # Check if it's a URL or a local path
+            if is_valid_url(path):
+                # Create a temporary file
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+                temp_file.close()
+                
+                # Download the image
+                urllib.request.urlretrieve(path, temp_file.name)
+                
+                # Load the image into Blender
+                img = bpy.data.images.load(temp_file.name)
+                img.name = f"ParadataPreview_{os.path.basename(path)}"
+                img.use_fake_user = False  # No users
+                
+                # Delete the temporary file
+                os.unlink(temp_file.name)
+                
+            else:
+                # Try to load from the DosCo directory
+                base_dir = bpy.path.abspath(scene.EMDosCo_dir)
+                full_path = os.path.join(base_dir, path)
+                
+                if os.path.exists(full_path) and os.path.isfile(full_path):
+                    # Check if it's an image file (basic check)
+                    img_exts = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff']
+                    if any(full_path.lower().endswith(ext) for ext in img_exts):
+                        img = bpy.data.images.load(full_path)
+                        img.name = f"ParadataPreview_{os.path.basename(path)}"
+                        img.use_fake_user = False  # No users
+                    else:
+                        self.report({'WARNING'}, f"Not an image file: {path}")
+                        scene.paradata_image.is_loading = False
+                        return {'CANCELLED'}
+                else:
+                    self.report({'WARNING'}, f"File not found: {full_path}")
+                    scene.paradata_image.is_loading = False
+                    return {'CANCELLED'}
+            
+            # Store the loaded image
+            scene.paradata_image.loaded_image = img
+            
+        except Exception as e:
+            self.report({'ERROR'}, f"Error loading image: {str(e)}")
+            scene.paradata_image.is_loading = False
+            return {'CANCELLED'}
+            
+        scene.paradata_image.is_loading = False
+        return {'FINISHED'}
+
+class EM_OT_save_paradata_image(bpy.types.Operator):
+    """Save the displayed paradata image to disk"""
+    bl_idname = "em.save_paradata_image"
+    bl_label = "Save Paradata Image"
+    bl_description = "Save the displayed image to disk"
+    
+    filepath: StringProperty(subtype="FILE_PATH")
+    
+    def execute(self, context):
+        scene = context.scene
+        
+        if not scene.paradata_image.loaded_image:
+            self.report({'ERROR'}, "No image loaded")
+            return {'CANCELLED'}
+        
+        # Open file browser
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+    
+    def invoke(self, context, event):
+        self.filepath = "paradata_image.png"
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+        
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="Save the image:")
+        
+    def execute(self, context):
+        scene = context.scene
+        
+        if not scene.paradata_image.loaded_image:
+            self.report({'ERROR'}, "No image loaded")
+            return {'CANCELLED'}
+            
+        # Save the image
+        try:
+            scene.paradata_image.loaded_image.save_render(self.filepath)
+            self.report({'INFO'}, f"Image saved to {self.filepath}")
+        except Exception as e:
+            self.report({'ERROR'}, f"Error saving image: {str(e)}")
+            return {'CANCELLED'}
+            
+        return {'FINISHED'}
+
 
 #####################################################################
 #Paradata Section
@@ -255,20 +404,58 @@ class EM_ParadataPanel:
             op = row.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
             if op:  # Check if operator is valid
                 op.node_type = source_list_var
-            
-            props = scene.thumbnail_prop
-        
-            # Mostriamo l'anteprima solo se l'immagine è stata selezionata
-            if props.image_thumb:
-                layout.template_preview(props.image_thumb, show_buttons=True)
-            else:
-                layout.label(text="Seleziona un'immagine")
-            
-            # Aggiungiamo anche il field per scegliere l'immagine
-            layout.prop(props, "image_thumb", text="Immagine")
+
         else:
             row = box.row()
             row.label(text="Nessun documento disponibile")
+
+        # Add image preview section at the end
+        layout.separator()
+        layout.label(text="Image Preview:")
+        box = layout.box()
+        
+        # Image preview for documents or extractors
+        show_image_ui = False
+        
+        # Check if we have a selected document with a valid URL
+        if source_index_valid:
+            item_source = eval(source_list_cmd)[source_list_index]
+            if item_source.url:
+                image_path = item_source.url
+                show_image_ui = True
+        
+        # Check if we have a selected extractor with a valid URL
+        elif extractor_index_valid:
+            item_extractor = eval(extractor_list_cmd)[extractor_list_index]
+            if item_extractor.url:
+                image_path = item_extractor.url
+                show_image_ui = True
+        
+        if show_image_ui:
+            row = box.row()
+            row.label(text="URL: " + image_path)
+            
+            # Show image loading operators
+            row = box.row()
+            op = row.operator("em.load_paradata_image", text="Load Preview")
+            if source_index_valid:
+                op.node_type = source_list_var
+            else:
+                op.node_type = extractor_list_var
+            
+            # Show image if it's loaded
+            if scene.paradata_image.loaded_image:
+                row = box.row()
+                row.template_ID_preview(scene.paradata_image, "loaded_image", open="image.open", new="image.new", rows=3, cols=8)
+                
+                # Show save button
+                row = box.row()
+                row.operator("em.save_paradata_image", text="Save Image")
+        else:
+            row = box.row()
+            row.label(text="Select a document or extractor with a valid image URL")
+
+
 
 
 
@@ -277,13 +464,6 @@ class VIEW3D_PT_ParadataPanel(Panel, EM_ParadataPanel):
     bl_idname = "VIEW3D_PT_ParadataPanel"
     bl_context = "objectmode"
 
-
-class ImageProp(bpy.types.PropertyGroup):
-    image_thumb: bpy.props.PointerProperty(
-        name="Thumbnail",
-        type=bpy.types.Image,
-        description="Seleziona un'immagine per la thumbnail"
-    )
 
 class EM_UL_sources_managers(UIList):
 
@@ -581,7 +761,9 @@ classes = [
     EM_UL_combiners_managers,
     EM_OT_update_paradata_lists,
     EM_files_opener,
-    ImageProp
+    ParadataImageProps,
+    EM_OT_load_paradata_image,
+    EM_OT_save_paradata_image
     ]
 
 # Registration
@@ -590,7 +772,7 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    bpy.types.Scene.thumbnail_prop = bpy.props.PointerProperty(type=ImageProp)
+    bpy.types.Scene.paradata_image = bpy.props.PointerProperty(type=ParadataImageProps)
 
 
 def unregister():
@@ -598,6 +780,10 @@ def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
 
-    del bpy.types.Scene.thumbnail_prop
+    # Clean up any loaded images
+    if hasattr(bpy.types.Scene, "paradata_image") and bpy.context.scene.paradata_image.loaded_image:
+        bpy.data.images.remove(bpy.context.scene.paradata_image.loaded_image)
+
+    del bpy.types.Scene.paradata_image
 
 
