@@ -219,7 +219,7 @@ class Graph:
             
             # Cerchiamo prima con edge_type "has_paradata_nodegroup"
             for edge in self.edges:
-                if edge.edge_target == group.node_id and edge.edge_type == "has_data_provenance":
+                if edge.edge_target == group.node_id and edge.edge_type == "has_paradata_nodegroup":
                     source_node = self.find_node_by_id(edge.edge_source)
                     #print(f"  - Trovato stronzo edge {edge.edge_id} con source {edge.edge_source} e target {edge.edge_target}")
                     if source_node and hasattr(source_node, 'node_type'):
@@ -255,7 +255,7 @@ class Graph:
                     for edge in self.edges:
                         if (edge.edge_source == strat_node.node_id and 
                             edge.edge_target == prop_node.node_id and 
-                            edge.edge_type == "has_data_provenance"):
+                            edge.edge_type == "has_property"):
                             existing_edge = edge
                             break
                     
@@ -265,9 +265,9 @@ class Graph:
                             print(f"  Collegamento già esistente: {strat_node.name} -> {prop_node.name}")
                     else:
                         # Crea un nuovo edge per collegare direttamente
-                        edge_id = f"{strat_node.node_id}_has_data_provenance_{prop_node.node_id}"
+                        edge_id = f"{strat_node.node_id}_has_property_{prop_node.node_id}"
                         try:
-                            new_edge = self.add_edge(edge_id, strat_node.node_id, prop_node.node_id, "has_data_provenance")
+                            new_edge = self.add_edge(edge_id, strat_node.node_id, prop_node.node_id, "has_property")
                             stats["connections_created"] += 1
                             if verbose:
                                 print(f"  ✅ Nuovo collegamento creato: {strat_node.name} -> {prop_node.name}")
@@ -676,7 +676,7 @@ class Graph:
         #return [node for node in self.get_connected_nodes_by_edge_type(node_id, "has_property") 
         #        if node.node_type == "property"]
 
-        return [node for node in self.get_connected_nodes_by_edge_type(node_id, "has_data_provenance") 
+        return [node for node in self.get_connected_nodes_by_edge_type(node_id, "has_property") 
                 if node.node_type == "property"]
 
 

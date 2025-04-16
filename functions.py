@@ -544,11 +544,11 @@ def create_derived_lists(node):
     else:
         print(f"Node found in graph: {found_node.name} (ID: {found_node.node_id})")
     
-    # Get properties using has_data_provenance edges
+    # Get properties using has_property edges
     property_nodes = []
     
     for edge in graph.edges:
-        if edge.edge_source == node.id_node and edge.edge_type == "has_data_provenance":
+        if edge.edge_source == node.id_node and edge.edge_type == "has_property":
             target_node = graph.find_node_by_id(edge.edge_target)
             if target_node and hasattr(target_node, 'node_type') and target_node.node_type == 'property':
                 print(f"Trovata proprietà: {target_node.name} (ID: {target_node.node_id}) via {edge.edge_type}")
