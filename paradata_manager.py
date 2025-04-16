@@ -83,12 +83,26 @@ class EM_ParadataPanel:
         # Invece di modificare l'indice, controlla solo se è valido
         property_index_valid = (property_list_length > 0 and 0 <= property_list_index < property_list_length)
         
-        # Sezione Proprietà
-        row = layout.row()
-        row.prop(scene, "paradata_streaming_mode", text='Paradata', icon="SHORTDISPLAY")
+
+        if scene.paradata_streaming_mode and scene.em_list_index >= 0 and len(scene.em_list) > 0:
+            # Se è attivo lo streaming, mostra il nome stratigrafico selezionato
+            paradata_text = str("Paradata related to: "+str(scene.em_list[scene.em_list_index].name))
+        else:
+            paradata_text = "Full list of paradata in: "+str(scene.em_tools.graphml_files[scene.em_tools.active_file_index].graph_code) if scene.em_tools.active_file_index >= 0 else "No GraphML file selected"
+        # Mostra il nome del file GraphML attivo    
+
+        # Suddividiamo la riga in due colonne: 70% per la prima e 30% per la seconda
+        split = layout.split(factor=0.70)  # Il fattore indica la percentuale della prima colonna
+
+        col1 = split.column()
+        col1.label(text=paradata_text)
+
+        col2 = split.column()
+        col2.prop(scene, "paradata_streaming_mode", text='Filter Paradata', icon="SHORTDISPLAY")
+
         row = layout.row()
         row.label(text="Properties: (" + str(property_list_length) + ")")
-        row.prop(scene, "prop_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
+        #row.prop(scene, "prop_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
         row = layout.row()
         row.template_list("EM_UL_properties_managers", "", scene, property_list_var, scene, property_list_index_var, rows=2)
         
@@ -118,7 +132,7 @@ class EM_ParadataPanel:
         # Sezione Combiners
         row = layout.row()
         row.label(text="Combiners: (" + str(combiner_list_length) + ")")
-        row.prop(scene, "comb_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
+        #row.prop(scene, "comb_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
         row = layout.row()
         row.template_list("EM_UL_combiners_managers", "", scene, combiner_list_var, scene, combiner_list_index_var, rows=1)
         
@@ -153,7 +167,7 @@ class EM_ParadataPanel:
         # Sezione Extractors
         row = layout.row()
         row.label(text="Extractors: (" + str(extractor_list_length) + ")")
-        row.prop(scene, "extr_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
+        #row.prop(scene, "extr_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
         row = layout.row()
         row.template_list("EM_UL_extractors_managers", "", scene, extractor_list_var, scene, extractor_list_index_var, rows=2)
         
@@ -241,14 +255,35 @@ class EM_ParadataPanel:
             op = row.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
             if op:  # Check if operator is valid
                 op.node_type = source_list_var
+            
+            props = scene.thumbnail_prop
+        
+            # Mostriamo l'anteprima solo se l'immagine è stata selezionata
+            if props.image_thumb:
+                layout.template_preview(props.image_thumb, show_buttons=True)
+            else:
+                layout.label(text="Seleziona un'immagine")
+            
+            # Aggiungiamo anche il field per scegliere l'immagine
+            layout.prop(props, "image_thumb", text="Immagine")
         else:
             row = box.row()
             row.label(text="Nessun documento disponibile")
+
+
 
 class VIEW3D_PT_ParadataPanel(Panel, EM_ParadataPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_ParadataPanel"
     bl_context = "objectmode"
+
+
+class ImageProp(bpy.types.PropertyGroup):
+    image_thumb: bpy.props.PointerProperty(
+        name="Thumbnail",
+        type=bpy.types.Image,
+        description="Seleziona un'immagine per la thumbnail"
+    )
 
 class EM_UL_sources_managers(UIList):
 
@@ -545,7 +580,8 @@ classes = [
     EM_UL_extractors_managers,
     EM_UL_combiners_managers,
     EM_OT_update_paradata_lists,
-    EM_files_opener
+    EM_files_opener,
+    ImageProp
     ]
 
 # Registration
@@ -554,10 +590,14 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
+    bpy.types.Scene.thumbnail_prop = bpy.props.PointerProperty(type=ImageProp)
+
+
 def unregister():
         
     for cls in classes:
         bpy.utils.unregister_class(cls)
 
+    del bpy.types.Scene.thumbnail_prop
 
 

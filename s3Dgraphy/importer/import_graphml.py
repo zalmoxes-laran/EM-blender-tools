@@ -117,6 +117,14 @@ class GraphMLImporter:
         # Prosegui con il parsing normale
         self.parse_nodes(tree)
         self.parse_edges(tree)
+
+        # Aggiungi qui la nuova funzionalità per collegare PropertyNode dai ParadataNodeGroup
+        # Impostare verbose=True per avere output dettagliati durante il debug
+        stats = self.graph.connect_paradatagroup_propertynode_to_stratigraphic(verbose=True)
+        if stats["connections_created"] > 0:
+            print(f"\nCreati {stats['connections_created']} nuovi collegamenti diretti tra unità stratigrafiche e PropertyNode")
+
+
         self.connect_nodes_to_epochs()
         
         br_nodes = [n for n in self.graph.nodes if hasattr(n, 'node_type') and n.node_type == "BR"]
@@ -220,7 +228,7 @@ class GraphMLImporter:
                     edge.attributes['original_source_id'] = original_source_id
                     edge.attributes['original_target_id'] = original_target_id
                     
-                    print(f"Created edge {edge_uuid}: {original_edge_id} ({source_uuid} -> {target_uuid})")
+                    #print(f"Created edge {edge_uuid}: {original_edge_id} ({source_uuid} -> {target_uuid})")
                     
                 except Exception as e:
                     print(f"Error adding edge {original_edge_id} ({edge_type}): {e}")
@@ -249,7 +257,7 @@ class GraphMLImporter:
         
         # Se abbiamo già mappato questo ID originale, non creare un nuovo nodo
         if original_id in self.id_mapping:
-            print(f"Skipping already processed node with original ID: {original_id}")
+            #print(f"Skipping already processed node with original ID: {original_id}")
             return
 
         # Genera un nuovo UUID per questo nodo
@@ -288,7 +296,7 @@ class GraphMLImporter:
             stratigraphic_node.attributes['fill_color'] = fillcolor
             stratigraphic_node.attributes['border_style'] = borderstyle
 
-            print(f"Node {self._node_counter}: {stratigraphic_node.node_id} (Original ID: {original_id}, Type: {stratigraphic_node.node_type})")
+            #print(f"Node {self._node_counter}: {stratigraphic_node.node_id} (Original ID: {original_id}, Type: {stratigraphic_node.node_type})")
 
             self.graph.add_node(stratigraphic_node)
 
@@ -432,7 +440,7 @@ class GraphMLImporter:
             continuity_node.attributes['graph_id'] = self.graph.graph_id
             continuity_node.attributes['y_pos'] = float(node_y_pos)
             
-            print(f"Adding continuity node to graph: {continuity_node.node_id} (Original ID: {original_id})")
+            #print(f"Adding continuity node to graph: {continuity_node.node_id} (Original ID: {original_id})")
             self.graph.add_node(continuity_node)
 
         else:
@@ -864,7 +872,7 @@ class GraphMLImporter:
                     edge_id = f"{node.node_id}_{epoch.node_id}_first_epoch"
                     try:
                         self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "has_first_epoch")
-                        print(f"Connected node {node.name} to epoch {epoch.name} (first)")
+                        #print(f"Connected node {node.name} to epoch {epoch.name} (first)")
                     except Exception as e:
                         print(f"Error connecting node {node.name} to epoch {epoch.name} (first): {e}")
                     
@@ -877,7 +885,7 @@ class GraphMLImporter:
                         try:
                             edge_id = f"{node.node_id}_{epoch.node_id}_survive"
                             self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch")
-                            print(f"Connected node {node.name} to epoch {epoch.name} yeee (survive with continuity)")
+                            #print(f"Connected node {node.name} to epoch {epoch.name} yeee (survive with continuity)")
                         except Exception as e:
                             print(f"Error connecting node {node.name} to epoch {epoch.name} (survive): {e}")
                     
@@ -887,7 +895,7 @@ class GraphMLImporter:
                         edge_id = f"{node.node_id}_{epoch.node_id}_survive"
                         try:
                             self.graph.add_edge(edge_id, node.node_id, epoch.node_id, "survive_in_epoch")
-                            print(f"Connected node {node.name} to epoch {epoch.name} (physical)")
+                            #print(f"Connected node {node.name} to epoch {epoch.name} (physical)")
                         except Exception as e:
                             print(f"Error connecting node {node.name} to epoch {epoch.name} (physical): {e}")
 
@@ -1268,21 +1276,34 @@ class GraphMLImporter:
             target_node = self.graph.find_node_by_id(edge.attrib['target'])
             
             if source_node and target_node:
+                print("Selma sei una merda")
+
+                # Definizione dei tipi stratigrafici per entrambe le sezioni
+                stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 
+                                    'serUSVn', 'serUSVs', 'TSU', 'SE', 'BR', 'unknown']
+
+                source_type = source_node.node_type if hasattr(source_node, 'node_type') else ""
+                target_type = target_node.node_type if hasattr(target_node, 'node_type') else ""
+
                 # Logica esistente per has_data_provenance
                 if edge_type == "has_data_provenance":
+                    
                     # Se il source è un nodo stratigrafico e il target è una property
-                    #if (isinstance(source_node, StratigraphicNode) and 
-                    #    isinstance(target_node, PropertyNode)):
-                    #    edge_type = "has_property"
-
-                    is_strat_node = hasattr(source_node, 'node_type') and source_node.node_type in [
-                            'US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs'
-                        ]
-                        
-                    if is_strat_node and isinstance(target_node, PropertyNode):
+                    if source_type in stratigraphic_types and target_type == "property":
                         edge_type = "has_property"
-                        print(f"Converted to has_property: {source_node.node_type} -> PropertyNode")
+                        print(f"Converted dashed to has_property: {source_type} -> PropertyNode")
 
+
+                    # NUOVA REGOLA: Unità stratigrafica collegata a ParadataNodeGroup tramite dashed
+                    # Direzione standard: Unità stratigrafica -> ParadataNodeGroup
+                    elif source_type in stratigraphic_types and target_type == "ParadataNodeGroup":
+                        edge_type = "has_paradata_nodegroup"
+                        print(f"Converted dashed to has_paradata_nodegroup: {source_type} -> ParadataNodeGroup")
+                    
+                    # Direzione invertita: ParadataNodeGroup -> Unità stratigrafica
+                    elif source_type == "ParadataNodeGroup" and target_type in stratigraphic_types:
+                        edge_type = "has_paradata_nodegroup"
+                        print(f"Converted dashed to has_paradata_nodegroup (direzione invertita): ParadataNodeGroup -> {target_type}")
 
                     # Se il source è un nodo extractor e il target è un document node
                     if (isinstance(source_node, ExtractorNode) and 
@@ -1293,7 +1314,7 @@ class GraphMLImporter:
                         isinstance(target_node, ExtractorNode)):
                         edge_type = "combines"
                 
-                # NUOVA LOGICA: Post-processing per generic_connection
+                # Post-processing per generic_connection
                 if edge_type == "generic_connection":
                     source_type = source_node.node_type if hasattr(source_node, 'node_type') else ""
                     target_type = target_node.node_type if hasattr(target_node, 'node_type') else ""

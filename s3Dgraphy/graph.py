@@ -143,6 +143,153 @@ class Graph:
         self.edges.append(edge)
         return edge
 
+    def connect_paradatagroup_propertynode_to_stratigraphic(self, verbose=True):
+        """
+        Identifica le relazioni tra unità stratigrafiche e ParadataNodeGroup,
+        poi collega direttamente le unità stratigrafiche ai PropertyNode 
+        contenuti nel ParadataNodeGroup.
+        
+        Questa funzione permette due modalità di collegamento:
+        1. Collegamento diretto: Unità Stratigrafica -> PropertyNode
+        (modalità già supportata nel codice esistente)
+        2. Collegamento indiretto: Unità Stratigrafica -> ParadataNodeGroup -> PropertyNode
+        In questo caso, crea anche collegamenti diretti tra Unità Stratigrafica e PropertyNode
+        
+        Il risultato è una rete semantica più ricca, dove ogni unità stratigrafica
+        può accedere direttamente alle sue proprietà, indipendentemente dalla
+        struttura organizzativa scelta dall'utente (collegamento diretto o tramite gruppo).
+        
+        Args:
+            verbose (bool): Se True, stampa messaggi dettagliati durante l'esecuzione.
+                        Utile per debug. Default: True
+        
+        Returns:
+            dict: Statistiche sulle operazioni eseguite (gruppi analizzati, collegamenti creati, ecc.)
+        """
+        if verbose:
+            print("\n=== Connessione PropertyNode dai ParadataNodeGroup alle Unità Stratigrafiche ===")
+        
+        # Inizializza statistiche
+        stats = {
+            "paradata_groups_found": 0,
+            "property_nodes_found": 0,
+            "stratigraphic_nodes_found": 0,
+            "connections_created": 0,
+            "connections_already_existing": 0,
+            "errors": 0
+        }
+        
+        # Definisci i tipi di unità stratigrafiche riconosciuti
+        stratigraphic_types = ['US', 'USVs', 'SF', 'USVn', 'USD', 'VSF', 'serSU', 
+                            'serUSVn', 'serUSVs', 'TSU', 'SE', 'BR', 'unknown']
+        
+        # Identifica tutti i nodi ParadataNodeGroup
+        paradata_groups = [node for node in self.nodes 
+                        if hasattr(node, 'node_type') and node.node_type == "ParadataNodeGroup"]
+        stats["paradata_groups_found"] = len(paradata_groups)
+        
+        if verbose:
+            print(f"Trovati {stats['paradata_groups_found']} gruppi ParadataNodeGroup")
+        
+        # Per ogni ParadataNodeGroup, trova le property contenute e le unità stratigrafiche collegate
+        for group in paradata_groups:
+            if verbose:
+                print(f"\nAnalisi del gruppo: {group.name} (ID: {group.node_id})")
+            
+            # Trova i PropertyNode contenuti nel gruppo
+            property_nodes = []
+            for edge in self.edges:
+                if edge.edge_target == group.node_id and edge.edge_type == "is_in_paradata_nodegroup":
+                    source_node = self.find_node_by_id(edge.edge_source)
+                    if source_node and hasattr(source_node, 'node_type') and source_node.node_type == "property":
+                        property_nodes.append(source_node)
+                        if verbose:
+                            print(f"  - PropertyNode {source_node.name} trovato nel gruppo (ID: {group.name})")
+            
+            stats["property_nodes_found"] += len(property_nodes)
+            
+            # Se non ci sono PropertyNode nel gruppo, passa al prossimo
+            if not property_nodes:
+                if verbose:
+                    print(f"  Nessun PropertyNode trovato nel gruppo {group.name}")
+                continue
+            
+            # Trova le unità stratigrafiche collegate al ParadataNodeGroup
+            stratigraphic_nodes = []
+            
+            # Cerchiamo prima con edge_type "has_paradata_nodegroup"
+            for edge in self.edges:
+                if edge.edge_target == group.node_id and edge.edge_type == "has_data_provenance":
+                    source_node = self.find_node_by_id(edge.edge_source)
+                    #print(f"  - Trovato stronzo edge {edge.edge_id} con source {edge.edge_source} e target {edge.edge_target}")
+                    if source_node and hasattr(source_node, 'node_type'):
+                        if source_node.node_type in stratigraphic_types:
+                            stratigraphic_nodes.append(source_node)
+                            if verbose:
+                                print(f"  - Unità stratigrafica collegata al gruppo: {source_node.name} (Tipo: {source_node.node_type})")
+            
+            # Se non troviamo nulla, proviamo con edge_type "generic_connection"
+            if not stratigraphic_nodes:
+                for edge in self.edges:
+                    if edge.edge_target == group.node_id and edge.edge_type == "generic_connection":
+                        source_node = self.find_node_by_id(edge.edge_source)
+                        if source_node and hasattr(source_node, 'node_type'):
+                            if source_node.node_type in stratigraphic_types:
+                                stratigraphic_nodes.append(source_node)
+                                if verbose:
+                                    print(f"  - Unità stratigrafica collegata al gruppo (generic_connection): {source_node.name} (Tipo: {source_node.node_type})")
+            
+            stats["stratigraphic_nodes_found"] += len(stratigraphic_nodes)
+            
+            # Se non ci sono unità stratigrafiche collegate al gruppo, passa al prossimo
+            if not stratigraphic_nodes:
+                if verbose:
+                    print(f"  Nessuna unità stratigrafica collegata al gruppo {group.name}")
+                continue
+            
+            # Crea collegamenti diretti tra le unità stratigrafiche e i PropertyNode
+            for strat_node in stratigraphic_nodes:
+                for prop_node in property_nodes:
+                    # Verifica se esiste già un collegamento diretto
+                    existing_edge = None
+                    for edge in self.edges:
+                        if (edge.edge_source == strat_node.node_id and 
+                            edge.edge_target == prop_node.node_id and 
+                            edge.edge_type == "has_data_provenance"):
+                            existing_edge = edge
+                            break
+                    
+                    if existing_edge:
+                        stats["connections_already_existing"] += 1
+                        if verbose:
+                            print(f"  Collegamento già esistente: {strat_node.name} -> {prop_node.name}")
+                    else:
+                        # Crea un nuovo edge per collegare direttamente
+                        edge_id = f"{strat_node.node_id}_has_data_provenance_{prop_node.node_id}"
+                        try:
+                            new_edge = self.add_edge(edge_id, strat_node.node_id, prop_node.node_id, "has_data_provenance")
+                            stats["connections_created"] += 1
+                            if verbose:
+                                print(f"  ✅ Nuovo collegamento creato: {strat_node.name} -> {prop_node.name}")
+                        except Exception as e:
+                            stats["errors"] += 1
+                            if verbose:
+                                print(f"  ❌ Errore nella creazione del collegamento: {str(e)}")
+        
+        if verbose:
+            print("\n=== Statistiche dell'operazione ===")
+            print(f"Gruppi ParadataNodeGroup trovati: {stats['paradata_groups_found']}")
+            print(f"PropertyNode trovati nei gruppi: {stats['property_nodes_found']}")
+            print(f"Unità stratigrafiche collegate ai gruppi: {stats['stratigraphic_nodes_found']}")
+            print(f"Nuovi collegamenti creati: {stats['connections_created']}")
+            print(f"Collegamenti già esistenti: {stats['connections_already_existing']}")
+            print(f"Errori: {stats['errors']}")
+            print("=== Completata la connessione PropertyNode dai ParadataNodeGroup ===")
+        
+        return stats
+
+
+
     def display_warnings(self):
         """Displays all accumulated warning messages."""
         for warning in self.warnings:

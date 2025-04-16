@@ -704,6 +704,8 @@ def get_mapping_description(mapping_file, mapping_type="emdb"):
 class EMToolsAddFile(bpy.types.Operator):
     bl_idname = "em_tools.add_file"
     bl_label = "Add GraphML File"
+    bl_description = "Add a new GraphML file to the list"
+
 
     def execute(self, context):
         em_tools = context.scene.em_tools
@@ -718,6 +720,7 @@ class EMToolsAddFile(bpy.types.Operator):
 class EMToolsRemoveFile(bpy.types.Operator):
     bl_idname = "em_tools.remove_file"
     bl_label = "Remove GraphML File"
+    bl_description = "Remove the selected GraphML file from the list"
 
     def execute(self, context):
         em_tools = context.scene.em_tools

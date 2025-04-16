@@ -62,6 +62,21 @@ class EM_import_GraphML(bpy.types.Operator):
                 graph_instance = get_graph(final_graph_id)
                 
                 if graph_instance:
+
+                    # Nuova funzionalità per collegare PropertyNode dai ParadataNodeGroup
+                    # Questa chiamata crea collegamenti diretti tra unità stratigrafiche e PropertyNode
+                    # quando sono collegati attraverso un ParadataNodeGroup
+                    print("\nApplicazione della funzionalità di collegamento PropertyNode da ParadataNodeGroup...")
+                    try:
+                        stats = graph_instance.connect_paradatagroup_propertynode_to_stratigraphic(verbose=False)
+                        if stats["connections_created"] > 0:
+                            print(f"Creati {stats['connections_created']} nuovi collegamenti diretti tra unità stratigrafiche e PropertyNode")
+                        else:
+                            print("Nessun nuovo collegamento creato")
+                    except Exception as e:
+                        print(f"AVVISO: Errore durante il collegamento PropertyNode: {str(e)}")
+                        # Non interrompiamo l'esecuzione per questo errore
+
                     # Aggiorna UI e continua con il popolamento
                     graphml.name = final_graph_id
                     # Aggiorna anche il codice del grafo se disponibile
