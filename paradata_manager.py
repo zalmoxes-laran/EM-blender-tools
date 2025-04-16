@@ -12,7 +12,7 @@ import tempfile
 from bpy.props import PointerProperty, StringProperty, BoolProperty # type: ignore
 
 from urllib.parse import urlparse
-
+ 
 class ParadataImageProps(bpy.types.PropertyGroup):
     """Properties for handling paradata images"""
     image_path: StringProperty(
@@ -33,6 +33,82 @@ class ParadataImageProps(bpy.types.PropertyGroup):
         description="Automatically load images when selecting documents or extractors",
         default=True
     )
+    # Track the last seen selections
+    last_source_index: IntProperty(default=-1)
+    last_extractor_index: IntProperty(default=-1)
+
+def check_selection_changed(context):
+    """Check if selection has changed and load images if needed"""
+    scene = context.scene
+    
+    # Skip if auto-loading is disabled
+    if not hasattr(scene, "paradata_image") or not scene.paradata_image.auto_load:
+        return
+    
+    # Check sources list
+    if (hasattr(scene, "em_v_sources_list_index") and 
+        scene.em_v_sources_list_index >= 0 and 
+        scene.em_v_sources_list_index != scene.paradata_image.last_source_index):
+        
+        # Update last seen index
+        scene.paradata_image.last_source_index = scene.em_v_sources_list_index
+        
+        # Try loading image
+        if len(scene.em_v_sources_list) > 0:
+            auto_load_paradata_image(context, "em_v_sources_list")
+            
+    # Check extractors list
+    if (hasattr(scene, "em_v_extractors_list_index") and 
+        scene.em_v_extractors_list_index >= 0 and 
+        scene.em_v_extractors_list_index != scene.paradata_image.last_extractor_index):
+        
+        # Update last seen index
+        scene.paradata_image.last_extractor_index = scene.em_v_extractors_list_index
+        
+        # Try loading image
+        if len(scene.em_v_extractors_list) > 0:
+            auto_load_paradata_image(context, "em_v_extractors_list")
+
+def auto_load_paradata_image(context, node_type):
+    """Helper function for auto-loading images when selection changes"""
+    scene = context.scene
+    
+    # Skip if auto-loading is disabled
+    if not hasattr(scene, "paradata_image") or not scene.paradata_image.auto_load:
+        return
+    
+    # Skip if already loading an image
+    if scene.paradata_image.is_loading:
+        return
+    
+    # Check if the URL might be an image
+    url = None
+    if node_type == "em_v_sources_list" and scene.em_v_sources_list_index >= 0 and len(scene.em_v_sources_list) > 0:
+        url = scene.em_v_sources_list[scene.em_v_sources_list_index].url
+    elif node_type == "em_v_extractors_list" and scene.em_v_extractors_list_index >= 0 and len(scene.em_v_extractors_list) > 0:
+        url = scene.em_v_extractors_list[scene.em_v_extractors_list_index].url
+    
+    if not url:
+        return
+    
+    # Skip web URLs for auto-loading (to avoid unnecessary downloads)
+    # unless explicitly containing image extensions in the URL
+    is_web_url = url.startswith(("http://", "https://"))
+    
+    # Quick check if the URL might be an image
+    img_exts = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.gif']
+    is_potential_image = any(url.lower().endswith(ext) for ext in img_exts)
+    
+    # For web URLs, only auto-load if they're obviously image URLs
+    if is_web_url and not is_potential_image:
+        for ext in img_exts:
+            if ext in url.lower():
+                is_potential_image = True
+                break
+    
+    # If it's a potential image or a local file, trigger the load operator
+    if is_potential_image or not is_web_url:
+        bpy.ops.em.load_paradata_image(node_type=node_type)
 
 class EM_OT_load_paradata_image(bpy.types.Operator):
     """Load an image from a URL or file path for the Paradata Manager"""
@@ -309,66 +385,6 @@ def auto_load_paradata_image(context, node_type):
     # If it's a potential image or a local file, trigger the load operator
     if is_potential_image or not is_web_url:
         bpy.ops.em.load_paradata_image(node_type=node_type)
-
-
-class ListIndexUpdateHandler:
-    """Helper class for correctly handling list index updates"""
-    
-    @staticmethod
-    def find_and_update_props():
-        """Find and update the list index properties to add our auto-load functionality"""
-        try:
-            # Get property definitions for sources and extractors indices
-            sources_prop = bpy.types.Scene.bl_rna.properties.get("em_v_sources_list_index")
-            extractors_prop = bpy.types.Scene.bl_rna.properties.get("em_v_extractors_list_index")
-            
-            # Make copies of original update function if they exist
-            if sources_prop and hasattr(sources_prop, "update"):
-                original_sources_update = sources_prop.update
-            else:
-                original_sources_update = None
-                
-            if extractors_prop and hasattr(extractors_prop, "update"):
-                original_extractors_update = extractors_prop.update
-            else:
-                original_extractors_update = None
-                
-            # Create wrappers that call both original and our new update
-            def sources_update_wrapper(self, context):
-                # Call original update if exists
-                if original_sources_update:
-                    original_sources_update(self, context)
-                # Call our update function
-                sources_index_update(self, context)
-                
-            def extractors_update_wrapper(self, context):
-                # Call original update if exists
-                if original_extractors_update:
-                    original_extractors_update(self, context)
-                # Call our update function
-                extractors_index_update(self, context)
-            
-            # Replace with our wrapped versions
-            if sources_prop:
-                setattr(bpy.types.Scene, "em_v_sources_list_index", bpy.props.IntProperty(
-                    name="Sources List Index",
-                    default=0,
-                    update=sources_update_wrapper
-                ))
-                
-            if extractors_prop:
-                setattr(bpy.types.Scene, "em_v_extractors_list_index", bpy.props.IntProperty(
-                    name="Extractors List Index",
-                    default=0,
-                    update=extractors_update_wrapper
-                ))
-                
-            print("Successfully installed auto-load update handlers")
-            return True
-            
-        except Exception as e:
-            print(f"Error installing update handlers: {str(e)}")
-            return False
 
 
 #####################################################################
@@ -760,25 +776,36 @@ class EM_files_opener(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene        
         file_res_path = eval("scene."+self.node_type+"[scene."+self.node_type+"_index].url")
+        
         if is_valid_url(file_res_path): # nel caso nel nodo fonte ci sia una risorsa online
             print(file_res_path)
             bpy.ops.wm.url_open(url=file_res_path)
-
         else: # nel caso nel nodo fonte ci sia una risorsa locale
-            basedir = bpy.path.abspath(scene.EMDosCo_dir)
-            path_to_file = os.path.join(basedir, file_res_path)
-            if os.path.exists(path_to_file):
-                try:
-                    if os.name == 'nt':  # Windows
-                        os.startfile(path_to_file)
-                    elif os.name == 'posix':  # macOS, Linux
-                        opener = 'open' if sys.platform == 'darwin' else 'xdg-open'
-                        subprocess.run([opener, path_to_file])
-                except Exception as e:
-                    print("Error when opening the file:", e)
-                    self.report({'WARNING'}, "Cannot open file: " + str(e))
-                    return {'CANCELLED'}
-            
+            # Get the DosCo directory from the active GraphML file
+            if scene.em_tools.active_file_index >= 0 and scene.em_tools.graphml_files:
+                graphml = scene.em_tools.graphml_files[scene.em_tools.active_file_index]
+                dosco_dir = graphml.dosco_dir
+                if dosco_dir:
+                    basedir = bpy.path.abspath(dosco_dir)
+                    path_to_file = os.path.join(basedir, file_res_path)
+                    if os.path.exists(path_to_file):
+                        try:
+                            if os.name == 'nt':  # Windows
+                                os.startfile(path_to_file)
+                            elif os.name == 'posix':  # macOS, Linux
+                                opener = 'open' if sys.platform == 'darwin' else 'xdg-open'
+                                subprocess.run([opener, path_to_file])
+                        except Exception as e:
+                            print("Error when opening the file:", e)
+                            self.report({'WARNING'}, "Cannot open file: " + str(e))
+                            return {'CANCELLED'}
+                    else:
+                        self.report({'WARNING'}, f"File not found: {path_to_file}")
+                else:
+                    self.report({'WARNING'}, "DosCo directory not set for the active GraphML file")
+            else:
+                self.report({'WARNING'}, "No active GraphML file")
+                
         return {'FINISHED'}
 
 class EM_OT_update_paradata_lists(bpy.types.Operator):
@@ -1000,8 +1027,8 @@ classes = [
     EM_files_opener,
     ParadataImageProps,
     EM_OT_load_paradata_image,
-    EM_OT_save_paradata_image,
-    EM_OT_check_selection_changed
+    EM_OT_save_paradata_image
+
 ]
 
 # Registration
