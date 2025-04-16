@@ -125,62 +125,100 @@ class EM_OT_load_paradata_image(bpy.types.Operator):
             return all([result.scheme, result.netloc])
         except:
             return False
-            
+                
     def build_file_path(self, context, path):
         """Build a proper file path based on context and path information"""
         scene = context.scene
         em_tools = scene.em_tools
         
+        # Debug output
+        print(f"Building path for: {path}")
+        
         # If it's a valid URL, return it as is
         if self.is_valid_url(path):
+            print(f"Path is a valid URL")
             return path, True
             
         # Not a URL, so should be a local file
         # Check if we have a valid DosCo directory for the current graph
         if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            print("No active GraphML file found")
             return None, False
             
         graphml = em_tools.graphml_files[em_tools.active_file_index]
         
         # Try to get the DosCo directory for this specific graph
         dosco_dir = graphml.dosco_dir
+        print(f"Graph-specific DosCo directory: {dosco_dir}")
         
         # If empty, fall back to the global DosCo setting
         if not dosco_dir:
             dosco_dir = scene.EMDosCo_dir
+            print(f"Falling back to global DosCo directory: {dosco_dir}")
             
         # If still empty, we can't proceed
         if not dosco_dir:
+            print("No DosCo directory specified")
             return None, False
             
         # Normalize the path
         dosco_dir = bpy.path.abspath(dosco_dir)
+        print(f"Normalized DosCo directory: {dosco_dir}")
         
-        # If the path already starts with the DosCo dir, don't concatenate
-        if path.startswith(dosco_dir):
-            full_path = path
-        else:
-            # Ensure path doesn't start with file separator
-            if path.startswith(os.path.sep):
-                path = path[1:]
-            full_path = os.path.join(dosco_dir, path)
-            
-        return full_path, False
+        # Try multiple path variants
+        path_variants = [
+            path,                              # Original path
+            path.split("/")[-1],               # Just the filename
+            os.path.basename(path)             # Another way to get just the filename
+        ]
+        
+        # Add the graph code variant if available
+        graph_code = graphml.graph_code if hasattr(graphml, 'graph_code') else None
+        if graph_code:
+            path_variants.append(f"{graph_code}.{path}")  # Prefixed path
+            path_variants.append(path.replace(f"{graph_code}.", ""))  # Un-prefixed path
+        
+        # Check each variant
+        for variant in path_variants:
+            if variant.startswith(dosco_dir):
+                full_path = variant
+            else:
+                # Ensure path doesn't start with file separator
+                if variant.startswith(os.path.sep):
+                    variant = variant[1:]
+                full_path = os.path.join(dosco_dir, variant)
+                
+            print(f"Trying path: {full_path}")
+            if os.path.exists(full_path):
+                normalized_path = os.path.normpath(full_path)
+                print(f"Found existing file at: {normalized_path}")
+                return normalized_path, False
+        
+        # If we get here, none of the variants worked
+        print(f"Could not find file for any of these variants: {path_variants}")
+        return None, False
     
     def execute(self, context):
         scene = context.scene
         
+        path = eval("scene."+self.node_type+"[scene."+self.node_type+"_index].url")
         # Get the URL from the selected item
-        if self.node_type == "em_v_sources_list" and scene.em_v_sources_list_index >= 0 and len(scene.em_v_sources_list) > 0:
-            path = scene.em_v_sources_list[scene.em_v_sources_list_index].url
-        elif self.node_type == "em_v_extractors_list" and scene.em_v_extractors_list_index >= 0 and len(scene.em_v_extractors_list) > 0:
-            path = scene.em_v_extractors_list[scene.em_v_extractors_list_index].url
-        else:
-            self.report({'ERROR'}, "No valid item selected")
-            return {'CANCELLED'}
+        #if self.node_type == "em_v_sources_list" and scene.em_v_sources_list_index >= 0 and len(scene.em_v_sources_list) > 0:
+        #    path = scene.em_v_sources_list[scene.em_v_sources_list_index].url
+        #    print(f"Loading image from source: {path}")
+        #elif self.node_type == "em_v_extractors_list" and scene.em_v_extractors_list_index >= 0 and len(scene.em_v_extractors_list) > 0:
+        #    path = scene.em_v_extractors_list[scene.em_v_extractors_list_index].url
+        #    print(f"Loading image from extractor: {path}")
+        #else:
+        #    self.report({'ERROR'}, "No valid item selected")
+        #    print(f"No valid item selected. node_type={self.node_type}")
+        #    print(f"em_v_sources_list_index={scene.em_v_sources_list_index}, len(scene.em_v_sources_list)={len(scene.em_v_sources_list) if hasattr(scene, 'em_v_sources_list') else 'N/A'}")
+        #    print(f"em_v_extractors_list_index={scene.em_v_extractors_list_index}, len(scene.em_v_extractors_list)={len(scene.em_v_extractors_list) if hasattr(scene, 'em_v_extractors_list') else 'N/A'}")
+        #    return {'CANCELLED'}
         
         # Skip if already loading or path is empty
         if scene.paradata_image.is_loading or not path:
+            print(f"Skipping: is_loading={scene.paradata_image.is_loading}, path empty={not bool(path)}")
             return {'CANCELLED'}
         
         # Clear any previous image

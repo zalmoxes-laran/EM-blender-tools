@@ -493,7 +493,8 @@ class RM_UL_EpochList(UIList):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             row = layout.row(align=True)
             
-            # Icona per indicare la prima/altre epoche
+            # Icona per indic
+            # are la prima/altre epoche
             if item.is_first_epoch:
                 row.label(text="", icon='KEYFRAME_HLT')  # Prima epoch
             else:
