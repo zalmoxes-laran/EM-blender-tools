@@ -618,7 +618,7 @@ class RM_OT_update_list(Operator):
                         item.first_epoch = "no_epoch"
                     
                     # Debug print
-                    print(f"Prima epoch aggiornata: {item.first_epoch}")
+                    #print(f"Prima epoch aggiornata: {item.first_epoch}")
                 
                 else:
                     # Crea un nuovo elemento per l'oggetto

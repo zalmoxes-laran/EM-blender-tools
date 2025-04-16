@@ -79,11 +79,12 @@ You are more than welcome to contribute to the project by spotting bugs/issues a
   - Check if the property node should have subclasses using the nomenclature of qualia.
   - Find a nomenclature to describe stratigraphic units, possibly using the Getty vocabulary or specialized vocabularies developed in Ariadne.
 
-#### Tasks To Do
 
-- [ ] **Redo the Turtle (`.ttl`) File**
+- [X] **Redo the Turtle (`.ttl`) File**
   - Schematize how the data model works.
   - Ensure the data model is clearly defined and up-to-date.
+
+#### Tasks To Do
 
 - [ ] **Modify the GraphML parser to handle ParadataGroup nodes connected to a stratigraphic unit**
   - Allow direct connection of stratigraphic units to ParadataGroup nodes
