@@ -366,6 +366,12 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         description="Select pyArchInit table mapping"
     ) # type: ignore
 
+    show_advanced_tools: bpy.props.BoolProperty(
+        name="Show Advanced Tools",
+        description="Display advanced tools for managing GraphML files and objects",
+        default=False
+    ) # type: ignore
+
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files with icons to indicate graph presence and actions"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -493,9 +499,36 @@ class EM_SetupPanel(bpy.types.Panel):
                 row = layout.row(align=True)
                 row.prop(active_file, "graphml_path", text="Path")
 
+
+                ############# box con le statistiche del file ##################
+                box = layout.box()
+                row = box.row(align=True)
+                #row = layout.row(align=True)
+                split = row.split()
+                col = split.column()
+                col.label(text="US/USV")
+                #col = split.column()
+                col.prop(scene, "em_list", text='')
+                col = split.column()
+                col.label(text="Periods")
+                #col = split.column()
+                col.prop(scene, "epoch_list", text='')
+
+                col = split.column()
+                col.label(text="Properties")
+                #col = split.column()
+                col.prop(scene, "em_properties_list", text='')
+
+                col = split.column()
+                col.label(text="Sources")
+                #col = split.column()
+                col.prop(scene, "em_sources_list", text='')
+
+                ####################################################
+
                 # Mostra l'ID del grafo (non modificabile)
-                row = layout.row(align=True)
-                row.label(text=f"Graph ID: {active_file.name}")  # UUID
+                #row = layout.row(align=True)
+                #row.label(text=f"Graph ID: {active_file.name}")  # UUID
 
                 # Se abbiamo un codice per il grafo, mostriamolo come modificabile
                 row = layout.row(align=True)
@@ -544,32 +577,32 @@ class EM_SetupPanel(bpy.types.Panel):
                             row = box.row()
                             row.prop(aux_file, "emdb_mapping", text="Format")
 
-                    box = layout.box()
-                    # Path to DosCo folder
-                    box.prop(active_file, "dosco_dir", text="DosCo Directory")
+                box = layout.box()
+                # Path to DosCo folder
+                box.prop(active_file, "dosco_dir", text="DosCo Directory")
 
-                    em_settings = bpy.context.window_manager.em_addon_settings
-                    #box.prop(em_settings, "dosco_advanced_options", 
+                em_settings = bpy.context.window_manager.em_addon_settings
+                #box.prop(em_settings, "dosco_advanced_options", 
 
-                    box.prop(em_settings, "dosco_advanced_options", text="DosCo advanced options", icon="TRIA_DOWN" if em_settings.dosco_advanced_options else "TRIA_RIGHT", emboss=False)
+                box.prop(em_settings, "dosco_advanced_options", text="DosCo advanced options", icon="TRIA_DOWN" if em_settings.dosco_advanced_options else "TRIA_RIGHT", emboss=False)
 
-                    if em_settings.dosco_advanced_options:
-                        box.label(text="Populate extractors, documents and combiners using DosCo files:")
-                        row = box.row()
-                        row.prop(em_settings, 'overwrite_url_with_dosco_filepath', text="Overwrite paths with DosCo files")
-                        
-                        # Add a more informative tooltip
-                        subbox = box.box()
-                        subbox.label(text="When enabled, node paths will be linked to files in DosCo")
-                        subbox.label(text="Examples:")
-                        subbox.label(text="Node GT16.D.01 → Searches for GT16.D.01 and D.01 in DosCo")
-                        
-                        row = box.row()
-                        row.prop(em_settings, 'preserve_web_url', text="Preserve web URLs (don't overwrite http/https)")
-                        
-                        # Add a button to manually trigger the operation
-                        #row = box.row()
-                        #row.operator("em.update_dosco_paths", text="Update Paths from DosCo", icon="FILE_REFRESH")
+                if em_settings.dosco_advanced_options:
+                    box.label(text="Populate extractors, documents and combiners using DosCo files:")
+                    row = box.row()
+                    row.prop(em_settings, 'overwrite_url_with_dosco_filepath', text="Overwrite paths with DosCo files")
+                    
+                    # Add a more informative tooltip
+                    subbox = box.box()
+                    subbox.label(text="When enabled, node paths will be linked to files in DosCo")
+                    subbox.label(text="Examples:")
+                    subbox.label(text="Node GT16.D.01 → Searches for GT16.D.01 and D.01 in DosCo")
+                    
+                    row = box.row()
+                    row.prop(em_settings, 'preserve_web_url', text="Preserve web URLs (don't overwrite http/https)")
+                    
+                    # Add a button to manually trigger the operation
+                    #row = box.row()
+                    #row.operator("em.update_dosco_paths", text="Update Paths from DosCo", icon="FILE_REFRESH")
         else:
             # UI per modalità 3D GIS
             box = layout.box()
@@ -645,43 +678,26 @@ class EM_SetupPanel(bpy.types.Panel):
             op.auxiliary_index = -1  # Non applicabile in modalità 3DGIS
 
 
-        ############# box con le statistiche del file ##################
+
+        # Advanced Tools section
         box = layout.box()
-        row = box.row(align=True)
-        #row = layout.row(align=True)
-        split = row.split()
-        col = split.column()
-        col.label(text="US/USV")
-        #col = split.column()
-        col.prop(scene, "em_list", text='')
-        col = split.column()
-        col.label(text="Periods")
-        #col = split.column()
-        col.prop(scene, "epoch_list", text='')
+        box.prop(em_tools, "show_advanced_tools", 
+                text="Advanced Tools", 
+                icon="TRIA_DOWN" if em_tools.show_advanced_tools else "TRIA_RIGHT", 
+                emboss=False)
 
-        col = split.column()
-        col.label(text="Properties")
-        #col = split.column()
-        col.prop(scene, "em_properties_list", text='')
-
-        col = split.column()
-        col.label(text="Sources")
-        #col = split.column()
-        col.prop(scene, "em_sources_list", text='')
-
-        # In EM_SetupPanel.draw() dopo la sezione esistente
-        # Aggiungiamo una sezione "Advanced"
-        box = layout.box()
-        row = box.row()
-        row.label(text="Advanced Tools", icon='TOOL_SETTINGS')
-
-        # Convert Legacy GraphML (manteniamo quello esistente)
-        row = box.row()
-        row.operator(GRAPHML_OT_convert_borders.bl_idname, text="Convert legacy GraphML (1.x->1.5)", icon='FILE_REFRESH')
-
-        # Manage Object Prefixes
-        row = box.row()
-        row.operator("em.manage_object_prefixes", text="Manage Object Prefixes", icon='SYNTAX_ON')
+        if em_tools.show_advanced_tools:
+            # Convert Legacy GraphML
+            row = box.row()
+            row.operator(GRAPHML_OT_convert_borders.bl_idname, 
+                        text="Convert legacy GraphML (1.x->1.5)", 
+                        icon='FILE_REFRESH')
+            
+            # Manage Object Prefixes
+            row = box.row()
+            row.operator("em.manage_object_prefixes", 
+                        text="Manage Object Prefixes", 
+                        icon='SYNTAX_ON')
 
 def get_mapping_description(mapping_file, mapping_type="emdb"):
     """Recupera la descrizione del mapping dal file JSON."""
