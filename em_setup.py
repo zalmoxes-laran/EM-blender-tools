@@ -389,7 +389,7 @@ class EMTOOLS_UL_files(bpy.types.UIList):
         is_graph_present = bool(graph_data and hasattr(graph_data, 'nodes') and len(graph_data.nodes) > 0)
         
         # Impostazione icona stato
-        status_icon = 'SEQUENCE_COLOR_04' if is_graph_present else 'SEQUENCE_COLOR_01'
+        status_icon = 'STRIP_COLOR_04' if is_graph_present else 'STRIP_COLOR_01'
         
         # Mostra il nome del file nella lista
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
