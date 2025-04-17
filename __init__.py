@@ -151,11 +151,20 @@ class EMAddonSettings(bpy.types.PropertyGroup):
         default=False
     ) # type: ignore
 
+    dosco_options: bpy.props.BoolProperty(
+        name="Show Dosco Section",
+        description="Info about DosCo folder loading the GraphML",
+        default=False
+    ) # type: ignore
+
+
     dosco_advanced_options: bpy.props.BoolProperty(
         name="Show advanced options ",
         description="Catch more information from DosCo folder loading the GraphML",
         default=False
     ) # type: ignore
+
+
 
 # These class definitions need to be available even when dependencies are missing
 # to prevent errors when dependencies are installed and Blender is restarted

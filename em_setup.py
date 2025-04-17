@@ -21,6 +21,8 @@ from .import_operators.import_EMdb import *
 
 from .operators.graphml_converter import GRAPHML_OT_convert_borders
 
+from .functions import get_compatible_icon
+
 class EM_OT_manage_object_prefixes(bpy.types.Operator):
     bl_idname = "em.manage_object_prefixes"
     bl_label = "Manage Object Prefixes"
@@ -389,8 +391,10 @@ class EMTOOLS_UL_files(bpy.types.UIList):
         is_graph_present = bool(graph_data and hasattr(graph_data, 'nodes') and len(graph_data.nodes) > 0)
         
         # Impostazione icona stato
-        status_icon = 'STRIP_COLOR_04' if is_graph_present else 'STRIP_COLOR_01'
+        #status_icon = 'STRIP_COLOR_04' if is_graph_present else 'STRIP_COLOR_01'
         
+        status_icon = get_compatible_icon('SEQUENCE_COLOR_04') if is_graph_present else get_compatible_icon('SEQUENCE_COLOR_01')
+
         # Mostra il nome del file nella lista
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             # Mostra il codice del grafo (graph_code) invece del nome (UUID)
@@ -485,7 +489,7 @@ class EM_SetupPanel(bpy.types.Panel):
         if em_tools.mode_switch:
             # List of GraphML files
             row = layout.row()
-            row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=3)
+            row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=2)
 
             row = layout.row(align=True)
             row.operator('em_tools.add_file', text="Add UT", icon="ADD")
@@ -547,6 +551,38 @@ class EM_SetupPanel(bpy.types.Panel):
                     active_file.graph_code = "MISSINGCODE"
                     row.prop(active_file, "graph_code", text="Graph Code")
 
+
+                box = layout.box()
+                em_settings = bpy.context.window_manager.em_addon_settings
+
+                box.prop(em_settings, "dosco_options", text="DosCo Folder", icon="TRIA_DOWN" if em_settings.dosco_options else "TRIA_RIGHT", emboss=False)
+                
+                if em_settings.dosco_options:
+                    # Path to DosCo folder
+                    box.prop(active_file, "dosco_dir", text="Set Path")
+
+                    #box.prop(em_settings, "dosco_advanced_options", 
+
+                    box.prop(em_settings, "dosco_advanced_options", text="More options", icon="TRIA_DOWN" if em_settings.dosco_advanced_options else "TRIA_RIGHT", emboss=False)
+
+                    if em_settings.dosco_advanced_options:
+                        box.label(text="Populate extractors, documents and combiners using DosCo files:")
+                        row = box.row()
+                        row.prop(em_settings, 'overwrite_url_with_dosco_filepath', text="Overwrite paths with DosCo files")
+                        
+                        # Add a more informative tooltip
+                        subbox = box.box()
+                        subbox.label(text="When enabled, node paths will be linked to files in DosCo")
+                        subbox.label(text="Examples:")
+                        subbox.label(text="Node GT16.D.01 → Searches for GT16.D.01 and D.01 in DosCo")
+                        
+                        row = box.row()
+                        row.prop(em_settings, 'preserve_web_url', text="Preserve web URLs (don't overwrite http/https)")
+                        
+                        # Add a button to manually trigger the operation
+                        #row = box.row()
+                        #row.operator("em.update_dosco_paths", text="Update Paths from DosCo", icon="FILE_REFRESH")
+
                 # Expanded settings
                 box = layout.box()
                 box.prop(active_file, "expanded", icon="TRIA_DOWN" if active_file.expanded else "TRIA_RIGHT", emboss=False)
@@ -577,32 +613,26 @@ class EM_SetupPanel(bpy.types.Panel):
                             row = box.row()
                             row.prop(aux_file, "emdb_mapping", text="Format")
 
-                box = layout.box()
-                # Path to DosCo folder
-                box.prop(active_file, "dosco_dir", text="DosCo Directory")
+            # Advanced Tools section
+            box = layout.box()
+            box.prop(em_tools, "show_advanced_tools", 
+                    text="Utilities", 
+                    icon="TRIA_DOWN" if em_tools.show_advanced_tools else "TRIA_RIGHT", 
+                    emboss=False)
 
-                em_settings = bpy.context.window_manager.em_addon_settings
-                #box.prop(em_settings, "dosco_advanced_options", 
+            if em_tools.show_advanced_tools:
+                # Convert Legacy GraphML
+                row = box.row()
+                row.operator(GRAPHML_OT_convert_borders.bl_idname, 
+                            text="Convert legacy GraphML (1.x->1.5)", 
+                            icon='FILE_REFRESH')
+                
+                # Manage Object Prefixes
+                row = box.row()
+                row.operator("em.manage_object_prefixes", 
+                            text="Manage Object Prefixes", 
+                            icon='SYNTAX_ON')
 
-                box.prop(em_settings, "dosco_advanced_options", text="DosCo advanced options", icon="TRIA_DOWN" if em_settings.dosco_advanced_options else "TRIA_RIGHT", emboss=False)
-
-                if em_settings.dosco_advanced_options:
-                    box.label(text="Populate extractors, documents and combiners using DosCo files:")
-                    row = box.row()
-                    row.prop(em_settings, 'overwrite_url_with_dosco_filepath', text="Overwrite paths with DosCo files")
-                    
-                    # Add a more informative tooltip
-                    subbox = box.box()
-                    subbox.label(text="When enabled, node paths will be linked to files in DosCo")
-                    subbox.label(text="Examples:")
-                    subbox.label(text="Node GT16.D.01 → Searches for GT16.D.01 and D.01 in DosCo")
-                    
-                    row = box.row()
-                    row.prop(em_settings, 'preserve_web_url', text="Preserve web URLs (don't overwrite http/https)")
-                    
-                    # Add a button to manually trigger the operation
-                    #row = box.row()
-                    #row.operator("em.update_dosco_paths", text="Update Paths from DosCo", icon="FILE_REFRESH")
         else:
             # UI per modalità 3D GIS
             box = layout.box()
@@ -677,27 +707,6 @@ class EM_SetupPanel(bpy.types.Panel):
             op.graphml_index = -1  # Non applicabile in modalità 3DGIS
             op.auxiliary_index = -1  # Non applicabile in modalità 3DGIS
 
-
-
-        # Advanced Tools section
-        box = layout.box()
-        box.prop(em_tools, "show_advanced_tools", 
-                text="Advanced Tools", 
-                icon="TRIA_DOWN" if em_tools.show_advanced_tools else "TRIA_RIGHT", 
-                emboss=False)
-
-        if em_tools.show_advanced_tools:
-            # Convert Legacy GraphML
-            row = box.row()
-            row.operator(GRAPHML_OT_convert_borders.bl_idname, 
-                        text="Convert legacy GraphML (1.x->1.5)", 
-                        icon='FILE_REFRESH')
-            
-            # Manage Object Prefixes
-            row = box.row()
-            row.operator("em.manage_object_prefixes", 
-                        text="Manage Object Prefixes", 
-                        icon='SYNTAX_ON')
 
 def get_mapping_description(mapping_file, mapping_type="emdb"):
     """Recupera la descrizione del mapping dal file JSON."""

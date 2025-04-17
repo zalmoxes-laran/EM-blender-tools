@@ -22,6 +22,26 @@ from .s3Dgraphy import load_graph_from_file, get_graph
 import platform
 from pathlib import Path
 
+def get_compatible_icon(icon_name):
+    """Return the appropriate icon name based on Blender version"""
+    version = bpy.app.version
+    
+    # Mapping of old icons to new icons for Blender 4.4+
+    icon_mappings = {
+        'SEQUENCE_COLOR_01': 'STRIP_COLOR_01',
+        'SEQUENCE_COLOR_02': 'STRIP_COLOR_02',
+        'SEQUENCE_COLOR_03': 'STRIP_COLOR_03',
+        'SEQUENCE_COLOR_04': 'STRIP_COLOR_04',
+        'SEQUENCE_COLOR_05': 'STRIP_COLOR_05',
+        'SEQ_SEQUENCER': 'STRIPS',
+        # Add more mappings as needed
+    }
+    
+    # Check if we're on Blender 4.4 or later
+    if version[0] > 4 or (version[0] == 4 and version[1] >= 4):
+        return icon_mappings.get(icon_name, icon_name)
+    else:
+        return icon_name
 
 def ensure_valid_index(collection_property, index_property_name, context=None):
     """
