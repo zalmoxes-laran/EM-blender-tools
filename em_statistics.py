@@ -26,45 +26,103 @@ def get_material_items(self, context):
     materials = load_materials()
     return [(mat, mat.title(), "") for mat in sorted(materials.keys())] if materials else [("none", "No material available", "")]
 
+
 def is_mesh_closed(bm):
-    """Verifica se una mesh è chiusa controllando i bordi non manifold."""
-    return all(len(edge.link_faces) == 2 for edge in bm.edges)
+    """
+    Verifies if a bmesh is closed, with additional safety checks.
+    
+    Args:
+        bm (bmesh.types.BMesh): Bmesh to check
+    
+    Returns:
+        bool: True if mesh is closed, False otherwise
+    """
+    try:
+        # Check if all edges have exactly 2 faces
+        return all(len(edge.link_faces) == 2 for edge in bm.edges if edge.is_valid)
+    except Exception as e:
+        print(f"Mesh closure check error: {e}")
+        return False
 
 def calculate_object_metrics(obj, selected_material, materials):
-    """Calcola volume, peso e superfici di un oggetto."""
+    """
+    Calculate volume, weight, and surface metrics for an object with improved error handling.
+    
+    Args:
+        obj (bpy.types.Object): Blender object to measure
+        selected_material (str): Selected material for weight calculation
+        materials (dict): Dictionary of material densities
+    
+    Returns:
+        tuple: (volume, weight, measurement_type, total_surface, vertical_surface)
+    """
     if not obj or obj.type != 'MESH':
         return None, None, None, None, None
     
-    # Calcolo del volume con BMesh
-    mesh = obj.data
+    print(f"Processing object: {obj.name}")
+    
+    # Create a copy of the mesh to avoid modifying the original
+    mesh = obj.data.copy()
     bm = bmesh.new()
     bm.from_mesh(mesh)
     bm.faces.ensure_lookup_table()
     
-    if is_mesh_closed(bm):
-        measurement_type = "Closed Mesh"
-        try:
+    # Reset bmesh to handle potential degenerate geometries
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    
+    # Check if mesh is valid
+    if not bm.faces or len(bm.faces) == 0:
+        bm.free()
+        return 0, 0, "Empty Mesh", 0, 0
+    
+    # Improved volume calculation with fallback
+    try:
+        if is_mesh_closed(bm):
+            measurement_type = "Closed Mesh"
             volume = bm.calc_volume()
-        except RuntimeError:
-            volume = None
-            measurement_type = "Errore nel calcolo del volume"
-    else:
-        measurement_type = "Open Mesh - Bounding Box"
-        dimensions = obj.dimensions
-        volume = dimensions.x * dimensions.y * dimensions.z
+        else:
+            measurement_type = "Open Mesh - Bounding Box"
+            dimensions = obj.dimensions
+            volume = max(0, dimensions.x * dimensions.y * dimensions.z)
+    except Exception as e:
+        print(f"Volume calculation error: {e}")
+        measurement_type = "Volume Calculation Failed"
+        volume = 0
     
-    total_surface = sum(f.calc_area() for f in bm.faces)
-    vertical_surface = sum(f.calc_area() for f in bm.faces if 85 <= math.degrees(f.normal.angle((0, 0, 1))) <= 95)
+    # Safe surface area calculation
+    try:
+        total_surface = sum(f.calc_area() for f in bm.faces if f.calc_area() > 0)
+    except Exception as e:
+        print(f"Total surface calculation error: {e}")
+        total_surface = 0
     
+    # Improved vertical surface calculation with robust normal checking
+    def is_vertical_face(face):
+        try:
+            # Normalize the normal vector to handle potential zero-length vectors
+            normal = face.normal.normalized()
+            # Check if normal is close to vertical (between 85 and 95 degrees from Z-axis)
+            return 85 <= math.degrees(normal.angle((0, 0, 1))) <= 95
+        except Exception as e:
+            print(f"Vertical face calculation error: {e}")
+            return False
+    
+    try:
+        vertical_surface = sum(f.calc_area() for f in bm.faces if is_vertical_face(f))
+    except Exception as e:
+        print(f"Vertical surface calculation error: {e}")
+        vertical_surface = 0
+    
+    # Clean up
     bm.free()
     
-    # Calcolo del peso
-    material_name = selected_material.strip().lower()
-    if material_name in materials:
-        density = materials[material_name]
-        weight = volume * density if volume else "Errore nel volume"
-    else:
-        weight = "Materiale non valido"
+    # Weight calculation
+    try:
+        material_name = selected_material.strip().lower()
+        weight = volume * materials.get(material_name, 0) if volume and material_name in materials else 0
+    except Exception as e:
+        print(f"Weight calculation error: {e}")
+        weight = 0
     
     return volume, weight, measurement_type, total_surface, vertical_surface
 
@@ -75,7 +133,7 @@ class EMSceneProperties(bpy.types.PropertyGroup):
     material_list: bpy.props.EnumProperty(name="Material", items=get_material_items)
 
 class EMExportCSV(bpy.types.Operator, ExportHelper):
-    """Esporta i dati degli oggetti selezionati in CSV."""
+    """Esporta i dati degli oggetti selezionati in CSV"""
     bl_idname = "export_mesh.csv"
     bl_label = "Esporta dati Mesh in CSV"
     filename_ext = ".csv"
@@ -84,6 +142,19 @@ class EMExportCSV(bpy.types.Operator, ExportHelper):
     def execute(self, context):
         scene_props = context.scene.em_properties
         materials = load_materials()
+
+        # Definisci esattamente i fieldnames come nel writer
+        fieldnames = [
+            "Nome", 
+            "Tipo_Nodo_EM", 
+            "Epoca", 
+            "Descrizione", 
+            "Volume_(m³)", 
+            "Tipo_Misurazione", 
+            "Peso_(kg)", 
+            "Superficie_Totale_(m²)", 
+            "Superficie_Verticale_(m²)"
+        ]
 
         data = []
         for obj in context.selected_objects:
@@ -102,32 +173,36 @@ class EMExportCSV(bpy.types.Operator, ExportHelper):
                     break
             
             row = {
-                "Name": obj.name,
-                "EM node": emnode,
-                "Epoch": epoca,
-                "Description": description,
-                "Volume (m³)": volume if scene_props.export_volume else "",
-                "Measurement type": measurement_type,
-                "Weight (kg)": weight if scene_props.export_weight else "",
-                "Total Surface (m²)": total_surface,
-                "Vertical Surface (m²)": vertical_surface
+                "Nome": obj.name,
+                "Tipo_Nodo_EM": emnode,
+                "Epoca": epoca,
+                "Descrizione": description,
+                "Volume_(m³)": format_decimal(volume) if scene_props.export_volume else "",
+                "Tipo_Misurazione": measurement_type,
+                "Peso_(kg)": format_decimal(weight) if scene_props.export_weight else "",
+                "Superficie_Totale_(m²)": format_decimal(total_surface),
+                "Superficie_Verticale_(m²)": format_decimal(vertical_surface)
             }
             data.append(row)
 
-        # Esportazione CSV
-        with open(self.filepath, 'w', newline='', encoding='utf-8') as file:
-            writer = csv.DictWriter(file, fieldnames=["Name", "EM node", "Epoch", "Description", "Volume (m³)", "Measurement type", "Weight (kg)", "Total Surface (m²)", "Vertical Surface (m²)"])
-            writer = csv.DictWriter(file, fieldnames=[
-                    "Name", "EM node", "Epoch", "Description", 
-                    "Volume (m³)", "Measurement type", "Weight (kg)", 
-                    "Total Surface (m²)", "Vertical Surface (m²)"
-                ],
-                delimiter=";")  # Usa il punto e virgola come delimitatore
+        # Esportazione CSV con punto e virgola come separatore
+        with open(self.filepath, 'w', newline='', encoding='utf-8-sig') as file:
+            writer = csv.DictWriter(file, fieldnames=fieldnames, delimiter=';')
             writer.writeheader()
             writer.writerows(data)
 
         self.report({'INFO'}, f"Esportato CSV in {self.filepath}")
         return {'FINISHED'}
+
+def format_decimal(value):
+    """Converte un valore numerico con virgola come separatore decimale."""
+    try:
+        if isinstance(value, (int, float)):
+            return f"{value:.3f}".replace('.', ',')
+        return str(value)
+    except Exception:
+        return str(value)
+
 
 # Pannello per l'interfaccia utente
 class EM_PT_ExportPanel(bpy.types.Panel):
