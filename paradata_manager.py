@@ -492,13 +492,31 @@ class EM_ParadataPanel:
         # Invece di modificare l'indice, controlla solo se è valido
         property_index_valid = (property_list_length > 0 and 0 <= property_list_index < property_list_length)
         
-
+        # Safely get the GraphML file information
+        paradata_text = "Full list of paradata"
         if scene.paradata_streaming_mode and scene.em_list_index >= 0 and len(scene.em_list) > 0:
             # Se è attivo lo streaming, mostra il nome stratigrafico selezionato
-            paradata_text = str("Paradata related to: "+str(scene.em_list[scene.em_list_index].name))
+            paradata_text = str("Paradata related to: " + str(scene.em_list[scene.em_list_index].name))
         else:
-            paradata_text = "Full list of paradata in: "+str(scene.em_tools.graphml_files[scene.em_tools.active_file_index].graph_code) if scene.em_tools.active_file_index >= 0 else "No GraphML file selected"
-        # Mostra il nome del file GraphML attivo    
+            # Safe access to GraphML file information 
+            try:
+                if hasattr(scene, 'em_tools') and hasattr(scene.em_tools, 'active_file_index'):
+                    if scene.em_tools.active_file_index >= 0 and hasattr(scene.em_tools, 'graphml_files'):
+                        if scene.em_tools.active_file_index < len(scene.em_tools.graphml_files):
+                            graphml_file = scene.em_tools.graphml_files[scene.em_tools.active_file_index]
+                            if hasattr(graphml_file, 'graph_code') and graphml_file.graph_code:
+                                paradata_text = f"Full list of paradata in: {graphml_file.graph_code}"
+                            else:
+                                paradata_text = "Full list of paradata (no graph code available)"
+                        else:
+                            paradata_text = "Full list of paradata (invalid file index)"
+                    else:
+                        paradata_text = "No GraphML file selected"
+                else:
+                    paradata_text = "EM Tools not properly initialized"
+            except Exception as e:
+                print(f"Error getting graph code: {str(e)}")
+                paradata_text = "Error accessing GraphML information"  
 
         # Suddividiamo la riga in due colonne: 70% per la prima e 30% per la seconda
         split = layout.split(factor=0.70)  # Il fattore indica la percentuale della prima colonna

@@ -1,6 +1,6 @@
-import bpy # type: ignore
-from bpy.types import Panel # type: ignore
-from bpy.props import BoolProperty, StringProperty, EnumProperty # type: ignore
+import bpy
+from bpy.types import Panel
+from bpy.props import BoolProperty, StringProperty, EnumProperty
 from .blender_pip import Pip
 
 # Dictionary of required modules with minimum versions
@@ -13,7 +13,7 @@ REQUIRED_MODULES = {
     "six": "1.15.0",
     "tzdata": "2022.7",
     "Pillow": "8.2.0",
-    "matplotlib": "3.10.1",  # Added for Pillow dependencies
+    "matplotlib": "3.10.1",
     "contourpy": "1.0.1",
     "cycler": "0.10",
     "kiwisolver": "1.3.1",
@@ -24,7 +24,6 @@ REQUIRED_MODULES = {
 # Group modules into categories
 MODULE_GROUPS = {
     "ALL": list(REQUIRED_MODULES.keys()),
-    #"EMdb_xlsx": ["pandas", "pytz", "python-dateutil", "numpy", "six", "openpyxl", "tzdata"],
     "EMdb_xlsx": ["pandas", "pytz", "numpy", "six", "openpyxl", "tzdata"],
     "NetworkX": ["networkx"],
     "Pillow": ["Pillow", "matplotlib", "numpy", "contourpy", "cycler", "kiwisolver", "pyparsing", "python-dateutil", "six"]
@@ -36,7 +35,7 @@ class VIEW3D_PT_EM_MissingModules(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM"
-    bl_order = 0  # Questo lo porrà in cima alla lista dei pannelli
+    bl_order = 0
     
     @classmethod
     def poll(cls, context):
@@ -46,15 +45,23 @@ class VIEW3D_PT_EM_MissingModules(Panel):
             missing_modules = []
             for module_name, min_version in REQUIRED_MODULES.items():
                 try:
-                    module_version = Pip.get_module_version(module_name)
+                    # Prima controlla nell'ambiente principale di Blender
+                    main_version = cls.check_module_in_main_python(module_name)
                     
-                    if not module_version:
+                    # Se esiste nell'ambiente principale, è sufficiente
+                    if main_version:
+                        if cls.is_version_sufficient(main_version, min_version):
+                            continue
+                    
+                    # Controlla nell'ambiente dell'addon
+                    addon_version = Pip.get_module_version(module_name)
+                    
+                    if not addon_version:
                         missing_modules.append(module_name)
                         continue
                         
                     # Controlla versione minima
-                    import pkg_resources
-                    if pkg_resources.parse_version(module_version) < pkg_resources.parse_version(min_version):
+                    if not cls.is_version_sufficient(addon_version, min_version):
                         missing_modules.append(module_name)
                         
                 except (ImportError, AttributeError):
@@ -67,14 +74,50 @@ class VIEW3D_PT_EM_MissingModules(Panel):
             # Se c'è un problema nell'importazione, mostra il pannello
             return True
     
+    @staticmethod
+    def check_module_in_main_python(module_name):
+        """Verifica se il modulo è già disponibile nell'ambiente Python principale di Blender"""
+        try:
+            import importlib
+            import importlib.metadata
+            try:
+                # Per Python 3.8+
+                return importlib.metadata.version(module_name)
+            except (ImportError, AttributeError):
+                # Fallback per versioni precedenti
+                module = importlib.import_module(module_name)
+                return getattr(module, "__version__", None)
+        except (ImportError, ModuleNotFoundError):
+            return None
+    
+    @staticmethod
+    def is_version_sufficient(current_version, required_version):
+        """Verifica se la versione corrente è sufficiente"""
+        try:
+            import pkg_resources
+            return pkg_resources.parse_version(current_version) >= pkg_resources.parse_version(required_version)
+        except (ImportError, AttributeError):
+            # Semplice confronto se pkg_resources non è disponibile
+            return current_version >= required_version
+    
     def draw(self, context):
         layout = self.layout
         
-        # Controllo moduli
+        # Analisi dei moduli richiesti
         missing_modules = []
+        outdated_modules = []
         installed_modules = []
+        main_python_modules = []  # Moduli già disponibili in Blender
         
         for module_name, min_version in REQUIRED_MODULES.items():
+            # Controlla prima se esiste nell'ambiente principale di Blender
+            main_version = self.check_module_in_main_python(module_name)
+            if main_version:
+                if self.is_version_sufficient(main_version, min_version):
+                    main_python_modules.append(f"{module_name} {main_version} (Blender)")
+                    continue
+            
+            # Controlla nell'ambiente dell'addon
             try:
                 module_version = Pip.get_module_version(module_name)
                 
@@ -83,9 +126,8 @@ class VIEW3D_PT_EM_MissingModules(Panel):
                     continue
                     
                 # Controlla versione minima
-                import pkg_resources
-                if pkg_resources.parse_version(module_version) < pkg_resources.parse_version(min_version):
-                    missing_modules.append(f"{module_name} (present: {module_version}, requested: {min_version})")
+                if not self.is_version_sufficient(module_version, min_version):
+                    outdated_modules.append(f"{module_name} (present: {module_version}, required: {min_version})")
                 else:
                     installed_modules.append(f"{module_name} {module_version}")
                     
@@ -94,26 +136,47 @@ class VIEW3D_PT_EM_MissingModules(Panel):
         
         # Intestazione
         box = layout.box()
-        if missing_modules:
-            box.label(text="Missing or obsolete modules", icon='ERROR')
-            
-            for module in missing_modules:
+        
+        # Moduli nell'ambiente principale di Blender
+        if main_python_modules:
+            box.label(text="Modules available in Blender", icon='CHECKMARK')
+            for module in main_python_modules:
                 box.label(text=f"• {module}")
-                
+        
+        # Moduli mancanti o obsoleti
+        if missing_modules or outdated_modules:
+            if missing_modules:
+                box = layout.box()
+                box.label(text="Missing modules", icon='ERROR')
+                for module in missing_modules:
+                    box.label(text=f"• {module}")
+            
+            if outdated_modules:
+                box = layout.box()
+                box.label(text="Outdated modules", icon='ERROR')
+                for module in outdated_modules:
+                    box.label(text=f"• {module}")
+                    
+            # Opzioni di installazione
+            box = layout.box()
             row = box.row()
             row.scale_y = 1.5  # Bottone più grande
             
-            # Bottone per installare tutto
-            if len(missing_modules) > 1:
-                op = row.operator("install_em_missing.modules", icon="PACKAGE", text="Install all modules")
+            # Bottone per installare solo i moduli mancanti
+            if missing_modules:
+                op = row.operator("install_em_missing.modules", icon="PACKAGE", 
+                                  text="Install missing modules")
                 op.is_install = True
+                op.install_only_missing = True
                 op.module_group = "ALL"
-            else:
-                module_name = missing_modules[0].split(" ")[0]  # Estrai solo il nome del modulo
-                op = row.operator("install_em_missing.modules", icon="PACKAGE", text=f"Install {module_name}")
+                
+            # Bottone per aggiornare i moduli obsoleti
+            if outdated_modules:
+                op = row.operator("install_em_missing.modules", icon="FILE_REFRESH", 
+                                  text="Update outdated modules")
                 op.is_install = True
-                op.module_group = "SINGLE"
-                op.single_module = module_name
+                op.update_outdated = True
+                op.module_group = "ALL"
         else:
             box.label(text="All required modules are installed", icon='CHECKMARK')
         
@@ -139,16 +202,20 @@ class VIEW3D_PT_EM_MissingModules(Panel):
                 emboss=False)
         
         if context.scene.em_deps_advanced:
+            # Opzione per scegliere dove installare i moduli
+            box.prop(context.scene, "em_deps_install_location", text="Install Location")
+            
             # Gruppi di moduli
             row = box.row()
-            row.label(text="Groups of modules:")
+            row.label(text="Module groups:")
             
             for group_name, module_list in MODULE_GROUPS.items():
                 if group_name != "ALL":  # "ALL" è gestito sopra
                     row = box.row()
-                    op = row.operator("install_em_missing.modules", text=f"Install group {group_name}")
+                    op = row.operator("install_em_missing.modules", text=f"Install {group_name}")
                     op.is_install = True
                     op.module_group = group_name
+                    op.install_location = context.scene.em_deps_install_location
             
             # Disinstallazione
             row = box.row()
@@ -166,40 +233,67 @@ class VIEW3D_PT_EM_MissingModules(Panel):
             # Debug info
             row = box.row()
             row.operator("install_em_missing.debug_info", text="Show debug info", icon="CONSOLE")
+            
+            # Opzione per ignorare i moduli esistenti
+            row = box.row()
+            row.prop(context.scene, "em_deps_ignore_existing_modules", 
+                    text="Skip modules available in Blender")
         
         # Avviso di riavvio
         box = layout.box()
         box.label(text="⚠️ Restart Blender after installation", icon='INFO')
 
+
 # Operatore per installare/disinstallare moduli
 class OBJECT_OT_install_em_missing_modules(bpy.types.Operator):
     bl_idname = "install_em_missing.modules"
-    bl_label = "Installa/Disinstalla Moduli"
+    bl_label = "Install/Uninstall Modules"
     bl_options = {"REGISTER"}
 
     is_install: BoolProperty(
-        name="Installa",
-        description="True per installare, False per disinstallare",
+        name="Install",
+        description="True to install, False to uninstall",
         default=True
-    ) # type: ignore
+    )
     
     module_group: EnumProperty(
-        name="Gruppo di moduli",
+        name="Module Group",
         items=[
-            ("ALL", "Tutti i moduli", "Installa tutti i moduli necessari"),
-            ("EMdb_xlsx", "EMdb_xlsx", "Moduli per importazione Excel"),
-            ("NetworkX", "NetworkX", "Moduli per grafica e rete"),
-            ("Pillow", "Pillow", "Moduli per immagini"),
-            ("SINGLE", "Singolo modulo", "Installa un singolo modulo specifico")
+            ("ALL", "All modules", "Install all required modules"),
+            ("EMdb_xlsx", "EMdb_xlsx", "Modules for Excel import"),
+            ("NetworkX", "NetworkX", "Modules for graph and network"),
+            ("Pillow", "Pillow", "Modules for images"),
+            ("SINGLE", "Single module", "Install a specific single module")
         ],
         default="ALL"
-    ) # type: ignore
+    )
     
     single_module: StringProperty(
-        name="Nome modulo",
-        description="Nome del modulo singolo da installare/disinstallare",
+        name="Module Name",
+        description="Name of the single module to install/uninstall",
         default=""
-    ) # type: ignore
+    )
+    
+    install_location: EnumProperty(
+        name="Install Location",
+        items=[
+            ("ADDON", "Addon lib folder", "Install in the addon's lib folder (isolated)"),
+            ("BLENDER", "Blender Python", "Install in Blender's Python environment (shared)")
+        ],
+        default="ADDON"
+    )
+    
+    install_only_missing: BoolProperty(
+        name="Install Only Missing",
+        description="Install only modules that are missing",
+        default=False
+    )
+    
+    update_outdated: BoolProperty(
+        name="Update Outdated",
+        description="Update only modules that are outdated",
+        default=False
+    )
 
     def execute(self, context):
         # Prepara la lista dei moduli da installare
@@ -209,78 +303,132 @@ class OBJECT_OT_install_em_missing_modules(bpy.types.Operator):
             if self.single_module:
                 modules_to_process = [self.single_module]
             else:
-                self.report({'ERROR'}, "Nessun modulo specificato")
+                self.report({'ERROR'}, "No module specified")
                 return {'CANCELLED'}
         else:
             modules_to_process = MODULE_GROUPS.get(self.module_group, [])
         
         if not modules_to_process:
-            self.report({'ERROR'}, f"Nessun modulo trovato per il gruppo {self.module_group}")
+            self.report({'ERROR'}, f"No modules found for group {self.module_group}")
             return {'CANCELLED'}
         
         successful = 0
         failed = 0
         skipped = 0
         
+        # Se stiamo installando solo moduli mancanti o aggiornando quelli obsoleti
+        if self.is_install and (self.install_only_missing or self.update_outdated):
+            filtered_modules = []
+            
+            for module in modules_to_process:
+                min_version = REQUIRED_MODULES.get(module, None)
+                
+                # Controlla se esiste nell'ambiente principale di Blender
+                main_version = VIEW3D_PT_EM_MissingModules.check_module_in_main_python(module)
+                if main_version and VIEW3D_PT_EM_MissingModules.is_version_sufficient(main_version, min_version):
+                    # Se è disponibile in Blender e dobbiamo ignorarlo, salta
+                    if context.scene.em_deps_ignore_existing_modules:
+                        continue
+                
+                # Controlla nell'ambiente dell'addon
+                addon_version = Pip.get_module_version(module)
+                
+                if self.install_only_missing and not addon_version:
+                    # Aggiungi solo se manca
+                    filtered_modules.append(module)
+                elif self.update_outdated and addon_version:
+                    # Aggiungi solo se esiste ed è obsoleto
+                    if min_version and not VIEW3D_PT_EM_MissingModules.is_version_sufficient(addon_version, min_version):
+                        filtered_modules.append(module)
+            
+            modules_to_process = filtered_modules
+            
+            if not modules_to_process:
+                self.report({'INFO'}, "No modules to process with current criteria")
+                return {'FINISHED'}
+        
         # Aggiorna pip all'inizio se stiamo installando
         if self.is_install:
-            self.report({'INFO'}, "Aggiornamento di pip...")
+            self.report({'INFO'}, "Updating pip...")
             pip_updated = Pip.upgrade_pip()
             if not pip_updated:
-                self.report({'WARNING'}, "Aggiornamento di pip fallito, si tenta l'installazione comunque")
+                self.report({'WARNING'}, "Pip update failed, attempting installation anyway")
         
         # Processo ogni modulo
         for module in modules_to_process:
             try:
                 if self.is_install:
+                    # Se dobbiamo ignorare i moduli esistenti in Blender
+                    if context.scene.em_deps_ignore_existing_modules:
+                        min_version = REQUIRED_MODULES.get(module, None)
+                        main_version = VIEW3D_PT_EM_MissingModules.check_module_in_main_python(module)
+                        
+                        if main_version and VIEW3D_PT_EM_MissingModules.is_version_sufficient(main_version, min_version):
+                            self.report({'INFO'}, f"Skipping {module} (available in Blender: {main_version})")
+                            skipped += 1
+                            continue
+                    
                     min_version = REQUIRED_MODULES.get(module, None)
-                    result, message, install_path = Pip.install(module, upgrade=True, min_version=min_version)
+                    
+                    # Scelta della location di installazione
+                    use_user = self.install_location == "BLENDER"
+                    
+                    result, message, install_path = Pip.install(
+                        module, 
+                        upgrade=True, 
+                        min_version=min_version,
+                        use_user=use_user
+                    )
                     
                     if result:
                         if "Already installed" in message:
-                            self.report({'INFO'}, f"{module} già installato in {install_path}")
+                            self.report({'INFO'}, f"{module} already installed in {install_path}")
                             skipped += 1
                         else:
-                            self.report({'INFO'}, f"Installato {module} in {install_path}")
+                            self.report({'INFO'}, f"Installed {module} in {install_path}")
                             successful += 1
                     else:
-                        self.report({'ERROR'}, f"Errore installando {module}: {message}")
+                        self.report({'ERROR'}, f"Error installing {module}: {message}")
                         failed += 1
                 else:
-                    result, message = Pip.uninstall(module)
+                    # Per disinstallazione, scegli se disinstallare dall'ambiente utente
+                    use_user = self.install_location == "BLENDER"
+                    result, message = Pip.uninstall(module, use_user=use_user)
                     
                     if result:
-                        self.report({'INFO'}, f"Disinstallato {module}")
+                        self.report({'INFO'}, f"Uninstalled {module}")
                         successful += 1
                     else:
-                        self.report({'ERROR'}, f"Errore disinstallando {module}: {message}")
+                        self.report({'ERROR'}, f"Error uninstalling {module}: {message}")
                         failed += 1
             
             except Exception as e:
-                self.report({'ERROR'}, f"Errore processando {module}: {str(e)}")
+                self.report({'ERROR'}, f"Error processing {module}: {str(e)}")
                 failed += 1
         
         # Riepilogo delle operazioni
-        action = "installazione" if self.is_install else "disinstallazione"
+        action = "installation" if self.is_install else "uninstallation"
+        location = "Blender Python" if self.install_location == "BLENDER" else "addon lib folder"
+        
         if failed == 0:
             if skipped > 0:
-                self.report({'INFO'}, f"{action.capitalize()} completata: {successful} moduli elaborati, {skipped} già installati")
+                self.report({'INFO'}, f"{action.capitalize()} completed: {successful} modules processed, {skipped} skipped")
             else:
-                self.report({'INFO'}, f"{action.capitalize()} completata: {successful} moduli elaborati")
+                self.report({'INFO'}, f"{action.capitalize()} completed: {successful} modules processed in {location}")
         else:
-            self.report({'WARNING'}, f"{action.capitalize()} completata con errori: {successful} successi, {failed} fallimenti")
+            self.report({'WARNING'}, f"{action.capitalize()} completed with errors: {successful} successes, {failed} failures")
         
         return {'FINISHED'}
 
 # Operatore per mostrare info di debug
 class OBJECT_OT_debug_em_modules(bpy.types.Operator):
     bl_idname = "install_em_missing.debug_info"
-    bl_label = "Informazioni di Debug"
+    bl_label = "Debug Information"
     bl_options = {"REGISTER"}
     
     def execute(self, context):
         Pip.debug_python_environment()
-        self.report({'INFO'}, "Informazioni di debug stampate nella console")
+        self.report({'INFO'}, "Debug information printed to console")
         return {'FINISHED'}
     
     def invoke(self, context, event):
@@ -288,29 +436,43 @@ class OBJECT_OT_debug_em_modules(bpy.types.Operator):
     
     def draw(self, context):
         layout = self.layout
-        layout.label(text="Le informazioni di debug sono state stampate nella console.")
-        layout.label(text="Apri la console per visualizzarle (Window > Toggle System Console).")
+        layout.label(text="Debug information has been printed to the console.")
+        layout.label(text="Open the console to view it (Window > Toggle System Console).")
 
 def register():
     bpy.utils.register_class(VIEW3D_PT_EM_MissingModules)
     bpy.utils.register_class(OBJECT_OT_install_em_missing_modules)
     bpy.utils.register_class(OBJECT_OT_debug_em_modules)
     
-    # Registra le proprietà in modo appropriato
+    # Registra le proprietà
     bpy.types.Scene.em_deps_module_to_remove = StringProperty(
-        name="Modulo da disinstallare",
+        name="Module to uninstall",
         default="pandas"
     )
     
-    # Usa BoolProperty (già decorata con type: ignore)
     bpy.types.Scene.em_deps_show_installed = BoolProperty(
-        name="Mostra moduli installati",
+        name="Show installed modules",
         default=False
     )
     
     bpy.types.Scene.em_deps_advanced = BoolProperty(
-        name="Opzioni avanzate",
+        name="Advanced options",
         default=False
+    )
+    
+    bpy.types.Scene.em_deps_install_location = EnumProperty(
+        name="Install Location",
+        items=[
+            ("ADDON", "Addon lib folder", "Install in the addon's lib folder (isolated)"),
+            ("BLENDER", "Blender Python", "Install in Blender's Python environment (shared)")
+        ],
+        default="ADDON"
+    )
+    
+    bpy.types.Scene.em_deps_ignore_existing_modules = BoolProperty(
+        name="Skip modules available in Blender",
+        description="Don't install modules that are already available in Blender's Python",
+        default=True
     )
 
 def unregister():
@@ -319,6 +481,8 @@ def unregister():
     bpy.utils.unregister_class(VIEW3D_PT_EM_MissingModules)
     
     # Rimuovi le proprietà
+    del bpy.types.Scene.em_deps_ignore_existing_modules
+    del bpy.types.Scene.em_deps_install_location
     del bpy.types.Scene.em_deps_module_to_remove
     del bpy.types.Scene.em_deps_show_installed
     del bpy.types.Scene.em_deps_advanced
