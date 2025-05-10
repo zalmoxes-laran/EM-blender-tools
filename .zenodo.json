@@ -1,0 +1,56 @@
+{
+    "title": "EM Tools for Blender - Extended Matrix Framework",
+    "upload_type": "software",
+    "description": "Blender tools for Extended Matrix: A comprehensive framework for managing multitemporal 3D archaeological data",
+    "creators": [
+        {
+            "name": "Demetrescu, Emanuel",
+            "affiliation": "CNR - Consiglio Nazionale delle Ricerche",
+            "orcid": "0000-0002-XXXX-XXXX"
+        }
+    ],
+    "contributors": [
+        {
+            "name": "Nome Contributore",
+            "affiliation": "Affiliazione",
+            "type": "Other",
+            "contribution": "Early development contributions (removed features)"
+        }
+    ],
+    "keywords": [
+        "Blender",
+        "archaeology",
+        "3D visualization",
+        "Extended Matrix",
+        "cultural heritage",
+        "stratigraphic analysis"
+    ],
+    "license": "GPL-3.0",
+    "related_identifiers": [
+        {
+            "scheme": "url",
+            "identifier": "https://github.com/zalmoxes-laran/EM-blender-tools",
+            "relation": "isSupplementTo",
+            "resource_type": "software"
+        }
+    ],
+    "grants": [
+        {
+            "id": "10.13039/501100000780::101004545"
+        }
+    ],
+    "notes": "This software is actively maintained by Emanuel Demetrescu. Previous contributions have been refactored or removed in current versions.",
+    "files": [
+        {
+            "exclude": [
+                "wheels/**",
+                "*.whl",
+                "scripts/**",
+                "__pycache__/**",
+                "*.pyc",
+                ".git/**",
+                ".github/**"
+            ]
+        }
+    ]
+}

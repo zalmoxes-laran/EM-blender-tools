@@ -89,8 +89,6 @@ classes = [
 
 # Registration
 def register():
-    #prima di registrare classi, verifico se ci sono
-    #check_external_modules()
 
     for cls in classes:
         try:

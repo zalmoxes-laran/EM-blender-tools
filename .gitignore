@@ -2,6 +2,24 @@
 __pycache__/
 __pycache__/*.*
 *.py[cod]
+*$py.class
+
+# Manifest temporanei
+blender_manifest_prod.toml
+blender_manifest_vscode.toml
+
+# Wheels e dipendenze
+wheels/
+*.whl
+
+# IDE
+.vscode/
+.idea/
+
+# Build
+build/
+dist/
+*.blext
 
 # C extensions
 *.so
@@ -9,9 +27,7 @@ __pycache__/*.*
 # Distribution / packaging
 .Python
 env/
-build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/

@@ -1,0 +1,60 @@
+# .github/workflows/release.yml
+name: Build Extension
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'      # Versioni stabili (es. v1.5.0)
+      - 'v*.*.*-*'    # Versioni pre-release (es. v1.5.0-beta.1)
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Create wheels directory
+        run: mkdir -p wheels
+      
+      - name: Download wheels for all platforms
+        run: |
+          # Leggi requirements
+          while IFS= read -r package; do
+            # Salta righe vuote e commenti
+            [[ -z "$package" || "$package" =~ ^# ]] && continue
+            
+            # Leggi piattaforme
+            while IFS= read -r platform; do
+              [[ -z "$platform" || "$platform" =~ ^# ]] && continue
+              echo "Downloading $package for $platform..."
+              pip download "$package" --only-binary=:all: --platform="$platform" --python-version=3.11 -d wheels/
+            done < scripts/platforms.txt
+          done < scripts/requirements_wheels.txt
+      
+      - name: Create extension package
+        run: |
+          # Crea un unico pacchetto con tutte le wheels
+          zip -r em_tools.zip . -x ".git/*" ".github/*" "*.pyc" "__pycache__/*" "scripts/*" ".gitignore"
+          mv em_tools.zip em_tools-${{ github.ref_name }}.blext
+      
+      - name: Check if prerelease
+        id: prerelease
+        run: |
+          if [[ "${{ github.ref_name }}" =~ -(alpha|beta|rc|dev) ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: em_tools-${{ github.ref_name }}.blext
+          prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
