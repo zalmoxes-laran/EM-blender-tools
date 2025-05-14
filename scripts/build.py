@@ -176,7 +176,9 @@ def build_extension(mode: str = 'dev', platform: str = None):
     else:
         package_name = f"em_tools-v{version}.blext"
     
-    package_path = root_dir / package_name
+    releases_dir = root_dir.parent / "EM_Tools_Releases"
+    releases_dir.mkdir(exist_ok=True)
+    package_path = releases_dir / package_name
     
     print(f"Creating package: {package_name}")
     

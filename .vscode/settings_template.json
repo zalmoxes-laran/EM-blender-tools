@@ -1,6 +1,8 @@
 {
     "blender.addon.sourceDirectory": ".",
     "blender.addon.reloadOnSave": true,
+    "blender.addon.loadAsExtension": true,
+    "blender.addon.extensionDirectoryType": "user",
     "blender.executable": "BLENDER_PATH_PLACEHOLDER",
     "python.defaultInterpreterPath": "python",
     "python.analysis.extraPaths": [
@@ -13,7 +15,8 @@
         "build/": true,
         "wheels/": true,
         "*.blext": true,
-        ".git": true
+        ".git": true,
+        "blender_manifest.toml": true
     },
     "files.watcherExclude": {
         "**/wheels/**": true,

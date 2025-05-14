@@ -74,6 +74,7 @@ class VersionManager:
         config = self.load_version_config()
         config['mode'] = mode
         self.save_version_config(config)
+        self.update_manifest()
         return self.get_version_string(config)
     
     def generate_wheels_section(self, mode: str) -> str:
