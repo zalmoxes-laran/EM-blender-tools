@@ -21,7 +21,7 @@ bl_info = {
     "author": "E. Demetrescu",
     "version": (1, 5, 0),
     "blender": (4, 0, 0),
-    "warning": "1.5.0-dev.37",
+    "warning": "1.5.0-dev.38",
     "category": "Tools",
 }
 

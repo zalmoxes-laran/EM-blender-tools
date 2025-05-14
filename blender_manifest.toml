@@ -1,14 +1,18 @@
+# blender_manifest.toml (per sviluppo)
 schema_version = "1.0.0"
 
 id = "em_tools"
-name = "EM Tools"
+name = "EM Tools (Dev)"
 version = "1.5.0"
-tagline = "Blender tools for Extended Matrix"
+tagline = "Blender tools for Extended Matrix - Development"
 maintainer = "E. Demetrescu <emanuel.demetrescu@cnr.it>"
 type = "add-on"
 license = ["GPL-3.0"]
 
 blender_version_min = "4.0.0"
+
+[permissions]
+wheels = "./wheels/"
 
 platforms = ["windows-x64", "macos-arm64", "macos-x64", "linux-x64"]
 tags = ["3D View", "Import-Export", "Tools"]

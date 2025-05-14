@@ -5,11 +5,53 @@ import sys
 
 def switch_to_dev():
     """Configura per lo sviluppo con VSCode"""
-    if os.path.exists('blender_manifest.toml'):
-        shutil.copy('blender_manifest.toml', 'blender_manifest_prod.toml')
+    # Vai alla cartella root del progetto (parent della cartella scripts)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(script_dir)
+    
+    manifest_path = os.path.join(root_dir, 'blender_manifest.toml')
+    manifest_prod_path = os.path.join(root_dir, 'blender_manifest_prod.toml')
+    
+    if os.path.exists(manifest_path):
+        shutil.copy(manifest_path, manifest_prod_path)
     
     # Crea un manifest semplificato per VSCode
     dev_manifest = """schema_version = "1.0.0"
+
+id = "em_tools"
+name = "EM Tools (Dev)"
+version = "1.5.0"
+tagline = "Blender tools for Extended Matrix - Development"
+maintainer = "E. Demetrescu <emanuel.demetrescu@cnr.it>"
+type = "add-on"
+license = ["GPL-3.0"]
+
+blender_version_min = "4.0.0"
+
+platforms = ["windows-x64", "macos-arm64", "macos-x64", "linux-x64"]
+tags = ["3D View", "Import-Export", "Tools"]
+"""
+    
+    with open(manifest_path, 'w') as f:
+        f.write(dev_manifest)
+    
+    print("Switched to development mode")
+
+def switch_to_prod():
+    """Ripristina configurazione per produzione"""
+    # Vai alla cartella root del progetto (parent della cartella scripts)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(script_dir)
+    
+    manifest_path = os.path.join(root_dir, 'blender_manifest.toml')
+    manifest_prod_path = os.path.join(root_dir, 'blender_manifest_prod.toml')
+    
+    if os.path.exists(manifest_prod_path):
+        shutil.copy(manifest_prod_path, manifest_path)
+        print("Switched to production mode")
+    else:
+        # Crea il manifest di produzione se non esiste
+        prod_manifest = """schema_version = "1.0.0"
 
 id = "em_tools"
 name = "EM Tools"
@@ -21,22 +63,17 @@ license = ["GPL-3.0"]
 
 blender_version_min = "4.0.0"
 
-platforms = ["windows-amd64", "macos-arm64", "macos-x64", "linux-x64"]
+[permissions]
+wheels = [
+    "./wheels/*.whl"
+]
+
+platforms = ["windows-x64", "macos-arm64", "macos-x64", "linux-x64"]
 tags = ["3D View", "Import-Export", "Tools"]
 """
-    
-    with open('blender_manifest.toml', 'w') as f:
-        f.write(dev_manifest)
-    
-    print("Switched to development mode")
-
-def switch_to_prod():
-    """Ripristina configurazione per produzione"""
-    if os.path.exists('blender_manifest_prod.toml'):
-        shutil.copy('blender_manifest_prod.toml', 'blender_manifest.toml')
-        print("Switched to production mode")
-    else:
-        print("Production manifest not found!")
+        with open(manifest_path, 'w') as f:
+            f.write(prod_manifest)
+        print("Created and switched to production mode")
 
 if __name__ == '__main__':
     mode = sys.argv[1] if len(sys.argv) > 1 else 'dev'
