@@ -32,11 +32,11 @@ class VersionManager:
     
     def get_version_string(self, config: Dict) -> str:
         """Genera stringa di versione basata sul mode"""
-        base = f"{config['major']}.{config['minor']}.{config['patch']}"
+        base = f"{config.get('major', 1)}.{config.get('minor', 5)}.{config.get('patch', 0)}"
         
-        if config['mode'] == 'dev':
-            return f"{base}-dev.{config['dev_build']}"
-        elif config['mode'] == 'rc':
+        if config.get('mode') == 'dev':
+            return f"{base}-dev.{config.get('dev_build', 0)}"
+        elif config.get('mode') == 'rc':
             return f"{base}-rc.{config.get('rc_build', 1)}"
         else:  # stable
             return base
