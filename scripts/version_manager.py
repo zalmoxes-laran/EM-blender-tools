@@ -46,21 +46,21 @@ class VersionManager:
         config = self.load_version_config()
         
         if part == 'dev_build':
-            config['dev_build'] += 1
+            config['dev_build'] = config.get('dev_build', 0) + 1
         elif part == 'rc_build':
             config['rc_build'] = config.get('rc_build', 0) + 1
         elif part == 'patch':
-            config['patch'] += 1
+            config['patch'] = config.get('patch', 0) + 1
             config['dev_build'] = 0
             # Reset RC quando incrementiamo patch
             config['rc_build'] = 1
         elif part == 'minor':
-            config['minor'] += 1
+            config['minor'] = config.get('minor', 5) + 1
             config['patch'] = 0
             config['dev_build'] = 0
             config['rc_build'] = 1
         elif part == 'major':
-            config['major'] += 1
+            config['major'] = config.get('major', 1) + 1
             config['minor'] = 0
             config['patch'] = 0
             config['dev_build'] = 0
@@ -138,8 +138,8 @@ wheels = [
         # Sostituisci i placeholder
         manifest_content = template.format(
             VERSION=version,
-            WHEELS_SECTION=self.generate_wheels_section(config['mode']),
-            DEPENDENCIES_SECTION=self.generate_dependencies_section(config['mode'])
+            WHEELS_SECTION=self.generate_wheels_section(config.get('mode', 'dev')),
+            DEPENDENCIES_SECTION=self.generate_dependencies_section(config.get('mode', 'dev'))
         )
         
         # Scrivi il manifest finale
@@ -156,7 +156,7 @@ wheels = [
         
         print(f"✅ Manifest generated: {self.manifest_file}")
         print(f"   Version: {version}")
-        print(f"   Mode: {config['mode']}")
+        print(f"   Mode: {config.get('mode', 'dev')}")
         
         return version
     
@@ -207,4 +207,4 @@ if __name__ == "__main__":
     elif args.action == 'current':
         config = vm.load_version_config()
         version = vm.get_version_string(config)
-        print(f"Current version: {version} (mode: {config['mode']})")
+        print(f"Current version: {version} (mode: {config.get('mode', 'dev')})")
