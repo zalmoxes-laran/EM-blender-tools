@@ -9,8 +9,13 @@ __pycache__/
 blender_manifest.toml          # File generato dinamicamente - NON committare
 *.blext                        # Package finali
 build/                         # Directory build temporanea
+dist/                          # Directory di distribuzione
+releases/                      # Directory releases locali
 wheels/                        # Wheels scaricate - non committare
 *.whl
+
+# Directory releases ESTERNA (per sicurezza)
+../EM_Tools_Releases/
 
 # Version management
 version.json.backup
