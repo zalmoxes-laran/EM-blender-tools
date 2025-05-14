@@ -117,3 +117,5 @@ telegram_credentials.py
 
 # Specific EM Tools files
 em-blender-tools_updater/EM-blender-tools_updater_status.json
+# Generated manifest - ignore
+/blender_manifest.toml
