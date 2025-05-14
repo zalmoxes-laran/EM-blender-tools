@@ -16,18 +16,6 @@ emanuel.demetrescu@cnr.it
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-bl_info = {
-    "name": "EM tools",
-    "author": "E. Demetrescu",
-    "version": (1, 5, 0),
-    "blender": (4, 0, 0),
-    "warning": "1.5.0-dev.41",
-    "category": "Tools",
-}
-
-def get_bl_info():
-    return bl_info
-
 import bpy
 from bpy.props import (
     StringProperty,

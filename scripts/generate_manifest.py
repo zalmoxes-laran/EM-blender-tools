@@ -48,7 +48,7 @@ def switch_to_prod(platform='windows'):
 
 id = "em_tools"
 name = "EM Tools"
-version = "1.5.0"
+version = "1.5.0-dev.42"
 tagline = "Blender tools for Extended Matrix"
 maintainer = "E. Demetrescu <emanuel.demetrescu@cnr.it>"
 type = "add-on"
