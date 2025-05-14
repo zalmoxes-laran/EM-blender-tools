@@ -23,7 +23,7 @@ def get_platform_tags():
     machine = platform.machine().lower()
     
     if system == 'windows':
-        return ['win_amd64']
+        return ['windows-x64']
     elif system == 'darwin':
         if machine == 'arm64':
             return ['macosx_11_0_arm64', 'macosx_10_9_universal2']
