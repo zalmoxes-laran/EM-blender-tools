@@ -119,3 +119,8 @@ telegram_credentials.py
 em-blender-tools_updater/EM-blender-tools_updater_status.json
 # Generated manifest - ignore
 /blender_manifest.toml
+
+# Build directory - always ignore
+build/
+/build/
+**/build/
