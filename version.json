@@ -2,7 +2,7 @@
   "major": 1,
   "minor": 5,
   "patch": 0,
-  "dev_build": 44,
+  "dev_build": 52,
   "rc_build": 1,
   "mode": "dev",
   "description": "Version configuration for EM Tools",

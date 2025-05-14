@@ -8,31 +8,62 @@ from pathlib import Path
 from version_manager import VersionManager
 
 def clean_build_directory(build_dir: Path):
-    """Pulisce la directory di build"""
+    """Pulisce la directory di build completamente"""
     if build_dir.exists():
+        print(f"Cleaning build directory: {build_dir}")
         shutil.rmtree(build_dir)
     build_dir.mkdir(parents=True)
+    print(f"✅ Build directory cleaned and recreated")
 
 def copy_source_files(source_dir: Path, build_dir: Path):
     """Copia i file sorgente nella directory di build"""
     exclude_patterns = {
         '.git', '.github', '__pycache__', '*.pyc', 'build', 'dist',
         'scripts', '.gitignore', '.vscode', '.DS_Store', '*.blext',
-        'blender_manifest_template.toml', 'version.json'
+        'blender_manifest_template.toml', 'version.json', 'em.bat', 'em.sh',
+        '*.backup', 'lib'  # Escludi 'lib' (vecchio approccio) ma NON 'wheels'!
     }
     
+    exclude_extensions = {'.blext', '.backup'}  # Escludi per estensione
+    
+    print(f"Copying source files from {source_dir} to {build_dir}")
+    copied_files = 0
+    skipped_files = 0
+    
     for item in source_dir.iterdir():
+        # Skip excluded patterns
         if item.name in exclude_patterns:
+            print(f"  Skipping (excluded): {item.name}")
+            skipped_files += 1
+            continue
+            
+        # Skip by extension
+        if item.suffix in exclude_extensions:
+            print(f"  Skipping (extension): {item.name}")
+            skipped_files += 1
             continue
             
         if item.name.startswith('.'):
+            print(f"  Skipping (hidden): {item.name}")
+            skipped_files += 1
             continue
             
         dest = build_dir / item.name
         if item.is_dir():
-            shutil.copytree(item, dest, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+            # Skip certain directories entirely  
+            if item.name in {'build', '__pycache__', '.git', '.github', 'lib'}:
+                print(f"  Skipping directory: {item.name}")
+                skipped_files += 1
+                continue
+            print(f"  Copying directory: {item.name}")
+            shutil.copytree(item, dest, ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '*.blext'))
         else:
+            print(f"  Copying file: {item.name}")
             shutil.copy2(item, dest)
+            copied_files += 1
+    
+    print(f"✅ Copied {copied_files} files and directories")
+    print(f"⏭️  Skipped {skipped_files} excluded items")
 
 def download_platform_wheels(platform: str, wheels_dir: Path):
     """Download wheels for specific platform"""
@@ -72,7 +103,13 @@ def build_extension(mode: str = 'dev', platform: str = None):
     root_dir = Path(__file__).parent.parent
     build_dir = root_dir / "build"
     
-    # Gestione versione
+    # Rimuovi vecchi file .blext per evitare raddoppiamenti
+    print("Cleaning old .blext files...")
+    for old_blext in root_dir.glob("*.blext"):
+        print(f"  Removing: {old_blext.name}")
+        old_blext.unlink()
+    
+    # Gestione versione - PRIMA genera il manifest!
     vm = VersionManager(root_dir)
     
     # Set mode se specificato
@@ -80,34 +117,58 @@ def build_extension(mode: str = 'dev', platform: str = None):
         vm.set_mode(mode)
     
     # Aggiorna i file con la versione corrente
-    version = vm.update_manifest()
+    version = vm.update_manifest()  # Questo genera blender_manifest.toml valido!
     
     print(f"Building EM Tools v{version} in {mode} mode...")
     
-    # Pulisci e prepara build directory
+    # Verifica che il manifest sia stato generato correttamente
+    manifest_file = root_dir / "blender_manifest.toml"
+    if not manifest_file.exists():
+        raise FileNotFoundError("blender_manifest.toml not found! Version manager failed.")
+    
+    # Verifica che il manifest contenga i campi richiesti
+    with open(manifest_file, 'r') as f:
+        manifest_content = f.read()
+        if '{VERSION}' in manifest_content or 'id' not in manifest_content:
+            raise ValueError("blender_manifest.toml contains unresolved placeholders!")
+    
+    print(f"✅ Manifest generated successfully for version {version}")
+    
+    # Pulisci e prepara build directory COMPLETAMENTE
     clean_build_directory(build_dir)
     
-    # Copia file sorgente
+    # Copia file sorgente (ESCLUSI i vecchi wheels/build)
     copy_source_files(root_dir, build_dir)
     
-    # Se modalità produzione, scarica wheels
-    if mode != 'dev':
-        wheels_dir = root_dir / "wheels"
-        wheels_dir.mkdir(exist_ok=True)
+    # VERIFICA WHEELS PRIMA DELLA COPIA
+    wheels_dir = root_dir / "wheels"
+    print(f"\n🔍 Checking wheels directory: {wheels_dir}")
+    print(f"   Exists: {wheels_dir.exists()}")
+    
+    if wheels_dir.exists():
+        wheel_files = list(wheels_dir.glob("*.whl"))
+        print(f"   Wheel files found: {len(wheel_files)}")
+        for wheel in wheel_files[:3]:  # Show first 3
+            print(f"     - {wheel.name}")
+        if len(wheel_files) > 3:
+            print(f"     ... and {len(wheel_files) - 3} more")
         
-        if platform:
-            # Download per piattaforma specifica
-            download_platform_wheels(platform, wheels_dir)
-        else:
-            # Download generico (usa setup_development.py)
-            print("Downloading wheels for development...")
-            wheels_script = root_dir / "scripts" / "setup_development.py"
-            subprocess.run([sys.executable, str(wheels_script)], cwd=root_dir)
-        
-        # Copia wheels nella build
+        # Verifica se le wheels sono già nella build directory
         wheels_build = build_dir / "wheels"
-        if wheels_dir.exists():
-            shutil.copytree(wheels_dir, wheels_build)
+        if wheels_build.exists():
+            copied_wheels = list(wheels_build.glob("*.whl"))
+            print(f"   ✅ Wheels already copied to build: {len(copied_wheels)}")
+        else:
+            print(f"   ❌ No wheels in build directory!")
+    else:
+        print("   ❌ Wheels directory not found!")
+        print("   Run 'em setup' to download wheels")
+    
+    # Se modalità produzione e non ci sono wheels, scaricale
+    if mode != 'dev' and not wheels_dir.exists():
+        print("Production mode but no wheels found - downloading...")
+        wheels_script = root_dir / "scripts" / "setup_development.py"
+        subprocess.run([sys.executable, str(wheels_script)], cwd=root_dir)
     
     # Crea il package blext con nome appropriato
     if platform and mode != 'dev':
@@ -126,7 +187,36 @@ def build_extension(mode: str = 'dev', platform: str = None):
                 zf.write(file_path, arc_name)
     
     print(f"✅ Extension built successfully: {package_path}")
-    print(f"📦 Size: {package_path.stat().st_size / (1024*1024):.1f} MB")
+    
+    # Calcola e mostra la dimensione
+    size_mb = package_path.stat().st_size / (1024*1024)
+    print(f"📦 Size: {size_mb:.1f} MB")
+    
+    # Debug info sui contenuti del package
+    with zipfile.ZipFile(package_path, 'r') as zf:
+        files_count = len(zf.namelist())
+        wheels_in_zip = [f for f in zf.namelist() if f.startswith('wheels/')]
+        manifest_in_zip = [f for f in zf.namelist() if f == 'blender_manifest.toml']
+        
+        print(f"📊 Package contents:")
+        print(f"   Total files: {files_count}")
+        print(f"   Wheels included: {len(wheels_in_zip)}")
+        print(f"   Manifest found: {'✅' if manifest_in_zip else '❌'}")
+        
+        if wheels_in_zip:
+            print(f"   Wheels list:")
+            for wheel in wheels_in_zip[:5]:  # Show first 5
+                print(f"     - {wheel}")
+            if len(wheels_in_zip) > 5:
+                print(f"     ... and {len(wheels_in_zip) - 5} more")
+        
+        # Verify manifest content in zip
+        if manifest_in_zip:
+            manifest_content = zf.read('blender_manifest.toml').decode('utf-8')
+            if 'wheels = [' in manifest_content:
+                print(f"   Manifest wheels section: ✅ Found")
+            else:
+                print(f"   Manifest wheels section: ❌ Missing")
     
     return package_path, version
 

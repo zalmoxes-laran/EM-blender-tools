@@ -78,49 +78,61 @@ class VersionManager:
     
     def generate_wheels_section(self, mode: str) -> str:
         """Genera la sezione wheels per la modalità specifica"""
-        if mode == 'dev':
-            return '''
-# Development mode - no wheels bundled
-# External dependencies must be installed manually
-'''
-        else:
-            # Per produzione, include tutte le wheels
-            wheels_dir = self.root_dir / "wheels"
-            if not wheels_dir.exists():
-                return "# No wheels directory found"
-            
-            wheels = [f for f in wheels_dir.glob("*.whl")]
-            if not wheels:
-                return "# No wheels found"
-            
+        # Controlla se esistono wheels
+        wheels_dir = self.root_dir / "wheels"
+        if not wheels_dir.exists():
+            return "# No wheels directory found"
+        
+        wheels = list(wheels_dir.glob("*.whl"))
+        if not wheels:
+            return "# No wheels found"
+        
+        # Se ci sono wheels, includile sia per dev che prod
+        # Formato corretto per Blender Extensions: array semplice di stringhe con virgole
+        wheels_list = []
+        for i, wheel in enumerate(wheels):
+            if i < len(wheels) - 1:
+                wheels_list.append(f'    "{wheel.name}",')
+            else:
+                wheels_list.append(f'    "{wheel.name}"')
+        
+        if wheels_list:
+            # Formato corretto per Blender Extensions
             return f'''
-[build]
-# Include all dependency wheels for distribution
-generated_wheels = true
-
-[[wheels]]
-url = "wheels/"
-'''
+# Wheels for dependencies
+wheels = [
+{chr(10).join(wheels_list)}
+]'''
+        else:
+            return "# No valid wheels found"
     
     def generate_dependencies_section(self, mode: str) -> str:
         """Genera la sezione dipendenze"""
-        if mode == 'dev':
-            return '''
-# Development dependencies
-# Install manually: pip install pandas networkx PIL openpyxl matplotlib
-'''
+        wheels_dir = self.root_dir / "wheels"
+        if wheels_dir.exists() and any(wheels_dir.glob("*.whl")):
+            return "# Dependencies included via wheels"
         else:
-            # Per produzione, le dipendenze sono nelle wheels
-            return "# Dependencies included in wheels"
+            return '''
+# External dependencies required:
+# pip install pandas networkx Pillow openpyxl matplotlib
+# Note: Run setup script to download wheels for packaging'''
     
     def update_manifest(self):
         """Aggiorna il manifest con la versione corrente"""
         config = self.load_version_config()
         version = self.get_version_string(config)
         
+        # Verifica che esista il template
+        if not self.manifest_template.exists():
+            raise FileNotFoundError(f"Template manifest not found: {self.manifest_template}")
+        
         # Leggi il template
         with open(self.manifest_template, 'r') as f:
             template = f.read()
+        
+        # Verifica che il template contenga i placeholder necessari
+        if '{VERSION}' not in template:
+            raise ValueError("Template manifest missing {VERSION} placeholder")
         
         # Sostituisci i placeholder
         manifest_content = template.format(
@@ -129,9 +141,21 @@ url = "wheels/"
             DEPENDENCIES_SECTION=self.generate_dependencies_section(config['mode'])
         )
         
-        # Scrivi il manifest
+        # Scrivi il manifest finale
         with open(self.manifest_file, 'w') as f:
             f.write(manifest_content)
+        
+        # Verifica che il manifest generato sia valido
+        with open(self.manifest_file, 'r') as f:
+            generated = f.read()
+            if 'id = "em_tools"' not in generated:
+                raise ValueError("Generated manifest missing required 'id' field")
+            if f'version = "{version}"' not in generated:
+                raise ValueError(f"Generated manifest missing correct version: {version}")
+        
+        print(f"✅ Manifest generated: {self.manifest_file}")
+        print(f"   Version: {version}")
+        print(f"   Mode: {config['mode']}")
         
         return version
     

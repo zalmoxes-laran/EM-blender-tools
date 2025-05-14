@@ -79,6 +79,21 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Install dependencies for local development
+echo
+echo "Installing dependencies for local development..."
+echo "Installing packages from requirements_wheels.txt..."
+while IFS= read -r line || [ -n "$line" ]; do
+    # Skip empty lines and comments
+    [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+    
+    echo "Installing $line for local development..."
+    $PYTHON_CMD -m pip install "$line" --user --upgrade
+    if [ $? -ne 0 ]; then
+        echo "WARNING: Failed to install $line"
+    fi
+done < requirements_wheels.txt
+
 # Setup VSCode
 echo
 echo "Setting up VSCode configuration..."

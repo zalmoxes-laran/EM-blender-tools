@@ -61,10 +61,49 @@ if !BLENDER_FOUND!==0 (
 echo.
 echo Downloading wheels...
 python setup_development.py
+
+:: Verifica il risultato
 if errorlevel 1 (
     echo ERROR: Failed to download wheels
+    echo Check the error messages above
     pause
     exit /b 1
+) else (
+    echo SUCCESS: Wheels download completed
+)
+
+:: Verifica che le wheels siano state create
+echo.
+echo Verifying wheels directory...
+cd ..
+if not exist "wheels" (
+    echo WARNING: wheels directory not created!
+    echo This means the download failed silently
+) else (
+    echo SUCCESS: wheels directory found
+    dir wheels\*.whl
+    echo.
+)
+cd scripts
+
+:: Installa dipendenze per sviluppo locale con VSCode
+echo.
+echo Installing dependencies for local development...
+
+:: Leggi packages dal file requirements_wheels.txt e installa
+echo Installing packages from requirements_wheels.txt...
+for /f "tokens=* delims=" %%a in (requirements_wheels.txt) do (
+    set line=%%a
+    :: Salta righe vuote e commenti
+    if not "!line!"=="" (
+        if not "!line:~0,1!"=="#" (
+            echo Installing !line! for local development...
+            python -m pip install "!line!" --user --upgrade
+            if errorlevel 1 (
+                echo WARNING: Failed to install !line!
+            )
+        )
+    )
 )
 
 :: Setup VSCode
