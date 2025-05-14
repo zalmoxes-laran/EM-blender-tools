@@ -1,0 +1,214 @@
+{
+  "em_connection_rules_version": "1.5.0",
+  "rules": [
+    {
+      "type": "is_before",
+      "label": "Chronological Sequence",
+      "description": "Indicates a temporal sequence where one item occurs before another.",
+      "allowed_connections": {
+        "source": ["StratigraphicNode"],
+        "target": ["StratigraphicNode"]
+      }
+    },
+    {
+      "type": "has_same_time",
+      "label": "Contemporaneous Elements",
+      "description": "Indicates that two elements are contemporaneous.",
+      "allowed_connections": {
+        "source": ["StratigraphicNode"],
+        "target": ["StratigraphicNode"]
+      }
+    },
+    {
+      "type": "changed_from",
+      "label": "Temporal Transformation",
+      "description": "Represents an object that changes over time.",
+      "allowed_connections": {
+        "source": ["StratigraphicNode"],
+        "target": ["StratigraphicNode"]
+      }
+    },
+    {
+      "type": "has_data_provenance",
+      "label": "Data Provenance",
+      "description": "Indicates the provenance of data, often linking to source nodes.",
+      "allowed_connections": {
+        "source": ["PropertyNode"],
+        "target": ["ExtractorNode","CombinerNode"]
+      }
+    },
+    {
+      "type": "contrasts_with",
+      "label": "Contrasting Time Branches",
+      "description": "Represents contrasting or mutually exclusive Time Branches.",
+      "allowed_connections": {
+        "source": ["TimeBranchNodeGroup"],
+        "target": ["TimeBranchNodeGroup"]
+      }
+    },
+    {
+      "type": "has_first_epoch",
+      "label": "Has First Epoch",
+      "description": "Indicates the initial epoch associated with a node.",
+      "allowed_connections": {
+        "source": ["StratigraphicNode", "RepresentationModelDocNode","RepresentationModelNode","RepresentationModelSpecialFindNode"],
+        "target": ["EpochNode"]
+      }
+    },
+    {
+      "type": "survive_in_epoch",
+      "label": "Survives In Epoch",
+      "description": "Indicates that a node continues to exist in a given epoch.",
+      "allowed_connections": {
+        "source": ["StratigraphicNode", "RepresentationModelDocNode","RepresentationModelNode","RepresentationModelSpecialFindNode"],
+        "target": ["EpochNode"]
+      }
+    },
+    {
+      "type": "is_in_activity",
+      "label": "Part of Activity",
+      "description": "Indicates that a node is part of a specific activity.",
+      "allowed_connections": {
+        "source": ["StratigraphicNode", "ParadataNode", "ParadataNodeGroup", "DocumentNode", "ExtractorNode", "CombinerNode", "PropertyNode"],
+        "target": ["ActivityNodeGroup"]
+      }
+    },
+    {
+      "type": "has_property",
+      "label": "Has Property",
+      "description": "Connects a node to one of its properties.",
+      "allowed_connections": {
+        "source": ["StratigraphicNode"],
+        "target": ["PropertyNode"]
+      }
+    },
+    {
+      "type": "extracted_from",
+      "label": "Extracted From",
+      "description": "Indicates that information is derived from a particular source.",
+      "allowed_connections": {
+        "source": ["ExtractorNode"],
+        "target": ["DocumentNode"]
+      }
+    },
+    {
+      "type": "combines",
+      "label": "Combines",
+      "description": "Indicates that a node combines information from various sources.",
+      "allowed_connections": {
+        "source": ["CombinerNode"],
+        "target": ["ExtractorNode"]
+      }
+    },
+    {
+      "type": "is_in_timebranch",
+      "label": "Included in Timebranch",
+      "description": "Indicates that a node belongs to a specific time branch.",
+      "allowed_connections": {
+        "source": ["StratigraphicNode"],
+        "target": ["TimeBranchNodeGroup"]
+      }
+    },
+    {
+      "type": "has_timebranch",
+      "label": "Connected to a Timebranch",
+      "description": "Indicates that a node is connected to a specific time branch.",
+      "allowed_connections": {
+        "source": ["StratigraphicNode"],
+        "target": ["TimeBranchNodeGroup"]
+      }
+    },
+    {
+      "type": "has_author",
+      "label": "Has author",
+      "description": "Represents the connection of a node with its author.",
+      "allowed_connections": {
+        "source": ["GraphNode","StratigraphicNode", "ParadataNode", "GroupNode", "DocumentNode", "ExtractorNode", "CombinerNode", "PropertyNode"],
+        "target": ["AuthorNode"]
+      }
+    },
+    {
+      "type": "has_geoposition",
+      "label": "Has geoposition",
+      "description": "Represents a connection with the geoposition node of a given node",
+      "allowed_connections": {
+        "source": ["StratigraphicNode", "ParadataNode"],
+        "target": ["GeoPositionNode"]
+      }
+    },
+    {
+      "type": "has_linked_resource",
+      "label": "Has a linked resource",
+      "description": "Represents a connection between a node and a linked resource node",
+      "allowed_connections": {
+        "source": ["StratigraphicNode", "ParadataNode","RepresentationModelNode","RepresentationModelDocNode","RepresentationModelSpecialFindNode"],
+        "target": ["LinkNode"]
+      }
+    },
+    {
+      "type": "has_representation_model",
+      "label": "Has a representation 3D model",
+      "description": "Represents a connection between a stratigraphic, extractor or document node and representation 3D model",
+      "allowed_connections": {
+        "source": ["StratigraphicNode", "ExtractorNode", "DocumentNode"],
+        "target": ["RepresentationModelNode","RepresentationModelDocNode","RepresentationModelSpecialFindNode"]
+      }
+    },
+    {
+      "type": "has_semantic_shape",
+      "label": "Has Semantic Shape",
+      "description": "Connects any node to its semantic shape representation",
+      "allowed_connections": {
+          "source": ["Node"],  
+          "target": ["SemanticShapeNode"]
+      }
+    },
+    {
+      "type": "is_in_paradata_nodegroup",
+      "label": "Belongs to a Paradata Node Group",
+      "description": "Indicates that a node belongs to a paradata node group.",
+      "allowed_connections": {
+          "source": ["DocumentNode", "ExtractorNode", "CombinerNode", "ParadataNode"],
+          "target": ["ParadataNodeGroup"]
+      }
+    },
+    {
+      "type": "has_paradata_nodegroup",
+      "label": "Is connected to a Paradata Node Group",
+      "description": "Indicates that a node is connected to a paradata node group.",
+      "allowed_connections": {
+          "source": ["StratigraphicNode"],
+          "target": ["ParadataNodeGroup"]
+      }
+    },
+    {
+      "type": "generic_connection",
+      "label": "Generic Connection",
+      "description": "Represents a non-specific connection between two nodes.",
+      "allowed_connections": {
+        "source": ["StratigraphicNode", "PropertyNode"],
+        "target": ["StratigraphicNode", "PropertyNode"]
+      }
+    },
+
+    {
+      "type": "has_license",
+      "label": "Has License",
+      "description": "Indicates that a node is associated with a license.",
+      "allowed_connections": {
+        "source": ["Node"],
+        "target": ["LicenseNode"]
+      }
+    },
+    {
+      "type": "has_embargo",
+      "label": "Has Embargo",
+      "description": "Indicates that a license is associated with an embargo.",
+      "allowed_connections": {
+        "source": ["LicenseNode"],
+        "target": ["EmbargoNode"]
+      }
+    }
+  ]
+}
+  

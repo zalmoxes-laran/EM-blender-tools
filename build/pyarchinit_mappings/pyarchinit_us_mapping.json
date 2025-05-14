@@ -1,0 +1,58 @@
+{
+    "name": "pyArchInit US Table",
+    "description": "Mapping for pyArchInit Stratigraphic Units table (us_table)",
+    "version": "1.0",
+    "table_settings": {
+        "format_type": "sqlite",
+        "table_name": "us_table"
+    },
+    "column_mappings": {
+        "us": {
+            "node_type": "StratigraphicUnit",
+            "is_id": true
+        },
+        "d_stratigrafica": {
+            "node_type": "StratigraphicUnit", 
+            "is_description": true,
+            "target_id_column": "us"
+        },
+        "d_interpretativa": {
+            "node_type": "PropertyNode",
+            "property_name": "Interpretation",
+            "display_name": "Interpretation",
+            "description": "Interpretation of the stratigraphic unit",
+            "create_empty": true
+        },
+        "attivita": {
+            "node_type": "PropertyNode",
+            "property_name": "Activity",
+            "display_name": "Activity type", 
+            "description": "Type of archaeological activity",
+            "create_empty": true
+        },
+        "struttura": {
+            "node_type": "PropertyNode",
+            "property_name": "Structure",
+            "display_name": "Structure type",
+            "description": "Type of archaeological structure",
+            "create_empty": true
+        }
+    },
+    "relations": [
+        {
+            "source_column": "us",
+            "target_column": "d_interpretativa",
+            "edge_type": "has_property"
+        },
+        {
+            "source_column": "us", 
+            "target_column": "attivita",
+            "edge_type": "has_property"
+        },
+        {
+            "source_column": "us",
+            "target_column": "struttura",
+            "edge_type": "has_property"
+        }
+    ]
+}

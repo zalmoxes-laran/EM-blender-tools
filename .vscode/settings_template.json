@@ -1,0 +1,44 @@
+{
+    "blender.addon.sourceDirectory": ".",
+    "blender.addon.reloadOnSave": true,
+    "blender.executable": "BLENDER_PATH_PLACEHOLDER",
+    "python.defaultInterpreterPath": "python",
+    "python.analysis.extraPaths": [
+        "./",
+        "./scripts/"
+    ],
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "build/": true,
+        "wheels/": true,
+        "*.blext": true,
+        ".git": true
+    },
+    "files.watcherExclude": {
+        "**/wheels/**": true,
+        "**/build/**": true,
+        "**/__pycache__/**": true
+    },
+    "search.exclude": {
+        "wheels/": true,
+        "build/": true,
+        "**/__pycache__": true
+    },
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": true,
+    "python.linting.flake8Args": [
+        "--max-line-length=120",
+        "--ignore=E501,W503"
+    ],
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "python.formatting.provider": "black",
+    "python.formatting.blackArgs": [
+        "--line-length=120"
+    ],
+    "[python]": {
+        "editor.formatOnSave": true
+    }
+}

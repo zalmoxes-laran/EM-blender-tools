@@ -1,32 +1,47 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
-__pycache__/*.*
+**/__pycache__/
 *.py[cod]
 *$py.class
+*.so
 
-# Manifest temporanei
-blender_manifest_prod.toml
-blender_manifest_vscode.toml
-
-# Wheels e dipendenze
-wheels/
+# Blender Extension specifics
+blender_manifest.toml          # File generato dinamicamente - NON committare
+*.blext                        # Package finali
+build/                         # Directory build temporanea
+wheels/                        # Wheels scaricate - non committare
 *.whl
 
-# IDE
-.vscode/
+# Version management
+version.json.backup
+
+# Development backups
+*.backup
+
+# VSCode workspace specifics
+.vscode/settings.json          # File specifico per utente - generato da template
+.vscode/launch.json           # Configurazioni specifiche utente
+
+# Ma mantieni il template VSCode!
+# .vscode/settings_template.json  <- QUESTO VA COMMITTATO
+
+# IDE files
 .idea/
+*.swp
+*.swo
+*~
 
-# Build
-build/
-dist/
-*.blext
-
-# C extensions
-*.so
+# OS files
+.DS_Store
+Thumbs.db
 
 # Distribution / packaging
 .Python
 env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 develop-eggs/
 downloads/
 eggs/
@@ -36,50 +51,64 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
+# Testing
+.coverage
+.pytest_cache/
 htmlcov/
 .tox/
-.coverage
-.coverage.*
 .cache
 nosetests.xml
 coverage.xml
-*,cover
+*.cover
+.hypothesis/
 
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-
-# Sphinx documentation
+# Documentation builds
 docs/_build/
-
-# PyBuilder
 target/
-.vscode/launch.json
-em-blender-tools_updater/EM-blender-tools_updater_status.json
-telegram_credentials.py
-.vscode/settings.json
-s3Dgraphy/.DS_Store
-.DS_Store
-s3Dgraphy/.DS_Store
-s3Dgraphy/JSON_config/.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# Logs
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Temporary files
+*~
+.tmp/
+temp/
+
+# LaTeX
+*.fls
+*.fdb_latexmk
+*.aux
+*.log
+*.out
+*.synctex.gz
+
+# Archives
+*.tar.gz
+*.zip
+*.7z
+*.rar
+
+# Dev utilities output
 dev_utils/foldertree.txt
-s3Dgraphy/.DS_Store
-s3Dgraphy/.DS_Store
+
+# Telegram credentials (se presenti)
+telegram_credentials.py
+
+# Specific EM Tools files
+em-blender-tools_updater/EM-blender-tools_updater_status.json

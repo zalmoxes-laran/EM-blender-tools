@@ -1,0 +1,323 @@
+{
+    "version": "1.5",
+    "context": {
+        "absolute_time_periods": {
+            "roman_kingdom": {
+                "name": "Epoca regia romana",
+                "start": -753,
+                "end": -509,
+                "color": "#FFD700"
+            },
+            "roman_republic": {
+                "name": "Epoca repubblicana romana",
+                "start": -509,
+                "end": -27,
+                "color": "#CD5C5C"
+            },
+            "roman_empire": {
+                "name": "Epoca imperiale romana",
+                "start": -27,
+                "end": 476,
+                "color": "#800020"
+            },
+            "early_middle_ages": {
+                "name": "Alto Medioevo",
+                "start": 476,
+                "end": 1000,
+                "color": "#4B0082"
+            }
+        }
+    },
+    "graphs": {
+        "domus_romana_01": {
+            "id": "domus_romana_01",
+            "name": "Domus del Criptoportico",
+            "description": "Scavo stratigrafico della Domus del Comandante",
+            "defaults": {
+                "license": "CC-BY-NC-ND",
+                "authors": ["author_01", "author_02"],
+                "embargo_until": "2025-12-31"
+            },
+            "nodes": {
+                "authors": {
+                    "author_01": {
+                        "type": "author",
+                        "name": "Indiana Jones",
+                        "description": "Archeologo responsabile dello scavo",
+                        "data": {
+                            "orcid": "0000-0002-1825-0097",
+                            "affiliation": "CNR ISPC"
+                        }
+                    },
+                    "author_02": {
+                        "type": "author",
+                        "name": "Giuseppe Verdi",
+                        "description": "Archeologo specialista in rilievo 3D",
+                        "data": {
+                            "orcid": "0000-0002-1825-0098",
+                            "affiliation": "CNR ISPC"
+                        }
+                    }
+                },
+                "stratigraphic": {
+                    "US": {
+                        "US01": {
+                            "type": "US",
+                            "name": "US01",
+                            "description": "Piano pavimentale in opus spicatum",
+                            "data": {
+                                "y_pos": 1307.9586181640625,
+                                "authors": ["author_01"],
+                                "license": "CC-BY-SA"
+                            }
+                        },
+                        "US02": {
+                            "type": "US",
+                            "name": "US02",
+                            "description": "Preparazione pavimentale in cocciopesto",
+                            "data": {
+                                "y_pos": 1290.5
+                            }
+                        }
+                    },
+                    "USVs": {
+                        "USVs01": {
+                            "type": "USVs",
+                            "name": "USVs01",
+                            "description": "Ricostruzione virtuale della copertura del criptoportico",
+                            "data": {
+                                "y_pos": 1250.5
+                            }
+                        }
+                    },
+                    "SF": {
+                        "SF01": {
+                            "type": "SF",
+                            "name": "SF01",
+                            "description": "Frammento di affresco con decorazione vegetale",
+                            "data": {
+                                "y_pos": 1280.5
+                            }
+                        }
+                    }
+                },
+                "epochs": {
+                    "epoch_republican": {
+                        "type": "epoch",
+                        "name": "Fase repubblicana della domus",
+                        "description": "Prima fase costruttiva dell'edificio",
+                        "data": {
+                            "start_time": -150,
+                            "end_time": -27,
+                            "color": "#CD5C5C"
+                        }
+                    },
+                    "epoch_imperial": {
+                        "type": "epoch",
+                        "name": "Fase imperiale della domus",
+                        "description": "Ristrutturazione di età augustea",
+                        "data": {
+                            "start_time": -27,
+                            "end_time": 14,
+                            "color": "#800020"
+                        }
+                    }
+                },
+                "groups": {
+                    "TB01": {
+                        "type": "TimeBranchNodeGroup",
+                        "name": "Prima ipotesi ricostruttiva",
+                        "description": "Ricostruzione basata sui dati di scavo 2022"
+                    },
+                    "ACT01": {
+                        "type": "ActivityNodeGroup",
+                        "name": "Costruzione pavimento",
+                        "description": "Attività di messa in opera del pavimento in opus spicatum"
+                    }
+                },
+                "properties": {
+                    "US01_height": {
+                        "type": "property",
+                        "property_type": "Height",
+                        "description": "0.15",
+                        "data": {
+                            "time_start": -150,
+                            "time_end": 14,
+                            "authors": ["author_01"]
+                        }
+                    },
+                    "US01_material": {
+                        "type": "property",
+                        "property_type": "Material",
+                        "description": "Laterizi disposti a spina di pesce",
+                        "data": {
+                            "authors": ["author_01"]
+                        }
+                    }
+                },
+                "documents": {
+                    "doc_01": {
+                        "type": "document",
+                        "name": "D.01",
+                        "description": "Fotografia zenitale del pavimento",
+                        "data": {
+                            "url_type": "image",
+                            "linked_resources": ["link_01"]
+                        }
+                    },
+                    "doc_02": {
+                        "type": "document",
+                        "name": "D.02",
+                        "description": "Rilievo fotogrammetrico del pavimento",
+                        "data": {
+                            "url_type": "3d_model",
+                            "linked_resources": ["link_02"]
+                        }
+                    }
+                },
+                "extractors": {
+                    "D01_ext_01": {
+                        "type": "extractor",
+                        "name": "D.01.01",
+                        "description": "Misurazione spessore pavimento da fotografia",
+                        "data": {
+                            "authors": ["author_01"],
+                            "source": "doc_01"
+                        }
+                    }
+                },
+                "combiners": {
+                    "C01": {
+                        "type": "combiner",
+                        "name": "C.01",
+                        "description": "Datazione pavimento da tecnica e stratigrafia",
+                        "data": {
+                            "authors": ["author_01"],
+                            "sources": ["D01_ext_01", "US01_material"]
+                        }
+                    }
+                },
+                "links": {
+                    "link_01": {
+                        "type": "link",
+                        "name": "Foto zenitale HD",
+                        "description": "Fotografia ad alta risoluzione del pavimento",
+                        "data": {
+                            "url": "https://archive.org/photo_01.jpg",
+                            "url_type": "image"
+                        }
+                    },
+                    "link_02": {
+                        "type": "link",
+                        "name": "Modello 3D",
+                        "description": "Modello fotogrammetrico del pavimento",
+                        "data": {
+                            "url": "https://sketchfab.com/model_01",
+                            "url_type": "3d_model"
+                        }
+                    }
+                },
+                "geo": {
+                    "geo_domus_romana_01": {
+                        "type": "geo_position",
+                        "name": "Coordinate Domus",
+                        "description": "Posizione del complesso archeologico",
+                        "data": {
+                            "epsg": 3004,
+                            "shift_x": 0,
+                            "shift_y": 0,
+                            "shift_z": 0
+                        }
+                    }
+                }
+            },
+            "edges": {
+                "is_before": [
+                    {
+                        "id": "seq_1",
+                        "from": "US02",
+                        "to": "US01"
+                    }
+                ],
+                "has_same_time": [
+                    {
+                        "id": "contemp_1",
+                        "from": "US01",
+                        "to": "USVs01"
+                    }
+                ],
+                "has_data_provenance": [
+                    {
+                        "id": "prov_1",
+                        "from": "US01_height",
+                        "to": "D01_ext_01"
+                    }
+                ],
+                "has_author": [
+                    {
+                        "id": "auth_1",
+                        "from": "US01",
+                        "to": "author_01"
+                    }
+                ],
+                "has_first_epoch": [
+                    {
+                        "id": "epoch_1",
+                        "from": "US01",
+                        "to": "epoch_imperial"
+                    }
+                ],
+                "survive_in_epoch": [
+                    {
+                        "id": "survive_1",
+                        "from": "US02",
+                        "to": "epoch_imperial"
+                    }
+                ],
+                "is_in_activity": [
+                    {
+                        "id": "act_1",
+                        "from": "US01",
+                        "to": "ACT01"
+                    },
+                    {
+                        "id": "act_2",
+                        "from": "US02",
+                        "to": "ACT01"
+                    }
+                ],
+                "has_property": [
+                    {
+                        "id": "prop_1",
+                        "from": "US01",
+                        "to": "US01_height"
+                    },
+                    {
+                        "id": "prop_2",
+                        "from": "US01",
+                        "to": "US01_material"
+                    }
+                ],
+                "has_timebranch": [
+                    {
+                        "id": "tb_1",
+                        "from": "US01",
+                        "to": "TB01"
+                    }
+                ],
+                "has_linked_resource": [
+                    {
+                        "id": "link_1",
+                        "from": "doc_01",
+                        "to": "link_01"
+                    },
+                    {
+                        "id": "link_2",
+                        "from": "doc_02",
+                        "to": "link_02"
+                    }
+                ]
+            }
+        }
+    }
+}

@@ -1,80 +1,209 @@
 # .github/workflows/release.yml
-name: Build Extension
+name: Build EM Tools Extensions (Multi-Platform)
 
 on:
   push:
     tags:
-      - 'v*.*.*'      # Versioni stabili (es. v1.5.0)
-      - 'v*.*.*-*'    # Versioni pre-release (es. v1.5.0-beta.1)
+      - 'v*.*.*'      # Stable releases (v1.5.0)
+      - 'v*.*.*-rc.*' # Release candidates (v1.5.0-rc.1)
+      - 'v*.*.*-dev.*' # Dev releases (v1.5.0-dev.43)
+  
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Version tag (e.g., v1.5.0-dev.43)'
+        required: true
+        type: string
 
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        platform: [windows, macos-arm, macos-intel, linux]
+        platform: [windows-x64, macosx-arm64, macosx-x64, linux-x64]
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
       
-      - name: Create wheels directory
-        run: mkdir -p wheels
-      
-      - name: Download wheels for all platforms
+      - name: Extract version from tag
+        id: version
         run: |
-          # Leggi requirements
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.version_tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          VERSION=${TAG#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+      
+      - name: Download platform-specific wheels
+        run: |
+          mkdir -p wheels
+          
+          # Map GitHub platform to pip platform tags
+          case "${{ matrix.platform }}" in
+            windows-x64)
+              PIP_PLATFORM="win_amd64"
+              ;;
+            macosx-arm64)
+              PIP_PLATFORM="macosx_11_0_arm64"
+              ;;
+            macosx-x64)
+              PIP_PLATFORM="macosx_10_13_x86_64"
+              ;;
+            linux-x64)
+              PIP_PLATFORM="manylinux2014_x86_64"
+              ;;
+          esac
+          
+          echo "Downloading wheels for $PIP_PLATFORM..."
+          
+          # Download each package for the specific platform
           while IFS= read -r package || [ -n "$package" ]; do
-            # Salta righe vuote e commenti
+            # Skip empty lines and comments
             [[ -z "$package" || "$package" =~ ^[[:space:]]*# ]] && continue
             
-            # Leggi piattaforme
-            while IFS= read -r platform || [ -n "$platform" ]; do
-              [[ -z "$platform" || "$platform" =~ ^[[:space:]]*# ]] && continue
-              echo "Downloading $package for $platform..."
-              pip download "$package" --only-binary=:all: --platform="$platform" --python-version=3.11 -d wheels/
-            done < scripts/platforms.txt
+            echo "Downloading $package for $PIP_PLATFORM..."
+            pip download "$package" \
+              --only-binary=:all: \
+              --platform="$PIP_PLATFORM" \
+              --python-version=3.11 \
+              --implementation=cp \
+              --abi=cp311 \
+              -d wheels/ || true
           done < scripts/requirements_wheels.txt
+          
+          # List downloaded wheels
+          echo "Downloaded wheels:"
+          ls -la wheels/
       
       - name: Generate platform-specific manifest
         run: |
-          python scripts/generate_manifest.py prod ${{ matrix.platform }}
+          python scripts/version_manager.py set-mode --mode stable
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Update version.json
+          python -c "
+          import json
+          config = {'version': '$VERSION', 'platform': '${{ matrix.platform }}'}
+          with open('version.json', 'w') as f:
+              json.dump(config, f, indent=2)
+          "
+          
+          # Update manifest
+          python scripts/version_manager.py update
       
-      - name: Create extension package
+      - name: Create platform-specific package
         run: |
-          # Crea pacchetto specifico per piattaforma
-          platform_name="${{ matrix.platform }}"
-          case $platform_name in
-            "macos-arm") platform_suffix="macosx_arm64" ;;
-            "macos-intel") platform_suffix="macosx_x64" ;;
-            "windows") platform_suffix="windows_x64" ;;
-            "linux") platform_suffix="linux_x64" ;;
-          esac
+          PLATFORM="${{ matrix.platform }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          PACKAGE_NAME="em_tools-v${VERSION}-${PLATFORM}.blext"
           
-          zip -r "em_tools-${{ github.ref_name }}-${platform_suffix}.zip" \
-            . -x ".git/*" ".github/*" "*.pyc" "__pycache__/*" "scripts/*" ".gitignore"
+          # Create build directory
+          mkdir -p build
           
-          # Rinomina in .blext
-          mv "em_tools-${{ github.ref_name }}-${platform_suffix}.zip" \
-             "em_tools-${{ github.ref_name }}-${platform_suffix}.blext"
+          # Copy all addon files except development files
+          rsync -av --exclude='.git' \
+                    --exclude='.github' \
+                    --exclude='scripts' \
+                    --exclude='__pycache__' \
+                    --exclude='*.pyc' \
+                    --exclude='build' \
+                    --exclude='*.blext' \
+                    --exclude='.gitignore' \
+                    --exclude='blender_manifest_template.toml' \
+                    --exclude='version.json' \
+                    --exclude='em.bat' \
+                    --exclude='em.sh' \
+                    . build/
+          
+          # Copy platform-specific wheels
+          cp -r wheels build/ 2>/dev/null || true
+          
+          # Create the blext package
+          cd build
+          zip -r "../${PACKAGE_NAME}" . -x "*.pyc" "__pycache__/*"
+          cd ..
+          
+          echo "Created package: ${PACKAGE_NAME}"
+          ls -la "${PACKAGE_NAME}"
+          
+          # Store package name for release
+          echo "package_name=${PACKAGE_NAME}" >> $GITHUB_ENV
+      
+      - name: Upload platform package
+        uses: actions/upload-artifact@v4
+        with:
+          name: em_tools-${{ matrix.platform }}
+          path: ${{ env.package_name }}
+  
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      
+      - name: Extract version info
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.version_tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          VERSION=${TAG#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
       
       - name: Check if prerelease
         id: prerelease
         run: |
-          if [[ "${{ github.ref_name }}" =~ -(alpha|beta|rc|dev) ]]; then
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ "$VERSION" =~ -(dev|rc|alpha|beta) ]]; then
             echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "release_type=pre-release" >> $GITHUB_OUTPUT
           else
             echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "release_type=stable" >> $GITHUB_OUTPUT
           fi
       
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: em_tools-${{ github.ref_name }}-*.blext
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: EM Tools ${{ steps.version.outputs.tag }}
+          files: em_tools-*.blext
           prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
+          generate_release_notes: true
+          body: |
+            ## EM Tools ${{ steps.version.outputs.tag }}
+            
+            This is a **${{ steps.prerelease.outputs.release_type }}** of EM Tools.
+            
+            ### Platform-Specific Downloads
+            - **Windows (x64)**: `em_tools-${{ steps.version.outputs.tag }}-windows-x64.blext`
+            - **macOS (Apple Silicon)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-arm64.blext`
+            - **macOS (Intel)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-x64.blext`
+            - **Linux (x64)**: `em_tools-${{ steps.version.outputs.tag }}-linux-x64.blext`
+            
+            ### Installation
+            1. Download the appropriate `.blext` file for your platform
+            2. In Blender 4.0+: **Extensions** → **Install from Disk**
+            3. Select the downloaded file
+            4. Enable the extension
+            
+            ### What's Included
+            Each platform package contains only the wheels needed for that specific platform, resulting in smaller file sizes.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

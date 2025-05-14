@@ -1,0 +1,313 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "last_updated": "2025-01-29",
+    "maintainers": ["Emanuel Demetrescu"],
+    "license": "CC-BY-4.0",
+    "description": "Comprehensive document types definition for Extended Matrix"
+  },
+  "vocabulary_versions": {
+    "getty_aat": "2024-01",
+    "cidoc_crm": "7.1.1",
+    "dublin_core": "2020-01-20"
+  },
+  "document_types": {
+    "spatial_documentation": {
+      "id": "spatial_documentation",
+      "name": "Spatial Documentation",
+      "description": "Documents containing spatial information",
+      "vocabulary_mappings": {
+        "getty_aat": "300389935",
+        "cidoc_crm": {
+          "class": "E36_Visual_Item",
+          "property": "P67_refers_to"
+        },
+        "dublin_core": {
+          "type": "dcterms:spatial"
+        }
+      },
+      "subtypes": {
+        "3d_model": {
+          "id": "3d_model",
+          "name": "3D Model",
+          "formats": ["gltf", "obj", "ply", "fbx", "3ds", "e57"],
+          "possible_extractions": [
+            "dimensions",
+            "spatial_relationships",
+            "geometric_features",
+            "volume",
+            "surface_properties"
+          ],
+          "supported_extractors": [
+            "3d_model_analysis",
+            "geometric_analysis",
+            "spatial_pattern_analysis"
+          ],
+          "metadata_requirements": {
+            "mandatory": [
+              "creation_date",
+              "creator",
+              "software_used",
+              "coordinate_system",
+              "spatial_resolution"
+            ],
+            "optional": [
+              "accuracy_assessment",
+              "processing_workflow",
+              "registration_method",
+              "point_cloud_density"
+            ]
+          }
+        },
+        "technical_drawing": {
+          "id": "technical_drawing",
+          "name": "Technical Drawing",
+          "formats": ["dwg", "dxf", "pdf", "svg"],
+          "possible_extractions": [
+            "dimensions",
+            "construction_details",
+            "spatial_layout",
+            "architectural_elements"
+          ],
+          "supported_extractors": [
+            "technical_drawing_analysis",
+            "architectural_analysis"
+          ],
+          "metadata_requirements": {
+            "mandatory": [
+              "creation_date",
+              "author",
+              "scale",
+              "drawing_type",
+              "reference_system"
+            ],
+            "optional": [
+              "revision_history",
+              "drawing_conventions",
+              "associated_specifications"
+            ]
+          }
+        }
+      }
+    },
+    "scientific_documentation": {
+      "id": "scientific_documentation",
+      "name": "Scientific Documentation",
+      "description": "Scientific analysis and laboratory documentation",
+      "vocabulary_mappings": {
+        "getty_aat": "300379612",
+        "cidoc_crm": {
+          "class": "E31_Document",
+          "property": "P140_assigned_attribute_to"
+        }
+      },
+      "subtypes": {
+        "material_analysis": {
+          "id": "material_analysis",
+          "name": "Material Analysis Report",
+          "formats": ["pdf", "docx", "xlsx"],
+          "possible_extractions": [
+            "material_composition",
+            "physical_properties",
+            "chemical_properties",
+            "degradation_patterns"
+          ],
+          "supported_extractors": [
+            "lab_report_analysis",
+            "material_composition_analysis"
+          ],
+          "metadata_requirements": {
+            "mandatory": [
+              "analysis_date",
+              "laboratory",
+              "analysis_method",
+              "sampling_strategy",
+              "analyst"
+            ],
+            "optional": [
+              "equipment_used",
+              "calibration_data",
+              "error_margins"
+            ]
+          }
+        },
+        "dating_analysis": {
+          "id": "dating_analysis",
+          "name": "Dating Analysis Report",
+          "formats": ["pdf", "docx", "xlsx"],
+          "possible_extractions": [
+            "absolute_date",
+            "date_range",
+            "dating_method_reliability",
+            "chronological_context"
+          ],
+          "supported_extractors": [
+            "scientific_dating_analysis",
+            "chronological_analysis"
+          ],
+          "metadata_requirements": {
+            "mandatory": [
+              "analysis_date",
+              "laboratory",
+              "dating_method",
+              "sample_description",
+              "calibration_curve"
+            ],
+            "optional": [
+              "sample_preparation",
+              "contamination_assessment",
+              "comparative_samples"
+            ]
+          }
+        }
+      }
+    },
+    "historical_documentation": {
+      "id": "historical_documentation",
+      "name": "Historical Documentation",
+      "description": "Historical and archival documents",
+      "vocabulary_mappings": {
+        "getty_aat": "300343082",
+        "cidoc_crm": {
+          "class": "E31_Document",
+          "property": "P70_documents"
+        },
+        "dublin_core": {
+          "type": "dcterms:source"
+        }
+      },
+      "subtypes": {
+        "archival_document": {
+          "id": "archival_document",
+          "name": "Archival Document",
+          "formats": ["pdf", "txt", "docx", "tiff"],
+          "possible_extractions": [
+            "historical_context",
+            "construction_history",
+            "ownership_history",
+            "modification_events"
+          ],
+          "supported_extractors": [
+            "archival_document_analysis",
+            "historical_context_analysis"
+          ],
+          "metadata_requirements": {
+            "mandatory": [
+              "archive_reference",
+              "document_date",
+              "document_type",
+              "archival_location"
+            ],
+            "optional": [
+              "transcription_details",
+              "preservation_state",
+              "access_restrictions"
+            ]
+          }
+        },
+        "historical_photograph": {
+          "id": "historical_photograph",
+          "name": "Historical Photograph",
+          "formats": ["tiff", "jpg", "pdf"],
+          "possible_extractions": [
+            "historical_appearance",
+            "temporal_changes",
+            "architectural_features",
+            "urban_context"
+          ],
+          "supported_extractors": [
+            "photographic_analysis",
+            "temporal_change_analysis"
+          ],
+          "metadata_requirements": {
+            "mandatory": [
+              "photo_date",
+              "photographer",
+              "archive_reference",
+              "subject_location"
+            ],
+            "optional": [
+              "camera_details",
+              "print_type",
+              "negative_reference"
+            ]
+          }
+        }
+      }
+    },
+    "conservation_documentation": {
+      "id": "conservation_documentation",
+      "name": "Conservation Documentation",
+      "description": "Conservation and restoration documentation",
+      "vocabulary_mappings": {
+        "getty_aat": "300379612",
+        "cidoc_crm": {
+          "class": "E31_Document",
+          "property": "P140_assigned_attribute_to"
+        },
+        "dublin_core": {
+          "type": "dcterms:provenance"
+        }
+      },
+      "subtypes": {
+        "condition_report": {
+          "id": "condition_report",
+          "name": "Condition Report",
+          "formats": ["pdf", "docx", "xlsx"],
+          "possible_extractions": [
+            "conservation_state",
+            "degradation_patterns",
+            "risk_factors",
+            "intervention_priorities"
+          ],
+          "supported_extractors": [
+            "condition_report_analysis",
+            "conservation_assessment"
+          ],
+          "metadata_requirements": {
+            "mandatory": [
+              "assessment_date",
+              "assessor",
+              "assessment_method",
+              "condition_classification"
+            ],
+            "optional": [
+              "environmental_data",
+              "previous_treatments",
+              "monitoring_history"
+            ]
+          }
+        },
+        "intervention_report": {
+          "id": "intervention_report",
+          "name": "Intervention Report",
+          "formats": ["pdf", "docx", "xlsx"],
+          "possible_extractions": [
+            "treatment_methods",
+            "materials_used",
+            "intervention_results",
+            "follow_up_recommendations"
+          ],
+          "supported_extractors": [
+            "intervention_history_analysis",
+            "treatment_effectiveness_analysis"
+          ],
+          "metadata_requirements": {
+            "mandatory": [
+              "intervention_date",
+              "conservator",
+              "intervention_type",
+              "materials_used",
+              "documentation_method"
+            ],
+            "optional": [
+              "preliminary_tests",
+              "environmental_conditions",
+              "post_treatment_monitoring"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

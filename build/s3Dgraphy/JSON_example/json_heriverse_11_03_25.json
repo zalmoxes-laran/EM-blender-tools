@@ -1,0 +1,5780 @@
+{
+  "_id": "scene:e76dda3f-1613-4ccc-9aeb-63e4fec5c03d",
+  "_rev": "1-df03363530b39025ea0f7bf03f857587",
+  "type": "scene",
+  "creator": "user:ab84626d-af8b-45d9-8b5e-555eb321af64",
+  "resource_path": "https://150.145.56.9/server/uploads/1739524473160-782830293/",
+  "editors": [],
+  "viewers": [],
+  "title": "Great Temple",
+  "description": "",
+  "resource_json": {
+    "title": "Great Temple",
+    "environment": {
+      "mainpano": {
+        "url": "s"
+      },
+      "lightprobes": {
+        "auto": "true"
+      },
+      "mainlight": {
+        "direction": [
+          "0.0",
+          "0.0",
+          "0.0"
+        ]
+      }
+    },
+    "viewpoints": {},
+    "scenegraph": {
+      "nodes": {},
+      "edges": {
+        ".": []
+      }
+    },
+    "multigraph": {
+      "version": "1.5",
+      "graphs": {
+        "TempluMare_EM_converted_converted": {
+          "name": "Temple",
+          "description": "",
+          "defaults": {
+            "license": "CC-BY-NC-ND",
+            "authors": [],
+            "embargo_until": null,
+            "panorama": "panorama/bg-welcome.jpg"
+          },
+          "nodes": {
+            "authors": {},
+            "stratigraphic": {
+              "US": {
+                "n0::n0": {
+                  "type": "US",
+                  "name": "SU000",
+                  "description": "Humus",
+                  "data": {}
+                },
+                "n0::n1": {
+                  "type": "US",
+                  "name": "SU020",
+                  "description": "Restoration of the Big temple",
+                  "data": {}
+                },
+                "n0::n2": {
+                  "type": "US",
+                  "name": "SU019",
+                  "description": "Distruction of the foundation",
+                  "data": {}
+                },
+                "n0::n3": {
+                  "type": "US",
+                  "name": "SU050",
+                  "description": "Non-anthropic soil",
+                  "data": {}
+                },
+                "n0::n4": {
+                  "type": "US",
+                  "name": "SU002",
+                  "description": "Foundation of the Columnade",
+                  "data": {}
+                },
+                "n0::n5": {
+                  "type": "US",
+                  "name": "SU003",
+                  "description": "Foundation of the walls",
+                  "data": {}
+                },
+                "n0::n6": {
+                  "type": "US",
+                  "name": "SU004",
+                  "description": "Foundation of the entrance",
+                  "data": {}
+                },
+                "n0::n12::n38": {
+                  "type": "US",
+                  "name": "SU001",
+                  "description": "Foundation of the Temple",
+                  "data": {}
+                }
+              },
+              "USVs": {
+                "n0::n9::n0": {
+                  "type": "USVs",
+                  "name": "USV101",
+                  "description": "Foundation of the Columnade",
+                  "data": {}
+                },
+                "n0::n9::n1": {
+                  "type": "USVs",
+                  "name": "USV102",
+                  "description": "Foundation of the walls",
+                  "data": {}
+                },
+                "n0::n9::n2": {
+                  "type": "USVs",
+                  "name": "USV108",
+                  "description": "Foundation of the entrance",
+                  "data": {}
+                },
+                "n0::n12::n36": {
+                  "type": "USVs",
+                  "name": "USV100",
+                  "description": "Foundation of the Temple",
+                  "data": {}
+                }
+              },
+              "SF": {
+                "n0::n8::n2": {
+                  "type": "SF",
+                  "name": "T15",
+                  "description": "Base of column",
+                  "data": {}
+                },
+                "n0::n8::n3": {
+                  "type": "SF",
+                  "name": "T35",
+                  "description": "Capital",
+                  "data": {}
+                },
+                "n0::n8::n4": {
+                  "type": "SF",
+                  "name": "T30",
+                  "description": "Imoscapo",
+                  "data": {}
+                },
+                "n0::n8::n5": {
+                  "type": "SF",
+                  "name": "T28",
+                  "description": "Summoscapo",
+                  "data": {}
+                },
+                "n0::n10::n0": {
+                  "type": "SF",
+                  "name": "T46",
+                  "description": "Special Find: Plinth",
+                  "data": {}
+                },
+                "n0::n10::n2": {
+                  "type": "SF",
+                  "name": "T47",
+                  "description": "Special Find: Plinth",
+                  "data": {}
+                },
+                "n0::n10::n10": {
+                  "type": "SF",
+                  "name": "T25",
+                  "description": "Special Find: Base of column",
+                  "data": {}
+                },
+                "n0::n10::n11": {
+                  "type": "SF",
+                  "name": "T44",
+                  "description": "Special Find: Base of column",
+                  "data": {}
+                },
+                "n0::n10::n12": {
+                  "type": "SF",
+                  "name": "T44",
+                  "description": "Special Find: imoscapo",
+                  "data": {}
+                },
+                "n0::n10::n13": {
+                  "type": "SF",
+                  "name": "T26",
+                  "description": "Special Find: capital",
+                  "data": {}
+                },
+                "n0::n10::n20": {
+                  "type": "SF",
+                  "name": "T48",
+                  "description": "Special Find: sill",
+                  "data": {}
+                },
+                "n0::n11::n5": {
+                  "type": "SF",
+                  "name": "T18",
+                  "description": "Special Find: balustrade",
+                  "data": {}
+                },
+                "n0::n11::n6": {
+                  "type": "SF",
+                  "name": "T19",
+                  "description": "Special Find: balustrade",
+                  "data": {}
+                },
+                "n0::n11::n7": {
+                  "type": "SF",
+                  "name": "T20",
+                  "description": "Special Find: balustrade",
+                  "data": {}
+                },
+                "n0::n12::n5": {
+                  "type": "SF",
+                  "name": "T43",
+                  "description": "Moulding base",
+                  "data": {}
+                },
+                "n0::n12::n7": {
+                  "type": "SF",
+                  "name": "T42",
+                  "description": "Moulding",
+                  "data": {}
+                },
+                "n0::n12::n8": {
+                  "type": "SF",
+                  "name": "T41",
+                  "description": "Moulding",
+                  "data": {}
+                },
+                "n0::n12::n9": {
+                  "type": "SF",
+                  "name": "T24",
+                  "description": "Moulding",
+                  "data": {}
+                },
+                "n0::n12::n10": {
+                  "type": "SF",
+                  "name": "T40",
+                  "description": "Moulding",
+                  "data": {}
+                },
+                "n0::n12::n11": {
+                  "type": "SF",
+                  "name": "T23",
+                  "description": "Moulding",
+                  "data": {}
+                },
+                "n0::n12::n12": {
+                  "type": "SF",
+                  "name": "T21",
+                  "description": "Moulding",
+                  "data": {}
+                },
+                "n0::n12::n16": {
+                  "type": "SF",
+                  "name": "T25",
+                  "description": "Base of column",
+                  "data": {}
+                },
+                "n0::n12::n17": {
+                  "type": "SF",
+                  "name": "T09",
+                  "description": "Sommoscapo",
+                  "data": {}
+                },
+                "n0::n12::n18": {
+                  "type": "SF",
+                  "name": "T39",
+                  "description": "Capital",
+                  "data": {}
+                },
+                "n0::n12::n19": {
+                  "type": "SF",
+                  "name": "T10",
+                  "description": "Sommoscapo",
+                  "data": {}
+                },
+                "n0::n12::n20": {
+                  "type": "SF",
+                  "name": "T14",
+                  "description": "Sommoscapo",
+                  "data": {}
+                },
+                "n0::n12::n21": {
+                  "type": "SF",
+                  "name": "T03",
+                  "description": "Imoscapo",
+                  "data": {}
+                },
+                "n0::n12::n22": {
+                  "type": "SF",
+                  "name": "T38",
+                  "description": "Base of column",
+                  "data": {}
+                },
+                "n0::n12::n24": {
+                  "type": "SF",
+                  "name": "T36",
+                  "description": "Moulding",
+                  "data": {}
+                },
+                "n0::n12::n25": {
+                  "type": "SF",
+                  "name": "T26",
+                  "description": "Capital",
+                  "data": {}
+                },
+                "n0::n12::n30": {
+                  "type": "SF",
+                  "name": "T38",
+                  "description": "Special Find: drum of column",
+                  "data": {}
+                }
+              },
+              "USVn": {
+                "n0::n7::n0": {
+                  "type": "USVn",
+                  "name": "USV106",
+                  "description": "Lintel",
+                  "data": {}
+                },
+                "n0::n7::n1": {
+                  "type": "USVn",
+                  "name": "USV105",
+                  "description": "lacunar",
+                  "data": {}
+                },
+                "n0::n7::n2": {
+                  "type": "USVn",
+                  "name": "USV149",
+                  "description": "roof of the columnade",
+                  "data": {}
+                },
+                "n0::n8::n6": {
+                  "type": "USVn",
+                  "name": "USV118",
+                  "description": "Perimetral walls of the temple",
+                  "data": {}
+                },
+                "n0::n8::n7": {
+                  "type": "USVn",
+                  "name": "USV124",
+                  "description": "Door",
+                  "data": {}
+                },
+                "n0::n8::n8": {
+                  "type": "USVn",
+                  "name": "USV109",
+                  "description": "Floor under the columnade",
+                  "data": {}
+                },
+                "n0::n8::n9": {
+                  "type": "USVn",
+                  "name": "USV129",
+                  "description": "Stairs",
+                  "data": {}
+                },
+                "n0::n10::n4": {
+                  "type": "USVn",
+                  "name": "USV115",
+                  "description": "Column",
+                  "data": {}
+                },
+                "n0::n10::n9": {
+                  "type": "USVn",
+                  "name": "USV123",
+                  "description": "Capital",
+                  "data": {}
+                },
+                "n0::n10::n16": {
+                  "type": "USVn",
+                  "name": "USV150",
+                  "description": "Lintel",
+                  "data": {}
+                },
+                "n0::n10::n17": {
+                  "type": "USVn",
+                  "name": "USV151",
+                  "description": "Pediment",
+                  "data": {}
+                },
+                "n0::n10::n18": {
+                  "type": "USVn",
+                  "name": "USV116",
+                  "description": "Floor of the entrance",
+                  "data": {}
+                },
+                "n0::n10::n19": {
+                  "type": "USVn",
+                  "name": "USV117",
+                  "description": "Sill at the main entrance door",
+                  "data": {}
+                },
+                "n0::n10::n22": {
+                  "type": "USVn",
+                  "name": "USV113",
+                  "description": "Sill",
+                  "data": {}
+                },
+                "n0::n10::n23": {
+                  "type": "USVn",
+                  "name": "USV114",
+                  "description": "Sill",
+                  "data": {}
+                },
+                "n0::n10::n24": {
+                  "type": "USVn",
+                  "name": "USV152",
+                  "description": "roof of the entrance",
+                  "data": {}
+                },
+                "n0::n11::n0": {
+                  "type": "USVn",
+                  "name": "USV156",
+                  "description": "Plynth",
+                  "data": {}
+                },
+                "n0::n11::n2": {
+                  "type": "USVn",
+                  "name": "USV157",
+                  "description": "Fence",
+                  "data": {}
+                },
+                "n0::n11::n3": {
+                  "type": "USVn",
+                  "name": "USV130",
+                  "description": "Floor of the court",
+                  "data": {}
+                },
+                "n0::n11::n4": {
+                  "type": "USVn",
+                  "name": "USV128",
+                  "description": "Stairs",
+                  "data": {}
+                },
+                "n0::n12::n0": {
+                  "type": "USVn",
+                  "name": "USV132",
+                  "description": "Stair of the Temple",
+                  "data": {}
+                },
+                "n0::n12::n1": {
+                  "type": "USVn",
+                  "name": "USV137",
+                  "description": "Walls of the temple",
+                  "data": {}
+                },
+                "n0::n12::n2": {
+                  "type": "USVn",
+                  "name": "USV138",
+                  "description": "Coating of plints",
+                  "data": {}
+                },
+                "n0::n12::n3": {
+                  "type": "USVn",
+                  "name": "USV139",
+                  "description": "Last step of the stairs",
+                  "data": {}
+                },
+                "n0::n12::n6": {
+                  "type": "USVn",
+                  "name": "USV141",
+                  "description": "Moulding",
+                  "data": {}
+                },
+                "n0::n12::n14": {
+                  "type": "USVn",
+                  "name": "USV133",
+                  "description": "Floor entrance temple",
+                  "data": {}
+                },
+                "n0::n12::n26": {
+                  "type": "USVn",
+                  "name": "USV146",
+                  "description": "Lintel",
+                  "data": {}
+                },
+                "n0::n12::n27": {
+                  "type": "USVn",
+                  "name": "USV153",
+                  "description": "Pediment",
+                  "data": {}
+                },
+                "n0::n12::n28": {
+                  "type": "USVn",
+                  "name": "USV154",
+                  "description": "Roof of the temple",
+                  "data": {}
+                }
+              },
+              "USD": {}
+            },
+            "epochs": {
+              "row_2": {
+                "type": "epoch",
+                "name": "Humus",
+                "description": "",
+                "data": {
+                  "start_time": 2000,
+                  "end_time": 2010,
+                  "color": "#BCBCBC",
+                  "min_y": -35,
+                  "max_y": 15
+                }
+              },
+              "row_4": {
+                "type": "epoch",
+                "name": "XX sec",
+                "description": "",
+                "data": {
+                  "start_time": 1900,
+                  "end_time": 1999,
+                  "color": "#99CC00",
+                  "min_y": 15,
+                  "max_y": 65
+                }
+              },
+              "row_0": {
+                "type": "epoch",
+                "name": "Post antiquity",
+                "description": "",
+                "data": {
+                  "start_time": 200,
+                  "end_time": 1800,
+                  "color": "#CCFFCC",
+                  "min_y": 65,
+                  "max_y": 131
+                }
+              },
+              "row_1": {
+                "type": "epoch",
+                "name": "II A.D.",
+                "description": "",
+                "data": {
+                  "start_time": 100,
+                  "end_time": 199,
+                  "color": "#FFE57F",
+                  "min_y": 131,
+                  "max_y": 2104.010392949381
+                }
+              },
+              "row_3": {
+                "type": "epoch",
+                "name": "Geologic",
+                "description": "",
+                "data": {
+                  "start_time": -10000,
+                  "end_time": 99,
+                  "color": "#666699",
+                  "min_y": 2104.010392949381,
+                  "max_y": 2244.670823629047
+                }
+              }
+            },
+            "groups": {
+              "n0::n7": {
+                "type": "ActivityNodeGroup",
+                "name": "VAct.03 Lintel of the columnade",
+                "description": "",
+                "data": {}
+              },
+              "n0::n7::n3": {
+                "type": "ParadataNodeGroup",
+                "name": "USV106_PD",
+                "description": "",
+                "data": {}
+              },
+              "n0::n7::n5": {
+                "type": "ParadataNodeGroup",
+                "name": "USV148_PD",
+                "description": "",
+                "data": {}
+              },
+              "n0::n8": {
+                "type": "ActivityNodeGroup",
+                "name": "VAct.02 Columnade",
+                "description": "",
+                "data": {}
+              },
+              "n0::n8::n11": {
+                "type": "ParadataNodeGroup",
+                "name": "USV104_PD",
+                "description": "",
+                "data": {}
+              },
+              "n0::n8::n12": {
+                "type": "ParadataNodeGroup",
+                "name": "USV125_PD",
+                "description": "",
+                "data": {}
+              },
+              "n0::n9": {
+                "type": "ActivityNodeGroup",
+                "name": "VAct.01 Foundations of the temple",
+                "description": "",
+                "data": {}
+              },
+              "n0::n9::n3": {
+                "type": "ParadataNodeGroup",
+                "name": "US[xxx]_PD",
+                "description": "",
+                "data": {}
+              },
+              "n0::n10": {
+                "type": "ActivityNodeGroup",
+                "name": "VAct.05 Columnade at the entrance",
+                "description": "",
+                "data": {}
+              },
+              "n0::n11": {
+                "type": "ActivityNodeGroup",
+                "name": "VAct.06 Courtyard",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12": {
+                "type": "ActivityNodeGroup",
+                "name": "VAct.04 Temple",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n32": {
+                "type": "ParadataNodeGroup",
+                "name": "USV154_PD",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n33": {
+                "type": "ParadataNodeGroup",
+                "name": "USV153_PD",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n34": {
+                "type": "ParadataNodeGroup",
+                "name": "USV132_PD",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n35": {
+                "type": "ParadataNodeGroup",
+                "name": "USV146_PD",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n37": {
+                "type": "ParadataNodeGroup",
+                "name": "USV100_PD",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n40": {
+                "type": "ParadataNodeGroup",
+                "name": "USV131_PD",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n41": {
+                "type": "ParadataNodeGroup",
+                "name": "SU001_PD",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n42": {
+                "type": "ParadataNodeGroup",
+                "name": "USV139_PD",
+                "description": "",
+                "data": {}
+              }
+            },
+            "properties": {
+              "n0::n7::n3::n2": {
+                "type": "property",
+                "name": "Dimension.height",
+                "description": "Height 5.14 / 4 = 1.285",
+                "data": {}
+              },
+              "n0::n7::n3::n3": {
+                "type": "property",
+                "name": "Shape",
+                "description": "Flat frieze and lintel",
+                "data": {}
+              },
+              "n0::n7::n3::n4": {
+                "type": "property",
+                "name": "Material",
+                "description": "Wood and stuccoes",
+                "data": {}
+              },
+              "n0::n7::n5::n0": {
+                "type": "property",
+                "name": "Material",
+                "description": "Wood and stucco",
+                "data": {}
+              },
+              "n0::n8::n11::n0": {
+                "type": "property",
+                "name": "Distribution",
+                "description": "",
+                "data": {}
+              },
+              "n0::n8::n12::n1": {
+                "type": "property",
+                "name": "Shape; dimensions",
+                "description": "",
+                "data": {}
+              },
+              "n0::n9::n3::n3": {
+                "type": "property",
+                "name": "max level",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n32::n0": {
+                "type": "property",
+                "name": "Material",
+                "description": "Lead",
+                "data": {}
+              },
+              "n0::n12::n33::n0": {
+                "type": "property",
+                "name": "Shape",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n34::n0": {
+                "type": "property",
+                "name": "Shape",
+                "description": "lead",
+                "data": {}
+              },
+              "n0::n12::n35::n0": {
+                "type": "property",
+                "name": "Material",
+                "description": "wood and stuccoes",
+                "data": {}
+              },
+              "n0::n12::n35::n1": {
+                "type": "property",
+                "name": "Shape",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n37::n0": {
+                "type": "property",
+                "name": "Height",
+                "description": "2.75 m",
+                "data": {}
+              },
+              "n0::n12::n37::n1": {
+                "type": "property",
+                "name": "Lenght",
+                "description": "14.5 m",
+                "data": {}
+              },
+              "n0::n12::n37::n2": {
+                "type": "property",
+                "name": "Width",
+                "description": "9.71 m",
+                "data": {}
+              },
+              "n0::n12::n40::n2": {
+                "type": "property",
+                "name": "Width",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n40::n3": {
+                "type": "property",
+                "name": "Height",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n41::n0": {
+                "type": "property",
+                "name": "Material",
+                "description": "Stone",
+                "data": {}
+              },
+              "n0::n12::n42::n0": {
+                "type": "property",
+                "name": "Width",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n42::n1": {
+                "type": "property",
+                "name": "Material",
+                "description": "Limestone",
+                "data": {}
+              },
+              "n0::n12::n42::n2": {
+                "type": "property",
+                "name": "Height",
+                "description": "",
+                "data": {}
+              }
+            },
+            "documents": {
+              "n0::n7::n3::n0": {
+                "type": "document",
+                "name": "D.05",
+                "description": "Lintel = 1/4 or 1/5 of the whole column",
+                "data": {}
+              },
+              "n0::n7::n3::n5": {
+                "type": "document",
+                "name": "D.04",
+                "description": "De Architectura III,2",
+                "data": {}
+              },
+              "n0::n7::n3::n9": {
+                "type": "document",
+                "name": "D.06",
+                "description": "Ordine_Corinzio.jpg",
+                "data": {}
+              },
+              "n0::n8::n11::n2": {
+                "type": "document",
+                "name": "D.03",
+                "description": "XXX da mettere passaggio Vitruvio",
+                "data": {}
+              },
+              "n0::n8::n11::n4": {
+                "type": "document",
+                "name": "D.04",
+                "description": "XXX da mettere passaggio Vitruvio",
+                "data": {}
+              },
+              "n0::n8::n12::n2": {
+                "type": "document",
+                "name": "D.02",
+                "description": "XXX da mettere passaggio Vitruvio",
+                "data": {}
+              },
+              "n0::n9::n3::n0": {
+                "type": "document",
+                "name": "D.01",
+                "description": "Section N-S of the Great Temple. The red bricks marks the XXth century restorations.",
+                "data": {}
+              },
+              "n0::n12::n32::n1": {
+                "type": "document",
+                "name": "D.06",
+                "description": "metal objects are really wanted during spolia",
+                "data": {}
+              },
+              "n0::n12::n32::n5": {
+                "type": "document",
+                "name": "D.05",
+                "description": "reports of excavation",
+                "data": {}
+              },
+              "n0::n12::n33::n1": {
+                "type": "document",
+                "name": "D.07",
+                "description": "Maison Carrèe",
+                "data": {}
+              },
+              "n0::n12::n34::n1": {
+                "type": "document",
+                "name": "D.08",
+                "description": "tread 20 cm and riser 28 cm",
+                "data": {}
+              },
+              "n0::n12::n37::n4": {
+                "type": "document",
+                "name": "D.11",
+                "description": "Vista Zenitale Tempio",
+                "data": {}
+              },
+              "n0::n12::n37::n7": {
+                "type": "document",
+                "name": "D.07",
+                "description": "Maison Carree",
+                "data": {}
+              },
+              "n0::n12::n40::n1": {
+                "type": "document",
+                "name": "D.07",
+                "description": "Maison Carree",
+                "data": {}
+              },
+              "n0::n12::n40::n5": {
+                "type": "document",
+                "name": "D.07",
+                "description": "Maison Carree",
+                "data": {}
+              },
+              "n0::n12::n41::n1": {
+                "type": "document",
+                "name": "D.20",
+                "description": "Visit to the site in 2013",
+                "data": {}
+              },
+              "n0::n12::n42::n3": {
+                "type": "document",
+                "name": "D.07",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n42::n6": {
+                "type": "document",
+                "name": "D.11",
+                "description": "Assumption: stone objects are durable architectonic elements",
+                "data": {}
+              }
+            },
+            "extractors": {
+              "n0::n12::n32::n2": {
+                "type": "extractor",
+                "name": "D.06.01",
+                "description": "assumption",
+                "data": {}
+              },
+              "n0::n12::n32::n4": {
+                "type": "extractor",
+                "name": "D.05.01",
+                "description": "absence of ceramics or stone tiles",
+                "data": {}
+              },
+              "n0::n12::n37::n3": {
+                "type": "extractor",
+                "name": "D.11.01",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n37::n5": {
+                "type": "extractor",
+                "name": "D.11.02",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n37::n6": {
+                "type": "extractor",
+                "name": "D.07.03",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n40::n0": {
+                "type": "extractor",
+                "name": "D.07.02",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n40::n4": {
+                "type": "extractor",
+                "name": "D.07.01",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n41::n2": {
+                "type": "extractor",
+                "name": "D.20.01",
+                "description": "Autoptic observation of the foundation",
+                "data": {}
+              },
+              "n0::n12::n42::n4": {
+                "type": "extractor",
+                "name": "D.07.04",
+                "description": "",
+                "data": {}
+              },
+              "n0::n12::n42::n5": {
+                "type": "extractor",
+                "name": "D.07.05",
+                "description": "",
+                "data": {}
+              }
+            },
+            "combiners": {
+              "n0::n12::n32::n3": {
+                "type": "combiner",
+                "name": "C.10",
+                "description": "lead tiles",
+                "data": {}
+              }
+            },
+            "links": {
+              "n0::n9::n3::n0_link": {
+                "type": "link",
+                "name": "Link to D.01",
+                "description": "",
+                "data": {
+                  "url": "http://osiris.itabc.cnr.it/blend4web/TEST_ExtendedMatrix/references/P01.jpeg",
+                  "url_type": "External link",
+                  "description": "Link to Section N-S of the Great Temple. The red bricks marks the XXth century restorations."
+                }
+              },
+              "n0::n7::n3::n9_link": {
+                "type": "link",
+                "name": "Link to D.06",
+                "description": "",
+                "data": {
+                  "url": "D.06 Ordine_Corinzio.jpg",
+                  "url_type": "External link",
+                  "description": "Link to Ordine_Corinzio.jpg"
+                }
+              },
+              "n0::n12::n33::n1_link": {
+                "type": "link",
+                "name": "Link to D.07",
+                "description": "",
+                "data": {
+                  "url": "D.07 Maison Carree Nimes.png",
+                  "url_type": "External link",
+                  "description": "Link to Maison Carrèe"
+                }
+              },
+              "n0::n12::n40::n4_link": {
+                "type": "link",
+                "name": "Link to D.07.01",
+                "description": "",
+                "data": {
+                  "url": "D.07.01.jpg",
+                  "url_type": "External link",
+                  "description": "Link to Link to D.07.01"
+                }
+              },
+              "n0::n12::n40::n0_link": {
+                "type": "link",
+                "name": "Link to D.07.02",
+                "description": "",
+                "data": {
+                  "url": "D.07.02.jpg",
+                  "url_type": "External link",
+                  "description": "Link to Link to D.07.02"
+                }
+              },
+              "n0::n12::n37::n6_link": {
+                "type": "link",
+                "name": "Link to D.07.03",
+                "description": "",
+                "data": {
+                  "url": "D.07.03.jpg",
+                  "url_type": "External link",
+                  "description": "Link to Link to D.07.03"
+                }
+              },
+              "n0::n12::n42::n4_link": {
+                "type": "link",
+                "name": "Link to D.07.04",
+                "description": "",
+                "data": {
+                  "url": "D.07.04.jpg",
+                  "url_type": "External link",
+                  "description": "Link to Link to D.07.04"
+                }
+              },
+              "n0::n12::n42::n5_link": {
+                "type": "link",
+                "name": "Link to D.07.05",
+                "description": "",
+                "data": {
+                  "url": "D.07.05.jpg",
+                  "url_type": "External link",
+                  "description": "Link to Link to D.07.05"
+                }
+              },
+              "n0::n12::n37::n4_link": {
+                "type": "link",
+                "name": "Link to D.11",
+                "description": "",
+                "data": {
+                  "url": "D.11 Zenitale.jpg",
+                  "url_type": "External link",
+                  "description": "Link to Vista Zenitale Tempio"
+                }
+              },
+              "n0::n12::n37::n3_link": {
+                "type": "link",
+                "name": "Link to D.11.01",
+                "description": "",
+                "data": {
+                  "url": "D.11.01.jpg",
+                  "url_type": "External link",
+                  "description": "Link to Link to D.11.01"
+                }
+              },
+              "n0::n12::n37::n5_link": {
+                "type": "link",
+                "name": "Link to D.11.02",
+                "description": "",
+                "data": {
+                  "url": "D.11.02.jpg",
+                  "url_type": "External link",
+                  "description": "Link to Link to D.11.02"
+                }
+              }
+            },
+            "geo": {
+              "geo_TempluMare_EM_converted_converted": {
+                "type": "geo_position",
+                "name": "geo_position",
+                "description": "",
+                "data": {
+                  "epsg": 4326,
+                  "shift_x": 0,
+                  "shift_y": 0,
+                  "shift_z": 0
+                }
+              }
+            },
+            "semantic_shapes": {
+              "SU002_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for SU002",
+                "description": "",
+                "data": {
+                  "url": "proxies/SU002.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "SU003_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for SU003",
+                "description": "",
+                "data": {
+                  "url": "proxies/SU003.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "SU004_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for SU004",
+                "description": "",
+                "data": {
+                  "url": "proxies/SU004.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV106_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV106",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV106.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV105_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV105",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV105.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV149_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV149",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV149.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV125_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV125",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV125.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV118_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV118",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV118.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV124_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV124",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV124.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV109_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV109",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV109.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV129_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV129",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV129.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV104_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV104",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV104.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV101_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV101",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV101.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV102_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV102",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV102.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV108_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV108",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV108.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV111_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV111",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV111.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV110_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV110",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV110.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV115_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV115",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV115.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV119_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV119",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV119.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV120_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV120",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV120.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV121_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV121",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV121.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV122_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV122",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV122.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV123_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV123",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV123.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV150_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV150",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV150.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV151_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV151",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV151.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV116_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV116",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV116.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV117_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV117",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV117.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV112_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV112",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV112.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV113_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV113",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV113.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV114_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV114",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV114.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV152_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV152",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV152.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV156_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV156",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV156.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV155_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV155",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV155.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV157_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV157",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV157.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV130_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV130",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV130.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV128_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV128",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV128.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV132_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV132",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV132.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV137_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV137",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV137.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV138_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV138",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV138.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV139_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV139",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV139.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV140_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV140",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV140.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "T43_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for T43",
+                "description": "",
+                "data": {
+                  "url": "proxies/T43.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV141_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV141",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV141.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "T42_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for T42",
+                "description": "",
+                "data": {
+                  "url": "proxies/T42.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "T41_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for T41",
+                "description": "",
+                "data": {
+                  "url": "proxies/T41.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "T24_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for T24",
+                "description": "",
+                "data": {
+                  "url": "proxies/T24.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "T40_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for T40",
+                "description": "",
+                "data": {
+                  "url": "proxies/T40.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "T23_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for T23",
+                "description": "",
+                "data": {
+                  "url": "proxies/T23.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "T21_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for T21",
+                "description": "",
+                "data": {
+                  "url": "proxies/T21.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV133_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV133",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV133.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV142_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV142",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV142.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "T36_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for T36",
+                "description": "",
+                "data": {
+                  "url": "proxies/T36.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV146_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV146",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV146.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV153_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV153",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV153.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV154_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV154",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV154.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV158_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV158",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV158.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV145_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV145",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV145.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV100_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV100",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV100.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "SU001_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for SU001",
+                "description": "",
+                "data": {
+                  "url": "proxies/SU001.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              },
+              "USV131_shape": {
+                "type": "semantic_shape",
+                "name": "Shape for USV131",
+                "description": "",
+                "data": {
+                  "url": "proxies/USV131.glb",
+                  "convexshapes": [],
+                  "spheres": []
+                }
+              }
+            },
+            "representation_models": {
+              "Architrave_1_BAKE_SM_Architrave_1_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Architrave_1_BAKE_SM_Architrave_1_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Architrave_1_BAKE_SM_Architrave_1_BAKE.gltf"
+                }
+              },
+              "Cassettonato_BAKE_SM_Cassettonato_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Cassettonato_BAKE_SM_Cassettonato_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Cassettonato_BAKE_SM_Cassettonato_BAKE.gltf"
+                }
+              },
+              "Column_entrance1_model": {
+                "type": "representation_model",
+                "name": "Model for Column_entrance1",
+                "description": "",
+                "data": {
+                  "url": "models/Column_entrance1.gltf"
+                }
+              },
+              "Column_entrance2_model": {
+                "type": "representation_model",
+                "name": "Model for Column_entrance2",
+                "description": "",
+                "data": {
+                  "url": "models/Column_entrance2.gltf"
+                }
+              },
+              "Column_light1_model": {
+                "type": "representation_model",
+                "name": "Model for Column_light1",
+                "description": "",
+                "data": {
+                  "url": "models/Column_light1.gltf"
+                }
+              },
+              "Column_light10_model": {
+                "type": "representation_model",
+                "name": "Model for Column_light10",
+                "description": "",
+                "data": {
+                  "url": "models/Column_light10.gltf"
+                }
+              },
+              "Column_light2_model": {
+                "type": "representation_model",
+                "name": "Model for Column_light2",
+                "description": "",
+                "data": {
+                  "url": "models/Column_light2.gltf"
+                }
+              },
+              "Column_light3_model": {
+                "type": "representation_model",
+                "name": "Model for Column_light3",
+                "description": "",
+                "data": {
+                  "url": "models/Column_light3.gltf"
+                }
+              },
+              "Column_light4_model": {
+                "type": "representation_model",
+                "name": "Model for Column_light4",
+                "description": "",
+                "data": {
+                  "url": "models/Column_light4.gltf"
+                }
+              },
+              "Column_light5_model": {
+                "type": "representation_model",
+                "name": "Model for Column_light5",
+                "description": "",
+                "data": {
+                  "url": "models/Column_light5.gltf"
+                }
+              },
+              "Column_light6_model": {
+                "type": "representation_model",
+                "name": "Model for Column_light6",
+                "description": "",
+                "data": {
+                  "url": "models/Column_light6.gltf"
+                }
+              },
+              "Column_light7_model": {
+                "type": "representation_model",
+                "name": "Model for Column_light7",
+                "description": "",
+                "data": {
+                  "url": "models/Column_light7.gltf"
+                }
+              },
+              "Column_light8_model": {
+                "type": "representation_model",
+                "name": "Model for Column_light8",
+                "description": "",
+                "data": {
+                  "url": "models/Column_light8.gltf"
+                }
+              },
+              "Column_light9_model": {
+                "type": "representation_model",
+                "name": "Model for Column_light9",
+                "description": "",
+                "data": {
+                  "url": "models/Column_light9.gltf"
+                }
+              },
+              "Column_shadow1_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow1",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow1.gltf"
+                }
+              },
+              "Column_shadow10_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow10",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow10.gltf"
+                }
+              },
+              "Column_shadow11_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow11",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow11.gltf"
+                }
+              },
+              "Column_shadow12_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow12",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow12.gltf"
+                }
+              },
+              "Column_shadow13_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow13",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow13.gltf"
+                }
+              },
+              "Column_shadow14_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow14",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow14.gltf"
+                }
+              },
+              "Column_shadow15_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow15",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow15.gltf"
+                }
+              },
+              "Column_shadow16_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow16",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow16.gltf"
+                }
+              },
+              "Column_shadow17_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow17",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow17.gltf"
+                }
+              },
+              "Column_shadow18_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow18",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow18.gltf"
+                }
+              },
+              "Column_shadow19_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow19",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow19.gltf"
+                }
+              },
+              "Column_shadow2_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow2",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow2.gltf"
+                }
+              },
+              "Column_shadow20_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow20",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow20.gltf"
+                }
+              },
+              "Column_shadow21_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow21",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow21.gltf"
+                }
+              },
+              "Column_shadow22_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow22",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow22.gltf"
+                }
+              },
+              "Column_shadow23_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow23",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow23.gltf"
+                }
+              },
+              "Column_shadow24_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow24",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow24.gltf"
+                }
+              },
+              "Column_shadow25_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow25",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow25.gltf"
+                }
+              },
+              "Column_shadow26_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow26",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow26.gltf"
+                }
+              },
+              "Column_shadow27_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow27",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow27.gltf"
+                }
+              },
+              "Column_shadow28_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow28",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow28.gltf"
+                }
+              },
+              "Column_shadow29_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow29",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow29.gltf"
+                }
+              },
+              "Column_shadow3_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow3",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow3.gltf"
+                }
+              },
+              "Column_shadow30_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow30",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow30.gltf"
+                }
+              },
+              "Column_shadow31_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow31",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow31.gltf"
+                }
+              },
+              "Column_shadow32_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow32",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow32.gltf"
+                }
+              },
+              "Column_shadow33_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow33",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow33.gltf"
+                }
+              },
+              "Column_shadow34_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow34",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow34.gltf"
+                }
+              },
+              "Column_shadow35_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow35",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow35.gltf"
+                }
+              },
+              "Column_shadow36_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow36",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow36.gltf"
+                }
+              },
+              "Column_shadow37_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow37",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow37.gltf"
+                }
+              },
+              "Column_shadow38_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow38",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow38.gltf"
+                }
+              },
+              "Column_shadow4_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow4",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow4.gltf"
+                }
+              },
+              "Column_shadow5_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow5",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow5.gltf"
+                }
+              },
+              "Column_shadow6_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow6",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow6.gltf"
+                }
+              },
+              "Column_shadow7_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow7",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow7.gltf"
+                }
+              },
+              "Column_shadow8_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow8",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow8.gltf"
+                }
+              },
+              "Column_shadow9_model": {
+                "type": "representation_model",
+                "name": "Model for Column_shadow9",
+                "description": "",
+                "data": {
+                  "url": "models/Column_shadow9.gltf"
+                }
+              },
+              "Column_tempio1_model": {
+                "type": "representation_model",
+                "name": "Model for Column_tempio1",
+                "description": "",
+                "data": {
+                  "url": "models/Column_tempio1.gltf"
+                }
+              },
+              "Column_tempio2_model": {
+                "type": "representation_model",
+                "name": "Model for Column_tempio2",
+                "description": "",
+                "data": {
+                  "url": "models/Column_tempio2.gltf"
+                }
+              },
+              "Column_tempio3_model": {
+                "type": "representation_model",
+                "name": "Model for Column_tempio3",
+                "description": "",
+                "data": {
+                  "url": "models/Column_tempio3.gltf"
+                }
+              },
+              "Column_tempio4_model": {
+                "type": "representation_model",
+                "name": "Model for Column_tempio4",
+                "description": "",
+                "data": {
+                  "url": "models/Column_tempio4.gltf"
+                }
+              },
+              "Column_tempio5_model": {
+                "type": "representation_model",
+                "name": "Model for Column_tempio5",
+                "description": "",
+                "data": {
+                  "url": "models/Column_tempio5.gltf"
+                }
+              },
+              "Column_tempio6_model": {
+                "type": "representation_model",
+                "name": "Model for Column_tempio6",
+                "description": "",
+                "data": {
+                  "url": "models/Column_tempio6.gltf"
+                }
+              },
+              "Ingresso_1_BAKE_SM_Ingresso_1_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Ingresso_1_BAKE_SM_Ingresso_1_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Ingresso_1_BAKE_SM_Ingresso_1_BAKE.gltf"
+                }
+              },
+              "Ingresso_2_BAKE_SM_Ingresso_2_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Ingresso_2_BAKE_SM_Ingresso_2_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Ingresso_2_BAKE_SM_Ingresso_2_BAKE.gltf"
+                }
+              },
+              "Ingresso_3_BAKE_SM_Ingresso_3_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Ingresso_3_BAKE_SM_Ingresso_3_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Ingresso_3_BAKE_SM_Ingresso_3_BAKE.gltf"
+                }
+              },
+              "Pavimento_1_BAKE_SM_Pavimento_1_BAKE.001_model": {
+                "type": "representation_model",
+                "name": "Model for Pavimento_1_BAKE_SM_Pavimento_1_BAKE.001",
+                "description": "",
+                "data": {
+                  "url": "models/Pavimento_1_BAKE_SM_Pavimento_1_BAKE.001.gltf"
+                }
+              },
+              "Podio1_BAKE_SM_Podio1_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Podio1_BAKE_SM_Podio1_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Podio1_BAKE_SM_Podio1_BAKE.gltf"
+                }
+              },
+              "Podio_2_BAKE_SM_Podio_2_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Podio_2_BAKE_SM_Podio_2_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Podio_2_BAKE_SM_Podio_2_BAKE.gltf"
+                }
+              },
+              "Porta1_BAKE.001_SM_Porta1_BAKE.001_model": {
+                "type": "representation_model",
+                "name": "Model for Porta1_BAKE.001_SM_Porta1_BAKE.001",
+                "description": "",
+                "data": {
+                  "url": "models/Porta1_BAKE.001_SM_Porta1_BAKE.001.gltf"
+                }
+              },
+              "Porta1_BAKE_SM_Porta1_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Porta1_BAKE_SM_Porta1_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Porta1_BAKE_SM_Porta1_BAKE.gltf"
+                }
+              },
+              "Porta2_BAKE.001_SM_Porta2_BAKE.001_model": {
+                "type": "representation_model",
+                "name": "Model for Porta2_BAKE.001_SM_Porta2_BAKE.001",
+                "description": "",
+                "data": {
+                  "url": "models/Porta2_BAKE.001_SM_Porta2_BAKE.001.gltf"
+                }
+              },
+              "Porta2_BAKE_SM_Porta2_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Porta2_BAKE_SM_Porta2_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Porta2_BAKE_SM_Porta2_BAKE.gltf"
+                }
+              },
+              "Scale_1_BAKE_SM_Scale_1_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Scale_1_BAKE_SM_Scale_1_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Scale_1_BAKE_SM_Scale_1_BAKE.gltf"
+                }
+              },
+              "Scale_2_BAKE_SM_Scale_2_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Scale_2_BAKE_SM_Scale_2_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Scale_2_BAKE_SM_Scale_2_BAKE.gltf"
+                }
+              },
+              "SM_OB_EST_bk_LOD1_model": {
+                "type": "representation_model",
+                "name": "Model for SM_OB_EST_bk_LOD1",
+                "description": "",
+                "data": {
+                  "url": "models/SM_OB_EST_bk_LOD1.gltf"
+                }
+              },
+              "SM_OB_EST_fr_LOD1_model": {
+                "type": "representation_model",
+                "name": "Model for SM_OB_EST_fr_LOD1",
+                "description": "",
+                "data": {
+                  "url": "models/SM_OB_EST_fr_LOD1.gltf"
+                }
+              },
+              "SM_OB_EST_L_LOD1_model": {
+                "type": "representation_model",
+                "name": "Model for SM_OB_EST_L_LOD1",
+                "description": "",
+                "data": {
+                  "url": "models/SM_OB_EST_L_LOD1.gltf"
+                }
+              },
+              "SM_OB_EST_R_LOD1_model": {
+                "type": "representation_model",
+                "name": "Model for SM_OB_EST_R_LOD1",
+                "description": "",
+                "data": {
+                  "url": "models/SM_OB_EST_R_LOD1.gltf"
+                }
+              },
+              "SM_OB_INT_bk_LOD1_model": {
+                "type": "representation_model",
+                "name": "Model for SM_OB_INT_bk_LOD1",
+                "description": "",
+                "data": {
+                  "url": "models/SM_OB_INT_bk_LOD1.gltf"
+                }
+              },
+              "SM_OB_INT_fr_LOD1_model": {
+                "type": "representation_model",
+                "name": "Model for SM_OB_INT_fr_LOD1",
+                "description": "",
+                "data": {
+                  "url": "models/SM_OB_INT_fr_LOD1.gltf"
+                }
+              },
+              "SM_OB_INT_L_LOD1_model": {
+                "type": "representation_model",
+                "name": "Model for SM_OB_INT_L_LOD1",
+                "description": "",
+                "data": {
+                  "url": "models/SM_OB_INT_L_LOD1.gltf"
+                }
+              },
+              "SM_OB_INT_R_LOD1_model": {
+                "type": "representation_model",
+                "name": "Model for SM_OB_INT_R_LOD1",
+                "description": "",
+                "data": {
+                  "url": "models/SM_OB_INT_R_LOD1.gltf"
+                }
+              },
+              "SM_OB_PODIO_LOD1_model": {
+                "type": "representation_model",
+                "name": "Model for SM_OB_PODIO_LOD1",
+                "description": "",
+                "data": {
+                  "url": "models/SM_OB_PODIO_LOD1.gltf"
+                }
+              },
+              "SM_OB_PRATO_LOD1_model": {
+                "type": "representation_model",
+                "name": "Model for SM_OB_PRATO_LOD1",
+                "description": "",
+                "data": {
+                  "url": "models/SM_OB_PRATO_LOD1.gltf"
+                }
+              },
+              "SM_OB_TEMPLUM_LOD1_model": {
+                "type": "representation_model",
+                "name": "Model for SM_OB_TEMPLUM_LOD1",
+                "description": "",
+                "data": {
+                  "url": "models/SM_OB_TEMPLUM_LOD1.gltf"
+                }
+              },
+              "Sottotetto_BAKE_SM_Sottotetto_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Sottotetto_BAKE_SM_Sottotetto_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Sottotetto_BAKE_SM_Sottotetto_BAKE.gltf"
+                }
+              },
+              "tempio_1_BAKE_SM_tempio_1_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for tempio_1_BAKE_SM_tempio_1_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/tempio_1_BAKE_SM_tempio_1_BAKE.gltf"
+                }
+              },
+              "Tempio_2_BAKE_SM_Tempio_2_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Tempio_2_BAKE_SM_Tempio_2_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Tempio_2_BAKE_SM_Tempio_2_BAKE.gltf"
+                }
+              },
+              "Tempio_3_BAKE_SM_Tempio_3_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Tempio_3_BAKE_SM_Tempio_3_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Tempio_3_BAKE_SM_Tempio_3_BAKE.gltf"
+                }
+              },
+              "Tempio_4_BAKE.001_SM_Tempio_4_BAKE.001_model": {
+                "type": "representation_model",
+                "name": "Model for Tempio_4_BAKE.001_SM_Tempio_4_BAKE.001",
+                "description": "",
+                "data": {
+                  "url": "models/Tempio_4_BAKE.001_SM_Tempio_4_BAKE.001.gltf"
+                }
+              },
+              "Tempio_4_BAKE_SM_Tempio_4_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Tempio_4_BAKE_SM_Tempio_4_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Tempio_4_BAKE_SM_Tempio_4_BAKE.gltf"
+                }
+              },
+              "Tempio_5_BAKE_SM_Tempio_5_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Tempio_5_BAKE_SM_Tempio_5_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Tempio_5_BAKE_SM_Tempio_5_BAKE.gltf"
+                }
+              },
+              "Tempio_6_BAKE_SM_Tempio_6_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Tempio_6_BAKE_SM_Tempio_6_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Tempio_6_BAKE_SM_Tempio_6_BAKE.gltf"
+                }
+              },
+              "Terreno_interno_BAKE_SM_Terreno_interno_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Terreno_interno_BAKE_SM_Terreno_interno_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Terreno_interno_BAKE_SM_Terreno_interno_BAKE.gltf"
+                }
+              },
+              "Tetto1_BAKE_SM_Tetto1_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Tetto1_BAKE_SM_Tetto1_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Tetto1_BAKE_SM_Tetto1_BAKE.gltf"
+                }
+              },
+              "Tetto_2_BAKE_SM_Tetto_2_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Tetto_2_BAKE_SM_Tetto_2_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Tetto_2_BAKE_SM_Tetto_2_BAKE.gltf"
+                }
+              },
+              "Tetto_3_BAKE_SM_Tetto_3_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Tetto_3_BAKE_SM_Tetto_3_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Tetto_3_BAKE_SM_Tetto_3_BAKE.gltf"
+                }
+              },
+              "Tetto_4_BAKE_SM_Tetto_4_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Tetto_4_BAKE_SM_Tetto_4_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Tetto_4_BAKE_SM_Tetto_4_BAKE.gltf"
+                }
+              },
+              "Tetto_5_BAKE_SM_Tetto_5_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Tetto_5_BAKE_SM_Tetto_5_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Tetto_5_BAKE_SM_Tetto_5_BAKE.gltf"
+                }
+              },
+              "Tetto_6_BAKE_SM_Tetto_6_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Tetto_6_BAKE_SM_Tetto_6_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Tetto_6_BAKE_SM_Tetto_6_BAKE.gltf"
+                }
+              },
+              "Travi_BAKE_SM_Travi_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Travi_BAKE_SM_Travi_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Travi_BAKE_SM_Travi_BAKE.gltf"
+                }
+              },
+              "Walls_BAKE_SM_Walls_BAKE_model": {
+                "type": "representation_model",
+                "name": "Model for Walls_BAKE_SM_Walls_BAKE",
+                "description": "",
+                "data": {
+                  "url": "models/Walls_BAKE_SM_Walls_BAKE.gltf"
+                }
+              }
+            },
+            "panorama_models": {
+              "pano_1_model": {
+                "type": "panorama_model",
+                "name": "Panorama per epoca",
+                "description": "",
+                "data": {
+                  "url": "panorama/pano.jpg"
+                }
+              }
+            }
+          },
+          "edges": {
+            "is_before": [
+              {
+                "id": "n0::e0",
+                "from": "n0::n2",
+                "to": "n0::n12::n38"
+              },
+              {
+                "id": "n0::e1",
+                "from": "n0::n1",
+                "to": "n0::n2"
+              },
+              {
+                "id": "n0::e2",
+                "from": "n0::n0",
+                "to": "n0::n1"
+              },
+              {
+                "id": "n0::e3",
+                "from": "n0::n9::n0",
+                "to": "n0::n4"
+              },
+              {
+                "id": "n0::e4",
+                "from": "n0::n9::n1",
+                "to": "n0::n5"
+              },
+              {
+                "id": "n0::e5",
+                "from": "n0::n2",
+                "to": "n0::n12::n38"
+              },
+              {
+                "id": "n0::e6",
+                "from": "n0::n2",
+                "to": "n0::n6"
+              },
+              {
+                "id": "n0::e7",
+                "from": "n0::n2",
+                "to": "n0::n5"
+              },
+              {
+                "id": "n0::e8",
+                "from": "n0::n2",
+                "to": "n0::n4"
+              },
+              {
+                "id": "n0::e10",
+                "from": "n0::n6",
+                "to": "n0::n3"
+              },
+              {
+                "id": "n0::e11",
+                "from": "n0::n4",
+                "to": "n0::n3"
+              },
+              {
+                "id": "n0::e12",
+                "from": "n0::n12::n38",
+                "to": "n0::n3"
+              },
+              {
+                "id": "n0::e13",
+                "from": "n0::n5",
+                "to": "n0::n3"
+              },
+              {
+                "id": "n0::e15",
+                "from": "n0::n9::n2",
+                "to": "n0::n6"
+              },
+              {
+                "id": "n0::n10::e0",
+                "from": "n0::n10::n1",
+                "to": "n0::n10::n0"
+              },
+              {
+                "id": "n0::n10::e1",
+                "from": "n0::n10::n3",
+                "to": "n0::n10::n2"
+              },
+              {
+                "id": "n0::e16",
+                "from": "n0::n10::n0",
+                "to": "n0::n9::n2"
+              },
+              {
+                "id": "n0::e17",
+                "from": "n0::n10::n2",
+                "to": "n0::n9::n2"
+              },
+              {
+                "id": "n0::n10::e2",
+                "from": "n0::n10::n21",
+                "to": "n0::n10::n20"
+              },
+              {
+                "id": "n0::e18",
+                "from": "n0::n10::n20",
+                "to": "n0::n9::n2"
+              },
+              {
+                "id": "n0::e19",
+                "from": "n0::n10::n22",
+                "to": "n0::n9::n2"
+              },
+              {
+                "id": "n0::e20",
+                "from": "n0::n10::n23",
+                "to": "n0::n9::n2"
+              },
+              {
+                "id": "n0::e21",
+                "from": "n0::n10::n18",
+                "to": "n0::n9::n2"
+              },
+              {
+                "id": "n0::e22",
+                "from": "n0::n10::n19",
+                "to": "n0::n9::n1"
+              },
+              {
+                "id": "n0::e23",
+                "from": "n0::n8::n8",
+                "to": "n0::n9::n0"
+              },
+              {
+                "id": "n0::e24",
+                "from": "n0::n8::n8",
+                "to": "n0::n9::n1"
+              },
+              {
+                "id": "n0::e25",
+                "from": "n0::n8::n6",
+                "to": "n0::n9::n1"
+              },
+              {
+                "id": "n0::n10::e3",
+                "from": "n0::n10::n4",
+                "to": "n0::n10::n5"
+              },
+              {
+                "id": "n0::n10::e4",
+                "from": "n0::n10::n9",
+                "to": "n0::n10::n4"
+              },
+              {
+                "id": "n0::n10::e5",
+                "from": "n0::n10::n5",
+                "to": "n0::n10::n10"
+              },
+              {
+                "id": "n0::n10::e6",
+                "from": "n0::n10::n10",
+                "to": "n0::n10::n3"
+              },
+              {
+                "id": "n0::n10::e7",
+                "from": "n0::n10::n6",
+                "to": "n0::n10::n11"
+              },
+              {
+                "id": "n0::n10::e8",
+                "from": "n0::n10::n11",
+                "to": "n0::n10::n1"
+              },
+              {
+                "id": "n0::n10::e9",
+                "from": "n0::n10::n12",
+                "to": "n0::n10::n6"
+              },
+              {
+                "id": "n0::n10::e10",
+                "from": "n0::n10::n7",
+                "to": "n0::n10::n12"
+              },
+              {
+                "id": "n0::n10::e11",
+                "from": "n0::n10::n13",
+                "to": "n0::n10::n7"
+              },
+              {
+                "id": "n0::n10::e12",
+                "from": "n0::n10::n8",
+                "to": "n0::n10::n13"
+              },
+              {
+                "id": "n0::n8::e2",
+                "from": "n0::n8::n7",
+                "to": "n0::n8::n6"
+              },
+              {
+                "id": "n0::e26",
+                "from": "n0::n8::n0",
+                "to": "n0::n9::n0"
+              },
+              {
+                "id": "n0::e27",
+                "from": "n0::n11::n3",
+                "to": "n0::n9::n0"
+              },
+              {
+                "id": "n0::n8::e3",
+                "from": "n0::n8::n9",
+                "to": "n0::n8::n8"
+              },
+              {
+                "id": "n0::n11::e0",
+                "from": "n0::n11::n4",
+                "to": "n0::n11::n3"
+              },
+              {
+                "id": "n0::n10::e17",
+                "from": "n0::n10::n16",
+                "to": "n0::n10::n9"
+              },
+              {
+                "id": "n0::e28",
+                "from": "n0::n10::n19",
+                "to": "n0::n8::n6"
+              },
+              {
+                "id": "n0::n8::e4",
+                "from": "n0::n8::n8",
+                "to": "n0::n8::n6"
+              },
+              {
+                "id": "n0::n10::e18",
+                "from": "n0::n10::n17",
+                "to": "n0::n10::n16"
+              },
+              {
+                "id": "n0::e29",
+                "from": "n0::n10::n16",
+                "to": "n0::n8::n6"
+              },
+              {
+                "id": "n0::n10::e19",
+                "from": "n0::n10::n24",
+                "to": "n0::n10::n17"
+              },
+              {
+                "id": "n0::n11::e1",
+                "from": "n0::n11::n0",
+                "to": "n0::n11::n3"
+              },
+              {
+                "id": "n0::n11::e2",
+                "from": "n0::n11::n2",
+                "to": "n0::n11::n1"
+              },
+              {
+                "id": "n0::n11::e6",
+                "from": "n0::n11::n5",
+                "to": "n0::n11::n0"
+              },
+              {
+                "id": "n0::n11::e7",
+                "from": "n0::n11::n6",
+                "to": "n0::n11::n0"
+              },
+              {
+                "id": "n0::n11::e8",
+                "from": "n0::n11::n7",
+                "to": "n0::n11::n0"
+              },
+              {
+                "id": "n0::e31",
+                "from": "n0::n7::n0",
+                "to": "n0::n8::n10"
+              },
+              {
+                "id": "n0::n7::e0",
+                "from": "n0::n7::n2",
+                "to": "n0::n7::n4"
+              },
+              {
+                "id": "n0::e32",
+                "from": "n0::n7::n4",
+                "to": "n0::n8::n6"
+              },
+              {
+                "id": "n0::n7::e3",
+                "from": "n0::n7::n1",
+                "to": "n0::n7::n4"
+              },
+              {
+                "id": "n0::e33",
+                "from": "n0::n11::n3",
+                "to": "n0::n12::n39"
+              },
+              {
+                "id": "n0::n12::e0",
+                "from": "n0::n12::n0",
+                "to": "n0::n12::n6"
+              },
+              {
+                "id": "n0::n12::e2",
+                "from": "n0::n12::n1",
+                "to": "n0::n12::n36"
+              },
+              {
+                "id": "n0::n12::e3",
+                "from": "n0::n12::n2",
+                "to": "n0::n12::n4"
+              },
+              {
+                "id": "n0::n12::e4",
+                "from": "n0::n12::n3",
+                "to": "n0::n12::n39"
+              },
+              {
+                "id": "n0::n12::e8",
+                "from": "n0::n12::n4",
+                "to": "n0::n12::n5"
+              },
+              {
+                "id": "n0::n12::e9",
+                "from": "n0::n12::n5",
+                "to": "n0::n12::n3"
+              },
+              {
+                "id": "n0::n12::e10",
+                "from": "n0::n12::n6",
+                "to": "n0::n12::n2"
+              },
+              {
+                "id": "n0::n12::e19",
+                "from": "n0::n12::n14",
+                "to": "n0::n12::n1"
+              },
+              {
+                "id": "n0::n12::e20",
+                "from": "n0::n12::n14",
+                "to": "n0::n12::n0"
+              },
+              {
+                "id": "n0::n12::e22",
+                "from": "n0::n12::n15",
+                "to": "n0::n12::n14"
+              },
+              {
+                "id": "n0::n12::e23",
+                "from": "n0::n12::n17",
+                "to": "n0::n12::n21"
+              },
+              {
+                "id": "n0::n12::e24",
+                "from": "n0::n12::n18",
+                "to": "n0::n12::n19"
+              },
+              {
+                "id": "n0::n12::e25",
+                "from": "n0::n12::n18",
+                "to": "n0::n12::n17"
+              },
+              {
+                "id": "n0::n12::e26",
+                "from": "n0::n12::n19",
+                "to": "n0::n12::n21"
+              },
+              {
+                "id": "n0::n12::e27",
+                "from": "n0::n12::n20",
+                "to": "n0::n12::n21"
+              },
+              {
+                "id": "n0::n12::e28",
+                "from": "n0::n12::n21",
+                "to": "n0::n12::n16"
+              },
+              {
+                "id": "n0::n12::e29",
+                "from": "n0::n12::n21",
+                "to": "n0::n12::n22"
+              },
+              {
+                "id": "n0::n12::e32",
+                "from": "n0::n12::n25",
+                "to": "n0::n12::n20"
+              },
+              {
+                "id": "n0::n12::e35",
+                "from": "n0::n12::n26",
+                "to": "n0::n12::n31"
+              },
+              {
+                "id": "n0::n12::e36",
+                "from": "n0::n12::n27",
+                "to": "n0::n12::n26"
+              },
+              {
+                "id": "n0::n12::e38",
+                "from": "n0::n12::n28",
+                "to": "n0::n12::n27"
+              },
+              {
+                "id": "n0::n12::e41",
+                "from": "n0::n12::n31",
+                "to": "n0::n12::n29"
+              },
+              {
+                "id": "n0::n12::e42",
+                "from": "n0::n12::n31",
+                "to": "n0::n12::n15"
+              },
+              {
+                "id": "n0::n12::e43",
+                "from": "n0::n12::n36",
+                "to": "n0::n12::n38"
+              },
+              {
+                "id": "n0::n12::e48",
+                "from": "n0::n12::n39",
+                "to": "n0::n12::n36"
+              }
+            ],
+            "has_same_time": [],
+            "changed_from": [],
+            "has_data_provenance": [
+              {
+                "id": "n0::n7::n3::e2",
+                "from": "n0::n7::n3::n3",
+                "to": "n0::n7::n3::n9"
+              },
+              {
+                "id": "n0::n12::n32::e0",
+                "from": "n0::n12::n32::n0",
+                "to": "n0::n12::n32::n3"
+              },
+              {
+                "id": "n0::n12::n40::e1",
+                "from": "n0::n12::n40::n2",
+                "to": "n0::n12::n40::n4"
+              },
+              {
+                "id": "n0::n12::n40::e2",
+                "from": "n0::n12::n40::n3",
+                "to": "n0::n12::n40::n0"
+              },
+              {
+                "id": "n0::n12::n41::e0",
+                "from": "n0::n12::n41::n0",
+                "to": "n0::n12::n41::n2"
+              },
+              {
+                "id": "n0::n12::n42::e0",
+                "from": "n0::n12::n42::n0",
+                "to": "n0::n12::n42::n4"
+              },
+              {
+                "id": "n0::n12::n42::e2",
+                "from": "n0::n12::n42::n2",
+                "to": "n0::n12::n42::n5"
+              },
+              {
+                "id": "n0::n11::e3",
+                "from": "n0::n11::n1",
+                "to": "n0::n11::n5"
+              },
+              {
+                "id": "n0::n11::e4",
+                "from": "n0::n11::n1",
+                "to": "n0::n11::n6"
+              },
+              {
+                "id": "n0::n11::e5",
+                "from": "n0::n11::n1",
+                "to": "n0::n11::n7"
+              },
+              {
+                "id": "n0::n7::e2",
+                "from": "n0::n7::n4",
+                "to": "n0::n7::n0"
+              },
+              {
+                "id": "n0::e34",
+                "from": "n0::n8::n6",
+                "to": "n0::n12::n3"
+              },
+              {
+                "id": "n0::n12::e40",
+                "from": "n0::n12::n29",
+                "to": "n0::n12::n30"
+              },
+              {
+                "id": "n0::n12::n37::e0",
+                "from": "n0::n12::n37::n0",
+                "to": "n0::n12::n37::n6"
+              },
+              {
+                "id": "n0::n12::n37::e1",
+                "from": "n0::n12::n37::n1",
+                "to": "n0::n12::n37::n5"
+              },
+              {
+                "id": "n0::n12::n37::e2",
+                "from": "n0::n12::n37::n2",
+                "to": "n0::n12::n37::n3"
+              }
+            ],
+            "has_author": [],
+            "contrasts_with": [],
+            "has_first_epoch": [
+              {
+                "id": "pano_1_model::row_2",
+                "from": "pano_1_model",
+                "to": "row_4"
+              },
+              {
+                "id": "n0::n0_Humus",
+                "from": "n0::n0",
+                "to": "row_2"
+              },
+              {
+                "id": "n0::n1_XX sec",
+                "from": "n0::n1",
+                "to": "row_4"
+              },
+              {
+                "id": "n0::n2_Post antiquity",
+                "from": "n0::n2",
+                "to": "row_0"
+              },
+              {
+                "id": "n0::n3_Geologic",
+                "from": "n0::n3",
+                "to": "row_3"
+              },
+              {
+                "id": "n0::n4_II A.D.",
+                "from": "n0::n4",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n5_II A.D.",
+                "from": "n0::n5",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n6_II A.D.",
+                "from": "n0::n6",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n7::n0_II A.D.",
+                "from": "n0::n7::n0",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n7::n1_II A.D.",
+                "from": "n0::n7::n1",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n7::n2_II A.D.",
+                "from": "n0::n7::n2",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n7::n4_II A.D.",
+                "from": "n0::n7::n4",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n8::n0_II A.D.",
+                "from": "n0::n8::n0",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n8::n2_II A.D.",
+                "from": "n0::n8::n2",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n8::n3_II A.D.",
+                "from": "n0::n8::n3",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n8::n4_II A.D.",
+                "from": "n0::n8::n4",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n8::n5_II A.D.",
+                "from": "n0::n8::n5",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n8::n6_II A.D.",
+                "from": "n0::n8::n6",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n8::n7_II A.D.",
+                "from": "n0::n8::n7",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n8::n8_II A.D.",
+                "from": "n0::n8::n8",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n8::n9_II A.D.",
+                "from": "n0::n8::n9",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n8::n10_II A.D.",
+                "from": "n0::n8::n10",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n9::n0_II A.D.",
+                "from": "n0::n9::n0",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n9::n1_II A.D.",
+                "from": "n0::n9::n1",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n9::n2_II A.D.",
+                "from": "n0::n9::n2",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n0_II A.D.",
+                "from": "n0::n10::n0",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n1_II A.D.",
+                "from": "n0::n10::n1",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n2_II A.D.",
+                "from": "n0::n10::n2",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n3_II A.D.",
+                "from": "n0::n10::n3",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n4_II A.D.",
+                "from": "n0::n10::n4",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n5_II A.D.",
+                "from": "n0::n10::n5",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n6_II A.D.",
+                "from": "n0::n10::n6",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n7_II A.D.",
+                "from": "n0::n10::n7",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n8_II A.D.",
+                "from": "n0::n10::n8",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n9_II A.D.",
+                "from": "n0::n10::n9",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n10_II A.D.",
+                "from": "n0::n10::n10",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n11_II A.D.",
+                "from": "n0::n10::n11",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n12_II A.D.",
+                "from": "n0::n10::n12",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n13_II A.D.",
+                "from": "n0::n10::n13",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n16_II A.D.",
+                "from": "n0::n10::n16",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n17_II A.D.",
+                "from": "n0::n10::n17",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n18_II A.D.",
+                "from": "n0::n10::n18",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n19_II A.D.",
+                "from": "n0::n10::n19",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n20_II A.D.",
+                "from": "n0::n10::n20",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n21_II A.D.",
+                "from": "n0::n10::n21",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n22_II A.D.",
+                "from": "n0::n10::n22",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n23_II A.D.",
+                "from": "n0::n10::n23",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10::n24_II A.D.",
+                "from": "n0::n10::n24",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n11::n0_II A.D.",
+                "from": "n0::n11::n0",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n11::n1_II A.D.",
+                "from": "n0::n11::n1",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n11::n2_II A.D.",
+                "from": "n0::n11::n2",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n11::n3_II A.D.",
+                "from": "n0::n11::n3",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n11::n4_II A.D.",
+                "from": "n0::n11::n4",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n11::n5_II A.D.",
+                "from": "n0::n11::n5",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n11::n6_II A.D.",
+                "from": "n0::n11::n6",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n11::n7_II A.D.",
+                "from": "n0::n11::n7",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n0_II A.D.",
+                "from": "n0::n12::n0",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n1_II A.D.",
+                "from": "n0::n12::n1",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n2_II A.D.",
+                "from": "n0::n12::n2",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n3_II A.D.",
+                "from": "n0::n12::n3",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n4_II A.D.",
+                "from": "n0::n12::n4",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n5_II A.D.",
+                "from": "n0::n12::n5",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n6_II A.D.",
+                "from": "n0::n12::n6",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n7_II A.D.",
+                "from": "n0::n12::n7",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n8_II A.D.",
+                "from": "n0::n12::n8",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n9_II A.D.",
+                "from": "n0::n12::n9",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n10_II A.D.",
+                "from": "n0::n12::n10",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n11_II A.D.",
+                "from": "n0::n12::n11",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n12_II A.D.",
+                "from": "n0::n12::n12",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n14_II A.D.",
+                "from": "n0::n12::n14",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n15_II A.D.",
+                "from": "n0::n12::n15",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n16_II A.D.",
+                "from": "n0::n12::n16",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n17_II A.D.",
+                "from": "n0::n12::n17",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n18_II A.D.",
+                "from": "n0::n12::n18",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n19_II A.D.",
+                "from": "n0::n12::n19",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n20_II A.D.",
+                "from": "n0::n12::n20",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n21_II A.D.",
+                "from": "n0::n12::n21",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n22_II A.D.",
+                "from": "n0::n12::n22",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n24_II A.D.",
+                "from": "n0::n12::n24",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n25_II A.D.",
+                "from": "n0::n12::n25",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n26_II A.D.",
+                "from": "n0::n12::n26",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n27_II A.D.",
+                "from": "n0::n12::n27",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n28_II A.D.",
+                "from": "n0::n12::n28",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n29_II A.D.",
+                "from": "n0::n12::n29",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n30_II A.D.",
+                "from": "n0::n12::n30",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n31_II A.D.",
+                "from": "n0::n12::n31",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n36_II A.D.",
+                "from": "n0::n12::n36",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n38_II A.D.",
+                "from": "n0::n12::n38",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n39_II A.D.",
+                "from": "n0::n12::n39",
+                "to": "row_1"
+              }
+            ],
+            "survive_in_epoch": [
+              {
+                "id": "n0::n1_Humus",
+                "from": "n0::n1",
+                "to": "row_2"
+              },
+              {
+                "id": "n0::n2_Humus",
+                "from": "n0::n2",
+                "to": "row_2"
+              },
+              {
+                "id": "n0::n2_XX sec",
+                "from": "n0::n2",
+                "to": "row_4"
+              },
+              {
+                "id": "n0::n3_Humus",
+                "from": "n0::n3",
+                "to": "row_2"
+              },
+              {
+                "id": "n0::n3_XX sec",
+                "from": "n0::n3",
+                "to": "row_4"
+              },
+              {
+                "id": "n0::n3_Post antiquity",
+                "from": "n0::n3",
+                "to": "row_0"
+              },
+              {
+                "id": "n0::n3_II A.D.",
+                "from": "n0::n3",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n4_Humus",
+                "from": "n0::n4",
+                "to": "row_2"
+              },
+              {
+                "id": "n0::n4_XX sec",
+                "from": "n0::n4",
+                "to": "row_4"
+              },
+              {
+                "id": "n0::n4_Post antiquity",
+                "from": "n0::n4",
+                "to": "row_0"
+              },
+              {
+                "id": "n0::n5_Humus",
+                "from": "n0::n5",
+                "to": "row_2"
+              },
+              {
+                "id": "n0::n5_XX sec",
+                "from": "n0::n5",
+                "to": "row_4"
+              },
+              {
+                "id": "n0::n5_Post antiquity",
+                "from": "n0::n5",
+                "to": "row_0"
+              },
+              {
+                "id": "n0::n6_Humus",
+                "from": "n0::n6",
+                "to": "row_2"
+              },
+              {
+                "id": "n0::n6_XX sec",
+                "from": "n0::n6",
+                "to": "row_4"
+              },
+              {
+                "id": "n0::n6_Post antiquity",
+                "from": "n0::n6",
+                "to": "row_0"
+              },
+              {
+                "id": "n0::n12::n38_Humus",
+                "from": "n0::n12::n38",
+                "to": "row_2"
+              },
+              {
+                "id": "n0::n12::n38_XX sec",
+                "from": "n0::n12::n38",
+                "to": "row_4"
+              },
+              {
+                "id": "n0::n12::n38_Post antiquity",
+                "from": "n0::n12::n38",
+                "to": "row_0"
+              }
+            ],
+            "is_in_activity": [
+              {
+                "id": "n0::n7::n0_has_activity_n0::n7",
+                "from": "n0::n7::n0",
+                "to": "n0::n7"
+              },
+              {
+                "id": "n0::n7::n1_has_activity_n0::n7",
+                "from": "n0::n7::n1",
+                "to": "n0::n7"
+              },
+              {
+                "id": "n0::n7::n2_has_activity_n0::n7",
+                "from": "n0::n7::n2",
+                "to": "n0::n7"
+              },
+              {
+                "id": "n0::n7::n4_has_activity_n0::n7",
+                "from": "n0::n7::n4",
+                "to": "n0::n7"
+              },
+              {
+                "id": "n0::n8::n0_has_activity_n0::n8",
+                "from": "n0::n8::n0",
+                "to": "n0::n8"
+              },
+              {
+                "id": "n0::n8::n2_has_activity_n0::n8",
+                "from": "n0::n8::n2",
+                "to": "n0::n8"
+              },
+              {
+                "id": "n0::n8::n3_has_activity_n0::n8",
+                "from": "n0::n8::n3",
+                "to": "n0::n8"
+              },
+              {
+                "id": "n0::n8::n4_has_activity_n0::n8",
+                "from": "n0::n8::n4",
+                "to": "n0::n8"
+              },
+              {
+                "id": "n0::n8::n5_has_activity_n0::n8",
+                "from": "n0::n8::n5",
+                "to": "n0::n8"
+              },
+              {
+                "id": "n0::n8::n6_has_activity_n0::n8",
+                "from": "n0::n8::n6",
+                "to": "n0::n8"
+              },
+              {
+                "id": "n0::n8::n7_has_activity_n0::n8",
+                "from": "n0::n8::n7",
+                "to": "n0::n8"
+              },
+              {
+                "id": "n0::n8::n8_has_activity_n0::n8",
+                "from": "n0::n8::n8",
+                "to": "n0::n8"
+              },
+              {
+                "id": "n0::n8::n9_has_activity_n0::n8",
+                "from": "n0::n8::n9",
+                "to": "n0::n8"
+              },
+              {
+                "id": "n0::n8::n10_has_activity_n0::n8",
+                "from": "n0::n8::n10",
+                "to": "n0::n8"
+              },
+              {
+                "id": "n0::n9::n0_has_activity_n0::n9",
+                "from": "n0::n9::n0",
+                "to": "n0::n9"
+              },
+              {
+                "id": "n0::n9::n1_has_activity_n0::n9",
+                "from": "n0::n9::n1",
+                "to": "n0::n9"
+              },
+              {
+                "id": "n0::n9::n2_has_activity_n0::n9",
+                "from": "n0::n9::n2",
+                "to": "n0::n9"
+              },
+              {
+                "id": "n0::n10::n0_has_activity_n0::n10",
+                "from": "n0::n10::n0",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n1_has_activity_n0::n10",
+                "from": "n0::n10::n1",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n2_has_activity_n0::n10",
+                "from": "n0::n10::n2",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n3_has_activity_n0::n10",
+                "from": "n0::n10::n3",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n4_has_activity_n0::n10",
+                "from": "n0::n10::n4",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n5_has_activity_n0::n10",
+                "from": "n0::n10::n5",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n6_has_activity_n0::n10",
+                "from": "n0::n10::n6",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n7_has_activity_n0::n10",
+                "from": "n0::n10::n7",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n8_has_activity_n0::n10",
+                "from": "n0::n10::n8",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n9_has_activity_n0::n10",
+                "from": "n0::n10::n9",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n10_has_activity_n0::n10",
+                "from": "n0::n10::n10",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n11_has_activity_n0::n10",
+                "from": "n0::n10::n11",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n12_has_activity_n0::n10",
+                "from": "n0::n10::n12",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n13_has_activity_n0::n10",
+                "from": "n0::n10::n13",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n16_has_activity_n0::n10",
+                "from": "n0::n10::n16",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n17_has_activity_n0::n10",
+                "from": "n0::n10::n17",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n18_has_activity_n0::n10",
+                "from": "n0::n10::n18",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n19_has_activity_n0::n10",
+                "from": "n0::n10::n19",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n20_has_activity_n0::n10",
+                "from": "n0::n10::n20",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n21_has_activity_n0::n10",
+                "from": "n0::n10::n21",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n22_has_activity_n0::n10",
+                "from": "n0::n10::n22",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n23_has_activity_n0::n10",
+                "from": "n0::n10::n23",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n24_has_activity_n0::n10",
+                "from": "n0::n10::n24",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n11::n0_has_activity_n0::n11",
+                "from": "n0::n11::n0",
+                "to": "n0::n11"
+              },
+              {
+                "id": "n0::n11::n1_has_activity_n0::n11",
+                "from": "n0::n11::n1",
+                "to": "n0::n11"
+              },
+              {
+                "id": "n0::n11::n2_has_activity_n0::n11",
+                "from": "n0::n11::n2",
+                "to": "n0::n11"
+              },
+              {
+                "id": "n0::n11::n3_has_activity_n0::n11",
+                "from": "n0::n11::n3",
+                "to": "n0::n11"
+              },
+              {
+                "id": "n0::n11::n4_has_activity_n0::n11",
+                "from": "n0::n11::n4",
+                "to": "n0::n11"
+              },
+              {
+                "id": "n0::n11::n5_has_activity_n0::n11",
+                "from": "n0::n11::n5",
+                "to": "n0::n11"
+              },
+              {
+                "id": "n0::n11::n6_has_activity_n0::n11",
+                "from": "n0::n11::n6",
+                "to": "n0::n11"
+              },
+              {
+                "id": "n0::n11::n7_has_activity_n0::n11",
+                "from": "n0::n11::n7",
+                "to": "n0::n11"
+              },
+              {
+                "id": "n0::n12::n0_has_activity_n0::n12",
+                "from": "n0::n12::n0",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n1_has_activity_n0::n12",
+                "from": "n0::n12::n1",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n2_has_activity_n0::n12",
+                "from": "n0::n12::n2",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n3_has_activity_n0::n12",
+                "from": "n0::n12::n3",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n4_has_activity_n0::n12",
+                "from": "n0::n12::n4",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n5_has_activity_n0::n12",
+                "from": "n0::n12::n5",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n6_has_activity_n0::n12",
+                "from": "n0::n12::n6",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n7_has_activity_n0::n12",
+                "from": "n0::n12::n7",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n8_has_activity_n0::n12",
+                "from": "n0::n12::n8",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n9_has_activity_n0::n12",
+                "from": "n0::n12::n9",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n10_has_activity_n0::n12",
+                "from": "n0::n12::n10",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n11_has_activity_n0::n12",
+                "from": "n0::n12::n11",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n12_has_activity_n0::n12",
+                "from": "n0::n12::n12",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n14_has_activity_n0::n12",
+                "from": "n0::n12::n14",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n15_has_activity_n0::n12",
+                "from": "n0::n12::n15",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n16_has_activity_n0::n12",
+                "from": "n0::n12::n16",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n17_has_activity_n0::n12",
+                "from": "n0::n12::n17",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n18_has_activity_n0::n12",
+                "from": "n0::n12::n18",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n19_has_activity_n0::n12",
+                "from": "n0::n12::n19",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n20_has_activity_n0::n12",
+                "from": "n0::n12::n20",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n21_has_activity_n0::n12",
+                "from": "n0::n12::n21",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n22_has_activity_n0::n12",
+                "from": "n0::n12::n22",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n24_has_activity_n0::n12",
+                "from": "n0::n12::n24",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n25_has_activity_n0::n12",
+                "from": "n0::n12::n25",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n26_has_activity_n0::n12",
+                "from": "n0::n12::n26",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n27_has_activity_n0::n12",
+                "from": "n0::n12::n27",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n28_has_activity_n0::n12",
+                "from": "n0::n12::n28",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n29_has_activity_n0::n12",
+                "from": "n0::n12::n29",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n30_has_activity_n0::n12",
+                "from": "n0::n12::n30",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n31_has_activity_n0::n12",
+                "from": "n0::n12::n31",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n36_has_activity_n0::n12",
+                "from": "n0::n12::n36",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n38_has_activity_n0::n12",
+                "from": "n0::n12::n38",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n39_has_activity_n0::n12",
+                "from": "n0::n12::n39",
+                "to": "n0::n12"
+              }
+            ],
+            "has_property": [
+              {
+                "id": "n0::n9::e0",
+                "from": "n0::n9::n2",
+                "to": "n0::n9::n3::n3"
+              },
+              {
+                "id": "n0::n8::e6",
+                "from": "n0::n8::n10",
+                "to": "n0::n8::n11::n0"
+              },
+              {
+                "id": "n0::n7::e1",
+                "from": "n0::n7::n4",
+                "to": "n0::n7::n5::n0"
+              },
+              {
+                "id": "n0::n9::e1",
+                "from": "n0::n9::n0",
+                "to": "n0::n9::n3::n3"
+              },
+              {
+                "id": "n0::n9::e2",
+                "from": "n0::n9::n1",
+                "to": "n0::n9::n3::n3"
+              },
+              {
+                "id": "n0::n8::e10",
+                "from": "n0::n8::n0",
+                "to": "n0::n8::n12::n1"
+              },
+              {
+                "id": "n0::n7::e4",
+                "from": "n0::n7::n0",
+                "to": "n0::n7::n3::n2"
+              },
+              {
+                "id": "n0::n7::e5",
+                "from": "n0::n7::n0",
+                "to": "n0::n7::n3::n3"
+              },
+              {
+                "id": "n0::n7::e6",
+                "from": "n0::n7::n0",
+                "to": "n0::n7::n3::n4"
+              },
+              {
+                "id": "n0::n12::e5",
+                "from": "n0::n12::n3",
+                "to": "n0::n12::n42::n2"
+              },
+              {
+                "id": "n0::n12::e6",
+                "from": "n0::n12::n3",
+                "to": "n0::n12::n42::n1"
+              },
+              {
+                "id": "n0::n12::e7",
+                "from": "n0::n12::n3",
+                "to": "n0::n12::n42::n0"
+              },
+              {
+                "id": "n0::n12::e33",
+                "from": "n0::n12::n26",
+                "to": "n0::n12::n35::n0"
+              },
+              {
+                "id": "n0::n12::e34",
+                "from": "n0::n12::n26",
+                "to": "n0::n12::n35::n1"
+              },
+              {
+                "id": "n0::n12::e37",
+                "from": "n0::n12::n27",
+                "to": "n0::n12::n33::n0"
+              },
+              {
+                "id": "n0::n12::e39",
+                "from": "n0::n12::n28",
+                "to": "n0::n12::n32::n0"
+              },
+              {
+                "id": "n0::n12::e44",
+                "from": "n0::n12::n36",
+                "to": "n0::n12::n37::n2"
+              },
+              {
+                "id": "n0::n12::e45",
+                "from": "n0::n12::n36",
+                "to": "n0::n12::n37::n1"
+              },
+              {
+                "id": "n0::n12::e46",
+                "from": "n0::n12::n36",
+                "to": "n0::n12::n37::n0"
+              },
+              {
+                "id": "n0::n12::e47",
+                "from": "n0::n12::n38",
+                "to": "n0::n12::n41::n0"
+              },
+              {
+                "id": "n0::n12::e49",
+                "from": "n0::n12::n39",
+                "to": "n0::n12::n40::n3"
+              },
+              {
+                "id": "n0::n12::e50",
+                "from": "n0::n12::n39",
+                "to": "n0::n12::n40::n2"
+              }
+            ],
+            "has_timebranch": [],
+            "has_linked_resource": [
+              {
+                "id": "n0::n9::n3::n0_has_linked_resource_n0::n9::n3::n0_link",
+                "from": "n0::n9::n3::n0",
+                "to": "n0::n9::n3::n0_link"
+              },
+              {
+                "id": "n0::n7::n3::n9_has_linked_resource_n0::n7::n3::n9_link",
+                "from": "n0::n7::n3::n9",
+                "to": "n0::n7::n3::n9_link"
+              },
+              {
+                "id": "n0::n12::n33::n1_has_linked_resource_n0::n12::n33::n1_link",
+                "from": "n0::n12::n33::n1",
+                "to": "n0::n12::n33::n1_link"
+              },
+              {
+                "id": "n0::n12::n40::n4_has_linked_resource_n0::n12::n40::n4_link",
+                "from": "n0::n12::n40::n4",
+                "to": "n0::n12::n40::n4_link"
+              },
+              {
+                "id": "n0::n12::n40::n0_has_linked_resource_n0::n12::n40::n0_link",
+                "from": "n0::n12::n40::n0",
+                "to": "n0::n12::n40::n0_link"
+              },
+              {
+                "id": "n0::n12::n37::n6_has_linked_resource_n0::n12::n37::n6_link",
+                "from": "n0::n12::n37::n6",
+                "to": "n0::n12::n37::n6_link"
+              },
+              {
+                "id": "n0::n12::n42::n4_has_linked_resource_n0::n12::n42::n4_link",
+                "from": "n0::n12::n42::n4",
+                "to": "n0::n12::n42::n4_link"
+              },
+              {
+                "id": "n0::n12::n42::n5_has_linked_resource_n0::n12::n42::n5_link",
+                "from": "n0::n12::n42::n5",
+                "to": "n0::n12::n42::n5_link"
+              },
+              {
+                "id": "n0::n12::n37::n4_has_linked_resource_n0::n12::n37::n4_link",
+                "from": "n0::n12::n37::n4",
+                "to": "n0::n12::n37::n4_link"
+              },
+              {
+                "id": "n0::n12::n37::n3_has_linked_resource_n0::n12::n37::n3_link",
+                "from": "n0::n12::n37::n3",
+                "to": "n0::n12::n37::n3_link"
+              },
+              {
+                "id": "n0::n12::n37::n5_has_linked_resource_n0::n12::n37::n5_link",
+                "from": "n0::n12::n37::n5",
+                "to": "n0::n12::n37::n5_link"
+              }
+            ],
+            "generic_connection": [
+              {
+                "id": "n0::n7::n3::n0_has_activity_n0::n7::n3",
+                "from": "n0::n7::n3::n0",
+                "to": "n0::n7::n3"
+              },
+              {
+                "id": "n0::n7::n3::n1_has_activity_n0::n7::n3",
+                "from": "n0::n7::n3::n1",
+                "to": "n0::n7::n3"
+              },
+              {
+                "id": "n0::n7::n3::n2_has_activity_n0::n7::n3",
+                "from": "n0::n7::n3::n2",
+                "to": "n0::n7::n3"
+              },
+              {
+                "id": "n0::n7::n3::n3_has_activity_n0::n7::n3",
+                "from": "n0::n7::n3::n3",
+                "to": "n0::n7::n3"
+              },
+              {
+                "id": "n0::n7::n3::n4_has_activity_n0::n7::n3",
+                "from": "n0::n7::n3::n4",
+                "to": "n0::n7::n3"
+              },
+              {
+                "id": "n0::n7::n3::n5_has_activity_n0::n7::n3",
+                "from": "n0::n7::n3::n5",
+                "to": "n0::n7::n3"
+              },
+              {
+                "id": "n0::n7::n3::n6_has_activity_n0::n7::n3",
+                "from": "n0::n7::n3::n6",
+                "to": "n0::n7::n3"
+              },
+              {
+                "id": "n0::n7::n3::n7_has_activity_n0::n7::n3",
+                "from": "n0::n7::n3::n7",
+                "to": "n0::n7::n3"
+              },
+              {
+                "id": "n0::n7::n3::n8_has_activity_n0::n7::n3",
+                "from": "n0::n7::n3::n8",
+                "to": "n0::n7::n3"
+              },
+              {
+                "id": "n0::n7::n3::n9_has_activity_n0::n7::n3",
+                "from": "n0::n7::n3::n9",
+                "to": "n0::n7::n3"
+              },
+              {
+                "id": "n0::n7::n3_has_activity_n0::n7",
+                "from": "n0::n7::n3",
+                "to": "n0::n7"
+              },
+              {
+                "id": "n0::n7::n5::n0_has_activity_n0::n7::n5",
+                "from": "n0::n7::n5::n0",
+                "to": "n0::n7::n5"
+              },
+              {
+                "id": "n0::n7::n5_has_activity_n0::n7",
+                "from": "n0::n7::n5",
+                "to": "n0::n7"
+              },
+              {
+                "id": "n0::n8::n1_has_activity_n0::n8",
+                "from": "n0::n8::n1",
+                "to": "n0::n8"
+              },
+              {
+                "id": "n0::n8::n11::n0_has_activity_n0::n8::n11",
+                "from": "n0::n8::n11::n0",
+                "to": "n0::n8::n11"
+              },
+              {
+                "id": "n0::n8::n11::n1_has_activity_n0::n8::n11",
+                "from": "n0::n8::n11::n1",
+                "to": "n0::n8::n11"
+              },
+              {
+                "id": "n0::n8::n11::n2_has_activity_n0::n8::n11",
+                "from": "n0::n8::n11::n2",
+                "to": "n0::n8::n11"
+              },
+              {
+                "id": "n0::n8::n11::n3_has_activity_n0::n8::n11",
+                "from": "n0::n8::n11::n3",
+                "to": "n0::n8::n11"
+              },
+              {
+                "id": "n0::n8::n11::n4_has_activity_n0::n8::n11",
+                "from": "n0::n8::n11::n4",
+                "to": "n0::n8::n11"
+              },
+              {
+                "id": "n0::n8::n11::n5_has_activity_n0::n8::n11",
+                "from": "n0::n8::n11::n5",
+                "to": "n0::n8::n11"
+              },
+              {
+                "id": "n0::n8::n11::n6_has_activity_n0::n8::n11",
+                "from": "n0::n8::n11::n6",
+                "to": "n0::n8::n11"
+              },
+              {
+                "id": "n0::n8::n11_has_activity_n0::n8",
+                "from": "n0::n8::n11",
+                "to": "n0::n8"
+              },
+              {
+                "id": "n0::n8::n12::n0_has_activity_n0::n8::n12",
+                "from": "n0::n8::n12::n0",
+                "to": "n0::n8::n12"
+              },
+              {
+                "id": "n0::n8::n12::n1_has_activity_n0::n8::n12",
+                "from": "n0::n8::n12::n1",
+                "to": "n0::n8::n12"
+              },
+              {
+                "id": "n0::n8::n12::n2_has_activity_n0::n8::n12",
+                "from": "n0::n8::n12::n2",
+                "to": "n0::n8::n12"
+              },
+              {
+                "id": "n0::n8::n12::n3_has_activity_n0::n8::n12",
+                "from": "n0::n8::n12::n3",
+                "to": "n0::n8::n12"
+              },
+              {
+                "id": "n0::n8::n12::n4_has_activity_n0::n8::n12",
+                "from": "n0::n8::n12::n4",
+                "to": "n0::n8::n12"
+              },
+              {
+                "id": "n0::n8::n12_has_activity_n0::n8",
+                "from": "n0::n8::n12",
+                "to": "n0::n8"
+              },
+              {
+                "id": "n0::n9::n3::n0_has_activity_n0::n9::n3",
+                "from": "n0::n9::n3::n0",
+                "to": "n0::n9::n3"
+              },
+              {
+                "id": "n0::n9::n3::n1_has_activity_n0::n9::n3",
+                "from": "n0::n9::n3::n1",
+                "to": "n0::n9::n3"
+              },
+              {
+                "id": "n0::n9::n3::n2_has_activity_n0::n9::n3",
+                "from": "n0::n9::n3::n2",
+                "to": "n0::n9::n3"
+              },
+              {
+                "id": "n0::n9::n3::n3_has_activity_n0::n9::n3",
+                "from": "n0::n9::n3::n3",
+                "to": "n0::n9::n3"
+              },
+              {
+                "id": "n0::n9::n3::n4_has_activity_n0::n9::n3",
+                "from": "n0::n9::n3::n4",
+                "to": "n0::n9::n3"
+              },
+              {
+                "id": "n0::n9::n3_has_activity_n0::n9",
+                "from": "n0::n9::n3",
+                "to": "n0::n9"
+              },
+              {
+                "id": "n0::n10::n14_has_activity_n0::n10",
+                "from": "n0::n10::n14",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n10::n15_has_activity_n0::n10",
+                "from": "n0::n10::n15",
+                "to": "n0::n10"
+              },
+              {
+                "id": "n0::n12::n13_has_activity_n0::n12",
+                "from": "n0::n12::n13",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n23_has_activity_n0::n12",
+                "from": "n0::n12::n23",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n32::n0_has_activity_n0::n12::n32",
+                "from": "n0::n12::n32::n0",
+                "to": "n0::n12::n32"
+              },
+              {
+                "id": "n0::n12::n32::n1_has_activity_n0::n12::n32",
+                "from": "n0::n12::n32::n1",
+                "to": "n0::n12::n32"
+              },
+              {
+                "id": "n0::n12::n32::n2_has_activity_n0::n12::n32",
+                "from": "n0::n12::n32::n2",
+                "to": "n0::n12::n32"
+              },
+              {
+                "id": "n0::n12::n32::n3_has_activity_n0::n12::n32",
+                "from": "n0::n12::n32::n3",
+                "to": "n0::n12::n32"
+              },
+              {
+                "id": "n0::n12::n32::n4_has_activity_n0::n12::n32",
+                "from": "n0::n12::n32::n4",
+                "to": "n0::n12::n32"
+              },
+              {
+                "id": "n0::n12::n32::n5_has_activity_n0::n12::n32",
+                "from": "n0::n12::n32::n5",
+                "to": "n0::n12::n32"
+              },
+              {
+                "id": "n0::n12::n32_has_activity_n0::n12",
+                "from": "n0::n12::n32",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n33::n0_has_activity_n0::n12::n33",
+                "from": "n0::n12::n33::n0",
+                "to": "n0::n12::n33"
+              },
+              {
+                "id": "n0::n12::n33::n1_has_activity_n0::n12::n33",
+                "from": "n0::n12::n33::n1",
+                "to": "n0::n12::n33"
+              },
+              {
+                "id": "n0::n12::n33::n2_has_activity_n0::n12::n33",
+                "from": "n0::n12::n33::n2",
+                "to": "n0::n12::n33"
+              },
+              {
+                "id": "n0::n12::n33_has_activity_n0::n12",
+                "from": "n0::n12::n33",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n34::n0_has_activity_n0::n12::n34",
+                "from": "n0::n12::n34::n0",
+                "to": "n0::n12::n34"
+              },
+              {
+                "id": "n0::n12::n34::n1_has_activity_n0::n12::n34",
+                "from": "n0::n12::n34::n1",
+                "to": "n0::n12::n34"
+              },
+              {
+                "id": "n0::n12::n34::n2_has_activity_n0::n12::n34",
+                "from": "n0::n12::n34::n2",
+                "to": "n0::n12::n34"
+              },
+              {
+                "id": "n0::n12::n34_has_activity_n0::n12",
+                "from": "n0::n12::n34",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n35::n0_has_activity_n0::n12::n35",
+                "from": "n0::n12::n35::n0",
+                "to": "n0::n12::n35"
+              },
+              {
+                "id": "n0::n12::n35::n1_has_activity_n0::n12::n35",
+                "from": "n0::n12::n35::n1",
+                "to": "n0::n12::n35"
+              },
+              {
+                "id": "n0::n12::n35::n2_has_activity_n0::n12::n35",
+                "from": "n0::n12::n35::n2",
+                "to": "n0::n12::n35"
+              },
+              {
+                "id": "n0::n12::n35_has_activity_n0::n12",
+                "from": "n0::n12::n35",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n37::n0_has_activity_n0::n12::n37",
+                "from": "n0::n12::n37::n0",
+                "to": "n0::n12::n37"
+              },
+              {
+                "id": "n0::n12::n37::n1_has_activity_n0::n12::n37",
+                "from": "n0::n12::n37::n1",
+                "to": "n0::n12::n37"
+              },
+              {
+                "id": "n0::n12::n37::n2_has_activity_n0::n12::n37",
+                "from": "n0::n12::n37::n2",
+                "to": "n0::n12::n37"
+              },
+              {
+                "id": "n0::n12::n37::n3_has_activity_n0::n12::n37",
+                "from": "n0::n12::n37::n3",
+                "to": "n0::n12::n37"
+              },
+              {
+                "id": "n0::n12::n37::n4_has_activity_n0::n12::n37",
+                "from": "n0::n12::n37::n4",
+                "to": "n0::n12::n37"
+              },
+              {
+                "id": "n0::n12::n37::n5_has_activity_n0::n12::n37",
+                "from": "n0::n12::n37::n5",
+                "to": "n0::n12::n37"
+              },
+              {
+                "id": "n0::n12::n37::n6_has_activity_n0::n12::n37",
+                "from": "n0::n12::n37::n6",
+                "to": "n0::n12::n37"
+              },
+              {
+                "id": "n0::n12::n37::n7_has_activity_n0::n12::n37",
+                "from": "n0::n12::n37::n7",
+                "to": "n0::n12::n37"
+              },
+              {
+                "id": "n0::n12::n37_has_activity_n0::n12",
+                "from": "n0::n12::n37",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n40::n0_has_activity_n0::n12::n40",
+                "from": "n0::n12::n40::n0",
+                "to": "n0::n12::n40"
+              },
+              {
+                "id": "n0::n12::n40::n1_has_activity_n0::n12::n40",
+                "from": "n0::n12::n40::n1",
+                "to": "n0::n12::n40"
+              },
+              {
+                "id": "n0::n12::n40::n2_has_activity_n0::n12::n40",
+                "from": "n0::n12::n40::n2",
+                "to": "n0::n12::n40"
+              },
+              {
+                "id": "n0::n12::n40::n3_has_activity_n0::n12::n40",
+                "from": "n0::n12::n40::n3",
+                "to": "n0::n12::n40"
+              },
+              {
+                "id": "n0::n12::n40::n4_has_activity_n0::n12::n40",
+                "from": "n0::n12::n40::n4",
+                "to": "n0::n12::n40"
+              },
+              {
+                "id": "n0::n12::n40::n5_has_activity_n0::n12::n40",
+                "from": "n0::n12::n40::n5",
+                "to": "n0::n12::n40"
+              },
+              {
+                "id": "n0::n12::n40_has_activity_n0::n12",
+                "from": "n0::n12::n40",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n41::n0_has_activity_n0::n12::n41",
+                "from": "n0::n12::n41::n0",
+                "to": "n0::n12::n41"
+              },
+              {
+                "id": "n0::n12::n41::n1_has_activity_n0::n12::n41",
+                "from": "n0::n12::n41::n1",
+                "to": "n0::n12::n41"
+              },
+              {
+                "id": "n0::n12::n41::n2_has_activity_n0::n12::n41",
+                "from": "n0::n12::n41::n2",
+                "to": "n0::n12::n41"
+              },
+              {
+                "id": "n0::n12::n41_has_activity_n0::n12",
+                "from": "n0::n12::n41",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n12::n42::n0_has_activity_n0::n12::n42",
+                "from": "n0::n12::n42::n0",
+                "to": "n0::n12::n42"
+              },
+              {
+                "id": "n0::n12::n42::n1_has_activity_n0::n12::n42",
+                "from": "n0::n12::n42::n1",
+                "to": "n0::n12::n42"
+              },
+              {
+                "id": "n0::n12::n42::n2_has_activity_n0::n12::n42",
+                "from": "n0::n12::n42::n2",
+                "to": "n0::n12::n42"
+              },
+              {
+                "id": "n0::n12::n42::n3_has_activity_n0::n12::n42",
+                "from": "n0::n12::n42::n3",
+                "to": "n0::n12::n42"
+              },
+              {
+                "id": "n0::n12::n42::n4_has_activity_n0::n12::n42",
+                "from": "n0::n12::n42::n4",
+                "to": "n0::n12::n42"
+              },
+              {
+                "id": "n0::n12::n42::n5_has_activity_n0::n12::n42",
+                "from": "n0::n12::n42::n5",
+                "to": "n0::n12::n42"
+              },
+              {
+                "id": "n0::n12::n42::n6_has_activity_n0::n12::n42",
+                "from": "n0::n12::n42::n6",
+                "to": "n0::n12::n42"
+              },
+              {
+                "id": "n0::n12::n42::n7_has_activity_n0::n12::n42",
+                "from": "n0::n12::n42::n7",
+                "to": "n0::n12::n42"
+              },
+              {
+                "id": "n0::n12::n42_has_activity_n0::n12",
+                "from": "n0::n12::n42",
+                "to": "n0::n12"
+              },
+              {
+                "id": "n0::n7::n3::e0",
+                "from": "n0::n7::n3::n1",
+                "to": "n0::n7::n3::n0"
+              },
+              {
+                "id": "n0::n7::n3::e1",
+                "from": "n0::n7::n3::n2",
+                "to": "n0::n7::n3::n1"
+              },
+              {
+                "id": "n0::n7::n3::e3",
+                "from": "n0::n7::n3::n4",
+                "to": "n0::n7::n3::n8"
+              },
+              {
+                "id": "n0::n7::n3::e4",
+                "from": "n0::n7::n3::n7",
+                "to": "n0::n7::n3::n5"
+              },
+              {
+                "id": "n0::n7::n3::e5",
+                "from": "n0::n7::n3::n8",
+                "to": "n0::n7::n3::n6"
+              },
+              {
+                "id": "n0::n7::n3::e6",
+                "from": "n0::n7::n3::n8",
+                "to": "n0::n7::n3::n7"
+              },
+              {
+                "id": "n0::n8::n11::e0",
+                "from": "n0::n8::n11::n0",
+                "to": "n0::n8::n11::n6"
+              },
+              {
+                "id": "n0::n8::n11::e1",
+                "from": "n0::n8::n11::n3",
+                "to": "n0::n8::n11::n2"
+              },
+              {
+                "id": "n0::n8::n11::e2",
+                "from": "n0::n8::n11::n5",
+                "to": "n0::n8::n11::n4"
+              },
+              {
+                "id": "n0::n8::n11::e3",
+                "from": "n0::n8::n11::n6",
+                "to": "n0::n8::n11::n1"
+              },
+              {
+                "id": "n0::n8::n11::e4",
+                "from": "n0::n8::n11::n6",
+                "to": "n0::n8::n11::n3"
+              },
+              {
+                "id": "n0::n8::n11::e5",
+                "from": "n0::n8::n11::n6",
+                "to": "n0::n8::n11::n5"
+              },
+              {
+                "id": "n0::n8::n12::e0",
+                "from": "n0::n8::n12::n1",
+                "to": "n0::n8::n12::n4"
+              },
+              {
+                "id": "n0::n8::n12::e1",
+                "from": "n0::n8::n12::n3",
+                "to": "n0::n8::n12::n2"
+              },
+              {
+                "id": "n0::n8::n12::e2",
+                "from": "n0::n8::n12::n4",
+                "to": "n0::n8::n12::n0"
+              },
+              {
+                "id": "n0::n8::n12::e3",
+                "from": "n0::n8::n12::n4",
+                "to": "n0::n8::n12::n3"
+              },
+              {
+                "id": "n0::n9::n3::e0",
+                "from": "n0::n9::n3::n1",
+                "to": "n0::n9::n3::n0"
+              },
+              {
+                "id": "n0::n9::n3::e1",
+                "from": "n0::n9::n3::n2",
+                "to": "n0::n9::n3::n1"
+              },
+              {
+                "id": "n0::n9::n3::e2",
+                "from": "n0::n9::n3::n2",
+                "to": "n0::n9::n3::n4"
+              },
+              {
+                "id": "n0::n9::n3::e3",
+                "from": "n0::n9::n3::n3",
+                "to": "n0::n9::n3::n2"
+              },
+              {
+                "id": "n0::n12::n32::e1",
+                "from": "n0::n12::n32::n2",
+                "to": "n0::n12::n32::n1"
+              },
+              {
+                "id": "n0::n12::n32::e2",
+                "from": "n0::n12::n32::n3",
+                "to": "n0::n12::n32::n2"
+              },
+              {
+                "id": "n0::n12::n32::e3",
+                "from": "n0::n12::n32::n3",
+                "to": "n0::n12::n32::n4"
+              },
+              {
+                "id": "n0::n12::n32::e4",
+                "from": "n0::n12::n32::n4",
+                "to": "n0::n12::n32::n5"
+              },
+              {
+                "id": "n0::n12::n33::e0",
+                "from": "n0::n12::n33::n0",
+                "to": "n0::n12::n33::n2"
+              },
+              {
+                "id": "n0::n12::n33::e1",
+                "from": "n0::n12::n33::n2",
+                "to": "n0::n12::n33::n1"
+              },
+              {
+                "id": "n0::n12::n34::e0",
+                "from": "n0::n12::n34::n0",
+                "to": "n0::n12::n34::n2"
+              },
+              {
+                "id": "n0::n12::n34::e1",
+                "from": "n0::n12::n34::n2",
+                "to": "n0::n12::n34::n1"
+              },
+              {
+                "id": "n0::n12::n40::e0",
+                "from": "n0::n12::n40::n0",
+                "to": "n0::n12::n40::n1"
+              },
+              {
+                "id": "n0::n12::n40::e3",
+                "from": "n0::n12::n40::n4",
+                "to": "n0::n12::n40::n5"
+              },
+              {
+                "id": "n0::n12::n41::e1",
+                "from": "n0::n12::n41::n2",
+                "to": "n0::n12::n41::n1"
+              },
+              {
+                "id": "n0::n12::n42::e1",
+                "from": "n0::n12::n42::n1",
+                "to": "n0::n12::n42::n7"
+              },
+              {
+                "id": "n0::n12::n42::e3",
+                "from": "n0::n12::n42::n4",
+                "to": "n0::n12::n42::n3"
+              },
+              {
+                "id": "n0::n12::n42::e4",
+                "from": "n0::n12::n42::n5",
+                "to": "n0::n12::n42::n3"
+              },
+              {
+                "id": "n0::n12::n42::e5",
+                "from": "n0::n12::n42::n7",
+                "to": "n0::n12::n42::n6"
+              },
+              {
+                "id": "n0::e9",
+                "from": "n0::n8::n11::n1",
+                "to": "n0::n9::n0"
+              },
+              {
+                "id": "n0::e14",
+                "from": "n0::n9::n3::n4",
+                "to": "n0::n6"
+              },
+              {
+                "id": "n0::n8::e0",
+                "from": "n0::n8::n1",
+                "to": "n0::n8::n0"
+              },
+              {
+                "id": "n0::n8::e1",
+                "from": "n0::n8::n12::n0",
+                "to": "n0::n8::n3"
+              },
+              {
+                "id": "n0::n10::e13",
+                "from": "n0::n10::n4",
+                "to": "n0::n10::n14"
+              },
+              {
+                "id": "n0::n10::e14",
+                "from": "n0::n10::n14",
+                "to": "n0::n10::n7"
+              },
+              {
+                "id": "n0::n10::e15",
+                "from": "n0::n10::n9",
+                "to": "n0::n10::n15"
+              },
+              {
+                "id": "n0::n10::e16",
+                "from": "n0::n10::n15",
+                "to": "n0::n10::n8"
+              },
+              {
+                "id": "n0::n8::e5",
+                "from": "n0::n8::n12::n0",
+                "to": "n0::n8::n2"
+              },
+              {
+                "id": "n0::e30",
+                "from": "n0::n7::n3::n6",
+                "to": "n0::n8::n10"
+              },
+              {
+                "id": "n0::n8::e7",
+                "from": "n0::n8::n10",
+                "to": "n0::n8::n1"
+              },
+              {
+                "id": "n0::n8::e8",
+                "from": "n0::n8::n12::n0",
+                "to": "n0::n8::n5"
+              },
+              {
+                "id": "n0::n8::e9",
+                "from": "n0::n8::n12::n0",
+                "to": "n0::n8::n4"
+              },
+              {
+                "id": "n0::n12::e1",
+                "from": "n0::n12::n0",
+                "to": "n0::n12::n34::n0"
+              },
+              {
+                "id": "n0::n12::e11",
+                "from": "n0::n12::n6",
+                "to": "n0::n12::n13"
+              },
+              {
+                "id": "n0::n12::e12",
+                "from": "n0::n12::n13",
+                "to": "n0::n12::n9"
+              },
+              {
+                "id": "n0::n12::e13",
+                "from": "n0::n12::n13",
+                "to": "n0::n12::n12"
+              },
+              {
+                "id": "n0::n12::e14",
+                "from": "n0::n12::n13",
+                "to": "n0::n12::n7"
+              },
+              {
+                "id": "n0::n12::e15",
+                "from": "n0::n12::n13",
+                "to": "n0::n12::n8"
+              },
+              {
+                "id": "n0::n12::e16",
+                "from": "n0::n12::n13",
+                "to": "n0::n12::n11"
+              },
+              {
+                "id": "n0::n12::e17",
+                "from": "n0::n12::n13",
+                "to": "n0::n12::n10"
+              },
+              {
+                "id": "n0::n12::e18",
+                "from": "n0::n12::n13",
+                "to": "n0::n12::n24"
+              },
+              {
+                "id": "n0::n12::e21",
+                "from": "n0::n12::n15",
+                "to": "n0::n12::n23"
+              },
+              {
+                "id": "n0::n12::e30",
+                "from": "n0::n12::n23",
+                "to": "n0::n12::n18"
+              },
+              {
+                "id": "n0::n12::e31",
+                "from": "n0::n12::n23",
+                "to": "n0::n12::n25"
+              },
+              {
+                "id": "n0::n12::n35::e0",
+                "from": "n0::n12::n35::n0",
+                "to": "n0::n12::n35::n2"
+              },
+              {
+                "id": "n0::n12::n35::e1",
+                "from": "n0::n12::n35::n1",
+                "to": "n0::n12::n35::n2"
+              },
+              {
+                "id": "n0::n12::n37::e3",
+                "from": "n0::n12::n37::n3",
+                "to": "n0::n12::n37::n4"
+              },
+              {
+                "id": "n0::n12::n37::e4",
+                "from": "n0::n12::n37::n5",
+                "to": "n0::n12::n37::n4"
+              },
+              {
+                "id": "n0::n12::n37::e5",
+                "from": "n0::n12::n37::n6",
+                "to": "n0::n12::n37::n7"
+              },
+              {
+                "id": "n0::n7_II A.D.",
+                "from": "n0::n7",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n7::n3_II A.D.",
+                "from": "n0::n7::n3",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n7::n5_II A.D.",
+                "from": "n0::n7::n5",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n8_II A.D.",
+                "from": "n0::n8",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n8::n11_II A.D.",
+                "from": "n0::n8::n11",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n8::n12_II A.D.",
+                "from": "n0::n8::n12",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n9_II A.D.",
+                "from": "n0::n9",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n9::n3_II A.D.",
+                "from": "n0::n9::n3",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n10_II A.D.",
+                "from": "n0::n10",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n11_II A.D.",
+                "from": "n0::n11",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12_II A.D.",
+                "from": "n0::n12",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n32_II A.D.",
+                "from": "n0::n12::n32",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n33_II A.D.",
+                "from": "n0::n12::n33",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n34_II A.D.",
+                "from": "n0::n12::n34",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n35_II A.D.",
+                "from": "n0::n12::n35",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n37_II A.D.",
+                "from": "n0::n12::n37",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n40_II A.D.",
+                "from": "n0::n12::n40",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n41_II A.D.",
+                "from": "n0::n12::n41",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n12::n42_II A.D.",
+                "from": "n0::n12::n42",
+                "to": "row_1"
+              },
+              {
+                "id": "n0::n4_has_shape_SU002_shape",
+                "from": "n0::n4",
+                "to": "SU002_shape"
+              },
+              {
+                "id": "n0::n5_has_shape_SU003_shape",
+                "from": "n0::n5",
+                "to": "SU003_shape"
+              },
+              {
+                "id": "n0::n6_has_shape_SU004_shape",
+                "from": "n0::n6",
+                "to": "SU004_shape"
+              },
+              {
+                "id": "n0::n7::n0_has_shape_USV106_shape",
+                "from": "n0::n7::n0",
+                "to": "USV106_shape"
+              },
+              {
+                "id": "n0::n7::n1_has_shape_USV105_shape",
+                "from": "n0::n7::n1",
+                "to": "USV105_shape"
+              },
+              {
+                "id": "n0::n7::n2_has_shape_USV149_shape",
+                "from": "n0::n7::n2",
+                "to": "USV149_shape"
+              },
+              {
+                "id": "n0::n8::n0_has_shape_USV125_shape",
+                "from": "n0::n8::n0",
+                "to": "USV125_shape"
+              },
+              {
+                "id": "n0::n8::n6_has_shape_USV118_shape",
+                "from": "n0::n8::n6",
+                "to": "USV118_shape"
+              },
+              {
+                "id": "n0::n8::n7_has_shape_USV124_shape",
+                "from": "n0::n8::n7",
+                "to": "USV124_shape"
+              },
+              {
+                "id": "n0::n8::n8_has_shape_USV109_shape",
+                "from": "n0::n8::n8",
+                "to": "USV109_shape"
+              },
+              {
+                "id": "n0::n8::n9_has_shape_USV129_shape",
+                "from": "n0::n8::n9",
+                "to": "USV129_shape"
+              },
+              {
+                "id": "n0::n8::n10_has_shape_USV104_shape",
+                "from": "n0::n8::n10",
+                "to": "USV104_shape"
+              },
+              {
+                "id": "n0::n9::n0_has_shape_USV101_shape",
+                "from": "n0::n9::n0",
+                "to": "USV101_shape"
+              },
+              {
+                "id": "n0::n9::n1_has_shape_USV102_shape",
+                "from": "n0::n9::n1",
+                "to": "USV102_shape"
+              },
+              {
+                "id": "n0::n9::n2_has_shape_USV108_shape",
+                "from": "n0::n9::n2",
+                "to": "USV108_shape"
+              },
+              {
+                "id": "n0::n10::n1_has_shape_USV111_shape",
+                "from": "n0::n10::n1",
+                "to": "USV111_shape"
+              },
+              {
+                "id": "n0::n10::n3_has_shape_USV110_shape",
+                "from": "n0::n10::n3",
+                "to": "USV110_shape"
+              },
+              {
+                "id": "n0::n10::n4_has_shape_USV115_shape",
+                "from": "n0::n10::n4",
+                "to": "USV115_shape"
+              },
+              {
+                "id": "n0::n10::n5_has_shape_USV119_shape",
+                "from": "n0::n10::n5",
+                "to": "USV119_shape"
+              },
+              {
+                "id": "n0::n10::n6_has_shape_USV120_shape",
+                "from": "n0::n10::n6",
+                "to": "USV120_shape"
+              },
+              {
+                "id": "n0::n10::n7_has_shape_USV121_shape",
+                "from": "n0::n10::n7",
+                "to": "USV121_shape"
+              },
+              {
+                "id": "n0::n10::n8_has_shape_USV122_shape",
+                "from": "n0::n10::n8",
+                "to": "USV122_shape"
+              },
+              {
+                "id": "n0::n10::n9_has_shape_USV123_shape",
+                "from": "n0::n10::n9",
+                "to": "USV123_shape"
+              },
+              {
+                "id": "n0::n10::n16_has_shape_USV150_shape",
+                "from": "n0::n10::n16",
+                "to": "USV150_shape"
+              },
+              {
+                "id": "n0::n10::n17_has_shape_USV151_shape",
+                "from": "n0::n10::n17",
+                "to": "USV151_shape"
+              },
+              {
+                "id": "n0::n10::n18_has_shape_USV116_shape",
+                "from": "n0::n10::n18",
+                "to": "USV116_shape"
+              },
+              {
+                "id": "n0::n10::n19_has_shape_USV117_shape",
+                "from": "n0::n10::n19",
+                "to": "USV117_shape"
+              },
+              {
+                "id": "n0::n10::n21_has_shape_USV112_shape",
+                "from": "n0::n10::n21",
+                "to": "USV112_shape"
+              },
+              {
+                "id": "n0::n10::n22_has_shape_USV113_shape",
+                "from": "n0::n10::n22",
+                "to": "USV113_shape"
+              },
+              {
+                "id": "n0::n10::n23_has_shape_USV114_shape",
+                "from": "n0::n10::n23",
+                "to": "USV114_shape"
+              },
+              {
+                "id": "n0::n10::n24_has_shape_USV152_shape",
+                "from": "n0::n10::n24",
+                "to": "USV152_shape"
+              },
+              {
+                "id": "n0::n11::n0_has_shape_USV156_shape",
+                "from": "n0::n11::n0",
+                "to": "USV156_shape"
+              },
+              {
+                "id": "n0::n11::n1_has_shape_USV155_shape",
+                "from": "n0::n11::n1",
+                "to": "USV155_shape"
+              },
+              {
+                "id": "n0::n11::n2_has_shape_USV157_shape",
+                "from": "n0::n11::n2",
+                "to": "USV157_shape"
+              },
+              {
+                "id": "n0::n11::n3_has_shape_USV130_shape",
+                "from": "n0::n11::n3",
+                "to": "USV130_shape"
+              },
+              {
+                "id": "n0::n11::n4_has_shape_USV128_shape",
+                "from": "n0::n11::n4",
+                "to": "USV128_shape"
+              },
+              {
+                "id": "n0::n12::n0_has_shape_USV132_shape",
+                "from": "n0::n12::n0",
+                "to": "USV132_shape"
+              },
+              {
+                "id": "n0::n12::n1_has_shape_USV137_shape",
+                "from": "n0::n12::n1",
+                "to": "USV137_shape"
+              },
+              {
+                "id": "n0::n12::n2_has_shape_USV138_shape",
+                "from": "n0::n12::n2",
+                "to": "USV138_shape"
+              },
+              {
+                "id": "n0::n12::n3_has_shape_USV139_shape",
+                "from": "n0::n12::n3",
+                "to": "USV139_shape"
+              },
+              {
+                "id": "n0::n12::n4_has_shape_USV140_shape",
+                "from": "n0::n12::n4",
+                "to": "USV140_shape"
+              },
+              {
+                "id": "n0::n12::n5_has_shape_T43_shape",
+                "from": "n0::n12::n5",
+                "to": "T43_shape"
+              },
+              {
+                "id": "n0::n12::n6_has_shape_USV141_shape",
+                "from": "n0::n12::n6",
+                "to": "USV141_shape"
+              },
+              {
+                "id": "n0::n12::n7_has_shape_T42_shape",
+                "from": "n0::n12::n7",
+                "to": "T42_shape"
+              },
+              {
+                "id": "n0::n12::n8_has_shape_T41_shape",
+                "from": "n0::n12::n8",
+                "to": "T41_shape"
+              },
+              {
+                "id": "n0::n12::n9_has_shape_T24_shape",
+                "from": "n0::n12::n9",
+                "to": "T24_shape"
+              },
+              {
+                "id": "n0::n12::n10_has_shape_T40_shape",
+                "from": "n0::n12::n10",
+                "to": "T40_shape"
+              },
+              {
+                "id": "n0::n12::n11_has_shape_T23_shape",
+                "from": "n0::n12::n11",
+                "to": "T23_shape"
+              },
+              {
+                "id": "n0::n12::n12_has_shape_T21_shape",
+                "from": "n0::n12::n12",
+                "to": "T21_shape"
+              },
+              {
+                "id": "n0::n12::n14_has_shape_USV133_shape",
+                "from": "n0::n12::n14",
+                "to": "USV133_shape"
+              },
+              {
+                "id": "n0::n12::n15_has_shape_USV142_shape",
+                "from": "n0::n12::n15",
+                "to": "USV142_shape"
+              },
+              {
+                "id": "n0::n12::n24_has_shape_T36_shape",
+                "from": "n0::n12::n24",
+                "to": "T36_shape"
+              },
+              {
+                "id": "n0::n12::n26_has_shape_USV146_shape",
+                "from": "n0::n12::n26",
+                "to": "USV146_shape"
+              },
+              {
+                "id": "n0::n12::n27_has_shape_USV153_shape",
+                "from": "n0::n12::n27",
+                "to": "USV153_shape"
+              },
+              {
+                "id": "n0::n12::n28_has_shape_USV154_shape",
+                "from": "n0::n12::n28",
+                "to": "USV154_shape"
+              },
+              {
+                "id": "n0::n12::n29_has_shape_USV158_shape",
+                "from": "n0::n12::n29",
+                "to": "USV158_shape"
+              },
+              {
+                "id": "n0::n12::n31_has_shape_USV145_shape",
+                "from": "n0::n12::n31",
+                "to": "USV145_shape"
+              },
+              {
+                "id": "n0::n12::n36_has_shape_USV100_shape",
+                "from": "n0::n12::n36",
+                "to": "USV100_shape"
+              },
+              {
+                "id": "n0::n12::n38_has_shape_SU001_shape",
+                "from": "n0::n12::n38",
+                "to": "SU001_shape"
+              },
+              {
+                "id": "n0::n12::n39_has_shape_USV131_shape",
+                "from": "n0::n12::n39",
+                "to": "USV131_shape"
+              },
+              {
+                "id": "Architrave_1_BAKE_SM_Architrave_1_BAKE_model_belongs_to_row_1",
+                "from": "Architrave_1_BAKE_SM_Architrave_1_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Cassettonato_BAKE_SM_Cassettonato_BAKE_model_belongs_to_row_1",
+                "from": "Cassettonato_BAKE_SM_Cassettonato_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_entrance1_model_belongs_to_row_1",
+                "from": "Column_entrance1_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_entrance2_model_belongs_to_row_1",
+                "from": "Column_entrance2_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_light1_model_belongs_to_row_1",
+                "from": "Column_light1_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_light10_model_belongs_to_row_1",
+                "from": "Column_light10_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_light2_model_belongs_to_row_1",
+                "from": "Column_light2_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_light3_model_belongs_to_row_1",
+                "from": "Column_light3_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_light4_model_belongs_to_row_1",
+                "from": "Column_light4_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_light5_model_belongs_to_row_1",
+                "from": "Column_light5_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_light6_model_belongs_to_row_1",
+                "from": "Column_light6_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_light7_model_belongs_to_row_1",
+                "from": "Column_light7_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_light8_model_belongs_to_row_1",
+                "from": "Column_light8_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_light9_model_belongs_to_row_1",
+                "from": "Column_light9_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow1_model_belongs_to_row_1",
+                "from": "Column_shadow1_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow10_model_belongs_to_row_1",
+                "from": "Column_shadow10_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow11_model_belongs_to_row_1",
+                "from": "Column_shadow11_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow12_model_belongs_to_row_1",
+                "from": "Column_shadow12_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow13_model_belongs_to_row_1",
+                "from": "Column_shadow13_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow14_model_belongs_to_row_1",
+                "from": "Column_shadow14_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow15_model_belongs_to_row_1",
+                "from": "Column_shadow15_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow16_model_belongs_to_row_1",
+                "from": "Column_shadow16_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow17_model_belongs_to_row_1",
+                "from": "Column_shadow17_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow18_model_belongs_to_row_1",
+                "from": "Column_shadow18_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow19_model_belongs_to_row_1",
+                "from": "Column_shadow19_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow2_model_belongs_to_row_1",
+                "from": "Column_shadow2_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow20_model_belongs_to_row_1",
+                "from": "Column_shadow20_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow21_model_belongs_to_row_1",
+                "from": "Column_shadow21_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow22_model_belongs_to_row_1",
+                "from": "Column_shadow22_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow23_model_belongs_to_row_1",
+                "from": "Column_shadow23_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow24_model_belongs_to_row_1",
+                "from": "Column_shadow24_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow25_model_belongs_to_row_1",
+                "from": "Column_shadow25_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow26_model_belongs_to_row_1",
+                "from": "Column_shadow26_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow27_model_belongs_to_row_1",
+                "from": "Column_shadow27_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow28_model_belongs_to_row_1",
+                "from": "Column_shadow28_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow29_model_belongs_to_row_1",
+                "from": "Column_shadow29_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow3_model_belongs_to_row_1",
+                "from": "Column_shadow3_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow30_model_belongs_to_row_1",
+                "from": "Column_shadow30_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow31_model_belongs_to_row_1",
+                "from": "Column_shadow31_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow32_model_belongs_to_row_1",
+                "from": "Column_shadow32_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow33_model_belongs_to_row_1",
+                "from": "Column_shadow33_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow34_model_belongs_to_row_1",
+                "from": "Column_shadow34_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow35_model_belongs_to_row_1",
+                "from": "Column_shadow35_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow36_model_belongs_to_row_1",
+                "from": "Column_shadow36_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow37_model_belongs_to_row_1",
+                "from": "Column_shadow37_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow38_model_belongs_to_row_1",
+                "from": "Column_shadow38_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow4_model_belongs_to_row_1",
+                "from": "Column_shadow4_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow5_model_belongs_to_row_1",
+                "from": "Column_shadow5_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow6_model_belongs_to_row_1",
+                "from": "Column_shadow6_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow7_model_belongs_to_row_1",
+                "from": "Column_shadow7_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow8_model_belongs_to_row_1",
+                "from": "Column_shadow8_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_shadow9_model_belongs_to_row_1",
+                "from": "Column_shadow9_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_tempio1_model_belongs_to_row_1",
+                "from": "Column_tempio1_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_tempio2_model_belongs_to_row_1",
+                "from": "Column_tempio2_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_tempio3_model_belongs_to_row_1",
+                "from": "Column_tempio3_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_tempio4_model_belongs_to_row_1",
+                "from": "Column_tempio4_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_tempio5_model_belongs_to_row_1",
+                "from": "Column_tempio5_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Column_tempio6_model_belongs_to_row_1",
+                "from": "Column_tempio6_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Ingresso_1_BAKE_SM_Ingresso_1_BAKE_model_belongs_to_row_1",
+                "from": "Ingresso_1_BAKE_SM_Ingresso_1_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Ingresso_2_BAKE_SM_Ingresso_2_BAKE_model_belongs_to_row_1",
+                "from": "Ingresso_2_BAKE_SM_Ingresso_2_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Ingresso_3_BAKE_SM_Ingresso_3_BAKE_model_belongs_to_row_1",
+                "from": "Ingresso_3_BAKE_SM_Ingresso_3_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Pavimento_1_BAKE_SM_Pavimento_1_BAKE.001_model_belongs_to_row_1",
+                "from": "Pavimento_1_BAKE_SM_Pavimento_1_BAKE.001_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Podio1_BAKE_SM_Podio1_BAKE_model_belongs_to_row_1",
+                "from": "Podio1_BAKE_SM_Podio1_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Podio_2_BAKE_SM_Podio_2_BAKE_model_belongs_to_row_1",
+                "from": "Podio_2_BAKE_SM_Podio_2_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Porta1_BAKE.001_SM_Porta1_BAKE.001_model_belongs_to_row_1",
+                "from": "Porta1_BAKE.001_SM_Porta1_BAKE.001_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Porta1_BAKE_SM_Porta1_BAKE_model_belongs_to_row_1",
+                "from": "Porta1_BAKE_SM_Porta1_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Porta2_BAKE.001_SM_Porta2_BAKE.001_model_belongs_to_row_1",
+                "from": "Porta2_BAKE.001_SM_Porta2_BAKE.001_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Porta2_BAKE_SM_Porta2_BAKE_model_belongs_to_row_1",
+                "from": "Porta2_BAKE_SM_Porta2_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Scale_1_BAKE_SM_Scale_1_BAKE_model_belongs_to_row_1",
+                "from": "Scale_1_BAKE_SM_Scale_1_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Scale_2_BAKE_SM_Scale_2_BAKE_model_belongs_to_row_1",
+                "from": "Scale_2_BAKE_SM_Scale_2_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "SM_OB_EST_bk_LOD1_model_belongs_to_row_4",
+                "from": "SM_OB_EST_bk_LOD1_model",
+                "to": "row_4"
+              },
+              {
+                "id": "SM_OB_EST_fr_LOD1_model_belongs_to_row_4",
+                "from": "SM_OB_EST_fr_LOD1_model",
+                "to": "row_4"
+              },
+              {
+                "id": "SM_OB_EST_L_LOD1_model_belongs_to_row_4",
+                "from": "SM_OB_EST_L_LOD1_model",
+                "to": "row_4"
+              },
+              {
+                "id": "SM_OB_EST_R_LOD1_model_belongs_to_row_4",
+                "from": "SM_OB_EST_R_LOD1_model",
+                "to": "row_4"
+              },
+              {
+                "id": "SM_OB_INT_bk_LOD1_model_belongs_to_row_4",
+                "from": "SM_OB_INT_bk_LOD1_model",
+                "to": "row_4"
+              },
+              {
+                "id": "SM_OB_INT_fr_LOD1_model_belongs_to_row_4",
+                "from": "SM_OB_INT_fr_LOD1_model",
+                "to": "row_4"
+              },
+              {
+                "id": "SM_OB_INT_L_LOD1_model_belongs_to_row_4",
+                "from": "SM_OB_INT_L_LOD1_model",
+                "to": "row_4"
+              },
+              {
+                "id": "SM_OB_INT_R_LOD1_model_belongs_to_row_4",
+                "from": "SM_OB_INT_R_LOD1_model",
+                "to": "row_4"
+              },
+              {
+                "id": "SM_OB_PODIO_LOD1_model_belongs_to_row_4",
+                "from": "SM_OB_PODIO_LOD1_model",
+                "to": "row_4"
+              },
+              {
+                "id": "SM_OB_PRATO_LOD1_model_belongs_to_row_4",
+                "from": "SM_OB_PRATO_LOD1_model",
+                "to": "row_4"
+              },
+              {
+                "id": "SM_OB_TEMPLUM_LOD1_model_belongs_to_row_4",
+                "from": "SM_OB_TEMPLUM_LOD1_model",
+                "to": "row_4"
+              },
+              {
+                "id": "Sottotetto_BAKE_SM_Sottotetto_BAKE_model_belongs_to_row_1",
+                "from": "Sottotetto_BAKE_SM_Sottotetto_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "tempio_1_BAKE_SM_tempio_1_BAKE_model_belongs_to_row_1",
+                "from": "tempio_1_BAKE_SM_tempio_1_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Tempio_2_BAKE_SM_Tempio_2_BAKE_model_belongs_to_row_1",
+                "from": "Tempio_2_BAKE_SM_Tempio_2_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Tempio_3_BAKE_SM_Tempio_3_BAKE_model_belongs_to_row_1",
+                "from": "Tempio_3_BAKE_SM_Tempio_3_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Tempio_4_BAKE.001_SM_Tempio_4_BAKE.001_model_belongs_to_row_1",
+                "from": "Tempio_4_BAKE.001_SM_Tempio_4_BAKE.001_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Tempio_4_BAKE_SM_Tempio_4_BAKE_model_belongs_to_row_1",
+                "from": "Tempio_4_BAKE_SM_Tempio_4_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Tempio_5_BAKE_SM_Tempio_5_BAKE_model_belongs_to_row_1",
+                "from": "Tempio_5_BAKE_SM_Tempio_5_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Tempio_6_BAKE_SM_Tempio_6_BAKE_model_belongs_to_row_1",
+                "from": "Tempio_6_BAKE_SM_Tempio_6_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Terreno_interno_BAKE_SM_Terreno_interno_BAKE_model_belongs_to_row_1",
+                "from": "Terreno_interno_BAKE_SM_Terreno_interno_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Tetto1_BAKE_SM_Tetto1_BAKE_model_belongs_to_row_1",
+                "from": "Tetto1_BAKE_SM_Tetto1_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Tetto_2_BAKE_SM_Tetto_2_BAKE_model_belongs_to_row_1",
+                "from": "Tetto_2_BAKE_SM_Tetto_2_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Tetto_3_BAKE_SM_Tetto_3_BAKE_model_belongs_to_row_1",
+                "from": "Tetto_3_BAKE_SM_Tetto_3_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Tetto_4_BAKE_SM_Tetto_4_BAKE_model_belongs_to_row_1",
+                "from": "Tetto_4_BAKE_SM_Tetto_4_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Tetto_5_BAKE_SM_Tetto_5_BAKE_model_belongs_to_row_1",
+                "from": "Tetto_5_BAKE_SM_Tetto_5_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Tetto_6_BAKE_SM_Tetto_6_BAKE_model_belongs_to_row_1",
+                "from": "Tetto_6_BAKE_SM_Tetto_6_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Travi_BAKE_SM_Travi_BAKE_model_belongs_to_row_1",
+                "from": "Travi_BAKE_SM_Travi_BAKE_model",
+                "to": "row_1"
+              },
+              {
+                "id": "Walls_BAKE_SM_Walls_BAKE_model_belongs_to_row_1",
+                "from": "Walls_BAKE_SM_Walls_BAKE_model",
+                "to": "row_1"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "wapp": "heriverse",
+  "thumbnail": "",
+  "tag": [],
+  "categories": [],
+  "visibility": "public",
+  "created_at": "2/14/2025, 9:14:35 AM"
+}

@@ -1,0 +1,66 @@
+{
+    "name": "USM Format",
+    "description": "Mapping format for Masonry Stratigraphic Units",
+    "version": "1.5",
+    "table_settings": {
+        "format_type": "xlsx",
+        "sheet_name": "USM"
+    },
+    "column_mappings": {
+        "Nome_USM": {
+            "node_type": "StratigraphicUnit",
+            "is_id": true
+        },
+        "Lunghezza": {
+            "node_type": "PropertyNode",
+            "property_name": "Length",
+            "display_name": "Length",
+            "description": "Length of the wall unit"
+        },
+        "Altezza": {
+            "node_type": "PropertyNode",
+            "property_name": "Height",
+            "display_name": "Height",
+            "description": "Height of the wall unit"
+        },
+        "Tecnica_Costruttiva": {
+            "node_type": "PropertyNode",
+            "property_name": "BuildingTechnique",
+            "display_name": "Building Technique",
+            "description": "Construction technique of the wall"
+        },
+        "Materiale": {
+            "node_type": "PropertyNode",
+            "property_name": "Material",
+            "display_name": "Material",
+            "description": "Main material used in construction"
+        }
+    },
+    "relations": [
+        {
+            "source_column": "Nome_USM",
+            "target_column": "Lunghezza",
+            "edge_type": "has_property"
+        },
+        {
+            "source_column": "Nome_USM",
+            "target_column": "Altezza",
+            "edge_type": "has_property"
+        },
+        {
+            "source_column": "Nome_USM",
+            "target_column": "Tecnica_Costruttiva",
+            "edge_type": "has_property"
+        },
+        {
+            "source_column": "Nome_USM",
+            "target_column": "Materiale",
+            "edge_type": "has_property"
+        },
+        {
+            "source_column": "Tecnica_Costruttiva",
+            "target_column": "Materiale",
+            "edge_type": "combines"
+        }
+    ]
+}
