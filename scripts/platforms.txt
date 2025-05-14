@@ -1,5 +1,5 @@
 # scripts/platforms.txt
 win_amd64
 manylinux2014_x86_64
-macosx_10_9_x86_64
+macosx_10_13_x86_64
 macosx_11_0_arm64
