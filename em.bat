@@ -136,7 +136,14 @@ if "%1"=="devrel" (
     echo Creating development release for GitHub...
     python scripts\dev.py inc
     python scripts\dev.py build
-    for /f "tokens=3" %%v in ('python scripts\version_manager.py current ^| findstr "Current version"') do set VERSION=%%v
+    
+    :: FIX: Prima elimina il tag vuoto 'v' se esiste
+    git tag -d v 2>nul
+    git push origin :refs/tags/v 2>nul
+    
+    :: FIX: Estrazione corretta della versione dalle multiple righe
+    for /f "tokens=2" %%v in ('python scripts\version_manager.py current ^| findstr "Version:"') do set VERSION=%%v
+    
     echo.
     echo Debug: Versione estratta = %VERSION%
     echo Committing and tagging...
