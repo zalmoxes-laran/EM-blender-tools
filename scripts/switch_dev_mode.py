@@ -56,7 +56,7 @@ platforms = ["windows-x64", "macos-arm64", "macos-x64", "linux-x64"]
 tags = ["3D View", "Import-Export", "Tools"]
 
 [permissions]
-wheels = ["./wheels/*.whl"]
+wheels = "./wheels/"
 """
     
     with open(manifest_path, 'w') as f:
