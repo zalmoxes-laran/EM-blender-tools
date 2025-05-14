@@ -67,7 +67,7 @@ for /f "tokens=* delims=" %%a in (requirements_wheels.txt) do (
 :: Switch to dev mode
 echo.
 echo Switching to development mode...
-call switch_dev_mode.py dev
+python switch_dev_mode.py dev
 
 :: Setup VSCode
 echo.

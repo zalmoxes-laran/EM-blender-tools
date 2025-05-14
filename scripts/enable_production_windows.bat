@@ -14,7 +14,7 @@ if not exist "switch_dev_mode.py" (
 
 :: Switch to production mode
 echo Switching to production mode...
-call switch_dev_mode.py prod
+python switch_dev_mode.py prod
 
 :: Vai alla cartella root
 cd ..
