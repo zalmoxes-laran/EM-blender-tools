@@ -124,17 +124,8 @@ if "%1"=="dev" (
     python scripts\dev.py build
     echo.
     echo Suggested commit message:
-    for /f "tokens=*" %%a in ('python scripts\version_manager.py current') do set VERSION_OUTPUT=%%a
-    for %%b in (%VERSION_OUTPUT%) do (
-        if "%%b" NEQ "Current" (
-            if "%%b" NEQ "version:" (
-                if "%%b" NEQ "(mode:" (
-                    set VERSION=%%b
-                    goto :found_version
-                )
-            )
-        )
-    )
+    for /f "tokens=3" %%v in ('python scripts\version_manager.py current ^| findstr "Current version"') do set VERSION=%%v
+
     :found_version
     echo "build: increment dev to %VERSION%"
     goto :end
