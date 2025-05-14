@@ -137,15 +137,39 @@ if "%1"=="devrel" (
     python scripts\dev.py inc
     python scripts\dev.py build
     
-    :: FIX: Prima elimina il tag vuoto 'v' se esiste
+    :: FIX: Elimina tag vuoto se esiste
     git tag -d v 2>nul
     git push origin :refs/tags/v 2>nul
     
-    :: FIX: Estrazione corretta della versione dalle multiple righe
-    for /f "tokens=2" %%v in ('python scripts\version_manager.py current ^| findstr "Version:"') do set VERSION=%%v
+    :: FIX: Il comando version_manager.py current restituisce "Current version: X.X.X (mode: dev)"
+    :: Quindi prendiamo il token 3 (dopo "Current version:")
+    for /f "tokens=3" %%v in ('python scripts\version_manager.py current') do set VERSION=%%v
     
     echo.
-    echo Debug: Versione estratta = %VERSION%
+    echo Debug: Versione estratta dal command = [%VERSION%]
+    
+    :: Verifica che la versione sia valida (contiene almeno un punto)
+    echo %VERSION% | findstr /C:"." >nul
+    if errorlevel 1 (
+        echo ERROR: Invalid version format: %VERSION%
+        echo Trying alternative method - reading from manifest...
+        
+        :: Fallback: leggi dal manifest
+        for /f "tokens=3" %%v in ('findstr "^version" blender_manifest.toml') do (
+            set VERSION=%%v
+            set VERSION=!VERSION:"=!
+        )
+        echo Debug: Version from manifest = [!VERSION!]
+    )
+    
+    :: Final check
+    if "%VERSION%"=="" (
+        echo ERROR: Could not extract version!
+        pause
+        goto :end
+    )
+    
+    echo Final: Creating release v%VERSION%
     echo Committing and tagging...
     git add -A
     git commit -m "build: dev release %VERSION%"
