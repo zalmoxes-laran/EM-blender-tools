@@ -136,14 +136,14 @@ if "%1"=="devrel" (
     echo Creating development release for GitHub...
     python scripts\dev.py inc
     python scripts\dev.py build
-    for /f "tokens=*" %%a in ('python scripts\version_manager.py current') do set VERSION=%%a
-    for %%b in (%VERSION%) do set VERSION=%%b
+    for /f "tokens=3" %%v in ('python scripts\version_manager.py current ^| findstr "Current version"') do set VERSION=%%v
     echo.
+    echo Debug: Versione estratta = %VERSION%
     echo Committing and tagging...
     git add -A
     git commit -m "build: dev release %VERSION%"
     git tag v%VERSION%
-    git push origin main
+    git push origin HEAD
     git push origin v%VERSION%
     echo ✅ Dev release %VERSION% pushed to GitHub!
     goto :end
