@@ -24,13 +24,13 @@ jobs:
       - name: Download wheels for all platforms
         run: |
           # Leggi requirements
-          while IFS= read -r package; do
+          while IFS= read -r package || [ -n "$package" ]; do
             # Salta righe vuote e commenti
-            [[ -z "$package" || "$package" =~ ^# ]] && continue
+            [[ -z "$package" || "$package" =~ ^[[:space:]]*# ]] && continue
             
             # Leggi piattaforme
-            while IFS= read -r platform; do
-              [[ -z "$platform" || "$platform" =~ ^# ]] && continue
+            while IFS= read -r platform || [ -n "$platform" ]; do
+              [[ -z "$platform" || "$platform" =~ ^[[:space:]]*# ]] && continue
               echo "Downloading $package for $platform..."
               pip download "$package" --only-binary=:all: --platform="$platform" --python-version=3.11 -d wheels/
             done < scripts/platforms.txt
