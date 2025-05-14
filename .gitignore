@@ -6,12 +6,12 @@ __pycache__/
 *.so
 
 # Blender Extension specifics
-blender_manifest.toml          # File generato dinamicamente - NON committare
-*.blext                        # Package finali
-build/                         # Directory build temporanea
-dist/                          # Directory di distribuzione
-releases/                      # Directory releases locali
-wheels/                        # Wheels scaricate - non committare
+blender_manifest.toml          
+*.blext                        
+build/                         
+dist/                          
+releases/                     
+wheels/                        
 *.whl
 
 # Directory releases ESTERNA (per sicurezza)
@@ -24,8 +24,8 @@ version.json.backup
 *.backup
 
 # VSCode workspace specifics
-.vscode/settings.json          # File specifico per utente - generato da template
-.vscode/launch.json           # Configurazioni specifiche utente
+.vscode/settings.json          
+.vscode/launch.json           
 
 # Ma mantieni il template VSCode!
 # .vscode/settings_template.json  <- QUESTO VA COMMITTATO
