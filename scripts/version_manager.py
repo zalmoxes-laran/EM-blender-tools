@@ -93,9 +93,9 @@ class VersionManager:
         wheels_list = []
         for i, wheel in enumerate(wheels):
             if i < len(wheels) - 1:
-                wheels_list.append(f'    "{wheel.name}",')
+                wheels_list.append(f'    "./wheels/{wheel.name}",')
             else:
-                wheels_list.append(f'    "{wheel.name}"')
+                wheels_list.append(f'    "./wheels/{wheel.name}"')
         
         if wheels_list:
             # Formato corretto per Blender Extensions
