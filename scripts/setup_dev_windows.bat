@@ -244,6 +244,7 @@ if exist ".vscode/settings_template.json" (
     ) > .vscode\settings.json
 )
 
+::
 :: Final verification
 echo.
 echo ============================================
@@ -251,26 +252,29 @@ echo Final Verification
 echo ============================================
 echo.
 
-:: Check critical files - inizializza ALL_OK a 1
-set "ALL_OK=1"
+:: Check critical files - reset e inizializza ALL_OK
+set ALL_OK=1
 
+:: Check manifest
 if not exist "blender_manifest.toml" (
     echo [ERROR] blender_manifest.toml missing
-    set "ALL_OK=0"
+    set ALL_OK=0
 ) else (
     echo [OK] blender_manifest.toml exists
 )
 
+:: Check wheels
 if not exist "wheels" (
     echo [ERROR] wheels directory missing
-    set "ALL_OK=0"
+    set ALL_OK=0
 ) else (
     echo [OK] wheels directory exists
 )
 
+:: Check VSCode settings
 if not exist ".vscode\settings.json" (
     echo [ERROR] .vscode\settings.json missing
-    set "ALL_OK=0"
+    set ALL_OK=0
 ) else (
     echo [OK] .vscode\settings.json exists
     
@@ -299,8 +303,8 @@ echo Development setup complete!
 echo ============================================
 echo.
 
-:: Controllo finale con logica corretta
-if "!ALL_OK!"=="1" (
+:: Controllo finale semplificato
+if %ALL_OK%==1 (
     echo ✅ SUCCESS: All files configured correctly
     echo.
     echo EM Tools is configured as a Blender EXTENSION (not addon)
@@ -329,7 +333,8 @@ if "!ALL_OK!"=="1" (
     echo - Try building manually: python scripts/dev.py build
     echo.
 ) else (
-    echo ❌ ERRORS DETECTED: Please check the errors above
+    echo ❌ SETUP FAILED: Critical files missing
+    echo Please check the errors above and run setup again
     echo.
 )
 
