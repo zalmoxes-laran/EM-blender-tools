@@ -1,5 +1,7 @@
 @echo off
+chcp 65001 >nul
 setlocal enabledelayedexpansion
+
 
 echo ============================================
 echo    EM Tools - Quick Commands (Windows)
