@@ -311,10 +311,12 @@ echo ============================================
 echo.
 
 :: FIXED: Use !ALL_OK! instead of %ALL_OK% for enabledelayedexpansion
+echo DEBUG: About to check if !ALL_OK!==1
 if !ALL_OK!==1 (
+    echo DEBUG: ALL_OK check passed, showing success message
     echo ✅ SUCCESS: All files configured correctly
     echo.
-    echo EM Tools is configured as a Blender EXTENSION (not addon)
+    echo EM Tools is configured as a Blender EXTENSION ^(not addon^)
     if !BLENDER_FOUND!==1 (
         echo ✅ Blender found and configured at: !BLENDER_PATH!
     ) else (
@@ -340,6 +342,7 @@ if !ALL_OK!==1 (
     echo - Try building manually: python scripts/dev.py build
     echo.
 ) else (
+    echo DEBUG: ALL_OK check failed, ALL_OK = !ALL_OK!
     echo ❌ SETUP FAILED: Critical files missing
     echo Please check the errors above and run setup again
     echo.
