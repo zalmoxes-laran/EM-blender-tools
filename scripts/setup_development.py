@@ -6,17 +6,35 @@ import sys
 import shutil
 from pathlib import Path
 
-def clean_wheels_directory():
-    """Pulisce la directory wheels prima di scaricare"""
+def clean_wheels_directory(force=False):
+    """Pulisce la directory wheels solo se necessario"""
     script_dir = os.path.dirname(__file__)
     wheels_dir = os.path.join(script_dir, '..', 'wheels')
     
-    if os.path.exists(wheels_dir):
-        print("Cleaning existing wheels directory...")
-        shutil.rmtree(wheels_dir)
+    # Se force=True, rimuovi sempre
+    if force:
+        if os.path.exists(wheels_dir):
+            print("FORCE MODE: Cleaning existing wheels directory...")
+            shutil.rmtree(wheels_dir)
+        os.makedirs(wheels_dir, exist_ok=True)
+        return wheels_dir
     
-    os.makedirs(wheels_dir, exist_ok=True)
+    # Se force=False, crea solo se non esiste
+    if not os.path.exists(wheels_dir):
+        print("Creating wheels directory...")
+        os.makedirs(wheels_dir)
+    else:
+        print("Using existing wheels directory...")
+    
     return wheels_dir
+
+def check_existing_wheels(wheels_dir):
+    """Controlla se esistono già wheels valide"""
+    if not os.path.exists(wheels_dir):
+        return []
+    
+    wheels = list(Path(wheels_dir).glob("*.whl"))
+    return wheels
 
 def check_and_clean_duplicates(wheels_dir):
     """Rimuove wheel duplicate mantenendo solo quelle per Python 3.11"""
@@ -38,7 +56,7 @@ def check_and_clean_duplicates(wheels_dir):
             cp311_versions = [v for v in versions if 'cp311' in v]
             
             if cp311_versions:
-                # Mantieni solo la versione cp311
+                # Mantieni solo la versione cp311 più specifica (es. preferisci versioni exact)
                 keep = cp311_versions[0]
                 print(f"  Keeping: {keep}")
                 
@@ -49,18 +67,40 @@ def check_and_clean_duplicates(wheels_dir):
             else:
                 print(f"  No cp311 version found, keeping: {versions[0]}")
 
-def download_wheels():
-    wheels_dir = clean_wheels_directory()
+def download_wheels(force=False):
+    # Check for --force argument
+    if "--force" in sys.argv:
+        force = True
+        print("🔄 FORCE MODE: Will re-download all wheels")
+    
     script_dir = os.path.dirname(__file__)
     requirements_file = os.path.join(script_dir, 'requirements_wheels.txt')
     
-    print(f"📁 Wheels directory: {wheels_dir}")
     print(f"📄 Requirements file: {requirements_file}")
     
     # Verifica che il file requirements esista
     if not os.path.exists(requirements_file):
         print(f"❌ ERROR: Requirements file not found: {requirements_file}")
         return False
+    
+    # Setup wheels directory
+    wheels_dir = clean_wheels_directory(force)
+    print(f"📁 Wheels directory: {wheels_dir}")
+    
+    # Se non è force e ci sono già wheels, verifica se sono sufficienti
+    if not force:
+        existing_wheels = check_existing_wheels(wheels_dir)
+        if existing_wheels:
+            print(f"⚠️  Found {len(existing_wheels)} existing wheels")
+            # Leggi il numero di pacchetti richiesti
+            with open(requirements_file, 'r') as f:
+                packages = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+            
+            # Se abbiamo enough wheels (almeno lo stesso numero di pacchetti), skippa
+            if len(existing_wheels) >= len(packages):
+                print("✅ Sufficient wheels already exist. Use '--force' to re-download")
+                print("   Or use 'em.bat setup force' to force re-download")
+                return True
     
     # Leggi i pacchetti dal file requirements
     with open(requirements_file, 'r') as f:
@@ -77,6 +117,7 @@ def download_wheels():
         'numpy==1.26.4',
         '--only-binary=:all:',
         '--python-version=3.11',
+        '--no-deps',  # Non scaricare dipendenze per evitare conflitti
         '-d', wheels_dir
     ]
     
@@ -89,17 +130,18 @@ def download_wheels():
     else:
         print("⚠️  Failed to download numpy, will try with other packages")
     
-    # Download il resto dei pacchetti
+    # Download il resto dei pacchetti UNO ALLA VOLTA senza dipendenze
     success_count = 0
     for package in packages:
         print(f"\n⬇️  Downloading {package}...")
         
-        # Usa un approccio semplificato - lascia che pip scelga la piattaforma corretta
+        # Download SOLO il pacchetto specifico, senza dipendenze
         cmd = [
             sys.executable, '-m', 'pip', 'download',
             package,
             '--only-binary=:all:',
             '--python-version=3.11',
+            '--no-deps',  # NON scaricare dipendenze
             '-d', wheels_dir
         ]
         
@@ -117,6 +159,7 @@ def download_wheels():
                 package_name,
                 '--only-binary=:all:',
                 '--python-version=3.11',
+                '--no-deps',
                 '-d', wheels_dir
             ]
             print(f"Fallback command: {' '.join(cmd_fallback)}")
@@ -147,7 +190,13 @@ def download_wheels():
 
 if __name__ == '__main__':
     print("🚀 Starting EM Tools wheels download...")
-    success = download_wheels()
+    
+    # Check for force mode
+    force_mode = "--force" in sys.argv
+    if force_mode:
+        print("🔄 FORCE MODE ENABLED")
+    
+    success = download_wheels(force_mode)
     if success:
         print("\n✅ Setup completed successfully!")
     else:

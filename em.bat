@@ -2,18 +2,10 @@
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 
-
 echo ============================================
 echo    EM Tools - Quick Commands (Windows)
 echo ============================================
 echo.
-
-if "%1"=="" goto :show_help
-if "%1"=="help" goto :show_help
-if "%1"=="-h" goto :show_help
-if "%1"=="--help" goto :show_help
-
-cd /d "%~dp0"
 
 if "%1"=="" goto :show_help
 if "%1"=="help" goto :show_help
@@ -45,6 +37,17 @@ if "%1"=="setup" (
     
     echo Changing to scripts directory...
     pushd scripts
+    
+    :: Controllo opzione force
+    if "%2"=="force" (
+        echo FORCE MODE: Cleaning existing wheels...
+        cd ..
+        if exist "wheels" (
+            rmdir /s /q "wheels"
+            echo Wheels directory removed
+        )
+        cd scripts
+    )
     
     :: Esegui il setup
     echo Running setup script...
@@ -256,6 +259,7 @@ echo Usage: em.bat [command] [options]
 echo.
 echo === SETUP ===
 echo   setup              Setup development environment
+echo   setup force        Setup and force re-download wheels (clean install)
 echo.
 echo === DEVELOPMENT ===
 echo   inc [part]         Increment version part:
@@ -282,6 +286,7 @@ echo   push               Push changes and tags to remote
 echo.
 echo === EXAMPLES ===
 echo   em setup           # First time setup
+echo   em setup force     # Clean setup (re-downloads wheels)
 echo   em dev             # Quick dev iteration  
 echo   em devrel          # Dev release to GitHub
 echo   em inc patch       # Increment patch: 1.5.0 → 1.5.1

@@ -218,9 +218,20 @@ else
     echo
 fi
 
-echo "Quick commands:"
-echo "  Increment dev build:  $PYTHON_CMD scripts/dev.py inc"
-echo "  Build dev version:    $PYTHON_CMD scripts/dev.py build"
-echo "  Create release:       $PYTHON_CMD scripts/release.py"
+echo "Quick commands with em.sh:"
+echo "  ./em.sh inc                # Increment dev build (1.5.0-dev.66 → 1.5.0-dev.67)"
+echo "  ./em.sh build              # Build extension for testing"
+echo "  ./em.sh dev                # Quick: increment + build"
+echo "  ./em.sh devrel             # Dev release: increment + build + git tag + push"
+echo
+echo "  ./em.sh inc patch          # Increment patch (1.5.0 → 1.5.1)"
+echo "  ./em.sh inc minor          # Increment minor (1.5.0 → 1.6.0)"  
+echo "  ./em.sh rc                 # Create release candidate"
+echo "  ./em.sh stable             # Create stable release"
+echo
+echo "  ./em.sh status             # Show version and git status"
+echo "  ./em.sh setup              # Re-run setup (use for updates)"
+echo
+echo "  Type \"./em.sh help\" for complete list of commands"
 echo
 read -p "Press enter to continue..."
