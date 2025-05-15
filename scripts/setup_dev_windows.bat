@@ -251,29 +251,30 @@ echo Final Verification
 echo ============================================
 echo.
 
-:: Check critical files
-set ALL_OK=1
+:: Check critical files - inizializza ALL_OK a 1
+set "ALL_OK=1"
+
 if not exist "blender_manifest.toml" (
     echo [ERROR] blender_manifest.toml missing
-    set ALL_OK=0
+    set "ALL_OK=0"
 ) else (
     echo [OK] blender_manifest.toml exists
 )
 
 if not exist "wheels" (
     echo [ERROR] wheels directory missing
-    set ALL_OK=0
+    set "ALL_OK=0"
 ) else (
     echo [OK] wheels directory exists
 )
 
 if not exist ".vscode\settings.json" (
     echo [ERROR] .vscode\settings.json missing
-    set ALL_OK=0
+    set "ALL_OK=0"
 ) else (
     echo [OK] .vscode\settings.json exists
     
-    :: Verifica se il path di Blender è stato impostato
+    :: Verifica se il path di Blender è stato impostato (SOLO WARNING, non errore)
     findstr /c:"BLENDER_PATH_PLACEHOLDER" .vscode\settings.json >nul
     if not errorlevel 1 (
         echo [WARNING] Blender path still contains placeholder
@@ -298,7 +299,8 @@ echo Development setup complete!
 echo ============================================
 echo.
 
-if !ALL_OK!==1 (
+:: Controllo finale con logica corretta
+if "!ALL_OK!"=="1" (
     echo ✅ SUCCESS: All files configured correctly
     echo.
     echo EM Tools is configured as a Blender EXTENSION (not addon)
