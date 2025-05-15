@@ -1,4 +1,6 @@
 import bpy
+import json
+import os
 from .s3Dgraphy import get_graph, remove_graph
 from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode
 
@@ -22,6 +24,40 @@ from .import_operators.import_EMdb import *
 from .operators.graphml_converter import GRAPHML_OT_convert_borders
 
 from .functions import get_compatible_icon
+
+def get_em_tools_version():
+    """Legge la versione corrente da version.json"""
+    try:
+        # Percorso al file version.json (nella root dell'addon)
+        addon_dir = os.path.dirname(os.path.dirname(__file__))
+        version_file = os.path.join(addon_dir, "version.json")
+        
+        if os.path.exists(version_file):
+            with open(version_file, 'r') as f:
+                config = json.load(f)
+            
+            # Genera la stringa di versione basata sul mode
+            major = config.get('major', 1)
+            minor = config.get('minor', 5) 
+            patch = config.get('patch', 0)
+            mode = config.get('mode', 'dev')
+            
+            base = f"{major}.{minor}.{patch}"
+            
+            if mode == 'dev':
+                dev_build = config.get('dev_build', 0)
+                return f"{base}-dev.{dev_build}"
+            elif mode == 'rc':
+                rc_build = config.get('rc_build', 1) 
+                return f"{base}-rc.{rc_build}"
+            else:  # stable
+                return base
+                
+    except Exception as e:
+        print(f"Error reading version.json: {e}")
+    
+    # Fallback statico se non riesce a leggere
+    return "1.5.0-dev.unknown"
 
 class EM_OT_manage_object_prefixes(bpy.types.Operator):
     bl_idname = "em.manage_object_prefixes"
@@ -451,7 +487,7 @@ class EMToolsSwitchModeOperator(bpy.types.Operator):
 
 class EM_SetupPanel(bpy.types.Panel):
     
-    bl_label = "EM setup 1.5.0 dev 42"
+    bl_label = f"EM setup {get_em_tools_version()}"
     bl_idname = "VIEW3D_PT_EM_Tools_Setup"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'

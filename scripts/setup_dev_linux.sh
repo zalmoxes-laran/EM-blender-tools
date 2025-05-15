@@ -77,11 +77,42 @@ if [ $? -ne 0 ]; then
     echo "ERROR: Failed to download wheels"
     read -p "Press enter to exit..."
     exit 1
+else
+    echo "SUCCESS: Wheels download completed"
 fi
+
+# Verifica wheels
+echo
+echo "Verifying wheels directory..."
+cd ..
+if [ ! -d "wheels" ]; then
+    echo "WARNING: wheels directory not created!"
+    echo "This means the download failed silently"
+else
+    echo "SUCCESS: wheels directory found"
+    WHEEL_COUNT=$(ls wheels/*.whl 2>/dev/null | wc -l)
+    echo "Found $WHEEL_COUNT wheel files"
+fi
+cd scripts
+
+# Genera il manifest DOPO aver scaricato le wheels
+echo
+echo "Generating blender_manifest.toml..."
+cd ..
+$PYTHON_CMD scripts/version_manager.py update
+if [ ! -f "blender_manifest.toml" ]; then
+    echo "ERROR: Failed to generate blender_manifest.toml!"
+    read -p "Press enter to exit..."
+    exit 1
+else
+    echo "SUCCESS: blender_manifest.toml generated"
+fi
+cd scripts
 
 # Install dependencies for local development
 echo
 echo "Installing dependencies for local development..."
+echo "Note: This installs Python packages for VSCode IntelliSense"
 echo "Installing packages from requirements_wheels.txt..."
 while IFS= read -r line || [ -n "$line" ]; do
     # Skip empty lines and comments
@@ -101,21 +132,32 @@ cd ..
 
 mkdir -p .vscode
 
-# Crea settings.json da template o manualmente
+# Crea settings.json da template
 if [ -f ".vscode/settings_template.json" ]; then
+    echo "Using settings template..."
     cp .vscode/settings_template.json .vscode/settings.json
     
     # Aggiorna il path di Blender se trovato
     if [ $BLENDER_FOUND -eq 1 ]; then
         echo "Updating VSCode settings with Blender path..."
-        sed -i "s|BLENDER_PATH_PLACEHOLDER|$BLENDER_PATH|g" .vscode/settings.json
+        # Escape the path for sed
+        ESCAPED_PATH=$(echo "$BLENDER_PATH" | sed 's/[[\.*^$()+?{|]/\\&/g')
+        sed -i "s|BLENDER_PATH_PLACEHOLDER|$ESCAPED_PATH|g" .vscode/settings.json
+    else
+        echo "WARNING: Blender not found, you'll need to set the path manually"
+        echo "Edit .vscode/settings.json and update \"blender.executable\""
     fi
+    echo "SUCCESS: .vscode/settings.json created from template"
 else
+    echo "WARNING: settings_template.json not found, creating basic settings..."
     # Crea settings.json manualmente
     cat > .vscode/settings.json << EOF
 {
     "blender.addon.sourceDirectory": ".",
-    "blender.addon.reloadOnSave": true,$(if [ $BLENDER_FOUND -eq 1 ]; then echo "
+    "blender.addon.reloadOnSave": true,
+    "blender.addon.loadAsExtension": true,
+    "blender.addon.extensionDirectoryType": "user",
+    "blender.addon.extensionType": "add-on",$(if [ $BLENDER_FOUND -eq 1 ]; then echo "
     \"blender.executable\": \"$BLENDER_PATH\","; else echo "
     // \"blender.executable\": \"/usr/bin/blender\","; fi)
     "python.defaultInterpreterPath": "$PYTHON_CMD",
@@ -123,25 +165,74 @@ else
         "**/__pycache__": true,
         "**/*.pyc": true,
         "build/": true,
-        "wheels/": true
+        "wheels/": true,
+        "*.blext": true
     }
 }
 EOF
 fi
 
-# Status finale
+# Final verification
+echo
+echo "============================================"
+echo "Final Verification"
+echo "============================================"
+echo
+
+# Check critical files
+ALL_OK=1
+if [ ! -f "blender_manifest.toml" ]; then
+    echo "[ERROR] blender_manifest.toml missing"
+    ALL_OK=0
+else
+    echo "[OK] blender_manifest.toml exists"
+fi
+
+if [ ! -d "wheels" ]; then
+    echo "[ERROR] wheels directory missing"
+    ALL_OK=0
+else
+    echo "[OK] wheels directory exists"
+fi
+
+if [ ! -f ".vscode/settings.json" ]; then
+    echo "[ERROR] .vscode/settings.json missing"
+    ALL_OK=0
+else
+    echo "[OK] .vscode/settings.json exists"
+fi
+
+echo
+echo "Current version:"
+$PYTHON_CMD scripts/version_manager.py current
+
 echo
 echo "============================================"
 echo "Development setup complete!"
 echo "============================================"
 echo
-$PYTHON_CMD scripts/version_manager.py current
-echo
-echo "Next steps:"
-echo "1. Open project in VSCode"
-echo "2. Install 'Blender Development' extension"
-echo "3. Press Ctrl+Shift+P and run 'Blender: Start'"
-echo
+
+if [ $ALL_OK -eq 1 ]; then
+    echo "✅ SUCCESS: All files configured correctly"
+    echo
+    echo "EM Tools is configured as a Blender EXTENSION (not addon)"
+    echo
+    echo "Next steps:"
+    echo "1. Open this project in VSCode"
+    echo "2. Make sure you have the latest \"Blender Development\" extension"
+    echo "3. Press Ctrl+Shift+P and run \"Blender: Start\""
+    echo "4. The extension should load automatically"
+    echo
+    echo "If VSCode fails to load the extension:"
+    echo "- Check that Blender Development extension supports Extensions format"
+    echo "- Verify .vscode/settings.json has correct \"loadAsExtension\": true"
+    echo "- Try building manually: $PYTHON_CMD scripts/dev.py build"
+    echo
+else
+    echo "❌ ERRORS DETECTED: Please check the errors above"
+    echo
+fi
+
 echo "Quick commands:"
 echo "  Increment dev build:  $PYTHON_CMD scripts/dev.py inc"
 echo "  Build dev version:    $PYTHON_CMD scripts/dev.py build"

@@ -3,6 +3,7 @@
     "blender.addon.reloadOnSave": true,
     "blender.addon.loadAsExtension": true,
     "blender.addon.extensionDirectoryType": "user",
+    "blender.addon.extensionType": "add-on",
     "blender.executable": "BLENDER_PATH_PLACEHOLDER",
     "python.defaultInterpreterPath": "python",
     "python.analysis.extraPaths": [
