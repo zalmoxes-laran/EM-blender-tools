@@ -49,9 +49,13 @@ if "%1"=="setup" (
         cd scripts
     )
     
-    :: Esegui il setup
+    :: FIXED: Passa il parametro force allo script di setup
     echo Running setup script...
-    call setup_dev_windows.bat
+    if "%2"=="force" (
+        call setup_dev_windows.bat force
+    ) else (
+        call setup_dev_windows.bat
+    )
     
     :: Salva l'exit code
     set SETUP_EXIT_CODE=%ERRORLEVEL%

@@ -129,10 +129,17 @@ if !BLENDER_FOUND!==0 (
     echo You can manually set the path later in .vscode\settings.json
 )
 
-:: Download wheels
+:: Download wheels - FIXED: Pass force parameter correctly
 echo.
 echo Downloading wheels...
-python setup_development.py
+if "%1"=="force" (
+    echo FORCE MODE enabled - will re-download all wheels
+    python setup_development.py --force
+) else (
+    echo NORMAL MODE - will skip if wheels exist
+    python setup_development.py
+)
+
 if errorlevel 1 (
     echo ERROR: Failed to download wheels
     echo Check the error messages above
@@ -239,7 +246,7 @@ if exist ".vscode/settings_template.json" (
         echo         "build/": true,
         echo         "wheels/": true,
         echo         "*.blext": true
-        echo     }
+        }
         echo }
     ) > .vscode\settings.json
 )
@@ -252,7 +259,7 @@ echo Final Verification
 echo ============================================
 echo.
 
-:: Check critical files - reset e inizializza ALL_OK
+:: Check critical files - FIXED: Use !ALL_OK! for enabledelayedexpansion
 set ALL_OK=1
 
 :: Check manifest
@@ -303,8 +310,8 @@ echo Development setup complete!
 echo ============================================
 echo.
 
-:: Controllo finale semplificato
-if %ALL_OK%==1 (
+:: FIXED: Use !ALL_OK! instead of %ALL_OK% for enabledelayedexpansion
+if !ALL_OK!==1 (
     echo ✅ SUCCESS: All files configured correctly
     echo.
     echo EM Tools is configured as a Blender EXTENSION (not addon)
