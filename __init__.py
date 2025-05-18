@@ -29,9 +29,17 @@ from bpy.props import (
 from bpy.types import PropertyGroup
 
 # Import external dependencies - handled automatically by Blender Extension system
-import pandas
-import networkx
-from PIL import Image
+try:
+    # NumPy è già incluso in Blender, quindi non è necessario includerlo nelle wheels
+    import numpy 
+    import pandas
+    import networkx
+    from PIL import Image
+    DEPENDENCIES_LOADED = True
+except ImportError as e:
+    print(f"EM-Tools: Error importing dependencies: {e}")
+    print("Tip: Run 'em.bat setup force' to reinstall dependencies")
+    DEPENDENCIES_LOADED = False
 
 # Import addon modules
 from . import (

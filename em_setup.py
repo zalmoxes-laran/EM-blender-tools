@@ -29,7 +29,7 @@ def get_em_tools_version():
     """Legge la versione corrente da version.json"""
     try:
         # Percorso al file version.json (nella root dell'addon)
-        addon_dir = os.path.dirname(os.path.dirname(__file__))
+        addon_dir = os.path.dirname(__file__)
         version_file = os.path.join(addon_dir, "version.json")
         
         if os.path.exists(version_file):
