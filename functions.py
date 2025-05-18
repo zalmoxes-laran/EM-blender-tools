@@ -452,11 +452,12 @@ def sync_Switch_proxy(self, context):
 def check_if_current_obj_has_brother_inlist(obj_name, list_type):
     scene = bpy.context.scene
     list_cmd = ("scene."+ list_type)
+    is_brother = False
     for element_list in eval(list_cmd):
-        if element_list.name == obj_name:
+        # Check if element_list has a 'name' attribute before comparing
+        if hasattr(element_list, 'name') and element_list.name == obj_name:
             is_brother = True
             return is_brother
-    is_brother = False
     return is_brother
 
 def select_3D_obj(name):

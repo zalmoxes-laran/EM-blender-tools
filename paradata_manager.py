@@ -905,11 +905,16 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             if len(scene.em_v_properties_list) > 0:
                 if scene.em_v_properties_list_index >= len(scene.em_v_properties_list):
                     scene.em_v_properties_list_index = 0
+
+                if (scene.em_v_properties_list_index >= 0 and 
+                    scene.em_v_properties_list_index < len(scene.em_v_properties_list) and
+                    hasattr(scene.em_v_properties_list[scene.em_v_properties_list_index], 'id_node')):
                     
-                # Solo se abbiamo proprietà e l'indice è valido, aggiorna le altre liste
-                prop_node_id = scene.em_v_properties_list[scene.em_v_properties_list_index].id_node
-                self.update_combiner_list(scene, graph, prop_node_id)
-                self.update_extractor_list(scene, graph, prop_node_id)
+                    prop_node_id = scene.em_v_properties_list[scene.em_v_properties_list_index].id_node
+                    
+
+                    self.update_combiner_list(scene, graph, prop_node_id)
+                    self.update_extractor_list(scene, graph, prop_node_id)
                 
                 # Assicurati che l'indice degli estrattori sia valido
                 if len(scene.em_v_extractors_list) > 0:

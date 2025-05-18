@@ -12,6 +12,19 @@ from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode  # Import dire
 
 from .s3Dgraphy import get_graph
 
+class EPOCH_OT_reset_index(bpy.types.Operator):
+    bl_idname = "epoch_manager.reset_index"
+    bl_label = "Reset Epoch Index"
+    bl_description = "Reset the epoch list index to a valid value"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    def execute(self, context):
+        scene = context.scene
+        # Set epoch_list_index to -1 if list is empty, or 0 if it has items
+        scene.epoch_list_index = 0 if len(scene.epoch_list) > 0 else -1
+        self.report({'INFO'}, "Reset epoch list index")
+        return {'FINISHED'}
+
 def update_epoch_selection(self, context):
     """
     Update callback for epoch_list_index.
@@ -613,6 +626,7 @@ classes = [
     EM_add_remove_epoch_models,
     EM_select_epoch_rm,
     EM_UpdateUSListOperator,
+    EPOCH_OT_reset_index,
     VIEW3D_PT_BasePanel
     ]
 
