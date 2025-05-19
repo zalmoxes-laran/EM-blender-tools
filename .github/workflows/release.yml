@@ -90,7 +90,7 @@ jobs:
           python scripts/version_manager.py set-mode --mode stable
           VERSION="${{ steps.version.outputs.version }}"
           
-          # Update version.json
+          # Aggiorna version.json
           python -c "
           import json
           config = {'version': '$VERSION', 'platform': '${{ matrix.platform }}'}
@@ -104,14 +104,8 @@ jobs:
           # Verifica l'integrità del manifest generato
           if ! grep -q "version = \"$VERSION\"" blender_manifest.toml; then
             echo "WARNING: Versione nel manifest non corretta, riparazione..."
-            python -c "
-            import re
-            with open('blender_manifest.toml', 'r') as f:
-                content = f.read()
-            content = re.sub(r'version = \"[^\"]*\"', 'version = \"$VERSION\"', content)
-            with open('blender_manifest.toml', 'w') as f:
-                f.write(content)
-            "
+            # Usa un approccio più semplice con sed che è più affidabile
+            sed -i "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" blender_manifest.toml
             echo "Manifest riparato con versione: $VERSION"
           fi
       
