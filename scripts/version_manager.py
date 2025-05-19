@@ -118,6 +118,34 @@ wheels = [
 # pip install pandas networkx Pillow openpyxl matplotlib
 # Note: Run setup script to download wheels for packaging'''
     
+    def repair_manifest_version(self):
+        """Assicura che il manifest contenga la versione corretta"""
+        try:
+            config = self.load_version_config()
+            expected_version = self.get_version_string(config)
+            
+            if self.manifest_file.exists():
+                with open(self.manifest_file, 'r') as f:
+                    content = f.read()
+                    
+                # Controlla se la versione è corretta
+                version_pattern = r'version = "([^"]*)"'
+                match = re.search(version_pattern, content)
+                
+                if not match or match.group(1) != expected_version:
+                    print(f"⚠️ Version mismatch in manifest: found '{match.group(1) if match else 'none'}', expected '{expected_version}'")
+                    content = re.sub(version_pattern, f'version = "{expected_version}"', content)
+                    
+                    with open(self.manifest_file, 'w') as f:
+                        f.write(content)
+                    
+                    print(f"✅ Fixed manifest version to: {expected_version}")
+                    return True
+            return False
+        except Exception as e:
+            print(f"⚠️ Error repairing manifest: {e}")
+            return False
+    
     def update_manifest(self):
         """Aggiorna il manifest con la versione corrente"""
         config = self.load_version_config()
@@ -157,6 +185,29 @@ wheels = [
         print(f"✅ Manifest generated: {self.manifest_file}")
         print(f"   Version: {version}")
         print(f"   Mode: {config.get('mode', 'dev')}")
+        
+        # Aggiunta: Controllo esplicito della sostituzione della versione
+        with open(self.manifest_file, 'r') as f:
+            manifest_content = f.read()
+        
+        if '{VERSION}' in manifest_content:
+            print("⚠️ Warning: VERSION placeholder not replaced!")
+            # Correzione manuale
+            manifest_content = manifest_content.replace('{VERSION}', version)
+            with open(self.manifest_file, 'w') as f:
+                f.write(manifest_content)
+                
+        if 'version = ""' in manifest_content or 'version = "1.5.0"' in manifest_content:
+            if config.get('mode') == 'dev' and config.get('dev_build'):
+                # Correzione manuale per versioni di sviluppo
+                correct_version = f'{config.get("major", 1)}.{config.get("minor", 5)}.{config.get("patch", 0)}-dev.{config.get("dev_build", 0)}'
+                manifest_content = re.sub(r'version\s*=\s*"[^"]*"', f'version = "{correct_version}"', manifest_content)
+                with open(self.manifest_file, 'w') as f:
+                    f.write(manifest_content)
+                print(f"🔧 Fixed incorrect version format in manifest to {correct_version}")
+        
+        # Verifica e ripara la versione nel manifest
+        self.repair_manifest_version()
         
         return version
     

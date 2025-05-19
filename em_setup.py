@@ -26,10 +26,23 @@ from .operators.graphml_converter import GRAPHML_OT_convert_borders
 from .functions import get_compatible_icon
 
 def get_em_tools_version():
-    """Legge la versione corrente da version.json"""
+    """Legge la versione corrente dal manifest o da version.json come fallback"""
     try:
-        # Percorso al file version.json (nella root dell'addon)
+        # Prima prova a leggere dal manifest (che sarà sempre presente nel .blext)
         addon_dir = os.path.dirname(__file__)
+        manifest_file = os.path.join(addon_dir, "blender_manifest.toml")
+        
+        if os.path.exists(manifest_file):
+            with open(manifest_file, 'r') as f:
+                manifest_content = f.read()
+                
+            # Cerca la riga con la versione nel manifest
+            import re
+            version_match = re.search(r'version\s*=\s*"([^"]+)"', manifest_content)
+            if version_match:
+                return version_match.group(1)
+        
+        # Fallback su version.json (solo durante lo sviluppo)
         version_file = os.path.join(addon_dir, "version.json")
         
         if os.path.exists(version_file):
@@ -54,10 +67,10 @@ def get_em_tools_version():
                 return base
                 
     except Exception as e:
-        print(f"Error reading version.json: {e}")
+        print(f"Error reading version information: {e}")
     
     # Fallback statico se non riesce a leggere
-    return "1.5.0-dev.unknown"
+    return "unknown version"
 
 class EM_OT_manage_object_prefixes(bpy.types.Operator):
     bl_idname = "em.manage_object_prefixes"

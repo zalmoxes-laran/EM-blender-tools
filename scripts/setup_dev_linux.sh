@@ -99,13 +99,38 @@ cd scripts
 echo
 echo "Generating blender_manifest.toml..."
 cd ..
+# Aggiungiamo un'ulteriore impostazione mode prima dell'update
+$PYTHON_CMD scripts/version_manager.py set-mode --mode dev
 $PYTHON_CMD scripts/version_manager.py update
 if [ ! -f "blender_manifest.toml" ]; then
     echo "ERROR: Failed to generate blender_manifest.toml!"
     read -p "Press enter to exit..."
     exit 1
 else
-    echo "SUCCESS: blender_manifest.toml generated"
+    # Aggiunto controllo del contenuto, non solo dell'esistenza del file
+    VERSION=$($PYTHON_CMD scripts/version_manager.py current | awk '{print $3}')
+    if grep -q "version = \"$VERSION\"" blender_manifest.toml; then
+        echo "SUCCESS: blender_manifest.toml generated with correct version: $VERSION"
+    else
+        echo "WARNING: Version mismatch in manifest, fixing..."
+        $PYTHON_CMD -c "
+import re
+with open('blender_manifest.toml', 'r') as f:
+    content = f.read()
+with open('version.json', 'r') as f:
+    import json
+    config = json.load(f)
+version = f\"{config.get('major', 1)}.{config.get('minor', 5)}.{config.get('patch', 0)}\"
+if config.get('mode') == 'dev':
+    version += f\"-dev.{config.get('dev_build', 0)}\"
+elif config.get('mode') == 'rc':
+    version += f\"-rc.{config.get('rc_build', 1)}\"
+content = re.sub(r'version = \"[^\"]*\"', f'version = \"{version}\"', content)
+with open('blender_manifest.toml', 'w') as f:
+    f.write(content)
+print(f'Fixed version to {version}')
+"
+    fi
 fi
 cd scripts
 
