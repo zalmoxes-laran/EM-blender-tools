@@ -36,9 +36,10 @@ def get_em_tools_version():
             with open(manifest_file, 'r') as f:
                 manifest_content = f.read()
                 
-            # Cerca la riga con la versione nel manifest
+            # Cerca la versione principale nel manifest (non blender_version_min o altre versioni)
+            # Pattern migliorato per catturare solo la versione principale
             import re
-            version_match = re.search(r'version\s*=\s*"([^"]+)"', manifest_content)
+            version_match = re.search(r'^version\s*=\s*"([^"]+)"', manifest_content, re.MULTILINE)
             if version_match:
                 return version_match.group(1)
         
@@ -70,7 +71,7 @@ def get_em_tools_version():
         print(f"Error reading version information: {e}")
     
     # Fallback statico se non riesce a leggere
-    return "unknown version"
+    return "unknown"
 
 class EM_OT_manage_object_prefixes(bpy.types.Operator):
     bl_idname = "em.manage_object_prefixes"
