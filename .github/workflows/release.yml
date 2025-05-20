@@ -208,7 +208,7 @@ jobs:
             ### Installation
             1. Download the appropriate `.blext` file for your platform
             2. In Blender 4.0+: **Extensions** → **Install from Disk**
-            3. Select the downloaded file
+            3. Select the downloaded file (IMPORTANT! you have to disable the funnel filter to see and select the blext files)
             4. Enable the extension
             
             ### What's Included
