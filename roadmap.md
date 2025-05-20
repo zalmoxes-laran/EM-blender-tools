@@ -7,6 +7,7 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
 ### EM-tools for Blender
 
 #### ✅ Completed
+
 - [x] Migration to Blender Extension format
 - [x] Automatic dependency management
 - [x] GitHub Actions for automated releases
@@ -15,15 +16,17 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
 - [x] Development scripts and improved contributor workflow
 
 #### 🚧 In Progress
+
 - [ ] Complete multigraph management with graph ID prefixes
 - [ ] New labeling system for better visualization
-- [ ] Epoch Manager operators modernization
-  - [x] Select functionality
-  - [x] Set unselectable
-  - [x] Toggle reconstruction
-  - [ ] Soloing mode with new node-based approach
+- [ ] Epoch Manager operators semplification
+  - [ ] Select functionality
+  - [ ] Remove Set unselectable
+  - [ ] Remove Toggle reconstruction
+  - [ ] Remove Soloing mode with new node-based approach
 
 #### 📋 Planned
+
 - [ ] 3D GIS mode for EM tools
   - [ ] UI section for simple 3D GIS switching
   - [ ] XLSX/CSV parser with JSON mapping schema
@@ -43,6 +46,7 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
 *Note: This library is currently developed within EM-tools but will become a standalone library*
 
 #### ✅ Completed
+
 - [x] Three core JSON files (Visual Rules, CIDOC Mapping, Connection Rules)
 - [x] Stratigraphic node subclasses
 - [x] Actor and Link nodes implementation
@@ -55,6 +59,7 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
 - [x] Color schema migration to s3Dgraphy
 
 #### 📋 Planned
+
 - [ ] ParadataGroup node handling for stratigraphic units
 - [ ] Preset qualia vocabulary implementation
 - [ ] Standalone library publication with documentation
@@ -117,6 +122,7 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
 ## Future Development (2026 and beyond)
 
 ### Integration Projects
+
 - [ ] **Jupyter Notebook Integration**
   - Template creation using s3Dgraphy
   - JSON export for Heriverse
@@ -132,6 +138,7 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
   - Slice visualization
 
 ### Advanced Features
+
 - [ ] **Source Graph Visualization**
 - [ ] **Temporal Source Positioning**
 - [ ] **Territorial Graph Implementation**
@@ -149,7 +156,6 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
 | 1.5.0   | Q1 2025     | Minor   | Extension format, dependencies |
 | 1.5.1   | Q2 2025     | Patch   | Bug fixes, stability           |
 | 1.6.0   | Q3 2025     | Minor   | Activity Manager, Time Branches|
-| 2.0.0   | 2026        | Major   | s3Dgraphy separation, API      |
 
 ## Contributing
 
