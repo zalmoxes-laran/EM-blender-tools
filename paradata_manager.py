@@ -12,7 +12,22 @@ import tempfile
 from bpy.props import PointerProperty, StringProperty, BoolProperty # type: ignore
 
 from urllib.parse import urlparse
- 
+
+# Variabili globali per tracciare lo stato degli aggiornamenti
+_paradata_update_in_progress = False
+_paradata_refresh_needed = False
+
+
+# Funzione di utilità per controllare lo stato degli aggiornamenti
+def set_paradata_update_state(state):
+    global _paradata_update_in_progress, _paradata_refresh_needed
+    if state and _paradata_update_in_progress:
+        # Aggiornamento già in corso, marca come necessario un aggiornamento futuro
+        _paradata_refresh_needed = True
+        return False
+    _paradata_update_in_progress = state
+    return True
+
 class ParadataImageProps(bpy.types.PropertyGroup):
     """Properties for handling paradata images"""
     image_path: StringProperty(
@@ -436,6 +451,18 @@ class EM_ParadataPanel:
         layout = self.layout
         scene = context.scene
         obj = context.object
+
+        # Box per i controlli di aggiornamento
+        control_box = layout.box()
+        row = control_box.row(align=True)
+        
+        # Checkbox per l'aggiornamento automatico
+        row.prop(scene, "paradata_auto_update", text="Auto Update")
+        
+        # Pulsante di aggiornamento manuale
+        op = row.operator("em.update_paradata_lists", text="Refresh", icon="FILE_REFRESH")
+
+
         row = layout.row()
 
         # Define variables 
@@ -850,55 +877,53 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
     bl_label = "Update Paradata Lists"
     bl_description = "Update all paradata lists based on streaming settings"
 
-    _is_running = False
-
     def execute(self, context):
+        global _paradata_refresh_needed
         scene = context.scene
         em_tools = context.scene.em_tools
 
-        # Check if we're already running to prevent recursion
-        if EM_OT_update_paradata_lists._is_running:
-            print("Preventing recursive call to update_paradata_lists")
+        # Usa il nuovo meccanismo globale per prevenire chiamate ricorsive
+        if not set_paradata_update_state(True):
+            print("Skipping paradata update (already in progress)")
             return {'FINISHED'}
-            
-        # Set flag to indicate we're running
-        EM_OT_update_paradata_lists._is_running = True
 
-        # Pulizia preventiva di tutte le liste
-        scene.em_v_properties_list.clear()
-        scene.em_v_combiners_list.clear()
-        scene.em_v_extractors_list.clear()
-        scene.em_v_sources_list.clear()
+        # Verifica se l'aggiornamento automatico è disabilitato, 
+        # a meno che l'operatore non sia stato chiamato esplicitamente
+        if not scene.paradata_auto_update and not context.active_operator:
+            print("Paradata auto update is disabled")
+            set_paradata_update_state(False)
+            return {'FINISHED'}
 
         try:
-            # Verifica se c'è un file GraphML attivo
+            # Pulizia preventiva di tutte le liste - sempre sicura
+            scene.em_v_properties_list.clear()
+            scene.em_v_combiners_list.clear()
+            scene.em_v_extractors_list.clear()
+            scene.em_v_sources_list.clear()
+
+            # Verifica che ci sia un file GraphML attivo PRIMA di continuare
             if em_tools.active_file_index < 0 or not em_tools.graphml_files:
                 print("Nessun file GraphML attivo, le liste rimarranno vuote")
+                set_paradata_update_state(False)
                 return {'FINISHED'}  # Non è un errore, semplicemente non facciamo nulla
             
             graphml = em_tools.graphml_files[em_tools.active_file_index]
             
-            # Importa get_graph e debug_graph_structure
+            # Importa get_graph e verifica che esista
             from .s3Dgraphy import get_graph
-            #from .s3Dgraphy.utils import debug_graph_structure
-            
             graph = get_graph(graphml.name)
             
             if not graph:
                 print(f"Il grafo {graphml.name} non è stato trovato o è vuoto")
+                set_paradata_update_state(False)
                 return {'FINISHED'}  # Non è un errore, le liste rimarranno vuote
-                
-            # Debug della struttura del grafo
-            #debug_graph_structure(graph)
             
             # Determina il nodo di partenza (stratigrafico selezionato o tutti)
             strat_node_id = None
             if scene.paradata_streaming_mode and scene.em_list_index >= 0 and len(scene.em_list) > 0:
                 strat_node_id = scene.em_list[scene.em_list_index].id_node
-            #    # Debug delle relazioni del nodo selezionato
-            #    debug_graph_structure(graph, strat_node_id)
             
-            # Aggiorna la lista delle proprietà
+            # Aggiorna la lista delle proprietà con controlli di sicurezza
             self.update_property_list(scene, graph, strat_node_id)
             
             # Assicurati che l'indice delle proprietà sia valido
@@ -906,43 +931,74 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
                 if scene.em_v_properties_list_index >= len(scene.em_v_properties_list):
                     scene.em_v_properties_list_index = 0
 
+                # Procedi solo se l'indice è valido
                 if (scene.em_v_properties_list_index >= 0 and 
                     scene.em_v_properties_list_index < len(scene.em_v_properties_list) and
                     hasattr(scene.em_v_properties_list[scene.em_v_properties_list_index], 'id_node')):
                     
                     prop_node_id = scene.em_v_properties_list[scene.em_v_properties_list_index].id_node
-                    
-
                     self.update_combiner_list(scene, graph, prop_node_id)
                     self.update_extractor_list(scene, graph, prop_node_id)
                 
-                # Assicurati che l'indice degli estrattori sia valido
+                # Aggiorna estrattori e documenti solo se ci sono elementi validi
                 if len(scene.em_v_extractors_list) > 0:
                     if scene.em_v_extractors_list_index >= len(scene.em_v_extractors_list):
                         scene.em_v_extractors_list_index = 0
                     
                     # Solo se abbiamo estrattori e l'indice è valido, aggiorna le liste dei documenti
-                    ext_node_id = scene.em_v_extractors_list[scene.em_v_extractors_list_index].id_node
-                    self.update_document_list(scene, graph, ext_node_id)
+                    if scene.em_v_extractors_list_index >= 0:
+                        ext_node_id = scene.em_v_extractors_list[scene.em_v_extractors_list_index].id_node
+                        self.update_document_list(scene, graph, ext_node_id)
             else:
                 # Se non ci sono proprietà, imposta l'indice a -1 e pulisci le altre liste
                 scene.em_v_properties_list_index = -1
                 scene.em_v_combiners_list.clear()
                 scene.em_v_extractors_list.clear()
                 scene.em_v_sources_list.clear()
+                scene.em_v_combiners_list_index = -1
+                scene.em_v_extractors_list_index = -1
+                scene.em_v_sources_list_index = -1
             
+            # Aggiorna la UI
+            if hasattr(context, 'area'):
+                context.area.tag_redraw()
+                
             return {'FINISHED'}
+            
         except Exception as e:
             self.report({'ERROR'}, f"Error updating paradata lists: {str(e)}")
             import traceback
             traceback.print_exc()
             return {'CANCELLED'}
         finally:
-            # Always reset the running flag when done
-            EM_OT_update_paradata_lists._is_running = False
+            # Sempre resetta lo stato alla fine
+            set_paradata_update_state(False)
+            
+            # Se è necessario un aggiornamento futuro e gli aggiornamenti automatici sono abilitati
+            if _paradata_refresh_needed and scene.paradata_auto_update:
+                _paradata_refresh_needed = False
+                # Schedula un aggiornamento con un ritardo per evitare loop infiniti
+                if not hasattr(bpy.app.timers, "registered") or "update_paradata_timer" not in bpy.app.timers.registered():
+                    bpy.app.timers.register(
+                        lambda: self.delayed_update(context),
+                        first_interval=1.0,  # Ritardo di 1 secondo
+                        persistent=False,
+                        idname="update_paradata_timer"
+                    )
+
+    def delayed_update(self, context):
+        """Funzione per aggiornamenti ritardati, chiamata dal timer"""
+        try:
+            if context.scene.paradata_auto_update:
+                bpy.ops.em.update_paradata_lists()
+        except Exception as e:
+            print(f"Error in delayed paradata update: {e}")
+        
+        # Ritorna None per rimuovere il timer dopo l'uso
+        return None
 
     def update_property_list(self, scene, graph, strat_node_id=None):
-        """Aggiorna la lista delle proprietà"""
+        """Aggiorna la lista delle proprietà con controlli di sicurezza"""
         scene.em_v_properties_list.clear()
         
         if strat_node_id:
@@ -951,7 +1007,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             print(f"Trovate {len(prop_nodes)} proprietà per il nodo {strat_node_id}")
         else:
             # Altrimenti prendi tutte le proprietà
-            prop_nodes = [node for node in graph.nodes if node.node_type == "property"]
+            prop_nodes = [node for node in graph.nodes if hasattr(node, 'node_type') and node.node_type == "property"]
             print(f"Trovate {len(prop_nodes)} proprietà totali")
         
         for prop_node in prop_nodes:
@@ -959,18 +1015,29 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             item.name = prop_node.name
             item.description = prop_node.description if hasattr(prop_node, 'description') else ""
             item.url = prop_node.value if hasattr(prop_node, 'value') else ""
-            item.icon = check_objs_in_scene_and_provide_icon_for_list_element(prop_node.name)
+            
+            # Protezione contro funzioni esterne non trovate
+            try:
+                from .functions import check_objs_in_scene_and_provide_icon_for_list_element
+                item.icon = check_objs_in_scene_and_provide_icon_for_list_element(prop_node.name)
+            except Exception:
+                item.icon = "RESTRICT_INSTANCED_ON"
+                
             item.icon_url = "CHECKBOX_HLT" if item.url else "CHECKBOX_DEHLT"
             item.id_node = prop_node.node_id
 
     def update_combiner_list(self, scene, graph, prop_node_id):
-        """Aggiorna la lista dei combiner basata sulla proprietà selezionata"""
+        """Aggiorna la lista dei combiner in modo sicuro"""
         scene.em_v_combiners_list.clear()
         
         if not scene.prop_paradata_streaming_mode:
-            combiners = [node for node in graph.nodes if node.node_type == "combiner"]
+            combiners = [node for node in graph.nodes if hasattr(node, 'node_type') and node.node_type == "combiner"]
         else:
-            combiners = graph.get_combiner_nodes_for_property(prop_node_id)
+            try:
+                combiners = graph.get_combiner_nodes_for_property(prop_node_id)
+            except Exception as e:
+                print(f"Errore nel recupero dei combiners: {e}")
+                combiners = []
         
         print(f"Trovati {len(combiners)} combiner per la proprietà {prop_node_id}")
         
@@ -987,36 +1054,56 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             else:
                 item.url = ""
                 
-            item.icon = check_objs_in_scene_and_provide_icon_for_list_element(combiner.name)
+            try:
+                from .functions import check_objs_in_scene_and_provide_icon_for_list_element
+                item.icon = check_objs_in_scene_and_provide_icon_for_list_element(combiner.name)
+            except Exception:
+                item.icon = "RESTRICT_INSTANCED_ON"
+                
             item.icon_url = "CHECKBOX_HLT" if item.url else "CHECKBOX_DEHLT"
             item.id_node = combiner.node_id
+        
+        # Resetta l'indice a un valore valido o -1 se la lista è vuota
+        if len(scene.em_v_combiners_list) > 0:
+            if scene.em_v_combiners_list_index >= len(scene.em_v_combiners_list):
+                scene.em_v_combiners_list_index = 0
+        else:
+            scene.em_v_combiners_list_index = -1
 
     def update_extractor_list(self, scene, graph, node_id):
-        """Aggiorna la lista degli estrattori basata sul nodo selezionato"""
+        """Aggiorna la lista degli estrattori in modo sicuro"""
         scene.em_v_extractors_list.clear()
         
         extractors = []
         
         if scene.prop_paradata_streaming_mode:
             # Se è attivo lo streaming, usa il nodo_id passato (proprietà)
-            property_extractors = graph.get_extractor_nodes_for_node(node_id)
-            extractors.extend(property_extractors)
-            print(f"Estrattori dalla proprietà: {len(property_extractors)}")
+            try:
+                property_extractors = graph.get_extractor_nodes_for_node(node_id)
+                extractors.extend(property_extractors)
+                print(f"Estrattori dalla proprietà: {len(property_extractors)}")
             
-            # Se c'è un combiner selezionato, aggiungi anche i suoi estrattori
-            if scene.comb_paradata_streaming_mode and scene.em_v_combiners_list_index >= 0 and len(scene.em_v_combiners_list) > 0:
-                comb_node_id = scene.em_v_combiners_list[scene.em_v_combiners_list_index].id_node
-                combiner_extractors = graph.get_extractor_nodes_for_node(comb_node_id)
-                extractors.extend(combiner_extractors)
-                print(f"Estrattori dal combiner: {len(combiner_extractors)}")
+                # Se c'è un combiner selezionato, aggiungi anche i suoi estrattori
+                if scene.comb_paradata_streaming_mode and scene.em_v_combiners_list_index >= 0 and len(scene.em_v_combiners_list) > 0:
+                    comb_node_id = scene.em_v_combiners_list[scene.em_v_combiners_list_index].id_node
+                    combiner_extractors = graph.get_extractor_nodes_for_node(comb_node_id)
+                    extractors.extend(combiner_extractors)
+                    print(f"Estrattori dal combiner: {len(combiner_extractors)}")
+            except Exception as e:
+                print(f"Errore nel recupero degli estrattori: {e}")
         else:
             # Altrimenti prendi tutti gli estrattori
-            extractors = [node for node in graph.nodes if node.node_type == "extractor"]
+            extractors = [node for node in graph.nodes if hasattr(node, 'node_type') and node.node_type == "extractor"]
             print(f"Tutti gli estrattori: {len(extractors)}")
         
-        # Rimuovi duplicati
+        # Rimuovi duplicati in modo sicuro
         seen = set()
-        unique_extractors = [x for x in extractors if not (x.node_id in seen or seen.add(x.node_id))]
+        unique_extractors = []
+        for x in extractors:
+            if hasattr(x, 'node_id') and x.node_id not in seen:
+                seen.add(x.node_id)
+                unique_extractors.append(x)
+        
         print(f"Estrattori unici: {len(unique_extractors)}")
         
         # Popola la lista
@@ -1033,21 +1120,37 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             else:
                 item.url = ""
                 
-            item.icon = check_objs_in_scene_and_provide_icon_for_list_element(extractor.name)
+            try:
+                from .functions import check_objs_in_scene_and_provide_icon_for_list_element
+                item.icon = check_objs_in_scene_and_provide_icon_for_list_element(extractor.name)
+            except Exception:
+                item.icon = "RESTRICT_INSTANCED_ON"
+                
             item.icon_url = "CHECKBOX_HLT" if item.url else "CHECKBOX_DEHLT"
             item.id_node = extractor.node_id
+        
+        # Resetta l'indice a un valore valido o -1 se la lista è vuota
+        if len(scene.em_v_extractors_list) > 0:
+            if scene.em_v_extractors_list_index >= len(scene.em_v_extractors_list):
+                scene.em_v_extractors_list_index = 0
+        else:
+            scene.em_v_extractors_list_index = -1
 
     def update_document_list(self, scene, graph, extractor_id):
-        """Aggiorna la lista dei documenti basata sull'estrattore selezionato"""
+        """Aggiorna la lista dei documenti in modo sicuro"""
         scene.em_v_sources_list.clear()
         
         if scene.extr_paradata_streaming_mode:
             # Se è attivo lo streaming, filtra i documenti per l'estrattore
-            documents = graph.get_document_nodes_for_extractor(extractor_id)
-            print(f"Trovati {len(documents)} documenti per l'estrattore {extractor_id}")
+            try:
+                documents = graph.get_document_nodes_for_extractor(extractor_id)
+                print(f"Trovati {len(documents)} documenti per l'estrattore {extractor_id}")
+            except Exception as e:
+                print(f"Errore nel recupero dei documenti: {e}")
+                documents = []
         else:
             # Altrimenti prendi tutti i documenti
-            documents = [node for node in graph.nodes if node.node_type == "document"]
+            documents = [node for node in graph.nodes if hasattr(node, 'node_type') and node.node_type == "document"]
             print(f"Trovati {len(documents)} documenti totali")
         
         for doc in documents:
@@ -1055,9 +1158,33 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             item.name = doc.name if hasattr(doc, 'name') and doc.name is not None else ""
             item.description = doc.description if hasattr(doc, 'description') and doc.description is not None else ""
             item.url = doc.url if hasattr(doc, 'url') and doc.url is not None else ""
-            item.icon = check_objs_in_scene_and_provide_icon_for_list_element(doc.name)
+            
+            try:
+                from .functions import check_objs_in_scene_and_provide_icon_for_list_element
+                item.icon = check_objs_in_scene_and_provide_icon_for_list_element(doc.name)
+            except Exception:
+                item.icon = "RESTRICT_INSTANCED_ON"
+                
             item.icon_url = "CHECKBOX_HLT" if item.url else "CHECKBOX_DEHLT"
             item.id_node = doc.node_id
+        
+        # Resetta l'indice a un valore valido o -1 se la lista è vuota
+        if len(scene.em_v_sources_list) > 0:
+            if scene.em_v_sources_list_index >= len(scene.em_v_sources_list):
+                scene.em_v_sources_list_index = 0
+        else:
+            scene.em_v_sources_list_index = -1
+
+
+# Proprietà per il controllo degli aggiornamenti automatici dei paradati
+def register_auto_update_property():
+    """Registra la proprietà di controllo per gli aggiornamenti automatici"""
+    if not hasattr(bpy.types.Scene, "paradata_auto_update"):
+        bpy.types.Scene.paradata_auto_update = bpy.props.BoolProperty(
+            name="Auto Update Paradata",
+            description="Automatically update paradata lists when selection changes",
+            default=True  # Abilitato di default per compatibilità con il comportamento esistente
+        )
 
 classes = [
     VIEW3D_PT_ParadataPanel,
@@ -1082,6 +1209,12 @@ def register():
     # Register image handling properties
     bpy.types.Scene.paradata_image = bpy.props.PointerProperty(type=ParadataImageProps)
 
+    # AGGIUNGI QUESTA RIGA
+    bpy.types.Scene.paradata_auto_update = bpy.props.BoolProperty(
+        name="Auto Update Paradata",
+        description="Automatically update paradata lists when selection changes",
+        default=True
+    )
 
 def unregister():
     # Clean up images before unregistering
@@ -1097,3 +1230,6 @@ def unregister():
     # Remove properties
     if hasattr(bpy.types.Scene, "paradata_image"):
         del bpy.types.Scene.paradata_image
+
+    if hasattr(bpy.types.Scene, "paradata_auto_update"):
+        del bpy.types.Scene.paradata_auto_update
