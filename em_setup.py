@@ -424,6 +424,12 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         default=False
     ) # type: ignore
 
+    experimental_features: bpy.props.BoolProperty(
+        name="Experimental Features",
+        description="Enable experimental/development features",
+        default=False
+    ) # type: ignore
+
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files with icons to indicate graph presence and actions"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -680,6 +686,13 @@ class EM_SetupPanel(bpy.types.Panel):
                 row.operator("em.manage_object_prefixes", 
                             text="Manage Object Prefixes", 
                             icon='SYNTAX_ON')
+                
+                row = box.row()
+                row.prop(em_tools, "experimental_features", text="Enable Experimental Features")
+                
+                # Bottone create collections spostato qui
+                row = box.row()
+                row.operator("create.collection", text="Create Collection", icon="COLLECTION_NEW")
 
         else:
             # UI per modalità 3D GIS
