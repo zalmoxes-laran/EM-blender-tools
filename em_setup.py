@@ -106,7 +106,7 @@ class EM_OT_manage_object_prefixes(bpy.types.Operator):
         em_tools = context.scene.em_tools
         if em_tools.active_file_index >= 0 and em_tools.graphml_files:
             graphml = em_tools.graphml_files[em_tools.active_file_index]
-            graph_code = graphml.graph_code if hasattr(graphml, 'graph_code') and graphml.graph_code not in ["MISSINGCODE", "TEMPCODE"] else None
+            graph_code = graphml.graph_code if hasattr(graphml, 'graph_code') and graphml.graph_code not in ["site_id"] else None
             
             if self.action == 'ADD' and graph_code:
                 layout.label(text=f"Will add prefix: {graph_code}.")
@@ -125,7 +125,7 @@ class EM_OT_manage_object_prefixes(bpy.types.Operator):
         graph_code = None
         if em_tools.active_file_index >= 0 and em_tools.graphml_files:
             graphml = em_tools.graphml_files[em_tools.active_file_index]
-            if hasattr(graphml, 'graph_code') and graphml.graph_code not in ["MISSINGCODE", "TEMPCODE"]:
+            if hasattr(graphml, 'graph_code') and graphml.graph_code not in ["site_ID"]:
                 graph_code = graphml.graph_code
         
         # Check if we have a valid graph code when adding prefixes
@@ -446,16 +446,15 @@ class EMTOOLS_UL_files(bpy.types.UIList):
         
         is_graph_present = bool(graph_data and hasattr(graph_data, 'nodes') and len(graph_data.nodes) > 0)
         
-        # Impostazione icona stato
-        #status_icon = 'STRIP_COLOR_04' if is_graph_present else 'STRIP_COLOR_01'
-        
         status_icon = get_compatible_icon('SEQUENCE_COLOR_04') if is_graph_present else get_compatible_icon('SEQUENCE_COLOR_01')
 
         # Mostra il nome del file nella lista
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             # Mostra il codice del grafo (graph_code) invece del nome (UUID)
             graph_code = item.graph_code if hasattr(item, 'graph_code') and item.graph_code else item.name
-            layout.prop(item, "graph_code" if hasattr(item, 'graph_code') else "name", text="", emboss=False)
+            
+            # Mostra il graph_code come testo non modificabile invece di un campo editabile
+            layout.label(text=graph_code)
             
             # Mostra l'icona di stato
             row = layout.row()
@@ -465,7 +464,6 @@ class EMTOOLS_UL_files(bpy.types.UIList):
             row = layout.row(align=True)
             op = row.operator("import.em_graphml", text="", icon="FILE_REFRESH", emboss=False)
             op.graphml_index = index  # Passa l'indice corretto per caricare il GraphML
-
 
             # Disabilita il pulsante se l'icona è rossa (grafo non esistente)
             if is_graph_present:
@@ -480,7 +478,7 @@ class EMTOOLS_UL_files(bpy.types.UIList):
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
-            layout.label(text=item.graph_code if hasattr(item, 'graph_code') and item.graph_code else item.name)
+            layout.label(text=graph_code)
 
 # Definisci la classe per memorizzare i file GraphML e lo stato del grafo
 class GraphMLFileItem(bpy.types.PropertyGroup):
@@ -521,7 +519,6 @@ class EM_SetupPanel(bpy.types.Panel):
         if em_tools.experimental_features:
             box = layout.box()
             row = box.row(align=True)
-            #row = layout.row(align=True)
             split = row.split()
             col = split.column()
 
@@ -536,7 +533,6 @@ class EM_SetupPanel(bpy.types.Panel):
                 active_label = "3D GIS Mode active"
             
             # Disegna il pulsante
-            
             col.label(text=active_label)
             col = split.column()
             col.operator("emtools.switch_mode", text=activemode_label)
@@ -558,53 +554,63 @@ class EM_SetupPanel(bpy.types.Panel):
                 row = layout.row(align=True)
                 row.prop(active_file, "graphml_path", text="Path")
 
-
                 ############# box con le statistiche del file ##################
                 box = layout.box()
                 row = box.row(align=True)
-                #row = layout.row(align=True)
                 split = row.split()
                 col = split.column()
                 col.label(text="US/USV")
-                #col = split.column()
                 col.prop(scene, "em_list", text='')
+                
+                # Separatore verticale
+                col.separator()
+                
                 col = split.column()
                 col.label(text="Epochs")
-                #col = split.column()
                 col.prop(scene, "epoch_list", text='')
-
+            
                 col = split.column()
                 col.label(text="Properties")
-                #col = split.column()
                 col.prop(scene, "em_properties_list", text='')
-
+                
                 col = split.column()
                 col.label(text="Sources")
-                #col = split.column()
                 col.prop(scene, "em_sources_list", text='')
 
                 ####################################################
 
-                # Mostra l'ID del grafo (non modificabile)
-                #row = layout.row(align=True)
-                #row.label(text=f"Graph ID: {active_file.name}")  # UUID
-
-                # Se abbiamo un codice per il grafo, mostriamolo come modificabile
-                row = layout.row(align=True)
+                # Se abbiamo un codice per il grafo, mostriamolo come non modificabile
+                warning_found = False
+                
+                # Controllo se ci sono warning da mostrare
+                graph_code_warning = False
+                epochs_date_warning = False
+                
                 if hasattr(active_file, 'graph_code'):
-                    #row.prop(active_file, "graph_code", text="Graph Code")
+                    if active_file.graph_code in ["site_id","MISSINGCODE"]:
+                        graph_code_warning = True
+                
+                # Controllo per date delle epoche non valide
+                if len(scene.epoch_list) > 0:
+                    for epoch in scene.epoch_list:
+                        if epoch.start_time == 10000 or epoch.end_time == 10000:
+                            epochs_date_warning = True
+                            break
+                
+                # Se ci sono warning, mostra il box di warning
+                if graph_code_warning or epochs_date_warning:
+                    warning_box = layout.box()
+                    warning_box.label(text="Warning:", icon='ERROR')
                     
-                    # Aggiunge un avviso per MISSINGCODE o TEMPCODE
-                    if active_file.graph_code in ["MISSINGCODE", "TEMPCODE", "xx", "site_id"]:
-                        warning_box = layout.box()
-                        warning_box.label(text="Warning:", icon='ERROR')
+                    if graph_code_warning:
                         warning_box.label(text="Please add a proper site ID in the GraphML header")
-                        op = warning_box.operator("wm.url_open", icon="QUESTION")
-                        op.url = "https://docs.extendedmatrix.org/en/1.5.0dev/data_funnel.html#general-background-data"
-                else:
-                    # Se non c'è la proprietà graph_code, dobbiamo prima aggiungerla alla classe
-                    active_file.graph_code = "MISSINGCODE"
-                    row.prop(active_file, "graph_code", text="Graph Code")
+                    
+                    if epochs_date_warning:
+                        warning_box.label(text="- Some epochs have placeholder dates (XX)")
+                        warning_box.label(text="  Please update them in the GraphML file")
+                    
+                    op = warning_box.operator("wm.url_open", icon="HELP")
+                    op.url = "https://docs.extendedmatrix.org/en/1.5.0dev/data_funnel.html#general-background-data"
 
                 box = layout.box()
                 em_settings = bpy.context.window_manager.em_addon_settings
@@ -615,7 +621,6 @@ class EM_SetupPanel(bpy.types.Panel):
                     # Path to DosCo folder
                     box.prop(active_file, "dosco_dir", text="Set Path")
 
-                    #box.prop(em_settings, "dosco_advanced_options", 
                     if em_tools.experimental_features:
                         box.prop(em_settings, "dosco_advanced_options", text="More options", icon="TRIA_DOWN" if em_settings.dosco_advanced_options else "TRIA_RIGHT", emboss=False)
 
@@ -632,17 +637,12 @@ class EM_SetupPanel(bpy.types.Panel):
                             
                             row = box.row()
                             row.prop(em_settings, 'preserve_web_url', text="Preserve web URLs (don't overwrite http/https)")
-                            
-                            # Add a button to manually trigger the operation
-                            #row = box.row()
-                            #row.operator("em.update_dosco_paths", text="Update Paths from DosCo", icon="FILE_REFRESH")
 
                 # Expanded settings
                 box = layout.box()
                 box.prop(active_file, "expanded", icon="TRIA_DOWN" if active_file.expanded else "TRIA_RIGHT", emboss=False)
 
                 if active_file.expanded:
-
                     # Lista dei file ausiliari
                     row = box.row()
                     row.template_list("AUXILIARY_UL_files", "", active_file, "auxiliary_files",
@@ -795,8 +795,8 @@ class EMToolsAddFile(bpy.types.Operator):
     bl_label = "Add GraphML File"
     bl_description = "Add a new GraphML file to the list"
 
-
     def execute(self, context):
+        
         em_tools = context.scene.em_tools
         new_file = em_tools.graphml_files.add()
         new_file.name = "New GraphML File"
@@ -920,7 +920,7 @@ class AUXILIARY_OT_reload_file(bpy.types.Operator):
     bl_label = "Reload Auxiliary File"
     bl_description = "Reload the auxiliary file data"
 
-    file_index: bpy.props.IntProperty()
+    file_index: bpy.props.IntProperty() # type: ignore
 
     def execute(self, context):
         em_tools = context.scene.em_tools

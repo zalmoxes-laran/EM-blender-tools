@@ -688,13 +688,25 @@ class GraphMLImporter:
                     try:
                         stringa_pulita, vocabolario = self.estrai_stringa_e_vocabolario(label_text)
                         epoch_node.set_name(stringa_pulita)
-                        epoch_node.set_start_time(vocabolario.get('start', -10000))
-                        epoch_node.set_end_time(vocabolario.get('end', 10000))
-                        print(f"Aggiornato nodo epoca: '{stringa_pulita}' (start={vocabolario.get('start')}, end={vocabolario.get('end')})")
+                        
+                        # Gestisci i valori 'XX' per start_time
+                        start_value = vocabolario.get('start', -10000)
+                        if isinstance(start_value, str) and start_value.lower() in ['xx', 'x']:
+                            start_value = 10000
+                            print(f"Trovato valore placeholder 'XX' per start_time in epoca '{stringa_pulita}', usando valore 10000")
+                        
+                        # Gestisci i valori 'XX' per end_time
+                        end_value = vocabolario.get('end', 10000)
+                        if isinstance(end_value, str) and end_value.lower() in ['xx', 'x']:
+                            end_value = 10000
+                            print(f"Trovato valore placeholder 'XX' per end_time in epoca '{stringa_pulita}', usando valore 10000")
+                        
+                        epoch_node.set_start_time(start_value)
+                        epoch_node.set_end_time(end_value)
+                        print(f"Aggiornato nodo epoca: '{stringa_pulita}' (start={start_value}, end={end_value})")
                     except Exception as e:
                         epoch_node.set_name(label_text)
-                        print(f"Fallback al nome completo: {label_text}")
-                    
+                        print(f"Fallback al nome completo: {label_text}: {str(e)}")                    
                     epoch_node.set_color(e_color)
                     print(f"Impostato colore: {e_color}")
             except Exception as e:

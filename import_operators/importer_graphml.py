@@ -83,7 +83,7 @@ class EM_import_GraphML(bpy.types.Operator):
                     if 'graph_code' in graph_instance.attributes:
                         graphml.graph_code = graph_instance.attributes['graph_code']
                     elif hasattr(graphml, 'graph_code'):  # Assicuriamoci che la proprietà esista
-                        graphml.graph_code = "MISSINGCODE"  # Valore di fallback
+                        graphml.graph_code = "site_id"  # Valore di fallback
                 else: 
                     error_msg = f"Grafo non trovato con ID: {final_graph_id}"
                     self.report({'ERROR'}, error_msg)
