@@ -34,14 +34,15 @@ def update_epoch_selection(self, context):
     
     # Safety check: verify that epoch_list exists and the index is valid
     if len(scene.epoch_list) == 0:
-        scene.epoch_list_index = 0
+        scene.epoch_list_index = -1  # Cambiato da 0 a -1 per liste vuote
         return
     
-    # Verify the index is in range
-    if scene.epoch_list_index >= len(scene.epoch_list):
+    # Verify the index is in range (includi controllo per indici negativi)
+    if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
         scene.epoch_list_index = 0
+        return  # Aggiungi return per evitare esecuzione del resto della funzione
     
-    # Debug info
+    # A questo punto sappiamo che l'indice è valido e possiamo procedere
     print(f"\n--- Epoch selection changed to index {scene.epoch_list_index} ---")
     active_epoch = scene.epoch_list[scene.epoch_list_index]
     print(f"Active epoch: {active_epoch.name}")
@@ -514,59 +515,56 @@ class EM_UpdateUSListOperator(bpy.types.Operator):
         # Clear existing US list
         scene.selected_epoch_us_list.clear()
 
-        # Accedi al grafo
-        graph_instance = get_graph()
+        # Verifica che ci sia un'epoca selezionata
+        if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
+            self.report({'WARNING'}, "Nessuna epoca selezionata o indice non valido")
+            return {'CANCELLED'}
 
-        if not graph_instance:
-            self.report({'ERROR'}, "Grafo non caricato.")
+        # Ottieni il grafo attivo correttamente
+        from .functions import is_graph_available
+        graph_exists, graph_instance = is_graph_available(context)
+        
+        if not graph_exists:
+            self.report({'ERROR'}, "Grafo non disponibile")
             return {'CANCELLED'}
 
         # Get the selected epoch
-        if scene.epoch_list_index >= 0 and scene.epoch_list_index < len(scene.epoch_list):
-            selected_epoch = scene.epoch_list[scene.epoch_list_index]
+        selected_epoch = scene.epoch_list[scene.epoch_list_index]
 
-            # Access the graph (ensure it's stored in scene.em_graph)
-            #graph = scene.em_graph
+        # Find the epoch node in the graph
+        epoch_node = graph_instance.find_node_by_name(selected_epoch.name)
 
-            if graph_instance:
-                # Find the epoch node in the graph
-                epoch_node = graph_instance.find_node_by_name(selected_epoch.name)
+        if epoch_node:
+            # Iterate over edges connected to the epoch node
+            for edge in graph_instance.edges:
+                if edge.edge_source == epoch_node.node_id or edge.edge_target == epoch_node.node_id:
+                    # Determine the other node connected by the edge
+                    if edge.edge_source == epoch_node.node_id:
+                        other_node_id = edge.edge_target
+                    else:
+                        other_node_id = edge.edge_source
 
-                if epoch_node:
-                    # Iterate over edges connected to the epoch node
-                    for edge in graph_instance.edges:
-                        if edge.edge_source == epoch_node.node_id or edge.edge_target == epoch_node.node_id:
-                            # Determine the other node connected by the edge
-                            if edge.edge_source == epoch_node.node_id:
-                                other_node_id = edge.edge_target
-                            else:
-                                other_node_id = edge.edge_source
+                    # Retrieve the other node
+                    other_node = graph_instance.find_node_by_id(other_node_id)
 
-                            # Retrieve the other node
-                            other_node = graph_instance.find_node_by_id(other_node_id)
+                    # Check if the other node is a StratigraphicNode
+                    if other_node and isinstance(other_node, StratigraphicNode):
+                        # Determine status based on edge type
+                        if edge.edge_type == "has_first_epoch":
+                            status = "created"
+                        elif edge.edge_type == "survive_in_epoch":
+                            status = "re-used"
+                        else:
+                            continue  # Skip other edge types
 
-                            # Check if the other node is a StratigraphicNode
-                            if other_node and isinstance(other_node, StratigraphicNode):
-                                # Determine status based on edge type
-                                if edge.edge_type == "has_first_epoch":
-                                    status = "created"
-                                elif edge.edge_type == "survive_in_epoch":
-                                    status = "re-used"
-                                else:
-                                    continue  # Skip other edge types
-
-                                # Add US element to the list
-                                item = scene.selected_epoch_us_list.add()
-                                item.name = other_node.name
-                                item.description = other_node.description
-                                item.status = status
-                                item.y_pos = str(other_node.attributes['y_pos'])
-                else:
-                    self.report({'WARNING'}, f"Epoch node '{selected_epoch.name}' not found in the graph.")
-            else:
-                self.report({'ERROR'}, "Graph not loaded. Please ensure the graph is available as 'scene.em_graph'.")
+                        # Add US element to the list
+                        item = scene.selected_epoch_us_list.add()
+                        item.name = other_node.name
+                        item.description = other_node.description
+                        item.status = status
+                        item.y_pos = str(other_node.attributes.get('y_pos', 0))
         else:
-            self.report({'WARNING'}, "No epoch selected.")
+            self.report({'WARNING'}, f"Epoch node '{selected_epoch.name}' not found in the graph.")
 
         return {'FINISHED'}
 
