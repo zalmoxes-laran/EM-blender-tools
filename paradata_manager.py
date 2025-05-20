@@ -878,21 +878,21 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
     bl_description = "Update all paradata lists based on streaming settings"
 
     def execute(self, context):
-        global _paradata_refresh_needed
+        # Dichiarare che stai usando le variabili globali
+        global _paradata_update_in_progress, _paradata_refresh_needed
+        
         scene = context.scene
         em_tools = context.scene.em_tools
 
-        # Usa il nuovo meccanismo globale per prevenire chiamate ricorsive
-        if not set_paradata_update_state(True):
+        # Ora puoi accedere alla variabile globale
+        if _paradata_update_in_progress:
             print("Skipping paradata update (already in progress)")
+            # Segnala la necessità di un futuro aggiornamento ma NON eseguirlo ora
+            _paradata_refresh_needed = True
             return {'FINISHED'}
-
-        # Verifica se l'aggiornamento automatico è disabilitato, 
-        # a meno che l'operatore non sia stato chiamato esplicitamente
-        if not scene.paradata_auto_update and not context.active_operator:
-            print("Paradata auto update is disabled")
-            set_paradata_update_state(False)
-            return {'FINISHED'}
+        
+        # Blocca gli aggiornamenti durante l'esecuzione
+        _paradata_update_in_progress = True
 
         try:
             # Pulizia preventiva di tutte le liste - sempre sicura
@@ -960,8 +960,12 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
                 scene.em_v_sources_list_index = -1
             
             # Aggiorna la UI
-            if hasattr(context, 'area'):
-                context.area.tag_redraw()
+            try:
+                if hasattr(context, 'area') and context.area:
+                    context.area.tag_redraw()
+            except AttributeError:
+                # L'area potrebbe non essere disponibile durante gli aggiornamenti in background
+                pass
                 
             return {'FINISHED'}
             
@@ -970,21 +974,22 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             import traceback
             traceback.print_exc()
             return {'CANCELLED'}
+        
         finally:
-            # Sempre resetta lo stato alla fine
+            # Reset dello stato
             set_paradata_update_state(False)
             
-            # Se è necessario un aggiornamento futuro e gli aggiornamenti automatici sono abilitati
+            # Invece di usare un timer complesso, segna semplicemente la necessità di aggiornare
             if _paradata_refresh_needed and scene.paradata_auto_update:
                 _paradata_refresh_needed = False
-                # Schedula un aggiornamento con un ritardo per evitare loop infiniti
-                if not hasattr(bpy.app.timers, "registered") or "update_paradata_timer" not in bpy.app.timers.registered():
-                    bpy.app.timers.register(
-                        lambda: self.delayed_update(context),
-                        first_interval=1.0,  # Ritardo di 1 secondo
-                        persistent=False,
-                        idname="update_paradata_timer"
-                    )
+                
+                # Semplice messaggio di debug
+                print("Update needed but skipped - use Refresh button for manual update")
+
+            _paradata_update_in_progress = False
+
+
+    
 
     def delayed_update(self, context):
         """Funzione per aggiornamenti ritardati, chiamata dal timer"""

@@ -107,7 +107,7 @@ class EM_import_GraphML(bpy.types.Operator):
                 # Ora procedi con il popolamento delle liste
                 populate_blender_lists_from_graph(context, graph_instance)
                 ensure_valid_index(scene.em_list, "em_list_index", context)
-                ensure_valid_index(scene.epoch_list, "epoch_list_index", context)
+                ensure_valid_index(scene.epoch_list, "epoch_list_index", context, show_popup=False)
                 ensure_valid_index(scene.em_sources_list, "em_sources_list_index", context)
                 ensure_valid_index(scene.em_properties_list, "em_properties_list_index", context)
                 ensure_valid_index(scene.em_extractors_list, "em_extractors_list_index", context)

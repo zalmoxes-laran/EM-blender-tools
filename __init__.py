@@ -715,6 +715,9 @@ def setup_scene_properties():
             'default': "", 
             'description': description
         }
+        if prop_name == 'proxy_blend_mode':
+            props['default'] = 'BLEND'
+            
         if subtype:
             if subtype not in ["", "PASSWORD", "select", "BLEND"]:
                 props['subtype'] = subtype

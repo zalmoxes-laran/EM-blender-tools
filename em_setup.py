@@ -600,16 +600,15 @@ class EM_SetupPanel(bpy.types.Panel):
                 # Se ci sono warning, mostra il box di warning
                 if graph_code_warning or epochs_date_warning:
                     warning_box = layout.box()
-                    warning_box.label(text="Warning:", icon='ERROR')
+                    warning_box.label(text="GraphML Warning:", icon='ERROR')
                     
                     if graph_code_warning:
-                        warning_box.label(text="Please add a proper site ID in the GraphML header")
+                        warning_box.label(text="- Please add a proper site ID in the header")
                     
                     if epochs_date_warning:
-                        warning_box.label(text="- Some epochs have placeholder dates (XX)")
-                        warning_box.label(text="  Please update them in the GraphML file")
+                        warning_box.label(text="- Update the epochs placeholder dates (xx)")
                     
-                    op = warning_box.operator("wm.url_open", icon="HELP")
+                    op = warning_box.operator("wm.url_open", text="Quick guide", icon="HELP")
                     op.url = "https://docs.extendedmatrix.org/en/1.5.0dev/data_funnel.html#general-background-data"
 
                 box = layout.box()

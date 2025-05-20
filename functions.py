@@ -43,17 +43,15 @@ def get_compatible_icon(icon_name):
     else:
         return icon_name
 
-def ensure_valid_index(collection_property, index_property_name, context=None):
+def ensure_valid_index(collection_property, index_property_name, context=None, show_popup=True):
     """
     Ensures that the index for a collection property is valid.
     
     Args:
-        collection_property: The collection property (e.g., scene.em_list)
-        index_property_name: The name of the index property (e.g., "em_list_index")
-        context: Blender context (optional, used for reporting)
-    
-    Returns:
-        bool: True if the index was valid or successfully corrected, False if the collection is empty
+        collection_property: The collection property
+        index_property_name: The name of the index property
+        context: Blender context (optional)
+        show_popup: Whether to show a popup when correcting the index
     """
     # Get the owner object that contains both properties
     owner = collection_property.id_data
@@ -63,7 +61,7 @@ def ensure_valid_index(collection_property, index_property_name, context=None):
     
     # Check if collection is empty
     if len(collection_property) == 0:
-        # Set index to -1 or 0 based on preference
+        # Set index to -1 for empty collections
         setattr(owner, index_property_name, -1)
         print(f"Collection is empty, reset {index_property_name} to -1")
         return False
@@ -74,8 +72,8 @@ def ensure_valid_index(collection_property, index_property_name, context=None):
         setattr(owner, index_property_name, 0)
         print(f"Index {current_index} out of range for collection (size {len(collection_property)}), reset to 0")
         
-        # Report if context is provided
-        if context:
+        # Report if context is provided AND show_popup is True
+        if context and show_popup:
             import bpy
             bpy.context.window_manager.popup_menu(
                 lambda self, ctx: self.layout.label(text=f"Reset {index_property_name} to valid value"),
@@ -932,7 +930,7 @@ def set_materials_using_EM_list(context):
 def proxy_shader_mode_function(self, context):
     scene = context.scene
     if scene.proxy_shader_mode is True:
-        scene.proxy_blend_mode = "ADD"
+        scene.proxy_blend_mode = "OPAQUE"
     else:
         scene.proxy_blend_mode = "BLEND"
     update_display_mode(self, context)
