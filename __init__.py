@@ -1,22 +1,26 @@
 '''
+Extended Matrix 3D Tools (EMTools)
 Created by EMANUEL DEMETRESCU 2018-2025
 emanuel.demetrescu@cnr.it
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import os
 import bpy
+import importlib
+import logging
 from bpy.props import (
     StringProperty,
     BoolProperty,
@@ -25,61 +29,82 @@ from bpy.props import (
     PointerProperty,
     CollectionProperty,
     FloatVectorProperty,
+    EnumProperty,
 )
 from bpy.types import PropertyGroup
 
-# Import external dependencies - handled automatically by Blender Extension system
-try:
-    # NumPy è già incluso in Blender, quindi non è necessario includerlo nelle wheels
-    import numpy 
-    import pandas
-    import networkx
-    from PIL import Image
-    DEPENDENCIES_LOADED = True
-except ImportError as e:
-    print(f"EM-Tools: Error importing dependencies: {e}")
-    print("Tip: Run 'em.bat setup force' to reinstall dependencies")
-    DEPENDENCIES_LOADED = False
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("EMTools")
 
-# Import addon modules
-from . import (
-    EM_list,
-    epoch_manager,
-    functions,
-    paradata_manager,
-    export_manager,
-    visual_tools,
-    visual_manager,
-    em_setup,
-    EMdb_excel,
-    em_statistics,
-    graph2geometry,
-    activity_manager,
-    rm_manager,
-    proxy_inflate_manager,
-    anastylosis_manager
-)
+# Constants for reuse
+VERSION = "1.5.0"
+BL_INFO = {
+    "name": "EM Tools",
+    "author": "Emanuel Demetrescu",
+    "version": VERSION,
+    "blender": (4, 0, 0),
+    "location": "View3D > Sidebar > EM",
+    "description": "Extended Matrix 3D Tools",
+    "warning": "",
+    "doc_url": "https://docs.extendedmatrix.org",
+    "category": "3D View",
+}
 
-# Base PropertyGroup classes
-class EMAddonSettings(bpy.types.PropertyGroup):
+# ============================
+# DEPENDENCY MANAGEMENT
+# ============================
+DEPENDENCIES = {
+    "required": ["numpy", "pandas", "networkx", "PIL.Image"],
+    "optional": []
+}
+
+def check_dependencies():
+    """Check if all required dependencies are available"""
+    missing = []
+    for module_name in DEPENDENCIES["required"]:
+        parts = module_name.split('.')
+        base_module = parts[0]
+        try:
+            if base_module == "PIL":
+                try:
+                    from PIL import Image
+                except ImportError:
+                    missing.append("pillow")
+            else:
+                importlib.import_module(base_module)
+        except ImportError:
+            missing.append(base_module)
+    
+    if missing:
+        logger.warning(f"Missing required dependencies: {', '.join(missing)}")
+        logger.warning("Tip: Run 'em.bat setup force' to reinstall dependencies")
+        return False
+    return True
+
+DEPENDENCIES_LOADED = check_dependencies()
+
+# ============================
+# PROPERTY GROUP CLASSES
+# ============================
+
+class EMAddonSettings(PropertyGroup):
+    """General settings for the EM Tools addon"""
     preserve_web_url: BoolProperty(
         name="Preserve Web URL",
         description="Preserve web urls (if any) from the GraphML file",
         default=True
-    )
-
+    ) # type: ignore
     overwrite_url_with_dosco_filepath: BoolProperty(
         name="Overwrite URL with DosCo Filepath",
         description="Retrieve the URL from real DosCo Filepath ignoring the url values stated in the GraphML file",
-        default=False
-    )
-
+        default=True
+    ) # type: ignore
     dosco_options: BoolProperty(
         name="Show Dosco Section",
         description="Info about DosCo folder loading the GraphML",
         default=False
-    )
-
+    ) # type: ignore
     dosco_advanced_options: BoolProperty(
         name="Show advanced options",
         description="Catch more information from DosCo folder loading the GraphML",
@@ -87,106 +112,95 @@ class EMAddonSettings(bpy.types.PropertyGroup):
     )
 
 class EDGESListItem(PropertyGroup):
+    """Edge information for graph edges"""
     id_node: StringProperty(
         name="id",
-        description="A description for this item",
-        default="Empty"
+        description="Unique identifier for this edge",
+        default=""
     )
-
     source: StringProperty(
         name="source",
-        description="A description for this item",
-        default="Empty"
+        description="Source node ID",
+        default=""
     )
-
     target: StringProperty(
         name="target",
-        description="A description for this item",
-        default="Empty"
+        description="Target node ID",
+        default=""
     )
-
     edge_type: StringProperty(
         name="type",
-        description="A description for this item",
-        default="Empty"
+        description="Type of edge connection",
+        default=""
     )
 
 class EPOCHListItem(PropertyGroup):
+    """Period/Epoch information"""
     name: StringProperty(
         name="Name",
-        description="A name for this item",
+        description="Name of this epoch",
         default="Untitled"
     )
-
     id: StringProperty(
         name="id",
-        description="A description for this item",
-        default="Empty"
+        description="Unique identifier",
+        default=""
     )
-
     min_y: FloatProperty(
-        name="code for icon",
-        description="",
+        name="Min Y Position",
+        description="Minimum Y position",
         default=0.0
     )
-
     max_y: FloatProperty(
-        name="code for icon",
-        description="",
+        name="Max Y Position",
+        description="Maximum Y position",
         default=0.0
     )
-
     height: FloatProperty(
-        name="height of epoch row",
-        description="",
+        name="Height",
+        description="Height of epoch row",
         default=0.0
     )
-       
     epoch_color: StringProperty(
-        name="color of epoch row",
-        description="",
-        default="Empty"
+        name="Epoch Color",
+        description="Color code for epoch",
+        default=""
     )
-
     start_time: FloatProperty(
-        name="Start time",
-        description="",
+        name="Start Time",
+        description="Starting time for epoch",
         default=0.0
     )
-
     end_time: FloatProperty(
-        name="End time",
-        description="",
+        name="End Time",
+        description="Ending time for epoch",
         default=0.0
     )
-
-    use_toggle: BoolProperty(name="", default=True)
-    is_locked: BoolProperty(name="", default=True)
-    is_selected: BoolProperty(name="", default=False)
-    epoch_soloing: BoolProperty(name="", default=False)
-    rm_models: BoolProperty(name="", default=False)
-    reconstruction_on: BoolProperty(name="", default=False)
-    
+    use_toggle: BoolProperty(name="Toggle", default=True)
+    is_locked: BoolProperty(name="Locked", default=True)
+    is_selected: BoolProperty(name="Selected", default=False)
+    epoch_soloing: BoolProperty(name="Solo", default=False)
+    rm_models: BoolProperty(name="RM Models", default=False)
+    reconstruction_on: BoolProperty(name="Reconstruction", default=False)
     unique_id: StringProperty(default="")
-
     epoch_RGB_color: FloatVectorProperty(
-        name="epoch_color",
+        name="Epoch RGB Color",
         subtype="COLOR",
         size=3,
         min=0.0,
         max=1.0,
         default=(0.5, 0.5, 0.5)
     )
-
     wire_color: FloatVectorProperty(
-        name="wire",
+        name="Wire Color",
         subtype='COLOR',
         default=(0.2, 0.2, 0.2),
         min=0.0, max=1.0,
-        description="wire color of the group"
+        description="Wire color of the group"
     )
 
 class EM_Other_Settings(PropertyGroup):
+    """General settings for EM Tools"""
     select_all_layers: BoolProperty(name="Select Visible Layers", default=True)
     unlock_obj: BoolProperty(name="Unlock Objects", default=False)
     unhide_obj: BoolProperty(name="Unhide Objects", default=True)
@@ -196,222 +210,220 @@ class EM_Other_Settings(PropertyGroup):
     soloing_mode: BoolProperty(name="Soloing mode", default=False)
 
 class EMListItem(PropertyGroup):
+    """Stratigraphic unit information"""
     name: StringProperty(
-           name="Name",
-           description="A name for this item",
-           default="Untitled")
-
+        name="Name",
+        description="Name of this stratigraphic unit",
+        default="Untitled"
+    )
     description: StringProperty(
-           name="Description",
-           description="A description for this item",
-           default="Empty")
-
+        name="Description",
+        description="Description of this stratigraphic unit",
+        default=""
+    )
     icon: StringProperty(
-           name="code for icon",
-           description="",
-           default="RESTRICT_INSTANCED_ON")
-
+        name="Icon",
+        description="Icon code for UI display",
+        default="RESTRICT_INSTANCED_ON"
+    )
     icon_db: StringProperty(
-           name="code for icon db",
-           description="",
-           default="DECORATE_ANIMATE")
-
+        name="Database Icon",
+        description="Database icon code",
+        default="DECORATE_ANIMATE"
+    )
     url: StringProperty(
-           name="url",
-           description="An url behind this item",
-           default="Empty")
-
+        name="URL",
+        description="URL associated with this unit",
+        default=""
+    )
     shape: StringProperty(
-           name="shape",
-           description="The shape of this item",
-           default="Empty")
-
+        name="Shape",
+        description="Shape of this unit",
+        default=""
+    )
     y_pos: FloatProperty(
-           name="y_pos",
-           description="The y_pos of this item",
-           default=0.0)
-
+        name="Y Position",
+        description="Y-axis position value",
+        default=0.0
+    )
     epoch: StringProperty(
-           name="code for epoch",
-           description="",
-           default="Empty")
-
+        name="Epoch",
+        description="Associated epoch",
+        default=""
+    )
     id_node: StringProperty(
-           name="id node",
-           description="",
-           default="Empty")
-    
+        name="Node ID",
+        description="Unique node identifier",
+        default=""
+    )
     border_style: StringProperty(
-           name="border style",
-           description="",
-           default="Empty")    
-
+        name="Border Style",
+        description="Style of the border",
+        default=""
+    )
     fill_color: StringProperty(
-           name="fill color",
-           description="",
-           default="Empty")
-           
+        name="Fill Color",
+        description="Fill color code",
+        default=""
+    )
     is_visible: BoolProperty(
-           name="Visible",
-           description="Whether this item is visible in the viewport",
-           default=True)
-
+        name="Visible",
+        description="Whether this item is visible in the viewport",
+        default=True
+    )
     node_type: StringProperty(
-           name="Node Type",
-           description="The type of this node",
-           default="")
+        name="Node Type",
+        description="The type of this node",
+        default=""
+    )
 
 class EMreusedUS(PropertyGroup):
+    """Information about reused stratigraphic units"""
     epoch: StringProperty(
-           name="epoch",
-           description="Epoch",
-           default="Untitled")
-
+        name="Epoch",
+        description="Associated epoch",
+        default="Untitled"
+    )
     em_element: StringProperty(
-           name="em_element",
-           description="",
-           default="Empty")
+        name="EM Element",
+        description="Associated EM element",
+        default=""
+    )
 
 class EMviqListErrors(PropertyGroup):
-    name: StringProperty( 
-           name="Object",
-           description="The object with an error",
-           default="Empty")
-
+    """Error tracking for EMviq exports"""
+    name: StringProperty(
+        name="Object",
+        description="The object with an error",
+        default=""
+    )
     description: StringProperty(
-           name="Description",
-           description="A description of the error",
-           default="Empty")
-
+        name="Description",
+        description="Description of the error",
+        default=""
+    )
     material: StringProperty(
-           name="material",
-           description="",
-           default="Empty")
-
+        name="Material",
+        description="Associated material",
+        default=""
+    )
     texture_type: StringProperty(
-           name="texture_type",
-           description="",
-           default="Empty")
+        name="Texture Type",
+        description="Type of texture with error",
+        default=""
+    )
 
 class EMListParadata(PropertyGroup):
+    """ParaData node information"""
     name: StringProperty(
-           name="Name",
-           description="A name for this item",
-           default="Untitled")
-
+        name="Name",
+        description="Name of this paradata item",
+        default="Untitled"
+    )
     description: StringProperty(
-           name="Description",
-           description="A description for this item",
-           default="Empty")
-
+        name="Description",
+        description="Description of this paradata item",
+        default=""
+    )
     icon: StringProperty(
-           name="code for icon",
-           description="",
-           default="RESTRICT_INSTANCED_ON")
-
+        name="Icon",
+        description="Icon code for UI display",
+        default="RESTRICT_INSTANCED_ON"
+    )
     icon_url: StringProperty(
-           name="code for icon url",
-           description="",
-           default="CHECKBOX_DEHLT")
-
+        name="URL Icon",
+        description="Icon for URL status",
+        default="CHECKBOX_DEHLT"
+    )
     url: StringProperty(
-           name="url",
-           description="An url behind this item",
-           default="Empty")
-
+        name="URL",
+        description="URL associated with this paradata",
+        default=""
+    )
     id_node: StringProperty(
-           name="id_node",
-           description="The id node of this item",
-           default="Empty")
+        name="Node ID",
+        description="Unique node identifier",
+        default=""
+    )
 
 class EM_epochs_belonging_ob(PropertyGroup):
+    """Association between objects and epochs"""
     epoch: StringProperty(
-           name="epoch",
-           description="Epoch",
-           default="Untitled")
+        name="Epoch",
+        description="Associated epoch",
+        default="Untitled"
+    )
 
 class ExportVars(PropertyGroup):
-    format_file: bpy.props.EnumProperty(
+    """Export settings for various formats"""
+    format_file: EnumProperty(
         items=[
-        ('gltf','gltf','gltf','', 0),
-        ('obj','obj','obj','', 1),
-        ('fbx','fbx','fbx','', 2),
+            ('gltf', 'gltf', 'gltf', '', 0),
+            ('obj', 'obj', 'obj', '', 1),
+            ('fbx', 'fbx', 'fbx', '', 2),
         ],
         default='gltf'
     )
-
     heriverse_expanded: BoolProperty(
         name="Show Heriverse export options",
         description="Expand/Collapse Heriverse export options",
         default=False
     )
-
     emviq_expanded: BoolProperty(
         name="Show Emviq export options",
         description="Expand/Collapse Emviq export options",
         default=False
     )
-
     heriverse_project_name: StringProperty(
-        name="Project Name", 
+        name="Project Name",
         description="Name of the Heriverse project",
         default=""
     )
-
     heriverse_export_path: StringProperty(
         name="Export Path",
         description="Path where to export Heriverse project",
         subtype='DIR_PATH'
     )
-
     heriverse_export_all_graphs: BoolProperty(
         name="Export all graphs",
         description="Export all loaded graphs instead of just the selected one",
         default=False
     )
-
     heriverse_overwrite_json: BoolProperty(
         name="Overwrite JSON",
         description="Overwrite existing JSON file",
         default=True
     )
-
     heriverse_export_dosco: BoolProperty(
         name="Export DosCo files",
         description="Copy DosCo files to output",
         default=True
     )
-
     heriverse_export_proxies: BoolProperty(
         name="Export proxies",
         description="Export proxy models",
         default=True
     )
-
     heriverse_export_rm: BoolProperty(
         name="Export RM",
         description="Export representation models",
         default=True
     )
-
     heriverse_create_zip: BoolProperty(
         name="Create ZIP archive",
         description="Create a ZIP archive of the exported project",
         default=True
     )
-
     heriverse_advanced_options: BoolProperty(
         name="Show advanced options",
         description="Show advanced export options like compression settings",
         default=False
     )
-
     heriverse_use_draco: BoolProperty(
         name="Use Draco compression",
         description="Enable Draco mesh compression for smaller file size",
         default=True
     )
-
     heriverse_draco_level: IntProperty(
         name="Compression Level",
         description="Draco compression level (higher = smaller files but slower)",
@@ -419,31 +431,26 @@ class ExportVars(PropertyGroup):
         max=10,
         default=6
     )
-
     heriverse_separate_textures: BoolProperty(
         name="Export textures separately",
         description="Export textures as separate files instead of embedding",
         default=True
     )
-
     heriverse_use_gpu_instancing: BoolProperty(
         name="Use GPU Instancing",
         description="Enable GPU instancing for models with shared meshes (improved performance)",
         default=True
     )
-
     heriverse_skip_extracted_tilesets: BoolProperty(
         name="Skip Previously Extracted Tilesets",
         description="Skip tileset extraction if already extracted in the destination folder",
         default=True
     )
-
     heriverse_export_rmdoc: BoolProperty(
         name="Export ParaData Objects",
         description="Export 3D objects associated with ParaData nodes (Documents, Extractors, Combiners)",
         default=True
     )
-
     heriverse_export_rmsf: BoolProperty(
         name="Export Special Finds Models",
         description="Export 3D models associated with Special Finds (SF) nodes",
@@ -451,38 +458,85 @@ class ExportVars(PropertyGroup):
     )
 
 class ExportTablesVars(PropertyGroup):
-    table_type: bpy.props.EnumProperty(
+    """Table export settings"""
+    table_type: EnumProperty(
         items=[
-        ('US/USV','US/USV','US/USV','', 0),
-        ('Sources','Sources','Sources','', 1),
-        ('Extractors','Extractors','Extractors','', 2),
+            ('US/USV', 'US/USV', 'US/USV', '', 0),
+            ('Sources', 'Sources', 'Sources', '', 1),
+            ('Extractors', 'Extractors', 'Extractors', '', 2),
         ],
         default='US/USV'
     )
 
 class EMUSItem(PropertyGroup):
+    """Information about a stratigraphic unit"""
     name: StringProperty(name="Name", default="")
     description: StringProperty(name="Description", default="")
     status: StringProperty(name="Status", default="")
     y_pos: StringProperty(name="y_pos", default="")
 
-class em_create_collection(bpy.types.Operator):
+class EM_create_collection(bpy.types.Operator):
+    """Operator to create standard collections"""
     bl_idname = "create.collection"
     bl_label = "Create Collection"
     bl_description = "Create Collection"
     bl_options = {'REGISTER', 'UNDO'}
 
+    @staticmethod
     def create_collection(target_collection):
-        context = bpy.context
+        """Create a collection if it doesn't exist"""
         if bpy.data.collections.get(target_collection) is None:
-            currentCol = bpy.context.blend_data.collections.new(name=target_collection)
-            bpy.context.scene.collection.children.link(currentCol)
-        else:
-            currentCol = bpy.data.collections.get(target_collection)
-        return currentCol
+            new_collection = bpy.context.blend_data.collections.new(name=target_collection)
+            bpy.context.scene.collection.children.link(new_collection)
+            return new_collection
+        return bpy.data.collections.get(target_collection)
 
-# List of base classes
-base_classes = [
+    def execute(self, context):
+        self.create_collection("EM")
+        self.create_collection("Proxy")
+        self.create_collection("RM")
+        self.report({'INFO'}, "EM collections created")
+        return {'FINISHED'}
+
+# ============================
+# MODULE IMPORTS
+# ============================
+
+# Only import submodules if dependencies are satisfied
+if DEPENDENCIES_LOADED:
+    try:
+        # Import addon modules - these will be imported during registration
+        from . import (
+            EM_list,
+            epoch_manager,
+            functions,
+            paradata_manager,
+            export_manager,
+            visual_tools,
+            visual_manager,
+            em_setup,
+            EMdb_excel,
+            em_statistics,
+            graph2geometry,
+            activity_manager,
+            rm_manager,
+            proxy_inflate_manager,
+            anastylosis_manager
+        )
+        MODULE_IMPORT_SUCCESS = True
+    except ImportError as e:
+        logger.error(f"Error importing addon modules: {e}")
+        MODULE_IMPORT_SUCCESS = False
+else:
+    logger.warning("Skipping module imports due to missing dependencies")
+    MODULE_IMPORT_SUCCESS = False
+
+# ============================
+# REGISTRATION FUNCTIONS
+# ============================
+
+# Base class list for registration
+BASE_CLASSES = [
     EMAddonSettings,
     EDGESListItem,
     EPOCHListItem,
@@ -495,28 +549,240 @@ base_classes = [
     ExportVars,
     ExportTablesVars,
     EMUSItem,
-    em_create_collection
+    EM_create_collection
 ]
 
-def register():
-    """Simplified registration for extension"""
-    # Register base classes
-    for cls in base_classes:
+def register_base_classes():
+    """Register the PropertyGroup and Operator classes"""
+    for cls in BASE_CLASSES:
         try:
             bpy.utils.register_class(cls)
-        except ValueError:
-            # Already registered, skip
-            pass
+            logger.debug(f"Registered class: {cls.__name__}")
+        except Exception as e:
+            logger.warning(f"Could not register {cls.__name__}: {e}")
+
+def setup_scene_collections():
+    """Setup all collection properties on Scene"""
+    collection_types = {
+        'selected_epoch_us_list': EMUSItem,
+        'emviq_error_list': EMviqListErrors,
+        'em_list': EMListItem,
+        'em_reused': EMreusedUS,
+        'epoch_list': EPOCHListItem,
+        'edges_list': EDGESListItem,
+        'em_sources_list': EMListParadata,
+        'em_properties_list': EMListParadata,
+        'em_extractors_list': EMListParadata,
+        'em_combiners_list': EMListParadata,
+        'em_v_sources_list': EMListParadata,
+        'em_v_properties_list': EMListParadata,
+        'em_v_extractors_list': EMListParadata,
+        'em_v_combiners_list': EMListParadata,
+    }
     
-    # Import required modules
-    from .import_operators import importer_graphml
-    from .export_operators import exporter_heriverse
-    from .import_operators import import_EMdb
-    from . import populate_lists
-    from .s3Dgraphy.utils.utils import get_material_color
-    from .operators import graphml_converter
+    for prop_name, prop_type in collection_types.items():
+        if hasattr(bpy.types.Scene, prop_name):
+            # Force re-creation for development reloads
+            delattr(bpy.types.Scene, prop_name)
+        setattr(bpy.types.Scene, prop_name, CollectionProperty(type=prop_type))
+        logger.debug(f"Setup collection: {prop_name}")
+
+def setup_scene_indices():
+    """Setup index properties for collections"""
+    indices_with_updates = [
+        ('selected_epoch_us_list_index', 0, lambda self, context: getattr(bpy.ops, 'epoch_manager.update_us_list', lambda: None)()),
+        ('emviq_error_list_index', 0, functions.switch_paradata_lists if MODULE_IMPORT_SUCCESS else None),
+        ('em_list_index', 0, functions.switch_paradata_lists if MODULE_IMPORT_SUCCESS else None),
+        ('epoch_list_index', 0, None),
+        ('edges_list_index', 0, None),
+        ('em_sources_list_index', 0, None),
+        ('em_properties_list_index', 0, None),
+        ('em_extractors_list_index', 0, None),
+        ('em_combiners_list_index', 0, None),
+        ('em_v_sources_list_index', 0, None),
+        ('em_v_properties_list_index', 0, functions.stream_properties if MODULE_IMPORT_SUCCESS else None),
+        ('em_v_extractors_list_index', 0, functions.stream_extractors if MODULE_IMPORT_SUCCESS else None),
+        ('em_v_combiners_list_index', 0, functions.stream_combiners if MODULE_IMPORT_SUCCESS else None),
+    ]
     
-    # UI classes
+    for prop_name, default, update_func in indices_with_updates:
+        if hasattr(bpy.types.Scene, prop_name):
+            delattr(bpy.types.Scene, prop_name)
+            
+        props = {
+            'name': f"Index for {prop_name}", 
+            'default': default
+        }
+        if update_func:
+            props['update'] = update_func
+            
+        setattr(bpy.types.Scene, prop_name, IntProperty(**props))
+        logger.debug(f"Setup index: {prop_name}")
+
+def setup_scene_properties():
+    """Setup other properties on Scene"""
+    # Boolean properties with update functions
+    bool_props = [
+        ('paradata_streaming_mode', {
+            "name": "Paradata streaming mode", 
+            "description": "Enable/disable tables streaming mode", 
+            "default": True, 
+            "update": functions.switch_paradata_lists if MODULE_IMPORT_SUCCESS else None
+        }),
+        ('prop_paradata_streaming_mode', {
+            "name": "Properties Paradata streaming mode", 
+            "description": "Enable/disable property table streaming mode",
+            "default": True, 
+            "update": functions.stream_properties if MODULE_IMPORT_SUCCESS else None
+        }),
+        ('comb_paradata_streaming_mode', {
+            "name": "Combiners Paradata streaming mode", 
+            "description": "Enable/disable combiner table streaming mode",
+            "default": True, 
+            "update": functions.stream_combiners if MODULE_IMPORT_SUCCESS else None
+        }),
+        ('extr_paradata_streaming_mode', {
+            "name": "Extractors Paradata streaming mode", 
+            "description": "Enable/disable extractor table streaming mode",
+            "default": True, 
+            "update": functions.stream_extractors if MODULE_IMPORT_SUCCESS else None
+        }),
+        ('proxy_shader_mode', {
+            "name": "Proxy shader mode", 
+            "description": "Enable additive shader for proxies",
+            "default": True, 
+            "update": functions.proxy_shader_mode_function if MODULE_IMPORT_SUCCESS else None
+        }),
+        # Added filter and sync properties from EM_list.py
+        ('filter_by_epoch', {
+            "name": "Filter by Epoch",
+            "description": "Show only elements from the active epoch",
+            "default": False,
+            "update": None  # Will be set later in EM_list register
+        }),
+        ('filter_by_activity', {
+            "name": "Filter by Activity",
+            "description": "Show only elements from the active activity",
+            "default": False,
+            "update": None  # Will be set later in EM_list register
+        }),
+        ('include_surviving_units', {
+            "name": "Include Surviving Units",
+            "description": "Include units that survive in this epoch but were created in previous epochs",
+            "default": True,
+            "update": None  # Will be set later in EM_list register
+        }),
+        ('sync_list_visibility', {
+            "name": "Sync Visibility",
+            "description": "Synchronize proxy visibility with the current list",
+            "default": False,
+            "update": None  # Will be set later in EM_list register
+        }),
+        ('sync_rm_visibility', {
+            "name": "Sync RM Visibility",
+            "description": "Synchronize Representation Model visibility based on active epoch",
+            "default": False,
+            "update": None  # Will be set later in EM_list register
+        }),
+    ]
+    
+    for prop_name, prop_kwargs in bool_props:
+        if hasattr(bpy.types.Scene, prop_name):
+            delattr(bpy.types.Scene, prop_name)
+        setattr(bpy.types.Scene, prop_name, BoolProperty(**prop_kwargs))
+        logger.debug(f"Setup boolean property: {prop_name}")
+    
+    # String properties
+    string_props = [
+        ('EM_file', "Define the path to the EM GraphML file", ''),
+        ('EMviq_folder', "Define the path to export the EMviq collection", ''),
+        ('EMviq_scene_folder', "Define the path to export the EMviq scene", ''),
+        ('EMviq_project_name', "Define the name of the EMviq project", ''),
+        ('EMviq_user_name', "Define the name of the EMviq user", ''),
+        ('EMviq_user_password', "Define the name of the EMviq user", 'PASSWORD'),
+        ('ATON_path', "Define the path to the ATON framework (root folder)", ''),
+        ('EMviq_model_author_name', "Define the name of the author(s) of the models", ''),
+        ('proxy_display_mode', "Proxy display mode", "select"),
+        ('proxy_blend_mode', "Proxy blend mode", "BLEND"),
+    ]
+    
+    for prop_name, description, subtype in string_props:
+        if hasattr(bpy.types.Scene, prop_name):
+            delattr(bpy.types.Scene, prop_name)
+            
+        props = {
+            'name': prop_name, 
+            'default': "", 
+            'description': description
+        }
+        if subtype:
+            if subtype not in ["", "PASSWORD", "select", "BLEND"]:
+                props['subtype'] = subtype
+                
+        setattr(bpy.types.Scene, prop_name, StringProperty(**props))
+        logger.debug(f"Setup string property: {prop_name}")
+    
+    # Float properties
+    if hasattr(bpy.types.Scene, 'proxy_display_alpha'):
+        delattr(bpy.types.Scene, 'proxy_display_alpha')
+        
+    bpy.types.Scene.proxy_display_alpha = FloatProperty(
+        name="alpha", description="The alpha value for proxies",
+        min=0, max=1, default=0.5, 
+        update=functions.update_display_mode if MODULE_IMPORT_SUCCESS else None
+    )
+    
+    # Integer properties
+    int_props = [
+        ('EM_gltf_export_quality', "export quality", 
+            "Define the quality of the output images", 100),
+        ('EM_gltf_export_maxres', "export max resolution", 
+            "Define the maximum resolution of the output images", 4096),
+    ]
+    
+    for prop_name, name, description, default in int_props:
+        if hasattr(bpy.types.Scene, prop_name):
+            delattr(bpy.types.Scene, prop_name)
+            
+        setattr(bpy.types.Scene, prop_name, IntProperty(
+            name=name, description=description, default=default))
+        logger.debug(f"Setup integer property: {prop_name}")
+
+def setup_pointer_properties():
+    """Setup pointer properties on various types"""
+    # Scene properties
+    if hasattr(bpy.types.Scene, 'em_settings'):
+        delattr(bpy.types.Scene, 'em_settings')
+    bpy.types.Scene.em_settings = PointerProperty(type=EM_Other_Settings)
+    
+    # WindowManager properties
+    if hasattr(bpy.types.WindowManager, 'em_addon_settings'):
+        delattr(bpy.types.WindowManager, 'em_addon_settings')
+    bpy.types.WindowManager.em_addon_settings = PointerProperty(type=EMAddonSettings)
+    
+    if hasattr(bpy.types.WindowManager, 'export_vars'):
+        delattr(bpy.types.WindowManager, 'export_vars')
+    bpy.types.WindowManager.export_vars = PointerProperty(type=ExportVars)
+    
+    if hasattr(bpy.types.WindowManager, 'export_tables_vars'):
+        delattr(bpy.types.WindowManager, 'export_tables_vars')
+    bpy.types.WindowManager.export_tables_vars = PointerProperty(type=ExportTablesVars)
+    
+    # Object properties
+    if hasattr(bpy.types.Object, 'EM_ep_belong_ob'):
+        delattr(bpy.types.Object, 'EM_ep_belong_ob')
+    bpy.types.Object.EM_ep_belong_ob = CollectionProperty(type=EM_epochs_belonging_ob)
+    
+    if hasattr(bpy.types.Object, 'EM_ep_belong_ob_index'):
+        delattr(bpy.types.Object, 'EM_ep_belong_ob_index')
+    bpy.types.Object.EM_ep_belong_ob_index = IntProperty()
+
+def register_ui_classes():
+    """Register the UI-related classes"""
+    if not MODULE_IMPORT_SUCCESS:
+        logger.warning("Skipping UI registration due to missing dependencies")
+        return
+    
     ui_classes = [
         functions.OBJECT_OT_CenterMass,
         functions.OBJECT_OT_labelonoff,
@@ -526,151 +792,22 @@ def register():
     for cls in ui_classes:
         try:
             bpy.utils.register_class(cls)
-        except ValueError:
-            pass
+            logger.debug(f"Registered UI class: {cls.__name__}")
+        except Exception as e:
+            logger.warning(f"Could not register UI class {cls.__name__}: {e}")
+
+def register_modules():
+    """Register all addon modules"""
+    if not MODULE_IMPORT_SUCCESS:
+        logger.warning("Skipping module registration due to missing dependencies")
+        return
     
-    # Initialize properties
-    bpy.types.Scene.em_graph = None
+    # We need to import these here to access the registration functions
+    from .import_operators import importer_graphml
+    from .export_operators import exporter_heriverse
+    from .import_operators import import_EMdb
+    from .operators import graphml_converter
     
-    # Scene collection properties
-    scene_collections = [
-        ('selected_epoch_us_list', EMUSItem),
-        ('emviq_error_list', EMviqListErrors),
-        ('em_list', EMListItem),
-        ('em_reused', EMreusedUS),
-        ('epoch_list', EPOCHListItem),
-        ('edges_list', EDGESListItem),
-        ('em_sources_list', EMListParadata),
-        ('em_properties_list', EMListParadata),
-        ('em_extractors_list', EMListParadata),
-        ('em_combiners_list', EMListParadata),
-        ('em_v_sources_list', EMListParadata),
-        ('em_v_properties_list', EMListParadata),
-        ('em_v_extractors_list', EMListParadata),
-        ('em_v_combiners_list', EMListParadata),
-    ]
-    
-    for prop_name, prop_type in scene_collections:
-        if not hasattr(bpy.types.Scene, prop_name):
-            setattr(bpy.types.Scene, prop_name, CollectionProperty(type=prop_type))
-    
-    # Scene index properties
-    scene_indices = [
-        ('selected_epoch_us_list_index', 0, lambda self, context: bpy.ops.epoch_manager.update_us_list()),
-        ('emviq_error_list_index', 0, functions.switch_paradata_lists),
-        ('em_list_index', 0, functions.switch_paradata_lists),
-        ('em_sources_list_index', 0, None),
-        ('em_properties_list_index', 0, None),
-        ('em_extractors_list_index', 0, None),
-        ('em_combiners_list_index', 0, None),
-        ('em_v_sources_list_index', 0, None),
-        ('em_v_properties_list_index', 0, functions.stream_properties),
-        ('em_v_extractors_list_index', 0, functions.stream_extractors),
-        ('em_v_combiners_list_index', 0, functions.stream_combiners),
-    ]
-    
-    for prop_name, default, update_func in scene_indices:
-        if not hasattr(bpy.types.Scene, prop_name):
-            props = {'name': f"Index for {prop_name}", 'default': default}
-            if update_func:
-                props['update'] = update_func
-            setattr(bpy.types.Scene, prop_name, IntProperty(**props))
-    
-    # Other scene properties
-    scene_props = [
-        ('paradata_streaming_mode', BoolProperty, 
-            {"name": "Paradata streaming mode", "description": "Enable/disable tables streaming mode", 
-             "default": True, "update": functions.switch_paradata_lists}),
-        ('prop_paradata_streaming_mode', BoolProperty,
-            {"name": "Properties Paradata streaming mode", "description": "Enable/disable property table streaming mode",
-             "default": True, "update": functions.stream_properties}),
-        ('comb_paradata_streaming_mode', BoolProperty,
-            {"name": "Combiners Paradata streaming mode", "description": "Enable/disable combiner table streaming mode",
-             "default": True, "update": functions.stream_combiners}),
-        ('extr_paradata_streaming_mode', BoolProperty,
-            {"name": "Extractors Paradata streaming mode", "description": "Enable/disable extractor table streaming mode",
-             "default": True, "update": functions.stream_extractors}),
-        ('proxy_shader_mode', BoolProperty,
-            {"name": "Proxy shader mode", "description": "Enable additive shader for proxies",
-             "default": True, "update": functions.proxy_shader_mode_function}),
-    ]
-    
-    for prop_name, prop_type, prop_kwargs in scene_props:
-        if not hasattr(bpy.types.Scene, prop_name):
-            setattr(bpy.types.Scene, prop_name, prop_type(**prop_kwargs))
-    
-    # String properties
-    scene_string_props = [
-        ('EM_file', "Define the path to the EM GraphML file", ''),
-        ('EMviq_folder', "Define the path to export the EMviq collection", ''),
-        ('EMviq_scene_folder', "Define the path to export the EMviq scene", ''),
-        ('EMviq_project_name', "Define the name of the EMviq project", ''),
-        ('EMviq_user_name', "Define the name of the EMviq user", ''),
-        ('EMviq_user_password', "Define the name of the EMviq user", 'PASSWORD'),
-        ('ATON_path', "Define the path to the ATON framework (root folder)", ''),
-        ('EMviq_model_author_name', "Define the name of the author(s) of the models", ''),
-    ]
-    
-    for prop_name, description, subtype in scene_string_props:
-        if not hasattr(bpy.types.Scene, prop_name):
-            props = {'name': prop_name, 'default': "", 'description': description}
-            if subtype:
-                props['subtype'] = subtype
-            setattr(bpy.types.Scene, prop_name, StringProperty(**props))
-    
-    # Other property groups
-    if not hasattr(bpy.types.Scene, 'em_settings'):
-        bpy.types.Scene.em_settings = PointerProperty(type=EM_Other_Settings)
-    
-    # Display mode properties
-    scene_mode_props = [
-        ('proxy_display_mode', "Proxy display mode", "select"),
-        ('proxy_blend_mode', "Proxy blend mode", "BLEND"),
-    ]
-    
-    for prop_name, name, default in scene_mode_props:
-        if not hasattr(bpy.types.Scene, prop_name):
-            setattr(bpy.types.Scene, prop_name, StringProperty(
-                name=name, default=default, description=f"{name} for current display mode"))
-    
-    # Alpha property
-    if not hasattr(bpy.types.Scene, 'proxy_display_alpha'):
-        bpy.types.Scene.proxy_display_alpha = FloatProperty(
-            name="alpha", description="The alpha value for proxies",
-            min=0, max=1, default=0.5, update=functions.update_display_mode)
-    
-    # GLTF export properties
-    scene_gltf_props = [
-        ('EM_gltf_export_quality', "export quality", 
-            "Define the quality of the output images", 100),
-        ('EM_gltf_export_maxres', "export max resolution", 
-            "Define the maximum resolution of the output images", 4096),
-    ]
-    
-    for prop_name, name, description, default in scene_gltf_props:
-        if not hasattr(bpy.types.Scene, prop_name):
-            setattr(bpy.types.Scene, prop_name, IntProperty(
-                name=name, description=description, default=default))
-    
-    # WindowManager properties
-    if not hasattr(bpy.types.WindowManager, 'em_addon_settings'):
-        bpy.types.WindowManager.em_addon_settings = PointerProperty(type=EMAddonSettings)
-    
-    if not hasattr(bpy.types.WindowManager, 'export_vars'):
-        bpy.types.WindowManager.export_vars = PointerProperty(type=ExportVars)
-    
-    if not hasattr(bpy.types.WindowManager, 'export_tables_vars'):
-        bpy.types.WindowManager.export_tables_vars = PointerProperty(type=ExportTablesVars)
-    
-    # Object properties
-    if not hasattr(bpy.types.Object, 'EM_ep_belong_ob'):
-        bpy.types.Object.EM_ep_belong_ob = CollectionProperty(type=EM_epochs_belonging_ob)
-        bpy.types.Object.EM_ep_belong_ob_index = IntProperty()
-    
-    # Add menu function
-    bpy.types.VIEW3D_MT_mesh_add.append(functions.menu_func)
-    
-    # Register modules
     modules_to_register = [
         em_setup,
         visual_manager,
@@ -694,102 +831,129 @@ def register():
     for module in modules_to_register:
         try:
             module.register()
+            logger.debug(f"Registered module: {module.__name__}")
         except Exception as e:
-            print(f"Error registering {module.__name__}: {e}")
+            logger.error(f"Error registering {module.__name__}: {e}")
+
+def register():
+    """Main registration function"""
+    logger.info(f"Registering EM Tools {VERSION}")
     
-    print("EM Tools: Registration complete")
+    # 1. Register base property classes first
+    register_base_classes()
+    
+    # 2. Setup all properties
+    setup_scene_collections()
+    setup_scene_indices()
+    setup_scene_properties()
+    setup_pointer_properties()
+    
+    # 3. Set graph reference
+    bpy.types.Scene.em_graph = None
+    
+    # 4. Register UI classes
+    register_ui_classes()
+    
+    # 5. Register all modules
+    register_modules()
+    
+    # 6. Add menu items
+    if MODULE_IMPORT_SUCCESS:
+        bpy.types.VIEW3D_MT_mesh_add.append(functions.menu_func)
+    
+    logger.info("EM Tools registration complete")
 
 def unregister():
-    """Simplified unregistration for extension"""
-    # Import modules for unregistration
-    from . import (
-        activity_manager,
-        graph2geometry,
-        epoch_manager,
-        em_statistics,
-        export_manager,
-        EM_list,
-        EMdb_excel,
-        visual_manager,
-        em_setup,
-        rm_manager,
-        paradata_manager,
-        proxy_inflate_manager,
-        anastylosis_manager,
-        functions
-    )
+    """Main unregistration function"""
+    logger.info("Unregistering EM Tools")
     
-    from .export_operators import exporter_heriverse
-    from .import_operators import importer_graphml, import_EMdb
-    from .operators import graphml_converter
-    
-    # Unregister modules
-    modules_to_unregister = [
-        graphml_converter,
-        import_EMdb,
-        exporter_heriverse,
-        importer_graphml,
-        activity_manager,
-        graph2geometry,
-        rm_manager,
-        anastylosis_manager,
-        paradata_manager,
-        epoch_manager,
-        em_statistics,
-        export_manager,
-        EM_list,
-        EMdb_excel,
-        visual_manager,
-        em_setup,
-        proxy_inflate_manager
-    ]
-    
-    for module in modules_to_unregister:
+    # 1. Remove menu items
+    if MODULE_IMPORT_SUCCESS:
         try:
-            module.unregister()
-        except:
-            pass
+            bpy.types.VIEW3D_MT_mesh_add.remove(functions.menu_func)
+        except Exception as e:
+            logger.warning(f"Error removing menu function: {e}")
     
-    # Remove menu function
-    try:
-        bpy.types.VIEW3D_MT_mesh_add.remove(functions.menu_func)
-    except:
-        pass
+    # 2. Unregister modules in reverse order
+    if MODULE_IMPORT_SUCCESS:
+        from .export_operators import exporter_heriverse
+        from .import_operators import importer_graphml, import_EMdb
+        from .operators import graphml_converter
+        
+        modules_to_unregister = [
+            graphml_converter,
+            import_EMdb,
+            exporter_heriverse,
+            importer_graphml,
+            proxy_inflate_manager,
+            activity_manager,
+            graph2geometry,
+            rm_manager,
+            anastylosis_manager,
+            paradata_manager,
+            epoch_manager,
+            em_statistics,
+            export_manager,
+            EM_list,
+            EMdb_excel,
+            visual_manager,
+            em_setup
+        ]
+        
+        for module in modules_to_unregister:
+            try:
+                module.unregister()
+                logger.debug(f"Unregistered module: {module.__name__}")
+            except Exception as e:
+                logger.warning(f"Error unregistering {module.__name__}: {e}")
     
-    # Remove properties
-    props_to_remove = [
-        (bpy.types.WindowManager, 'export_vars'),
-        (bpy.types.WindowManager, 'export_tables_vars'),
-        (bpy.types.WindowManager, 'em_addon_settings'),
-        (bpy.types.Scene, 'EM_gltf_export_maxres'),
-        (bpy.types.Scene, 'EM_gltf_export_quality'),
-        (bpy.types.Object, 'EM_ep_belong_ob_index'),
-        (bpy.types.Object, 'EM_ep_belong_ob'),
-        (bpy.types.Scene, 'proxy_display_alpha'),
-        (bpy.types.Scene, 'proxy_blend_mode'),
-        (bpy.types.Scene, 'proxy_display_mode'),
-        (bpy.types.Scene, 'em_settings'),
-        (bpy.types.Scene, 'EMviq_model_author_name'),
-        (bpy.types.Scene, 'ATON_path'),
-        (bpy.types.Scene, 'EMviq_user_password'),
-        (bpy.types.Scene, 'EMviq_user_name'),
-        (bpy.types.Scene, 'EMviq_project_name'),
-        (bpy.types.Scene, 'EMviq_scene_folder'),
-        (bpy.types.Scene, 'EMviq_folder'),
-        (bpy.types.Scene, 'EM_file'),
-        # ... all other properties
+    # 3. Remove properties
+    property_owners = [
+        (bpy.types.WindowManager, ['export_vars', 'export_tables_vars', 'em_addon_settings']),
+        (bpy.types.Scene, [
+            'EM_gltf_export_maxres', 'EM_gltf_export_quality', 'proxy_display_alpha',
+            'proxy_blend_mode', 'proxy_display_mode', 'em_settings', 'EMviq_model_author_name',
+            'ATON_path', 'EMviq_user_password', 'EMviq_user_name', 'EMviq_project_name',
+            'EMviq_scene_folder', 'EMviq_folder', 'EM_file', 'paradata_streaming_mode',
+            'prop_paradata_streaming_mode', 'comb_paradata_streaming_mode', 'extr_paradata_streaming_mode',
+            'proxy_shader_mode', 'em_graph', 'filter_by_epoch', 'filter_by_activity',
+            'include_surviving_units', 'sync_list_visibility', 'sync_rm_visibility'
+        ]),
+        (bpy.types.Object, ['EM_ep_belong_ob_index', 'EM_ep_belong_ob'])
     ]
     
-    for prop_owner, prop_name in props_to_remove:
-        if hasattr(prop_owner, prop_name):
-            try:
-                delattr(prop_owner, prop_name)
-            except:
-                pass
+    # Remove collection properties
+    collection_names = [
+        'selected_epoch_us_list', 'emviq_error_list', 'em_list', 'em_reused',
+        'epoch_list', 'edges_list', 'em_sources_list', 'em_properties_list',
+        'em_extractors_list', 'em_combiners_list', 'em_v_sources_list',
+        'em_v_properties_list', 'em_v_extractors_list', 'em_v_combiners_list'
+    ]
     
-    # Unregister base classes
-    for cls in reversed(base_classes):
+    # Add index properties to remove
+    index_names = [f"{name}_index" for name in collection_names]
+    property_owners[1][1].extend(index_names)
+    property_owners[1][1].extend(collection_names)
+    
+    # Remove all properties
+    for prop_owner, prop_names in property_owners:
+        for prop_name in prop_names:
+            if hasattr(prop_owner, prop_name):
+                try:
+                    delattr(prop_owner, prop_name)
+                    logger.debug(f"Removed property: {prop_owner.__name__}.{prop_name}")
+                except Exception as e:
+                    logger.warning(f"Error removing {prop_owner.__name__}.{prop_name}: {e}")
+    
+    # 4. Unregister base classes in reverse order
+    for cls in reversed(BASE_CLASSES):
         try:
             bpy.utils.unregister_class(cls)
-        except:
-            pass
+            logger.debug(f"Unregistered class: {cls.__name__}")
+        except Exception as e:
+            logger.warning(f"Error unregistering {cls.__name__}: {e}")
+    
+    logger.info("EM Tools unregistration complete")
+
+if __name__ == "__main__":
+    register()

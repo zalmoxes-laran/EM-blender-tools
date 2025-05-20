@@ -21,9 +21,9 @@ class JSONExporter:
         self.context = self._init_context()
         
     def _init_context(self) -> Dict[str, Any]:
-        """Initialize the context section with default time periods."""
+        """Initialize the context section with default time Epochs."""
         return {
-            "absolute_time_periods": {
+            "absolute_time_Epochs": {
                 "roman_kingdom": {
                     "name": "Epoca regia romana",
                     "start": -753,

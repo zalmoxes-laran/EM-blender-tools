@@ -829,7 +829,7 @@ def update_icons(context,list_type):
 def update_display_mode(self, context):
     if bpy.context.scene.proxy_display_mode == "EM":
         bpy.ops.emset.emmaterial()
-    if bpy.context.scene.proxy_display_mode == "Periods":
+    if bpy.context.scene.proxy_display_mode == "Epochs":
         bpy.ops.emset.epochmaterial()
 
     

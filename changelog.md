@@ -109,7 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Support for negative stratigraphic units
 - DosCo folder integration
-- Custom material system for periods
+- Custom material system for Epochs
 - Soloing mode for epochs
 
 ### Changed

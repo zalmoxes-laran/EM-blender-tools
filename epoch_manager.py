@@ -111,7 +111,7 @@ class EM_UL_named_epoch_managers(UIList):
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
 
-#Periods Manager
+#Epochs Manager
 class EM_BasePanel:
     bl_label = "Epochs Manager"
     bl_space_type = 'VIEW_3D'
@@ -451,12 +451,12 @@ class EM_set_EM_materials(bpy.types.Operator):
 
 class EM_set_epoch_materials(bpy.types.Operator):
     bl_idname = "emset.epochmaterial"
-    bl_label = "Change proxy periods"
-    bl_description = "Change proxy materials using periods"
+    bl_label = "Change proxy Epochs"
+    bl_description = "Change proxy materials using Epochs"
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
-        context.scene.proxy_display_mode = "Periods"
+        context.scene.proxy_display_mode = "Epochs"
         update_icons(context,"em_list")
         set_materials_using_epoch_list(context)
         return {'FINISHED'}

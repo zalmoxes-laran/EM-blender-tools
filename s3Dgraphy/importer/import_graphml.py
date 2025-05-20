@@ -75,7 +75,7 @@ class GraphMLImporter:
                     print(f"Error extracting graph ID from node label: {e}")
         
         # If we didn't find a graph_code, use MISSINGCODE
-        if not graph_code or graph_code == "TEMPCODE":
+        if not graph_code or graph_code == "site_id":
             graph_code = "MISSINGCODE"
             print(f"Using fallback graph code: {graph_code}")
         

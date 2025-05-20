@@ -457,7 +457,7 @@
                 },
                 "data_type": "controlled_vocabulary",
                 "vocabulary_source": "getty_aat",
-                "vocabulary_category": "Styles and Periods",
+                "vocabulary_category": "Styles and Epochs",
                 "expected_extractors": [
                   "style_analysis",
                   "comparative_analysis"
@@ -473,7 +473,7 @@
                 },
                 "data_type": "controlled_vocabulary",
                 "vocabulary_source": "getty_aat",
-                "vocabulary_category": "Styles and Periods",
+                "vocabulary_category": "Styles and Epochs",
                 "expected_extractors": [
                   "historical_analysis",
                   "stylistic_analysis"

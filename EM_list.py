@@ -482,30 +482,23 @@ class EM_ToolsPanel:
         em_settings = scene.em_settings
         obj = context.object
         
-        # Aggiungiamo i controlli per i filtri
-        box = layout.box()
-        row = box.row(align=True)
-        row.label(text=" Rows: " + str(len(scene.em_list)))
+        # FILTER SECTION
+        filter_box = layout.box()
+        row = filter_box.row(align=True)
+        row.label(text=" Rows: " + str(len(scene.em_list)), icon='PRESET')
         
         # Verifichiamo che le proprietà esistano prima di usarle
         if hasattr(scene, "filter_by_epoch"):
             row.prop(scene, "filter_by_epoch", text="", toggle=True, icon='SORTTIME')
             
             # Se il filtro per epoca è attivo, mostra l'opzione per includere unità sopravvissute
-            # Nota: abbiamo migliorato l'UI dell'opzione "Include Surviving Units"
-            # Se il filtro per epoca è attivo, mostra l'opzione per includere unità sopravvissute in formato compatto
             if scene.filter_by_epoch:
-                sub_row = box.row(align=True)
+                #sub_row = filter_box.row(align=True)
                 icon = 'CHECKBOX_HLT' if scene.include_surviving_units else 'CHECKBOX_DEHLT'
-
-                # Usa un layout più compatto con checkbox + label + info icon
-                #sub_row.prop(scene, "include_surviving_units", text="Include Surviving Units")
-                op = sub_row.operator("em.toggle_include_surviving", 
+                op = row.operator("em.toggle_include_surviving", 
                     text="Include Surviving Units",
                     icon=icon)
-                sub_row.operator("em.help_popup", text="", icon='QUESTION')
-                #help_op = sub_row.operator("wm.url_open", text="", icon='QUESTION')
-                #help_op.url = "https://docs.extendedmatrix.org/survival-filter"  # URL da modificare con la documentazione corretta
+                row.operator("em.help_popup", text="", icon='QUESTION')
         
         if hasattr(scene, "filter_by_activity"):
             row.prop(scene, "filter_by_activity", text="", toggle=True, icon='NETWORK_DRIVE')
@@ -513,42 +506,36 @@ class EM_ToolsPanel:
         # Reset filtri
         if hasattr(scene, "filter_by_epoch") and hasattr(scene, "filter_by_activity"):
             if scene.filter_by_epoch or scene.filter_by_activity:
-                row.operator("em.reset_filters", text="", icon='X')
+                row.operator("em.reset_filters", text="", icon='CANCEL')
 
-
+        # SYNCHRONIZATION SECTION
+        sync_box = layout.box()
+        row = sync_box.row(align=True)
+        row.label(text="Scene Sync", icon='SCENE_DATA')
+        
+        # Proxy sync
         if hasattr(scene, "sync_list_visibility"):
-            row.prop(scene, "sync_list_visibility", text="Sync", 
+            #row = sync_box.row(align=True)
+            row.prop(scene, "sync_list_visibility", text="Proxies", 
                     icon='HIDE_OFF' if scene.sync_list_visibility else 'HIDE_ON')
 
-        # Add new toggle for RM sync
-        row.prop(scene, "sync_rm_visibility", text="", 
-                icon= 'OBJECT_DATA') # 'RESTRICT_VIEW_OFF' if scene.sync_rm_visibility else 'RESTRICT_VIEW_ON')
+        # RM sync
+        #row = sync_box.row(align=True)
+        row.prop(scene, "sync_rm_visibility", text="RM Models", 
+                icon='OBJECT_DATA')
 
         # Tasto per attivare tutte le collezioni con proxy
-        row.operator("em.strat_activate_collections", text="", icon='OUTLINER_COLLECTION')
+        #row = sync_box.row(align=True)
+        #row.operator("em.strat_activate_collections", text="Show All Collections", icon='OUTLINER_COLLECTION')
 
-        # After the other filter buttons:
-        if hasattr(scene, "filter_by_epoch") and hasattr(scene, "filter_by_activity"):
-            if scene.filter_by_epoch or scene.filter_by_activity:
-                row.operator("em.reset_filters", text="", icon='X')
-                
-            # Add debug button
-            row.operator("em.debug_filters", text="", icon='CONSOLE')
+        # Debug button (only if experimental features are enabled)
+        if hasattr(context.scene.em_tools, "experimental_features") and context.scene.em_tools.experimental_features:
+            row = sync_box.row(align=True)
+            row.operator("em.debug_filters", text="Debug Graph", icon='CONSOLE')
 
-        if obj:
-            #split = row.split()
-
-            if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
-                #col = split.column(align=True)
-                op = row.operator("select.listitem", text='', icon="LONGDISPLAY")
-                if op:
-                    op.list_type = "em_list"
-            else:
-                #col = split.column()
-                row.label(text="", icon='LONGDISPLAY')    
-
-        box = layout.box()
-        row = box.row(align=True)
+        # ACTIVE CONTEXT SECTION
+        context_box = layout.box()
+        row = context_box.row(align=True)
         split = row.split()
         col = split.column()
 
@@ -574,13 +561,14 @@ class EM_ToolsPanel:
         else:
             col.label(text="No activities", icon="ERROR")
 
+        # STRATIGRAPHY LIST
         row = layout.row()
 
         if scene.em_list and ensure_valid_index(scene.em_list, "em_list_index"):
             row.template_list("EM_STRAT_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
             item = scene.em_list[scene.em_list_index]
- 
-                
+    
+            # SELECTED ITEM DETAILS
             box = layout.box()
             row = box.row(align=True)
             split = row.split()
@@ -599,13 +587,18 @@ class EM_ToolsPanel:
                 if op:
                     op.index = scene.em_list_index
 
-            # link proxy and US
+            # link proxy and US - PULSANTE MODIFICATO PER MIGLIORARE VISIBILITÀ
             split = row.split()
             col = split.column()
             op = col.operator("listitem.toobj", icon="LINK_BLEND", text='')
             if op:
                 op.list_type = "em_list"
             
+            # Aggiungi pulsante per selezionare la riga dalla scena 3D
+            split = row.split()
+            col = split.column()
+            col.operator("select.listitem", text="", icon="RESTRICT_SELECT_OFF")
+                    
             row = box.row()
             row.prop(item, "description", text="", slider=True, emboss=True)
 
@@ -613,21 +606,6 @@ class EM_ToolsPanel:
                 if obj is not None:
                     if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
                             select_list_element_from_obj_proxy(obj, "em_list")
-            '''        
-            if scene.em_settings.em_proxy_sync2 is True:
-                if scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
-                    list_item = scene.em_list[scene.em_list_index]
-                    if obj is not None:
-                        if list_item.name != obj.name:
-                            select_3D_obj(list_item.name)
-                            if scene.em_settings.em_proxy_sync2_zoom is True:
-                                for area in bpy.context.screen.areas:
-                                    if area.type == 'VIEW_3D':
-                                        ctx = bpy.context.copy()
-                                        ctx['area'] = area
-                                        ctx['region'] = area.regions[-1]
-                                        bpy.ops.view3d.view_selected(ctx)
-            '''
         else:
             row.label(text="No stratigraphic units here :-(")
 

@@ -397,7 +397,7 @@ class Display_mode_menu(bpy.types.Menu):
 
         if context.scene.em_tools.mode_switch:
             layout.operator("emset.emmaterial", text="EM")
-            layout.operator("emset.epochmaterial", text="Periods")
+            layout.operator("emset.epochmaterial", text="Epochs")
 
         layout.operator("emset.propertymaterial", text="Properties")
 

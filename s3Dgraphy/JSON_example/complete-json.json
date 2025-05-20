@@ -1,7 +1,7 @@
 {
     "version": "1.5",
     "context": {
-        "absolute_time_periods": {
+        "absolute_time_Epochs": {
             "roman_kingdom": {
                 "name": "Epoca regia romana",
                 "start": -753,

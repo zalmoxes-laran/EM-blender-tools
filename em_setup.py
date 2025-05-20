@@ -518,27 +518,28 @@ class EM_SetupPanel(bpy.types.Panel):
         scene = context.scene
         em_tools = scene.em_tools
 
-        box = layout.box()
-        row = box.row(align=True)
-        #row = layout.row(align=True)
-        split = row.split()
-        col = split.column()
+        if em_tools.experimental_features:
+            box = layout.box()
+            row = box.row(align=True)
+            #row = layout.row(align=True)
+            split = row.split()
+            col = split.column()
 
-        activemode_label = ""
-        active_label = ""
-        # Cambia l'etichetta del pulsante in base alla modalità attiva
-        if em_tools.mode_switch:
-            activemode_label = "Switch to 3D GIS"
-            active_label = "Advanced EM Mode active"
-        else:
-            activemode_label = "Switch to Advanced EM"
-            active_label = "3D GIS Mode active"
-        
-        # Disegna il pulsante
-        
-        col.label(text=active_label)
-        col = split.column()
-        col.operator("emtools.switch_mode", text=activemode_label)
+            activemode_label = ""
+            active_label = ""
+            # Cambia l'etichetta del pulsante in base alla modalità attiva
+            if em_tools.mode_switch:
+                activemode_label = "Switch to 3D GIS"
+                active_label = "Advanced EM Mode active"
+            else:
+                activemode_label = "Switch to Advanced EM"
+                active_label = "3D GIS Mode active"
+            
+            # Disegna il pulsante
+            
+            col.label(text=active_label)
+            col = split.column()
+            col.operator("emtools.switch_mode", text=activemode_label)
 
         if em_tools.mode_switch:
             # List of GraphML files
@@ -546,8 +547,8 @@ class EM_SetupPanel(bpy.types.Panel):
             row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=2)
 
             row = layout.row(align=True)
-            row.operator('em_tools.add_file', text="Add UT", icon="ADD")
-            row.operator('em_tools.remove_file', text="Remove UT", icon="REMOVE")
+            row.operator('em_tools.add_file', text="Add GraphML", icon="ADD")
+            row.operator('em_tools.remove_file', text="Remove GraphML", icon="REMOVE")
 
             # Details for selected GraphML file
             if em_tools.active_file_index >= 0 and em_tools.graphml_files:
@@ -568,7 +569,7 @@ class EM_SetupPanel(bpy.types.Panel):
                 #col = split.column()
                 col.prop(scene, "em_list", text='')
                 col = split.column()
-                col.label(text="Periods")
+                col.label(text="Epochs")
                 #col = split.column()
                 col.prop(scene, "epoch_list", text='')
 
@@ -594,17 +595,16 @@ class EM_SetupPanel(bpy.types.Panel):
                     #row.prop(active_file, "graph_code", text="Graph Code")
                     
                     # Aggiunge un avviso per MISSINGCODE o TEMPCODE
-                    if active_file.graph_code in ["MISSINGCODE", "TEMPCODE", "xx"]:
+                    if active_file.graph_code in ["MISSINGCODE", "TEMPCODE", "xx", "site_id"]:
                         warning_box = layout.box()
-                        warning_box.label(text="Warning: Missing or temporary graph code", icon='ERROR')
-                        warning_box.label(text="Please add a proper code in the GraphML header")
-                        op = warning_box.operator("wm.url_open", text="Learn how to fix this")
+                        warning_box.label(text="Warning:", icon='ERROR')
+                        warning_box.label(text="Please add a proper site ID in the GraphML header")
+                        op = warning_box.operator("wm.url_open", icon="QUESTION")
                         op.url = "https://docs.extendedmatrix.org/en/1.5.0dev/data_funnel.html#general-background-data"
                 else:
                     # Se non c'è la proprietà graph_code, dobbiamo prima aggiungerla alla classe
                     active_file.graph_code = "MISSINGCODE"
                     row.prop(active_file, "graph_code", text="Graph Code")
-
 
                 box = layout.box()
                 em_settings = bpy.context.window_manager.em_addon_settings
@@ -616,26 +616,26 @@ class EM_SetupPanel(bpy.types.Panel):
                     box.prop(active_file, "dosco_dir", text="Set Path")
 
                     #box.prop(em_settings, "dosco_advanced_options", 
+                    if em_tools.experimental_features:
+                        box.prop(em_settings, "dosco_advanced_options", text="More options", icon="TRIA_DOWN" if em_settings.dosco_advanced_options else "TRIA_RIGHT", emboss=False)
 
-                    box.prop(em_settings, "dosco_advanced_options", text="More options", icon="TRIA_DOWN" if em_settings.dosco_advanced_options else "TRIA_RIGHT", emboss=False)
-
-                    if em_settings.dosco_advanced_options:
-                        box.label(text="Populate extractors, documents and combiners using DosCo files:")
-                        row = box.row()
-                        row.prop(em_settings, 'overwrite_url_with_dosco_filepath', text="Overwrite paths with DosCo files")
-                        
-                        # Add a more informative tooltip
-                        subbox = box.box()
-                        subbox.label(text="When enabled, node paths will be linked to files in DosCo")
-                        subbox.label(text="Examples:")
-                        subbox.label(text="Node GT16.D.01 → Searches for GT16.D.01 and D.01 in DosCo")
-                        
-                        row = box.row()
-                        row.prop(em_settings, 'preserve_web_url', text="Preserve web URLs (don't overwrite http/https)")
-                        
-                        # Add a button to manually trigger the operation
-                        #row = box.row()
-                        #row.operator("em.update_dosco_paths", text="Update Paths from DosCo", icon="FILE_REFRESH")
+                        if em_settings.dosco_advanced_options:
+                            box.label(text="Populate extractors, documents and combiners using DosCo files:")
+                            row = box.row()
+                            row.prop(em_settings, 'overwrite_url_with_dosco_filepath', text="Overwrite paths with DosCo files")
+                            
+                            # Add a more informative tooltip
+                            subbox = box.box()
+                            subbox.label(text="When enabled, node paths will be linked to files in DosCo")
+                            subbox.label(text="Examples:")
+                            subbox.label(text="Node GT16.D.01 → Searches for GT16.D.01 and D.01 in DosCo")
+                            
+                            row = box.row()
+                            row.prop(em_settings, 'preserve_web_url', text="Preserve web URLs (don't overwrite http/https)")
+                            
+                            # Add a button to manually trigger the operation
+                            #row = box.row()
+                            #row.operator("em.update_dosco_paths", text="Update Paths from DosCo", icon="FILE_REFRESH")
 
                 # Expanded settings
                 box = layout.box()
@@ -670,7 +670,7 @@ class EM_SetupPanel(bpy.types.Panel):
             # Advanced Tools section
             box = layout.box()
             box.prop(em_tools, "show_advanced_tools", 
-                    text="Utilities", 
+                    text="Utilities & Settings", 
                     icon="TRIA_DOWN" if em_tools.show_advanced_tools else "TRIA_RIGHT", 
                     emboss=False)
 
@@ -802,7 +802,7 @@ class EMToolsAddFile(bpy.types.Operator):
         new_file.name = "New GraphML File"
         # Aggiungi un graph_code predefinito
         if hasattr(new_file, 'graph_code'):
-            new_file.graph_code = "TEMPCODE"
+            new_file.graph_code = "empty slot"
         em_tools.active_file_index = len(em_tools.graphml_files) - 1
         return {'FINISHED'}
 

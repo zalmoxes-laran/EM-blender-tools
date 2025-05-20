@@ -49,127 +49,129 @@ class EM_ExportPanel:
         op = row.operator("export.uuss_export", text="EM (csv)", emboss=True, icon='LONGDISPLAY')
         row = box.row()
         row.prop(context.window_manager.export_tables_vars, 'table_type', expand=True)
-        
+
         # Heriverse Export Section
-        box = layout.box()
-        row = box.row()
-        row.prop(export_vars, "heriverse_expanded", 
-                text="Heriverse Export", 
-                icon='TRIA_DOWN' if export_vars.heriverse_expanded else 'TRIA_RIGHT',
-                emboss=False)
-
-        if export_vars.heriverse_expanded:
+        if context.scene.em_tools.experimental_features:
+            box = layout.box()
             row = box.row()
-            # Use scene properties instead of export_vars
-            row.prop(scene, "heriverse_export_path", text="Export Path")
-            
-            row = box.row()
-            row.prop(scene, "heriverse_project_name", text="Project Name")
-            
-            row = box.row()
-            row.prop(export_vars, "heriverse_export_all_graphs", text="Export All Graphs")
-            
-            row = box.row()
-            col = row.column()
-            col.prop(export_vars, "heriverse_overwrite_json", text="Export JSON")
-            col = row.column()
-            col.prop(export_vars, "heriverse_export_dosco", text="Export DosCo")
-    
-
-            if export_vars.heriverse_overwrite_json and not export_vars.heriverse_export_rm:
-                warning_box = box.box()
-                warning_box.alert = True
-                row = warning_box.row()
-                row.label(text="⚠️ Warning: JSON export without RM export!", icon='ERROR')
-                row = warning_box.row()
-                row.label(text="Links between RM nodes and models will be missing")
-                row = warning_box.row()
-                row.label(text="in the JSON if RM Export is not enabled.")
-
-
-            row = box.row()
-            col = row.column()
-            col.prop(export_vars, "heriverse_export_proxies", text="Export Proxies")
-            col = row.column() 
-            col.prop(export_vars, "heriverse_export_rm", text="Export RM")
-            row = box.row()
-            col = row.column()
-            col.prop(export_vars, "heriverse_export_rmdoc", text="Export RM Doc")
-            col = row.column()
-            col.prop(export_vars, "heriverse_export_rmsf", text="Export RM SF")
-
-            row = box.row()
-            col = row.column()
-            col.prop(export_vars, "heriverse_create_zip", text="Create ZIP")
-            col = row.column()
-            col.prop(scene, "heriverse_export_panorama", text="Add Panorama")
-
-
-            # Advanced options section
-            row = box.row()
-            row.prop(export_vars, "heriverse_advanced_options",
-                    text="Advanced Options",
-                    icon='TRIA_DOWN' if export_vars.heriverse_advanced_options else 'TRIA_RIGHT',
+            row.prop(export_vars, "heriverse_expanded", 
+                    text="Heriverse Export (Experimental)", 
+                    icon='TRIA_DOWN' if export_vars.heriverse_expanded else 'TRIA_RIGHT',
                     emboss=False)
 
-            if export_vars.heriverse_advanced_options:
-                box_pd = box.box()
-                row_pd = box_pd.row()
-                row_pd.prop(export_vars, "heriverse_use_draco", text="Use Draco Compression")
-                row_pd = box_pd.row()
-                if export_vars.heriverse_use_draco:
-                    row_pd.prop(export_vars, "heriverse_draco_level", text="Compression Level")
-                    row_pd = box_pd.row()
-                row_pd.prop(export_vars, "heriverse_separate_textures", text="Separate Textures")
-                row_pd = box_pd.row()
-                # Add the GPU instancing option here
-                row_pd.prop(export_vars, "heriverse_use_gpu_instancing", text="Use GPU Instancing")
+            if export_vars.heriverse_expanded:
+                row = box.row()
+                # Use scene properties instead of export_vars
+                row.prop(scene, "heriverse_export_path", text="Export Path")
                 
-                # Add texture compression options when separate textures is enabled
-                if export_vars.heriverse_separate_textures:
-                    box_comp = box.box()
-                    row_comp = box_comp.row()
-                    row_comp.label(text="Texture Compression:")
-                    
-                    row_comp = box_comp.row()
-                    row_comp.prop(scene, "heriverse_enable_compression", text="Enable Compression")
-                    
-                    if scene.heriverse_enable_compression:
-                        row_comp = box_comp.row()
-                        row_comp.prop(scene, "heriverse_texture_max_res", text="Max Size")
-                        row_comp.prop(scene, "heriverse_texture_quality", text="Quality")
-                        
-                        row_comp = box_comp.row()
-                        row_comp.label(text="Quality: 100=lossless, 80=good, 60=compressed, 40=heavily compressed")
+                row = box.row()
+                row.prop(scene, "heriverse_project_name", text="Project Name")
+                
+                row = box.row()
+                row.prop(export_vars, "heriverse_export_all_graphs", text="Export All Graphs")
+                
+                row = box.row()
+                col = row.column()
+                col.prop(export_vars, "heriverse_overwrite_json", text="Export JSON")
+                col = row.column()
+                col.prop(export_vars, "heriverse_export_dosco", text="Export DosCo")
+        
+
+                if export_vars.heriverse_overwrite_json and not export_vars.heriverse_export_rm:
+                    warning_box = box.box()
+                    warning_box.alert = True
+                    row = warning_box.row()
+                    row.label(text="⚠️ Warning: JSON export without RM export!", icon='ERROR')
+                    row = warning_box.row()
+                    row.label(text="Links between RM nodes and models will be missing")
+                    row = warning_box.row()
+                    row.label(text="in the JSON if RM Export is not enabled.")
 
 
-                if export_vars.heriverse_export_rmdoc:
+                row = box.row()
+                col = row.column()
+                col.prop(export_vars, "heriverse_export_proxies", text="Export Proxies")
+                col = row.column() 
+                col.prop(export_vars, "heriverse_export_rm", text="Export RM")
+                row = box.row()
+                col = row.column()
+                col.prop(export_vars, "heriverse_export_rmdoc", text="Export RM Doc")
+                col = row.column()
+                col.prop(export_vars, "heriverse_export_rmsf", text="Export RM SF")
 
+                row = box.row()
+                col = row.column()
+                col.prop(export_vars, "heriverse_create_zip", text="Create ZIP")
+                col = row.column()
+                col.prop(scene, "heriverse_export_panorama", text="Add Panorama")
+
+
+                # Advanced options section
+                row = box.row()
+                row.prop(export_vars, "heriverse_advanced_options",
+                        text="Advanced Options",
+                        icon='TRIA_DOWN' if export_vars.heriverse_advanced_options else 'TRIA_RIGHT',
+                        emboss=False)
+
+                if export_vars.heriverse_advanced_options:
                     box_pd = box.box()
                     row_pd = box_pd.row()
-                    row_pd.label(text="ParaData Export Options:")
+                    row_pd.prop(export_vars, "heriverse_use_draco", text="Use Draco Compression")
                     row_pd = box_pd.row()
-                    row_pd.prop(scene, "heriverse_preserve_rmdoc_transform", text="Preserve Transforms for each RMDoc")
-                    row_pd = box_pd.row()
-                    row_pd.prop(scene, "heriverse_paradata_texture_compression", text="Compress Textures")
-                    if scene.heriverse_paradata_texture_compression:
-                        row_pd = box.row()
-
+                    if export_vars.heriverse_use_draco:
+                        row_pd.prop(export_vars, "heriverse_draco_level", text="Compression Level")
                         row_pd = box_pd.row()
-                        row_pd.prop(scene, "heriverse_rmdoc_texture_max_res", text="Max Size")
-                        row_pd.prop(scene, "heriverse_rmdoc_texture_quality", text="Quality")
+                    row_pd.prop(export_vars, "heriverse_separate_textures", text="Separate Textures")
+                    row_pd = box_pd.row()
+                    # Add the GPU instancing option here
+                    row_pd.prop(export_vars, "heriverse_use_gpu_instancing", text="Use GPU Instancing")
+                    
+                    # Add texture compression options when separate textures is enabled
+                    if export_vars.heriverse_separate_textures:
+                        box_comp = box.box()
+                        row_comp = box_comp.row()
+                        row_comp.label(text="Texture Compression:")
+                        
+                        row_comp = box_comp.row()
+                        row_comp.prop(scene, "heriverse_enable_compression", text="Enable Compression")
+                        
+                        if scene.heriverse_enable_compression:
+                            row_comp = box_comp.row()
+                            row_comp.prop(scene, "heriverse_texture_max_res", text="Max Size")
+                            row_comp.prop(scene, "heriverse_texture_quality", text="Quality")
+                            
+                            row_comp = box_comp.row()
+                            row_comp.label(text="Quality: 100=lossless, 80=good, 60=compressed, 40=heavily compressed")
 
 
-                # Nuova opzione per i tileset
-                box_tileset = box.box()
-                row_tileset = box_tileset.row()
-                row_tileset.label(text="Cesium Tileset Options:")
-                row_tileset = box_tileset.row()
-                row_tileset.prop(export_vars, "heriverse_skip_extracted_tilesets")
+                    if export_vars.heriverse_export_rmdoc:
 
-            row = box.row()
-            row.operator("export.heriverse", text="Export Heriverse Project", icon='WORLD_DATA')
+                        box_pd = box.box()
+                        row_pd = box_pd.row()
+                        row_pd.label(text="ParaData Export Options:")
+                        row_pd = box_pd.row()
+                        row_pd.prop(scene, "heriverse_preserve_rmdoc_transform", text="Preserve Transforms for each RMDoc")
+                        row_pd = box_pd.row()
+                        row_pd.prop(scene, "heriverse_paradata_texture_compression", text="Compress Textures")
+                        if scene.heriverse_paradata_texture_compression:
+                            row_pd = box.row()
 
+                            row_pd = box_pd.row()
+                            row_pd.prop(scene, "heriverse_rmdoc_texture_max_res", text="Max Size")
+                            row_pd.prop(scene, "heriverse_rmdoc_texture_quality", text="Quality")
+
+
+                    # Nuova opzione per i tileset
+                    box_tileset = box.box()
+                    row_tileset = box_tileset.row()
+                    row_tileset.label(text="Cesium Tileset Options:")
+                    row_tileset = box_tileset.row()
+                    row_tileset.prop(export_vars, "heriverse_skip_extracted_tilesets")
+
+                row = box.row()
+                row.operator("export.heriverse", text="Export Heriverse Project", icon='WORLD_DATA')
+
+        '''
         # EMviq Export Section
         box = layout.box()
         row = box.row()
@@ -194,15 +196,6 @@ class EM_ExportPanel:
             row = box.row()
             row.prop(context.scene, 'ATON_path', toggle=True, text="")
             row.label(text="<-- path to ATON")
-
-            '''
-            row = layout.row()  # (align=True)
-            row.prop(context.scene, 'EMviq_folder', toggle=True, text="")
-            row.label(text="<-- Collection folder export path")
-            row = layout.row()#(align=True)
-            row.prop(context.scene, 'EMviq_scene_folder', toggle=True, text="")
-            row.label(text="<-- Scene folder export path")
-            '''
 
             row = box.row()
             row.prop(export_vars, 'format_file', expand=True)
@@ -251,6 +244,7 @@ class EM_ExportPanel:
             row = box.row()
             #layout.alignment = 'LEFT'
             row.prop(item, "description", text="", slider=True, emboss=True)
+            '''
 
 class VIEW3D_PT_ExportPanel(Panel, EM_ExportPanel):
     bl_category = "EM"
