@@ -13,8 +13,8 @@ EMTools is a Blender extension that brings the formal language Extended Matrix w
 * **Archaeological Workflows** - 3D stratigraphic annotation and analysis
 * **Reconstruction Hypotheses** - Create and manage multiple reconstruction scenarios
 * **Data Export** - Export to ATON 3 (EMviq app) and various formats
-* **Statistical Tools** - Volume calculations, source analysis, property density
 * **Visual Analysis** - Period-based visualization, custom display modes
+* **Statistical Tools (experimental)** - Volume calculations, source analysis, property density
 
 ## 📚 Documentation
 
