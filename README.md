@@ -39,16 +39,24 @@ EMTools is a Blender extension that brings the formal language Extended Matrix w
 ### For Developers
 
 ```bash
-# Clone repository
-git clone https://github.com/zalmoxes-laran/EM-blender-tools.git
+# Clone repository in a folder (not in the Blender paths..)
+git clone --branch EMtools_3dgraphy https://github.com/zalmoxes-laran/EM-blender-tools.git
 cd EM-blender-tools
 
 # Setup development environment
-python scripts/setup_development.py
-python scripts/switch_dev_mode.py dev
+
+# For windows
+.\em.bat setup
+
+# For mac/linux
+chmod +x em.sh
+./em.sh setup
 
 # Open in VSCode
 code .
+
+# Install "blender Development" addon for Visual Studio Code and use it to run Blender
+
 ```
 
 See [Development Guide](docs/installation.rst#development-setup) for detailed instructions.
