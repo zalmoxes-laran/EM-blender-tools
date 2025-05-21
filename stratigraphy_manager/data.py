@@ -179,6 +179,12 @@ def register_data():
     if not hasattr(bpy.types.Scene, "em_reused"):
         bpy.types.Scene.em_reused = CollectionProperty(type=EMreusedUS)
 
+    bpy.types.Scene.show_filter_system = BoolProperty( # type: ignore
+        name="Filter system", 
+        description="Show/hide filter options",
+        default=False
+    )
+
 def unregister_data():
     """Unregister all data classes."""
     # Remove collection properties
@@ -190,6 +196,8 @@ def unregister_data():
     
     if hasattr(bpy.types.Scene, "em_reused"):
         del bpy.types.Scene.em_reused
+
+    del bpy.types.Scene.show_filter_system
     
     # Unregister classes in reverse order
     classes = [

@@ -86,104 +86,143 @@ class EM_ToolsPanel:
         # FILTER SECTION
         filter_box = layout.box()
 
+        # 1) Header “Filter system” with triangle
         row = filter_box.row(align=True)
-        row.label(text="Available filters: " , icon='FILTER')
+
+        #row.separator()
+        row.alignment = 'EXPAND'
+        icon = 'TRIA_DOWN' if scene.show_filter_system else 'TRIA_RIGHT'
+        row.prop(
+            scene,
+            "show_filter_system",
+            emboss=False,
+            icon=icon,
+            text=""
+        )
+        row.label(text="Available filters", icon='FILTER')
+
+
+        help1 = row.operator("em.help_popup", text="", icon='QUESTION')
+        help1.title = "Filter System Help"
+        help1.text = (
+            "Filtering system:\n"
+            "  Once activated the filter,\n"
+            "  try changing epochs and/or activities\n"
+            "  in their manager panel.\n"
+            "  The filter will be applied in realtime\n"
+            "  to the selected epoch and/or activity.\n"
+            "  To reset the filter, click on the\n"
+            "  red cross icon in the top right corner.\n" 
+        )
+        help1.url = "https://docs.extendedmatrix.org/filter-system"
+
+        # 2) Filter contents (only when open)
+        if scene.show_filter_system:
+
+
+            # Epoch / Activity toggles
+            row = filter_box.row(align=True)
+            filter_controls_row = row.row(align=True)
 
 
 
-        row = filter_box.row(align=True)
-        filter_controls_row = row.row(align=True)
-        filter_controls_row.enabled = graph_available
 
-        if len(scene.epoch_list) > 0 and scene.epoch_list_index < len(scene.epoch_list):
-            current_epoch = scene.epoch_list[scene.epoch_list_index].name
-            #filter_controls_row = row.row(align=True)
-            filter_controls_row.prop(scene, "filter_by_epoch", text=current_epoch, toggle=True, icon='SORTTIME')
+            row = filter_box.row(align=True)
+            filter_controls_row = row.row(align=True)
 
-        else:
-            # Just display a message
-            filter_controls_row.label(text="No epoch", icon="SORTTIME")
+            filter_controls_row.enabled = graph_available
 
-        filter_controls_row.separator()
-
-        if len(scene.activity_manager.activities) > 0:
-            if len(scene.activity_manager.activities) > 0 and scene.activity_manager.active_index < len(scene.activity_manager.activities):
-                current_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
-                if hasattr(scene, "filter_by_activity"):
-                    filter_controls_row.prop(scene, "filter_by_activity", text=current_activity, toggle=True, icon='NETWORK_DRIVE')
-                    #filter_controls_row.label(text=current_activity, icon="")
+            if len(scene.epoch_list) > 0 and scene.epoch_list_index < len(scene.epoch_list):
+                current_epoch = scene.epoch_list[scene.epoch_list_index].name
+                filter_controls_row.prop(
+                    scene, "filter_by_epoch",
+                    text=current_epoch, toggle=True, icon='SORTTIME'
+                )
             else:
-                filter_controls_row.label(text="No activities", icon="ERROR")
-        else:
-            filter_controls_row.label(text="No activities", icon="ERROR")
+                filter_controls_row.label(text="No epoch", icon='SORTTIME')
 
-        filter_controls_row.separator()
+            filter_controls_row.separator()
 
-        if scene.filter_by_epoch or scene.filter_by_activity:
-            sync_filter_box = filter_box.box() # layout.box()
-            row = sync_filter_box.row(align=True)
-            row.label(text="Sync 3D scene with filter results: ", icon='UV_SYNC_SELECT')
+            if (len(scene.activity_manager.activities) > 0
+                and scene.activity_manager.active_index < len(scene.activity_manager.activities)):
+                current_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
+                filter_controls_row.prop(
+                    scene, "filter_by_activity",
+                    text=current_activity, toggle=True, icon='NETWORK_DRIVE'
+                )
+            else:
+                filter_controls_row.label(text="No activities", icon='ERROR')
 
-            row = sync_filter_box.row(align=True)
-            sync_controls_row = row.row(align=True)
-            sync_controls_row.enabled = graph_available
+            filter_controls_row.separator()
 
-            # Proxy sync
-            sync_controls_row.prop(scene, "sync_list_visibility", text="Proxies", 
-                    icon='HIDE_OFF' if scene.sync_list_visibility else 'HIDE_ON')
+            # Sync 3D scene
+            if scene.filter_by_epoch or scene.filter_by_activity:
+                sync_filter_box = filter_box.box()
+                row = sync_filter_box.row(align=True)
+                row.label(text="Sync 3D scene with filter results:", icon='UV_SYNC_SELECT')
 
-            # RM sync
-            if scene.filter_by_epoch:
-                sync_controls_row.prop(scene, "sync_rm_visibility", text="RM Models", 
-                        icon='OBJECT_DATA')
+                row = sync_filter_box.row(align=True)
+                sync_controls_row = row.row(align=True)
+                sync_controls_row.enabled = graph_available
 
-        # Debug button (only if experimental features are enabled)
-        if hasattr(context.scene.em_tools, "experimental_features") and context.scene.em_tools.experimental_features:
+                sync_controls_row.prop(
+                    scene, "sync_list_visibility",
+                    text="Proxies",
+                    icon='HIDE_OFF' if scene.sync_list_visibility else 'HIDE_ON'
+                )
+                if scene.filter_by_epoch:
+                    sync_controls_row.prop(
+                        scene, "sync_rm_visibility",
+                        text="RM Models",
+                        icon='OBJECT_DATA'
+                    )
 
-            # Button to activate all collections with proxies
-            row = sync_filter_box.row(align=True)
-            row.operator("em.strat_activate_collections", text="Show All Collections", icon='OUTLINER_COLLECTION')
-            row.operator("em.debug_filters", text="Debug Graph", icon='CONSOLE')
+            # Debug (solo se sperimentale ON)
+            if (hasattr(context.scene.em_tools, "experimental_features")
+                and context.scene.em_tools.experimental_features):
 
-        # We verify that the properties exist before using them
-        if hasattr(scene, "filter_by_epoch"):
-            # If epoch filter is active, show option to include surviving units
-            if scene.filter_by_epoch:
-                time_filter_box = filter_box.box() # layout.box()
-                
+                row = sync_filter_box.row(align=True)
+                row.operator("em.strat_activate_collections",
+                            text="Show All Collections", icon='OUTLINER_COLLECTION')
+                row.operator("em.debug_filters", text="Debug Graph", icon='CONSOLE')
+
+            # Opzioni avanzate per epoch
+            if hasattr(scene, "filter_by_epoch") and scene.filter_by_epoch:
+                time_filter_box = filter_box.box()
                 sub_row = time_filter_box.row(align=True)
-                
-                sub_row.label(text="Epoch Filter includes: ", icon='SORTTIME')
+                sub_row.label(text="Epoch Filter includes:", icon='SORTTIME')
 
                 sub_row = time_filter_box.row(align=True)
                 sub_row.enabled = graph_available
-                icon = 'CHECKBOX_HLT' if scene.include_surviving_units else 'CHECKBOX_DEHLT'
-                op = sub_row.operator("em.toggle_include_surviving", 
-                    text="Surviving Units",
-                    icon=icon)
-                
-                # Help button for surviving units
-                help_op = sub_row.operator("em.help_popup", text="", icon='QUESTION')
-                help_op.title = "Survival Filter Help"
-                help_op.text = "Survival Filter:\n- When enabled: Shows all units that exist in this epoch\n- When disabled: Shows only units created in this epoch"
-                help_op.url = "https://docs.extendedmatrix.org/survival-filter"
-                
+
+                icon1 = 'CHECKBOX_HLT' if scene.include_surviving_units else 'CHECKBOX_DEHLT'
+                sub_row.operator("em.toggle_include_surviving",
+                                text="Surviving Units", icon=icon1)
+
                 sub_row.separator()
 
-                # Add reconstruction filter
-                #sub_row = filter_box.row(align=True)
-                icon = 'CHECKBOX_HLT' if scene.show_reconstruction_units else 'CHECKBOX_DEHLT'
-                op = sub_row.operator("em.toggle_show_reconstruction", 
-                    text=" Reconstructive Units",
-                    icon=icon)
-                
-                # Help button for reconstruction units
-                help_op = sub_row.operator("em.help_popup", text="", icon='QUESTION')
-                help_op.title = "Reconstruction Filter Help"
-                help_op.text = "Reconstruction Filter:\n- When enabled: Shows reconstruction units\n- When disabled: Hides reconstruction units"
-                help_op.url = "https://docs.extendedmatrix.org/reconstruction-filter"
+                icon2 = 'CHECKBOX_HLT' if scene.show_reconstruction_units else 'CHECKBOX_DEHLT'
+                sub_row.operator("em.toggle_show_reconstruction",
+                                text="Reconstructive Units", icon=icon2)
 
+                # Bottoni Help
+                help1 = sub_row.operator("em.help_popup", text="", icon='QUESTION')
+                help1.title = "Survival Filter Help"
+                help1.text = (
+                    "Survival Filter:\n"
+                    "- When enabled: Shows all units that exist in this epoch\n"
+                    "- When disabled: Shows only units created in this epoch"
+                )
+                help1.url = "https://docs.extendedmatrix.org/survival-filter"
 
+                help2 = sub_row.operator("em.help_popup", text="", icon='QUESTION')
+                help2.title = "Reconstruction Filter Help"
+                help2.text = (
+                    "Reconstruction Filter:\n"
+                    "- When enabled: Shows reconstruction units\n"
+                    "- When disabled: Hides reconstruction units"
+                )
+                help2.url = "https://docs.extendedmatrix.org/reconstruction-filter"
 
         # STRATIGRAPHY LIST
         row = layout.row()
