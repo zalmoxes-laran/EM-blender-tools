@@ -683,15 +683,18 @@ class EM_SetupPanel(bpy.types.Panel):
                 # Manage Object Prefixes
                 row = box.row()
                 row.operator("em.manage_object_prefixes", 
-                            text="Manage Object Prefixes", 
+                            text="Manage Proxies' Prefixes", 
                             icon='SYNTAX_ON')
-                
-                row = box.row()
-                row.prop(em_tools, "experimental_features", text="Enable Experimental Features")
-                
+
                 # Bottone create collections spostato qui
+                if em_tools.experimental_features:
+                    row = box.row()
+                    row.operator("create.collection", text="Create default Collections", icon="COLLECTION_NEW")
+
+
                 row = box.row()
-                row.operator("create.collection", text="Create Collection", icon="COLLECTION_NEW")
+                row.prop(em_tools, "experimental_features", text="Enable Experimental Features", icon="EXPERIMENTAL")
+                
 
         else:
             # UI per modalità 3D GIS

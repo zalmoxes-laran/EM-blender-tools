@@ -8,41 +8,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Development setup scripts for contributors
-- Automated wheel management system
-- Hot reload support for VSCode development
+- Support for detecting placeholder dates (XX) in epochs
+- Warnings for incomplete or malformed GraphML files in EM Setup
+- Flag system for experimental features
+- Improved UI synchronization controls in the Paradata Manager panel
+- Moved the "Create Collections" button to Utilities & Settings
+- Handling of object prefixes based on graph code
 
 ### Changed
-- Improved error handling for missing dependencies
-- Updated documentation structure
+- Improved robustness of the GraphML import system
+- Optimized Paradata updates (reduced UI overhead)
+- Reorganized the Stratigraphy Manager panel
+- Separated filter and synchronization controls in the Stratigraphy Manager
+- Improved index handling for empty lists
+- Renamed panel from "US/USV Manager" to "Stratigraphy Manager"
 
-## [1.5.0] - 2025-01-15
+### Removed
+- EMviq exporter from the main UI (moved to experimental features)
+- Proxy inflation tool from the main UI (moved to experimental features)
+- 3D GIS mode from 1.5.0 (moved to 1.6.0)
+- Soloing functionality, toggle reconstruction, and toggle selectable from the Epoch Manager
+
+### Fixed
+- GraphML import bug with "XX" date format
+- Index handling errors in empty lists
+- Memory Error during UI updates
+- Label visibility for collections with proxies
+- Infinite UI update loops in the Paradata Manager
+
+## [1.5.0.dev71] - 2025-01-20
 
 ### Added
-- Converted from Blender add-on to Blender Extension format
+- Conversion from Blender add-on to Blender Extension
 - Automatic dependency management via wheels
 - GitHub Actions workflow for automated releases
 - Heriverse export functionality with texture optimization
 - GPU instancing support for improved performance
 - Advanced export options (Draco compression, separate textures)
-- ParaData objects export (Documents, Extractors, Combiners)
-- Special Finds models export capability
+- Export of ParaData objects (Documents, Extractors, Combiners)
+- Special Finds model export capability
 - Development scripts: `setup_development.py`, `switch_dev_mode.py`
-- Comprehensive installation documentation
+- Full installation documentation
 
 ### Changed
-- Migrated configuration to `blender_manifest.toml` format
-- Simplified installation process - no manual pip installs needed
-- Updated minimum Blender version requirement to 4.0
-- Modernized Python dependencies (pandas 2.x, numpy 1.26.x)
-- Restructured codebase for better maintainability
-- Enhanced export dialog with collapsible sections
+- Configuration migrated to `blender_manifest.toml` format
+- Simplified installation process – no manual pip install required
+- Minimum Blender version updated to 4.0
+- Updated Python dependencies (pandas 2.x, numpy 1.26.x)
+- Refactored core code for better maintainability
+- Improved export dialog with collapsible sections
 
 ### Removed
-- Manual dependency installation UI (EmPreferences)
-- External modules installer (`external_modules_install.py`)
-- Legacy pip installation methods
-- Redundant dependency checking code
+- Manual UI installation of dependencies (EmPreferences)
+- External module installer (`external_modules_install.py`)
+- Legacy pip install methods
+- Redundant dependency check code
 
 ### Fixed
 - Compatibility issues with Blender 4.x series
@@ -53,27 +73,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.4.0] - 2024-05-20
 
 ### Added
-- Time branch management system
-- Property density visualization
 - XLSX import for stratigraphic data
 - Batch export capabilities
 - Volume calculation tools
-- Source type statistics
+
 
 ### Changed
-- Enhanced GraphML parser performance
-- Improved memory management for large projects
+- Improved performance of GraphML parser
+- Better memory handling for large projects
 - Updated CIDOC-CRM mapping
 
 ### Fixed
-- Period manager synchronization issues
+- Synchronization issues in period manager
 - Label creation in orthographic views
-- Proxy model visibility toggling
+- Visibility toggle for proxy models
 
 ## [1.3.2] - 2024-02-15
 
 ### Fixed
-- Critical bug in epoch management
+- Critical bug in epoch handling
 - GraphML import for complex hierarchies
 - Memory leak in paradata streaming
 
@@ -82,7 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Paradata streaming mode
 - Real-time graph synchronization
-- Enhanced error reporting
+- Improved error reporting
 
 ### Changed
 - Optimized 3D view updates
@@ -98,11 +116,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Redesigned export manager interface
-- Enhanced period visualization system
+- Improved period visualization system
 - Improved proxy-EM synchronization
 
 ### Deprecated
-- Old EMviq export format (will be removed in 2.0)
+- Old EMviq export format (to be removed in 2.0)
 
 ## [1.2.0] - 2023-07-15
 
@@ -113,8 +131,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Soloing mode for epochs
 
 ### Changed
-- Refactored visual manager
-- Updated to support Blender 3.6
+- Visual manager refactored
+- Updated for Blender 3.6 support
 - Improved GraphML compatibility
 
 ## [1.1.0] - 2023-03-20
@@ -123,7 +141,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic GraphML import/export
 - US/USV manager
 - Period manager
-- Simple visualization tools
+- Basic visualization tools
 
 ### Fixed
 - Initial stability issues
@@ -140,15 +158,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Version Naming Convention
 
 - MAJOR version: Incompatible API changes
-- MINOR version: New functionality (backwards compatible)
-- PATCH version: Bug fixes (backwards compatible)
+- MINOR version: New features (backward compatible)
+- PATCH version: Bug fixes (backward compatible)
 
-[Unreleased]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.5.0...HEAD
-[1.5.0]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.4.0...v1.5.0
-[1.4.0]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.3.2...v1.4.0
-[1.3.2]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.3.1...v1.3.2
-[1.3.1]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.3.0...v1.3.1
-[1.3.0]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.2.0...v1.3.0
-[1.2.0]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.1.0...v1.2.0
-[1.1.0]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.0.0...v1.1.0
+[Unreleased]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.5.0...HEAD  
+[1.5.0]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.4.0...v1.5.0  
+[1.4.0]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.3.2...v1.4.0  
+[1.3.2]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.3.1...v1.3.2  
+[1.3.1]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.3.0...v1.3.1  
+[1.3.0]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.2.0...v1.3.0  
+[1.2.0]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.1.0...v1.2.0  
+[1.1.0]: https://github.com/zalmoxes-laran/EM-blender-tools/compare/v1.0.0...v1.1.0  
 [1.0.0]: https://github.com/zalmoxes-laran/EM-blender-tools/releases/tag/v1.0.0
