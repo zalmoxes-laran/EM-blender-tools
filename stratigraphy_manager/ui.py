@@ -71,30 +71,95 @@ class EM_ToolsPanel:
         from ..functions import is_graph_available
         graph_available, _ = is_graph_available(context)        
 
+        header_box = layout.box()
+        row = header_box.row(align=True)    
+        #row.label(text="Stratigraphy Manager", icon='OUTLINER_DATA_COLLECTION')
 
-
-        # FILTER SECTION
-        filter_box = layout.box()
-        row = filter_box.row(align=True)
         if not scene.filter_by_epoch and not scene.filter_by_activity:
             row.label(text="Total Rows: " + str(len(scene.em_list)), icon='PRESET')
         elif scene.filter_by_epoch or scene.filter_by_activity:
             row.label(text="Filtered Rows: " + str(len(scene.em_list)), icon='FILTER')
+        
+        if scene.filter_by_epoch or scene.filter_by_activity:
+            row.operator("em.reset_filters", text="", icon='CANCEL')
+
+        # FILTER SECTION
+        filter_box = layout.box()
+
+        row = filter_box.row(align=True)
         row.label(text="Available filters: " , icon='FILTER')
 
+
+
+        row = filter_box.row(align=True)
         filter_controls_row = row.row(align=True)
         filter_controls_row.enabled = graph_available
 
+        if len(scene.epoch_list) > 0 and scene.epoch_list_index < len(scene.epoch_list):
+            current_epoch = scene.epoch_list[scene.epoch_list_index].name
+            #filter_controls_row = row.row(align=True)
+            filter_controls_row.prop(scene, "filter_by_epoch", text=current_epoch, toggle=True, icon='SORTTIME')
+
+        else:
+            # Just display a message
+            filter_controls_row.label(text="No epoch", icon="SORTTIME")
+
+        filter_controls_row.separator()
+
+        if len(scene.activity_manager.activities) > 0:
+            if len(scene.activity_manager.activities) > 0 and scene.activity_manager.active_index < len(scene.activity_manager.activities):
+                current_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
+                if hasattr(scene, "filter_by_activity"):
+                    filter_controls_row.prop(scene, "filter_by_activity", text=current_activity, toggle=True, icon='NETWORK_DRIVE')
+                    #filter_controls_row.label(text=current_activity, icon="")
+            else:
+                filter_controls_row.label(text="No activities", icon="ERROR")
+        else:
+            filter_controls_row.label(text="No activities", icon="ERROR")
+
+        filter_controls_row.separator()
+
+        if scene.filter_by_epoch or scene.filter_by_activity:
+            sync_filter_box = filter_box.box() # layout.box()
+            row = sync_filter_box.row(align=True)
+            row.label(text="Sync 3D scene with filter results: ", icon='UV_SYNC_SELECT')
+
+            row = sync_filter_box.row(align=True)
+            sync_controls_row = row.row(align=True)
+            sync_controls_row.enabled = graph_available
+
+            # Proxy sync
+            sync_controls_row.prop(scene, "sync_list_visibility", text="Proxies", 
+                    icon='HIDE_OFF' if scene.sync_list_visibility else 'HIDE_ON')
+
+            # RM sync
+            if scene.filter_by_epoch:
+                sync_controls_row.prop(scene, "sync_rm_visibility", text="RM Models", 
+                        icon='OBJECT_DATA')
+
+        # Debug button (only if experimental features are enabled)
+        if hasattr(context.scene.em_tools, "experimental_features") and context.scene.em_tools.experimental_features:
+
+            # Button to activate all collections with proxies
+            row = sync_filter_box.row(align=True)
+            row.operator("em.strat_activate_collections", text="Show All Collections", icon='OUTLINER_COLLECTION')
+            row.operator("em.debug_filters", text="Debug Graph", icon='CONSOLE')
+
         # We verify that the properties exist before using them
         if hasattr(scene, "filter_by_epoch"):
-            filter_controls_row.prop(scene, "filter_by_epoch", text="", toggle=True, icon='SORTTIME')
-            
             # If epoch filter is active, show option to include surviving units
             if scene.filter_by_epoch:
-                sub_row = filter_box.row(align=True)
+                time_filter_box = filter_box.box() # layout.box()
+                
+                sub_row = time_filter_box.row(align=True)
+                
+                sub_row.label(text="Epoch Filter includes: ", icon='SORTTIME')
+
+                sub_row = time_filter_box.row(align=True)
+                sub_row.enabled = graph_available
                 icon = 'CHECKBOX_HLT' if scene.include_surviving_units else 'CHECKBOX_DEHLT'
                 op = sub_row.operator("em.toggle_include_surviving", 
-                    text="Include Surviving Units",
+                    text="Surviving Units",
                     icon=icon)
                 
                 # Help button for surviving units
@@ -109,7 +174,7 @@ class EM_ToolsPanel:
                 #sub_row = filter_box.row(align=True)
                 icon = 'CHECKBOX_HLT' if scene.show_reconstruction_units else 'CHECKBOX_DEHLT'
                 op = sub_row.operator("em.toggle_show_reconstruction", 
-                    text="Show Reconstruction Units",
+                    text=" Reconstructive Units",
                     icon=icon)
                 
                 # Help button for reconstruction units
@@ -117,64 +182,8 @@ class EM_ToolsPanel:
                 help_op.title = "Reconstruction Filter Help"
                 help_op.text = "Reconstruction Filter:\n- When enabled: Shows reconstruction units\n- When disabled: Hides reconstruction units"
                 help_op.url = "https://docs.extendedmatrix.org/reconstruction-filter"
-        
-        if hasattr(scene, "filter_by_activity"):
-            filter_controls_row.prop(scene, "filter_by_activity", text="", toggle=True, icon='NETWORK_DRIVE')
-        
-        # Reset filters
-        if hasattr(scene, "filter_by_epoch") and hasattr(scene, "filter_by_activity"):
-            if scene.filter_by_epoch or scene.filter_by_activity:
-                row.operator("em.reset_filters", text="", icon='CANCEL')
 
-        # SYNCHRONIZATION SECTION
-        sync_box = layout.box()
-        row = sync_box.row(align=True)
-        row.label(text="Scene Sync", icon='SCENE_DATA')
 
-        sync_controls_row = row.row(align=True)
-        sync_controls_row.enabled = graph_available
-
-        # Proxy sync
-        if hasattr(scene, "sync_list_visibility"):
-            sync_controls_row.prop(scene, "sync_list_visibility", text="Proxies", 
-                    icon='HIDE_OFF' if scene.sync_list_visibility else 'HIDE_ON')
-
-        # RM sync
-        sync_controls_row.prop(scene, "sync_rm_visibility", text="RM Models", 
-                icon='OBJECT_DATA')
-
-        # Debug button (only if experimental features are enabled)
-        if hasattr(context.scene.em_tools, "experimental_features") and context.scene.em_tools.experimental_features:
-
-            # Button to activate all collections with proxies
-            row = sync_box.row(align=True)
-            row.operator("em.strat_activate_collections", text="Show All Collections", icon='OUTLINER_COLLECTION')
-            row.operator("em.debug_filters", text="Debug Graph", icon='CONSOLE')
-
-        # ACTIVE CONTEXT SECTION
-        context_box = layout.box()
-        row = context_box.row(align=True)
-        split = row.split()
-        col = split.column()
-
-        if len(scene.epoch_list) > 0 and scene.epoch_list_index < len(scene.epoch_list):
-                current_epoch = scene.epoch_list[scene.epoch_list_index].name
-                col.label(text=current_epoch, icon="SORTTIME")
-        else:
-            # Just display a message
-            col.label(text="No epoch", icon="SORTTIME")
-            # Add a button to reset the index
-            op = col.operator("epoch_manager.reset_index", text="Reset Index", icon="FILE_REFRESH")
-        
-        col = split.column()
-        if len(scene.activity_manager.activities) > 0:
-            if len(scene.activity_manager.activities) > 0 and scene.activity_manager.active_index < len(scene.activity_manager.activities):
-                current_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
-                col.label(text=current_activity, icon="NETWORK_DRIVE")
-            else:
-                col.label(text="No activities", icon="ERROR")
-        else:
-            col.label(text="No activities", icon="ERROR")
 
         # STRATIGRAPHY LIST
         row = layout.row()
@@ -194,13 +203,15 @@ class EM_ToolsPanel:
             split = row.split()
             col = split.column()
             row.label(text="  Type: "+item.node_type)
-
+            
+            '''
             # Add visibility toggle
             if hasattr(item, "is_visible"):
                 icon = 'HIDE_OFF' if item.is_visible else 'HIDE_ON'
                 op = row.operator("em.strat_toggle_visibility", text="", icon=icon)
                 if op:
                     op.index = scene.em_list_index
+            '''
 
             # link proxy and US - MODIFIED BUTTON TO IMPROVE VISIBILITY
             split = row.split()
