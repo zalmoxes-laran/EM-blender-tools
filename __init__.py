@@ -134,71 +134,6 @@ class EDGESListItem(PropertyGroup):
         default=""
     )
 
-class EPOCHListItem(PropertyGroup):
-    """Period/Epoch information"""
-    name: StringProperty(
-        name="Name",
-        description="Name of this epoch",
-        default="Untitled"
-    )
-    id: StringProperty(
-        name="id",
-        description="Unique identifier",
-        default=""
-    )
-    min_y: FloatProperty(
-        name="Min Y Position",
-        description="Minimum Y position",
-        default=0.0
-    )
-    max_y: FloatProperty(
-        name="Max Y Position",
-        description="Maximum Y position",
-        default=0.0
-    )
-    height: FloatProperty(
-        name="Height",
-        description="Height of epoch row",
-        default=0.0
-    )
-    epoch_color: StringProperty(
-        name="Epoch Color",
-        description="Color code for epoch",
-        default=""
-    )
-    start_time: FloatProperty(
-        name="Start Time",
-        description="Starting time for epoch",
-        default=0.0
-    )
-    end_time: FloatProperty(
-        name="End Time",
-        description="Ending time for epoch",
-        default=0.0
-    )
-    use_toggle: BoolProperty(name="Toggle", default=True)
-    is_locked: BoolProperty(name="Locked", default=True)
-    is_selected: BoolProperty(name="Selected", default=False)
-    epoch_soloing: BoolProperty(name="Solo", default=False)
-    rm_models: BoolProperty(name="RM Models", default=False)
-    reconstruction_on: BoolProperty(name="Reconstruction", default=True)
-    unique_id: StringProperty(default="")
-    epoch_RGB_color: FloatVectorProperty(
-        name="Epoch RGB Color",
-        subtype="COLOR",
-        size=3,
-        min=0.0,
-        max=1.0,
-        default=(0.5, 0.5, 0.5)
-    )
-    wire_color: FloatVectorProperty(
-        name="Wire Color",
-        subtype='COLOR',
-        default=(0.2, 0.2, 0.2),
-        min=0.0, max=1.0,
-        description="Wire color of the group"
-    )
-
 class EM_Other_Settings(PropertyGroup):
     """General settings for EM Tools"""
     select_all_layers: BoolProperty(name="Select Visible Layers", default=True)
@@ -208,87 +143,6 @@ class EM_Other_Settings(PropertyGroup):
     em_proxy_sync2: BoolProperty(name="Selecting an EM you select the corresponding proxy", default=False)
     em_proxy_sync2_zoom: BoolProperty(name="Option to zoom to proxy", default=False)
     soloing_mode: BoolProperty(name="Soloing mode", default=False)
-
-class EMListItem(PropertyGroup):
-    """Stratigraphic unit information"""
-    name: StringProperty(
-        name="Name",
-        description="Name of this stratigraphic unit",
-        default="Untitled"
-    )
-    description: StringProperty(
-        name="Description",
-        description="Description of this stratigraphic unit",
-        default=""
-    )
-    icon: StringProperty(
-        name="Icon",
-        description="Icon code for UI display",
-        default="RESTRICT_INSTANCED_ON"
-    )
-    icon_db: StringProperty(
-        name="Database Icon",
-        description="Database icon code",
-        default="DECORATE_ANIMATE"
-    )
-    url: StringProperty(
-        name="URL",
-        description="URL associated with this unit",
-        default=""
-    )
-    shape: StringProperty(
-        name="Shape",
-        description="Shape of this unit",
-        default=""
-    )
-    y_pos: FloatProperty(
-        name="Y Position",
-        description="Y-axis position value",
-        default=0.0
-    )
-    epoch: StringProperty(
-        name="Epoch",
-        description="Associated epoch",
-        default=""
-    )
-    id_node: StringProperty(
-        name="Node ID",
-        description="Unique node identifier",
-        default=""
-    )
-    border_style: StringProperty(
-        name="Border Style",
-        description="Style of the border",
-        default=""
-    )
-    fill_color: StringProperty(
-        name="Fill Color",
-        description="Fill color code",
-        default=""
-    )
-    is_visible: BoolProperty(
-        name="Visible",
-        description="Whether this item is visible in the viewport",
-        default=True
-    )
-    node_type: StringProperty(
-        name="Node Type",
-        description="The type of this node",
-        default=""
-    )
-
-class EMreusedUS(PropertyGroup):
-    """Information about reused stratigraphic units"""
-    epoch: StringProperty(
-        name="Epoch",
-        description="Associated epoch",
-        default="Untitled"
-    )
-    em_element: StringProperty(
-        name="EM Element",
-        description="Associated EM element",
-        default=""
-    )
 
 class EMviqListErrors(PropertyGroup):
     """Error tracking for EMviq exports"""
@@ -468,13 +322,6 @@ class ExportTablesVars(PropertyGroup):
         default='US/USV'
     )
 
-class EMUSItem(PropertyGroup):
-    """Information about a stratigraphic unit"""
-    name: StringProperty(name="Name", default="")
-    description: StringProperty(name="Description", default="")
-    status: StringProperty(name="Status", default="")
-    y_pos: StringProperty(name="y_pos", default="")
-
 class EM_create_collection(bpy.types.Operator):
     """Operator to create standard collections"""
     bl_idname = "create.collection"
@@ -507,7 +354,7 @@ if DEPENDENCIES_LOADED:
     try:
         # Import addon modules - these will be imported during registration
         from . import (
-            EM_list,
+            stratigraphy_manager,
             epoch_manager,
             functions,
             paradata_manager,
@@ -539,16 +386,12 @@ else:
 BASE_CLASSES = [
     EMAddonSettings,
     EDGESListItem,
-    EPOCHListItem,
     EM_Other_Settings,
-    EMListItem,
-    EMreusedUS,
     EMviqListErrors,
     EMListParadata,
     EM_epochs_belonging_ob,
     ExportVars,
     ExportTablesVars,
-    EMUSItem,
     EM_create_collection
 ]
 
@@ -564,11 +407,7 @@ def register_base_classes():
 def setup_scene_collections():
     """Setup all collection properties on Scene"""
     collection_types = {
-        'selected_epoch_us_list': EMUSItem,
         'emviq_error_list': EMviqListErrors,
-        'em_list': EMListItem,
-        'em_reused': EMreusedUS,
-        'epoch_list': EPOCHListItem,
         'edges_list': EDGESListItem,
         'em_sources_list': EMListParadata,
         'em_properties_list': EMListParadata,
@@ -652,37 +491,6 @@ def setup_scene_properties():
             "description": "Enable additive shader for proxies",
             "default": True, 
             "update": functions.proxy_shader_mode_function if MODULE_IMPORT_SUCCESS else None
-        }),
-        # Added filter and sync properties from EM_list.py
-        ('filter_by_epoch', {
-            "name": "Filter by Epoch",
-            "description": "Show only elements from the active epoch",
-            "default": False,
-            "update": None  # Will be set later in EM_list register
-        }),
-        ('filter_by_activity', {
-            "name": "Filter by Activity",
-            "description": "Show only elements from the active activity",
-            "default": False,
-            "update": None  # Will be set later in EM_list register
-        }),
-        ('include_surviving_units', {
-            "name": "Include Surviving Units",
-            "description": "Include units that survive in this epoch but were created in previous epochs",
-            "default": True,
-            "update": None  # Will be set later in EM_list register
-        }),
-        ('sync_list_visibility', {
-            "name": "Sync Visibility",
-            "description": "Synchronize proxy visibility with the current list",
-            "default": False,
-            "update": None  # Will be set later in EM_list register
-        }),
-        ('sync_rm_visibility', {
-            "name": "Sync RM Visibility",
-            "description": "Synchronize Representation Model visibility based on active epoch",
-            "default": False,
-            "update": None  # Will be set later in EM_list register
         }),
     ]
     
@@ -816,7 +624,7 @@ def register_modules():
         visual_manager,
         EMdb_excel,
         activity_manager,
-        EM_list,
+        stratigraphy_manager,
         epoch_manager,
         paradata_manager,
         anastylosis_manager,
@@ -897,7 +705,6 @@ def unregister():
             epoch_manager,
             em_statistics,
             export_manager,
-            EM_list,
             EMdb_excel,
             visual_manager,
             em_setup

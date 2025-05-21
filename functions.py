@@ -404,12 +404,39 @@ def is_valid_url(url_string):
 def menu_func(self, context):
     self.layout.separator()
 
-def is_reconstruction_us(node):
-    is_rec = False
-    if node.shape in ["parallelogram", "ellipse", "hexagon", "octagon"]:
-        is_rec = True
 
-    return is_rec
+def is_reconstruction_us(node):
+    """
+    Determine if a node represents a reconstruction unit.
+    Compatible with both direct node objects and s3Dgraphy nodes.
+    
+    Args:
+        node: The node to check
+        
+    Returns:
+        bool: True if the node is a reconstruction unit, False otherwise
+    """
+    # Caso 1: Il nodo ha un attributo 'shape' diretto
+    if hasattr(node, 'shape'):
+        return node.shape in ["parallelogram", "ellipse", "hexagon", "octagon"]
+    
+    # Caso 2: Il nodo ha un attributo 'attributes' con una chiave 'shape'
+    if hasattr(node, 'attributes') and isinstance(node.attributes, dict) and 'shape' in node.attributes:
+        return node.attributes['shape'] in ["parallelogram", "ellipse", "hexagon", "octagon"]
+    
+    # Caso 3: Il nodo ha un attributo 'node_type'
+    if hasattr(node, 'node_type'):
+        # Alcuni tipi di nodi sono sempre ricostruttivi
+        return node.node_type in ['USVs', 'USVn', 'VSF', 'SF']
+    
+    # Caso 4: controllo sul border_style per casi speciali
+    if hasattr(node, 'border_style'):
+        return node.border_style in ['#D8BD30', '#B19F61']  # Colori per SF e VSF
+    
+    # Se non riusciamo a determinare il tipo, assumiamo che non sia ricostruttivo
+    print(f"Warning: Could not determine if node {getattr(node, 'name', 'unknown')} is reconstructive")
+    return False
+
 
 ### #### #### #### #### #### #### #### ####
 ##### functions to switch menus in UI  ####
