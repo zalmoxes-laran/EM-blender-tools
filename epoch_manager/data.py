@@ -87,67 +87,6 @@ class EMUSItem(PropertyGroup):
     status: StringProperty(name="Status", default="")
     y_pos: StringProperty(name="y_pos", default="")
 
-def register_data():
-    """Register all data classes."""
-    classes = [
-        EPOCHListItem,
-        EMUSItem,
-    ]
-    
-    for cls in classes:
-        try:
-            bpy.utils.register_class(cls)
-        except ValueError:
-            # Class might already be registered
-            pass
-            
-    # Setup collection properties if not yet existing
-    if not hasattr(bpy.types.Scene, "epoch_list"):
-        bpy.types.Scene.epoch_list = CollectionProperty(type=EPOCHListItem)
-    
-    if not hasattr(bpy.types.Scene, "epoch_list_index"):
-        bpy.types.Scene.epoch_list_index = IntProperty(
-            name="Index for epoch_list",
-            default=0,
-            update=lambda self, context: update_epoch_selection(self, context)
-        )
-        
-    if not hasattr(bpy.types.Scene, "selected_epoch_us_list"):
-        bpy.types.Scene.selected_epoch_us_list = CollectionProperty(type=EMUSItem)
-        
-    if not hasattr(bpy.types.Scene, "selected_epoch_us_list_index"):
-        bpy.types.Scene.selected_epoch_us_list_index = IntProperty(
-            name="Index for selected_epoch_us_list",
-            default=0
-        )
-
-def unregister_data():
-    """Unregister all data classes."""
-    # Remove collection properties
-    if hasattr(bpy.types.Scene, "epoch_list"):
-        del bpy.types.Scene.epoch_list
-    
-    if hasattr(bpy.types.Scene, "epoch_list_index"):
-        del bpy.types.Scene.epoch_list_index
-    
-    if hasattr(bpy.types.Scene, "selected_epoch_us_list"):
-        del bpy.types.Scene.selected_epoch_us_list
-        
-    if hasattr(bpy.types.Scene, "selected_epoch_us_list_index"):
-        del bpy.types.Scene.selected_epoch_us_list_index
-    
-    # Unregister classes in reverse order
-    classes = [
-        EMUSItem,
-        EPOCHListItem,
-    ]
-    
-    for cls in reversed(classes):
-        try:
-            bpy.utils.unregister_class(cls)
-        except ValueError:
-            # Class might already be unregistered
-            pass
 
 def update_epoch_selection(self, context):
     """
@@ -196,3 +135,72 @@ def update_epoch_selection(self, context):
             traceback.print_exc()
     else:
         print("Epoch filtering is not active - skipping list update")
+
+
+
+def register_data():
+    """Register all data classes."""
+    classes = [
+        EPOCHListItem,
+        EMUSItem,
+    ]
+    
+    for cls in classes:
+        try:
+            bpy.utils.register_class(cls)
+        except ValueError:
+            # Class might already be registered
+            pass
+            
+    # Setup collection properties if not yet existing
+    if not hasattr(bpy.types.Scene, "epoch_list"):
+        bpy.types.Scene.epoch_list = CollectionProperty(type=EPOCHListItem)
+    
+    # IMPORTANTE: Registra il callback direttamente
+    if hasattr(bpy.types.Scene, "epoch_list_index"):
+        del bpy.types.Scene.epoch_list_index  # Rimuovi la proprietà esistente
+        
+    # Ricrea la proprietà con il callback collegato direttamente
+    bpy.types.Scene.epoch_list_index = IntProperty(
+        name="Index for epoch_list",
+        default=0,
+        update=update_epoch_selection
+    )
+        
+    if not hasattr(bpy.types.Scene, "selected_epoch_us_list"):
+        bpy.types.Scene.selected_epoch_us_list = CollectionProperty(type=EMUSItem)
+        
+    if not hasattr(bpy.types.Scene, "selected_epoch_us_list_index"):
+        bpy.types.Scene.selected_epoch_us_list_index = IntProperty(
+            name="Index for selected_epoch_us_list",
+            default=0
+        )
+
+def unregister_data():
+    """Unregister all data classes."""
+    # Remove collection properties
+    if hasattr(bpy.types.Scene, "epoch_list"):
+        del bpy.types.Scene.epoch_list
+    
+    if hasattr(bpy.types.Scene, "epoch_list_index"):
+        del bpy.types.Scene.epoch_list_index
+    
+    if hasattr(bpy.types.Scene, "selected_epoch_us_list"):
+        del bpy.types.Scene.selected_epoch_us_list
+        
+    if hasattr(bpy.types.Scene, "selected_epoch_us_list_index"):
+        del bpy.types.Scene.selected_epoch_us_list_index
+    
+    # Unregister classes in reverse order
+    classes = [
+        EMUSItem,
+        EPOCHListItem,
+    ]
+    
+    for cls in reversed(classes):
+        try:
+            bpy.utils.unregister_class(cls)
+        except ValueError:
+            # Class might already be unregistered
+            pass
+
