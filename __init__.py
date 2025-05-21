@@ -181,7 +181,7 @@ class EPOCHListItem(PropertyGroup):
     is_selected: BoolProperty(name="Selected", default=False)
     epoch_soloing: BoolProperty(name="Solo", default=False)
     rm_models: BoolProperty(name="RM Models", default=False)
-    reconstruction_on: BoolProperty(name="Reconstruction", default=False)
+    reconstruction_on: BoolProperty(name="Reconstruction", default=True)
     unique_id: StringProperty(default="")
     epoch_RGB_color: FloatVectorProperty(
         name="Epoch RGB Color",

@@ -1739,6 +1739,7 @@ class VIEW3D_PT_RM_Manager(Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
+        em_tools = scene.em_tools
 
         from .functions import is_graph_available
         
@@ -1829,21 +1830,22 @@ class VIEW3D_PT_RM_Manager(Panel):
                     row.operator("rm.resolve_mismatches", text="Use Graph Epochs", icon='NODE_MATERIAL').use_graph_epochs = True
                 row.operator("rm.resolve_mismatches", text="Use Scene Epochs", icon='OBJECT_DATA').use_graph_epochs = False
         
-        # Settings (collapsible)
-        box = layout.box()
-        row = box.row()
-        row.prop(scene.rm_settings, "show_settings", 
-                icon="TRIA_DOWN" if scene.rm_settings.show_settings else "TRIA_RIGHT",
-                text="Settings", 
-                emboss=False)
-                
-        if scene.rm_settings.show_settings:
+        if em_tools.experimental_features:
+            # Settings (collapsible)
+            box = layout.box()
             row = box.row()
-            row.prop(scene.rm_settings, "zoom_to_selected")
-            row = box.row()
-            row.prop(scene.rm_settings, "show_mismatches")
-            row = box.row()
-            row.prop(scene.rm_settings, "auto_update_on_load")
+            row.prop(scene.rm_settings, "show_settings", 
+                    icon="TRIA_DOWN" if scene.rm_settings.show_settings else "TRIA_RIGHT",
+                    text="Settings (experimental)", 
+                    emboss=False)
+                    
+            if scene.rm_settings.show_settings:
+                row = box.row()
+                row.prop(scene.rm_settings, "zoom_to_selected")
+                row = box.row()
+                row.prop(scene.rm_settings, "show_mismatches")
+                row = box.row()
+                row.prop(scene.rm_settings, "auto_update_on_load")
 
 # Handler per aggiornare automaticamente la lista RM quando viene caricato un grafo
 @bpy.app.handlers.persistent

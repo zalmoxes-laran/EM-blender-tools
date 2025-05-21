@@ -485,20 +485,23 @@ class EM_ToolsPanel:
         # FILTER SECTION
         filter_box = layout.box()
         row = filter_box.row(align=True)
-        row.label(text=" Rows: " + str(len(scene.em_list)), icon='PRESET')
-        
+        if not scene.filter_by_epoch and not scene.filter_by_activity:
+            row.label(text="Total Rows: " + str(len(scene.em_list)), icon='PRESET')
+        elif scene.filter_by_epoch or scene.filter_by_activity:
+            row.label(text="Filtered Rows: " + str(len(scene.em_list)), icon='FILTER')
+        row.label(text="Available filters: " , icon='FILTER')
         # Verifichiamo che le proprietà esistano prima di usarle
         if hasattr(scene, "filter_by_epoch"):
             row.prop(scene, "filter_by_epoch", text="", toggle=True, icon='SORTTIME')
             
             # Se il filtro per epoca è attivo, mostra l'opzione per includere unità sopravvissute
             if scene.filter_by_epoch:
-                #sub_row = filter_box.row(align=True)
+                sub_row = filter_box.row(align=True)
                 icon = 'CHECKBOX_HLT' if scene.include_surviving_units else 'CHECKBOX_DEHLT'
-                op = row.operator("em.toggle_include_surviving", 
+                op = sub_row.operator("em.toggle_include_surviving", 
                     text="Include Surviving Units",
                     icon=icon)
-                row.operator("em.help_popup", text="", icon='QUESTION')
+                sub_row.operator("em.help_popup", text="", icon='QUESTION')
         
         if hasattr(scene, "filter_by_activity"):
             row.prop(scene, "filter_by_activity", text="", toggle=True, icon='NETWORK_DRIVE')
