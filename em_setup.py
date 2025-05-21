@@ -695,6 +695,13 @@ class EM_SetupPanel(bpy.types.Panel):
                 row = box.row()
                 row.prop(em_tools, "experimental_features", text="Enable Experimental Features", icon="EXPERIMENTAL")
                 
+                if em_tools.experimental_features:
+                    row = layout.row()
+                    row.alert = True
+                    row.label(text="Warning: these features are experimental.", icon='ERROR')
+                    row = layout.row()
+                    row.alert = True
+                    row.label(text="They should not be used in a production environment.")
 
         else:
             # UI per modalità 3D GIS
