@@ -637,7 +637,8 @@ def register_modules():
         exporter_heriverse,
         import_EMdb,
         graphml_converter,
-        proxy_inflate_manager
+        proxy_inflate_manager,
+        operators
     ]
     
     for module in modules_to_register:
@@ -693,6 +694,7 @@ def unregister():
         from .operators import graphml_converter
         
         modules_to_unregister = [
+            operators,
             graphml_converter,
             import_EMdb,
             exporter_heriverse,

@@ -7,63 +7,87 @@ from bpy.props import StringProperty
 from bpy.types import Operator
 
 def get_docs_version():
-    """Estrae la versione base dal manifest o version.json"""
+    """Estrae la versione base dal manifest o version.json come fallback"""
     try:
-        # Prima prova a leggere dal manifest
-        addon_dir = os.path.dirname(os.path.dirname(__file__))  # Sale di un livello dalla cartella operators
+        # Prima prova a leggere dal manifest (che sarà sempre presente nel .blext)
+        addon_dir = os.path.dirname(os.path.dirname(__file__))
         manifest_file = os.path.join(addon_dir, "blender_manifest.toml")
+        
+        print(f"DEBUG get_docs_version: Cerco manifest in: {manifest_file}")
         
         if os.path.exists(manifest_file):
             with open(manifest_file, 'r') as f:
                 manifest_content = f.read()
                 
-            # Cerca la versione nel manifest - essere specifici per la riga "version"
-            # Usando ^version assicuriamo che la riga inizi con "version" (no "schema_version")
+            # Cerca la versione principale nel manifest (non blender_version_min o altre versioni)
+            # Pattern migliorato per catturare solo la versione principale
+            import re
             version_match = re.search(r'^version\s*=\s*"([^"]+)"', manifest_content, re.MULTILINE)
             if version_match:
                 full_version = version_match.group(1)
-                # Estrai solo la parte base della versione (es. 1.5.0 da 1.5.0-dev.73)
-                base_version_match = re.match(r'(\d+\.\d+\.\d+)', full_version)
-                if base_version_match:
-                    return base_version_match.group(1)
-                return full_version  # Fallback alla versione completa se il regex non funziona
+                print(f"DEBUG get_docs_version: Versione trovata nel manifest: {full_version}")
+                
+                # Estrai solo la parte base (1.5.0 da 1.5.0-dev.73)
+                base_version = re.match(r'(\d+\.\d+\.\d+)', full_version)
+                if base_version:
+                    base_version_str = base_version.group(1)
+                    print(f"DEBUG get_docs_version: Versione base estratta: {base_version_str}")
+                    return base_version_str
+                return full_version
         
-        # Fallback su version.json
+        # Fallback su version.json (solo durante lo sviluppo)
         version_file = os.path.join(addon_dir, "version.json")
+        
+        print(f"DEBUG get_docs_version: Cerco version.json in: {version_file}")
         
         if os.path.exists(version_file):
             with open(version_file, 'r') as f:
                 config = json.load(f)
             
-            # Genera la stringa di versione base
+            # Genera la stringa di versione basata sul mode
             major = config.get('major', 1)
             minor = config.get('minor', 5) 
             patch = config.get('patch', 0)
+            base_version = f"{major}.{minor}.{patch}"
             
-            return f"{major}.{minor}.{patch}"
+            print(f"DEBUG get_docs_version: Versione da version.json: {base_version}")
+            return base_version
                 
     except Exception as e:
-        print(f"Error reading version information: {e}")
+        print(f"DEBUG get_docs_version: Errore durante la lettura della versione: {e}")
     
     # Fallback statico se non riesce a leggere
+    print("DEBUG get_docs_version: Usando fallback statico 'latest'")
     return "latest"
 
 def build_docs_url(path=""):
-    """Costruisce l'URL completo della documentazione"""
+    """
+    Costruisce l'URL completo della documentazione combinando
+    la base URL, la versione e il percorso specifico.
+    
+    Args:
+        path (str): Percorso della documentazione (es. "EMstructure.html#us-usv-manager")
+        
+    Returns:
+        str: URL completo della documentazione
+    """
     base_url = "https://docs.extendedmatrix.org/projects/EM-tools/en/"
     version = get_docs_version()
-    print(f"Estratta versione: {version}")  # Debug
+    
+    print(f"DEBUG build_docs_url: Parametro path: '{path}'")
+    print(f"DEBUG build_docs_url: Versione estratta: '{version}'")
     
     # Costruisci l'URL completo
     url = f"{base_url}{version}/"
     
     # Aggiungi il percorso specifico se fornito
     if path:
+        # Rimuove eventuali slash iniziali
         if path.startswith('/'):
             path = path[1:]
         url += path
     
-    print(f"URL completo: {url}")  # Debug
+    print(f"DEBUG build_docs_url: URL finale: '{url}'")
     return url
 
 class EM_help_popup(Operator):
@@ -77,6 +101,11 @@ class EM_help_popup(Operator):
     url: StringProperty(default="")  # Ora può essere il percorso relativo
     
     def execute(self, context):
+        print(f"DEBUG execute: Operator EM_help_popup execute chiamato")
+        print(f"DEBUG execute: title: '{self.title}'")
+        print(f"DEBUG execute: text: '{self.text[:30]}...' (troncato)")
+        print(f"DEBUG execute: url: '{self.url}'")
+        
         # Capture properties in local variables for closure
         title = self.title
         help_text = self.text
@@ -102,12 +131,33 @@ class EM_help_popup(Operator):
             # Button to open documentation
             op = layout.operator("wm.url_open", text="Open Documentation")
             op.url = url
+            print(f"DEBUG draw: Settato URL '{url}' per wm.url_open")
         
+        print(f"DEBUG execute: Prima di window_manager.popup_menu")
         bpy.context.window_manager.popup_menu(draw, title=title)
+        print(f"DEBUG execute: Dopo window_manager.popup_menu")
         return {'FINISHED'}
 
 def register():
-    bpy.utils.register_class(EM_help_popup)
+    print("DEBUG register: Tentativo di registrare EM_help_popup")
+    try:
+        # Prova a de-registrare prima, in caso fosse già registrato
+        bpy.utils.unregister_class(EM_help_popup)
+        print("DEBUG register: EM_help_popup de-registrato con successo")
+    except RuntimeError as e:
+        print(f"DEBUG register: EM_help_popup non era registrato: {e}")
+    
+    # Ora registra
+    try:
+        bpy.utils.register_class(EM_help_popup)
+        print("DEBUG register: EM_help_popup registrato con successo")
+    except Exception as e:
+        print(f"DEBUG register: Errore durante la registrazione di EM_help_popup: {e}")
 
 def unregister():
-    bpy.utils.unregister_class(EM_help_popup)
+    print("DEBUG unregister: Tentativo di de-registrare EM_help_popup")
+    try:
+        bpy.utils.unregister_class(EM_help_popup)
+        print("DEBUG unregister: EM_help_popup de-registrato con successo")
+    except Exception as e:
+        print(f"DEBUG unregister: Errore durante la de-registrazione di EM_help_popup: {e}")

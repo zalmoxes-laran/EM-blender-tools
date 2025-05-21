@@ -11,3 +11,5 @@ __all__ = [
     "EM_OT_update_graph",
     "EM_help_popup"  # Add our new class
 ]
+
+print("DEBUG operators/__init__.py: Imported help_popup module and added EM_help_popup to __all__")
