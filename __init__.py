@@ -354,6 +354,7 @@ if DEPENDENCIES_LOADED:
     try:
         # Import addon modules - these will be imported during registration
         from . import (
+            operators,
             stratigraphy_manager,
             epoch_manager,
             functions,

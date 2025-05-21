@@ -270,37 +270,6 @@ class EM_toggle_show_reconstruction(Operator):
         
         return {'FINISHED'}
 
-class EM_help_popup(Operator):
-    bl_idname = "em.help_popup"
-    bl_label = "Help Information"
-    bl_description = "Show help information"
-    
-    title: bpy.props.StringProperty(default="Help")  # type: ignore
-    text: bpy.props.StringProperty(default="")   # type: ignore
-    url: bpy.props.StringProperty(default="https://docs.extendedmatrix.org")   # type: ignore
-    
-    def execute(self, context):
-        def draw(self, context):
-            layout = self.layout
-            
-            # Split the text into lines and display it
-            if self.text:
-                for line in self.text.split('\n'):
-                    layout.label(text=line)
-            else:
-                # Default text if not specified
-                layout.label(text="Lorem ipsum:")
-                layout.label(text="- When enabled: Lorem Ipsum")
-                layout.label(text="- When disabled: Lorem Ipsum")
-            
-            layout.separator()
-            
-            # Button to open documentation
-            op = layout.operator("wm.url_open", text="Open Documentation")
-            op.url = self.url
-        
-        bpy.context.window_manager.popup_menu(draw, title=self.title)
-        return {'FINISHED'}
 
 def filter_list_update(self, context):
     """
@@ -385,7 +354,6 @@ def register_filters():
         EM_reset_filters,
         EM_toggle_include_surviving,
         EM_toggle_show_reconstruction,
-        EM_help_popup,
     ]
     
     for cls in classes:
@@ -398,7 +366,7 @@ def register_filters():
 def unregister_filters():
     """Unregister filter-related operators and properties."""
     classes = [
-        EM_help_popup,
+
         EM_toggle_show_reconstruction,
         EM_toggle_include_surviving,
         EM_reset_filters,

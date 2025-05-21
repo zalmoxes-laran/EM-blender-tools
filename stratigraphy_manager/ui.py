@@ -105,28 +105,23 @@ class EM_ToolsPanel:
         help1 = row.operator("em.help_popup", text="", icon='QUESTION')
         help1.title = "Filter System Help"
         help1.text = (
-            "Filtering system:\n"
-            "  Once activated the filter,\n"
+            "- Once activated the filter,\n"
             "  try changing epochs and/or activities\n"
             "  in their manager panel.\n"
-            "  The filter will be applied in realtime\n"
+            "- The filter will be applied in realtime\n"
             "  to the selected epoch and/or activity.\n"
-            "  To reset the filter, click on the\n"
+            "- To reset the filter, click on the\n"
             "  red cross icon in the top right corner.\n" 
         )
-        help1.url = "https://docs.extendedmatrix.org/filter-system"
+        help1.url = "EMstructure.html#us-usv-manager"
 
         # 2) Filter contents (only when open)
         if scene.show_filter_system:
 
-
             # Epoch / Activity toggles
             row = filter_box.row(align=True)
             filter_controls_row = row.row(align=True)
-
-
-
-
+            
             row = filter_box.row(align=True)
             filter_controls_row = row.row(align=True)
 
