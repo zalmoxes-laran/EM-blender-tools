@@ -275,9 +275,9 @@ class EM_help_popup(Operator):
     bl_label = "Help Information"
     bl_description = "Show help information"
     
-    title: bpy.props.StringProperty(default="Help") 
-    text: bpy.props.StringProperty(default="") 
-    url: bpy.props.StringProperty(default="https://docs.extendedmatrix.org") 
+    title: bpy.props.StringProperty(default="Help")  # type: ignore
+    text: bpy.props.StringProperty(default="")   # type: ignore
+    url: bpy.props.StringProperty(default="https://docs.extendedmatrix.org")   # type: ignore
     
     def execute(self, context):
         def draw(self, context):
@@ -289,9 +289,9 @@ class EM_help_popup(Operator):
                     layout.label(text=line)
             else:
                 # Default text if not specified
-                layout.label(text="Survival Filter:")
-                layout.label(text="- When enabled: Shows all units that exist in this epoch")
-                layout.label(text="- When disabled: Shows only units created in this epoch")
+                layout.label(text="Lorem ipsum:")
+                layout.label(text="- When enabled: Lorem Ipsum")
+                layout.label(text="- When disabled: Lorem Ipsum")
             
             layout.separator()
             
@@ -333,7 +333,11 @@ def filter_list_update(self, context):
             # Only apply filtering if at least one filter is active
             if scene.filter_by_epoch or scene.filter_by_activity:
                 try:
-                    bpy.ops.em.filter_lists()
+                    # IMPORTANTE: Verifica che l'operatore esista prima di chiamarlo
+                    if hasattr(bpy.ops, 'em') and hasattr(bpy.ops.em, 'filter_lists'):
+                        bpy.ops.em.filter_lists()
+                    else:
+                        print("Warning: em.filter_lists operator not available")
                 except Exception as e:
                     print(f"Error applying filters: {e}")
                     import traceback
@@ -341,7 +345,11 @@ def filter_list_update(self, context):
             else:
                 # If all filters are off, use our reset operator
                 try:
-                    bpy.ops.em.reset_filters()
+                    # IMPORTANTE: Verifica che l'operatore esista prima di chiamarlo
+                    if hasattr(bpy.ops, 'em') and hasattr(bpy.ops.em, 'reset_filters'):
+                        bpy.ops.em.reset_filters()
+                    else:
+                        print("Warning: em.reset_filters operator not available")
                 except Exception as e:
                     print(f"Error resetting filters: {e}")
                     import traceback

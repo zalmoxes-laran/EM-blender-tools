@@ -177,11 +177,19 @@ def update_epoch_selection(self, context):
     except Exception as e:
         print(f"Error updating US list: {e}")
     
-    # Only trigger filtering if epoch filtering is active
-    if scene.filter_by_epoch:
+    # IMPORTANTE: Trigger sempre l'operatore di filtro quando cambia l'epoca,
+    # ma solo se il filtro epoca è attivo
+    if hasattr(scene, "filter_by_epoch") and scene.filter_by_epoch:
         print(f"Filtering is active - updating stratigraphy list for epoch: {active_epoch.name}")
         try:
-            bpy.ops.em.filter_lists()
+            # Verifica primo che ci sia un grafo attivo
+            from ..functions import is_graph_available
+            graph_exists, _ = is_graph_available(context)
+            
+            if graph_exists:
+                bpy.ops.em.filter_lists()
+            else:
+                print("Cannot apply filtering: No active graph")
         except Exception as e:
             print(f"Error filtering lists: {e}")
             import traceback

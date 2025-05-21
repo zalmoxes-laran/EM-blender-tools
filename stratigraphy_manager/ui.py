@@ -66,7 +66,13 @@ class EM_ToolsPanel:
         scene = context.scene
         em_settings = scene.em_settings
         obj = context.object
-        
+
+        # Verifica la presenza di un grafo attivo
+        from ..functions import is_graph_available
+        graph_available, _ = is_graph_available(context)        
+
+
+
         # FILTER SECTION
         filter_box = layout.box()
         row = filter_box.row(align=True)
@@ -75,9 +81,13 @@ class EM_ToolsPanel:
         elif scene.filter_by_epoch or scene.filter_by_activity:
             row.label(text="Filtered Rows: " + str(len(scene.em_list)), icon='FILTER')
         row.label(text="Available filters: " , icon='FILTER')
+
+        filter_controls_row = row.row(align=True)
+        filter_controls_row.enabled = graph_available
+
         # We verify that the properties exist before using them
         if hasattr(scene, "filter_by_epoch"):
-            row.prop(scene, "filter_by_epoch", text="", toggle=True, icon='SORTTIME')
+            filter_controls_row.prop(scene, "filter_by_epoch", text="", toggle=True, icon='SORTTIME')
             
             # If epoch filter is active, show option to include surviving units
             if scene.filter_by_epoch:
@@ -93,8 +103,10 @@ class EM_ToolsPanel:
                 help_op.text = "Survival Filter:\n- When enabled: Shows all units that exist in this epoch\n- When disabled: Shows only units created in this epoch"
                 help_op.url = "https://docs.extendedmatrix.org/survival-filter"
                 
+                sub_row.separator()
+
                 # Add reconstruction filter
-                sub_row = filter_box.row(align=True)
+                #sub_row = filter_box.row(align=True)
                 icon = 'CHECKBOX_HLT' if scene.show_reconstruction_units else 'CHECKBOX_DEHLT'
                 op = sub_row.operator("em.toggle_show_reconstruction", 
                     text="Show Reconstruction Units",
@@ -107,7 +119,7 @@ class EM_ToolsPanel:
                 help_op.url = "https://docs.extendedmatrix.org/reconstruction-filter"
         
         if hasattr(scene, "filter_by_activity"):
-            row.prop(scene, "filter_by_activity", text="", toggle=True, icon='NETWORK_DRIVE')
+            filter_controls_row.prop(scene, "filter_by_activity", text="", toggle=True, icon='NETWORK_DRIVE')
         
         # Reset filters
         if hasattr(scene, "filter_by_epoch") and hasattr(scene, "filter_by_activity"):
@@ -118,23 +130,25 @@ class EM_ToolsPanel:
         sync_box = layout.box()
         row = sync_box.row(align=True)
         row.label(text="Scene Sync", icon='SCENE_DATA')
-        
+
+        sync_controls_row = row.row(align=True)
+        sync_controls_row.enabled = graph_available
+
         # Proxy sync
         if hasattr(scene, "sync_list_visibility"):
-            row.prop(scene, "sync_list_visibility", text="Proxies", 
+            sync_controls_row.prop(scene, "sync_list_visibility", text="Proxies", 
                     icon='HIDE_OFF' if scene.sync_list_visibility else 'HIDE_ON')
 
         # RM sync
-        row.prop(scene, "sync_rm_visibility", text="RM Models", 
+        sync_controls_row.prop(scene, "sync_rm_visibility", text="RM Models", 
                 icon='OBJECT_DATA')
-
-        # Button to activate all collections with proxies
-        row = sync_box.row(align=True)
-        row.operator("em.strat_activate_collections", text="Show All Collections", icon='OUTLINER_COLLECTION')
 
         # Debug button (only if experimental features are enabled)
         if hasattr(context.scene.em_tools, "experimental_features") and context.scene.em_tools.experimental_features:
+
+            # Button to activate all collections with proxies
             row = sync_box.row(align=True)
+            row.operator("em.strat_activate_collections", text="Show All Collections", icon='OUTLINER_COLLECTION')
             row.operator("em.debug_filters", text="Debug Graph", icon='CONSOLE')
 
         # ACTIVE CONTEXT SECTION

@@ -137,6 +137,20 @@ class EMreusedUS(PropertyGroup):
         default=""
     )
 
+
+def update_stratigraphic_selection(self, context):
+    """
+    Called when the user changes the selection in the stratigraphic list.
+    Updates UI elements and can trigger filtering if needed.
+    """
+    scene = context.scene
+    
+    # Per ora non facciamo nulla di specifico quando cambia la selezione stratigafica,
+    # ma questa funzione può essere estesa in futuro se necessario
+    
+    print(f"Stratigraphic selection changed to index {scene.em_list_index}")
+
+
 def register_data():
     """Register all data classes."""
     classes = [
@@ -159,7 +173,7 @@ def register_data():
         bpy.types.Scene.em_list_index = IntProperty(
             name="Index for em_list",
             default=0,
-            update=lambda self, context: None  # Will be updated to call filters
+            update=update_stratigraphic_selection
         )
     
     if not hasattr(bpy.types.Scene, "em_reused"):
