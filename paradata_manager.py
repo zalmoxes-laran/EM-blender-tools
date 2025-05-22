@@ -570,7 +570,7 @@ class EM_ParadataPanel:
             row.prop(item_property, "description", text="", slider=True, emboss=True, icon='TEXT')
         else:
             row = box.row()
-            row.label(text="Nessuna proprietà disponibile")
+            row.label(text="No properties available")
 
         ###############################################################################
         ##          Combiners
@@ -578,6 +578,7 @@ class EM_ParadataPanel:
 
         # Safely get the combiner list length and index
         combiner_list_length = len(eval(combiner_list_cmd))
+        
         combiner_list_index = eval(combiner_list_index_cmd)
         
         # Invece di modificare l'indice, controlla solo se è valido
@@ -586,26 +587,28 @@ class EM_ParadataPanel:
         # Sezione Combiners
         row = layout.row()
         row.label(text="Combiners: (" + str(combiner_list_length) + ")")
-        #row.prop(scene, "comb_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
-        row = layout.row()
-        row.template_list("EM_UL_combiners_managers", "", scene, combiner_list_var, scene, combiner_list_index_var, rows=1)
-        
-        # Mostra sempre il box, anche se non ci sono elementi
-        box = layout.box()
-        if combiner_index_valid:
-            item_property = eval(combiner_list_cmd)[combiner_list_index]
-            row = box.row()
-            row.prop(item_property, "name", text="", icon='FILE_TEXT')
-            row = box.row()
-            row.prop(item_property, "description", text="", slider=True, emboss=True, icon='TEXT')
-            row = box.row()
-            row.prop(item_property, "url", text="", slider=True, emboss=True, icon='URL')
-            op = row.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
-            if op:  # Check if operator is valid
-                op.node_type = combiner_list_var
-        else:
-            row = box.row()
-            row.label(text="Nessun combiner disponibile")
+
+        if combiner_list_length > 0:
+            #row.prop(scene, "comb_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
+            row = layout.row()
+            row.template_list("EM_UL_combiners_managers", "", scene, combiner_list_var, scene, combiner_list_index_var, rows=1)
+            
+            # Mostra sempre il box, anche se non ci sono elementi
+            box = layout.box()
+            if combiner_index_valid:
+                item_property = eval(combiner_list_cmd)[combiner_list_index]
+                row = box.row()
+                row.prop(item_property, "name", text="", icon='FILE_TEXT')
+                row = box.row()
+                row.prop(item_property, "description", text="", slider=True, emboss=True, icon='TEXT')
+                row = box.row()
+                row.prop(item_property, "url", text="", slider=True, emboss=True, icon='URL')
+                op = row.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
+                if op:  # Check if operator is valid
+                    op.node_type = combiner_list_var
+        #else:
+        #    row = box.row()
+        #    row.label(text="No combiner available", icon='ERROR')
         
         ###############################################################################
         ##          Extractors
@@ -658,7 +661,7 @@ class EM_ParadataPanel:
                 op.node_type = extractor_list_var
         else:
             row = box.row()
-            row.label(text="Nessun estrattore disponibile")
+            row.label(text="No extractor available")
         
         ###############################################################################
         ##          Sources
@@ -711,7 +714,7 @@ class EM_ParadataPanel:
                 op.node_type = source_list_var
         else:
             row = box.row()
-            row.label(text="Nessun documento disponibile")
+            row.label(text="No document available")
 
         ###############################################################################
         ##          Image Preview
@@ -720,12 +723,13 @@ class EM_ParadataPanel:
         # Add image preview section at the end
         #layout.separator()
 
-        # Image preview section
-        box = layout.box()
-        row = box.row()
+
         
         # Multiple image preview logic
         if scene.paradata_image.image_collection:
+            # Image preview section
+            box = layout.box()
+            row = box.row()
             images = scene.paradata_image.image_collection
             active_index = scene.paradata_image.active_image_index
             

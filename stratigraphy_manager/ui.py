@@ -221,9 +221,9 @@ class EM_ToolsPanel:
 
         # STRATIGRAPHY LIST
         row = layout.row()
-
+        row.template_list("EM_STRAT_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
         if scene.em_list and ensure_valid_index(scene.em_list, "em_list_index"):
-            row.template_list("EM_STRAT_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
+            
             item = scene.em_list[scene.em_list_index]
     
             # SELECTED ITEM DETAILS
@@ -267,8 +267,8 @@ class EM_ToolsPanel:
                     from ..functions import check_if_current_obj_has_brother_inlist, select_list_element_from_obj_proxy
                     if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
                             select_list_element_from_obj_proxy(obj, "em_list")
-        else:
-            row.label(text="No stratigraphic units here :-(")
+        #else:
+        #    row.label(text="No stratigraphic units here :-(")
 
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     """Panel in the 3D View for the Stratigraphy Manager"""

@@ -73,10 +73,10 @@ class EM_BasePanel:
         row = layout.row()
         ob = context.object
 
-        if len(scene.em_list) > 0:
-            row.template_list(
-                "EM_UL_named_epoch_managers", "", scene, "epoch_list", scene, "epoch_list_index")
-            
+        row.template_list(
+            "EM_UL_named_epoch_managers", "", scene, "epoch_list", scene, "epoch_list_index")
+
+        if len(scene.epoch_list) > 0:
             # Add the subpanel with epoch details
             if scene.epoch_list_index >= 0 and len(scene.epoch_list) > 0:
                 epoch = scene.epoch_list[scene.epoch_list_index]
@@ -98,8 +98,8 @@ class EM_BasePanel:
                     row.prop(epoch, "start_time", text="Start")
                     row.prop(epoch, "end_time", text="End")
         
-        else:
-            row.label(text="No epochs here :-(")
+        #else:
+        #    row.label(text="No epochs here :-(")
 
 class VIEW3D_PT_BasePanel(Panel, EM_BasePanel):
     """Panel in the 3D View for the Epoch Manager"""
