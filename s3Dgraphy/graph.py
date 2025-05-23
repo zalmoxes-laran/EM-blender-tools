@@ -47,11 +47,59 @@ class Graph:
         self.edges = []
         self.warnings = []
         self.attributes = {}
-        
+
+        # Initialize graph indices
+        self._indices = None
+        self._indices_dirty = True
+
         # Initialize and add geo_position node if not already present
         if not any(node.node_type == "geo_position" for node in self.nodes):
             geo_node = GeoPositionNode(node_id=f"geo_{graph_id}")
             self.add_node(geo_node, overwrite=True)
+
+    @property
+    def indices(self):
+        """Lazy loading degli indici con rebuild automatico se necessario"""
+        if self._indices is None:
+            self._indices = GraphIndices()
+        if self._indices_dirty:
+            self._rebuild_indices()
+        return self._indices
+    
+    def _rebuild_indices(self):
+        """Ricostruisce gli indici del grafo"""
+        if self._indices is None:
+            self._indices = GraphIndices()
+        
+        self._indices.clear()
+        
+        # Indicizza nodi per tipo
+        for node in self.nodes:
+            node_type = getattr(node, 'node_type', 'unknown')
+            self._indices.add_node_by_type(node_type, node)
+            
+            # Indicizzazione speciale per property nodes
+            if node_type == 'property' and hasattr(node, 'name'):
+                self._indices.add_property_node(node.name, node)
+        
+        # Indicizza edges
+        for edge in self.edges:
+            self._indices.add_edge(edge)
+            
+            # Indicizzazione speciale per has_property edges
+            if edge.edge_type == 'has_property':
+                source_node = self.find_node_by_id(edge.edge_source)
+                target_node = self.find_node_by_id(edge.edge_target)
+                if source_node and target_node and hasattr(target_node, 'name'):
+                    prop_value = getattr(target_node, 'description', 'empty')
+                    self._indices.add_property_relation(
+                        target_node.name, 
+                        edge.edge_source, 
+                        prop_value
+                    )
+        
+        self._indices_dirty = False
+
 
     @staticmethod
     def validate_connection(source_node_type, target_node_type, edge_type):
@@ -107,6 +155,7 @@ class Graph:
             else:
                 return existing_node
         self.nodes.append(node)
+        self._indices_dirty = True
         return node
 
     def add_edge(self, edge_id: str, edge_source: str, edge_target: str, edge_type: str) -> Edge:
@@ -141,6 +190,7 @@ class Graph:
 
         edge = Edge(edge_id, edge_source, edge_target, edge_type)
         self.edges.append(edge)
+        self._indices_dirty = True
         return edge
 
     def connect_paradatagroup_propertynode_to_stratigraphic(self, verbose=True):

@@ -25,6 +25,26 @@ from .operators.graphml_converter import GRAPHML_OT_convert_borders
 
 from .functions import get_compatible_icon
 
+from .s3Dgraphy import get_all_graph_ids
+
+# Adding an operator to force an index rebuild
+class EM_OT_rebuild_graph_indices(bpy.types.Operator):
+    bl_idname = "em.rebuild_graph_indices"
+    bl_label = "Rebuild Graph Indices"
+    bl_description = "Force rebuild of graph indices for better performance"
+    
+    def execute(self, context):
+        rebuilt = 0
+        for graph_id in get_all_graph_ids():
+            graph = get_graph(graph_id)
+            if graph:
+                graph._indices_dirty = True
+                _ = graph.indices  # Forza il rebuild
+                rebuilt += 1
+        
+        self.report({'INFO'}, f"Rebuilt indices for {rebuilt} graphs")
+        return {'FINISHED'}
+
 def get_em_tools_version():
     """Legge la versione corrente dal manifest o da version.json come fallback"""
     try:

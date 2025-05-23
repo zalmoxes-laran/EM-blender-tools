@@ -8,56 +8,31 @@ DEFAULT_COLOR = (0.5, 0.5, 0.5, 1.0)  # Grigio medio
 
 
 
-def create_property_value_mapping(graph, property_name):
-    """
-    Creates a mapping of unique values for a given property.
-    """
-    print(f"\n=== Creating Property Value Mapping for '{property_name}' ===")
+# Versione ottimizzata di create_property_value_mapping
+def create_property_value_mapping_optimized(graph, property_name):
+    """Optimised version using graph indices"""
+    print(f"\n=== Creating Property Value Mapping for '{property_name}' (Optimized) ===")
     
+    # Usa gli indici del grafo
+    indices = graph.indices
+    
+    # Ottieni tutti i valori per questa proprietà
+    values = indices.get_property_values(property_name)
+    
+    # Crea il mapping
     mapping = {}
-    has_empty = False
-    
-    # Raccogli tutti i valori unici per quella proprietà
-    property_nodes = [node for node in graph.nodes 
-                     if node.node_type == "property" 
-                     and node.name == property_name]
-    
-    print(f"Found {len(property_nodes)} nodes for property {property_name}")
-    
-    # Set per tenere traccia dei nodi stratigrafici connessi
-    connected_strat_nodes = set()
-    
-    for node in property_nodes:
-        if node.description:  # Se ha un valore
-            value = node.description
-            mapping[node.node_id] = value
-            print(f"Found value: {value}")
-            
-            # Aggiungi i nodi stratigrafici connessi al set
-            for edge in graph.edges:
-                if edge.edge_type == "has_property" and edge.edge_target == node.node_id:
-                    connected_strat_nodes.add(edge.edge_source)
+    for value in values:
+        # I valori speciali hanno già il formato corretto
+        if value.startswith("empty property") or value.startswith("no property"):
+            mapping[value] = value
         else:
-            has_empty = True
-
-    # Aggiungi empty property se necessario
-    if has_empty:
-        mapping['empty'] = f"empty property {property_name} node"
-        print(f"Found nodes with empty {property_name} property")
-
-    # Verifica se ci sono nodi stratigrafici senza questa proprietà
-    strat_nodes_without_prop = any(
-        isinstance(node, StratigraphicNode) and node.node_id not in connected_strat_nodes 
-        for node in graph.nodes
-    )
-    if strat_nodes_without_prop:
-        mapping['no_prop'] = f"no property {property_name} node"
-        print(f"Found nodes without {property_name} property")
-
-    print(f"\nMapping results:")
-    for node_id, value in mapping.items():
-        print(f"  {value}")
+            # Per i valori normali, trova un nodo rappresentativo
+            strat_ids = indices.get_strat_nodes_by_property_value(property_name, value)
+            if strat_ids:
+                # Usa il primo ID come chiave
+                mapping[strat_ids[0]] = value
     
+    print(f"Mapping results: {len(mapping)} values found")
     return mapping
 
 def apply_property_colors(context, property_mapping, color_scheme):
