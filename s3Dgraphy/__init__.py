@@ -36,6 +36,8 @@ from .importer import GraphMLImporter
 # Utility imports
 from .utils import convert_shape2type
 
+from .indices import GraphIndices
+
 # Visual layout (optional import of networkx is handled in visual_layout)
 #from .visual_layout import generate_layout
 
@@ -65,5 +67,6 @@ __all__ = [
     "get_all_graph_ids",
     "remove_graph",
     "GraphMLImporter",
-    "convert_shape2type"
+    "convert_shape2type",
+    "GraphIndices",
 ]

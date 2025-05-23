@@ -13,6 +13,8 @@ from .nodes.property_node import PropertyNode
 from .nodes.geo_position_node import GeoPositionNode
 from .edges import Edge
 from typing import List
+from .indices import GraphIndices
+
 
 # Load the connection rules JSON
 rules_path = os.path.join(os.path.dirname(__file__), "./JSON_config/em_connection_rules.json")
@@ -155,7 +157,7 @@ class Graph:
             else:
                 return existing_node
         self.nodes.append(node)
-        self._indices_dirty = True
+        self._indices_dirty = True  # ← Aggiunto per invalidare gli indici
         return node
 
     def add_edge(self, edge_id: str, edge_source: str, edge_target: str, edge_type: str) -> Edge:
@@ -180,7 +182,7 @@ class Graph:
         if not source_node or not target_node:
             raise ValueError(f"Both nodes with IDs '{edge_source}' and '{edge_target}' must exist.")
 
-        # Validate the connection using connection rules
+        # Validate connection using connection rules
         if not self.validate_connection(source_node.node_type, target_node.node_type, edge_type):
             self.add_warning(f"Connection '{edge_type}' not allowed between '{source_node.node_type}' (name:{source_node.name}) and '{target_node.node_type}' (name:'{target_node.name}'). Using 'generic_connection' instead.")
             edge_type = "generic_connection"
@@ -190,7 +192,7 @@ class Graph:
 
         edge = Edge(edge_id, edge_source, edge_target, edge_type)
         self.edges.append(edge)
-        self._indices_dirty = True
+        self._indices_dirty = True  # ← Aggiunto per invalidare gli indici
         return edge
 
     def connect_paradatagroup_propertynode_to_stratigraphic(self, verbose=True):

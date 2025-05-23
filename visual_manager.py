@@ -185,7 +185,8 @@ class UPDATE_OT_property_values(bpy.types.Operator):
                             print(f"  Source: {edge.edge_source}")
                             print(f"  Target: {edge.edge_target}")
                         
-                        mapping = create_property_value_mapping(graph, scene.selected_property)
+                        mapping = create_property_value_mapping_optimized(graph, scene.selected_property)
+
                         values.update(mapping.values())
                         processed_graphs += 1
                     else:
@@ -246,83 +247,37 @@ class UPDATE_OT_property_values(bpy.types.Operator):
 
 def get_available_properties(context):
     """
-    Get list of available property names from either active graph or all graphs.
-    
-    Args:
-        context: Blender context
-        
-    Returns:
-        list: Sorted list of unique property names
+    Get list of available property names using optimized indices.
     """
-    print(f"\n=== Getting Available Properties ===")
+    print(f"\n=== Getting Available Properties (OPTIMIZED) ===")
     scene = context.scene
     em_tools = scene.em_tools
     properties = set()
 
-    # Determina se siamo in modalità 3D GIS o EM Advanced
-
-
     if not em_tools.mode_switch:  # Modalità 3D GIS
         mgr = multi_graph_manager
-        print("\nDebug - Graph Manager Status:")
-        print(f"Available graphs: {list(mgr.graphs.keys())}")
-        
         graph = mgr.graphs.get("3dgis_graph")
         if graph:
-            print(f"Found 3D GIS graph with {len(graph.nodes)} nodes")
-            property_nodes = [node for node in graph.nodes if node.node_type == "property"]
-            print(f"Found {len(property_nodes)} property nodes")
-            for node in property_nodes:
-                if node.name:
-                    properties.add(node.name)
-                    print(f"Added property: {node.name}")
-        else:
-            print("3D GIS graph not found in MultiGraphManager")
-            print("\nDebug - Registered Graphs:")
-            for graph_id, graph in mgr.graphs.items():
-                print(f"- Graph ID: {graph_id}")
-                print(f"  Nodes: {len(graph.nodes)}")
-                if hasattr(graph, 'name'):
-                    print(f"  Name: {graph.name}")
-
-
+            # USA GLI INDICI OTTIMIZZATI! 🚀
+            properties.update(graph.indices.get_property_names())
     else:  # Modalità EM Advanced
-        # Determina quale grafo/i usare
         if scene.show_all_graphs:
             graph_ids = get_all_graph_ids()
-            print(f"Processing all graphs: {graph_ids}")
         else:
-            # Usa solo il grafo attivo
             if em_tools.active_file_index >= 0:
                 active_file = em_tools.graphml_files[em_tools.active_file_index]
                 graph_ids = [active_file.name]
-                print(f"Processing active graph: {active_file.name}")
             else:
-                print("No active graph file selected")
                 return []
 
-        # Processa ogni grafo
         for graph_id in graph_ids:
             graph = get_graph(graph_id)
-            if not graph:
-                print(f"Warning: Could not retrieve graph '{graph_id}'")
-                continue
-
-            print(f"\nProcessing graph '{graph_id}':")
-            print(f"Total nodes: {len(graph.nodes)}")
-            
-            # Cerca i nodi proprietà
-            property_nodes = [node for node in graph.nodes if node.node_type == "property"]
-            print(f"Found {len(property_nodes)} property nodes")
-
-            for node in property_nodes:
-                if node.name:
-                    properties.add(node.name)
-                    print(f"Found property: {node.name}")
+            if graph:
+                # USA GLI INDICI OTTIMIZZATI! 🚀
+                properties.update(graph.indices.get_property_names())
 
     result = sorted(list(properties))
-    print(f"\nTotal unique properties found: {len(result)}")
-    print(f"Properties: {result}")
+    print(f"Found {len(result)} properties using optimized indices")
     return result
 
 class PropertyValueItem(bpy.types.PropertyGroup):
