@@ -86,18 +86,22 @@ fi
 case "$1" in
     setup)
         echo "Setting up development environment..."
+        # Change to scripts directory before running setup
+        cd scripts
         case "$(uname -s)" in
             Darwin)
-                bash scripts/setup_dev_macos.sh
+                bash setup_dev_macos.sh "$2"
                 ;;
             Linux)
-                bash scripts/setup_dev_linux.sh
+                bash setup_dev_linux.sh "$2"
                 ;;
             *)
                 echo "Unsupported OS: $(uname -s)"
                 exit 1
                 ;;
         esac
+        # Return to original directory
+        cd "$SCRIPT_DIR"
         ;;
     
     inc)
