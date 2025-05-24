@@ -4,6 +4,8 @@ import json
 import os
 from .functions import hex_to_rgb
 
+
+
 DEFAULT_COLOR = (0.5, 0.5, 0.5, 1.0)  # Grigio medio
 
 

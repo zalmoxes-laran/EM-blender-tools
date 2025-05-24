@@ -34,6 +34,33 @@ import logging
 log = logging.getLogger(__name__)
 
 
+def test_optimization_performance(context):
+    """Test function to compare old vs new performance"""
+    import time
+    
+    scene = context.scene
+    if not scene.selected_property:
+        return
+        
+    graph = get_graph("3dgis_graph") or get_graph(scene.em_tools.graphml_files[0].name)
+    if not graph:
+        return
+        
+    # Test old method
+    start = time.time()
+    old_mapping = create_property_value_mapping(graph, scene.selected_property)
+    old_time = time.time() - start
+    
+    # Test new method
+    start = time.time()
+    new_mapping = create_property_value_mapping_optimized(graph, scene.selected_property)
+    new_time = time.time() - start
+    
+    print(f"Performance comparison:")
+    print(f"Old method: {old_time:.4f}s, {len(old_mapping)} items")
+    print(f"New method: {new_time:.4f}s, {len(new_mapping)} items")
+    print(f"Speedup: {old_time/new_time:.2f}x")
+
 class PROPERTY_OT_apply_colors(bpy.types.Operator):
     bl_idname = "property.apply_colors"
     bl_label = "Apply Color Scheme"

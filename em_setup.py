@@ -709,8 +709,13 @@ class EM_SetupPanel(bpy.types.Panel):
                 # Bottone create collections spostato qui
                 if em_tools.experimental_features:
                     row = box.row()
-                    row.operator("create.collection", text="Create default Collections", icon="COLLECTION_NEW")
+                    row.operator("create.collection", text="Create default Collections (experimental)", icon="COLLECTION_NEW")
 
+                if em_tools.experimental_features:
+                    row = box.row()
+                    row.operator("em.rebuild_graph_indices", 
+                                text="Rebuild Graph Indices (experimental)", 
+                                icon="FILE_REFRESH")
 
                 row = box.row()
                 row.prop(em_tools, "experimental_features", text="Enable Experimental Features", icon="EXPERIMENTAL")
@@ -997,7 +1002,8 @@ classes = [
     AUXILIARY_OT_context_menu_invoke,
     AUXILIARY_OT_reload_file,
     AUXILIARY_OT_import_now,
-    EM_OT_manage_object_prefixes
+    EM_OT_manage_object_prefixes,
+    EM_OT_rebuild_graph_indices
 ]
 
 def register():
