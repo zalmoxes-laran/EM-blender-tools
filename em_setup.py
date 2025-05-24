@@ -27,7 +27,17 @@ from .functions import get_compatible_icon
 
 from .s3Dgraphy import get_all_graph_ids
 
-# Adding an operator to force an index rebuild
+class EM_OT_benchmark_property_functions(bpy.types.Operator):
+    bl_idname = "em.benchmark_property_functions"
+    bl_label = "Benchmark Property Functions"
+    bl_description = "Compare performance between legacy and optimized property mapping functions"
+    
+    def execute(self, context):
+        from .visual_manager import test_optimization_performance
+        test_optimization_performance(context)
+        self.report({'INFO'}, "Benchmark completed. Check console for results.")
+        return {'FINISHED'}
+
 class EM_OT_rebuild_graph_indices(bpy.types.Operator):
     bl_idname = "em.rebuild_graph_indices"
     bl_label = "Rebuild Graph Indices"
@@ -711,11 +721,15 @@ class EM_SetupPanel(bpy.types.Panel):
                     row = box.row()
                     row.operator("create.collection", text="Create default Collections (experimental)", icon="COLLECTION_NEW")
 
-                if em_tools.experimental_features:
                     row = box.row()
                     row.operator("em.rebuild_graph_indices", 
                                 text="Rebuild Graph Indices (experimental)", 
                                 icon="FILE_REFRESH")
+
+                    row = box.row()
+                    row.operator("em.benchmark_property_functions", 
+                                text="Benchmark Property Functions", 
+                                icon="TIME")
 
                 row = box.row()
                 row.prop(em_tools, "experimental_features", text="Enable Experimental Features", icon="EXPERIMENTAL")
@@ -1003,7 +1017,8 @@ classes = [
     AUXILIARY_OT_reload_file,
     AUXILIARY_OT_import_now,
     EM_OT_manage_object_prefixes,
-    EM_OT_rebuild_graph_indices
+    EM_OT_rebuild_graph_indices,
+    EM_OT_benchmark_property_functions
 ]
 
 def register():

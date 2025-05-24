@@ -34,32 +34,47 @@ import logging
 log = logging.getLogger(__name__)
 
 
+# Variabili globali per controllo delle chiamate duplicate
+_last_selected_property = None
+_last_update_time = 0
+_debug_draws = False  # Impostalo a True solo per il debug
+
+# Variabili per il caching delle proprietà disponibili
+_cached_properties = None
+_last_cache_time = 0
+_cache_lifetime = 5.0  # 5 secondi di vita per la cache
+
 def test_optimization_performance(context):
     """Test function to compare old vs new performance"""
     import time
     
     scene = context.scene
     if not scene.selected_property:
+        print("ERROR: Please select a property first")
         return
         
     graph = get_graph("3dgis_graph") or get_graph(scene.em_tools.graphml_files[0].name)
     if not graph:
+        print("ERROR: No graph available")
         return
-        
+    
     # Test old method
     start = time.time()
-    old_mapping = create_property_value_mapping(graph, scene.selected_property)
+    old_mapping = create_property_value_mapping_old(graph, scene.selected_property)
     old_time = time.time() - start
     
     # Test new method
     start = time.time()
-    new_mapping = create_property_value_mapping_optimized(graph, scene.selected_property)
+    new_mapping = create_property_value_mapping(graph, scene.selected_property)
     new_time = time.time() - start
     
-    print(f"Performance comparison:")
+    print(f"Performance comparison for property '{scene.selected_property}':")
     print(f"Old method: {old_time:.4f}s, {len(old_mapping)} items")
     print(f"New method: {new_time:.4f}s, {len(new_mapping)} items")
     print(f"Speedup: {old_time/new_time:.2f}x")
+    
+    # Sostituisci tutti i self.report con print
+    # ...
 
 class PROPERTY_OT_apply_colors(bpy.types.Operator):
     bl_idname = "property.apply_colors"
@@ -161,11 +176,26 @@ class PROPERTY_OT_apply_colors(bpy.types.Operator):
         return {'CANCELLED'}
 
 
+
 def update_property_enum(self, context):
-    print("\nProperty enum updated!")  # Debug
+    global _last_selected_property, _last_update_time
+    import time
+    
+    # Se la proprietà non è cambiata o è passato troppo poco tempo, ignora
+    current_time = time.time()
+    if (self.property_enum == _last_selected_property and 
+            current_time - _last_update_time < 0.5):
+        print(f"Ignoro aggiornamento ripetuto per: {self.property_enum}")
+        return
+    
+    print(f"\nProperty enum aggiornato a: {self.property_enum}")
     context.scene.selected_property = self.property_enum
-    print(f"Selected property: {context.scene.selected_property}")  # Debug
+    _last_selected_property = self.property_enum
+    _last_update_time = current_time
+    
+    # Ora aggiorna i valori
     bpy.ops.update.property_values()
+
 
 def get_enum_items(self, context):
     """Funzione getter per gli items dell'enum property"""
@@ -181,17 +211,27 @@ def update_selected_property(self, context):
 class UPDATE_OT_property_values(bpy.types.Operator):
     bl_idname = "update.property_values"
     bl_label = "Update Property Values"
-    
+
+    # Variabile di classe per prevenire ricorsione
+    _is_updating = False
+
     def execute(self, context):
+        # Evita ricorsione
+        if UPDATE_OT_property_values._is_updating:
+            print("Evitata chiamata ricorsiva a update.property_values")
+            return {'FINISHED'}
+        
+        UPDATE_OT_property_values._is_updating = True
         scene = context.scene
         em_tools = scene.em_tools
-        
-        print("\n=== Starting Property Values Update ===")
-        
-        # Clear existing values
-        scene.property_values.clear()
-        
+
+
         try:
+            print("\n=== Starting Property Values Update ===")
+            
+            # Clear existing values
+            scene.property_values.clear()
+        
             values = set()
             processed_graphs = 0
             
@@ -212,7 +252,7 @@ class UPDATE_OT_property_values(bpy.types.Operator):
                             print(f"  Source: {edge.edge_source}")
                             print(f"  Target: {edge.edge_target}")
                         
-                        mapping = create_property_value_mapping_optimized(graph, scene.selected_property)
+                        mapping = create_property_value_mapping(graph, scene.selected_property)
 
                         values.update(mapping.values())
                         processed_graphs += 1
@@ -270,12 +310,22 @@ class UPDATE_OT_property_values(bpy.types.Operator):
             self.report({'ERROR'}, f"Error updating property values: {str(e)}")
             return {'CANCELLED'}
         finally:
+            UPDATE_OT_property_values._is_updating = False
             print("\n=== Property Values Update Completed ===")
 
 def get_available_properties(context):
     """
     Get list of available property names using optimized indices.
     """
+    global _cached_properties, _last_cache_time
+    import time
+    
+    # Usa la cache se disponibile e non è scaduta
+    current_time = time.time()
+    if (_cached_properties is not None and 
+            current_time - _last_cache_time < _cache_lifetime):
+        return _cached_properties
+    
     print(f"\n=== Getting Available Properties (OPTIMIZED) ===")
     scene = context.scene
     em_tools = scene.em_tools
@@ -305,6 +355,11 @@ def get_available_properties(context):
 
     result = sorted(list(properties))
     print(f"Found {len(result)} properties using optimized indices")
+
+    # Aggiorna la cache
+    _cached_properties = result
+    _last_cache_time = current_time
+
     return result
 
 class PropertyValueItem(bpy.types.PropertyGroup):
@@ -319,8 +374,28 @@ class PropertyValueItem(bpy.types.PropertyGroup):
     ) # type: ignore
 
 class PROPERTY_UL_values(bpy.types.UIList):
+    # Dizionario di classe per tenere traccia degli item disegnati
+    _drawn_items = {}
+    _last_property = None
+    
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        print(f"Drawing item {index}: value={item.value}, color={item.color}")  # Debug
+        global _debug_draws
+        
+        # Reimposta il dizionario se la proprietà è cambiata
+        current_property = context.scene.selected_property
+        if current_property != self._last_property:
+            self._drawn_items.clear()
+            self._last_property = current_property
+        
+        # Crea una chiave unica per questo item
+        item_key = f"{current_property}:{index}:{item.value}"
+        
+        # Stampa debug solo se non l'abbiamo già fatto o se il debug è attivo
+        if _debug_draws or item_key not in self._drawn_items:
+            print(f"Drawing item {index}: value={item.value}, color={item.color}")
+            self._drawn_items[item_key] = True
+        
+        # Disegna l'interfaccia normalmente
         row = layout.row(align=True)
         row.prop(item, "value", text="")
         row.prop(item, "color", text="")
