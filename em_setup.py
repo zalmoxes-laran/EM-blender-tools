@@ -27,6 +27,41 @@ from .functions import get_compatible_icon
 
 from .s3Dgraphy import get_all_graph_ids
 
+class EM_create_collection(bpy.types.Operator):
+    bl_idname = "create.collection"
+    bl_label = "Create Standard Collections"
+    bl_description = "Create all standard EM collections"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @staticmethod
+    def create_collection(target_collection):
+        """Create a collection if it doesn't exist"""
+        context = bpy.context
+        if bpy.data.collections.get(target_collection) is None:
+            currentCol = bpy.context.blend_data.collections.new(name=target_collection)
+            bpy.context.scene.collection.children.link(currentCol)
+            return currentCol
+        else:
+            currentCol = bpy.data.collections.get(target_collection)
+            return currentCol
+
+    def execute(self, context):
+        collections_created = []
+        
+        # Create all standard collections
+        standard_collections = ["EM", "Proxy", "RM", "CAMS"]
+        
+        for collection_name in standard_collections:
+            if not bpy.data.collections.get(collection_name):
+                self.create_collection(collection_name)
+                collections_created.append(collection_name)
+        
+        if collections_created:
+            self.report({'INFO'}, f"Created collections: {', '.join(collections_created)}")
+        else:
+            self.report({'INFO'}, "All standard collections already exist")
+            
+        return {'FINISHED'}
 class EM_OT_benchmark_property_functions(bpy.types.Operator):
     bl_idname = "em.benchmark_property_functions"
     bl_label = "Benchmark Property Functions"
@@ -460,6 +495,12 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         default=False
     ) # type: ignore
 
+    show_collection_manager: bpy.props.BoolProperty(
+        name="Show Collection Manager",
+        description="Display collection management tools",
+        default=False
+    ) # type: ignore
+
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files with icons to indicate graph presence and actions"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -710,23 +751,45 @@ class EM_SetupPanel(bpy.types.Panel):
                             text="Convert legacy GraphML (1.x->1.5)", 
                             icon='FILE_REFRESH')
                 
+                # Collection Manager
+                collection_box = box.box()
+                collection_box.prop(em_tools, "show_collection_manager", 
+                                text="Collection Manager", 
+                                icon="TRIA_DOWN" if em_tools.show_collection_manager else "TRIA_RIGHT", 
+                                emboss=False)
+
+                if em_tools.show_collection_manager:
+                    col = collection_box.column(align=True)
+                    col.operator("create.collection", 
+                                text="Create Standard Collections", 
+                                icon="COLLECTION_NEW")
+                    
+                    # Info box sulle collezioni
+                    info_box = collection_box.box()
+                    info_box.label(text="Standard Collections:")
+                    info_col = info_box.column(align=True)
+                    info_col.label(text="• EM - Extended Matrix nodes/proxies")
+                    info_col.label(text="• Proxy - 3D proxy models") 
+                    info_col.label(text="• RM - Representation models")
+                    info_col.label(text="• CAMS - Cameras and related labels")
+                
                 # Manage Object Prefixes
                 row = box.row()
                 row.operator("em.manage_object_prefixes", 
                             text="Manage Proxies' Prefixes", 
                             icon='SYNTAX_ON')
 
-                # Bottone create collections spostato qui
+                # Experimental features section
                 if em_tools.experimental_features:
-                    row = box.row()
-                    row.operator("create.collection", text="Create default Collections (experimental)", icon="COLLECTION_NEW")
-
-                    row = box.row()
+                    exp_box = box.box()
+                    exp_box.label(text="Experimental Tools:", icon="EXPERIMENTAL")
+                    
+                    row = exp_box.row()
                     row.operator("em.rebuild_graph_indices", 
-                                text="Rebuild Graph Indices (experimental)", 
+                                text="Rebuild Graph Indices", 
                                 icon="FILE_REFRESH")
 
-                    row = box.row()
+                    row = exp_box.row()
                     row.operator("em.benchmark_property_functions", 
                                 text="Benchmark Property Functions", 
                                 icon="TIME")
@@ -735,12 +798,10 @@ class EM_SetupPanel(bpy.types.Panel):
                 row.prop(em_tools, "experimental_features", text="Enable Experimental Features", icon="EXPERIMENTAL")
                 
                 if em_tools.experimental_features:
-                    row = layout.row()
-                    row.alert = True
-                    row.label(text="Warning: these features are experimental.", icon='ERROR')
-                    row = layout.row()
-                    row.alert = True
-                    row.label(text="They should not be used in a production environment.")
+                    warning_box = box.box()
+                    warning_box.alert = True
+                    warning_box.label(text="Warning: these features are experimental.", icon='ERROR')
+                    warning_box.label(text="They should not be used in a production environment.")
 
         else:
             # UI per modalità 3D GIS
@@ -1018,7 +1079,8 @@ classes = [
     AUXILIARY_OT_import_now,
     EM_OT_manage_object_prefixes,
     EM_OT_rebuild_graph_indices,
-    EM_OT_benchmark_property_functions
+    EM_OT_benchmark_property_functions,
+    EM_create_collection
 ]
 
 def register():

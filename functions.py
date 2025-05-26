@@ -1007,42 +1007,6 @@ def set_materials_using_epoch_list(context):
                     obj.data.materials.append(mat)
 
 
-class OBJECT_OT_CenterMass(bpy.types.Operator):
-    bl_idname = "center.mass"
-    bl_label = "Center Mass"
-    bl_options = {"REGISTER", "UNDO"}
-
-    center_to: StringProperty()
-
-    def execute(self, context):
-    #        bpy.ops.object.select_all(action='DESELECT')
-        if self.center_to == "mass":
-            selection = context.selected_objects
-            # translate objects in SCS coordinate
-            for obj in selection:
-                obj.select_set(True)
-                bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
-        elif self.center_to == "cursor":
-            ob_active = context.active_object
-            bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
-
-        return {'FINISHED'}
-
-
-class OBJECT_OT_labelonoff(bpy.types.Operator):
-    bl_idname = "label.onoff"
-    bl_label = "Label on / off"
-    bl_options = {"REGISTER", "UNDO"}
-
-    onoff: BoolProperty()
-
-    def execute(self, context):
-        selection = context.selected_objects
-        for obj in selection:
-            obj.select_set(True)
-            obj.show_name = self.onoff
-        return {'FINISHED'}
-
 
 #############################################
 ## funzioni per esportare obj e textures 
@@ -1148,20 +1112,8 @@ def substitue_with_custom_mtl(ob, export_sub_folder):
 
 #create_collection
 
-class em_create_collection(bpy.types.Operator):
-    bl_idname = "create.collection"
-    bl_label = "Create Collection"
-    bl_description = "Create Collection"
-    bl_options = {'REGISTER', 'UNDO'}
 
-    def create_collection(target_collection):
-        context = bpy.context
-        if bpy.data.collections.get(target_collection) is None:
-            currentCol = bpy.context.blend_data.collections.new(name= target_collection)
-            bpy.context.scene.collection.children.link(currentCol)
-        else:
-            currentCol = bpy.data.collections.get(target_collection)
-        return currentCol
+
 
 def identify_node(name):
     #import re

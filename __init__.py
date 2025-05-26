@@ -322,28 +322,7 @@ class ExportTablesVars(PropertyGroup):
         default='US/USV'
     )
 
-class EM_create_collection(bpy.types.Operator):
-    """Operator to create standard collections"""
-    bl_idname = "create.collection"
-    bl_label = "Create Collection"
-    bl_description = "Create Collection"
-    bl_options = {'REGISTER', 'UNDO'}
 
-    @staticmethod
-    def create_collection(target_collection):
-        """Create a collection if it doesn't exist"""
-        if bpy.data.collections.get(target_collection) is None:
-            new_collection = bpy.context.blend_data.collections.new(name=target_collection)
-            bpy.context.scene.collection.children.link(new_collection)
-            return new_collection
-        return bpy.data.collections.get(target_collection)
-
-    def execute(self, context):
-        self.create_collection("EM")
-        self.create_collection("Proxy")
-        self.create_collection("RM")
-        self.report({'INFO'}, "EM collections created")
-        return {'FINISHED'}
 
 # ============================
 # MODULE IMPORTS
@@ -361,7 +340,6 @@ if DEPENDENCIES_LOADED:
             functions,
             paradata_manager,
             export_manager,
-            visual_tools,
             visual_manager,
             EMdb_excel,
             em_statistics,
@@ -392,8 +370,7 @@ BASE_CLASSES = [
     EMListParadata,
     EM_epochs_belonging_ob,
     ExportVars,
-    ExportTablesVars,
-    EM_create_collection
+    ExportTablesVars
 ]
 
 def register_base_classes():
@@ -589,25 +566,6 @@ def setup_pointer_properties():
         delattr(bpy.types.Object, 'EM_ep_belong_ob_index')
     bpy.types.Object.EM_ep_belong_ob_index = IntProperty()
 
-def register_ui_classes():
-    """Register the UI-related classes"""
-    if not MODULE_IMPORT_SUCCESS:
-        logger.warning("Skipping UI registration due to missing dependencies")
-        return
-    
-    ui_classes = [
-        functions.OBJECT_OT_CenterMass,
-        functions.OBJECT_OT_labelonoff,
-        visual_tools.EM_label_creation,
-    ]
-    
-    for cls in ui_classes:
-        try:
-            bpy.utils.register_class(cls)
-            logger.debug(f"Registered UI class: {cls.__name__}")
-        except Exception as e:
-            logger.warning(f"Could not register UI class {cls.__name__}: {e}")
-
 def register_modules():
     """Register all addon modules"""
     if not MODULE_IMPORT_SUCCESS:
@@ -664,10 +622,7 @@ def register():
     # 3. Set graph reference
     bpy.types.Scene.em_graph = None
     
-    # 4. Register UI classes
-    register_ui_classes()
-    
-    # 5. Register all modules
+    # 4. Register all modules
     register_modules()
     
     # 6. Add menu items
