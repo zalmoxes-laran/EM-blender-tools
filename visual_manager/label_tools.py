@@ -8,8 +8,40 @@ from bpy.types import Operator
 from bpy.props import StringProperty, BoolProperty
 from bpy_extras.object_utils import world_to_camera_view
 
-from .utils import update_camera_list
 
+# ====================================================================
+# UTILITY FUNCTIONS - DEFINITE PRIMA DEGLI OPERATORI
+# ====================================================================
+
+def update_camera_list(context):
+    """Update the camera list with cameras in CAMS collection"""
+    scene = context.scene
+    scene.camera_list.clear()
+    
+    # Get CAMS collection
+    cams_collection = bpy.data.collections.get("CAMS")
+    if not cams_collection:
+        return
+    
+    # Find cameras in CAMS collection
+    for obj in cams_collection.objects:
+        if obj.type == 'CAMERA':
+            item = scene.camera_list.add()
+            item.name = obj.name
+            
+            # Count labels for this camera
+            label_count = 0
+            for label_obj in cams_collection.objects:
+                if label_obj.name.startswith(f'_generated.{obj.name}.'):
+                    label_count += 1
+            
+            item.label_count = label_count
+            item.has_labels = label_count > 0
+
+
+# ====================================================================
+# OPERATOR CLASSES
+# ====================================================================
 
 class VISUAL_OT_label_creation(Operator):
     """Create labels for objects (Fixed version with proper collection handling)"""
@@ -27,6 +59,20 @@ class VISUAL_OT_label_creation(Operator):
         if not cam:
             self.report({'ERROR'}, "No active camera found. Please set an active camera first.")
             return {'CANCELLED'}
+        
+        # Switch to camera view
+        try:
+            # Find a 3D view and switch to camera view
+            for area in context.screen.areas:
+                if area.type == 'VIEW_3D':
+                    for space in area.spaces:
+                        if space.type == 'VIEW_3D':
+                            space.region_3d.view_perspective = 'CAMERA'
+                            break
+                    break
+        except:
+            # If we can't switch to camera view, continue anyway
+            pass
         
         # Ensure CAMS collection exists
         cams_collection = bpy.data.collections.get("CAMS")
@@ -56,22 +102,25 @@ class VISUAL_OT_label_creation(Operator):
             cams_collection.children.link(label_collection)
         
         # Set active layer collection to the label collection
-        # Navigate to the correct layer collection
-        layer_collections = context.view_layer.layer_collection.children
-        
-        # Find CAMS layer collection
-        cams_layer_collection = None
-        for layer_col in layer_collections:
-            if layer_col.name == "CAMS":
-                cams_layer_collection = layer_col
-                break
-        
-        if cams_layer_collection:
-            # Find the specific label collection within CAMS
-            for layer_col in cams_layer_collection.children:
-                if layer_col.name == label_collection_name:
-                    context.view_layer.active_layer_collection = layer_col
+        try:
+            # Navigate to the correct layer collection
+            layer_collections = context.view_layer.layer_collection.children
+            
+            # Find CAMS layer collection
+            cams_layer_collection = None
+            for layer_col in layer_collections:
+                if layer_col.name == "CAMS":
+                    cams_layer_collection = layer_col
                     break
+            
+            if cams_layer_collection:
+                # Find the specific label collection within CAMS
+                for layer_col in cams_layer_collection.children:
+                    if layer_col.name == label_collection_name:
+                        context.view_layer.active_layer_collection = layer_col
+                        break
+        except Exception as e:
+            print(f"Warning: Could not set active layer collection: {e}")
         
         # Get or create label material
         mat = bpy.data.materials.get("_generated.Label")
@@ -82,10 +131,11 @@ class VISUAL_OT_label_creation(Operator):
             # Update existing material with current settings
             self.setup_label_material(mat, label_settings)
         
-        # Get selected objects
-        selection = context.selected_objects
+        # Get selected objects - EXCLUDE CAMERAS
+        selection = [obj for obj in context.selected_objects if obj.type != 'CAMERA']
+        
         if not selection:
-            self.report({'WARNING'}, "No objects selected. Please select objects to create labels for.")
+            self.report({'WARNING'}, "No valid objects selected. Cameras are excluded from label creation.")
             return {'CANCELLED'}
         
         # Remove old labels for selected objects
@@ -119,7 +169,7 @@ class VISUAL_OT_label_creation(Operator):
             
             labels_created += 1
         
-        # Update camera list
+        # Update camera list using the global function
         update_camera_list(context)
         
         # Report results
@@ -173,6 +223,49 @@ class VISUAL_OT_label_creation(Operator):
         
         # Set scale
         text_obj.scale = label_settings.label_scale
+
+
+class VISUAL_OT_update_label_settings(Operator):
+    """Update existing labels with new material settings"""
+    bl_idname = "visual.update_label_settings"
+    bl_label = "Update Label Settings"
+    bl_description = "Apply current label settings to all existing labels"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        scene = context.scene
+        label_settings = scene.label_settings
+        
+        # Update the label material
+        mat = bpy.data.materials.get("_generated.Label")
+        if not mat:
+            self.report({'WARNING'}, "No label material found. Create some labels first.")
+            return {'CANCELLED'}
+        
+        # Update material properties
+        if mat.use_nodes:
+            principled = None
+            for node in mat.node_tree.nodes:
+                if node.type == 'BSDF_PRINCIPLED':
+                    principled = node
+                    break
+            
+            if principled:
+                principled.inputs['Base Color'].default_value = (*label_settings.material_color, 1.0)
+                principled.inputs['Emission Color'].default_value = (*label_settings.material_color, 1.0)
+                principled.inputs['Emission Strength'].default_value = label_settings.emission_strength
+        
+        # Count updated objects
+        updated_count = 0
+        for obj in bpy.data.objects:
+            if obj.name.startswith('_generated.') and obj.type == 'FONT':
+                # Update scale and distance for all labels
+                if hasattr(obj, 'scale'):
+                    obj.scale = label_settings.label_scale
+                updated_count += 1
+        
+        self.report({'INFO'}, f"Updated settings for {updated_count} labels")
+        return {'FINISHED'}
 
 
 class VISUAL_OT_center_mass(Operator):
@@ -256,7 +349,7 @@ class VISUAL_OT_delete_camera_labels(Operator):
             bpy.data.objects.remove(obj, do_unlink=True)
             labels_deleted += 1
         
-        # Update camera list
+        # Update camera list using the global function
         update_camera_list(context)
         
         self.report({'INFO'}, f"Deleted {labels_deleted} labels for camera '{self.camera_name}'")
@@ -270,8 +363,65 @@ class VISUAL_OT_update_camera_list(Operator):
     bl_description = "Refresh the list of cameras in CAMS collection"
 
     def execute(self, context):
-        update_camera_list(context)
-        self.report({'INFO'}, "Camera list updated")
+        try:
+            # Call the global function
+            update_camera_list(context)
+            self.report({'INFO'}, "Camera list updated")
+            return {'FINISHED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Error updating camera list: {str(e)}")
+            return {'CANCELLED'}
+
+
+class VISUAL_OT_set_active_camera(Operator):
+    """Set the specified camera as active"""
+    bl_idname = "visual.set_active_camera"
+    bl_label = "Set Active Camera"
+    bl_description = "Set the specified camera as the active scene camera"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    camera_name: StringProperty(
+        name="Camera Name",
+        description="Name of the camera to set as active"
+    )
+
+    def execute(self, context):
+        if not self.camera_name:
+            self.report({'ERROR'}, "No camera name specified")
+            return {'CANCELLED'}
+        
+        camera = bpy.data.objects.get(self.camera_name)
+        if not camera or camera.type != 'CAMERA':
+            self.report({'ERROR'}, f"Camera '{self.camera_name}' not found")
+            return {'CANCELLED'}
+        
+        # Set as active camera
+        context.scene.camera = camera
+        
+        self.report({'INFO'}, f"Set '{self.camera_name}' as active camera")
+        return {'FINISHED'}
+
+
+class VISUAL_OT_manual_set_camera(Operator):
+    """Manual fallback operator to set camera as active"""
+    bl_idname = "visual.manual_set_camera"
+    bl_label = "Set Camera"
+    bl_description = "Set camera as active (fallback operator)"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    camera_name: StringProperty(
+        name="Camera Name",
+        description="Name of the camera to set as active"
+    )
+
+    def execute(self, context):
+        if not self.camera_name:
+            return {'CANCELLED'}
+        
+        camera = bpy.data.objects.get(self.camera_name)
+        if camera and camera.type == 'CAMERA':
+            context.scene.camera = camera
+        
         return {'FINISHED'}
 
 
@@ -312,46 +462,60 @@ class VISUAL_OT_move_camera_to_cams(Operator):
         if camera.name not in cams_collection.objects:
             cams_collection.objects.link(camera)
         
-        # Update camera list
+        # Update camera list using the global function
         update_camera_list(context)
         
         self.report({'INFO'}, f"Moved camera '{self.camera_name}' to CAMS collection")
         return {'FINISHED'}
 
 
+# ====================================================================
+# REGISTRATION
+# ====================================================================
+
 def register_label_tools():
     """Register label tool classes."""
     classes = [
         VISUAL_OT_label_creation,
+        VISUAL_OT_update_label_settings,
         VISUAL_OT_center_mass,
         VISUAL_OT_label_onoff,
         VISUAL_OT_delete_camera_labels,
         VISUAL_OT_update_camera_list,
+        VISUAL_OT_set_active_camera,
+        VISUAL_OT_manual_set_camera,
         VISUAL_OT_move_camera_to_cams,
     ]
     
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
-        except ValueError:
-            # Class might already be registered
-            pass
+            print(f"Successfully registered: {cls.__name__}")
+        except ValueError as e:
+            print(f"Warning: Could not register {cls.__name__}: {e}")
+        except Exception as e:
+            print(f"Error registering {cls.__name__}: {e}")
 
 
 def unregister_label_tools():
     """Unregister label tool classes."""
     classes = [
         VISUAL_OT_move_camera_to_cams,
+        VISUAL_OT_manual_set_camera,
+        VISUAL_OT_set_active_camera,
         VISUAL_OT_update_camera_list,
         VISUAL_OT_delete_camera_labels,
         VISUAL_OT_label_onoff,
         VISUAL_OT_center_mass,
+        VISUAL_OT_update_label_settings,
         VISUAL_OT_label_creation,
     ]
     
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
-        except ValueError:
-            # Class might already be unregistered
-            pass
+            print(f"Successfully unregistered: {cls.__name__}")
+        except ValueError as e:
+            print(f"Warning: Could not unregister {cls.__name__}: {e}")
+        except Exception as e:
+            print(f"Error unregistering {cls.__name__}: {e}")

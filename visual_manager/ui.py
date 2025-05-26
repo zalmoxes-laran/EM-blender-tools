@@ -56,18 +56,40 @@ class VISUAL_UL_camera_list(UIList):
             # Quick actions
             row = layout.row(align=True)
             
-            # Set as active camera
-            op = row.operator("scene.camera_set", text="", icon='CAMERA_DATA', emboss=False)
-            op.camera = item.name
+            # Set as active camera - with safety check
+            try:
+                op = row.operator("visual.set_active_camera", text="", icon='CAMERA_DATA', emboss=False)
+                if op:
+                    op.camera_name = item.name
+                else:
+                    # Fallback: simple label if operator fails
+                    row.label(text="", icon='CAMERA_DATA')
+            except:
+                # If operator doesn't exist, show simple label
+                row.label(text="", icon='CAMERA_DATA')
             
-            # Delete labels
+            # Delete labels - with safety check
             if item.has_labels:
-                op = row.operator("visual.delete_camera_labels", text="", icon='TRASH', emboss=False)
-                op.camera_name = item.name
+                try:
+                    op = row.operator("visual.delete_camera_labels", text="", icon='TRASH', emboss=False)
+                    if op:
+                        op.camera_name = item.name
+                    else:
+                        row.label(text="", icon='TRASH')
+                except:
+                    # If operator not available, show disabled icon
+                    row.label(text="", icon='TRASH')
             
-            # Move to CAMS
-            op = row.operator("visual.move_camera_to_cams", text="", icon='COLLECTION_NEW', emboss=False)
-            op.camera_name = item.name
+            # Move to CAMS - with safety check
+            try:
+                op = row.operator("visual.move_camera_to_cams", text="", icon='COLLECTION_NEW', emboss=False)
+                if op:
+                    op.camera_name = item.name
+                else:
+                    row.label(text="", icon='COLLECTION_NEW')
+            except:
+                # If operator not available, show disabled icon
+                row.label(text="", icon='COLLECTION_NEW')
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
@@ -220,6 +242,10 @@ class VISUAL_PT_base_panel:
             
             if not has_active_camera:
                 col.label(text="No active camera", icon='ERROR')
+            else:
+                # Show active camera info
+                info_row = col.row()
+                info_row.label(text=f"Active: {scene.camera.name}", icon='CAMERA_DATA')
             
             # Object manipulation tools
             row = col.row(align=True)
@@ -235,6 +261,7 @@ class VISUAL_PT_base_panel:
             settings_box = box.box()
             settings_box.label(text="Label Appearance:")
             
+            # Settings controls with real-time update button
             row = settings_box.row()
             row.prop(label_settings, "material_color", text="Color")
             
@@ -243,6 +270,12 @@ class VISUAL_PT_base_panel:
             
             row = settings_box.row()
             row.prop(label_settings, "label_distance", text="Distance")
+            
+            # Update existing labels button
+            row = settings_box.row()
+            row.operator("visual.update_label_settings", 
+                        text="Update Existing Labels", 
+                        icon='FILE_REFRESH')
             
             # Label behavior settings
             row = settings_box.row()
@@ -264,6 +297,20 @@ class VISUAL_PT_base_panel:
                                 scene, "active_camera_index")
             else:
                 camera_box.label(text="No cameras in CAMS collection")
+                
+                # Helper text if no cameras in CAMS
+                if has_active_camera:
+                    help_row = camera_box.row()
+                    help_row.label(text=f"Move '{scene.camera.name}' to CAMS:", icon='INFO')
+                    try:
+                        move_op = help_row.operator("visual.move_camera_to_cams", 
+                                        text="Move", 
+                                        icon='COLLECTION_NEW')
+                        if move_op:
+                            move_op.camera_name = scene.camera.name
+                    except:
+                        # If operator doesn't exist, show simple label
+                        help_row.label(text="(Move operator not available)")
 
 
 class VIEW3D_PT_visual_panel(Panel, VISUAL_PT_base_panel):

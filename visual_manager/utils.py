@@ -246,28 +246,3 @@ def test_optimization_performance(context):
     print(f"Old method: {old_time:.4f}s, {len(old_mapping)} items")
     print(f"New method: {new_time:.4f}s, {len(new_mapping)} items")
     print(f"Speedup: {old_time/new_time:.2f}x")
-
-def update_camera_list(context):
-    """Update the camera list with cameras in CAMS collection"""
-    scene = context.scene
-    scene.camera_list.clear()
-    
-    # Get CAMS collection
-    cams_collection = bpy.data.collections.get("CAMS")
-    if not cams_collection:
-        return
-    
-    # Find cameras in CAMS collection
-    for obj in cams_collection.objects:
-        if obj.type == 'CAMERA':
-            item = scene.camera_list.add()
-            item.name = obj.name
-            
-            # Count labels for this camera
-            label_count = 0
-            for label_obj in cams_collection.objects:
-                if label_obj.name.startswith(f'_generated.{obj.name}.'):
-                    label_count += 1
-            
-            item.label_count = label_count
-            item.has_labels = label_count > 0
