@@ -355,6 +355,7 @@ if DEPENDENCIES_LOADED:
         # Import addon modules - these will be imported during registration
         from . import (
             operators,
+            em_setup,
             stratigraphy_manager,
             epoch_manager,
             functions,
@@ -362,7 +363,6 @@ if DEPENDENCIES_LOADED:
             export_manager,
             visual_tools,
             visual_manager,
-            em_setup,
             EMdb_excel,
             em_statistics,
             graph2geometry,
