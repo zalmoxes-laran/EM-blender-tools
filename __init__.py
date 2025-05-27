@@ -55,13 +55,14 @@ BL_INFO = {
 # DEPENDENCY MANAGEMENT
 # ============================
 DEPENDENCIES = {
-    "required": ["numpy", "pandas", "networkx", "PIL.Image"],
+    "required": ["pandas", "networkx", "PIL.Image"], 
     "optional": []
 }
 
 def check_dependencies():
     """Check if all required dependencies are available"""
     missing = []
+        
     for module_name in DEPENDENCIES["required"]:
         parts = module_name.split('.')
         base_module = parts[0]
@@ -666,7 +667,7 @@ def unregister():
             EMdb_excel,
             visual_manager,
             em_setup
-        ]
+        ] 
         
         for module in modules_to_unregister:
             try:

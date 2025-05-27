@@ -92,9 +92,9 @@ def download_wheels(force=False):
         existing_wheels = check_existing_wheels(wheels_dir)
         if existing_wheels:
             print(f"⚠️  Found {len(existing_wheels)} existing wheels")
-            # Leggi il numero di pacchetti richiesti
+            # Leggi il numero di pacchetti richiesti (EXCLUDING numpy)
             with open(requirements_file, 'r') as f:
-                packages = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+                packages = [line.strip() for line in f if line.strip() and not line.startswith('#') and not line.lower().startswith('numpy')]
             
             # Se abbiamo enough wheels (almeno lo stesso numero di pacchetti), skippa
             if len(existing_wheels) >= len(packages):
@@ -102,46 +102,31 @@ def download_wheels(force=False):
                 print("   Or use 'em.bat setup force' to force re-download")
                 return True
     
-    # Leggi i pacchetti dal file requirements
+    # Leggi i pacchetti dal file requirements (EXCLUDING numpy)
     with open(requirements_file, 'r') as f:
-        packages = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+        all_packages = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+        # FILTER OUT numpy - it's included with Blender 4.0+
+        packages = [pkg for pkg in all_packages if not pkg.lower().startswith('numpy')]
     
-    print(f"📦 Packages to download: {len(packages)}")
+    print(f"📦 Packages to download: {len(packages)} (numpy excluded - using Blender's built-in version)")
     for pkg in packages:
         print(f"   - {pkg}")
     
-    # Download numpy per primo per garantire la versione corretta
-    print("\n⬇️  Downloading numpy first to ensure correct version...")
-    numpy_cmd = [
-        sys.executable, '-m', 'pip', 'download',
-        'numpy==1.26.4',
-        '--only-binary=:all:',
-        '--python-version=3.11',
-        '--no-deps',  # Non scaricare dipendenze per evitare conflitti
-        '-d', wheels_dir
-    ]
+    # Skip numpy download completely - Blender 4.0+ includes it
+    print("\n⏭️  Skipping numpy download - using Blender's built-in numpy")
     
-    print(f"Command: {' '.join(numpy_cmd)}")
-    result = subprocess.run(numpy_cmd)
-    if result.returncode == 0:
-        print("✅ Successfully downloaded numpy 1.26.4")
-        # Rimuovi numpy dalla lista
-        packages = [p for p in packages if not p.lower().startswith('numpy')]
-    else:
-        print("⚠️  Failed to download numpy, will try with other packages")
-    
-    # Download il resto dei pacchetti UNO ALLA VOLTA senza dipendenze
+    # Download packages ONE BY ONE without dependencies
     success_count = 0
     for package in packages:
         print(f"\n⬇️  Downloading {package}...")
         
-        # Download SOLO il pacchetto specifico, senza dipendenze
+        # Download ONLY the specific package, without dependencies
         cmd = [
             sys.executable, '-m', 'pip', 'download',
             package,
             '--only-binary=:all:',
             '--python-version=3.11',
-            '--no-deps',  # NON scaricare dipendenze
+            '--no-deps',  # DON'T download dependencies
             '-d', wheels_dir
         ]
         
@@ -171,8 +156,8 @@ def download_wheels(force=False):
                 print(f"❌ Failed to download {package_name} completely")
     
     print(f"\n📊 Download Summary:")
-    print(f"   Total packages: {len(packages) + 1}")  # +1 for numpy
-    print(f"   Successfully downloaded: {success_count + 1}")  # +1 for numpy
+    print(f"   Total packages: {len(packages)} (numpy excluded)")
+    print(f"   Successfully downloaded: {success_count}")
     
     # Verifica finale
     downloaded_wheels = list(Path(wheels_dir).glob("*.whl"))
@@ -190,6 +175,7 @@ def download_wheels(force=False):
 
 if __name__ == '__main__':
     print("🚀 Starting EM Tools wheels download...")
+    print("📝 Note: numpy is excluded - using Blender's built-in version")
     
     # Check for force mode
     force_mode = "--force" in sys.argv
@@ -199,6 +185,7 @@ if __name__ == '__main__':
     success = download_wheels(force_mode)
     if success:
         print("\n✅ Setup completed successfully!")
+        print("🔍 numpy will be loaded from Blender's built-in libraries")
     else:
         print("\n❌ Setup failed! Please check the errors above.")
         sys.exit(1)
