@@ -1,7 +1,7 @@
 """
-Data structures for the Visual Manager
+Data structures for the Visual Manager 
 This module contains all PropertyGroup definitions and data structures
-needed for the Visual Manager.
+needed for the Visual Manager with renamed properties to avoid conflicts.
 """
 
 import bpy
@@ -162,13 +162,13 @@ def register_data():
     if not hasattr(bpy.types.Scene, "color_ramp_props"):
         bpy.types.Scene.color_ramp_props = PointerProperty(type=ColorRampProperties)
     
-    # Camera and label management
-    if not hasattr(bpy.types.Scene, "camera_list"):
-        bpy.types.Scene.camera_list = CollectionProperty(type=CameraItem)
+    # Camera and label management - RENAMED PROPERTIES to avoid conflicts
+    if not hasattr(bpy.types.Scene, "camera_em_list"):
+        bpy.types.Scene.camera_em_list = CollectionProperty(type=CameraItem)
         
-    if not hasattr(bpy.types.Scene, "active_camera_index"):
-        bpy.types.Scene.active_camera_index = IntProperty(
-            name="Active Camera Index",
+    if not hasattr(bpy.types.Scene, "active_camera_em_index"):
+        bpy.types.Scene.active_camera_em_index = IntProperty(
+            name="Active Camera EM Index",
             default=0
         )
     
@@ -177,14 +177,14 @@ def register_data():
 
 def unregister_data():
     """Unregister all data classes."""
-    # Remove collection properties
+    # Remove collection properties - UPDATED NAMES
     props_to_remove = [
         "property_values",
         "active_value_index", 
         "show_all_graphs",
         "color_ramp_props",
-        "camera_list",
-        "active_camera_index",
+        "camera_em_list",  # RENAMED
+        "active_camera_em_index",  # RENAMED
         "label_settings"
     ]
     

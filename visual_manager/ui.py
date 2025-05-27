@@ -1,7 +1,7 @@
 """
-UI components for the Visual Manager
+UI components for the Visual Manager - UPDATED FOR RENAMED PROPERTIES
 This module contains all UI classes for the Visual Manager, including
-panels and list UI elements.
+panels and list UI elements using the new renamed properties.
 """
 
 import bpy
@@ -36,8 +36,8 @@ class VISUAL_UL_property_values(UIList):
         op.value = item.value
 
 
-class VISUAL_UL_camera_list(UIList):
-    """UIList for displaying cameras with label management"""
+class VISUAL_UL_camera_em_list(UIList):
+    """UIList for displaying cameras with label management - RENAMED VERSION"""
     
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         camera_icon = 'CAMERA_DATA'
@@ -56,7 +56,7 @@ class VISUAL_UL_camera_list(UIList):
             # Quick actions
             row = layout.row(align=True)
             
-            # Set as active camera - with safety check
+            # Set as active camera
             try:
                 op = row.operator("visual.set_active_camera", text="", icon='CAMERA_DATA', emboss=False)
                 if op:
@@ -68,7 +68,7 @@ class VISUAL_UL_camera_list(UIList):
                 # If operator doesn't exist, show simple label
                 row.label(text="", icon='CAMERA_DATA')
             
-            # Delete labels - with safety check
+            # Delete labels
             if item.has_labels:
                 try:
                     op = row.operator("visual.delete_camera_labels", text="", icon='TRASH', emboss=False)
@@ -80,7 +80,7 @@ class VISUAL_UL_camera_list(UIList):
                     # If operator not available, show disabled icon
                     row.label(text="", icon='TRASH')
             
-            # Move to CAMS - with safety check
+            # Move to CAMS
             try:
                 op = row.operator("visual.move_camera_to_cams", text="", icon='COLLECTION_NEW', emboss=False)
                 if op:
@@ -216,7 +216,7 @@ class VISUAL_PT_base_panel:
         row.operator("notinthematrix.material", icon="MOD_MASK", text='')
 
     def draw_label_tools(self, layout, context):
-        """Draw label and camera management tools"""
+        """Draw label and camera management tools - UPDATED FOR RENAMED PROPERTIES"""
         scene = context.scene
         label_settings = scene.label_settings
         
@@ -281,7 +281,7 @@ class VISUAL_PT_base_panel:
             row = settings_box.row()
             row.prop(label_settings, "auto_move_cameras", text="Auto move cameras to CAMS")
             
-            # Camera management
+            # Camera management - UPDATED TO USE RENAMED PROPERTIES
             camera_box = box.box()
             camera_box.label(text="Camera Management:")
             
@@ -289,12 +289,12 @@ class VISUAL_PT_base_panel:
             row = camera_box.row()
             row.operator("visual.update_camera_list", text="Refresh Camera List", icon='FILE_REFRESH')
             
-            # Camera list
-            if len(scene.camera_list) > 0:
+            # Camera list - UPDATED PROPERTY NAMES
+            if len(scene.camera_em_list) > 0:
                 row = camera_box.row()
-                row.template_list("VISUAL_UL_camera_list", "", 
-                                scene, "camera_list",
-                                scene, "active_camera_index")
+                row.template_list("VISUAL_UL_camera_em_list", "", 
+                                scene, "camera_em_list",
+                                scene, "active_camera_em_index")
             else:
                 camera_box.label(text="No cameras in CAMS collection")
                 
@@ -323,7 +323,7 @@ def register_ui():
     """Register UI classes."""
     classes = [
         VISUAL_UL_property_values,
-        VISUAL_UL_camera_list,
+        VISUAL_UL_camera_em_list,  # RENAMED
         VISUAL_MT_display_mode_menu,
         VIEW3D_PT_visual_panel,
     ]
@@ -341,7 +341,7 @@ def unregister_ui():
     classes = [
         VIEW3D_PT_visual_panel,
         VISUAL_MT_display_mode_menu,
-        VISUAL_UL_camera_list,
+        VISUAL_UL_camera_em_list,  # RENAMED
         VISUAL_UL_property_values,
     ]
     

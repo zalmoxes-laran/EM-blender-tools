@@ -1,6 +1,6 @@
 """
-Label and Camera Tools for Visual Manager
-This module contains operators for camera management and label creation.
+Label and Camera Tools for Visual Manager - UPDATED FOR RENAMED PROPERTIES
+This module contains operators for camera management and label creation using the new renamed properties.
 """
 
 import bpy
@@ -10,13 +10,15 @@ from bpy_extras.object_utils import world_to_camera_view
 
 
 # ====================================================================
-# UTILITY FUNCTIONS - DEFINITE PRIMA DEGLI OPERATORI
+# UTILITY FUNCTIONS - UPDATED FOR RENAMED PROPERTIES
 # ====================================================================
 
 def update_camera_list(context):
-    """Update the camera list with cameras in CAMS collection"""
+    """Update the camera list with cameras in CAMS collection - UPDATED VERSION"""
     scene = context.scene
-    scene.camera_list.clear()
+    
+    # Clear existing camera list - UPDATED PROPERTY NAME
+    scene.camera_em_list.clear()
     
     # Get CAMS collection
     cams_collection = bpy.data.collections.get("CAMS")
@@ -26,7 +28,8 @@ def update_camera_list(context):
     # Find cameras in CAMS collection
     for obj in cams_collection.objects:
         if obj.type == 'CAMERA':
-            item = scene.camera_list.add()
+            # UPDATED PROPERTY NAME
+            item = scene.camera_em_list.add()
             item.name = obj.name
             
             # Count labels for this camera
@@ -44,7 +47,7 @@ def update_camera_list(context):
 # ====================================================================
 
 class VISUAL_OT_label_creation(Operator):
-    """Create labels for objects (Fixed version with proper collection handling)"""
+    """Create labels for objects (Updated for renamed properties)"""
     bl_idname = "visual.label_creation"
     bl_label = "Create labels for objects"
     bl_description = "Create labels for selected objects using the active camera"
@@ -263,6 +266,9 @@ class VISUAL_OT_update_label_settings(Operator):
                 if hasattr(obj, 'scale'):
                     obj.scale = label_settings.label_scale
                 updated_count += 1
+        
+        # Update camera list
+        update_camera_list(context)
         
         self.report({'INFO'}, f"Updated settings for {updated_count} labels")
         return {'FINISHED'}
