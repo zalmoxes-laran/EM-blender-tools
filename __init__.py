@@ -625,7 +625,7 @@ def register():
     # 4. Register all modules
     register_modules()
     
-    # 6. Add menu items
+    # 5. Add menu items
     if MODULE_IMPORT_SUCCESS:
         bpy.types.VIEW3D_MT_mesh_add.append(functions.menu_func)
     
