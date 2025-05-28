@@ -235,10 +235,7 @@ class VISUAL_PT_base_panel:
             # Check if there's an active camera
             has_active_camera = scene.camera is not None
             
-            # Label creation button - disabled if no active camera
             row = col.row(align=True)
-            row.enabled = has_active_camera
-            row.operator("visual.label_creation", text="Create Labels for Selected", icon='SYNTAX_OFF')
             
             if not has_active_camera:
                 col.label(text="No active camera", icon='ERROR')
@@ -256,7 +253,12 @@ class VISUAL_PT_base_panel:
 
             op = row.operator("visual.center_mass", text="", emboss=False, icon='SNAP_FACE_CENTER')
             op.center_to = "mass"
-            
+
+            row = col.row(align=True)
+            row.enabled = has_active_camera
+            row.operator("visual.label_creation", text="Create Labels for Selected", icon='SYNTAX_OFF')
+
+
             # Label appearance settings
             settings_box = box.box()
             settings_box.label(text="Label Appearance:")
