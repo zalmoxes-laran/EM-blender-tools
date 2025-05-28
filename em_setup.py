@@ -93,12 +93,7 @@ class EM_SetupPanel:
             row = box.row()
             row.prop(em_settings, 'overwrite_url_with_dosco_filepath', text = "Overwrite paths")
             row.prop(em_settings, 'preserve_web_url', text = "Preserve web urls (if any)")
-        #preserve_web_url = settings.preserve_web_url
-        #overwrite_url_with_dosco_filepath = settings.overwrite_url_with_dosco_filepath
-
-# Ora puoi utilizzare `preserve_web_url` e `overwrite_url_with_dosco_filepath` nel tuo addon
  
-
         ################ da qui setto la lista delle sources ##################
 
         row = layout.row()
@@ -109,10 +104,9 @@ class EM_SetupPanel:
         row.operator("open_prefs_panel.em_tools", icon="SETTINGS", text="")
         row = box.row()
 
-        
         row.prop(scene, "EMdb_xlsx_filepath", text="")      
 
-        ################ da qui porzione di pannello per EMdb #####################
+        ################ da qui setto la EMdb e le opzioni di importazione ##################
 
         row = layout.row(align=True)
         box = layout.box()
@@ -127,8 +121,21 @@ class EM_SetupPanel:
         col = split.column(align=True)
         col.menu(sqlite_io.EMdb_type_menu.bl_idname, text=db_type_current, icon='COLOR')
         row = box.row()
-        #row = layout.row(align=True)
         row.prop(context.scene, 'EMdb_file', toggle = True, text ="")
+
+        # Sezione opzioni per Pyarchinit
+        if db_type_current == "Pyarchinit":
+            row = box.row()
+            row.label(text="Pyarchinit import options:")
+            row = box.row()
+            em_settings = bpy.context.window_manager.em_addon_settings
+            row.prop(em_settings, "concatena_tipo_us", text="Concatenate US type (US3, USM25)")
+            row = box.row()
+            if em_settings.concatena_tipo_us:
+                row.label(text="Names will be: US3, USM25, etc.", icon='INFO')
+            else:
+                row.label(text="Names will be: 3, 25, etc.", icon='INFO')
+
 
 class VIEW3D_PT_SetupPanel(Panel, EM_SetupPanel):
     bl_category = "EM"

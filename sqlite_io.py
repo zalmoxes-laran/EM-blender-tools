@@ -2,7 +2,7 @@ import bpy
 import sqlite3
 import bpy.props as prop
 from .functions import EM_list_clear
-from bpy.props import StringProperty
+from bpy.props import StringProperty, BoolProperty
 #from bpy.types import Panel
 
 
@@ -44,33 +44,6 @@ class EMdbListItem(bpy.types.PropertyGroup):
            description="",
            default="RESTRICT_INSTANCED_ON")
 
-'''
-    url: prop.StringProperty(
-           name="url",
-           description="An url behind this item",
-           default="Empty")
-
-    shape: prop.StringProperty(
-           name="shape",
-           description="The shape of this item",
-           default="Empty")
-
-    y_pos: prop.FloatProperty(
-           name="y_pos",
-           description="The y_pos of this item",
-           default=0.0)
-
-    epoch: prop.StringProperty(
-           name="code for epoch",
-           description="",
-           default="Empty")
-
-    id_node: prop.StringProperty(
-           name="id node",
-           description="",
-           default="Empty")
-'''
-
 
 class OP_dbtypeset(bpy.types.Operator):
        bl_idname = "dbtype.set"
@@ -99,8 +72,11 @@ class EMdb_import_sqlite(bpy.types.Operator):
        nome_db = scene.EMdb_file
        emdb_list_index = 0
        EM_list_clear(context, "emdb_list")
-       #nome_db = 'Schede_US.db'
-          
+       
+       # Ottieni le impostazioni di concatenazione
+       em_settings = bpy.context.window_manager.em_addon_settings
+       concatena_tipo_us = getattr(em_settings, 'concatena_tipo_us', True)  # Default True per retrocompatibilità
+       
        conn = sqlite3.connect(nome_db)
        documento = conn.cursor()
 
@@ -113,14 +89,13 @@ class EMdb_import_sqlite(bpy.types.Operator):
                      scene.emdb_list[emdb_list_index].name = nome_scheda
                      scene.emdb_list[emdb_list_index].description = str(row[19])
                      scene.emdb_list[emdb_list_index].technics = row[20]
-                     #print("l'unità "+nome_scheda+ " ha descrizione: "+str(row[3]))
 
                      for us_item in scene.em_list:
                             if us_item.name == nome_scheda:
                                    us_item.icon_db = "DECORATE_KEYFRAME"
                      emdb_list_index += 1
 
-       if self.db_type == "EMdb-usv":
+       elif self.db_type == "EMdb-usv":
               nome_tabella = 'USV_sheet'
               
               for row in documento.execute('SELECT * FROM '+nome_tabella):
@@ -140,21 +115,42 @@ class EMdb_import_sqlite(bpy.types.Operator):
        elif self.db_type == "Pyarchinit":
               nome_tabella = 'us_table'
               for row in documento.execute('SELECT * FROM '+nome_tabella):
-                     tipo_scheda = row[29]
-                     numero_scheda = str(row[3])
-                     nome_scheda = tipo_scheda+numero_scheda
+                     tipo_scheda = row[29] if row[29] else ""  # unita_tipo (colonna 29)
+                     numero_scheda = str(row[3]) if row[3] is not None else ""  # us (colonna 3)
+                     
+                     # Scegli il nome della scheda in base alle impostazioni
+                     if concatena_tipo_us and tipo_scheda:
+                         nome_scheda = tipo_scheda + numero_scheda
+                     else:
+                         nome_scheda = numero_scheda
+                     
+                     # Debug: stampa per verificare
+                     print(f"Pyarchinit: tipo='{tipo_scheda}', numero='{numero_scheda}', nome_finale='{nome_scheda}', concatena={concatena_tipo_us}")
                      
                      scene.emdb_list.add()
                      scene.emdb_list[emdb_list_index].name = nome_scheda
-                     scene.emdb_list[emdb_list_index].description = str(row[4])
-                     scene.emdb_list[emdb_list_index].technics = row[5]
-                     #print("l'unità "+nome_scheda+ " ha descrizione: "+str(row[3]))
+                     scene.emdb_list[emdb_list_index].description = str(row[4]) if row[4] else ""  # d_stratigrafica
+                     scene.emdb_list[emdb_list_index].technics = str(row[5]) if row[5] else ""  # d_interpretativa
 
+                     # Cerca corrispondenza nella lista EM sia con nome finale che con numero puro
                      for us_item in scene.em_list:
-                            if us_item.name == nome_scheda:
-                                   us_item.icon_db = "DECORATE_KEYFRAME"
+                         # Prova prima con il nome finale
+                         if us_item.name == nome_scheda:
+                             us_item.icon_db = "DECORATE_KEYFRAME"
+                             print(f"Trovata corrispondenza esatta: {us_item.name} = {nome_scheda}")
+                         # Se non trova corrispondenza e stiamo concatenando, prova anche con il numero puro
+                         elif concatena_tipo_us and us_item.name == numero_scheda:
+                             us_item.icon_db = "DECORATE_KEYFRAME"
+                             print(f"Trovata corrispondenza con numero: {us_item.name} = {numero_scheda}")
+                         # Se non stiamo concatenando, prova anche con tipo+numero
+                         elif not concatena_tipo_us and tipo_scheda and us_item.name == (tipo_scheda + numero_scheda):
+                             us_item.icon_db = "DECORATE_KEYFRAME"
+                             print(f"Trovata corrispondenza con tipo+numero: {us_item.name} = {tipo_scheda + numero_scheda}")
+                     
                      emdb_list_index += 1    
+       
        conn.close()
+       print(f"Importate {emdb_list_index} schede dal database {self.db_type}")
        return {'FINISHED'}    
 
 class EMdb_type_menu(bpy.types.Menu):
@@ -180,7 +176,6 @@ classes = [
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
-
 
     bpy.types.Scene.emdb_list = prop.CollectionProperty(type = EMdbListItem)
     bpy.types.Scene.emdb_list_index = prop.IntProperty(name = "Index for EMdb list", default = 0)

@@ -20,9 +20,9 @@ bl_info = {
     "name": "EM tools",
     "description": "Blender tools for Extended Matrix",
     "author": "E. Demetrescu",
-    "version": (1, 4, 2),
+    "version": (1, 4, 3),
     "blender": (4, 2, 3),
-    "devel_version": "v1.4.2",  # Aggiunto campo devel_version
+    "devel_version": "v1.4.3",  # Aggiunto campo devel_version
     "location": "3D View > Toolbox",
     #"warning": "This addon is in beta stage.",
     "wiki_url": "https://docs.extendedmatrix.org/projects/EM-tools/en/1.4.0/#",
@@ -97,6 +97,12 @@ class EMAddonSettings(bpy.types.PropertyGroup):
         name="Show advanced options ",
         description="Catch more information from DosCo folder loading the GraphML",
         default=False
+    ) # type: ignore
+
+    concatena_tipo_us: bpy.props.BoolProperty(
+        name="Concatenate US Type",
+        description="If enabled, concatenates US type (US/USM) with number (e.g., 'US3'). If disabled, uses only the number (e.g., '3')",
+        default=True
     ) # type: ignore
 
 class EmPreferences(bpy.types.AddonPreferences):
