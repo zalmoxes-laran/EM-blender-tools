@@ -118,7 +118,7 @@ class LabelSettings(PropertyGroup):
     )
     
     auto_move_cameras: BoolProperty(
-        name="Auto Move Cameras to CAMS",
+        name="Auto Move Cameras to CAMS collection",
         description="Automatically move cameras to CAMS collection when creating labels",
         default=True
     )

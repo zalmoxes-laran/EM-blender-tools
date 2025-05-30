@@ -281,7 +281,7 @@ class VISUAL_PT_base_panel:
             
             # Label behavior settings
             row = settings_box.row()
-            row.prop(label_settings, "auto_move_cameras", text="Auto move cameras to CAMS")
+            row.prop(label_settings, "auto_move_cameras", text="Auto move cameras to CAMS collection")
             
             # Camera management - UPDATED TO USE RENAMED PROPERTIES
             camera_box = box.box()
