@@ -335,7 +335,7 @@ class VISUAL_PT_base_panel:
                 # Temporal action buttons
                 row = temporal_box.row(align=True)
                 row.operator("visual.temporal_analysis", text="Analyze Current", icon='PLAY')
-                row.operator("visual.temporal_sequence", text="Start Sequence", icon='SEQUENCE_COLOR_01')
+                row.operator("visual.temporal_sequence", text="Start Sequence", icon=get_compatible_icon('SEQUENCE_COLOR_01'))
                 
                 # Sequence controls (if running)
                 if settings.auto_advance:
@@ -357,7 +357,7 @@ class VISUAL_PT_base_panel:
         # Main setup wizard
         row = setup_box.row(align=True)
         row.operator("visual.create_visualization_setup", text="Complete Setup", icon='SCENE_DATA')
-        row.operator("visual.suggestions_popup", text="Get Suggestions", icon='LIGHTPROBE_PLANAR')
+        row.operator("visual.suggestions_popup", text="Get Suggestions", icon=get_compatible_icon('LIGHTPROBE_PLANAR'))
         
         # System tools
         tools_row = setup_box.row(align=True)

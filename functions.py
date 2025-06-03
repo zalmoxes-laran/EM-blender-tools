@@ -34,6 +34,7 @@ def get_compatible_icon(icon_name):
         'SEQUENCE_COLOR_04': 'STRIP_COLOR_04',
         'SEQUENCE_COLOR_05': 'STRIP_COLOR_05',
         'SEQ_SEQUENCER': 'SEQ_SEQUENCER',
+        'LIGHTPROBE_PLANAR': 'LIGHTPROBE_PLANE',
         # Add more mappings as needed
     }
     
