@@ -33,7 +33,7 @@ def get_compatible_icon(icon_name):
         'SEQUENCE_COLOR_03': 'STRIP_COLOR_03',
         'SEQUENCE_COLOR_04': 'STRIP_COLOR_04',
         'SEQUENCE_COLOR_05': 'STRIP_COLOR_05',
-        'SEQ_SEQUENCER': 'STRIPS',
+        'SEQ_SEQUENCER': 'SEQ_SEQUENCER',
         # Add more mappings as needed
     }
     
