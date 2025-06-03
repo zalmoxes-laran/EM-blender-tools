@@ -9,18 +9,17 @@ import bpy
 # Import solo i moduli base necessari per l'UI
 from .data import register_data, unregister_data
 from .ui import register_ui, unregister_ui
-
 from .operators import register_operators, unregister_operators
+from .label_tools import register_label_tools, unregister_label_tools
 
 # NON importare visualization_modules - sarà registrato dall'__init__.py principale
-# NON importare label_tools - causa conflitti
 
 # Module info
 __all__ = ['register', 'unregister']
 
 def register():
     """Register Visual Manager - solo UI e operatori base."""
-    print("=== REGISTERING VISUAL MANAGER (UI ONLY) ===")
+    print("=== REGISTERING VISUAL MANAGER (UI + LABELS) ===")
     
     try:
         # 1. Register data first (properties, UI lists, etc.)
@@ -31,11 +30,15 @@ def register():
         print("Registering visual manager operators...")
         register_operators()
         
-        # 3. Register UI last (panels, lists, menus)
+        # 3. Register label tools (safe version)
+        print("Registering visual manager label tools (safe)...")
+        register_label_tools()
+        
+        # 4. Register UI last (panels, lists, menus)
         print("Registering visual manager UI...")
         register_ui()
         
-        print("=== VISUAL MANAGER (UI ONLY) REGISTRATION COMPLETE ===")
+        print("=== VISUAL MANAGER (UI + LABELS) REGISTRATION COMPLETE ===")
         
         # Verifica se il pannello è stato registrato
         if hasattr(bpy.types, 'VIEW3D_PT_visual_panel'):
@@ -50,15 +53,16 @@ def register():
 
 def unregister():
     """Unregister Visual Manager - solo UI e operatori base."""
-    print("=== UNREGISTERING VISUAL MANAGER (UI ONLY) ===")
+    print("=== UNREGISTERING VISUAL MANAGER (UI + LABELS) ===")
     
     try:
         # Unregister in reverse order
         unregister_ui()
+        unregister_label_tools()
         unregister_operators()
         unregister_data()
         
-        print("=== VISUAL MANAGER (UI ONLY) UNREGISTRATION COMPLETE ===")
+        print("=== VISUAL MANAGER (UI + LABELS) UNREGISTRATION COMPLETE ===")
         
     except Exception as e:
         print(f"❌ ERROR in Visual Manager UI unregistration: {e}")

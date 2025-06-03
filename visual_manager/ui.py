@@ -424,12 +424,23 @@ class VIEW3D_PT_visual_panel(Panel):
         # Collapsible section for label tools
         box = layout.box()
         row = box.row()
+        
+        # When expanding, auto-update camera list
+        was_collapsed = not label_settings.show_label_tools
+        
         row.prop(label_settings, "show_label_tools", 
                 text="Label Tools", 
                 icon='TRIA_DOWN' if label_settings.show_label_tools else 'TRIA_RIGHT',
                 emboss=False)
 
         if label_settings.show_label_tools:
+            # Auto-update camera list when section is opened for the first time
+            if was_collapsed:
+                try:
+                    bpy.ops.visual.update_camera_list_safe()
+                except:
+                    print("Could not auto-update camera list")
+            
             # Label creation section
             col = box.column(align=True)
             
@@ -440,7 +451,7 @@ class VIEW3D_PT_visual_panel(Panel):
             row = col.row(align=True)
             row.enabled = has_active_camera
             try:
-                row.operator("visual.label_creation", text="Create Labels for Selected", icon='SYNTAX_OFF')
+                row.operator("visual.label_creation_safe", text="Create Labels for Selected", icon='SYNTAX_OFF')
             except:
                 row.label(text="Create Labels for Selected", icon='SYNTAX_OFF')
             
@@ -458,18 +469,30 @@ class VIEW3D_PT_visual_panel(Panel):
             # Update camera list button
             row = camera_box.row()
             try:
-                row.operator("visual.update_camera_list", text="Refresh Camera List", icon='FILE_REFRESH')
+                row.operator("visual.update_camera_list_safe", text="Refresh Camera List", icon='FILE_REFRESH')
             except:
                 row.label(text="Refresh Camera List", icon='FILE_REFRESH')
             
-            # Camera list - FIXED PROPERTY NAME
+            # Debug info
+            debug_row = camera_box.row()
+            debug_row.scale_y = 0.8
+            cams_collection = bpy.data.collections.get("CAMS")
+            if cams_collection:
+                cams_count = len([obj for obj in cams_collection.objects if obj.type == 'CAMERA'])
+                debug_row.label(text=f"CAMS collection: {cams_count} cameras", icon='INFO')
+            else:
+                debug_row.label(text="CAMS collection: not found", icon='ERROR')
+            
+            # Camera list
             if hasattr(scene, 'camera_em_list') and len(scene.camera_em_list) > 0:
                 row = camera_box.row()
                 row.template_list("VISUAL_UL_camera_list", "", 
-                                scene, "camera_em_list",  # CORRECTED FROM camera_list
-                                scene, "active_camera_em_index")  # CORRECTED FROM active_camera_index
+                                scene, "camera_em_list",
+                                scene, "active_camera_em_index")
             else:
-                camera_box.label(text="No cameras in CAMS collection")
+                warning_row = camera_box.row()
+                warning_row.alert = True
+                warning_row.label(text="No cameras found - click Refresh", icon='ERROR')
 
 
 def register_ui():
