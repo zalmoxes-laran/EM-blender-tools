@@ -68,7 +68,7 @@ class EM_OT_benchmark_property_functions(bpy.types.Operator):
     bl_description = "Compare performance between legacy and optimized property mapping functions"
     
     def execute(self, context):
-        from .visual_manager import test_optimization_performance
+        from .visual_manager.utils import test_optimization_performance
         test_optimization_performance(context)
         self.report({'INFO'}, "Benchmark completed. Check console for results.")
         return {'FINISHED'}

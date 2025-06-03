@@ -9,6 +9,7 @@ import bpy
 # Import solo i moduli base necessari per l'UI
 from .data import register_data, unregister_data
 from .ui import register_ui, unregister_ui
+
 from .operators import register_operators, unregister_operators
 
 # NON importare visualization_modules - sarà registrato dall'__init__.py principale
