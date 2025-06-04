@@ -1,7 +1,6 @@
 """
 Visual Manager - Solo UI e Operatori Base
 Questo modulo contiene SOLO l'interfaccia utente e gli operatori base per la gestione delle proprietà.
-I visualization_modules avanzati sono registrati separatamente dall'__init__.py principale.
 """
 
 import bpy
@@ -12,7 +11,6 @@ from .ui import register_ui, unregister_ui
 from .operators import register_operators, unregister_operators
 from .label_tools import register_label_tools, unregister_label_tools
 
-# NON importare visualization_modules - sarà registrato dall'__init__.py principale
 
 # Module info
 __all__ = ['register', 'unregister']

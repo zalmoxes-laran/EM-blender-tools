@@ -258,8 +258,6 @@ if DEPENDENCIES_LOADED:
             anastylosis_manager
         )
         
-        # NUOVO: Import i visualization_modules separatamente
-        from .visual_manager import visualization_modules
         
         MODULE_IMPORT_SUCCESS = True
     except ImportError as e:
@@ -516,11 +514,6 @@ def register_modules():
         visual_manager,  # Solo UI e operatori base
     ]
     
-    # NUOVO: Visualization Modules come sistema separato
-    advanced_viz_modules = [
-        visualization_modules,  # Sistema di visualizzazione avanzato
-    ]
-    
     # Registra i moduli core
     for module in core_modules:
         try:
@@ -537,14 +530,6 @@ def register_modules():
         except Exception as e:
             logger.error(f"Error registering visual UI module {module.__name__}: {e}")
     
-    # Registra visualization modules (sistema avanzato)
-    for module in advanced_viz_modules:
-        try:
-            module.register()
-            logger.debug(f"Registered advanced viz module: {module.__name__}")
-        except Exception as e:
-            logger.error(f"Error registering advanced viz module {module.__name__}: {e}")
-
 def register():
     """Main registration function"""
     logger.info(f"Registering EM Tools {VERSION}")
@@ -587,11 +572,6 @@ def unregister():
         from .import_operators import importer_graphml, import_EMdb
         from .operators import graphml_converter
         
-        # FIXED: Unregister nell'ordine corretto
-        advanced_viz_modules = [
-            visualization_modules,
-        ]
-        
         visual_ui_modules = [
             visual_manager,
         ]
@@ -614,14 +594,6 @@ def unregister():
             EMdb_excel,
             em_setup
         ]
-        
-        # Unregister advanced viz first
-        for module in advanced_viz_modules:
-            try:
-                module.unregister()
-                logger.debug(f"Unregistered advanced viz module: {module.__name__}")
-            except Exception as e:
-                logger.warning(f"Error unregistering advanced viz module {module.__name__}: {e}")
         
         # Then visual UI
         for module in visual_ui_modules:
