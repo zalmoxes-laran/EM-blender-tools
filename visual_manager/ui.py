@@ -1,7 +1,8 @@
 """
-UI components for the Visual Manager - FIXED VERSION
-This module contains all UI classes for the Visual Manager, including
-panels, list UI elements, and visualization module controls.
+UI components for the Visual Manager - CLEAN VERSION
+This module contains all UI classes for the Visual Manager, focusing on
+core functionality: property management, color schemes, and label tools.
+No references to the old visualization_modules system.
 """
 
 import bpy
@@ -43,7 +44,7 @@ class VISUAL_UL_camera_list(UIList):
             
             # Set as active camera
             try:
-                op = row.operator("visual.set_active_camera", text="", icon='CAMERA_DATA', emboss=False)
+                op = row.operator("visual.set_active_camera_safe", text="", icon='CAMERA_DATA', emboss=False)
                 op.camera_name = item.name
             except:
                 row.label(text="", icon='CAMERA_DATA')
@@ -51,14 +52,14 @@ class VISUAL_UL_camera_list(UIList):
             # Delete labels
             if item.has_labels:
                 try:
-                    op = row.operator("visual.delete_camera_labels", text="", icon='TRASH', emboss=False)
+                    op = row.operator("visual.delete_camera_labels_safe", text="", icon='TRASH', emboss=False)
                     op.camera_name = item.name
                 except:
                     row.label(text="", icon='TRASH')
             
             # Move to CAMS
             try:
-                op = row.operator("visual.move_camera_to_cams", text="", icon='COLLECTION_NEW', emboss=False)
+                op = row.operator("visual.move_camera_to_cams_safe", text="", icon='COLLECTION_NEW', emboss=False)
                 op.camera_name = item.name
             except:
                 row.label(text="", icon='COLLECTION_NEW')
@@ -115,11 +116,6 @@ class VIEW3D_PT_visual_panel(Panel):
         
         # Label Tools (collapsible section)
         self.draw_label_tools(layout, context)
-        
-        # Advanced Visualization Tools - ONLY if experimental features are enabled
-        em_tools = scene.em_tools
-        if em_tools.experimental_features:
-            self.draw_visualization_modules(layout, context)
 
     def draw_property_manager(self, layout, context):
         """Draw property management UI"""
@@ -210,208 +206,6 @@ class VIEW3D_PT_visual_panel(Panel):
         except:
             row.label(text="Material", icon="MOD_MASK")
 
-    def draw_visualization_modules(self, layout, context):
-        """Draw advanced visualization tools"""
-        scene = context.scene
-        
-        # Check if we should show advanced visualization
-        show_advanced_viz = getattr(scene, 'show_advanced_visualization', False)
-        
-        # Main collapsible header
-        main_box = layout.box()
-        row = main_box.row()
-        row.prop(scene, "show_advanced_visualization", 
-                text="Advanced Visualization System", 
-                icon='TRIA_DOWN' if show_advanced_viz else 'TRIA_RIGHT',
-                emboss=False)
-        
-        # Only draw content if expanded
-        if not show_advanced_viz:
-            return
-        # Content area (only shown when expanded)
-        content_box = main_box.box()
-        
-        # Quick Actions Row
-        quick_row = content_box.row(align=True)
-        quick_row.scale_y = 1.2
-        
-        # Smart suggestions button
-        try:
-            quick_row.operator("visual.suggestions_popup", text="Smart Tips", icon='LIGHTPROBE_PLANE')
-        except:
-            quick_row.label(text="Smart Tips", icon='LIGHTPROBE_PLANE')
-        
-        # Preset menu
-        try:
-            quick_row.operator("visual.preset_menu", text="Presets", icon='PRESET')
-        except:
-            quick_row.label(text="Presets", icon='PRESET')
-        
-        # Global cleanup
-        try:
-            quick_row.operator("visual.clean_all_materials", text="Clean", icon='BRUSH_DATA')
-        except:
-            quick_row.label(text="Clean", icon='BRUSH_DATA')
-        
-        # Smart Presets Section
-        preset_box = content_box.box()
-        preset_box.label(text="Smart Presets:", icon='PRESET')
-        
-        # Quick preset buttons (top row)
-        row = preset_box.row(align=True)
-        try:
-            row.operator("visual.smart_visualization_preset", text="Focus", icon='ZOOM_SELECTED').preset_type = 'FOCUS'
-            row.operator("visual.smart_visualization_preset", text="Epoch", icon='TIME').preset_type = 'EPOCH'
-            row.operator("visual.smart_visualization_preset", text="Property", icon='PROPERTIES').preset_type = 'PROPERTY'
-        except:
-            row.label(text="Focus", icon='ZOOM_SELECTED')
-            row.label(text="Epoch", icon='TIME')
-            row.label(text="Property", icon='PROPERTIES')
-        
-        # Second row of presets
-        row = preset_box.row(align=True) 
-        try:
-            row.operator("visual.smart_visualization_preset", text="Present", icon='CAMERA_DATA').preset_type = 'PRESENTATION'
-            row.operator("visual.smart_visualization_preset", text="Analyze", icon='VIEWZOOM').preset_type = 'ANALYSIS'
-        except:
-            row.label(text="Present", icon='CAMERA_DATA')
-            row.label(text="Analyze", icon='VIEWZOOM')
-        
-        # System Status
-        status_box = content_box.box()
-        status_box.label(text="System Status:", icon='SETTINGS')
-        
-        try:
-            from .visualization_modules import get_manager, is_visualization_active, get_system_status
-            
-            system_status = get_system_status()
-            
-            if system_status['manager_active']:
-                if is_visualization_active():
-                    active_modules = system_status['active_modules']
-                    status_row = status_box.row()
-                    status_row.alert = True
-                    status_row.label(text=f"Active: {', '.join(active_modules)}", icon='CHECKMARK')
-                    
-                    # Control buttons for active system
-                    row = status_box.row(align=True)
-                    row.operator("visual.unified_update_all_visualizations", text="Update All", icon='FILE_REFRESH')
-                    row.operator("visual.unified_clear_all_visualizations", text="Clear All", icon='X')
-                else:
-                    status_box.label(text="No active visualizations", icon='RADIOBUT_OFF')
-            else:
-                status_box.label(text="System not available", icon='ERROR')
-                
-        except Exception as e:
-            status_box.label(text="Status unavailable", icon='QUESTION')
-        
-        # Individual Module Controls (Collapsible)
-        self.draw_individual_module_controls(content_box, context)
-    
-    def draw_individual_module_controls(self, layout, context):
-        """Draw individual module controls in collapsible sections"""
-        scene = context.scene
-        
-        # Check if we should show individual controls
-        show_individual = getattr(scene, 'show_individual_viz_controls', False)
-        
-        row = layout.row()
-        row.prop(scene, "show_individual_viz_controls", 
-                text="Individual Module Controls", 
-                icon='TRIA_DOWN' if show_individual else 'TRIA_RIGHT',
-                emboss=False)
-        
-        if not show_individual:
-            return
-        
-        individual_box = layout.box()
-        
-        # Transparency Controls
-        trans_box = individual_box.box()
-        trans_box.label(text="Transparency Module:", icon='MOD_OPACITY')
-        
-        if hasattr(scene, 'transparency_settings'):
-            settings = scene.transparency_settings
-            
-            row = trans_box.row()
-            row.prop(settings, "transparency_mode", text="Mode")
-            
-            row = trans_box.row()
-            row.prop(settings, "transparency_factor", text="Amount")
-            
-            row = trans_box.row(align=True)
-            row.prop(settings, "affect_selected_only", text="Selected Only")
-            row.prop(settings, "affect_visible_only", text="Visible Only")
-            
-            # Module control buttons
-            row = trans_box.row(align=True)
-            try:
-                op = row.operator("visual.unified_apply_visualization", text="Apply", icon='CHECKMARK')
-                op.module_id = 'transparency'
-                op = row.operator("visual.unified_clear_visualization", text="Clear", icon='X')
-                op.module_id = 'transparency'
-            except:
-                row.label(text="Apply", icon='CHECKMARK')
-                row.label(text="Clear", icon='X')
-        
-        # Color Overlay Controls
-        overlay_box = individual_box.box()
-        overlay_box.label(text="Color Overlay Module:", icon='COLOR')
-        
-        if hasattr(scene, 'color_overlay_settings'):
-            settings = scene.color_overlay_settings
-            
-            row = overlay_box.row()
-            row.prop(settings, "overlay_mode", text="Source")
-            
-            if settings.overlay_mode == 'CUSTOM':
-                row = overlay_box.row()
-                row.prop(settings, "custom_overlay_color", text="Color")
-            
-            row = overlay_box.row()
-            row.prop(settings, "overlay_strength", text="Strength")
-            
-            row = overlay_box.row()
-            row.prop(settings, "blend_mode", text="Blend")
-            
-            # Module control buttons
-            row = overlay_box.row(align=True)
-            try:
-                op = row.operator("visual.unified_apply_visualization", text="Apply", icon='CHECKMARK')
-                op.module_id = 'color_overlay'
-                op = row.operator("visual.unified_clear_visualization", text="Clear", icon='X')
-                op.module_id = 'color_overlay'
-            except:
-                row.label(text="Apply", icon='CHECKMARK')
-                row.label(text="Clear", icon='X')
-        
-        # Clipping Section Controls
-        clip_box = individual_box.box()
-        clip_box.label(text="Clipping Module:", icon='MOD_BOOLEAN')
-        
-        if hasattr(scene, 'clipping_settings'):
-            settings = scene.clipping_settings
-            
-            row = clip_box.row()
-            row.prop(settings, "clipping_mode", text="Type")
-            
-            row = clip_box.row()
-            row.prop(settings, "section_color", text="Section Color")
-            
-            row = clip_box.row()
-            row.prop(settings, "clipping_distance", text="Distance")
-            
-            # Module control buttons
-            row = clip_box.row(align=True)
-            try:
-                op = row.operator("visual.unified_apply_visualization", text="Apply Effect", icon='CHECKMARK')
-                op.module_id = 'clipping'
-                op = row.operator("visual.unified_clear_visualization", text="Clear Effect", icon='X')
-                op.module_id = 'clipping'
-            except:
-                row.label(text="Apply Effect", icon='CHECKMARK')
-                row.label(text="Clear Effect", icon='X')
-
     def draw_label_tools(self, layout, context):
         """Draw label and camera management tools"""
         scene = context.scene
@@ -494,6 +288,44 @@ class VIEW3D_PT_visual_panel(Panel):
                 warning_row.alert = True
                 warning_row.label(text="No cameras found - click Refresh", icon='ERROR')
 
+            # Label settings (collapsible)
+            settings_box = box.box()
+            row = settings_box.row()
+            show_settings = getattr(label_settings, 'show_settings', False)
+            
+            # Add show_settings property if it doesn't exist
+            if not hasattr(label_settings, 'show_settings'):
+                bpy.types.LabelSettings.show_settings = bpy.props.BoolProperty(
+                    name="Show Settings",
+                    description="Show label creation settings",
+                    default=False
+                )
+                label_settings.show_settings = False
+            
+            row.prop(label_settings, "show_settings", 
+                    text="Label Settings", 
+                    icon='TRIA_DOWN' if label_settings.show_settings else 'TRIA_RIGHT',
+                    emboss=False)
+            
+            if label_settings.show_settings:
+                col = settings_box.column()
+                
+                # Material settings
+                col.label(text="Label Appearance:")
+                col.prop(label_settings, "material_color", text="Color")
+                col.prop(label_settings, "emission_strength", text="Emission")
+                
+                # Positioning settings
+                col.separator()
+                col.label(text="Label Positioning:")
+                col.prop(label_settings, "label_distance", text="Distance")
+                col.prop(label_settings, "label_scale", text="Scale")
+                
+                # Behavior settings
+                col.separator()
+                col.label(text="Behavior:")
+                col.prop(label_settings, "auto_move_cameras", text="Auto Move Cameras to CAMS")
+
 
 def register_ui():
     """Register UI classes."""
@@ -504,7 +336,7 @@ def register_ui():
         VIEW3D_PT_visual_panel,
     ]
     
-    # Unregister existing classes first
+    # Unregister existing classes first (for reloading)
     for cls in classes:
         try:
             bpy.utils.unregister_class(cls)
@@ -518,68 +350,10 @@ def register_ui():
             print(f"Successfully registered: {cls.__name__}")
         except ValueError as e:
             print(f"Failed to register {cls.__name__}: {e}")
-    
-    # Add UI-specific scene properties
-    if not hasattr(bpy.types.Scene, "show_individual_viz_controls"):
-        bpy.types.Scene.show_individual_viz_controls = bpy.props.BoolProperty(
-            name="Show Individual Controls",
-            description="Show individual module controls instead of unified interface",
-            default=False
-        )
-    
-    if not hasattr(bpy.types.Scene, "show_preset_management"):
-        bpy.types.Scene.show_preset_management = bpy.props.BoolProperty(
-            name="Show Preset Management",
-            description="Show preset save/load/import/export controls",
-            default=False
-        )
-    
-    if not hasattr(bpy.types.Scene, "show_advanced_visualization"):
-        bpy.types.Scene.show_advanced_visualization = bpy.props.BoolProperty(
-            name="Show Advanced Visualization",
-            description="Show/hide the advanced visualization tools section",
-            default=False  # Collapsed by default
-        )
-    
-    # Add properties for collapsible subsections within Advanced Visualization
-    if not hasattr(bpy.types.Scene, "show_viz_quick_actions"):
-        bpy.types.Scene.show_viz_quick_actions = bpy.props.BoolProperty(
-            name="Show Quick Actions",
-            description="Show/hide the quick actions section",
-            default=True
-        )
-    
-    if not hasattr(bpy.types.Scene, "show_viz_presets"):
-        bpy.types.Scene.show_viz_presets = bpy.props.BoolProperty(
-            name="Show Smart Presets",
-            description="Show/hide the smart presets section",
-            default=True
-        )
-    
-    if not hasattr(bpy.types.Scene, "show_viz_status"):
-        bpy.types.Scene.show_viz_status = bpy.props.BoolProperty(
-            name="Show System Status",
-            description="Show/hide the system status section",
-            default=True
-        )
 
 
 def unregister_ui():
     """Unregister UI classes."""
-    # Remove UI-specific scene properties
-    ui_properties = [
-        "show_individual_viz_controls",
-        "show_preset_management",
-        "show_advanced_visualization",
-        "show_viz_quick_actions",
-        "show_viz_presets",
-        "show_viz_status"
-    ]
-    
-    for prop_name in ui_properties:
-        if hasattr(bpy.types.Scene, prop_name):
-            delattr(bpy.types.Scene, prop_name)
-    
     classes = [
         VIEW3D_PT_visual_panel,
         VISUAL_MT_display_mode_menu,

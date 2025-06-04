@@ -255,7 +255,8 @@ if DEPENDENCIES_LOADED:
             activity_manager,
             rm_manager,
             proxy_inflate_manager,
-            anastylosis_manager
+            anastylosis_manager,
+            proxy_to_rm_projection
         )
         
         
@@ -506,7 +507,8 @@ def register_modules():
         import_EMdb,
         graphml_converter,
         proxy_inflate_manager,
-        operators
+        operators,
+        proxy_to_rm_projection
     ]
     
     # NUOVO: Visual Manager come modulo base (solo UI + operatori base)
