@@ -259,36 +259,80 @@ def apply_vertex_colors(obj, vertex_colors, blend_strength):
         vertex_colors: Dictionary mapping vertex indices to colors
         blend_strength: Blending strength (0-1)
     """
-    # Ensure object is in Edit mode for vertex color operations
-    current_mode = obj.mode
+    if not vertex_colors:
+        print(f"No vertex colors to apply for {obj.name}")
+        return
     
-    bpy.context.view_layer.objects.active = obj
-    bpy.ops.object.mode_set(mode='EDIT')
+    # Store current active object and mode
+    old_active = bpy.context.view_layer.objects.active
+    old_mode = obj.mode if obj == old_active else 'OBJECT'
     
-    # Get or create vertex color layer
-    mesh = obj.data
-    if not mesh.vertex_colors:
-        mesh.vertex_colors.new(name="ProxyProjection")
-    
-    color_layer = mesh.vertex_colors.active
-    
-    # Apply colors
-    for poly in mesh.polygons:
-        for loop_index in poly.loop_indices:
-            vertex_index = mesh.loops[loop_index].vertex_index
-            
-            if vertex_index in vertex_colors:
-                proxy_color = vertex_colors[vertex_index]
+    try:
+        # Ensure we're in object mode first
+        if obj == bpy.context.view_layer.objects.active and obj.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+        
+        # Set as active object
+        bpy.context.view_layer.objects.active = obj
+        
+        # Ensure object is selected
+        obj.select_set(True)
+        
+        # Get or create vertex color layer
+        mesh = obj.data
+        if not mesh.vertex_colors:
+            mesh.vertex_colors.new(name="ProxyProjection")
+        elif "ProxyProjection" not in mesh.vertex_colors:
+            mesh.vertex_colors.new(name="ProxyProjection")
+        
+        # Set active vertex color layer
+        for vc_layer in mesh.vertex_colors:
+            if vc_layer.name == "ProxyProjection":
+                mesh.vertex_colors.active = vc_layer
+                break
+        
+        color_layer = mesh.vertex_colors.active
+        
+        if not color_layer:
+            print(f"Could not create vertex color layer for {obj.name}")
+            return
+        
+        # Apply colors directly to mesh data (no need for Edit mode)
+        colored_loops = 0
+        for poly in mesh.polygons:
+            for loop_index in poly.loop_indices:
+                vertex_index = mesh.loops[loop_index].vertex_index
                 
-                # Get current color (if any)
-                current_color = color_layer.data[loop_index].color
-                
-                # Blend colors
-                blended_color = blend_colors(current_color, proxy_color, blend_strength)
-                color_layer.data[loop_index].color = blended_color
-    
-    # Return to original mode
-    bpy.ops.object.mode_set(mode=current_mode)
+                if vertex_index in vertex_colors:
+                    proxy_color = vertex_colors[vertex_index]
+                    
+                    # Get current color (if any)
+                    current_color = color_layer.data[loop_index].color
+                    
+                    # Blend colors
+                    blended_color = blend_colors(current_color, proxy_color, blend_strength)
+                    color_layer.data[loop_index].color = blended_color
+                    colored_loops += 1
+        
+        print(f"Applied vertex colors to {colored_loops} loops on {obj.name}")
+        
+        # Update mesh
+        mesh.update()
+        
+    except Exception as e:
+        print(f"Error applying vertex colors to {obj.name}: {e}")
+        import traceback
+        traceback.print_exc()
+        
+    finally:
+        # Restore previous state
+        try:
+            if old_active:
+                bpy.context.view_layer.objects.active = old_active
+                if old_active == obj and old_mode != 'OBJECT':
+                    bpy.ops.object.mode_set(mode=old_mode)
+        except:
+            pass
 
 
 def blend_colors(color1, color2, blend_factor):
@@ -318,37 +362,72 @@ def setup_vertex_color_material(obj):
     Args:
         obj: Blender object
     """
-    if not obj.data.materials:
-        # Create new material
-        mat = bpy.data.materials.new(name=f"{obj.name}_ProxyProjection")
-        obj.data.materials.append(mat)
-    else:
-        mat = obj.data.materials[0]
-    
-    # Enable nodes
-    mat.use_nodes = True
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-    
-    # Clear existing nodes
-    nodes.clear()
-    
-    # Create nodes
-    output_node = nodes.new(type='ShaderNodeOutputMaterial')
-    principled_node = nodes.new(type='ShaderNodeBsdfPrincipled')
-    vertex_color_node = nodes.new(type='ShaderNodeVertexColor')
-    
-    # Set vertex color layer name
-    vertex_color_node.layer_name = "ProxyProjection"
-    
-    # Position nodes
-    output_node.location = (300, 0)
-    principled_node.location = (0, 0)
-    vertex_color_node.location = (-200, 0)
-    
-    # Connect nodes
-    links.new(vertex_color_node.outputs['Color'], principled_node.inputs['Base Color'])
-    links.new(principled_node.outputs['BSDF'], output_node.inputs['Surface'])
+    try:
+        # Check if object has materials
+        if not obj.data.materials:
+            # Create new material
+            mat = bpy.data.materials.new(name=f"{obj.name}_ProxyProjection")
+            obj.data.materials.append(mat)
+        else:
+            # Use first material or create a copy
+            original_mat = obj.data.materials[0]
+            if original_mat:
+                # Create a modified copy if it's not already a proxy projection material
+                if not original_mat.name.endswith("_ProxyProjection"):
+                    mat = original_mat.copy()
+                    mat.name = f"{obj.name}_ProxyProjection"
+                    obj.data.materials[0] = mat
+                else:
+                    mat = original_mat
+            else:
+                # Slot exists but is empty
+                mat = bpy.data.materials.new(name=f"{obj.name}_ProxyProjection")
+                obj.data.materials[0] = mat
+        
+        # Enable nodes
+        mat.use_nodes = True
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        
+        # Check if vertex color node already exists
+        vertex_color_node = None
+        for node in nodes:
+            if node.type == 'VERTEX_COLOR' and node.layer_name == "ProxyProjection":
+                vertex_color_node = node
+                break
+        
+        # If no vertex color node exists, set up the material
+        if not vertex_color_node:
+            # Find or create principled BSDF
+            principled_node = None
+            for node in nodes:
+                if node.type == 'BSDF_PRINCIPLED':
+                    principled_node = node
+                    break
+            
+            if not principled_node:
+                # Clear and recreate nodes if corrupted
+                nodes.clear()
+                output_node = nodes.new(type='ShaderNodeOutputMaterial')
+                principled_node = nodes.new(type='ShaderNodeBsdfPrincipled')
+                output_node.location = (300, 0)
+                principled_node.location = (0, 0)
+                links.new(principled_node.outputs['BSDF'], output_node.inputs['Surface'])
+            
+            # Create vertex color node
+            vertex_color_node = nodes.new(type='ShaderNodeVertexColor')
+            vertex_color_node.layer_name = "ProxyProjection"
+            vertex_color_node.location = (-200, 0)
+            
+            # Connect vertex color to base color
+            links.new(vertex_color_node.outputs['Color'], principled_node.inputs['Base Color'])
+            
+            print(f"Set up vertex color material for {obj.name}")
+        
+    except Exception as e:
+        print(f"Error setting up vertex color material for {obj.name}: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def clear_vertex_colors(obj):

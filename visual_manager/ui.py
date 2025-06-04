@@ -114,8 +114,9 @@ class VIEW3D_PT_visual_panel(Panel):
         # Display Controls
         self.draw_display_controls(layout, context)
         
-        # Proxy to RM Projection (only in advanced mode)
-        if hasattr(scene, 'em_tools') and scene.em_tools.mode_switch:
+        # Proxy to RM Projection (only in advanced mode AND when RM sync is active)
+        if (hasattr(scene, 'em_tools') and scene.em_tools.mode_switch and 
+            getattr(scene, 'sync_rm_visibility', False)):
             self.draw_proxy_projection(layout, context)
         
         # Label Tools (collapsible section)
