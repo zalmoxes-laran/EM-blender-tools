@@ -114,6 +114,10 @@ class VIEW3D_PT_visual_panel(Panel):
         # Display Controls
         self.draw_display_controls(layout, context)
         
+        # Proxy to RM Projection (only in advanced mode)
+        if hasattr(scene, 'em_tools') and scene.em_tools.mode_switch:
+            self.draw_proxy_projection(layout, context)
+        
         # Label Tools (collapsible section)
         self.draw_label_tools(layout, context)
 
@@ -205,6 +209,107 @@ class VIEW3D_PT_visual_panel(Panel):
             row.operator("notinthematrix.material", icon="MOD_MASK", text='')
         except:
             row.label(text="Material", icon="MOD_MASK")
+
+    def draw_proxy_projection(self, layout, context):
+        """Draw proxy to RM projection controls"""
+        scene = context.scene
+        
+        # Check if proxy projection system is available
+        if not hasattr(scene, 'proxy_projection_settings'):
+            return
+        
+        settings = scene.proxy_projection_settings
+        
+        # Collapsible section for proxy projection
+        box = layout.box()
+        row = box.row()
+        
+        row.prop(settings, "show_advanced_settings", 
+                text="Proxy to RM Projection", 
+                icon='TRIA_DOWN' if settings.show_advanced_settings else 'TRIA_RIGHT',
+                emboss=False)
+        
+        # Show status indicator in header
+        if settings.projection_active:
+            row.label(text="", icon='CHECKMARK')
+        else:
+            row.label(text="", icon='RADIOBUT_OFF')
+
+        if settings.show_advanced_settings:
+            # Check prerequisites
+            prereqs_ok = self.check_projection_prerequisites(scene)
+            
+            # Main controls
+            col = box.column()
+            
+            if settings.projection_active:
+                # Active projection controls
+                row = col.row(align=True)
+                row.operator("proxy_projection.clear", text="Clear", icon='X')
+                row.operator("proxy_projection.update", text="Update", icon='FILE_REFRESH')
+                row.operator("proxy_projection.toggle", text="Toggle", icon='LOOP_BACK')
+                
+                # Settings when active
+                col.separator()
+                col.prop(settings, "auto_update_enabled", text="Auto Update")
+                col.prop(settings, "blend_strength", text="Blend Strength", slider=True)
+                
+            else:
+                # Apply button
+                row = col.row()
+                row.scale_y = 1.2
+                op = row.operator("proxy_projection.apply", text="Apply Projection", icon='PLAY')
+                row.enabled = prereqs_ok
+                
+                if not prereqs_ok:
+                    # Show prerequisites warning
+                    warning_box = col.box()
+                    warning_box.alert = True
+                    warning_col = warning_box.column()
+                    warning_col.label(text="Prerequisites not met:", icon='ERROR')
+                    
+                    # Check specific issues
+                    if not getattr(scene, 'sync_rm_visibility', False):
+                        warning_col.label(text="• RM temporal sync not active")
+                    
+                    if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
+                        warning_col.label(text="• No active epoch selected")
+                    
+                    if not hasattr(scene, 'em_list') or len(scene.em_list) == 0:
+                        warning_col.label(text="• No proxy objects in list")
+                    
+                    if not hasattr(scene, 'rm_list') or len(scene.rm_list) == 0:
+                        warning_col.label(text="• No RM objects available")
+            
+            # Additional settings
+            col.separator()
+            col.prop(settings, "projection_method", text="Method")
+            col.prop(settings, "hide_non_intersected", text="Hide Non-Intersected Areas")
+            
+            # Debug button (if experimental features enabled)
+            if hasattr(scene.em_tools, 'experimental_features') and scene.em_tools.experimental_features:
+                col.separator()
+                col.operator("proxy_projection.diagnose", text="Run Diagnosis", icon='ZOOM_ALL')
+
+    def check_projection_prerequisites(self, scene):
+        """Check if projection prerequisites are met"""
+        # Check RM sync
+        if not getattr(scene, 'sync_rm_visibility', False):
+            return False
+        
+        # Check active epoch
+        if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
+            return False
+        
+        # Check for proxy objects
+        if not hasattr(scene, 'em_list') or len(scene.em_list) == 0:
+            return False
+        
+        # Check for RM objects
+        if not hasattr(scene, 'rm_list') or len(scene.rm_list) == 0:
+            return False
+        
+        return True
 
     def draw_label_tools(self, layout, context):
         """Draw label and camera management tools"""
