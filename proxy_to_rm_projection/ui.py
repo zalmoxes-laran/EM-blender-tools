@@ -29,7 +29,7 @@ class VIEW3D_PT_proxy_projection_panel(Panel):
         # Check if projection system is available
         available, _ = is_system_available()
         em_tools = context.scene.em_tools
-        if not em_tools.experimental_features:
+        if em_tools.experimental_features:
             available = False
         return available
 
