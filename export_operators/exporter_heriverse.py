@@ -86,7 +86,7 @@ class JSON_OT_exportEMformat(Operator, ExportHelper):
             self.report({'ERROR'}, f"Error during export: {str(e)}")
             return {'CANCELLED'}
 
-class HERIVERSE_OT_export(Operator):
+class EXPORT_OT_heriverse(Operator):
     """Export project in Heriverse format"""
     bl_idname = "export.heriverse"
     bl_label = "Export Heriverse Project"
@@ -1756,12 +1756,12 @@ class HERIVERSE_OT_make_collections_visible(Operator):
         return {'FINISHED'}
 
 def register():
-    bpy.utils.register_class(HERIVERSE_OT_export)
+    bpy.utils.register_class(EXPORT_OT_heriverse)
     bpy.utils.register_class(JSON_OT_exportEMformat)  
     bpy.utils.register_class(HERIVERSE_OT_make_collections_visible) 
     
 def unregister():
-    bpy.utils.unregister_class(HERIVERSE_OT_export)
+    bpy.utils.unregister_class(EXPORT_OT_heriverse)
     bpy.utils.unregister_class(JSON_OT_exportEMformat)  
     bpy.utils.unregister_class(HERIVERSE_OT_make_collections_visible) 
 

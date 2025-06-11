@@ -1,6 +1,6 @@
 from .exporter_heriverse import *
 
 __all__ = [
-    "HERIVERSE_OT_export",
+    "EXPORT_OT_heriverse",
     "JSON_OT_exportEMformat"
 ]
