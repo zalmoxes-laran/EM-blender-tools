@@ -13,8 +13,10 @@ from .utils import (
     get_rm_objects_for_epoch,
     calculate_vertex_proxy_intersection,
     apply_vertex_colors,
+    apply_shader_projection,
     setup_vertex_color_material,
     clear_vertex_colors,
+    clear_shader_projection,
     get_proxy_color
 )
 from .material_override import (
@@ -59,10 +61,10 @@ class PROXY_PROJECTION_OT_apply(Operator):
         processed_count = 0
         error_count = 0
         
-        # Process each RM object
+        # OTTIMIZZAZIONE: Process each RM object ONCE with ALL proxies
         for rm_data in rm_objects:
             try:
-                success = self.process_rm_object(rm_data, proxy_objects, settings)
+                success = self.process_rm_object_optimized(rm_data, proxy_objects, settings)
                 if success:
                     processed_count += 1
                 else:
@@ -86,6 +88,37 @@ class PROXY_PROJECTION_OT_apply(Operator):
         else:
             self.report({'ERROR'}, f"Failed to process any RM objects ({error_count} errors)")
             return {'CANCELLED'}
+    
+    def process_rm_object_optimized(self, rm_data, proxy_objects, settings):
+        """Process a single RM object with ALL proxies in one pass - OPTIMIZED"""
+        obj = rm_data['object']
+        
+        # Handle linked objects
+        if rm_data['is_linked'] and settings.override_linked_materials:
+            # Create temporary override
+            success = create_temporary_override(obj)
+            if not success:
+                print(f"Warning: Could not create material override for linked object {obj.name}")
+                return False
+        
+        # Calculate vertex intersections for ALL proxies at once
+        vertex_colors = calculate_vertex_proxy_intersection(rm_data, proxy_objects, settings)
+        
+        if not vertex_colors:
+            print(f"No intersections found for RM object {obj.name}")
+            return True  # Not an error, just no intersections
+        
+        # Apply projection based on method
+        if settings.projection_method == 'VERTEX_PAINT':
+            self.apply_vertex_paint_projection_optimized(obj, vertex_colors, settings)
+        elif settings.projection_method == 'NODE_SHADER':
+            self.apply_node_shader_projection(obj, vertex_colors, settings)
+        
+        # Handle non-intersected areas if requested
+        if settings.hide_non_intersected:
+            self.apply_non_intersected_transparency(obj, vertex_colors, settings)
+        
+        return True
 
     def check_prerequisites(self, scene):
         """Check if all prerequisites are met for projection"""
@@ -135,20 +168,18 @@ class PROXY_PROJECTION_OT_apply(Operator):
         
         return True
 
-    def apply_vertex_paint_projection(self, obj, vertex_colors, settings):
-        """Apply projection using vertex painting"""
+    def apply_vertex_paint_projection_optimized(self, obj, vertex_colors, settings):
+        """Apply projection using vertex painting - OPTIMIZED for single pass"""
         # Setup vertex color material
         setup_vertex_color_material(obj)
         
-        # Apply vertex colors
+        # Apply vertex colors in one optimized pass
         apply_vertex_colors(obj, vertex_colors, settings.blend_strength)
 
     def apply_node_shader_projection(self, obj, vertex_colors, settings):
-        """Apply projection using shader nodes"""
-        # TODO: Implement advanced shader node projection
-        # For now, fall back to vertex painting
-        print(f"Node shader projection not yet implemented for {obj.name}, using vertex paint")
-        self.apply_vertex_paint_projection(obj, vertex_colors, settings)
+        """Apply projection using shader nodes - MUCH FASTER!"""
+        # Use shader-based approach
+        apply_shader_projection(obj, vertex_colors, settings)
 
     def apply_non_intersected_transparency(self, obj, vertex_colors, settings):
         """Apply transparency to non-intersected areas"""
@@ -191,6 +222,9 @@ class PROXY_PROJECTION_OT_clear(Operator):
                 
                 # Clear vertex colors
                 clear_vertex_colors(obj)
+                
+                # Clear shader projection
+                clear_shader_projection(obj)
                 
                 # Restore original materials for linked objects
                 if rm_data['is_linked']:

@@ -114,13 +114,14 @@ class VIEW3D_PT_visual_panel(Panel):
         # Display Controls
         self.draw_display_controls(layout, context)
         
-        # Proxy to RM Projection (only in advanced mode AND when RM sync is active)
-        if (hasattr(scene, 'em_tools') and scene.em_tools.mode_switch and 
-            getattr(scene, 'sync_rm_visibility', False)):
-            self.draw_proxy_projection(layout, context)
-        
         # Label Tools (collapsible section)
         self.draw_label_tools(layout, context)
+        
+        # RM Coloring (only in advanced mode, RM sync active, AND experimental features)
+        if (hasattr(scene, 'em_tools') and scene.em_tools.mode_switch and 
+            getattr(scene, 'sync_rm_visibility', False) and
+            hasattr(scene.em_tools, 'experimental_features') and scene.em_tools.experimental_features):
+            self.draw_rm_coloring(layout, context)
 
     def draw_property_manager(self, layout, context):
         """Draw property management UI"""
@@ -211,22 +212,22 @@ class VIEW3D_PT_visual_panel(Panel):
         except:
             row.label(text="Material", icon="MOD_MASK")
 
-    def draw_proxy_projection(self, layout, context):
-        """Draw proxy to RM projection controls"""
+    def draw_rm_coloring(self, layout, context):
+        """Draw RM coloring controls (renamed from proxy projection)"""
         scene = context.scene
         
-        # Check if proxy projection system is available
+        # Check if RM coloring system is available
         if not hasattr(scene, 'proxy_projection_settings'):
             return
         
         settings = scene.proxy_projection_settings
         
-        # Collapsible section for proxy projection
+        # Collapsible section for RM coloring
         box = layout.box()
         row = box.row()
         
         row.prop(settings, "show_advanced_settings", 
-                text="Proxy to RM Projection", 
+                text="RM Coloring", 
                 icon='TRIA_DOWN' if settings.show_advanced_settings else 'TRIA_RIGHT',
                 emboss=False)
         
@@ -244,9 +245,9 @@ class VIEW3D_PT_visual_panel(Panel):
             col = box.column()
             
             if settings.projection_active:
-                # Active projection controls
+                # Active coloring controls
                 row = col.row(align=True)
-                row.operator("proxy_projection.clear", text="Clear", icon='X')
+                row.operator("proxy_projection.clear", text="Clear Coloring", icon='X')
                 row.operator("proxy_projection.update", text="Update", icon='FILE_REFRESH')
                 row.operator("proxy_projection.toggle", text="Toggle", icon='LOOP_BACK')
                 
@@ -259,7 +260,7 @@ class VIEW3D_PT_visual_panel(Panel):
                 # Apply button
                 row = col.row()
                 row.scale_y = 1.2
-                op = row.operator("proxy_projection.apply", text="Apply Projection", icon='PLAY')
+                op = row.operator("proxy_projection.apply", text="Apply RM Coloring", icon='PLAY')
                 row.enabled = prereqs_ok
                 
                 if not prereqs_ok:
@@ -287,10 +288,9 @@ class VIEW3D_PT_visual_panel(Panel):
             col.prop(settings, "projection_method", text="Method")
             col.prop(settings, "hide_non_intersected", text="Hide Non-Intersected Areas")
             
-            # Debug button (if experimental features enabled)
-            if hasattr(scene.em_tools, 'experimental_features') and scene.em_tools.experimental_features:
-                col.separator()
-                col.operator("proxy_projection.diagnose", text="Run Diagnosis", icon='ZOOM_ALL')
+            # Debug button (always available in experimental mode)
+            col.separator()
+            col.operator("proxy_projection.diagnose", text="Run Diagnosis", icon='ZOOM_ALL')
 
     def check_projection_prerequisites(self, scene):
         """Check if projection prerequisites are met"""
@@ -397,23 +397,29 @@ class VIEW3D_PT_visual_panel(Panel):
             # Label settings (collapsible)
             settings_box = box.box()
             row = settings_box.row()
-            show_settings = getattr(label_settings, 'show_settings', False)
             
-            # Add show_settings property if it doesn't exist
+            # Check if show_settings property exists, create it if not
             if not hasattr(label_settings, 'show_settings'):
-                bpy.types.LabelSettings.show_settings = bpy.props.BoolProperty(
-                    name="Show Settings",
-                    description="Show label creation settings",
-                    default=False
-                )
-                label_settings.show_settings = False
+                # Add the property to the existing LabelSettings class
+                from ..visual_manager.data import LabelSettings
+                if not hasattr(LabelSettings, 'show_settings'):
+                    LabelSettings.show_settings = bpy.props.BoolProperty(
+                        name="Show Settings",
+                        description="Show label creation settings", 
+                        default=False
+                    )
+                    # Re-register to apply the new property
+                    bpy.utils.unregister_class(LabelSettings)
+                    bpy.utils.register_class(LabelSettings)
+            
+            show_settings = getattr(label_settings, 'show_settings', False)
             
             row.prop(label_settings, "show_settings", 
                     text="Label Settings", 
-                    icon='TRIA_DOWN' if label_settings.show_settings else 'TRIA_RIGHT',
+                    icon='TRIA_DOWN' if show_settings else 'TRIA_RIGHT',
                     emboss=False)
             
-            if label_settings.show_settings:
+            if show_settings:
                 col = settings_box.column()
                 
                 # Material settings

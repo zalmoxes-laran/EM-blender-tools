@@ -467,6 +467,82 @@ class SET_materials_using_epoch_list(Operator):
         
         return {'FINISHED'}
 
+
+class EM_debug_filters(Operator):
+    bl_idname = "em.debug_filters"
+    bl_label = "Debug Filters"
+    bl_description = "Print debug information about the current graph and connections"
+    bl_options = {"REGISTER", "UNDO"}
+    
+    debug_mode: bpy.props.EnumProperty(
+        items=[
+            ('FULL', "Full Graph", "Debug the entire graph structure"),
+            ('CURRENT', "Current Node", "Debug only the currently selected node")
+        ],
+        default='CURRENT',
+        name="Debug Mode"
+    )
+    
+    max_depth: bpy.props.IntProperty(
+        name="Max Recursion Depth",
+        description="Maximum recursion depth for graph traversal",
+        default=5,
+        min=1,
+        max=20
+    )
+    
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "debug_mode")
+        layout.prop(self, "max_depth")
+    
+    def execute(self, context):
+        scene = context.scene
+        
+        # Get current graph
+        from ..functions import is_graph_available as check_graph
+        graph_exists, graph = check_graph(context)
+        
+        if not graph_exists:
+            self.report({'WARNING'}, "No active graph found. Please load a GraphML file first.")
+            return {'CANCELLED'}
+        
+        try:
+            # Import debug_graph_structure
+            from ..s3Dgraphy.utils.utils import debug_graph_structure
+            
+            if self.debug_mode == 'FULL':
+                # Debug full graph
+                debug_graph_structure(graph, max_depth=self.max_depth)
+                self.report({'INFO'}, "Full graph debug information printed to console")
+            else:
+                # Debug current node
+                if scene.em_list_index >= 0 and len(scene.em_list) > 0:
+                    node_id = scene.em_list[scene.em_list_index].id_node
+                    debug_graph_structure(graph, node_id, max_depth=self.max_depth)
+                    self.report({'INFO'}, f"Node debug information printed to console for {scene.em_list[scene.em_list_index].name}")
+                else:
+                    # Fallback to full graph if no node is selected
+                    self.report({'WARNING'}, "No node selected, showing full graph information")
+                    debug_graph_structure(graph, max_depth=self.max_depth)
+            
+            return {'FINISHED'}
+            
+        except RecursionError as e:
+            self.report({'ERROR'}, f"Recursion error in debug function. Try reducing the max depth: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {'CANCELLED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Error during debug: {str(e)}")
+            import traceback
+            traceback.print_exc()  
+            return {'CANCELLED'}
+
+
 def register_operators():
     """Register all operator classes."""
     operators = [
@@ -482,6 +558,7 @@ def register_operators():
         EM_set_epoch_materials,
         SET_materials_using_em_list,
         SET_materials_using_epoch_list,
+        EM_debug_filters
     ]
     
     for cls in operators:
@@ -494,6 +571,7 @@ def register_operators():
 def unregister_operators():
     """Unregister all operator classes."""
     operators = [
+        EM_debug_filters,
         SET_materials_using_epoch_list,
         SET_materials_using_em_list,
         EM_set_epoch_materials,

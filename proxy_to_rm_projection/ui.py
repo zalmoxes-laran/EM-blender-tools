@@ -22,15 +22,15 @@ class VIEW3D_PT_proxy_projection_panel(Panel):
     @classmethod
     def poll(cls, context):
         """Show panel only when EM Tools is in advanced mode and system is available"""
+        em_tools = context.scene.em_tools
+
         # Check if EM Tools is in advanced mode
-        if not hasattr(context.scene, 'em_tools') or not context.scene.em_tools.mode_switch:
+        if not hasattr(context.scene, 'em_tools') or not context.scene.em_tools.mode_switch or not em_tools.experimental_features:
             return False
         
         # Check if projection system is available
         available, _ = is_system_available()
-        em_tools = context.scene.em_tools
-        if em_tools.experimental_features:
-            available = False
+
         return available
 
     def draw_header(self, context):
