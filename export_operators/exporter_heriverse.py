@@ -1523,8 +1523,17 @@ class EXPORT_OT_heriverse(Operator):
 
             try:
                 # Update the graph before exporting
-                update_graph_with_scene_data()
-
+                # Get active graph ID
+                em_tools = scene.em_tools
+                if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
+                    graphml = em_tools.graphml_files[em_tools.active_file_index]
+                    update_graph_with_scene_data(graphml.name)
+                else:
+                    # Try with None if no active graph
+                    update_graph_with_scene_data(None)
+            except Exception as e:
+                print(f"Warning: Could not update graph: {e}")
+            try:   
                # STEP 1 Export Cesium tilesets if requested
                 tilesets_exported = False
                 if export_vars.heriverse_export_rm:
