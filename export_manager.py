@@ -68,7 +68,7 @@ class EM_ExportPanel:
                 row.prop(scene, "heriverse_project_name", text="Project Name")
                 
                 row = box.row()
-                row.prop(export_vars, "heriverse_export_all_graphs", text="Export All Graphs")
+                row.label(text="📋 Only graphs marked as 'Publishable' will be exported", icon='INFO')                
                 
                 row = box.row()
                 col = row.column()

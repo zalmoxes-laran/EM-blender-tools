@@ -279,6 +279,12 @@ class EMToolsProperties(bpy.types.PropertyGroup):
     auxiliary_files: bpy.props.CollectionProperty(type=AuxiliaryFileProperties) # type: ignore
     active_auxiliary_index: bpy.props.IntProperty() # type: ignore
 
+    is_publishable: bpy.props.BoolProperty(
+        name="Publishable",
+        description="Include this graph in multigrafo exports",
+        default=True
+    ) # type: ignore
+
 class AUXILIARY_UL_files(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
@@ -519,6 +525,10 @@ class EMTOOLS_UL_files(bpy.types.UIList):
         
         status_icon = get_compatible_icon('SEQUENCE_COLOR_04') if is_graph_present else get_compatible_icon('SEQUENCE_COLOR_01')
 
+#        # Aggiungi checkbox per pubblicabilità
+#        row = layout.row()
+#        row.prop(item, "is_publishable", text="")
+
         # Mostra il nome del file nella lista
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             # Mostra il codice del grafo (graph_code) invece del nome (UUID)
@@ -542,10 +552,27 @@ class EMTOOLS_UL_files(bpy.types.UIList):
                 row = layout.row(align=True)
                 op = row.operator("em_tools.populate_lists", text="", icon="SEQ_SEQUENCER", emboss=False)
                 op.graphml_index = index  # Passa l'indice corretto per aggiornare le liste
+                
+                row = layout.row(align=True)
+                # Flag pubblicabile (come in rm_manager)
+                if hasattr(item, 'is_publishable'):
+                    row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
+                else:
+                    # Se la proprietà non esiste ancora, mostra un pulsante disabilitato
+                    row.label(text="", icon='QUESTION')
             else:
                 row = layout.row()
                 row.enabled = False  # Disabilita il layout (grigio)
                 row.label(text="", icon="SEQ_SEQUENCER")  # Usa un'icona per mostrare un pulsante disabilitato
+                row = layout.row()
+                row.enabled = False
+                if hasattr(item, 'is_publishable'):
+                    row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
+                else:
+                    # Se la proprietà non esiste ancora, mostra un pulsante disabilitato
+                    row.label(text="", icon='QUESTION')
+
+
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'

@@ -1,39 +1,82 @@
 import bpy # type: ignore
-from .s3Dgraphy import get_graph
+from .s3Dgraphy import get_graph, get_all_graph_ids
 from .s3Dgraphy.nodes.semantic_shape_node import SemanticShapeNode
 from .s3Dgraphy.nodes.representation_node import RepresentationModelNode
 from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode
 import os
 
 
-def update_graph_with_scene_data(graph_id=None):
+def update_graph_with_scene_data(graph_id=None, update_all_graphs=False, context=None):
     """
-    Updates the graph with current scene data.
+    Updates the graph(s) with current scene data.
+    Considera solo i grafi pubblicabili se update_all_graphs è True.
     
     Args:
-        graph_id (str, optional): ID of the graph to update. 
-            If None and only one graph exists, uses that graph.
-            If None and multiple graphs exist, raises an error.
-    
+        graph_id (str, optional): ID of specific graph to update
+        update_all_graphs (bool): If True, updates all publishable loaded graphs
+        context: Blender context (needed for checking publishable status)
+        
     Returns:
         bool: True if update was successful
-        
-    Raises:
-        ValueError: If no graph_id is provided and multiple graphs exist
     """
-    try:
-        graph = get_graph(graph_id)
-        if not graph:
-            print("No graph available to update")
-            return False
+    if update_all_graphs:
+        # Aggiorna tutti i grafi pubblicabili
+        try:
+            if context:
+                # Usa la lista di EM_setup per verificare quali sono pubblicabili
+                em_tools = context.scene.em_tools
+                published_graph_ids = []
+                
+                for graphml_item in em_tools.graphml_files:
+                    is_publishable = getattr(graphml_item, 'is_publishable', True)
+                    if is_publishable:
+                        published_graph_ids.append(graphml_item.name)
+                
+                print(f"Updating {len(published_graph_ids)} publishable graphs with scene data")
+            else:
+                # Fallback: aggiorna tutti i grafi se context non disponibile
+                published_graph_ids = get_all_graph_ids()
+                print(f"Updating {len(published_graph_ids)} graphs with scene data (context unavailable)")
             
-        update_semantic_shapes(graph)
-        update_representation_models(graph)
-        return True
-        
-    except ValueError as e:
-        print(f"Error getting graph: {e}")
-        return False
+            if not published_graph_ids:
+                print("No publishable graphs available to update")
+                return False
+            
+            updated_count = 0
+            for gid in published_graph_ids:
+                graph = get_graph(gid)
+                if graph:
+                    try:
+                        update_semantic_shapes(graph)
+                        update_representation_models(graph)
+                        updated_count += 1
+                        print(f"Updated graph: {gid}")
+                    except Exception as e:
+                        print(f"Error updating graph {gid}: {e}")
+                else:
+                    print(f"Could not retrieve graph: {gid}")
+            
+            print(f"Successfully updated {updated_count}/{len(published_graph_ids)} publishable graphs")
+            return updated_count > 0
+            
+        except Exception as e:
+            print(f"Error updating graphs: {e}")
+            return False
+    else:
+        # Comportamento originale per un grafo specifico
+        try:
+            graph = get_graph(graph_id)
+            if not graph:
+                print("No graph available to update")
+                return False
+                
+            update_semantic_shapes(graph)
+            update_representation_models(graph)
+            return True
+            
+        except ValueError as e:
+            print(f"Error getting graph: {e}")
+            return False
 
 def update_semantic_shapes(graph):
     """Updates semantic shape nodes in the graph based on scene proxies."""

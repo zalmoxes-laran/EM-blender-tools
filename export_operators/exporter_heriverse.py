@@ -94,44 +94,177 @@ class EXPORT_OT_heriverse(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
 
-    def __init__(self):
-        super().__init__()
-        self.instanced_objects = set()
-        self.exported_models = {}
-        self.stato_collezioni = {}
+    def get_stratigraphic_names_from_graphs(self, context, export_all_graphs=False):
+        """
+        Ottiene i nomi di tutti i nodi stratigrafici dai grafi caricati.
+        Considera solo i grafi pubblicabili se export_all_graphs è True.
+        
+        Args:
+            context: Blender context
+            export_all_graphs: Se True, esporta da tutti i grafi pubblicabili, altrimenti solo da quello attivo
+            
+        Returns:
+            set: Set di nomi di nodi stratigrafici
+        """
+        from ..s3Dgraphy import get_graph, get_all_graph_ids
+        
+        stratigraphic_names = set()
+        
+        if export_all_graphs:
+            # Itera su tutti i grafi caricati, ma considera solo quelli pubblicabili
+            em_tools = context.scene.em_tools
+            
+            published_graph_ids = []
+            for graphml_item in em_tools.graphml_files:
+                # Controlla se il grafo è pubblicabile
+                is_publishable = getattr(graphml_item, 'is_publishable', True)  # Default True se proprietà mancante
+                if is_publishable:
+                    published_graph_ids.append(graphml_item.name)
+            
+            print(f"Found {len(published_graph_ids)} publishable graphs: {published_graph_ids}")
+            
+            for graph_id in published_graph_ids:
+                graph = get_graph(graph_id)
+                if graph:
+                    names = self._extract_stratigraphic_names_from_graph(graph)
+                    stratigraphic_names.update(names)
+                    print(f"Graph '{graph_id}': found {len(names)} stratigraphic nodes")
+        else:
+            # Solo il grafo attivo
+            em_tools = context.scene.em_tools
+            if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
+                graphml = em_tools.graphml_files[em_tools.active_file_index]
+                graph = get_graph(graphml.name)
+                if graph:
+                    names = self._extract_stratigraphic_names_from_graph(graph)
+                    stratigraphic_names.update(names)
+                    print(f"Active graph '{graphml.name}': found {len(names)} stratigraphic nodes")
+            else:
+                print("No active graph found")
+        
+        return stratigraphic_names
+
+    def _extract_stratigraphic_names_from_graph(self, graph):
+        """
+        Estrae i nomi dei nodi stratigrafici da un singolo grafo usando gli indici.
+        
+        Args:
+            graph: Il grafo s3Dgraphy
+            
+        Returns:
+            list: Lista di nomi di nodi stratigrafici
+        """
+        stratigraphic_names = []
+        
+        # Tipi di nodi stratigrafici da cercare
+        stratigraphic_types = ['US', 'USVs', 'USVn', 'SF', 'VSF', 'USD', 'serSU', 'serUSVn', 'serUSVs', 'TSU', 'SE', 'BR']
+        
+        # Usa gli indici per rapidità
+        indices = graph.indices
+        
+        for node_type in stratigraphic_types:
+            if node_type in indices.nodes_by_type:
+                nodes = indices.nodes_by_type[node_type]
+                for node in nodes:
+                    stratigraphic_names.append(node.name)
+        
+        return stratigraphic_names
+
 
     def export_proxies(self, context, export_folder):
         """Export proxy models"""
         scene = context.scene
+        export_vars = context.window_manager.export_vars
         
-        # Deseleziona tutto prima di iniziare
-        bpy.ops.object.select_all(action='DESELECT')
+        # Store original collection states
+        collection_states = {}
+        for collection in bpy.data.collections:
+            layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+            if layer_collection:
+                collection_states[collection.name] = {
+                    'exclude': layer_collection.exclude,
+                    'hide_viewport': collection.hide_viewport
+                }
         
-        exported_count = 0
-        for em in scene.em_list:
-            proxy = bpy.data.objects.get(em.name)
-            if proxy and proxy.type == 'MESH':
-                proxy.select_set(True)
-                name = clean_filename(em.name)
-                export_file = os.path.join(export_folder, name)
-                
-                try:
-                    bpy.ops.export_scene.gltf(
-                        filepath=str(export_file),
-                        export_format='GLB',
-                        export_materials='NONE',
-                        use_selection=True,
-                        export_apply=True
-                    )
-                    exported_count += 1
-                    print(f"Exported proxy: {name}")
-                except Exception as e:
-                    self.report({'WARNING'}, f"Failed to export proxy {em.name}: {str(e)}")
-                
-                proxy.select_set(False)
+        # Store original object states
+        object_states = {}
+        for ob in bpy.data.objects:
+            if ob.type == 'MESH':
+                object_states[ob.name] = {
+                    'hide_viewport': ob.hide_viewport,
+                    'hide_select': ob.hide_select
+                }
         
-        self.report({'INFO'}, f"Exported {exported_count} proxies")
-        return exported_count > 0
+        try:
+            # Make all collections visible
+            for collection in bpy.data.collections:
+                layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+                if layer_collection:
+                    layer_collection.exclude = False
+                collection.hide_viewport = False
+            
+            # Make all objects visible and selectable
+            for ob in bpy.data.objects:
+                if ob.type == 'MESH':
+                    ob.hide_viewport = False
+                    ob.hide_select = False
+            
+            # Deseleziona tutto prima di iniziare
+            bpy.ops.object.select_all(action='DESELECT')
+            
+            # ⭐ MODIFICA PRINCIPALE: Usa i nomi dai grafi invece di em_list
+            em_tools = context.scene.em_tools
+            has_multiple_graphs = len(em_tools.graphml_files) > 1
+
+            stratigraphic_names = self.get_stratigraphic_names_from_graphs(
+                context, 
+                has_multiple_graphs  # True se multigrafo, False se singolo grafo
+            )
+            
+            print(f"Found {len(stratigraphic_names)} stratigraphic nodes across graphs")
+            
+            exported_count = 0
+            for name in stratigraphic_names:
+                proxy = bpy.data.objects.get(name)
+                if proxy and proxy.type == 'MESH':
+                    proxy.select_set(True)
+                    clean_name = clean_filename(name)
+                    export_file = os.path.join(export_folder, clean_name)
+                    
+                    try:
+                        bpy.ops.export_scene.gltf(
+                            filepath=str(export_file),
+                            export_format='GLB',
+                            export_materials='NONE',
+                            use_selection=True,
+                            export_apply=True
+                        )
+                        exported_count += 1
+                        print(f"Exported proxy: {clean_name}")
+                    except Exception as e:
+                        self.report({'WARNING'}, f"Failed to export proxy {name}: {str(e)}")
+                    
+                    proxy.select_set(False)
+            
+            self.report({'INFO'}, f"Exported {exported_count} proxies")
+            return exported_count > 0
+            
+        finally:
+            # Restore original collection states
+            for collection_name, state in collection_states.items():
+                collection = bpy.data.collections.get(collection_name)
+                if collection:
+                    layer_collection = find_layer_collection(context.view_layer.layer_collection, collection_name)
+                    if layer_collection:
+                        layer_collection.exclude = state['exclude']
+                    collection.hide_viewport = state['hide_viewport']
+            
+            # Restore original object states
+            for object_name, state in object_states.items():
+                obj = bpy.data.objects.get(object_name)
+                if obj:
+                    obj.hide_viewport = state['hide_viewport']
+                    obj.hide_select = state['hide_select']
 
     # Function to export tilesets
     def export_tilesets(self, context, export_folder):
@@ -1477,9 +1610,14 @@ class EXPORT_OT_heriverse(Operator):
                     obj.hide_select = state['hide_select']
 
     def execute(self, context):
+        """Main export function"""
+        self.instanced_objects = set()
+        self.exported_models = {}
+        self.stato_collezioni = {}
+        
         scene = context.scene
         export_vars = context.window_manager.export_vars
-        
+
         # Import utility functions from the main module
         from ..functions import normalize_path, create_directory, check_export_path, check_graph_loaded, show_popup_message
         from ..graph_updaters import update_graph_with_scene_data
@@ -1524,19 +1662,27 @@ class EXPORT_OT_heriverse(Operator):
                     collection_states[collection.name] = layer_collection.exclude
 
             try:
-                # Update the graph before exporting
+                # Update the graph(s) before exporting
                 try:
-                    # Get active graph ID
                     em_tools = scene.em_tools
-                    if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
-                        graphml = em_tools.graphml_files[em_tools.active_file_index]
-                        update_graph_with_scene_data(graphml.name)
+                    has_multiple_graphs = len(em_tools.graphml_files) > 1
+
+                    if has_multiple_graphs:
+                        # Aggiorna tutti i grafi pubblicabili
+                        print("Updating all publishable graphs with scene data...")
+                        update_graph_with_scene_data(update_all_graphs=True, context=context)
                     else:
-                        # Try with None if no active graph
-                        update_graph_with_scene_data(None)
+                        # Solo il grafo attivo
+                        em_tools = scene.em_tools
+                        if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
+                            graphml = em_tools.graphml_files[em_tools.active_file_index]
+                            print(f"Updating active graph '{graphml.name}' with scene data...")
+                            update_graph_with_scene_data(graphml.name, context=context)
+                        else:
+                            print("No active graph found, trying to update single available graph...")
+                            update_graph_with_scene_data(None, context=context)
                 except Exception as e:
                     print(f"Warning: Could not update graph: {e}")
-
                 # STEP 1 Export Cesium tilesets if requested
                 tilesets_exported = False
                 if export_vars.heriverse_export_rm:
@@ -1557,19 +1703,11 @@ class EXPORT_OT_heriverse(Operator):
                     proxy_path = os.path.join(project_path, "proxies")
                     os.makedirs(proxy_path, exist_ok=True)
                     
-                    proxy_collection = bpy.data.collections.get('Proxy')
-                    if proxy_collection:
-                        print(f"Found Proxy collection with {len(proxy_collection.objects)} objects")
-                        layer_collection = find_layer_collection(context.view_layer.layer_collection, 'Proxy')
-                        if layer_collection:
-                            layer_collection.exclude = False
-                            result = self.export_proxies(context, proxy_path)
-                            if result:
-                                print("Proxy export completed successfully")
-                            else:
-                                print("No proxies were exported")
+                    result = self.export_proxies(context, proxy_path)
+                    if result:
+                        print("Proxy export completed successfully")
                     else:
-                        print("No Proxy collection found")
+                        print("No proxies were exported")
 
                 # STEP 3: Esporta i modelli RM se richiesto
                 models_exported = False
@@ -1635,7 +1773,7 @@ class EXPORT_OT_heriverse(Operator):
                 if export_vars.heriverse_export_dosco:
                     print("\n--- Starting DosCo Export ---")
                     active_graph_id = None
-                    if not export_vars.heriverse_export_all_graphs and context.scene.em_tools.active_file_index >= 0:
+                    if not (len(context.scene.em_tools.graphml_files) > 1) and context.scene.em_tools.active_file_index >= 0:
                         active_file = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
                         active_graph_id = active_file.name
 
@@ -1663,16 +1801,22 @@ class EXPORT_OT_heriverse(Operator):
                 # STEP 7: Export JSON
                 if export_vars.heriverse_overwrite_json:
                     try:
-                        # Get active graph ID
                         em_tools = scene.em_tools
-                        if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
-                            graphml = em_tools.graphml_files[em_tools.active_file_index]
-                            update_graph_with_scene_data(graphml.name)
+                        has_multiple_graphs = len(em_tools.graphml_files) > 1
+
+                        if has_multiple_graphs:
+                            # Assicurati che tutti i grafi pubblicabili siano aggiornati prima del JSON
+                            update_graph_with_scene_data(update_all_graphs=True, context=context)
                         else:
-                            update_graph_with_scene_data(None)
+                            # Solo il grafo attivo
+                            em_tools = scene.em_tools
+                            if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
+                                graphml = em_tools.graphml_files[em_tools.active_file_index]
+                                update_graph_with_scene_data(graphml.name, context=context)
+                            else:
+                                update_graph_with_scene_data(None, context=context)
                     except Exception as e:
                         print(f"Warning: Could not update graph for JSON export: {e}")
-
                     # Esporta il JSON direttamente usando il nuovo JSONExporter
                     json_path = os.path.join(project_path, "project.json")
                     print(f"Exporting JSON to: {json_path}")
@@ -1724,6 +1868,7 @@ class EXPORT_OT_heriverse(Operator):
 
             print("\n=== Export Completed Successfully ===")
             self.report({'INFO'}, f"Export completed to {project_path}")
+            
             return {'FINISHED'}
                 
         except Exception as e:
@@ -1733,6 +1878,8 @@ class EXPORT_OT_heriverse(Operator):
             print(traceback.format_exc())
             self.report({'ERROR'}, f"Export failed: {str(e)}")
             return {'CANCELLED'}
+
+
 
 def find_layer_collection(layer_collection, collection_name):
     """Trova ricorsivamente un layer_collection dato il nome della collection"""

@@ -224,7 +224,7 @@ class ExportVars(PropertyGroup):
         name="Show Heriverse export options",
         description="Expand/Collapse Heriverse export options",
         default=False
-    )
+    ) # type: ignore
     
     emviq_expanded: BoolProperty(
         name="Show Emviq export options",
@@ -241,11 +241,7 @@ class ExportVars(PropertyGroup):
         description="Path where to export Heriverse project",
         subtype='DIR_PATH'
     )
-    heriverse_export_all_graphs: BoolProperty(
-        name="Export all graphs",
-        description="Export all loaded graphs instead of just the selected one",
-        default=False
-    )
+
     heriverse_overwrite_json: BoolProperty(
         name="Overwrite JSON",
         description="Overwrite existing JSON file",
