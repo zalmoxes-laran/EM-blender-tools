@@ -345,7 +345,8 @@ if DEPENDENCIES_LOADED:
             rm_manager,
             proxy_inflate_manager,
             anastylosis_manager,
-            proxy_to_rm_projection
+            proxy_to_rm_projection,
+            cronofilter
         )
         
         
@@ -381,6 +382,8 @@ def register_base_classes():
             logger.debug(f"Registered class: {cls.__name__}")
         except Exception as e:
             logger.warning(f"Could not register {cls.__name__}: {e}")
+
+    
 
 def setup_scene_collections():
     """Setup all collection properties on Scene"""
@@ -597,7 +600,9 @@ def register_modules():
         graphml_converter,
         proxy_inflate_manager,
         operators,
-        proxy_to_rm_projection
+        proxy_to_rm_projection,
+        cronofilter
+
     ]
     
     # NUOVO: Visual Manager come modulo base (solo UI + operatori base)
@@ -613,6 +618,9 @@ def register_modules():
         except Exception as e:
             logger.error(f"Error registering core module {module.__name__}: {e}")
     
+    from .cronofilter.integration import initialize_cronofilter_integration
+    bpy.app.timers.register(initialize_cronofilter_integration, first_interval=0.5)
+
     # Registra visual manager (UI base)
     for module in visual_ui_modules:
         try:
@@ -668,6 +676,7 @@ def unregister():
         ]
         
         core_modules = [
+            cronofilter,
             operators,
             graphml_converter,
             import_EMdb,
