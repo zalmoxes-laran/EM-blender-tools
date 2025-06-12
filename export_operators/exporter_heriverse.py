@@ -1533,7 +1533,7 @@ class EXPORT_OT_heriverse(Operator):
                     update_graph_with_scene_data(None)
             except Exception as e:
                 print(f"Warning: Could not update graph: {e}")
-            try:   
+
                # STEP 1 Export Cesium tilesets if requested
                 tilesets_exported = False
                 if export_vars.heriverse_export_rm:
@@ -1662,7 +1662,18 @@ class EXPORT_OT_heriverse(Operator):
 
                 # STEP 7: Export JSON
                 if export_vars.heriverse_overwrite_json:
-                    update_graph_with_scene_data()
+
+                    try:
+                        # Get active graph ID
+                        em_tools = scene.em_tools
+                        if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
+                            graphml = em_tools.graphml_files[em_tools.active_file_index]
+                            update_graph_with_scene_data(graphml.name)
+                        else:
+                            update_graph_with_scene_data(None)
+                    except Exception as e:
+                        print(f"Warning: Could not update graph for JSON export: {e}")
+
                     # Esporta il JSON direttamente usando il nuovo JSONExporter
                     json_path = os.path.join(project_path, "project.json")
                     print(f"Exporting JSON to: {json_path}")
