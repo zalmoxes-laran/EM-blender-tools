@@ -1482,6 +1482,8 @@ class EXPORT_OT_heriverse(Operator):
         
         # Import utility functions from the main module
         from ..functions import normalize_path, create_directory, check_export_path, check_graph_loaded, show_popup_message
+        from ..graph_updaters import update_graph_with_scene_data
+        import json
         
         try:
             print("\n=== Starting Heriverse Export ===")
@@ -1523,18 +1525,19 @@ class EXPORT_OT_heriverse(Operator):
 
             try:
                 # Update the graph before exporting
-                # Get active graph ID
-                em_tools = scene.em_tools
-                if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
-                    graphml = em_tools.graphml_files[em_tools.active_file_index]
-                    update_graph_with_scene_data(graphml.name)
-                else:
-                    # Try with None if no active graph
-                    update_graph_with_scene_data(None)
-            except Exception as e:
-                print(f"Warning: Could not update graph: {e}")
+                try:
+                    # Get active graph ID
+                    em_tools = scene.em_tools
+                    if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
+                        graphml = em_tools.graphml_files[em_tools.active_file_index]
+                        update_graph_with_scene_data(graphml.name)
+                    else:
+                        # Try with None if no active graph
+                        update_graph_with_scene_data(None)
+                except Exception as e:
+                    print(f"Warning: Could not update graph: {e}")
 
-               # STEP 1 Export Cesium tilesets if requested
+                # STEP 1 Export Cesium tilesets if requested
                 tilesets_exported = False
                 if export_vars.heriverse_export_rm:
                     print("\n--- Starting Tileset Export ---")
@@ -1615,7 +1618,6 @@ class EXPORT_OT_heriverse(Operator):
                     else:
                         print("No ParaData objects were exported")
 
-
                 # STEP 3.2: Export SF models if requested
                 sf_models_exported = False
                 if export_vars.heriverse_export_rmsf:
@@ -1628,7 +1630,6 @@ class EXPORT_OT_heriverse(Operator):
                         print("Special Finds models export completed successfully")
                     else:
                         print("No Special Finds models were exported")
-
 
                 # STEP 4: Esporta i file DosCo se richiesto
                 if export_vars.heriverse_export_dosco:
@@ -1654,7 +1655,6 @@ class EXPORT_OT_heriverse(Operator):
                     else:
                         print("Panorama export failed or was skipped")
 
-
                 # STEP 6: Compress all textures at once if texture compression is enabled and RM models were exported
                 if scene.heriverse_enable_compression and models_exported and models_path:
                     print("\n--- Starting Texture Compression ---")
@@ -1662,7 +1662,6 @@ class EXPORT_OT_heriverse(Operator):
 
                 # STEP 7: Export JSON
                 if export_vars.heriverse_overwrite_json:
-
                     try:
                         # Get active graph ID
                         em_tools = scene.em_tools
@@ -1705,7 +1704,6 @@ class EXPORT_OT_heriverse(Operator):
                                 json.dump(json_data, f, indent=4)
                                 
                             print(f"Updated JSON with instancing information for {len(self.instanced_objects)} objects")
-
 
                     else:
                         self.report({'ERROR'}, "JSON export failed")
