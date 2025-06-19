@@ -94,35 +94,67 @@ class EM_strat_sync_visibility(Operator):
         # Create a set of proxy names that should be visible
         visible_proxy_names = {item.name for item in scene.em_list}
         
-        # Process only objects that match proxy names or are in the 'Proxy' collection
-        proxy_collection = bpy.data.collections.get('Proxy')
+        # Find all proxy objects - need to include ALL mesh objects from proxy collections
+        # plus any objects with matching names
         proxy_objects = []
+        proxy_objects_set = set()  # To avoid duplicates
+        activated_collections = []
         
-        # Build list of proxy objects
+        # Strategy: Look for collections that contain objects matching our em_list names
+        # and treat those entire collections as "proxy collections"
+        proxy_collections = set()
+        
+        # First pass: identify which collections contain objects from em_list
+        all_em_list_names = {item.name for item in scene.em_list}
+        for collection in bpy.data.collections:
+            for obj in collection.objects:
+                if obj.name in all_em_list_names and obj.type == 'MESH':
+                    proxy_collections.add(collection)
+                    break
+        
+        # Add the original "Proxy" collection if it exists (for backward compatibility)
+        proxy_collection = bpy.data.collections.get('Proxy')
         if proxy_collection:
-            # Add objects from Proxy collection
-            proxy_objects.extend(proxy_collection.objects)
+            proxy_collections.add(proxy_collection)
         
-        # Also add any objects with matching names from em_list
-        for obj_name in visible_proxy_names:
+        # Second pass: add ALL mesh objects from identified proxy collections
+        for collection in proxy_collections:
+            contains_visible_proxy = False
+            
+            for obj in collection.objects:
+                if obj.type == 'MESH' and obj not in proxy_objects_set:
+                    proxy_objects.append(obj)
+                    proxy_objects_set.add(obj)
+                    
+                    # Check if this collection should be activated
+                    if obj.name in visible_proxy_names:
+                        contains_visible_proxy = True
+            
+            # Activate collection if it contains visible proxies and is currently hidden
+            if contains_visible_proxy and collection.hide_viewport:
+                collection.hide_viewport = False
+                activated_collections.append(collection.name)
+        
+        # Also add any objects with matching names that might not be in proxy collections
+        for obj_name in all_em_list_names:
             obj = bpy.data.objects.get(obj_name)
-            if obj and obj.type == 'MESH' and obj not in proxy_objects:
+            if obj and obj.type == 'MESH' and obj not in proxy_objects_set:
                 proxy_objects.append(obj)
+                proxy_objects_set.add(obj)
         
-        # Hide/Show only proxy objects based on the list
+        # Hide/Show proxy objects based on the list
         hidden_count = 0
         shown_count = 0
         
         for obj in proxy_objects:
-            if obj.type == 'MESH':  # Ensure we only process mesh objects
-                if obj.name in visible_proxy_names:
-                    if obj.hide_viewport:
-                        obj.hide_viewport = False
-                        shown_count += 1
-                else:
-                    if not obj.hide_viewport:
-                        obj.hide_viewport = True
-                        hidden_count += 1
+            if obj.name in visible_proxy_names:
+                if obj.hide_viewport:
+                    obj.hide_viewport = False
+                    shown_count += 1
+            else:
+                if not obj.hide_viewport:
+                    obj.hide_viewport = True
+                    hidden_count += 1
         
         # Update visibility icons in the em_list
         for item in scene.em_list:
@@ -130,8 +162,12 @@ class EM_strat_sync_visibility(Operator):
             if obj:
                 item.is_visible = not obj.hide_viewport
         
-        self.report({'INFO'}, f"Proxy visibility synchronized: {shown_count} shown, {hidden_count} hidden")
-
+        # Report results
+        message = f"Proxy visibility synchronized: {shown_count} shown, {hidden_count} hidden"
+        if activated_collections:
+            message += f". Activated collections: {', '.join(activated_collections)}"
+        
+        self.report({'INFO'}, message)
     def sync_rm_visibility(self, context):
         """Synchronize RM object visibility based on active epoch"""
         scene = context.scene
