@@ -158,6 +158,8 @@ class VISUAL_OT_apply_colors(Operator):
             self.report({'ERROR'}, "No property selected")
             return {'CANCELLED'}
         
+        alpha_value = scene.proxy_display_alpha
+        
         if not em_tools.mode_switch:
             mgr = multi_graph_manager
             print("\nDebug - Graph Manager Status:")
@@ -185,8 +187,52 @@ class VISUAL_OT_apply_colors(Operator):
                 if not mat:
                     mat = bpy.data.materials.new(name=mat_name)
                     mat.use_nodes = True
-                principled = mat.node_tree.nodes["Principled BSDF"]
-                principled.inputs[0].default_value = (*color[:3], 1.0)
+                    mat.node_tree.nodes.clear()
+                    
+                    if alpha_value < 1.0:
+                        mat.blend_method = 'BLEND'
+                    else:
+                        mat.blend_method = scene.proxy_blend_mode
+                    
+                    # Crea i nodi shader
+                    output = mat.node_tree.nodes.new('ShaderNodeOutputMaterial')
+                    output.location = (0, 0)
+                    principled = mat.node_tree.nodes.new('ShaderNodeBsdfPrincipled')
+                    principled.location = (-200, 0)
+                    
+                    # Collega i nodi
+                    mat.node_tree.links.new(principled.outputs['BSDF'], output.inputs['Surface'])
+                else:
+                    # Trova il nodo Principled BSDF esistente
+                    principled = None
+                    for node in mat.node_tree.nodes:
+                        if node.type == 'BSDF_PRINCIPLED':
+                            principled = node
+                            break
+                    
+                    # Se non esiste, crealo
+                    if not principled:
+                        mat.node_tree.nodes.clear()
+                        output = mat.node_tree.nodes.new('ShaderNodeOutputMaterial')
+                        output.location = (0, 0)
+                        principled = mat.node_tree.nodes.new('ShaderNodeBsdfPrincipled')
+                        principled.location = (-200, 0)
+                        mat.node_tree.links.new(principled.outputs['BSDF'], output.inputs['Surface'])
+                    
+                    if alpha_value < 1.0:
+                        mat.blend_method = 'BLEND'
+                    else:
+                        mat.blend_method = scene.proxy_blend_mode
+                
+                if principled:
+                    principled.inputs['Base Color'].default_value = (*color[:3], 1.0)
+                    
+                    if 'Alpha' in principled.inputs:
+                        principled.inputs['Alpha'].default_value = alpha_value
+                    elif 'Transmission' in principled.inputs:
+                        # Fallback per versioni più vecchie di Blender
+                        principled.inputs['Transmission'].default_value = 1.0 - alpha_value
+                
                 materials[value] = mat
 
             # Find all property nodes of the selected type
@@ -235,7 +281,11 @@ class VISUAL_OT_apply_colors(Operator):
                                 proxy.data.materials.append(materials[no_prop_value])
                             colored_objects += 1
 
-            self.report({'INFO'}, f"Applied colors to {colored_objects} objects")
+            print(f"\nApplied colors with alpha = {alpha_value} to {colored_objects} objects")
+            if alpha_value < 1.0:
+                print(f"Materials set to BLEND mode for transparency")
+            
+            self.report({'INFO'}, f"Applied colors to {colored_objects} objects (alpha: {alpha_value:.2f})")
             return {'FINISHED'}
             
         self.report({'ERROR'}, "No active graph")

@@ -25,6 +25,9 @@ def create_property_value_mapping_old(graph, property_name):
     """
     print(f"\n=== Creating Property Value Mapping for '{property_name}' (Legacy) ===")
     
+
+
+
     mapping = {}
     
     # Find all property nodes with the given name
@@ -61,31 +64,47 @@ def create_property_value_mapping_old(graph, property_name):
     print(f"Legacy mapping created with {len(mapping)} entries")
     return mapping
 
-def create_property_value_mapping(graph, property_name):
-    """Optimized version using graph indices"""
-    print(f"\n=== Creating Property Value Mapping for '{property_name}' (Optimized) ===")
+def create_property_value_mapping(context):
+    """Create materials for property values"""
+    scene = context.scene
+    materials = {}
     
-    # Usa gli indici del grafo
-    indices = graph.indices
+    alpha_value = scene.proxy_display_alpha
     
-    # Ottieni tutti i valori per questa proprietà
-    values = indices.get_property_values(property_name)
-    
-    # Crea il mapping
-    mapping = {}
-    for value in values:
-        # I valori speciali hanno già il formato corretto
-        if value.startswith("empty property") or value.startswith("no property"):
-            mapping[value] = value
+    for item in scene.property_values:
+        material_name = f"prop_{item.value}"
+        
+        # Crea o ottieni il materiale
+        if material_name in bpy.data.materials:
+            mat = bpy.data.materials[material_name]
         else:
-            # Per i valori normali, trova un nodo rappresentativo
-            strat_ids = indices.get_strat_nodes_by_property_value(property_name, value)
-            if strat_ids:
-                # Usa il primo ID come chiave
-                mapping[strat_ids[0]] = value
+            mat = bpy.data.materials.new(name=material_name)
+        
+        # Configura il materiale
+        mat.use_nodes = True
+        mat.node_tree.nodes.clear()
+        
+        if alpha_value < 1.0:
+            mat.blend_method = 'BLEND'
+        else:
+            mat.blend_method = scene.proxy_blend_mode
+        
+        # Crea i nodi
+        output = mat.node_tree.nodes.new('ShaderNodeOutputMaterial')
+        principled = mat.node_tree.nodes.new('ShaderNodeBsdfPrincipled')
+        
+        # Collega i nodi
+        mat.node_tree.links.new(principled.outputs['BSDF'], output.inputs['Surface'])
+        
+        # Imposta il colore e l'alpha
+        principled.inputs['Base Color'].default_value = (*item.color[:3], 1.0)
+        
+        if 'Alpha' in principled.inputs:
+            principled.inputs['Alpha'].default_value = alpha_value
+        
+        materials[item.value] = mat
     
-    print(f"Mapping results: {len(mapping)} values found")
-    return mapping
+    return materials
 
 def apply_property_colors(context, property_mapping, color_scheme):
     """Applies colors to mesh objects based on property values."""

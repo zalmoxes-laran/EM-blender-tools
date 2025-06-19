@@ -852,12 +852,52 @@ def update_icons(context,list_type):
  #### General functions for materials ####
 ## #### #### #### #### #### #### #### ####
 
-def update_display_mode(self, context):
-    if bpy.context.scene.proxy_display_mode == "EM":
-        bpy.ops.emset.emmaterial()
-    if bpy.context.scene.proxy_display_mode == "Epochs":
-        bpy.ops.emset.epochmaterial()
+def update_property_materials_alpha(alpha_value):
+    """Update alpha for all property-based materials"""
+    scene = bpy.context.scene
+    
+    # Trova tutti i materiali che iniziano con i prefissi delle Properties
+    property_materials = []
+    for mat in bpy.data.materials:
+        # I materiali delle Properties dovrebbero avere nomi specifici
+        # Adatta questi prefissi in base alla tua implementazione
+        if mat.name.startswith(('prop_', 'property_', 'no_property')):
+            property_materials.append(mat)
+    
+    # Aggiorna l'alpha di tutti i materiali delle Properties
+    for mat in property_materials:
+        if mat.use_nodes:
+            # Trova il nodo Principled BSDF
+            principled_node = None
+            for node in mat.node_tree.nodes:
+                if node.type == 'BSDF_PRINCIPLED':
+                    principled_node = node
+                    break
+            
+            if principled_node:
+                # Aggiorna l'alpha
+                if 'Alpha' in principled_node.inputs:
+                    principled_node.inputs['Alpha'].default_value = alpha_value
+                elif 'Transmission' in principled_node.inputs:
+                    principled_node.inputs['Transmission'].default_value = 1.0 - alpha_value
+                
+                # Assicurati che il blend mode sia corretto per la trasparenza
+                if alpha_value < 1.0:
+                    mat.blend_method = 'BLEND'
+                else:
+                    mat.blend_method = scene.proxy_blend_mode
+    
+    print(f"Updated alpha to {alpha_value} for {len(property_materials)} property materials")
 
+def update_display_mode(self, context):
+    scene = bpy.context.scene
+    
+    if scene.proxy_display_mode == "EM":
+        bpy.ops.emset.emmaterial()
+    elif scene.proxy_display_mode == "Epochs":
+        bpy.ops.emset.epochmaterial()
+    elif scene.proxy_display_mode == "Properties":
+        update_property_materials_alpha(scene.proxy_display_alpha)
     
 def check_material_presence(matname):
     mat_presence = False

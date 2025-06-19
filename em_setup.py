@@ -49,7 +49,7 @@ class EM_create_collection(bpy.types.Operator):
         collections_created = []
         
         # Create all standard collections
-        standard_collections = ["EM", "Proxy", "RM", "CAMS"]
+        standard_collections = ["Proxy", "RM", "CAMS"]
         
         for collection_name in standard_collections:
             if not bpy.data.collections.get(collection_name):
@@ -795,7 +795,7 @@ class EM_SetupPanel(bpy.types.Panel):
                     info_box = collection_box.box()
                     info_box.label(text="Standard Collections:")
                     info_col = info_box.column(align=True)
-                    info_col.label(text="• EM - Extended Matrix nodes/proxies")
+                    #info_col.label(text="• EM - Extended Matrix nodes/proxies")
                     info_col.label(text="• Proxy - 3D proxy models") 
                     info_col.label(text="• RM - Representation models")
                     info_col.label(text="• CAMS - Cameras and related labels")
