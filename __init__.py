@@ -346,7 +346,9 @@ if DEPENDENCIES_LOADED:
             proxy_inflate_manager,
             anastylosis_manager,
             proxy_to_rm_projection,
-            cronofilter
+            cronofilter,
+            multigraph_system
+
         )
         
         
@@ -601,7 +603,8 @@ def register_modules():
         proxy_inflate_manager,
         operators,
         proxy_to_rm_projection,
-        cronofilter
+        cronofilter,
+        multigraph_system
 
     ]
     
@@ -676,6 +679,7 @@ def unregister():
         ]
         
         core_modules = [
+            multigraph_system,
             cronofilter,
             operators,
             graphml_converter,
