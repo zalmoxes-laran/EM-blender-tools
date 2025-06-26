@@ -620,6 +620,12 @@ def register():
        description="Define the quality of the output images. 100 is maximum quality but at a cost of bigger weight (no optimization); 80 is compressed with near lossless quality but still hight in weight; 60 is a good middle way; 40 is hardly optimized with some evident loss in quality (sometimes it can work).",
        )
 
+       bpy.types.Scene.EM_gltf_export_animations = BoolProperty(
+       name="export animations",
+       default=True,
+       description="Export animations, keyframes, and NLA strips in the GLTF file.",
+       )
+
        bpy.types.Scene.EM_gltf_export_maxres = IntProperty(
        name="export max resolution",
        default=4096,
@@ -703,6 +709,7 @@ def unregister():
        del bpy.types.Scene.ATON_path
        del bpy.types.Scene.EM_gltf_export_maxres
        del bpy.types.Scene.EM_gltf_export_quality
+       del bpy.types.Scene.EM_gltf_export_animations
        del bpy.types.WindowManager.em_addon_settings
 
        
