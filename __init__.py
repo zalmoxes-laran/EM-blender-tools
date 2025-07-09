@@ -632,6 +632,20 @@ def register():
        description="Define the maximum resolution of the bigger side (it depends if it is a squared landscape or portrait image) of the output images",
        )
 
+       bpy.types.Scene.EM_gltf_export_frame_range = BoolProperty(
+       name="limit to playback range",
+       default=True,
+       description="Limit animation export to the current playback range.",
+       )
+
+       bpy.types.Scene.EM_gltf_export_sampling = BoolProperty(
+       name="sampling animations",
+       default=True,
+       description="Sample animations at every frame for accurate export.",
+       )
+
+
+
        bpy.types.WindowManager.em_addon_settings = bpy.props.PointerProperty(type=EMAddonSettings)
        
 ######################################################################################################
