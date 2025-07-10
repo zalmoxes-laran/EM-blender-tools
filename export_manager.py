@@ -126,6 +126,21 @@ class EM_ExportPanel:
                     # Add the GPU instancing option here
                     row_pd.prop(export_vars, "heriverse_use_gpu_instancing", text="Use GPU Instancing")
                     
+                    # Add animation export options
+                    row_pd = box_pd.row()
+                    row_pd.prop(export_vars, "heriverse_export_animations", text="Export Animations")
+                    
+                    # Show additional animation options only if animations are enabled
+                    if export_vars.heriverse_export_animations:
+                        row_pd = box_pd.row()
+                        row_pd.prop(export_vars, "heriverse_export_all_animations", text="All Animations")
+                        row_pd = box_pd.row()
+                        row_pd.prop(export_vars, "heriverse_animation_frame_range", text="Frame Range Only")
+                        
+                        # Info text for animations
+                        row_pd = box_pd.row()
+                        row_pd.label(text="Note: Exports armatures, bones, and keyframe data", icon='INFO')
+
                     # Add texture compression options when separate textures is enabled
                     if export_vars.heriverse_separate_textures:
                         box_comp = box.box()

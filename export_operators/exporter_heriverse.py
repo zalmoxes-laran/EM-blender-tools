@@ -232,12 +232,13 @@ class EXPORT_OT_heriverse(Operator):
                     export_file = os.path.join(export_folder, clean_name)
                     
                     try:
-                        bpy.ops.export_scene.gltf(
-                            filepath=str(export_file),
-                            export_format='GLB',
-                            export_materials='NONE',
+                        export_gltf_with_animation_support(
+                            filepath=export_file,
+                            export_vars=export_vars,  # Deve essere passato alla funzione
+                            scene=scene,             # Deve essere passato alla funzione
                             use_selection=True,
-                            export_apply=True
+                            export_format='GLB',
+                            export_materials='NONE'
                         )
                         exported_count += 1
                         print(f"Exported proxy: {clean_name}")
@@ -637,23 +638,14 @@ class EXPORT_OT_heriverse(Operator):
                     obj.select_set(True)
                     export_file = os.path.join(export_folder, clean_filename(obj.name))
                     
-                    bpy.ops.export_scene.gltf(
-                        filepath=str(export_file),
-                        export_format='GLTF_SEPARATE',
-                        export_copyright=scene.EMviq_model_author_name if hasattr(scene, 'EMviq_model_author_name') else "",
-                        export_texcoords=True,
-                        export_normals=True,
-                        export_draco_mesh_compression_enable=export_vars.heriverse_use_draco,
-                        export_draco_mesh_compression_level=export_vars.heriverse_draco_level,
-                        export_materials='EXPORT',
-                        use_selection=True,
-                        export_apply=True,
-                        export_image_format='AUTO',
-                        export_texture_dir="",
-                        export_keep_originals=False,
-                        check_existing=False
+
+                    export_gltf_with_animation_support(
+                        filepath=export_file,
+                        export_vars=export_vars,
+                        scene=scene,
+                        use_selection=True
                     )
-                    
+
                     # Crea o aggiorna il nodo Link
                     if graph:
                         model_node_id = f"{obj.name}_model"
@@ -733,25 +725,16 @@ class EXPORT_OT_heriverse(Operator):
                     export_file = os.path.join(export_folder, clean_filename(primary_obj.name))
                     
                     # Step 3.7: Export with instancing enabled
-                    bpy.ops.export_scene.gltf(
-                        filepath=str(export_file),
-                        export_format='GLTF_SEPARATE',
-                        export_copyright=scene.EMviq_model_author_name if hasattr(scene, 'EMviq_model_author_name') else "",
-                        export_texcoords=True,
-                        export_normals=True,
-                        export_draco_mesh_compression_enable=export_vars.heriverse_use_draco,
-                        export_draco_mesh_compression_level=export_vars.heriverse_draco_level,
-                        export_materials='EXPORT',
-                        use_selection=True,
-                        export_apply=True,
-                        export_extras=True,
-                        export_gpu_instances=True,  # Sempre attivo per l'instancing
-                        check_existing=False,
-                        export_image_format='AUTO',
-                        export_texture_dir="",
-                        export_keep_originals=False
-                    )
                     
+                    export_gltf_with_animation_support(
+                        filepath=export_file,
+                        export_vars=export_vars,
+                        scene=scene,
+                        use_selection=True,
+                        export_extras=True,
+                        export_gpu_instances=True
+                    )
+
                     # Crea o aggiorna il nodo Link per l'oggetto primario
                     if graph:
                         model_node_id = f"{primary_obj.name}_model"
@@ -950,19 +933,14 @@ class EXPORT_OT_heriverse(Operator):
                             print(f"Converted materials to Principled BSDF for {obj.name}: {', '.join(materials_converted)}")
 
                         # Esporta come GLTF
-                        bpy.ops.export_scene.gltf(
-                            filepath=str(export_file),
-                            export_format='GLTF_SEPARATE',
-                            export_copyright=scene.EMviq_model_author_name if hasattr(scene, 'EMviq_model_author_name') else "",
-                            export_texcoords=True,
-                            export_normals=True,
-                            export_draco_mesh_compression_enable=export_vars.heriverse_use_draco,
-                            export_draco_mesh_compression_level=export_vars.heriverse_draco_level,
-                            export_materials='EXPORT',
-                            use_selection=True,
-                            export_apply=True
-                        )
                         
+                        export_gltf_with_animation_support(
+                            filepath=export_file,
+                            export_vars=export_vars,
+                            scene=scene,
+                            use_selection=True
+                        )
+
                         # Crea nodo RMDoc e LinkNode se il grafo è disponibile
                         if graph:
 
@@ -1484,19 +1462,13 @@ class EXPORT_OT_heriverse(Operator):
                 
                 # Export as GLTF
                 try:
-                    bpy.ops.export_scene.gltf(
-                        filepath=str(export_file),
-                        export_format='GLTF_SEPARATE',
-                        export_copyright=scene.EMviq_model_author_name if hasattr(scene, 'EMviq_model_author_name') else "",
-                        export_texcoords=True,
-                        export_normals=True,
-                        export_draco_mesh_compression_enable=export_vars.heriverse_use_draco,
-                        export_draco_mesh_compression_level=export_vars.heriverse_draco_level,
-                        export_materials='EXPORT',
-                        use_selection=True,
-                        export_apply=True
+                    export_gltf_with_animation_support(
+                        filepath=export_file,
+                        export_vars=export_vars,
+                        scene=scene,
+                        use_selection=True
                     )
-                    
+
                     # Create/update nodes and edges in the graph
                     if graph:
                         # Get SF or VSF node if it's linked
@@ -1919,6 +1891,72 @@ class HERIVERSE_OT_make_collections_visible(Operator):
         
         self.report({'INFO'}, "All collections containing RM objects are now visible")
         return {'FINISHED'}
+
+
+def export_gltf_with_animation_support(filepath, export_vars, scene, use_selection=True, 
+                                      export_extras=False, export_gpu_instances=False):
+    """
+    Template function per l'export glTF con supporto animazioni
+    Da usare per sostituire tutte le chiamate bpy.ops.export_scene.gltf()
+    """
+    
+    # Parametri base sempre presenti
+    export_params = {
+        'filepath': str(filepath),
+        'export_format': 'GLTF_SEPARATE',
+        'export_copyright': scene.EMviq_model_author_name if hasattr(scene, 'EMviq_model_author_name') else "",
+        'export_texcoords': True,
+        'export_normals': True,
+        'export_draco_mesh_compression_enable': export_vars.heriverse_use_draco,
+        'export_draco_mesh_compression_level': export_vars.heriverse_draco_level,
+        'export_materials': 'EXPORT',
+        'use_selection': use_selection,
+        'export_apply': True,
+        'export_image_format': 'AUTO',
+        'export_texture_dir': "",
+        'export_keep_originals': False,
+        'check_existing': False
+    }
+    
+    # Parametri opzionali 
+    if export_extras:
+        export_params['export_extras'] = True
+    if export_gpu_instances:
+        export_params['export_gpu_instances'] = True
+    
+    # Parametri per le animazioni
+    if export_vars.heriverse_export_animations:
+        # Abilita export di animazioni, armature e bones
+        export_params.update({
+            'export_animations': True,
+            'export_frame_range': export_vars.heriverse_animation_frame_range,
+            'export_frame_step': 1,
+            'export_force_sampling': True,
+            'export_nla_strips': export_vars.heriverse_export_all_animations,
+            'export_def_bones': True,
+            'export_current_frame': False,
+            'export_skins': True,
+            'export_all_influences': True,
+            'export_morph': True
+        })
+    else:
+        # Disabilita completamente l'export di animazioni
+        export_params.update({
+            'export_animations': False,
+            'export_frame_range': False,
+            'export_frame_step': 1,
+            'export_force_sampling': False,
+            'export_nla_strips': False,
+            'export_def_bones': False,
+            'export_current_frame': False,
+            'export_skins': False,
+            'export_all_influences': False,
+            'export_morph': False
+        })
+    
+    # Esegui l'export
+    bpy.ops.export_scene.gltf(**export_params)
+
 
 def register():
     bpy.utils.register_class(EXPORT_OT_heriverse)

@@ -310,6 +310,22 @@ class ExportVars(PropertyGroup):
         default=True
     )
 
+    heriverse_export_animations: BoolProperty(
+        name="Export Animations",
+        description="Export animations and armatures in glTF files",
+        default=False
+    )
+    heriverse_export_all_animations: BoolProperty(
+        name="Export All Animations",
+        description="Export all animations instead of just the active one",
+        default=False
+    )
+    heriverse_animation_frame_range: BoolProperty(
+        name="Limit to Frame Range",
+        description="Export only the current frame range instead of all frames",
+        default=True
+    )
+
 class ExportTablesVars(PropertyGroup):
     """Table export settings"""
     table_type: EnumProperty(
