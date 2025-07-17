@@ -283,19 +283,19 @@ class CF_PT_CronoFilterPanel(Panel):
     bl_category = "EM"
     bl_options = {'DEFAULT_CLOSED'}
     
-    def draw_header(self, context):
-        layout = self.layout
-        cf_settings = context.scene.cf_settings
-        layout.prop(cf_settings, "expanded", 
-                   icon='TRIA_DOWN' if cf_settings.expanded else 'TRIA_RIGHT',
-                   text="", emboss=False)
+#    def draw_header(self, context):
+#        layout = self.layout
+#        cf_settings = context.scene.cf_settings
+#        layout.prop(cf_settings, "expanded", 
+#                   icon='TRIA_DOWN' if cf_settings.expanded else 'TRIA_RIGHT',
+#                   text="", emboss=False)
     
     def draw(self, context):
         layout = self.layout
         cf_settings = context.scene.cf_settings
         
-        if not cf_settings.expanded:
-            return
+        #if not cf_settings.expanded:
+        #    return
         
         # Header info
         box = layout.box()
