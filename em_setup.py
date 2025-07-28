@@ -591,8 +591,6 @@ class EMToolsSwitchModeOperator(bpy.types.Operator):
             self.report({'INFO'}, "Switched to 3D GIS Mode")
         
         return {'FINISHED'}
-
-
 class EM_SetupPanel(bpy.types.Panel):
     
     bl_label = f"EM setup {get_em_tools_version()}"
@@ -628,13 +626,6 @@ class EM_SetupPanel(bpy.types.Panel):
             col.operator("emtools.switch_mode", text=activemode_label)
 
         if em_tools.mode_switch:
-            # List of GraphML files
-            row = layout.row()
-            row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=2)
-
-            row = layout.row(align=True)
-            row.operator('em_tools.add_file', text="Add GraphML", icon="ADD")
-            row.operator('em_tools.remove_file', text="Remove GraphML", icon="REMOVE")
 
             # ========================================================================
             # SEZIONE LANDSCAPE MODE - COMPATTA SU UNA RIGA
@@ -649,26 +640,26 @@ class EM_SetupPanel(bpy.types.Panel):
                         loaded_graphs.append(graph_file)
                     else:
                         # Fallback: controlla se il grafo esiste nel sistema
-                        from ..s3Dgraphy import get_graph
+                        from .s3Dgraphy import get_graph
                         if get_graph(graph_file.name):
                             loaded_graphs.append(graph_file)
             
             # Mostra controlli Landscape sempre (con info se non disponibile)
-            layout.separator()
+            #layout.separator()
             
             # Box per Landscape Mode - COMPATTO
             landscape_box = layout.box()
             
             # Riga unica con tutto
             row = landscape_box.row(align=True)
-            
+
             # Pulsante info
             info_op = row.operator("wm.call_menu", text="", icon='INFO')
-            info_op.name = "EM_MT_LandscapeInfo"  # Menu da creare se necessario
-            
+            info_op.name = "EM_MT_LandscapeInfo"
+
             # Label
-            row.label(text="Landscape Mode")
-            
+            row.label(text="Multigraph Mode")
+
             # Stato attuale e pulsante toggle
             is_landscape_active = getattr(scene, 'landscape_mode_active', False)
             can_enable_landscape = len(loaded_graphs) >= 2
@@ -676,24 +667,33 @@ class EM_SetupPanel(bpy.types.Panel):
             if is_landscape_active:
                 # Attivo: pulsante per disattivare
                 disable_op = row.operator("em.toggle_landscape_mode", 
-                                        text="Disable Landscape Mode", 
+                                        text="Disable", 
                                         icon='CANCEL')
                 disable_op.enable = False  # Per disattivare
             else:
                 # Non attivo: pulsante per attivare
-                enable_op = row.operator("em.toggle_landscape_mode", 
-                                       text="Enable Landscape Mode", 
-                                       icon='FILE_VOLUME')
-                enable_op.enable = True  # Per attivare
-                enable_op.enabled = can_enable_landscape  # Abilitato solo se 2+ grafi
+                # Crea un sub-row per poter disabilitare solo il pulsante
+                button_row = row.row()
+                button_row.enabled = can_enable_landscape  # ✅ CORRETTO: disabilita il row
                 
-                # Se non può essere abilitato, rendi il pulsante grigio
-                if not can_enable_landscape:
-                    row.enabled = False
-            
+                enable_op = button_row.operator("em.toggle_landscape_mode", 
+                                               text="Enable", 
+                                               icon='FILE_VOLUME')
+                enable_op.enable = True  # Per attivare
+
+
             # ========================================================================
             # FINE SEZIONE LANDSCAPE MODE
             # ========================================================================
+
+            # List of GraphML files
+            row = layout.row()
+            row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=2)
+
+            row = layout.row(align=True)
+            row.operator('em_tools.add_file', text="Add GraphML", icon="ADD")
+            row.operator('em_tools.remove_file', text="Remove GraphML", icon="REMOVE")
+
 
             # Details for selected GraphML file (codice esistente)
             if em_tools.active_file_index >= 0 and em_tools.graphml_files:

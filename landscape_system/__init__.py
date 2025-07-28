@@ -14,15 +14,22 @@ from bpy.props import BoolProperty, StringProperty
 
 class EM_MT_LandscapeInfo(Menu):
     """Menu informativo per Landscape Mode"""
-    bl_label = "Landscape Mode Info"
+    bl_label = "Multigraph Mode Info"
     bl_idname = "EM_MT_LandscapeInfo"
+    bl_description = "Information about Multigraph Mode for Extended Matrices"
     
     def draw(self, context):
         layout = self.layout
         
-        layout.label(text="🌍 Landscape Mode", icon='WORLD')
+        layout.label(text="Multigraph Mode", icon='WORLD')
         layout.separator()
-        layout.label(text="Requirements:")
+        layout.label(text="Allows to manage and filter multiple Extended Matrices representing:")
+        layout.label(text="• a bunch of artifacts composing a collection")
+        layout.label(text="• excavation areas composing a site")
+        layout.label(text="• several sites that compose a Larger Landscape")
+
+        layout.separator()
+        layout.label(text="Requirements to activate:")
         layout.label(text="• Load 2+ Extended Matrices (GraphML)")
         layout.label(text="• Both must be valid (green icon)")
         layout.separator()
@@ -53,15 +60,29 @@ class EM_OT_ToggleLandscapeMode(Operator):
         
         if self.enable:
             # Verifica che ci siano almeno 2 grafi caricati
+            # ✅ CORRETTO: Usa la stessa logica dell'EM Setup
+            loaded_graphs = []
             if hasattr(scene, 'em_tools'):
-                loaded_graphs = [f for f in scene.em_tools.graphml_files if getattr(f, 'is_graph', False)]
+                for graph_file in scene.em_tools.graphml_files:
+                    # Prima controlla la proprietà is_graph
+                    if hasattr(graph_file, 'is_graph') and graph_file.is_graph:
+                        loaded_graphs.append(graph_file)
+                    else:
+                        # Fallback: controlla se il grafo esiste nel sistema
+                        from ..s3Dgraphy import get_graph
+                        if get_graph(graph_file.name):
+                            loaded_graphs.append(graph_file)
+                
                 if len(loaded_graphs) < 2:
                     self.report({'ERROR'}, "Need at least 2 Extended Matrices to enable Landscape mode")
                     return {'CANCELLED'}
+            else:
+                self.report({'ERROR'}, "No Extended Matrices found")
+                return {'CANCELLED'}
             
             # Attiva Landscape mode
             scene.landscape_mode_active = True
-            self.report({'INFO'}, "Landscape mode enabled")
+            self.report({'INFO'}, f"Landscape mode enabled ({len(loaded_graphs)} matrices)")
         else:
             # Disattiva Landscape mode
             scene.landscape_mode_active = False
