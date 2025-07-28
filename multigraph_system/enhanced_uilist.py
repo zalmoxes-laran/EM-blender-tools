@@ -3,8 +3,8 @@
 UIList potenziate per la gestione multigraph con conversione nomi al volo
 """
 
-import bpy
-from bpy.types import UIList
+import bpy # type: ignore
+from bpy.types import UIList # type: ignore
 
 class EM_STRAT_UL_List_Enhanced(UIList):
     """
@@ -252,26 +252,35 @@ def draw_multigraph_header(layout, context):
     """
     from .name_conversion_utils import should_show_multigraph, get_active_graph_code
     
-    is_multigraph = should_show_multigraph(context)
-    
-    if is_multigraph:
-        box = layout.box()
-        row = box.row(align=True)
-        row.alert = True
-        row.label(text="MODALITÀ MULTIGRAPH", icon='OUTLINER_DATA_GREASEPENCIL')
+    # Usa try/except per gestire errori durante il caricamento
+    try:
+        is_multigraph = should_show_multigraph(context)
         
-        # Pulsante per tornare a modalità singola
-        op = row.operator("em.toggle_multigraph", text="", icon='X')
-        
-    else:
-        active_code = get_active_graph_code(context)
-        if active_code and active_code != "UNKNOWN":
+        if is_multigraph:
             box = layout.box()
             row = box.row(align=True)
-            row.label(text=f"Grafo: {active_code}", icon='OUTLINER_OB_GROUP_INSTANCE')
+            row.alert = True
+            row.label(text="MODALITÀ MULTIGRAPH", icon='OUTLINER_DATA_GREASEPENCIL')
             
-            # Pulsante per attivare modalità multigraph
-            op = row.operator("em.toggle_multigraph", text="Multi", icon='OUTLINER_DATA_GREASEPENCIL')
+            # Pulsante per tornare a modalità singola
+            op = row.operator("em.toggle_multigraph", text="", icon='X')
+            
+        else:
+            active_code = get_active_graph_code(context)
+            if active_code and active_code != "UNKNOWN":
+                box = layout.box()
+                row = box.row(align=True)
+                row.label(text=f"Grafo: {active_code}", icon='OUTLINER_OB_GROUP_INSTANCE')
+                
+                # Pulsante per attivare modalità multigraph
+                op = row.operator("em.toggle_multigraph", text="Multi", icon='OUTLINER_DATA_GREASEPENCIL')
+                
+    except Exception as e:
+        # Se c'è un errore, mostra solo un messaggio basilare
+        box = layout.box()
+        row = box.row(align=True)
+        row.label(text="Modalità grafo", icon='OUTLINER_OB_GROUP_INSTANCE')
+        print(f"Error in draw_multigraph_header: {e}")
 
 def register():
     """Registra le classi UI potenziate"""

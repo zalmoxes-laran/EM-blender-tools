@@ -17,26 +17,26 @@ def register():
     """Registra tutto il sistema multigraph"""
     print("Registering multigraph system...")
     
-    # Registra nell'ordine di dipendenza
+    # Registra nell'ordine di dipendenza - UNA VOLTA SOLA
     try:
         # 1. Sistema base di conversione nomi (nessuna registrazione necessaria)
         print("  ✓ Name conversion utilities loaded")
         
-        # 2. Indicatore viewport
+        # 2. Proprietà e sistema di inizializzazione
+        multigraph_system_init.register()
+        print("  ✓ Multigraph system properties registered")
+        
+        # 3. Indicatore viewport
         viewport_graph_indicator.register()
         print("  ✓ Viewport indicator registered")
         
-        # 3. UIList potenziate
+        # 4. UIList potenziate
         enhanced_uilist.register()
         print("  ✓ Enhanced UILists registered")
         
-        # 4. Integrazione pannelli (esempi)
+        # 5. Integrazione pannelli
         panel_integration.register()
         print("  ✓ Panel integration registered")
-        
-        # 5. Sistema di inizializzazione e proprietà
-        multigraph_system_init.register()
-        print("  ✓ Multigraph system properties registered")
         
         # 6. Sistema di test
         test_system.register()
@@ -55,10 +55,10 @@ def unregister():
     # Disregistra in ordine inverso
     try:
         test_system.unregister()
-        multigraph_system_init.unregister()
         panel_integration.unregister()
         enhanced_uilist.unregister()
         viewport_graph_indicator.unregister()
+        multigraph_system_init.unregister()
         
         print("Multigraph system unregistration complete!")
         

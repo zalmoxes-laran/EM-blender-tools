@@ -176,7 +176,7 @@ class EM_OT_SetActiveGraph(bpy.types.Operator):
     graph_code: StringProperty(
         name="Graph Code",
         description="Code of the graph to make active"
-    )
+    ) # pyright: ignore[reportInvalidTypeForm]
 
     def execute(self, context):
         scene = context.scene
@@ -210,7 +210,7 @@ class EM_OT_FilterByGraph(bpy.types.Operator):
     graph_code: StringProperty(
         name="Graph Code",
         description="Code of the graph to filter by (empty to show all)"
-    )
+    ) # pyright: ignore[reportInvalidTypeForm]
 
     def execute(self, context):
         scene = context.scene
@@ -306,7 +306,7 @@ def register():
     # Registra le proprietà
     register_multigraph_properties()
     
-    # Registra le classi
+    # Registra solo le classi di questo modulo - NON chiamare altre funzioni register()
     classes = [
         EM_OT_ReloadMultigraphLists,
         EM_OT_SetActiveGraph,
@@ -316,34 +316,15 @@ def register():
     ]
     
     for cls in classes:
-        bpy.utils.register_class(cls)
+        try:
+            bpy.utils.register_class(cls)
+        except ValueError as e:
+            print(f"Warning: {cls.__name__} already registered: {e}")
     
-    # Registra il sistema viewport
-    from .viewport_graph_indicator import register as register_viewport
-    register_viewport()
-    
-    # Registra le UIList potenziate
-    from .enhanced_uilist import register as register_enhanced_uilist
-    register_enhanced_uilist()
-    
-    # Registra l'integrazione pannelli
-    from .panel_integration import register as register_panel_integration
-    register_panel_integration()
-    
-    print("Multigraph system fully registered")
+    print("Multigraph system core registered")
 
 def unregister():
     """Disregistra tutto il sistema multigraph"""
-    
-    # Disregistra nell'ordine inverso
-    from .panel_integration import unregister as unregister_panel_integration
-    unregister_panel_integration()
-    
-    from .enhanced_uilist import unregister as unregister_enhanced_uilist
-    unregister_enhanced_uilist()
-    
-    from .viewport_graph_indicator import unregister as unregister_viewport
-    unregister_viewport()
     
     # Disregistra le classi
     classes = [
@@ -355,18 +336,22 @@ def unregister():
     ]
     
     for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception as e:
+            print(f"Error unregistering {cls.__name__}: {e}")
     
     # Rimuovi le proprietà
-    if hasattr(bpy.types.Scene, 'show_all_graphs'):
-        del bpy.types.Scene.show_all_graphs
-    if hasattr(bpy.types.Scene, 'show_viewport_graph_info'):
-        del bpy.types.Scene.show_viewport_graph_info
-    if hasattr(bpy.types.Scene, 'active_graph_code'):
-        del bpy.types.Scene.active_graph_code
-    if hasattr(bpy.types.Scene, 'name_display_mode'):
-        del bpy.types.Scene.name_display_mode
-    if hasattr(bpy.types.Scene, 'filter_by_graph'):
-        del bpy.types.Scene.filter_by_graph
+    scene_props = [
+        'show_all_graphs',
+        'show_viewport_graph_info',
+        'active_graph_code',
+        'name_display_mode',
+        'filter_by_graph'
+    ]
     
-    print("Multigraph system fully unregistered")
+    for prop_name in scene_props:
+        if hasattr(bpy.types.Scene, prop_name):
+            delattr(bpy.types.Scene, prop_name)
+    
+    print("Multigraph system core unregistered")

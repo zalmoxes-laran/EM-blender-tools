@@ -55,12 +55,22 @@ def get_active_graph_code(context):
     if active_graph and hasattr(active_graph, 'attributes'):
         return active_graph.attributes.get('graph_code', 'UNKNOWN')
     
-    # Fallback: cerca il primo grafo disponibile
-    if hasattr(scene, 'em_tools') and scene.em_tools.graphml_files:
-        for graphml in scene.em_tools.graphml_files:
-            if graphml.is_active:  # Assumendo che ci sia un flag is_active
-                # Estrai il codice dal path o dal nome
-                return extract_code_from_path(graphml.graphml_path)
+    # Fallback: usa active_file_index invece di cercare is_active
+    if hasattr(scene, 'em_tools') and scene.em_tools.graphml_files and scene.em_tools.active_file_index >= 0:
+        try:
+            # Ottieni il file GraphML attivo usando active_file_index
+            active_file = scene.em_tools.graphml_files[scene.em_tools.active_file_index]
+            
+            # Se ha già un graph_code definito, usalo
+            if hasattr(active_file, 'graph_code') and active_file.graph_code not in ["site_id", "MISSINGCODE", ""]:
+                return active_file.graph_code
+            
+            # Altrimenti estrai il codice dal path
+            return extract_code_from_path(active_file.graphml_path)
+            
+        except (IndexError, AttributeError):
+            # Se l'indice è fuori range o ci sono altri problemi
+            pass
     
     return "UNKNOWN"
 
@@ -73,57 +83,82 @@ def extract_code_from_path(filepath):
         str: Codice estratto o "UNKNOWN"
     """
     import os
+    import re
+    
+    if not filepath:
+        return "UNKNOWN"
+        
     filename = os.path.basename(filepath)
     # Rimuovi estensione
     name_without_ext = os.path.splitext(filename)[0]
     
-    # Cerca pattern come GT16, VDL14, etc.
-    import re
-    match = re.search(r'([A-Z]{2,}\d+)', name_without_ext)
+    # Cerca pattern come GT16, VDL14, etc. all'inizio del nome
+    pattern = r'^([A-Z]{2,4}\d{1,4})'
+    match = re.match(pattern, name_without_ext.upper())
+    
     if match:
         return match.group(1)
+    
+    # Fallback: prova a trovare pattern nel nome completo
+    pattern2 = r'([A-Z]{2,4}\d{1,4})'
+    matches = re.findall(pattern2, name_without_ext.upper())
+    
+    if matches:
+        return matches[0]
     
     return "UNKNOWN"
 
 def should_show_multigraph(context):
     """
-    Determina se siamo in modalità multigraph
+    Controlla se siamo in modalità multigraph
     Args:
-        context: Contesto Blender
+        context: Contesto Blender  
     Returns:
         bool: True se in modalità multigraph
     """
     scene = context.scene
     return getattr(scene, 'show_all_graphs', False)
 
-def format_name_for_display(item_name, graph_code, is_multigraph=False):
+def get_loaded_graphs_count(context):
     """
-    Formatta il nome per la visualizzazione nelle liste
+    Ottiene il numero di grafi caricati
     Args:
-        item_name (str): Nome dell'item (può essere con o senza prefisso)
-        graph_code (str): Codice del grafo
-        is_multigraph (bool): Se siamo in modalità multigraph
+        context: Contesto Blender
     Returns:
-        str: Nome formattato per display
+        int: Numero di grafi caricati
     """
-    display_name = get_display_name(item_name)
+    from ..s3Dgraphy import get_all_graphs
+    
+    all_graphs = get_all_graphs()
+    return len(all_graphs) if all_graphs else 0
+
+def format_name_for_display(full_name, fallback_name, is_multigraph):
+    """
+    Formatta un nome per la visualizzazione in base alla modalità
+    Args:
+        full_name (str): Nome completo (es. "GT16.USM10")  
+        fallback_name (str): Nome di fallback se full_name è vuoto
+        is_multigraph (bool): True se in modalità multigraph
+    Returns:
+        str: Nome formattato per il display
+    """
+    name = full_name or fallback_name
     
     if is_multigraph:
-        # In modalità multigraph, mostra il nome pulito
-        # Il codice grafo sarà mostrato in una colonna separata
-        return display_name
+        # In modalità multigraph, mostra i nomi completi
+        return name
     else:
-        # In modalità singolo grafo, mostra solo il nome pulito
-        return display_name
+        # In modalità singolo grafo, mostra solo la parte dopo il punto
+        return get_display_name(name)
 
-def format_graph_code_for_display(item_name, fallback_code=""):
+def format_graph_code_for_display(full_name, active_graph_code):
     """
-    Estrae e formatta il codice grafo per la visualizzazione
+    Estrae il codice grafo per la visualizzazione
     Args:
-        item_name (str): Nome dell'item
-        fallback_code (str): Codice di fallback se non trovato
+        full_name (str): Nome completo (es. "GT16.USM10")
+        active_graph_code (str): Codice del grafo attivo
     Returns:
-        str: Codice grafo formattato
+        str: Codice grafo o None
     """
-    code = get_graph_code_from_name(item_name)
-    return code if code else fallback_code
+    code = get_graph_code_from_name(full_name)
+    return code if code and code != active_graph_code else None

@@ -3,10 +3,10 @@
 Sistema per mostrare informazioni sui grafi nella viewport 3D
 """
 
-import bpy
-import blf
-import gpu
-from gpu_extras.batch import batch_for_shader
+import bpy # type: ignore
+import blf # type: ignore
+import gpu # type: ignore
+from gpu_extras.batch import batch_for_shader # type: ignore
 
 # Handler globale per il disegno
 _draw_handler = None
@@ -30,7 +30,7 @@ def draw_graph_info_callback():
         return
     
     # Importa le utility di conversione nomi
-    from .name_conversion_utils import get_active_graph_code, should_show_multigraph
+    from .name_conversion_utils import get_active_graph_code, should_show_multigraph, get_loaded_graphs_count
     
     try:
         # Ottieni informazioni sui grafi
@@ -111,35 +111,6 @@ def draw_multigraph_indicators(context, start_x, start_y):
         blf.position(font_id, start_x, y_offset, 0)
         blf.color(font_id, *color)
         blf.draw(font_id, f"{indicator} {code}")
-
-def get_loaded_graphs_count(context):
-    """
-    Conta i grafi caricati
-    """
-    try:
-        scene = context.scene
-        count = 0
-        
-        # Metodo 1: Controlla em_tools.graphml_files se esiste
-        if hasattr(scene, 'em_tools') and hasattr(scene.em_tools, 'graphml_files'):
-            for graphml in scene.em_tools.graphml_files:
-                if graphml.graphml_path:  # Ha un file associato
-                    count += 1
-        
-        # Metodo 2: Controlla direttamente nel sistema s3Dgraphy se disponibile
-        if count == 0:
-            try:
-                from ..s3Dgraphy import get_all_graphs
-                all_graphs = get_all_graphs()
-                count = len([g for g in all_graphs.values() if g is not None])
-            except (ImportError, AttributeError):
-                pass
-        
-        return count
-    
-    except Exception as e:
-        print(f"Error counting loaded graphs: {e}")
-        return 0
 
 def get_loaded_graphs_info(context):
     """
