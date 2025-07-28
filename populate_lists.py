@@ -1,4 +1,4 @@
-import bpy
+import bpy # type: ignore
 
 from .functions import *
 #from .epoch_manager import *

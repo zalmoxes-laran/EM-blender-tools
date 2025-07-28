@@ -29,19 +29,19 @@ class CF_ChronologicalHorizon(PropertyGroup):
         name="Label",
         description="Name/label for this chronological horizon",
         default="New Horizon"
-    )
+    ) # type: ignore
     
     start_time: IntProperty(
         name="Start Time",
         description="Start time (years, negative for BC)",
         default=0
-    )
+    ) # type: ignore
     
     end_time: IntProperty(
         name="End Time", 
         description="End time (years, negative for BC)",
         default=100
-    )
+    ) # type: ignore
     
     color: bpy.props.FloatVectorProperty(
         name="Color",
@@ -51,36 +51,35 @@ class CF_ChronologicalHorizon(PropertyGroup):
         min=0.0,
         max=1.0,
         size=3
-    )
+    ) # type: ignore
     
     enabled: BoolProperty(
         name="Enabled",
         description="Include this horizon in exports",
         default=True
-    )
+    ) # type: ignore
 
 class CF_CronoFilterSettings(PropertyGroup):
     """Main settings for CronoFilter"""
     horizons: CollectionProperty(
         type=CF_ChronologicalHorizon,
         name="Chronological Horizons"
-    )
+    ) # type: ignore
     
     active_horizon_index: IntProperty(
         name="Active Horizon Index",
         default=0
-    )
+    ) # type: ignore
     
     expanded: BoolProperty(
         name="Panel Expanded",
         description="Show/hide CronoFilter panel",
         default=False
-    )
+    ) # type: ignore
 
 # ============================
 # UI LIST
 # ============================
-
 class CF_UL_HorizonList(UIList):
     """UI List for displaying chronological horizons"""
     
@@ -113,7 +112,6 @@ class CF_UL_HorizonList(UIList):
 # ============================
 # OPERATORS
 # ============================
-
 class CF_OT_AddHorizon(Operator):
     """Add a new chronological horizon"""
     bl_idname = "cronofilter.add_horizon"
@@ -127,7 +125,6 @@ class CF_OT_AddHorizon(Operator):
         new_horizon.label = f"Horizon_{len(cf_settings.horizons)}"
         cf_settings.active_horizon_index = len(cf_settings.horizons) - 1
         return {'FINISHED'}
-
 class CF_OT_RemoveHorizon(Operator):
     """Remove the active chronological horizon"""
     bl_idname = "cronofilter.remove_horizon"
@@ -141,7 +138,6 @@ class CF_OT_RemoveHorizon(Operator):
             cf_settings.horizons.remove(cf_settings.active_horizon_index)
             cf_settings.active_horizon_index = max(0, cf_settings.active_horizon_index - 1)
         return {'FINISHED'}
-
 class CF_OT_MoveHorizon(Operator):
     """Move horizon up or down in the list"""
     bl_idname = "cronofilter.move_horizon"
@@ -163,7 +159,6 @@ class CF_OT_MoveHorizon(Operator):
             cf_settings.active_horizon_index = current_index + 1
             
         return {'FINISHED'}
-
 class CF_OT_SaveHorizons(Operator, ExportHelper):
     """Save chronological horizons to .cf.json file"""
     bl_idname = "cronofilter.save_horizons"
@@ -172,7 +167,7 @@ class CF_OT_SaveHorizons(Operator, ExportHelper):
     bl_options = {'REGISTER', 'UNDO'}
     
     filename_ext = ".cf.json"
-    filter_glob: StringProperty(default="*.cf.json", options={'HIDDEN'})
+    filter_glob: StringProperty(default="*.cf.json", options={'HIDDEN'}) # type: ignore
     
     def execute(self, context):
         try:
@@ -212,7 +207,6 @@ class CF_OT_SaveHorizons(Operator, ExportHelper):
         except Exception as e:
             self.report({'ERROR'}, f"Failed to save horizons: {str(e)}")
             return {'CANCELLED'}
-
 class CF_OT_LoadHorizons(Operator, ImportHelper):
     """Load chronological horizons from .cf.json file"""
     bl_idname = "cronofilter.load_horizons"
@@ -221,7 +215,7 @@ class CF_OT_LoadHorizons(Operator, ImportHelper):
     bl_options = {'REGISTER', 'UNDO'}
     
     filename_ext = ".cf.json"
-    filter_glob: StringProperty(default="*.cf.json", options={'HIDDEN'})
+    filter_glob: StringProperty(default="*.cf.json", options={'HIDDEN'}) # type: ignore
     
     def execute(self, context):
         try:
@@ -273,7 +267,6 @@ class CF_OT_LoadHorizons(Operator, ImportHelper):
 # ============================
 # PANELS
 # ============================
-
 class CF_PT_CronoFilterPanel(Panel):
     """Main CronoFilter panel"""
     bl_label = "CronoFilter"
@@ -283,12 +276,11 @@ class CF_PT_CronoFilterPanel(Panel):
     bl_category = "EM"
     bl_options = {'DEFAULT_CLOSED'}
     
-#    def draw_header(self, context):
-#        layout = self.layout
-#        cf_settings = context.scene.cf_settings
-#        layout.prop(cf_settings, "expanded", 
-#                   icon='TRIA_DOWN' if cf_settings.expanded else 'TRIA_RIGHT',
-#                   text="", emboss=False)
+    @classmethod
+    def poll(cls, context):
+        """✅ NUOVO: Visibile SOLO in modalità Landscape"""
+        scene = context.scene
+        return getattr(scene, 'landscape_mode_active', False)
     
     def draw(self, context):
         layout = self.layout

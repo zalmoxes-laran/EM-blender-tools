@@ -3,8 +3,6 @@
 import os
 from ..graph import Graph
 from ..importer.import_graphml import GraphMLImporter
-import xml.etree.ElementTree as ET
-
 class MultiGraphManager:
     def __init__(self):
         self.graphs = {}

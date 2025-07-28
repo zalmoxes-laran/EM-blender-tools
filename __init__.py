@@ -363,7 +363,7 @@ if DEPENDENCIES_LOADED:
             anastylosis_manager,
             proxy_to_rm_projection,
             cronofilter,
-            multigraph_system
+            landscape_system,
 
         )
         
@@ -647,18 +647,12 @@ def register_modules():
         except Exception as e:
             logger.error(f"Error registering UI dependent module {module.__name__}: {e}")
     
-    # FASE 4: Multigraph System (modifica UI esistenti, va per ultimo)
+    # FASE 4: Landscape System (modalità semplice e pulita)
     try:
-        multigraph_system.register()
-        logger.debug(f"Registered multigraph system (UI enhancer)")
+        landscape_system.register()
+        logger.debug(f"Registered landscape system")
     except Exception as e:
-        logger.error(f"Error registering multigraph system: {e}")
-    
-    # FASE 5: Inizializzazioni ritardate
-    from .cronofilter.integration import initialize_cronofilter_integration
-    bpy.app.timers.register(initialize_cronofilter_integration, first_interval=0.5)
-
-
+        logger.error(f"Error registering landscape system: {e}")
 
 def unregister_modules():
     """Unregister all modules in reverse dependency order"""
@@ -670,12 +664,12 @@ def unregister_modules():
     from .import_operators import importer_graphml, import_EMdb
     from .operators import graphml_converter
     
-    # FASE 1: Multigraph (modifica UI, va rimosso per primo)
+    # FASE 1: Landscape system (va rimosso per primo)
     try:
-        multigraph_system.unregister()
-        logger.debug(f"Unregistered multigraph system")
+        landscape_system.unregister()
+        logger.debug(f"Unregistered landscape system")
     except Exception as e:
-        logger.warning(f"Error unregistering multigraph system: {e}")
+        logger.warning(f"Error unregistering landscape system: {e}")
     
     # FASE 2: Moduli dipendenti da pannelli UI
     ui_dependent_modules = [
@@ -724,7 +718,6 @@ def unregister_modules():
             logger.debug(f"Unregistered core module: {module.__name__}")
         except Exception as e:
             logger.warning(f"Error unregistering core module {module.__name__}: {e}")
-
 
 def register():
     """Main registration function"""

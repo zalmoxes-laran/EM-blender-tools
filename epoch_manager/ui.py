@@ -61,11 +61,19 @@ class EM_BasePanel:
     bl_region_type = 'UI'
     bl_options = {'DEFAULT_CLOSED'}
     
+
     @classmethod
     def poll(cls, context):
         em_tools = context.scene.em_tools
-        # Returns True if mode_switch is False, so the panel is only shown in 3D GIS mode
+        scene = context.scene
+        
+        # NUOVA LOGICA: Nascondere se in modalità Landscape
+        if hasattr(scene, 'landscape_mode_active') and scene.landscape_mode_active:
+            return False
+        
+        # Logica originale: mostra solo in modalità Advanced EM
         return em_tools.mode_switch
+
 
     def draw(self, context):
         layout = self.layout

@@ -72,7 +72,6 @@ class EM_OT_benchmark_property_functions(bpy.types.Operator):
         test_optimization_performance(context)
         self.report({'INFO'}, "Benchmark completed. Check console for results.")
         return {'FINISHED'}
-
 class EM_OT_rebuild_graph_indices(bpy.types.Operator):
     bl_idname = "em.rebuild_graph_indices"
     bl_label = "Rebuild Graph Indices"
@@ -137,7 +136,6 @@ def get_em_tools_version():
     
     # Fallback statico se non riesce a leggere
     return "unknown"
-
 class EM_OT_manage_object_prefixes(bpy.types.Operator):
     bl_idname = "em.manage_object_prefixes"
     bl_label = "Manage Object Prefixes"
@@ -230,7 +228,6 @@ class EM_OT_manage_object_prefixes(bpy.types.Operator):
             bpy.ops.list_icon.update(list_type="all")
         
         return {'FINISHED'}
-
 class AuxiliaryFileProperties(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="File Name") # type: ignore
     filepath: bpy.props.StringProperty(
@@ -255,7 +252,6 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         name="Show Details",
         default=False
     ) # type: ignore
-
 class EMToolsProperties(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="GraphML File") # type: ignore
     expanded: bpy.props.BoolProperty(name="Auxiliary files", default=False) # type: ignore
@@ -284,7 +280,6 @@ class EMToolsProperties(bpy.types.PropertyGroup):
         description="Include this graph in multigrafo exports",
         default=True
     ) # type: ignore
-
 class AUXILIARY_UL_files(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
@@ -419,8 +414,6 @@ def get_pyarchinit_mappings(self, context):
         print(f"Error scanning mapping directory: {str(e)}")
     
     return mappings
-
-
 class EMToolsSettings(bpy.types.PropertyGroup):
     # Proprietà esistenti
     graphml_files: bpy.props.CollectionProperty(type=EMToolsProperties) # type: ignore
@@ -506,7 +499,6 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         description="Display collection management tools",
         default=False
     ) # type: ignore
-
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files with icons to indicate graph presence and actions"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -582,7 +574,6 @@ class EMTOOLS_UL_files(bpy.types.UIList):
 class GraphMLFileItem(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="File Name") # type: ignore
     is_graph: bpy.props.BoolProperty(name="Graph Exists", default=False) # type: ignore
-
 class EMToolsSwitchModeOperator(bpy.types.Operator):
     bl_idname = "emtools.switch_mode"
     bl_label = "Switch Mode"
@@ -600,6 +591,7 @@ class EMToolsSwitchModeOperator(bpy.types.Operator):
             self.report({'INFO'}, "Switched to 3D GIS Mode")
         
         return {'FINISHED'}
+
 
 class EM_SetupPanel(bpy.types.Panel):
     
@@ -644,7 +636,66 @@ class EM_SetupPanel(bpy.types.Panel):
             row.operator('em_tools.add_file', text="Add GraphML", icon="ADD")
             row.operator('em_tools.remove_file', text="Remove GraphML", icon="REMOVE")
 
-            # Details for selected GraphML file
+            # ========================================================================
+            # SEZIONE LANDSCAPE MODE - COMPATTA SU UNA RIGA
+            # ========================================================================
+            
+            # Conta i grafi caricati e validi
+            loaded_graphs = []
+            if em_tools.graphml_files:
+                for graph_file in em_tools.graphml_files:
+                    # Controlla se il grafo è effettivamente caricato
+                    if hasattr(graph_file, 'is_graph') and graph_file.is_graph:
+                        loaded_graphs.append(graph_file)
+                    else:
+                        # Fallback: controlla se il grafo esiste nel sistema
+                        from ..s3Dgraphy import get_graph
+                        if get_graph(graph_file.name):
+                            loaded_graphs.append(graph_file)
+            
+            # Mostra controlli Landscape sempre (con info se non disponibile)
+            layout.separator()
+            
+            # Box per Landscape Mode - COMPATTO
+            landscape_box = layout.box()
+            
+            # Riga unica con tutto
+            row = landscape_box.row(align=True)
+            
+            # Pulsante info
+            info_op = row.operator("wm.call_menu", text="", icon='INFO')
+            info_op.name = "EM_MT_LandscapeInfo"  # Menu da creare se necessario
+            
+            # Label
+            row.label(text="Landscape Mode")
+            
+            # Stato attuale e pulsante toggle
+            is_landscape_active = getattr(scene, 'landscape_mode_active', False)
+            can_enable_landscape = len(loaded_graphs) >= 2
+            
+            if is_landscape_active:
+                # Attivo: pulsante per disattivare
+                disable_op = row.operator("em.toggle_landscape_mode", 
+                                        text="Disable Landscape Mode", 
+                                        icon='CANCEL')
+                disable_op.enable = False  # Per disattivare
+            else:
+                # Non attivo: pulsante per attivare
+                enable_op = row.operator("em.toggle_landscape_mode", 
+                                       text="Enable Landscape Mode", 
+                                       icon='FILE_VOLUME')
+                enable_op.enable = True  # Per attivare
+                enable_op.enabled = can_enable_landscape  # Abilitato solo se 2+ grafi
+                
+                # Se non può essere abilitato, rendi il pulsante grigio
+                if not can_enable_landscape:
+                    row.enabled = False
+            
+            # ========================================================================
+            # FINE SEZIONE LANDSCAPE MODE
+            # ========================================================================
+
+            # Details for selected GraphML file (codice esistente)
             if em_tools.active_file_index >= 0 and em_tools.graphml_files:
                 active_file = em_tools.graphml_files[em_tools.active_file_index]
 
