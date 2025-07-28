@@ -588,22 +588,22 @@ def setup_pointer_properties():
     bpy.types.Object.EM_ep_belong_ob_index = IntProperty()
 
 def register_modules():
-    """Register all addon modules"""
+    """Register all addon modules in correct dependency order"""
     if not MODULE_IMPORT_SUCCESS:
         logger.warning("Skipping module registration due to missing dependencies")
         return
     
-    # We need to import these here to access the registration functions
+    # Import statements
     from .import_operators import importer_graphml
     from .export_operators import exporter_heriverse
     from .import_operators import import_EMdb
     from .operators import graphml_converter
     
-    # FIXED: Registrazione separata e corretta dei moduli
-    core_modules = [
+    # FASE 1: Moduli core indipendenti (nessuna dipendenza UI)
+    core_independent_modules = [
         em_setup,
         EMdb_excel,
-        activity_manager,
+        activity_manager, 
         stratigraphy_manager,
         epoch_manager,
         paradata_manager,
@@ -616,38 +616,116 @@ def register_modules():
         exporter_heriverse,
         import_EMdb,
         graphml_converter,
-        proxy_inflate_manager,
         operators,
-        proxy_to_rm_projection,
         cronofilter,
-        multigraph_system
-
     ]
     
-    # NUOVO: Visual Manager come modulo base (solo UI + operatori base)
-    visual_ui_modules = [
-        visual_manager,  # Solo UI e operatori base
-    ]
-    
-    # Registra i moduli core
-    for module in core_modules:
+    for module in core_independent_modules:
         try:
             module.register()
-            logger.debug(f"Registered core module: {module.__name__}")
+            logger.debug(f"Registered core independent module: {module.__name__}")
         except Exception as e:
             logger.error(f"Error registering core module {module.__name__}: {e}")
     
+    # FASE 2: Visual Manager (crea i pannelli parent) 
+    try:
+        visual_manager.register()
+        logger.debug(f"Registered visual manager (creates parent panels)")
+    except Exception as e:
+        logger.error(f"Error registering visual manager: {e}")
+    
+    # FASE 3: Moduli che dipendono dai pannelli del Visual Manager
+    ui_dependent_modules = [
+        proxy_inflate_manager,  # Dipende da VIEW3D_PT_visual_panel
+        proxy_to_rm_projection, # Potrebbe dipendere dai pannelli visual
+    ]
+    
+    for module in ui_dependent_modules:
+        try:
+            module.register()
+            logger.debug(f"Registered UI dependent module: {module.__name__}")
+        except Exception as e:
+            logger.error(f"Error registering UI dependent module {module.__name__}: {e}")
+    
+    # FASE 4: Multigraph System (modifica UI esistenti, va per ultimo)
+    try:
+        multigraph_system.register()
+        logger.debug(f"Registered multigraph system (UI enhancer)")
+    except Exception as e:
+        logger.error(f"Error registering multigraph system: {e}")
+    
+    # FASE 5: Inizializzazioni ritardate
     from .cronofilter.integration import initialize_cronofilter_integration
     bpy.app.timers.register(initialize_cronofilter_integration, first_interval=0.5)
 
-    # Registra visual manager (UI base)
-    for module in visual_ui_modules:
-        try:
-            module.register()
-            logger.debug(f"Registered visual UI module: {module.__name__}")
-        except Exception as e:
-            logger.error(f"Error registering visual UI module {module.__name__}: {e}")
+
+
+def unregister_modules():
+    """Unregister all modules in reverse dependency order"""
+    if not MODULE_IMPORT_SUCCESS:
+        logger.warning("Skipping module unregistration - modules not loaded")
+        return
     
+    from .export_operators import exporter_heriverse
+    from .import_operators import importer_graphml, import_EMdb
+    from .operators import graphml_converter
+    
+    # FASE 1: Multigraph (modifica UI, va rimosso per primo)
+    try:
+        multigraph_system.unregister()
+        logger.debug(f"Unregistered multigraph system")
+    except Exception as e:
+        logger.warning(f"Error unregistering multigraph system: {e}")
+    
+    # FASE 2: Moduli dipendenti da pannelli UI
+    ui_dependent_modules = [
+        proxy_to_rm_projection,
+        proxy_inflate_manager,
+    ]
+    
+    for module in ui_dependent_modules:
+        try:
+            module.unregister()
+            logger.debug(f"Unregistered UI dependent module: {module.__name__}")
+        except Exception as e:
+            logger.warning(f"Error unregistering UI dependent module {module.__name__}: {e}")
+    
+    # FASE 3: Visual Manager (rimuove i pannelli parent)
+    try:
+        visual_manager.unregister()
+        logger.debug(f"Unregistered visual manager")
+    except Exception as e:
+        logger.warning(f"Error unregistering visual manager: {e}")
+    
+    # FASE 4: Moduli core in ordine inverso
+    core_modules = [
+        cronofilter,
+        operators,
+        graphml_converter,
+        import_EMdb,
+        exporter_heriverse,
+        importer_graphml,
+        graph2geometry,
+        em_statistics,
+        export_manager,
+        rm_manager,
+        anastylosis_manager,
+        paradata_manager,
+        epoch_manager,
+        stratigraphy_manager,
+        activity_manager,
+        EMdb_excel,
+        em_setup
+    ]
+    
+    for module in core_modules:
+        try:
+            module.unregister()
+            logger.debug(f"Unregistered core module: {module.__name__}")
+        except Exception as e:
+            logger.warning(f"Error unregistering core module {module.__name__}: {e}")
+
+
 def register():
     """Main registration function"""
     logger.info(f"Registering EM Tools {VERSION}")
@@ -684,55 +762,145 @@ def unregister():
         except Exception as e:
             logger.warning(f"Error removing menu function: {e}")
     
-    # 2. Unregister modules in reverse order
+    # 2. Unregister modules using the new organized function
     if MODULE_IMPORT_SUCCESS:
-        from .export_operators import exporter_heriverse
-        from .import_operators import importer_graphml, import_EMdb
-        from .operators import graphml_converter
-        
-        visual_ui_modules = [
-            visual_manager,
-        ]
-        
-        core_modules = [
-            multigraph_system,
-            cronofilter,
-            operators,
-            graphml_converter,
-            import_EMdb,
-            exporter_heriverse,
-            importer_graphml,
-            proxy_inflate_manager,
-            activity_manager,
-            graph2geometry,
-            rm_manager,
-            anastylosis_manager,
-            paradata_manager,
-            epoch_manager,
-            em_statistics,
-            export_manager,
-            EMdb_excel,
-            em_setup
-        ]
-        
-        # Then visual UI
-        for module in visual_ui_modules:
-            try:
-                module.unregister()
-                logger.debug(f"Unregistered visual UI module: {module.__name__}")
-            except Exception as e:
-                logger.warning(f"Error unregistering visual UI module {module.__name__}: {e}")
-        
-        # Finally core modules
-        for module in core_modules:
-            try:
-                module.unregister()
-                logger.debug(f"Unregistered core module: {module.__name__}")
-            except Exception as e:
-                logger.warning(f"Error unregistering core module {module.__name__}: {e}")
+        unregister_modules()  # Usa la nuova funzione organizzata
     
-    # 3. Remove properties (resto uguale...)
-    # ... codice esistente per la rimozione delle proprietà ...
+    # 3. Remove properties (utilizza il codice che hai già implementato)
+    # Remove graph reference
+    if hasattr(bpy.types.Scene, 'em_graph'):
+        bpy.types.Scene.em_graph = None
+    
+    # Remove collection properties
+    collection_props = [
+        'emviq_error_list',
+        'edges_list', 
+        'em_sources_list',
+        'em_properties_list',
+        'em_extractors_list',
+        'em_combiners_list',
+        'em_v_sources_list',
+        'em_v_properties_list',
+        'em_v_extractors_list',
+        'em_v_combiners_list',
+    ]
+    
+    for prop_name in collection_props:
+        if hasattr(bpy.types.Scene, prop_name):
+            delattr(bpy.types.Scene, prop_name)
+            logger.debug(f"Removed collection property: {prop_name}")
+    
+    # Remove index properties
+    index_props = [
+        'selected_epoch_us_list_index',
+        'emviq_error_list_index',
+        'em_list_index',
+        'epoch_list_index',
+        'edges_list_index',
+        'em_sources_list_index',
+        'em_properties_list_index',
+        'em_extractors_list_index',
+        'em_combiners_list_index',
+        'em_v_sources_list_index',
+        'em_v_properties_list_index',
+        'em_v_extractors_list_index',
+        'em_v_combiners_list_index',
+    ]
+    
+    for prop_name in index_props:
+        if hasattr(bpy.types.Scene, prop_name):
+            delattr(bpy.types.Scene, prop_name)
+            logger.debug(f"Removed index property: {prop_name}")
+    
+    # Remove boolean properties
+    bool_props = [
+        'paradata_streaming_mode',
+        'prop_paradata_streaming_mode',
+        'comb_paradata_streaming_mode',
+        'extr_paradata_streaming_mode',
+    ]
+    
+    for prop_name in bool_props:
+        if hasattr(bpy.types.Scene, prop_name):
+            delattr(bpy.types.Scene, prop_name)
+            logger.debug(f"Removed boolean property: {prop_name}")
+    
+    # Remove string properties (based on setup_scene_properties)
+    string_props = [
+        'EM_file_name',
+        'EM_file_path',
+        'EM_file_name_source',
+        'EM_file_path_source',
+        'EM_unit_text',
+        'EM_unit_description',
+        'EM_unit_name',
+        'data_path',
+        'image_path',
+        'file_path',
+        'my_file',
+    ]
+    
+    for prop_name in string_props:
+        if hasattr(bpy.types.Scene, prop_name):
+            delattr(bpy.types.Scene, prop_name)
+            logger.debug(f"Removed string property: {prop_name}")
+    
+    # Remove float properties
+    if hasattr(bpy.types.Scene, 'proxy_display_alpha'):
+        delattr(bpy.types.Scene, 'proxy_display_alpha')
+        logger.debug("Removed float property: proxy_display_alpha")
+    
+    # Remove integer properties
+    int_props = [
+        'EM_gltf_export_quality',
+        'EM_gltf_export_maxres',
+    ]
+    
+    for prop_name in int_props:
+        if hasattr(bpy.types.Scene, prop_name):
+            delattr(bpy.types.Scene, prop_name)
+            logger.debug(f"Removed integer property: {prop_name}")
+    
+    # Remove pointer properties from Scene
+    scene_pointer_props = [
+        'em_settings',
+    ]
+    
+    for prop_name in scene_pointer_props:
+        if hasattr(bpy.types.Scene, prop_name):
+            delattr(bpy.types.Scene, prop_name)
+            logger.debug(f"Removed Scene pointer property: {prop_name}")
+    
+    # Remove pointer properties from WindowManager
+    wm_pointer_props = [
+        'em_addon_settings',
+        'export_vars',
+        'export_tables_vars',
+    ]
+    
+    for prop_name in wm_pointer_props:
+        if hasattr(bpy.types.WindowManager, prop_name):
+            delattr(bpy.types.WindowManager, prop_name)
+            logger.debug(f"Removed WindowManager pointer property: {prop_name}")
+    
+    # Remove Object properties
+    object_props = [
+        'EM_ep_belong_ob',
+        'EM_ep_belong_ob_index',
+    ]
+    
+    for prop_name in object_props:
+        if hasattr(bpy.types.Object, prop_name):
+            delattr(bpy.types.Object, prop_name)
+            logger.debug(f"Removed Object property: {prop_name}")
+    
+    # Unregister base classes in reverse order
+    for cls in reversed(BASE_CLASSES):
+        try:
+            bpy.utils.unregister_class(cls)
+            logger.debug(f"Unregistered base class: {cls.__name__}")
+        except Exception as e:
+            logger.warning(f"Could not unregister {cls.__name__}: {e}")
     
     logger.info("EM Tools unregistration complete")
 
