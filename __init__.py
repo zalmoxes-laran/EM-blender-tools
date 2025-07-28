@@ -18,10 +18,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
 import os
-import bpy
+import bpy # type: ignore
 import importlib
 import logging
-from bpy.props import (
+from bpy.props import ( # type: ignore
     StringProperty,
     BoolProperty,
     FloatProperty,
@@ -30,8 +30,8 @@ from bpy.props import (
     CollectionProperty,
     FloatVectorProperty,
     EnumProperty,
-)
-from bpy.types import PropertyGroup
+) # type: ignore
+from bpy.types import PropertyGroup # type: ignore
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -110,7 +110,7 @@ class EMAddonSettings(PropertyGroup):
         name="Show advanced options",
         description="Catch more information from DosCo folder loading the GraphML",
         default=False
-    )
+    ) # type: ignore
 
 class EDGESListItem(PropertyGroup):
     """Edge information for graph edges"""
@@ -118,32 +118,32 @@ class EDGESListItem(PropertyGroup):
         name="id",
         description="Unique identifier for this edge",
         default=""
-    )
+    ) # type: ignore
     source: StringProperty(
         name="source",
         description="Source node ID",
         default=""
-    )
+    ) # type: ignore
     target: StringProperty(
         name="target",
         description="Target node ID",
         default=""
-    )
+    ) # type: ignore
     edge_type: StringProperty(
         name="type",
         description="Type of edge connection",
         default=""
-    )
+    ) # type: ignore
 
 class EM_Other_Settings(PropertyGroup):
     """General settings for EM Tools"""
-    select_all_layers: BoolProperty(name="Select Visible Layers", default=True)
-    unlock_obj: BoolProperty(name="Unlock Objects", default=False)
-    unhide_obj: BoolProperty(name="Unhide Objects", default=True)
-    em_proxy_sync: BoolProperty(name="Selecting a proxy you select the corresponding EM", default=False)
-    em_proxy_sync2: BoolProperty(name="Selecting an EM you select the corresponding proxy", default=False)
-    em_proxy_sync2_zoom: BoolProperty(name="Option to zoom to proxy", default=False)
-    soloing_mode: BoolProperty(name="Soloing mode", default=False)
+    select_all_layers: BoolProperty(name="Select Visible Layers", default=True) # type: ignore
+    unlock_obj: BoolProperty(name="Unlock Objects", default=False) # type: ignore
+    unhide_obj: BoolProperty(name="Unhide Objects", default=True) # type: ignore
+    em_proxy_sync: BoolProperty(name="Selecting a proxy you select the corresponding EM", default=False) # type: ignore
+    em_proxy_sync2: BoolProperty(name="Selecting an EM you select the corresponding proxy", default=False) # type: ignore
+    em_proxy_sync2_zoom: BoolProperty(name="Option to zoom to proxy", default=False) # type: ignore
+    soloing_mode: BoolProperty(name="Soloing mode", default=False) # type: ignore
 
 class EMviqListErrors(PropertyGroup):
     """Error tracking for EMviq exports"""
@@ -151,22 +151,22 @@ class EMviqListErrors(PropertyGroup):
         name="Object",
         description="The object with an error",
         default=""
-    )
+    ) # type: ignore
     description: StringProperty(
         name="Description",
         description="Description of the error",
         default=""
-    )
+    ) # type: ignore
     material: StringProperty(
         name="Material",
         description="Associated material",
         default=""
-    )
+    ) # type: ignore
     texture_type: StringProperty(
         name="Texture Type",
         description="Type of texture with error",
         default=""
-    )
+    ) # type: ignore
 
 class EMListParadata(PropertyGroup):
     """ParaData node information"""
@@ -174,32 +174,32 @@ class EMListParadata(PropertyGroup):
         name="Name",
         description="Name of this paradata item",
         default="Untitled"
-    )
+    ) # type: ignore
     description: StringProperty(
         name="Description",
         description="Description of this paradata item",
         default=""
-    )
+    ) # type: ignore
     icon: StringProperty(
         name="Icon",
         description="Icon code for UI display",
         default="RESTRICT_INSTANCED_ON"
-    )
+    ) # type: ignore
     icon_url: StringProperty(
         name="URL Icon",
         description="Icon for URL status",
         default="CHECKBOX_DEHLT"
-    )
+    ) # type: ignore
     url: StringProperty(
         name="URL",
         description="URL associated with this paradata",
         default=""
-    )
+    ) # type: ignore
     id_node: StringProperty(
         name="Node ID",
         description="Unique node identifier",
         default=""
-    )
+    ) # type: ignore
 
 class EM_epochs_belonging_ob(PropertyGroup):
     """Association between objects and epochs"""
@@ -207,7 +207,7 @@ class EM_epochs_belonging_ob(PropertyGroup):
         name="Epoch",
         description="Associated epoch",
         default="Untitled"
-    )
+    ) # type: ignore
 
 class ExportVars(PropertyGroup):
     """Export settings for various formats"""
@@ -230,101 +230,101 @@ class ExportVars(PropertyGroup):
         name="Show Emviq export options",
         description="Expand/Collapse Emviq export options",
         default=False
-    )
+    ) # type: ignore
     heriverse_project_name: StringProperty(
         name="Project Name",
         description="Name of the Heriverse project",
         default=""
-    )
+    ) # type: ignore
     heriverse_export_path: StringProperty(
         name="Export Path",
         description="Path where to export Heriverse project",
         subtype='DIR_PATH'
-    )
+    ) # type: ignore
 
     heriverse_overwrite_json: BoolProperty(
         name="Overwrite JSON",
         description="Overwrite existing JSON file",
         default=True
-    )
+    ) # type: ignore
     heriverse_export_dosco: BoolProperty(
         name="Export DosCo files",
         description="Copy DosCo files to output",
         default=True
-    )
+    ) # type: ignore
     heriverse_export_proxies: BoolProperty(
         name="Export proxies",
         description="Export proxy models",
         default=True
-    )
+    ) # type: ignore
     heriverse_export_rm: BoolProperty(
         name="Export RM",
         description="Export representation models",
         default=True
-    )
+    ) # type: ignore
     heriverse_create_zip: BoolProperty(
         name="Create ZIP archive",
         description="Create a ZIP archive of the exported project",
         default=True
-    )
+    ) # type: ignore
     heriverse_advanced_options: BoolProperty(
         name="Show advanced options",
         description="Show advanced export options like compression settings",
         default=False
-    )
+    ) # type: ignore
     heriverse_use_draco: BoolProperty(
         name="Use Draco compression",
         description="Enable Draco mesh compression for smaller file size",
         default=True
-    )
+    ) # type: ignore
     heriverse_draco_level: IntProperty(
         name="Compression Level",
         description="Draco compression level (higher = smaller files but slower)",
         min=1,
         max=10,
         default=6
-    )
+    ) # type: ignore
     heriverse_separate_textures: BoolProperty(
         name="Export textures separately",
         description="Export textures as separate files instead of embedding",
         default=True
-    )
+    ) # type: ignore
     heriverse_use_gpu_instancing: BoolProperty(
         name="Use GPU Instancing",
         description="Enable GPU instancing for models with shared meshes (improved performance)",
         default=True
-    )
+    ) # type: ignore
     heriverse_skip_extracted_tilesets: BoolProperty(
         name="Skip Previously Extracted Tilesets",
         description="Skip tileset extraction if already extracted in the destination folder",
         default=True
-    )
+    ) # type: ignore
     heriverse_export_rmdoc: BoolProperty(
         name="Export ParaData Objects",
         description="Export 3D objects associated with ParaData nodes (Documents, Extractors, Combiners)",
         default=True
-    )
+    ) # type: ignore
     heriverse_export_rmsf: BoolProperty(
         name="Export Special Finds Models",
         description="Export 3D models associated with Special Finds (SF) nodes",
         default=True
-    )
+    ) # type: ignore
 
     heriverse_export_animations: BoolProperty(
         name="Export Animations",
         description="Export animations and armatures in glTF files",
         default=False
-    )
+    ) # type: ignore
     heriverse_export_all_animations: BoolProperty(
         name="Export All Animations",
         description="Export all animations instead of just the active one",
         default=False
-    )
+    ) # type: ignore
     heriverse_animation_frame_range: BoolProperty(
         name="Limit to Frame Range",
         description="Export only the current frame range instead of all frames",
         default=True
-    )
+    ) # type: ignore
 
 class ExportTablesVars(PropertyGroup):
     """Table export settings"""
@@ -335,7 +335,7 @@ class ExportTablesVars(PropertyGroup):
             ('Extractors', 'Extractors', 'Extractors', '', 2),
         ],
         default='US/USV'
-    )
+    ) # type: ignore
 
 # ============================
 # MODULE IMPORTS
