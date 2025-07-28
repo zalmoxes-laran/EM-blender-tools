@@ -1790,6 +1790,7 @@ class EXPORT_OT_heriverse(Operator):
                                 update_graph_with_scene_data(None, context=context)
                     except Exception as e:
                         print(f"Warning: Could not update graph for JSON export: {e}")
+                    
                     # Esporta il JSON direttamente usando il nuovo JSONExporter
                     json_path = os.path.join(project_path, "project.json")
                     print(f"Exporting JSON to: {json_path}")

@@ -111,6 +111,28 @@ class GraphMLImporter:
         # Imposta l'ID univoco nel grafo
         self.graph.graph_id = graph_id
         
+        # ✅ AGGIUNGI QUESTA SEZIONE - PROCESSA I METADATI GENERALI
+        print("\n=== PROCESSING GENERAL METADATA ===")
+        metadata_processed = False
+        
+        # Cerca l'header del grafo per processare i metadati
+        for nodelabel in tree.findall('.//{http://graphml.graphdrawing.org/xmlns}data/{http://www.yworks.com/xml/graphml}TableNode/{http://www.yworks.com/xml/graphml}NodeLabel'):
+            RowNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}RowNodeLabelModelParameter')
+            ColumnNodeLabelModelParameter = nodelabel.find('.//{http://www.yworks.com/xml/graphml}ColumnNodeLabelModelParameter')
+            
+            # Se non ha parametri di riga o colonna, è probabilmente l'header del grafo
+            if RowNodeLabelModelParameter is None and ColumnNodeLabelModelParameter is None:
+                if nodelabel.text and '[' in nodelabel.text and ']' in nodelabel.text:
+                    print(f"Found graph header: {nodelabel.text}")
+                    self.process_general_data(nodelabel, self.graph)
+                    metadata_processed = True
+                    break
+        
+        if not metadata_processed:
+            print("WARNING: No graph metadata header found!")
+        
+        print("=== END PROCESSING GENERAL METADATA ===\n")
+        
         # Memorizza gli ID originali per la mappatura
         self.id_mapping = {}  # {original_id: uuid_id}
         
@@ -123,7 +145,6 @@ class GraphMLImporter:
         stats = self.graph.connect_paradatagroup_propertynode_to_stratigraphic(verbose=True)
         if stats["connections_created"] > 0:
             print(f"\nCreati {stats['connections_created']} nuovi collegamenti diretti tra unità stratigrafiche e PropertyNode")
-
 
         self.connect_nodes_to_epochs()
         
@@ -140,6 +161,18 @@ class GraphMLImporter:
             for node in self.graph.nodes:
                 if hasattr(node, 'description') and '_continuity' in node.description:
                     print(f"  Found node with _continuity in description: {node.node_id} (Type: {node.node_type if hasattr(node, 'node_type') else 'Unknown'})")
+        
+        # ✅ AGGIUNGI QUESTA VERIFICA FINALE
+        print(f"\n=== FINAL GRAPH METADATA CHECK ===")
+        print(f"Graph ID: {self.graph.graph_id}")
+        print(f"Graph name: {getattr(self.graph, 'name', 'NOT SET')}")
+        print(f"Graph description: {getattr(self.graph, 'description', 'NOT SET')}")
+        print(f"Graph data: {getattr(self.graph, 'data', 'NOT SET')}")
+        if hasattr(self.graph, 'data') and self.graph.data:
+            print(f"  - License: {self.graph.data.get('license', 'NOT SET')}")
+            print(f"  - Embargo: {self.graph.data.get('embargo_until', 'NOT SET')}")
+            print(f"  - Authors: {self.graph.data.get('authors', 'NOT SET')}")
+        print(f"=== END FINAL CHECK ===\n")
         
         return self.graph
 
