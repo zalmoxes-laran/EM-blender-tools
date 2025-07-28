@@ -733,7 +733,7 @@ def register():
     # 1. Register base property classes first
     register_base_classes()
     
-    # 2. Setup all properties
+    # 2. Setup all properties 
     setup_scene_collections()
     setup_scene_indices()
     setup_scene_properties()

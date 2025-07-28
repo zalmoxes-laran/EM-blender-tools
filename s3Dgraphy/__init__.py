@@ -28,7 +28,19 @@ from .nodes.base_node import Node
 from .edges import Edge
 
 # MultiGraph Manager imports
-from .multigraph import MultiGraphManager, load_graph_from_file, get_graph, get_all_graph_ids, remove_graph
+
+from .multigraph import (
+    MultiGraphManager, 
+    load_graph_from_file, 
+    get_graph, 
+    get_all_graph_ids, 
+    remove_graph,
+    get_active_graph,         
+    set_active_graph,         
+    get_all_graphs,           
+    get_active_graph_id       
+)
+
 
 # Importer for GraphML
 from .importer import GraphMLImporter
@@ -62,6 +74,10 @@ __all__ = [
     "LinkNode",
     "Edge",
     "MultiGraphManager", 
+    "get_active_graph",       
+    "set_active_graph",       
+    "get_all_graphs",         
+    "get_active_graph_id",    
     "load_graph_from_file", 
     "get_graph", 
     "get_all_graph_ids",

@@ -118,9 +118,57 @@ class MultiGraphManager:
 
 multi_graph_manager = MultiGraphManager()
 
+# Variabile globale per tenere traccia del grafo attivo
+_active_graph_id = None
+
+def get_active_graph():
+    """Ottiene il grafo attualmente attivo."""
+    global _active_graph_id
+    
+    if _active_graph_id and _active_graph_id in multi_graph_manager.graphs:
+        return multi_graph_manager.graphs[_active_graph_id]
+    
+    # Se non c'è un grafo attivo ma c'è solo un grafo caricato, usalo
+    if len(multi_graph_manager.graphs) == 1:
+        _active_graph_id = list(multi_graph_manager.graphs.keys())[0]
+        return multi_graph_manager.graphs[_active_graph_id]
+    
+    return None
+
+def set_active_graph(graph_id):
+    """Imposta il grafo attivo."""
+    global _active_graph_id
+    
+    if graph_id in multi_graph_manager.graphs:
+        _active_graph_id = graph_id
+        print(f"Set active graph: {graph_id}")
+        return True
+    else:
+        print(f"Warning: Graph '{graph_id}' not found, cannot set as active")
+        return False
+
+def get_all_graphs():
+    """Ottiene tutti i grafi caricati."""
+    return multi_graph_manager.graphs.copy()
+
+def get_active_graph_id():
+    """Ottiene l'ID del grafo attualmente attivo."""
+    global _active_graph_id
+    return _active_graph_id
+
 def load_graph_from_file(filepath, graph_id=None, overwrite=False):
+    """Carica un grafo da file e lo imposta come attivo se è il primo grafo caricato."""
     print(f"Loading graph: {filepath}, graph_id: {graph_id}, overwrite: {overwrite}")
-    return multi_graph_manager.load_graph(filepath, graph_id, overwrite)
+    
+    # Carica il grafo
+    final_graph_id = multi_graph_manager.load_graph(filepath, graph_id, overwrite)
+    
+    # Se è il primo grafo caricato o se non c'è un grafo attivo, impostalo come attivo
+    global _active_graph_id
+    if _active_graph_id is None or _active_graph_id not in multi_graph_manager.graphs:
+        set_active_graph(final_graph_id)
+    
+    return final_graph_id
 
 def get_graph(graph_id=None):
     return multi_graph_manager.get_graph(graph_id)
