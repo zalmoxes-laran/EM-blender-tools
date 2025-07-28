@@ -13,6 +13,7 @@ from ..graph_updaters import *
 
 from ..s3Dgraphy.nodes.link_node import LinkNode
 from ..s3Dgraphy.nodes.representation_node import RepresentationModelDocNode
+import uuid
 
 def clean_filename(filename: str) -> str:
     """
@@ -369,7 +370,7 @@ class EXPORT_OT_heriverse(Operator):
                         model_node.data['transform'] = model_node.transform
                         
                         # Crea o aggiorna il nodo Link
-                        link_node_id = f"{model_node_id}_link"
+                        link_node_id = str(uuid.uuid4())
                         link_node = LinkNode(
                             node_id=link_node_id,
                             name=f"Tileset Link for {obj.name}",
@@ -388,7 +389,7 @@ class EXPORT_OT_heriverse(Operator):
                             print(f"Created new link node for tileset: {obj.name}")
                             
                             # Crea l'edge tra il nodo RM e il LinkNode
-                            edge_id = f"{model_node_id}_has_linked_resource_{link_node_id}"
+                            edge_id =  str(uuid.uuid4())
                             if not graph.find_edge_by_id(edge_id):
                                 graph.add_edge(
                                     edge_id=edge_id,
@@ -656,7 +657,7 @@ class EXPORT_OT_heriverse(Operator):
                             gltf_path = f"models/{clean_filename(obj.name)}.gltf"
                             
                             # Crea un nuovo LinkNode
-                            link_node_id = f"{model_node_id}_link"
+                            link_node_id = str(uuid.uuid4())
                             link_node = LinkNode(
                                 node_id=link_node_id,
                                 name=f"GLTF Link for {obj.name}",
@@ -673,7 +674,7 @@ class EXPORT_OT_heriverse(Operator):
                                 graph.add_node(link_node)
                                 
                                 # Crea l'edge tra il nodo RM e il LinkNode
-                                edge_id = f"{model_node_id}_has_linked_resource_{link_node_id}"
+                                edge_id =  str(uuid.uuid4())
                                 if not graph.find_edge_by_id(edge_id):
                                     graph.add_edge(
                                         edge_id=edge_id,
@@ -745,7 +746,7 @@ class EXPORT_OT_heriverse(Operator):
                             gltf_path = f"models/{clean_filename(primary_obj.name)}.gltf"
                             
                             # Crea un nuovo LinkNode
-                            link_node_id = f"{model_node_id}_link"
+                            link_node_id = str(uuid.uuid4())
                             link_node = LinkNode(
                                 node_id=link_node_id,
                                 name=f"GLTF Link for {primary_obj.name}",
@@ -762,7 +763,7 @@ class EXPORT_OT_heriverse(Operator):
                                 graph.add_node(link_node)
                                 
                                 # Crea l'edge tra il nodo RM e il LinkNode
-                                edge_id = f"{model_node_id}_has_linked_resource_{link_node_id}"
+                                edge_id = str(uuid.uuid4())
                                 if not graph.find_edge_by_id(edge_id):
                                     graph.add_edge(
                                         edge_id=edge_id,
@@ -948,7 +949,7 @@ class EXPORT_OT_heriverse(Operator):
                             gltf_path = f"models_docs/{clean_filename(obj.name)}.gltf"
                             
                             # ID del nodo RMDoc
-                            rmdoc_node_id = f"{paradata_node.node_id}_modeldoc"
+                            rmdoc_node_id = str(uuid.uuid4())
                             
                             # Verifica se il nodo RMDoc esiste già
                             rmdoc_node = graph.find_node_by_id(rmdoc_node_id)
@@ -969,7 +970,7 @@ class EXPORT_OT_heriverse(Operator):
                                 graph.add_node(rmdoc_node)
                                 
                                 # Collega il nodo RMDoc al nodo paradata
-                                edge_id = f"{paradata_node.node_id}_has_representation_model_{rmdoc_node_id}"
+                                edge_id = str(uuid.uuid4())
                                 if not graph.find_edge_by_id(edge_id):
                                     graph.add_edge(
                                         edge_id=edge_id,
@@ -1001,7 +1002,7 @@ class EXPORT_OT_heriverse(Operator):
                                 graph.add_node(link_node)
                                 
                                 # Crea l'edge tra il nodo RMDoc e il LinkNode
-                                edge_id = f"{rmdoc_node_id}_has_linked_resource_{link_node_id}"
+                                edge_id =  str(uuid.uuid4())
                                 if not graph.find_edge_by_id(edge_id):
                                     graph.add_edge(
                                         edge_id=edge_id,
@@ -1501,7 +1502,7 @@ class EXPORT_OT_heriverse(Operator):
                         
                         # Connect SF node to RMSF node if SF node exists
                         if sf_node:
-                            edge_id = f"{sf_node.node_id}_has_representation_model_{rmsf_node_id}"
+                            edge_id =  str(uuid.uuid4())
                             if not graph.find_edge_by_id(edge_id):
                                 graph.add_edge(
                                     edge_id=edge_id,
@@ -1535,7 +1536,7 @@ class EXPORT_OT_heriverse(Operator):
                             print(f"Updated Link node URL to {gltf_path}")
                         
                         # Create edge between RMSF and Link if not exists
-                        edge_id = f"{rmsf_node_id}_has_linked_resource_{link_node_id}"
+                        edge_id =  str(uuid.uuid4())
                         if not graph.find_edge_by_id(edge_id):
                             graph.add_edge(
                                 edge_id=edge_id,
