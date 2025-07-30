@@ -100,7 +100,8 @@ def update_semantic_shapes(graph):
             print(f'Try to create node semantic {shape_node_name}')
             if not shape_node:
                 shape_node = SemanticShapeNode(
-                    node_id= str(uuid.uuid4()) ,# shape_node_name,
+                    node_id= shape_node_name, #f"{strat_node.name}_shape",
+                    #node_id= str(uuid.uuid4()) ,# shape_node_name,
                     name=f"Shape for {strat_node.name}",
                     type="proxy",
                     url=f"proxies/{matching_proxy.name}.glb"
@@ -111,7 +112,8 @@ def update_semantic_shapes(graph):
             else:
                 shape_node.url = f"proxies/{matching_proxy.name}.glb"
             
-            edge_id = str(uuid.uuid4())#f"{strat_node.node_id}_has_shape_{shape_node_name}"
+            #edge_id = str(uuid.uuid4())#f"{strat_node.node_id}_has_shape_{shape_node_name}"
+            edge_id = f"{strat_node.node_id}_has_shape_{shape_node_name}"
             if not graph.find_edge_by_id(edge_id):
                 graph.add_edge(
                     edge_id=edge_id,
@@ -139,7 +141,8 @@ def update_representation_models(graph):
     
     for obj in objects_to_check:
         print(f'Object RM is {obj.name}')
-        model_node_id = str(uuid.uuid4())#f"{obj.name}_model"
+        #model_node_id = str(uuid.uuid4())#f"{obj.name}_model"
+        model_node_id = f"{obj.name}_model"
         model_node = graph.find_node_by_id(model_node_id)
         
         # Determina il tipo di URL e il tipo di rappresentazione

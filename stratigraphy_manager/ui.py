@@ -175,7 +175,7 @@ class EM_ToolsPanel:
             # Debug (solo se sperimentale ON)
             if (hasattr(context.scene.em_tools, "experimental_features")
                 and context.scene.em_tools.experimental_features):
-
+                sync_filter_box = filter_box.box()
                 row = sync_filter_box.row(align=True)
                 row.operator("em.strat_activate_collections",
                             text="Show All Collections", icon='OUTLINER_COLLECTION')
