@@ -932,12 +932,21 @@ class RM_OT_promote_to_rm(Operator):
                 return {'CANCELLED'}
             selected_objects = [obj]
         else:
-            # Usa oggetti selezionati
-            selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
+            selected_objects = []
+
+            for obj in context.selected_objects:
+                if obj.type == 'MESH':
+                    selected_objects.append(obj)
+                elif obj.type == 'EMPTY' and obj.instance_type == 'COLLECTION' and obj.instance_collection:
+                    # Aggiungi tutti gli oggetti mesh della collezione istanziata
+                    for child in obj.instance_collection.objects:
+                        if child.type == 'MESH':
+                            selected_objects.append(child)
+
             if not selected_objects:
-                self.report({'ERROR'}, "No mesh objects selected")
+                self.report({'ERROR'}, "No mesh objects or valid collections selected")
                 return {'CANCELLED'}
-        
+
         # Verifica che ci sia un'epoca attiva
         if scene.epoch_list_index < 0 or not scene.epoch_list:
             self.report({'ERROR'}, "No active epoch")
@@ -1768,7 +1777,7 @@ class VIEW3D_PT_RM_Manager(Panel):
         if has_active_epoch:
             row = layout.row(align=True)
             active_object = context.active_object
-            if active_object and active_object.type == 'MESH':
+            if active_object:
                 box = layout.box()
                 box.label(text=f"Operations on selected objects:")
                 row = box.row(align=True)

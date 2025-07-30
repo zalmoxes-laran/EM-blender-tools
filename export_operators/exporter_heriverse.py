@@ -235,11 +235,10 @@ class EXPORT_OT_heriverse(Operator):
                     try:
                         export_gltf_with_animation_support(
                             filepath=export_file,
-                            export_vars=export_vars,  # Deve essere passato alla funzione
-                            scene=scene,             # Deve essere passato alla funzione
+                            export_vars=export_vars,
+                            scene=scene,
                             use_selection=True,
-                            export_format='GLB',
-                            export_materials='NONE'
+                            format_file='GLB'
                         )
                         exported_count += 1
                         print(f"Exported proxy: {clean_name}")
@@ -1896,7 +1895,9 @@ class HERIVERSE_OT_make_collections_visible(Operator):
 
 
 def export_gltf_with_animation_support(filepath, export_vars, scene, use_selection=True, 
-                                      export_extras=False, export_gpu_instances=False):
+                                      export_extras=False, export_gpu_instances=False,
+                                      format_file="GLTF_SEPARATE"):
+
     """
     Template function per l'export glTF con supporto animazioni
     Da usare per sostituire tutte le chiamate bpy.ops.export_scene.gltf()
@@ -1905,7 +1906,7 @@ def export_gltf_with_animation_support(filepath, export_vars, scene, use_selecti
     # Parametri base sempre presenti
     export_params = {
         'filepath': str(filepath),
-        'export_format': 'GLTF_SEPARATE',
+        'export_format': format_file.upper(),
         'export_copyright': scene.EMviq_model_author_name if hasattr(scene, 'EMviq_model_author_name') else "",
         'export_texcoords': True,
         'export_normals': True,
