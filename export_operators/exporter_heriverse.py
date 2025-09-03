@@ -1833,11 +1833,27 @@ class EXPORT_OT_heriverse(Operator):
                     if layer_collection:
                         layer_collection.exclude = was_excluded
 
+
             # STEP 8: Crea ZIP se richiesto
             if export_vars.heriverse_create_zip:
                 print("\n--- Creating ZIP Archive ---")
                 zip_path = self.create_project_zip(project_path)
                 print(f"ZIP archive created at: {zip_path}")
+                
+                # Verifica che lo ZIP sia stato creato correttamente prima di cancellare
+                if os.path.exists(zip_path) and os.path.getsize(zip_path) > 0:
+                    try:
+                        import shutil
+                        shutil.rmtree(project_path)
+                        print(f"Original folder deleted: {project_path}")
+                        self.report({'INFO'}, f"Export completed. ZIP created and original folder cleaned up.")
+                    except Exception as e:
+                        print(f"Warning: Could not delete original folder: {e}")
+                        self.report({'WARNING'}, f"ZIP created but could not delete original folder: {str(e)}")
+                else:
+                    print("Warning: ZIP file not created properly, keeping original folder")
+                    self.report({'WARNING'}, "ZIP creation failed, original folder preserved")
+
 
             print("\n=== Export Completed Successfully ===")
             self.report({'INFO'}, f"Export completed to {project_path}")

@@ -1177,6 +1177,11 @@ def inspect_load_dosco_files_on_graph(graph_instance, dosco_dir):
         print(f"DosCo directory invalid: {dosco_dir}")
         return 0
     
+    # Get graph code for prefix handling
+    graph_code = None
+    if hasattr(graph_instance, 'attributes') and 'graph_code' in graph_instance.attributes:
+        graph_code = graph_instance.attributes['graph_code']
+    
     updated_count = 0
     
     # Trova tutti i nodi documento/extractor/combiner nel grafo
@@ -1185,15 +1190,33 @@ def inspect_load_dosco_files_on_graph(graph_instance, dosco_dir):
         if hasattr(node, 'node_type') and node.node_type in ['document', 'extractor', 'combiner']
     ]
     
+    print(f"Found {len(relevant_nodes)} relevant nodes to process")
+    
     for node in relevant_nodes:
-        # Usa la stessa logica di ricerca file
-        file_path = find_file_in_dosco(dosco_dir, node.name)
+        node_name = node.name
+        
+        # CRITICAL FIX: Handle graph code prefix like the original function
+        base_name = node_name
+        if graph_code and (node_name.startswith(f"{graph_code}.") or node_name.startswith(f"{graph_code}_")):
+            if f"{graph_code}." in node_name:
+                base_name = node_name.split(f"{graph_code}.", 1)[1]
+            elif f"{graph_code}_" in node_name:
+                base_name = node_name.split(f"{graph_code}_", 1)[1]
+        
+        # Try finding the file with the prefixed name first
+        file_path = find_file_in_dosco(dosco_dir, node_name)
+        
+        # If not found and we have a different base name (prefix removed), try that
+        if not file_path and base_name != node_name:
+            file_path = find_file_in_dosco(dosco_dir, base_name)
         
         if file_path:
             rel_path = os.path.relpath(file_path, dosco_dir)
             node.url = rel_path
             updated_count += 1
             print(f"Updated URL for {node.name}: {rel_path}")
+        else:
+            print(f"No file found for {node.name} (also tried {base_name})")
     
     print(f"Updated {updated_count} node URLs in graph")
     return updated_count
