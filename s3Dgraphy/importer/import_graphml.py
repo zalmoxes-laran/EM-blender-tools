@@ -338,36 +338,19 @@ class GraphMLImporter:
 
             self.graph.add_node(stratigraphic_node)
 
-        elif self.EM_check_node_document(node_element):
-            # Creazione del nodo documento e aggiunta al grafo
-            nodename, node_id, nodedescription, nodeurl, _ = self.EM_extract_document_node(node_element)
-            # Controlla se esiste già un documento con lo stesso nome
 
+        elif self.EM_check_node_document(node_element):
+            # Versione semplificata della deduplicazione documenti
+            nodename, node_id, nodedescription, nodeurl, _ = self.EM_extract_document_node(node_element)
+            
+            # Controlla se esiste già un documento con lo stesso NOME (deduplicazione)
             if nodename in self.document_nodes_map:
-                # Ottieni UUID del documento esistente
+                # Nodo duplicato - riusa l'UUID esistente
                 existing_uuid = self.document_nodes_map[nodename]
-                
-                # Cerca il nodo documento esistente
-                existing_doc = self.graph.find_node_by_id(existing_uuid)
-                
-                if existing_doc and hasattr(existing_doc, 'attributes'):
-                    # Ottieni l'ID originale del documento esistente
-                    existing_original_id = existing_doc.attributes.get('original_id')
-                    
-                    if existing_original_id:
-                        # Mappa l'ID originale del nuovo documento all'ID originale del documento esistente
-                        self.duplicate_id_map[original_id] = existing_original_id
-                        print(f"Deduplicating document node: {nodename} (Original ID: {original_id} -> {existing_original_id})")
-                    else:
-                        # Non è stato possibile ottenere l'ID originale, usa l'UUID direttamente
-                        self.duplicate_id_map[original_id] = existing_uuid
-                        print(f"Deduplicating document node: {nodename} (Original ID: {original_id} -> UUID: {existing_uuid})")
-                else:
-                    # Non è stato possibile trovare il documento esistente, usa l'UUID direttamente
-                    self.duplicate_id_map[original_id] = existing_uuid
-                    print(f"Deduplicating document node: {nodename} (ID: {original_id} -> {existing_uuid})")
+                self.id_mapping[original_id] = existing_uuid
+                print(f"Deduplicating document node: {nodename} (Original ID: {original_id} -> existing UUID: {existing_uuid})")
             else:
-                # Crea nuovo documento
+                # Nuovo nodo - crea documento
                 document_node = DocumentNode(
                     node_id=uuid_id,
                     name=nodename,
@@ -375,20 +358,24 @@ class GraphMLImporter:
                     url=nodeurl
                 )
                 
-                # Aggiungi attributi di tracciamento
+                # Attributi di tracciamento
                 document_node.attributes['original_id'] = original_id
                 document_node.attributes['graph_id'] = self.graph.graph_id
+                document_node.attributes['original_name'] = nodename
                 
-                # Prefissa il nome
+                # Prefissa il nome se necessario
                 graph_code = self.graph.attributes.get('graph_code')
                 if graph_code:
-                    document_node.attributes['original_name'] = nodename
                     document_node.name = f"{graph_code}.{nodename}"
                 
-                # Aggiungi al grafo e memorizza UUID
+                # Aggiungi al grafo e memorizza mappature
                 self.graph.add_node(document_node)
-                self.document_nodes_map[nodename] = uuid_id
-                # Se c'è un URL valido, crea un nodo Link
+                self.document_nodes_map[nodename] = uuid_id  # Mappa NOME -> UUID
+                self.id_mapping[original_id] = uuid_id        # Mappa ID_ORIGINALE -> UUID
+                
+                print(f"Created new document node: {nodename} (Original ID: {original_id} -> new UUID: {uuid_id})")
+                
+                # Link node se necessario
                 if nodeurl and nodeurl.strip() != 'Empty':
                     link_node = self._create_link_node(document_node, nodeurl)
 

@@ -1169,6 +1169,35 @@ def identify_node(name):
     
     return node_type
 
+def inspect_load_dosco_files_on_graph(graph_instance, dosco_dir):
+    """
+    Versione che aggiorna direttamente i nodi del grafo invece delle liste UI
+    """
+    if not dosco_dir or not os.path.exists(dosco_dir):
+        print(f"DosCo directory invalid: {dosco_dir}")
+        return 0
+    
+    updated_count = 0
+    
+    # Trova tutti i nodi documento/extractor/combiner nel grafo
+    relevant_nodes = [
+        node for node in graph_instance.nodes 
+        if hasattr(node, 'node_type') and node.node_type in ['document', 'extractor', 'combiner']
+    ]
+    
+    for node in relevant_nodes:
+        # Usa la stessa logica di ricerca file
+        file_path = find_file_in_dosco(dosco_dir, node.name)
+        
+        if file_path:
+            rel_path = os.path.relpath(file_path, dosco_dir)
+            node.url = rel_path
+            updated_count += 1
+            print(f"Updated URL for {node.name}: {rel_path}")
+    
+    print(f"Updated {updated_count} node URLs in graph")
+    return updated_count
+
 def inspect_load_dosco_files():
     """
     Scans the DosCo directory and updates URLs for document, extractor, and combiner nodes

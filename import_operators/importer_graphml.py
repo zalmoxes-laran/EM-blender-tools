@@ -104,7 +104,13 @@ class EM_import_GraphML(bpy.types.Operator):
                     scene.em_extractors_list_index = 0
                 if hasattr(scene, "em_combiners_list_index"):
                     scene.em_combiners_list_index = 0
-                # Ora procedi con il popolamento delle liste
+
+                # Integrazione di dati esterni PRIMA di popolare le liste
+                em_settings = bpy.context.window_manager.em_addon_settings
+                if em_settings.overwrite_url_with_dosco_filepath:
+                    inspect_load_dosco_files_on_graph(graph_instance, dosco_dir)  # ← Nuova funzione
+
+                # Ora procedi con il popolamento delle liste (che avranno già URL aggiornati)
                 populate_blender_lists_from_graph(context, graph_instance)
                 ensure_valid_index(scene.em_list, "em_list_index", context)
                 ensure_valid_index(scene.epoch_list, "epoch_list_index", context, show_popup=False)
@@ -113,13 +119,8 @@ class EM_import_GraphML(bpy.types.Operator):
                 ensure_valid_index(scene.em_extractors_list, "em_extractors_list_index", context)
                 ensure_valid_index(scene.em_combiners_list, "em_combiners_list_index", context)
 
-                # verifica post importazione: controlla che il contatore della lista delle UUSS sia nel range (può succedere di ricaricare ed avere una lista più corta di UUSS). In caso di necessità porta a 0 l'indice
+                # verifica post importazione
                 self.check_index_coherence(scene)
-                
-                # Integrazione di dati esterni: aggiunta dei percorsi effettivi di documenti estrattori e combiners dal DosCo
-                em_settings = bpy.context.window_manager.em_addon_settings
-                if em_settings.overwrite_url_with_dosco_filepath:
-                    inspect_load_dosco_files()
                 
                 #per aggiornare i nomi delle proprietà usando come prefisso in nome del nodo padre
                 #self.newnames_forproperties_from_fathernodes(scene)
