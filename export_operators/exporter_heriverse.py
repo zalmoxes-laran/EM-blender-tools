@@ -568,230 +568,271 @@ class EXPORT_OT_heriverse(Operator):
         """Export representation models with GPU instancing support"""
         scene = context.scene
         export_vars = context.window_manager.export_vars
-                
-        # Deseleziona tutto prima di iniziare
-        bpy.ops.object.select_all(action='DESELECT')
         
         # Raggruppa gli oggetti per mesh condivisa
         mesh_groups = {}
         self.instanced_objects = set()
         self.exported_models = {}
 
-        # Step 1: Raccogli tutti gli oggetti RM pubblicabili
-        publishable_rm_objects = []
+        # Store original collection states
+        collection_states = {}
+        for collection in bpy.data.collections:
+            layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+            if layer_collection:
+                collection_states[collection.name] = {
+                    'exclude': layer_collection.exclude,
+                    'hide_viewport': collection.hide_viewport
+                }
+
+        # Store original object states
+        object_states = {}
         for obj in bpy.data.objects:
-            # Skip oggetti che non sono mesh o non hanno epoche
-            if not (obj.type == 'MESH' and hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0):
-                continue
-                
-            # Skip se oggetto è un tileset
-            if "tileset_path" in obj:
-                continue
-                
-            # Skip se oggetto non è pubblicabile
-            is_publishable = True
-            for rm_item in scene.rm_list:
-                if rm_item.name == obj.name:
-                    is_publishable = rm_item.is_publishable
-                    break
-                    
-            if not is_publishable:
-                continue
-                
-            publishable_rm_objects.append(obj)
-        
-        # Step 2: Raggruppa per mesh condivisa (solo se GPU instancing è abilitato)
-        if export_vars.heriverse_use_gpu_instancing:
-            for obj in publishable_rm_objects:
-                if obj.data:
-                    mesh_name = obj.data.name
-                    if mesh_name not in mesh_groups:
-                        mesh_groups[mesh_name] = []
-                    mesh_groups[mesh_name].append(obj)
-        else:
-            # Se GPU instancing è disabilitato, ogni oggetto va da solo
-            for obj in publishable_rm_objects:
-                mesh_name = f"{obj.name}_unique"
-                mesh_groups[mesh_name] = [obj]
-        
-        print(f"Found {len(mesh_groups)} different meshes in {len(publishable_rm_objects)} publishable RM objects")
-        
-        # Ottieni il grafo attivo
-        graph = None
-        if context.scene.em_tools.active_file_index >= 0:
-            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
-            graph = get_graph(graphml.name)
-        
-        exported_count = 0
-        
-        # Step 3: Process each group
-        for mesh_name, objects in mesh_groups.items():
-            if len(objects) == 1 or not export_vars.heriverse_use_gpu_instancing:
-                # Single object, export normally
-                obj = objects[0]
-                try:
-                    # Make sure object is visible
-                    was_hidden = obj.hide_viewport
-                    if was_hidden:
-                        obj.hide_viewport = False
-                    
-                    obj.select_set(True)
-                    export_file = os.path.join(export_folder, clean_filename(obj.name))
-                    
+            if obj.type == 'MESH':
+                object_states[obj.name] = {
+                    'hide_viewport': obj.hide_viewport,
+                    'hide_select': obj.hide_select
+                }
 
-                    export_gltf_with_animation_support(
-                        filepath=export_file,
-                        export_vars=export_vars,
-                        scene=scene,
-                        use_selection=True
-                    )
+        try:
+            # Make all collections visible
+            for collection in bpy.data.collections:
+                layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+                if layer_collection:
+                    layer_collection.exclude = False
+                collection.hide_viewport = False
 
-                    # Crea o aggiorna il nodo Link
-                    if graph:
-                        model_node_id = f"{obj.name}_model"
-                        model_node = graph.find_node_by_id(model_node_id)
+            # Make all objects visible and selectable
+            for obj in bpy.data.objects:
+                if obj.type == 'MESH':
+                    obj.hide_viewport = False
+                    obj.hide_select = False
+
+            # Deseleziona tutto prima di iniziare
+            bpy.ops.object.select_all(action='DESELECT')
+
+            # Step 1: Raccogli tutti gli oggetti RM pubblicabili
+            publishable_rm_objects = []
+            for obj in bpy.data.objects:
+                # Skip oggetti che non sono mesh o non hanno epoche
+                if not (obj.type == 'MESH' and hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0):
+                    continue
+                    
+                # Skip se oggetto è un tileset
+                if "tileset_path" in obj:
+                    continue
+                    
+                # Skip se oggetto non è pubblicabile
+                is_publishable = True
+                for rm_item in scene.rm_list:
+                    if rm_item.name == obj.name:
+                        is_publishable = rm_item.is_publishable
+                        break
                         
-                        if model_node:
-                            # Percorso relativo per l'export
-                            gltf_path = f"models/{clean_filename(obj.name)}.gltf"
-                            
-                            # Crea un nuovo LinkNode
-                            link_node_id = str(uuid.uuid4())
-                            link_node = LinkNode(
-                                node_id=link_node_id,
-                                name=f"GLTF Link for {obj.name}",
-                                description=f"Link to exported GLTF for {obj.name}",
-                                url=gltf_path,
-                                url_type="3d_model"
-                            )
-                            
-                            # Aggiungi o aggiorna il nodo nel grafo
-                            existing_link = graph.find_node_by_id(link_node_id)
-                            if existing_link:
-                                existing_link.url = gltf_path
-                            else:
-                                graph.add_node(link_node)
-                                
-                                # Crea l'edge tra il nodo RM e il LinkNode
-                                edge_id =  str(uuid.uuid4())
-                                if not graph.find_edge_by_id(edge_id):
-                                    graph.add_edge(
-                                        edge_id=edge_id,
-                                        edge_source=model_node_id,
-                                        edge_target=link_node_id,
-                                        edge_type="has_linked_resource"
-                                    )
+                if not is_publishable:
+                    continue
                     
-                    # Reset visibility
-                    obj.hide_viewport = was_hidden
-                    obj.select_set(False)
-                    
-                    exported_count += 1
-                    print(f"Exported RM: {obj.name}")
-                    
-                except Exception as e:
-                    self.report({'WARNING'}, f"Failed to export RM {obj.name}: {str(e)}")
-                    obj.select_set(False)
-            
-            elif len(objects) > 1 and export_vars.heriverse_use_gpu_instancing:
-                # Multiple objects with same mesh - instancing enabled
-                try:
-                    # Step 3.1: Deselect all
-                    bpy.ops.object.select_all(action='DESELECT')
-                    
-                    # Step 3.2: Find most suitable primary object for this group
-                    # Preferisci oggetti con nomi più corti o senza numeri alla fine
-                    sorted_objects = sorted(objects, key=lambda obj: (len(obj.name), obj.name))
-                    primary_obj = sorted_objects[0]
-                    
-                    # Step 3.3: Assicurati che tutti gli oggetti siano visibili
-                    for obj in objects:
-                        was_hidden = obj.hide_viewport
-                        if was_hidden:
-                            obj.hide_viewport = False
-                    
-                    # Step 3.4: Seleziona e imposta active l'oggetto primario
-                    primary_obj.select_set(True)
-                    bpy.context.view_layer.objects.active = primary_obj
-                    
-                    # Step 3.5: Seleziona gli altri oggetti nel gruppo
-                    for obj in objects:
-                        if obj != primary_obj:
-                            obj.select_set(True)
-                            # Aggiungi alla lista di oggetti istanziati
-                            self.instanced_objects.add(obj.name)
-                    
-                    # Step 3.6: Prepara il nome del file
-                    export_file = os.path.join(export_folder, clean_filename(primary_obj.name))
-                    
-                    # Step 3.7: Export with instancing enabled
-                    
-                    export_gltf_with_animation_support(
-                        filepath=export_file,
-                        export_vars=export_vars,
-                        scene=scene,
-                        use_selection=True,
-                        export_extras=True,
-                        export_gpu_instances=True
-                    )
+                publishable_rm_objects.append(obj)
 
-                    # Crea o aggiorna il nodo Link per l'oggetto primario
-                    if graph:
-                        model_node_id = f"{primary_obj.name}_model"
-                        model_node = graph.find_node_by_id(model_node_id)
-                        
-                        if model_node:
-                            # Percorso relativo per l'export
-                            gltf_path = f"models/{clean_filename(primary_obj.name)}.gltf"
+            # Step 2: Raggruppa per mesh condivisa (solo se GPU instancing è abilitato)
+            if export_vars.heriverse_use_gpu_instancing:
+                for obj in publishable_rm_objects:
+                    if obj.data:
+                        mesh_name = obj.data.name
+                        if mesh_name not in mesh_groups:
+                            mesh_groups[mesh_name] = []
+                        mesh_groups[mesh_name].append(obj)
+            else:
+                # Se GPU instancing è disabilitato, ogni oggetto va da solo
+                for obj in publishable_rm_objects:
+                    mesh_name = f"{obj.name}_unique"
+                    mesh_groups[mesh_name] = [obj]
+
+            print(f"Found {len(mesh_groups)} different meshes in {len(publishable_rm_objects)} publishable RM objects")
+
+            # Ottieni il grafo attivo
+            graph = None
+            if context.scene.em_tools.active_file_index >= 0:
+                graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+                graph = get_graph(graphml.name)
+
+            exported_count = 0
+
+            # Step 3: Process each group
+            for mesh_name, objects in mesh_groups.items():
+                if len(objects) == 1 or not export_vars.heriverse_use_gpu_instancing:
+                    # Single object, export normally
+                    obj = objects[0]
+                    try:
+                        # Ora non è più necessario gestire was_hidden perché tutti gli oggetti sono già visibili e selezionabili
+                        obj.select_set(True)
+                        export_file = os.path.join(export_folder, clean_filename(obj.name))
+
+                        export_gltf_with_animation_support(
+                            filepath=export_file,
+                            export_vars=export_vars,
+                            scene=scene,
+                            use_selection=True
+                        )
+
+                        # Crea o aggiorna il nodo Link
+                        if graph:
+                            model_node_id = f"{obj.name}_model"
+                            model_node = graph.find_node_by_id(model_node_id)
                             
-                            # Crea un nuovo LinkNode
-                            link_node_id = str(uuid.uuid4())
-                            link_node = LinkNode(
-                                node_id=link_node_id,
-                                name=f"GLTF Link for {primary_obj.name}",
-                                description=f"Link to exported GLTF for {primary_obj.name}",
-                                url=gltf_path,
-                                url_type="3d_model"
-                            )
-                            
-                            # Aggiungi o aggiorna il nodo nel grafo
-                            existing_link = graph.find_node_by_id(link_node_id)
-                            if existing_link:
-                                existing_link.url = gltf_path
-                            else:
-                                graph.add_node(link_node)
+                            if model_node:
+                                # Percorso relativo per l'export
+                                gltf_path = f"models/{clean_filename(obj.name)}.gltf"
                                 
-                                # Crea l'edge tra il nodo RM e il LinkNode
-                                edge_id = str(uuid.uuid4())
-                                if not graph.find_edge_by_id(edge_id):
-                                    graph.add_edge(
-                                        edge_id=edge_id,
-                                        edge_source=model_node_id,
-                                        edge_target=link_node_id,
-                                        edge_type="has_linked_resource"
-                                    )
+                                # Crea un nuovo LinkNode
+                                link_node_id = str(uuid.uuid4())
+                                link_node = LinkNode(
+                                    node_id=link_node_id,
+                                    name=f"GLTF Link for {obj.name}",
+                                    description=f"Link to exported GLTF for {obj.name}",
+                                    url=gltf_path,
+                                    url_type="3d_model"
+                                )
+                                
+                                # Aggiungi o aggiorna il nodo nel grafo
+                                existing_link = graph.find_node_by_id(link_node_id)
+                                if existing_link:
+                                    existing_link.url = gltf_path
+                                else:
+                                    graph.add_node(link_node)
+                                    
+                                    # Crea l'edge tra il nodo RM e il LinkNode
+                                    edge_id = str(uuid.uuid4())
+                                    if not graph.find_edge_by_id(edge_id):
+                                        graph.add_edge(
+                                            edge_id=edge_id,
+                                            edge_source=model_node_id,
+                                            edge_target=link_node_id,
+                                            edge_type="has_linked_resource"
+                                        )
+
+                        # Deselect object
+                        obj.select_set(False)
+                        
+                        exported_count += 1
+                        print(f"Exported RM: {obj.name}")
+                        
+                    except Exception as e:
+                        self.report({'WARNING'}, f"Failed to export RM {obj.name}: {str(e)}")
+                        obj.select_set(False)
+
+                elif len(objects) > 1 and export_vars.heriverse_use_gpu_instancing:
+                    # Multiple objects with same mesh - instancing enabled
+                    try:
+                        # Step 3.1: Deselect all
+                        bpy.ops.object.select_all(action='DESELECT')
+                        
+                        # Step 3.2: Find most suitable primary object for this group
+                        # Preferisci oggetti con nomi più corti o senza numeri alla fine
+                        sorted_objects = sorted(objects, key=lambda obj: (len(obj.name), obj.name))
+                        primary_obj = sorted_objects[0]
+                        
+                        # Step 3.3: Non è più necessario gestire hide_viewport perché tutti gli oggetti sono già visibili
+                        
+                        # Step 3.4: Seleziona e imposta active l'oggetto primario
+                        primary_obj.select_set(True)
+                        bpy.context.view_layer.objects.active = primary_obj
+                        
+                        # Step 3.5: Seleziona gli altri oggetti nel gruppo
+                        for obj in objects:
+                            if obj != primary_obj:
+                                obj.select_set(True)
+                                # Aggiungi alla lista di oggetti istanziati
+                                self.instanced_objects.add(obj.name)
+                        
+                        # Step 3.6: Prepara il nome del file
+                        export_file = os.path.join(export_folder, clean_filename(primary_obj.name))
+                        
+                        # Step 3.7: Export with instancing enabled
+                        export_gltf_with_animation_support(
+                            filepath=export_file,
+                            export_vars=export_vars,
+                            scene=scene,
+                            use_selection=True,
+                            export_extras=True,
+                            export_gpu_instances=True
+                        )
+
+                        # Crea o aggiorna il nodo Link per l'oggetto primario
+                        if graph:
+                            model_node_id = f"{primary_obj.name}_model"
+                            model_node = graph.find_node_by_id(model_node_id)
+                            
+                            if model_node:
+                                # Percorso relativo per l'export
+                                gltf_path = f"models/{clean_filename(primary_obj.name)}.gltf"
+                                
+                                # Crea un nuovo LinkNode
+                                link_node_id = str(uuid.uuid4())
+                                link_node = LinkNode(
+                                    node_id=link_node_id,
+                                    name=f"GLTF Link for {primary_obj.name}",
+                                    description=f"Link to exported GLTF for {primary_obj.name}",
+                                    url=gltf_path,
+                                    url_type="3d_model"
+                                )
+                                
+                                # Aggiungi o aggiorna il nodo nel grafo
+                                existing_link = graph.find_node_by_id(link_node_id)
+                                if existing_link:
+                                    existing_link.url = gltf_path
+                                else:
+                                    graph.add_node(link_node)
+                                    
+                                    # Crea l'edge tra il nodo RM e il LinkNode
+                                    edge_id = str(uuid.uuid4())
+                                    if not graph.find_edge_by_id(edge_id):
+                                        graph.add_edge(
+                                            edge_id=edge_id,
+                                            edge_source=model_node_id,
+                                            edge_target=link_node_id,
+                                            edge_type="has_linked_resource"
+                                        )
+                        
+                        # Step 3.8: Registra il gruppo di istanze per l'esportazione JSON
+                        self.exported_models[primary_obj.name] = [obj.name for obj in objects]
+                        
+                        print(f"Exported instanced group: {primary_obj.name} with {len(objects)} instances")
+                        exported_count += 1
+                        
+                    except Exception as e:
+                        self.report({'WARNING'}, f"Failed to export instanced group {mesh_name}: {str(e)}")
+                        import traceback
+                        traceback.print_exc()
                     
-                    # Step 3.8: Registra il gruppo di istanze per l'esportazione JSON
-                    self.exported_models[primary_obj.name] = [obj.name for obj in objects]
-                    
-                    print(f"Exported instanced group: {primary_obj.name} with {len(objects)} instances")
-                    exported_count += 1
-                    
-                except Exception as e:
-                    self.report({'WARNING'}, f"Failed to export instanced group {mesh_name}: {str(e)}")
-                    import traceback
-                    traceback.print_exc()
-                
-                finally:
-                    # Step 3.10: Deselect all e ripristina visibilità
-                    bpy.ops.object.select_all(action='DESELECT')
-                    for obj in objects:
-                        if hasattr(obj, 'was_hidden') and obj.was_hidden:
-                            obj.hide_viewport = True
-        
-        self.report({'INFO'}, f"Exported {exported_count} RM models")
-        
-        return exported_count > 0
+                    finally:
+                        # Deselect all objects in group
+                        for obj in objects:
+                            obj.select_set(False)
+
+            # Compress textures if enabled
+            if exported_count > 0 and scene.heriverse_enable_compression:
+                self.compress_textures_in_folder(export_folder, scene)
+                print(f"Compressed textures for {exported_count} RM models")
+
+            self.report({'INFO'}, f"Exported {exported_count} RM models")
+            return exported_count > 0
+
+        finally:
+            # Restore original collection states
+            for collection_name, state in collection_states.items():
+                collection = bpy.data.collections.get(collection_name)
+                if collection:
+                    layer_collection = find_layer_collection(context.view_layer.layer_collection, collection_name)
+                    if layer_collection:
+                        layer_collection.exclude = state['exclude']
+                    collection.hide_viewport = state['hide_viewport']
+
+            # Restore original object states
+            for object_name, state in object_states.items():
+                obj = bpy.data.objects.get(object_name)
+                if obj:
+                    obj.hide_viewport = state['hide_viewport']
+                    obj.hide_select = state['hide_select']
 
     def get_y_up_transform():
         """Returns the standard transform for converting z-up to y-up models"""

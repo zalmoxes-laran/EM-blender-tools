@@ -55,7 +55,7 @@ class EM_ExportPanel:
         box = layout.box()
         row = box.row()
         row.prop(export_vars, "heriverse_expanded", 
-                text="Heriverse Export (Experimental)", 
+                text="Heriverse Export", 
                 icon='TRIA_DOWN' if export_vars.heriverse_expanded else 'TRIA_RIGHT',
                 emboss=False)
 
