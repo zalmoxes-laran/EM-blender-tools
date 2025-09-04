@@ -257,8 +257,10 @@ class EM_ToolsPanel:
             # Add button to select the row from 3D scene
             split = row.split()
             col = split.column()
-            col.operator("select.listitem", text="", icon="RESTRICT_SELECT_OFF")
-                    
+            op = col.operator("select.listitem", text="", icon="RESTRICT_SELECT_OFF")
+            if op:
+                op.list_type = "em_list"
+
             row = box.row()
             row.prop(item, "description", text="", slider=True, emboss=True)
 

@@ -188,13 +188,12 @@ class RM_OT_add_tileset(Operator):
         return {'FINISHED'}
 
 # Panel to display tileset properties
-class VIEW3D_PT_RM_Tileset_Properties(Panel):
+class VIEW3D_PT_RM_Tileset_Properties(Panel):  # Nome corretto per la registrazione
     bl_label = "Tileset Properties"
-    bl_idname = "VIEW3D_PT_RM_Tileset_Properties"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'EM'
-    bl_parent_id = "VIEW3D_PT_RM_Manager"  # Make it a subpanel of RM Manager
+    bl_parent_id = "VIEW3D_PT_RM_Manager"
     bl_options = {'DEFAULT_CLOSED'}
     
     @classmethod
@@ -219,21 +218,20 @@ class VIEW3D_PT_RM_Tileset_Properties(Panel):
         # Display the tileset path
         layout.label(text="Tileset Properties:")
         
-        # Add a property field to edit the path
-        row = layout.row()
+        # Path field - identico al GraphML
+        row = layout.row(align=True)
         row.prop(obj, '["tileset_path"]', text="Path")
         
-        # Add a button to open a file browser to select a new path
-        row = layout.row()
-        op = row.operator("rm.set_tileset_path", text="Browse...", icon='FILEBROWSER')
+        # Pulsante browse per file ZIP
+        op = row.operator("rm.set_tileset_path", text="", icon='FILEBROWSER')
         op.object_name = obj.name
         
-        # Show a warning if the path doesn't exist
-        path = obj["tileset_path"]
+        # Show warning if path doesn't exist
+        path = obj.get("tileset_path", "")
         if path and not os.path.exists(bpy.path.abspath(path)):
             row = layout.row()
             row.alert = True
-            row.label(text="Warning: Path not found!", icon='ERROR')
+            row.label(text="Warning: File not found!", icon='ERROR')
 
 # Operator to set the tileset path
 class RM_OT_set_tileset_path(Operator, ImportHelper):
@@ -258,8 +256,11 @@ class RM_OT_set_tileset_path(Operator, ImportHelper):
             self.report({'ERROR'}, f"Object {self.object_name} not found")
             return {'CANCELLED'}
         
+        # Converti automaticamente in percorso relativo (come fa Blender)
+        tileset_path = bpy.path.relpath(self.filepath)
+        
         # Update the tileset_path property
-        obj["tileset_path"] = self.filepath
+        obj["tileset_path"] = tileset_path
         
         # Update the url in the graph if available
         try:
@@ -274,12 +275,12 @@ class RM_OT_set_tileset_path(Operator, ImportHelper):
                     
                     if model_node:
                         model_node.url = f"tilesets/{os.path.basename(self.filepath)}"
-                        model_node.attributes['tileset_path'] = self.filepath
+                        model_node.attributes['tileset_path'] = tileset_path
                         print(f"Updated tileset path in graph node: {model_node.node_id}")
         except Exception as e:
             print(f"Error updating graph node: {e}")
         
-        self.report({'INFO'}, f"Updated tileset path for {obj.name}")
+        self.report({'INFO'}, f"Updated tileset path: {tileset_path}")
         return {'FINISHED'}
 
 

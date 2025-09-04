@@ -915,7 +915,7 @@ def check_material_presence(matname):
 from .s3Dgraphy.utils.utils import get_material_color
 
 def consolidate_EM_material_presence(overwrite_mats):
-    EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD']
+    EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
     for EM_mat_name in EM_mat_list:
         if not check_material_presence(EM_mat_name):
             EM_mat = bpy.data.materials.new(name=EM_mat_name)
@@ -964,7 +964,7 @@ def set_materials_using_EM_list(context):
             
             # Check the node_type first (most reliable method)
             if hasattr(current_ob_em_list, 'node_type') and current_ob_em_list.node_type:
-                if current_ob_em_list.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD']:
+                if current_ob_em_list.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']:
                     ob_material_name = current_ob_em_list.node_type
             else:
                 # Fallback to shape + border style

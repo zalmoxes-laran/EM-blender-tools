@@ -360,7 +360,7 @@ class EM_not_in_matrix(Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD']
+        EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
         EM_mat_name = "mat_NotInTheMatrix"
         R = 1.0
         G = 0.0
@@ -435,7 +435,7 @@ class SET_materials_using_em_list(Operator):
                 
                 # Check the node_type first (most reliable method)
                 if hasattr(current_ob_em_list, 'node_type') and current_ob_em_list.node_type:
-                    if current_ob_em_list.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD']:
+                    if current_ob_em_list.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']:
                         ob_material_name = current_ob_em_list.node_type
                 else:
                     # Fallback to shape + border style
