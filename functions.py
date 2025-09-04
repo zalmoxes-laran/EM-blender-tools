@@ -1213,6 +1213,14 @@ def inspect_load_dosco_files_on_graph(graph_instance, dosco_dir):
         if file_path:
             rel_path = os.path.relpath(file_path, dosco_dir)
             node.url = rel_path
+            
+            # ✅ AGGIUNTA: Crea il nodo link corrispondente
+            try:
+                update_or_create_link_node(graph_instance, node, rel_path)
+                print(f"Created/updated link node for {node.name}")
+            except Exception as e:
+                print(f"Warning: Could not create link node for {node.name}: {e}")
+            
             updated_count += 1
             print(f"Updated URL for {node.name}: {rel_path}")
         else:
@@ -1251,6 +1259,10 @@ def inspect_load_dosco_files():
     
     # Get the graph code for prefix handling
     graph_code = graphml.graph_code if hasattr(graphml, 'graph_code') else None
+    
+    # Get graph instance for creating link nodes
+    from .s3Dgraphy.s3dgmanager import get_graph
+    graph_instance = get_graph(graphml.name)
     
     # Track updated nodes for reporting
     updated_count = 0
@@ -1292,6 +1304,23 @@ def inspect_load_dosco_files():
                 # Get the relative path from the DosCo directory
                 rel_path = os.path.relpath(file_path, dosco_dir)
                 node.url = rel_path
+                
+                # ✅ AGGIUNTA: Crea il nodo link corrispondente se abbiamo accesso al grafo
+                if graph_instance:
+                    # Trova il nodo corrispondente nel grafo
+                    graph_node = None
+                    for gnode in graph_instance.nodes:
+                        if hasattr(gnode, 'name') and gnode.name == node.name:
+                            graph_node = gnode
+                            break
+                    
+                    if graph_node:
+                        try:
+                            update_or_create_link_node(graph_instance, graph_node, rel_path)
+                            print(f"Created/updated link node for {node.name}")
+                        except Exception as e:
+                            print(f"Warning: Could not create link node for {node.name}: {e}")
+                
                 updated_count += 1
                 print(f"Updated URL for {node_name}: {rel_path}")
             else:
