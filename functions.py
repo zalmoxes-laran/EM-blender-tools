@@ -15,9 +15,9 @@ from bpy.props import (BoolProperty,
 
 from urllib.parse import urlparse
 
-from .s3Dgraphy.utils.utils import get_material_color
-from .s3Dgraphy.nodes.link_node import LinkNode
-from .s3Dgraphy import load_graph_from_file, get_graph
+from s3dgraphy.utils.utils import get_material_color
+from s3dgraphy.nodes.link_node import LinkNode
+from s3dgraphy import load_graph_from_file, get_graph
 
 import platform
 from pathlib import Path
@@ -281,7 +281,7 @@ def check_graph_loaded(context, show_message=True):
     Returns:
         bool: True se almeno un grafo è caricato, False altrimenti
     """
-    from .s3Dgraphy import get_all_graph_ids
+    from s3dgraphy import get_all_graph_ids
     
     graph_ids = get_all_graph_ids()
     
@@ -309,7 +309,7 @@ def check_active_graph(context, show_message=True):
         tuple: (bool, graph) dove bool indica se c'è un grafo attivo,
                e graph è l'oggetto grafo o None
     """
-    from .s3Dgraphy import get_graph
+    from s3dgraphy import get_graph
     
     em_tools = context.scene.em_tools
     
@@ -389,7 +389,7 @@ def is_graph_available(context):
         graphml = em_tools.graphml_files[em_tools.active_file_index]
         
         # Try to get the actual graph
-        from .s3Dgraphy import get_graph
+        from s3dgraphy import get_graph
         graph = get_graph(graphml.name)
         
         return bool(graph), graph
@@ -812,7 +812,7 @@ def switch_paradata_lists(self, context):
         if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
             try:
                 # Verifica se il grafo esiste
-                from .s3Dgraphy import get_graph
+                from s3dgraphy import get_graph
                 graphml = em_tools.graphml_files[em_tools.active_file_index]
                 graph = get_graph(graphml.name)
                 
@@ -912,7 +912,7 @@ def check_material_presence(matname):
 #  #### #### #### #### #### #### ####
 
 
-from .s3Dgraphy.utils.utils import get_material_color
+from s3dgraphy.utils.utils import get_material_color
 
 def consolidate_EM_material_presence(overwrite_mats):
     EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
@@ -1261,7 +1261,7 @@ def inspect_load_dosco_files():
     graph_code = graphml.graph_code if hasattr(graphml, 'graph_code') else None
     
     # Get graph instance for creating link nodes
-    from .s3Dgraphy.s3dgmanager import get_graph
+    from s3dgraphy.s3dgmanager import get_graph
     graph_instance = get_graph(graphml.name)
     
     # Track updated nodes for reporting
@@ -1447,7 +1447,7 @@ def is_graph_available(context):
         graphml = em_tools.graphml_files[em_tools.active_file_index]
         
         # Try to get the actual graph
-        from .s3Dgraphy import get_graph
+        from s3dgraphy import get_graph
         graph = get_graph(graphml.name)
         
         return bool(graph), graph

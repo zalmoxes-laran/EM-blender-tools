@@ -15,8 +15,8 @@ from .functions import *
 
 import random
 
-from .s3Dgraphy.utils.utils import convert_shape2type
-from .s3Dgraphy.exporter.json_exporter import JSONExporter
+from s3dgraphy.utils.utils import convert_shape2type
+from s3dgraphy.exporter.json_exporter import JSONExporter
 
 
 #####################################################################

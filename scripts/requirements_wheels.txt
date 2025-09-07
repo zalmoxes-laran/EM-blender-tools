@@ -14,3 +14,4 @@ tzdata==2025.1
 et-xmlfile==2.0.0
 fonttools==4.57.0
 packaging==25.0
+s3dgraphy>=0.1.0

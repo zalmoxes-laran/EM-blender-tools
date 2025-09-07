@@ -15,8 +15,8 @@ from bpy.types import ( # type: ignore
     UIList,
 )
 
-from .s3Dgraphy import get_graph
-from .s3Dgraphy.nodes.representation_node import RepresentationModelNode
+from s3dgraphy import get_graph
+from s3dgraphy.nodes.representation_node import RepresentationModelNode
 
 from bpy_extras.io_utils import ImportHelper, ExportHelper # type: ignore
 
@@ -137,7 +137,7 @@ class RM_OT_add_tileset(Operator):
             
             if graph:
                 # Create a RM node in the graph
-                from .s3Dgraphy.nodes.representation_node import RepresentationModelNode
+                from s3dgraphy.nodes.representation_node import RepresentationModelNode
 
                 # Ottieni il nome base del tileset senza estensione
                 tileset_filename = os.path.basename(self.tileset_path)
@@ -449,7 +449,7 @@ class RM_OT_demote_from_rm_list(Operator):
         graph = None
         if context.scene.em_tools.active_file_index >= 0:
             graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
-            from .s3Dgraphy import get_graph
+            from s3dgraphy import get_graph
             graph = get_graph(graphml.name)
             
         # Remove all epochs from the object
@@ -550,7 +550,7 @@ class RM_OT_update_list(Operator):
                     context.scene.em_tools.active_file_index >= 0):
                     
                     graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
-                    from .s3Dgraphy import get_graph
+                    from s3dgraphy import get_graph
                     graph = get_graph(graphml.name)
             
             # Crea dizionario per ordinare le epoche per tempo di inizio

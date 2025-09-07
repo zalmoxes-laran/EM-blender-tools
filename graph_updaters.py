@@ -1,8 +1,8 @@
 import bpy # type: ignore
-from .s3Dgraphy import get_graph, get_all_graph_ids
-from .s3Dgraphy.nodes.semantic_shape_node import SemanticShapeNode
-from .s3Dgraphy.nodes.representation_node import RepresentationModelNode
-from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode
+from s3dgraphy import get_graph, get_all_graph_ids
+from s3dgraphy.nodes.semantic_shape_node import SemanticShapeNode
+from s3dgraphy.nodes.representation_node import RepresentationModelNode
+from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
 import os
 import uuid
 

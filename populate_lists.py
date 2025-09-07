@@ -3,13 +3,13 @@ import bpy # type: ignore
 from .functions import *
 #from .epoch_manager import *
 
-#from .s3Dgraphy import *
-from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode  # Import diretto
-from .s3Dgraphy.nodes.document_node import DocumentNode  # Import diretto
-from .s3Dgraphy.nodes.property_node import PropertyNode  # Import diretto
-from .s3Dgraphy.nodes.extractor_node import ExtractorNode  # Import diretto
-from .s3Dgraphy.nodes.combiner_node import CombinerNode  # Import diretto
-from .s3Dgraphy.nodes.epoch_node import EpochNode  # Import diretto
+#from s3dgraphy import *
+from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode  # Import diretto
+from s3dgraphy.nodes.document_node import DocumentNode  # Import diretto
+from s3dgraphy.nodes.property_node import PropertyNode  # Import diretto
+from s3dgraphy.nodes.extractor_node import ExtractorNode  # Import diretto
+from s3dgraphy.nodes.combiner_node import CombinerNode  # Import diretto
+from s3dgraphy.nodes.epoch_node import EpochNode  # Import diretto
 
 
 def get_connected_epoch_for_node(graph, node):

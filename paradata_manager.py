@@ -914,7 +914,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             graphml = em_tools.graphml_files[em_tools.active_file_index]
             
             # Importa get_graph e verifica che esista
-            from .s3Dgraphy import get_graph
+            from s3dgraphy import get_graph
             graph = get_graph(graphml.name)
             
             if not graph:

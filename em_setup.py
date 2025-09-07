@@ -1,8 +1,8 @@
 import bpy
 import json
 import os
-from .s3Dgraphy import get_graph, remove_graph
-from .s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode
+from s3dgraphy import get_graph, remove_graph
+from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
 
 from .import_operators.importer_graphml import EM_import_GraphML
 
@@ -25,7 +25,7 @@ from .operators.graphml_converter import GRAPHML_OT_convert_borders
 
 from .functions import get_compatible_icon
 
-from .s3Dgraphy import get_all_graph_ids
+from s3dgraphy import get_all_graph_ids
 
 class EM_create_collection(bpy.types.Operator):
     bl_idname = "create.collection"
@@ -640,7 +640,7 @@ class EM_SetupPanel(bpy.types.Panel):
                         loaded_graphs.append(graph_file)
                     else:
                         # Fallback: controlla se il grafo esiste nel sistema
-                        from .s3Dgraphy import get_graph
+                        from s3dgraphy import get_graph
                         if get_graph(graph_file.name):
                             loaded_graphs.append(graph_file)
             

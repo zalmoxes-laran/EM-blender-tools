@@ -15,10 +15,10 @@ from bpy.types import (
     UIList,
 )
 
-from .s3Dgraphy import get_graph
-from .s3Dgraphy.nodes.representation_node import RepresentationModelSpecialFindNode
-from .s3Dgraphy.nodes.stratigraphic_node import SpecialFindUnit, VirtualSpecialFindUnit
-from .s3Dgraphy.nodes.link_node import LinkNode
+from s3dgraphy import get_graph
+from s3dgraphy.nodes.representation_node import RepresentationModelSpecialFindNode
+from s3dgraphy.nodes.stratigraphic_node import SpecialFindUnit, VirtualSpecialFindUnit
+from s3dgraphy.nodes.link_node import LinkNode
 
 # PropertyGroup for representing a SpecialFind association
 class AnastylisisItem(PropertyGroup):

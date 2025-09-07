@@ -4,7 +4,7 @@ import os
 import bmesh
 import math
 from bpy_extras.io_utils import ExportHelper
-from .s3Dgraphy import convert_shape2type
+from s3dgraphy import convert_shape2type
 
 # Percorso del file CSV con materiali e densità
 CSV_FILE = os.path.join(os.path.dirname(__file__), "resources/materials", "ch_materials.csv")

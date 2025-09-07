@@ -3,7 +3,7 @@ import bpy # type: ignore
 #from .graph_manager import graph_instance
 import logging
 
-from .s3Dgraphy import load_graph_from_file, get_graph
+from s3dgraphy import load_graph_from_file, get_graph
 
 log = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ def create_geometry_from_graph(graph, context):
     :param context: Il contesto di Blender.
     """
     # Importa generate_layout solo se networkx è disponibile
-    from .s3Dgraphy.utils.visual_layout import generate_layout
+    from s3dgraphy.utils.visual_layout import generate_layout
 
     # Genera il layout per i nodi del grafo
     layout = generate_layout(graph)
