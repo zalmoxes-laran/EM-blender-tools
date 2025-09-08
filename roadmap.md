@@ -47,29 +47,6 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
   - [ ] Extended info panel integration  
   - [ ] Comprehensive testing  
 
-### s3Dgraphy Library
-
-*Note: This library is currently developed within EM-tools but will become a standalone library*
-
-#### ✅ Completed
-
-- [x] Three core JSON files (Visual Rules, CIDOC Mapping, Connection Rules)  
-- [x] Stratigraphic node subclasses  
-- [x] Actor and Link nodes implementation  
-- [x] Representation Model node  
-- [x] GraphML import compatibility  
-- [x] Tag parser for EM canvas  
-- [x] 3D model library (GLTF) and 2D icons (PNG)  
-- [x] Modular architecture revision  
-- [x] Information propagation algorithm (v1)  
-- [x] Color schema migration to s3Dgraphy  
-
-#### 📋 Planned
-
-- [ ] ParadataGroup node handling for stratigraphic units  
-- [ ] Preset qualia vocabulary implementation  
-- [ ] Standalone library publication with documentation  
-
 ## Version 1.6 (Q3 2025)
 
 ### EM-tools for Blender
@@ -119,11 +96,6 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
   - Folder-based association  
   - Navigation interface with thumbnails  
 
-### s3Dgraphy Library
-
-- [ ] Information propagation algorithms  
-- [ ] SWRL formalization for data propagation  
-- [ ] Enhanced reasoning capabilities  
 
 ## Future Development (2026 and beyond)
 
@@ -155,21 +127,6 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
 - [ ] **Peer Review System**  
 - [ ] **REST API for Chronontology**  
 
-## Release Schedule
-
-> 📅 **Target Date** refers to the expected quarter of release:
-> - Q1 = January–March
-> - Q2 = April–June
-> - Q3 = July–September
-> - Q4 = October–December  
-> These are estimated windows and may shift based on development priorities.
-
-
-| Version | Target Date | Type    | Focus                          |
-|---------|-------------|---------|--------------------------------|
-| 1.5.0   | Q1 2025     | Minor   | Extension format, dependencies |
-| 1.5.1   | Q2 2025     | Patch   | Bug fixes, stability           |
-| 1.6.0   | Q3 2025     | Minor   | Activity Manager, Time Branches|
 
 ## Contributing
 

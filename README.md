@@ -68,7 +68,6 @@ See [ROADMAP.md](ROADMAP.md) for planned features and development timeline.
 ### Current Focus (v1.5)
 - ✅ Extension format migration
 - ✅ Automated dependency management
-- 🚧 s3Dgraphy library improvements
 - 🚧 Enhanced graph visualization
 
 ## 🤝 Contributing
