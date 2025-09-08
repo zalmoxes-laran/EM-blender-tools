@@ -237,7 +237,7 @@ case "$1" in
         git add -A
         git commit -m "build: dev release $VERSION"
         git tag "v$VERSION"
-        git push origin main
+        git push origin $(git branch --show-current)
         git push origin "v$VERSION"
         echo "✅ Dev release $VERSION pushed to GitHub!"
         ;;
@@ -294,7 +294,7 @@ case "$1" in
     
     push)
         echo "Pushing current changes and tags..."
-        git push origin main
+        git push origin $(git branch --show-current)
         VERSION=$(get_version)
         git push origin "v$VERSION" 2>/dev/null || true
         ;;

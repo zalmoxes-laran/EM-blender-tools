@@ -323,7 +323,7 @@ if "%1"=="commit" (
 
 if "%1"=="push" (
     echo Pushing current changes and tags...
-    git push origin main
+    git push origin $(git branch --show-current)
     for /f "tokens=*" %%a in ('python scripts\version_manager.py current') do set VERSION=%%a
     for %%b in (%VERSION%) do set VERSION=%%b
     git push origin v%VERSION% 2>nul
