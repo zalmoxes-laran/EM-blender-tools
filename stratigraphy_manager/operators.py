@@ -548,7 +548,7 @@ class EM_debug_filters(Operator):
         
         try:
             # Import debug_graph_structure
-            from ..s3Dgraphy.utils.utils import debug_graph_structure
+            from s3dgraphy.utils.utils import debug_graph_structure
             
             if self.debug_mode == 'FULL':
                 # Debug full graph

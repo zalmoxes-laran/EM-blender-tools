@@ -69,7 +69,7 @@ class EM_OT_ToggleLandscapeMode(Operator):
                         loaded_graphs.append(graph_file)
                     else:
                         # Fallback: controlla se il grafo esiste nel sistema
-                        from ..s3Dgraphy import get_graph
+                        from s3dgraphy import get_graph
                         if get_graph(graph_file.name):
                             loaded_graphs.append(graph_file)
                 

@@ -1383,7 +1383,7 @@ def update_or_create_link_node(graph, source_node, url, preserve_existing=True):
     Aggiorna un nodo link esistente o ne crea uno nuovo.
     
     Args:
-        graph: Il grafo s3Dgraphy
+        graph: Il grafo s3dgraphy
         source_node: Il nodo sorgente (documento, estrattore o combiner)
         url: L'URL o percorso da assegnare
         preserve_existing: Se True, preserva i link esistenti con URL web

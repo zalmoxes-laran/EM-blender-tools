@@ -2,9 +2,9 @@ import bpy # type: ignore
 from bpy.props import BoolProperty, StringProperty, IntProperty # type: ignore
 from ..populate_lists import populate_blender_lists_from_graph, clear_lists
 from .importer_xlsx import GenericXLSXImporter
-from ..s3Dgraphy import get_graph
-from ..s3Dgraphy.importer.pyarchinit_importer import PyArchInitImporter
-from ..s3Dgraphy.importer.mapped_xlsx_importer import MappedXLSXImporter
+from s3dgraphy import get_graph
+from s3dgraphy.importer.pyarchinit_importer import PyArchInitImporter
+from s3dgraphy.importer.mapped_xlsx_importer import MappedXLSXImporter
 
 class EM_OT_import_3dgis_database(bpy.types.Operator):
     """Import operator for both 3D GIS mode and advanced EM mode"""

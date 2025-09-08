@@ -14,8 +14,66 @@ if "%1"=="--help" goto :show_help
 
 cd /d "%~dp0"
 
+:: ============================================
+:: DEV SYNC FUNCTIONS
+:: ============================================
+
+:: Function to check if development s3dgraphy is active
+:check_dev_s3dgraphy
+    if exist "scripts\sync_s3dgraphy_dev.py" (
+        python scripts\sync_s3dgraphy_dev.py --status 2>nul | findstr "DEVELOPMENT" >nul
+        if not errorlevel 1 (
+            set "DEV_S3DGRAPHY_ACTIVE=true"
+        ) else (
+            set "DEV_S3DGRAPHY_ACTIVE=false"
+        )
+    ) else (
+        set "DEV_S3DGRAPHY_ACTIVE=false"
+    )
+goto :eof
+
+:: Function to warn about dev version before setup
+:warn_dev_override
+    if "%DEV_S3DGRAPHY_ACTIVE%"=="true" (
+        echo.
+        echo ⚠️  WARNING: Development version of s3dgraphy is currently active
+        echo    Running 'setup' will replace it with the PyPI version
+        echo.
+        set /p "continue=Continue anyway? (y/N): "
+        if /i not "!continue!"=="y" (
+            echo.
+            echo 🚫 Setup cancelled
+            echo 💡 Use 'em s3d restore' if you want to switch to PyPI version
+            exit /b 1
+        )
+        echo.
+        echo 🔄 Proceeding with PyPI version replacement...
+    )
+goto :eof
+
+:: Function to notify after setup that dev version was replaced
+:notify_dev_replaced
+    if "%DEV_S3DGRAPHY_ACTIVE%"=="true" (
+        echo.
+        echo ℹ️  Development version of s3dgraphy was replaced with PyPI version
+        echo 💡 Use 'em s3d on' to reactivate development version if needed
+    )
+goto :eof
+
+:: ============================================
+:: MAIN COMMANDS
+:: ============================================
+
 :: Setup command
 if "%1"=="setup" (
+    :: Check if dev s3dgraphy is active before setup
+    call :check_dev_s3dgraphy
+    
+    :: Warn user if dev version will be overridden
+    if "%2"=="force" (
+        call :warn_dev_override
+    )
+    
     echo Setting up development environment...
     
     :: Verifica che esista la cartella scripts
@@ -71,6 +129,23 @@ if "%1"=="setup" (
     )
     
     echo Setup completed successfully!
+    
+    :: Notify if dev version was replaced
+    call :notify_dev_replaced
+    
+    goto :end
+)
+
+:: s3dgraphy development sync command
+if "%1"=="s3d" (
+    echo.
+    if exist "sync_dev.bat" (
+        call sync_dev.bat %2 %3 %4
+    ) else (
+        echo ❌ s3dgraphy development sync not available
+        echo Please ensure sync_dev.bat is in the EM-blender-tools root directory
+        echo Run setup first if this is a fresh installation
+    )
     goto :end
 )
 
@@ -265,7 +340,16 @@ echo === SETUP ===
 echo   setup              Setup development environment
 echo   setup force        Setup and force re-download wheels (clean install)
 echo.
-echo === DEVELOPMENT ===
+echo === s3dgraphy DEVELOPMENT ===
+echo   s3d                Activate s3dgraphy development version
+echo   s3d on             Same as above
+echo   s3d off            Restore PyPI version
+echo   s3d status         Check current s3dgraphy version
+echo   s3d clean          Clean build + activate development version
+echo   s3d restore        Restore PyPI version
+echo   s3d help           Show detailed s3dgraphy sync help
+echo.
+echo === EM TOOLS DEVELOPMENT ===
 echo   inc [part]         Increment version part:
 echo                        dev_build : 1.5.0-dev.43 → 1.5.0-dev.44
 echo                        patch     : 1.5.0 → 1.5.1  
@@ -291,8 +375,10 @@ echo.
 echo === EXAMPLES ===
 echo   em setup           # First time setup
 echo   em setup force     # Clean setup (re-downloads wheels)
-echo   em dev             # Quick dev iteration  
-echo   em devrel          # Dev release to GitHub
+echo   em s3d             # Activate s3dgraphy development version
+echo   em s3d off         # Back to s3dgraphy PyPI version
+echo   em dev             # Quick EMtools dev iteration  
+echo   em devrel          # EMtools dev release to GitHub
 echo   em inc patch       # Increment patch: 1.5.0 → 1.5.1
 echo   em build stable    # Build stable package (no version change)
 echo   em rc              # 1.5.0-dev.X → 1.5.1-rc.1
@@ -300,6 +386,13 @@ echo   em rc+             # 1.5.1-rc.1 → 1.5.1-rc.2
 echo   em stable          # 1.5.1-rc.X → 1.5.1
 echo   em commit "fix: bug in loader"
 echo   em push
+echo.
+echo === s3dgraphy DEVELOPMENT WORKFLOW ===
+echo   em s3d             # Activate s3dgraphy dev version
+echo   [modify s3dgraphy in other VSCode session]
+echo   em s3d             # Re-sync after changes
+echo   [test in Blender]
+echo   em s3d off         # Back to stable when done
 echo.
 goto :end
 

@@ -1,12 +1,12 @@
 import bpy # type: ignore
 import pandas as pd
 from typing import Dict, Any, Optional
-from ..s3Dgraphy.importer.base_importer import BaseImporter
-from ..s3Dgraphy.graph import Graph
-from ..s3Dgraphy.multigraph import load_graph_from_file, get_graph
+from s3dgraphy.importer.base_importer import BaseImporter
+from s3dgraphy.graph import Graph
+from s3dgraphy.multigraph import load_graph_from_file, get_graph
 import os
 
-from ..s3Dgraphy.multigraph.multigraph import multi_graph_manager  
+from s3dgraphy.multigraph.multigraph import multi_graph_manager  
 
 class GenericXLSXImporter(BaseImporter):
     """

@@ -2,17 +2,17 @@ import bpy
 from bpy.props import BoolProperty, StringProperty, IntProperty # type: ignore
 from bpy.types import Operator, AddonPreferences, Panel # type: ignore
 from bpy_extras.io_utils import ExportHelper # type: ignore
-from ..s3Dgraphy.exporter.json_exporter import JSONExporter
+from s3dgraphy.exporter.json_exporter import JSONExporter
 from bpy_extras.io_utils import ExportHelper # type: ignore
 import os
 import shutil
 
-from ..s3Dgraphy import get_graph, get_all_graph_ids
+from s3dgraphy import get_graph, get_all_graph_ids
 from ..functions import *
 from ..graph_updaters import *
 
-from ..s3Dgraphy.nodes.link_node import LinkNode
-from ..s3Dgraphy.nodes.representation_node import RepresentationModelDocNode
+from s3dgraphy.nodes.link_node import LinkNode
+from s3dgraphy.nodes.representation_node import RepresentationModelDocNode
 import uuid
 
 def clean_filename(filename: str) -> str:
@@ -68,7 +68,7 @@ class JSON_OT_exportEMformat(Operator, ExportHelper):
         print("\n=== Starting Heriverse JSON Export ===")
         try:
             # Crea l'esportatore con il percorso file specificato
-            from ..s3Dgraphy.exporter.json_exporter import JSONExporter
+            from s3dgraphy.exporter.json_exporter import JSONExporter
             exporter = JSONExporter(self.filepath)
             
             print(f"Created JSONExporter for path: {self.filepath}")
@@ -107,7 +107,7 @@ class EXPORT_OT_heriverse(Operator):
         Returns:
             set: Set di nomi di nodi stratigrafici
         """
-        from ..s3Dgraphy import get_graph, get_all_graph_ids
+        from s3dgraphy import get_graph, get_all_graph_ids
         
         stratigraphic_names = set()
         
@@ -150,7 +150,7 @@ class EXPORT_OT_heriverse(Operator):
         Estrae i nomi dei nodi stratigrafici da un singolo grafo usando gli indici.
         
         Args:
-            graph: Il grafo s3Dgraphy
+            graph: Il grafo s3dgraphy
             
         Returns:
             list: Lista di nomi di nodi stratigrafici
@@ -1523,7 +1523,7 @@ class EXPORT_OT_heriverse(Operator):
                         
                         if not rmsf_node:
                             # Create RepresentationModelSpecialFindNode
-                            from ..s3Dgraphy.nodes.representation_node import RepresentationModelSpecialFindNode
+                            from s3dgraphy.nodes.representation_node import RepresentationModelSpecialFindNode
                             rmsf_node = RepresentationModelSpecialFindNode(
                                 node_id=rmsf_node_id,
                                 name=f"RMSF for {item.name}",
@@ -1556,7 +1556,7 @@ class EXPORT_OT_heriverse(Operator):
                         link_node_id = f"{rmsf_node_id}_link"
                         gltf_path = f"models_sf/{clean_filename(obj.name)}.gltf"
                         
-                        from ..s3Dgraphy.nodes.link_node import LinkNode
+                        from s3dgraphy.nodes.link_node import LinkNode
                         link_node = graph.find_node_by_id(link_node_id)
                         
                         if not link_node:

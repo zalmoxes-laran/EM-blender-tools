@@ -9,9 +9,9 @@ from bpy.types import Operator
 from bpy.props import StringProperty
 from bpy_extras.io_utils import ImportHelper, ExportHelper
 
-from ..s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode
-from ..s3Dgraphy import get_graph, get_all_graph_ids
-from ..s3Dgraphy.multigraph.multigraph import multi_graph_manager
+from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
+from s3dgraphy import get_graph, get_all_graph_ids
+from s3dgraphy.multigraph.multigraph import multi_graph_manager
 
 from .utils import (
     create_property_value_mapping, 

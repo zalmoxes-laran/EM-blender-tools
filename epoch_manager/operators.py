@@ -9,7 +9,7 @@ from bpy.props import StringProperty, IntProperty, BoolProperty
 from bpy.types import Operator
 
 from ..functions import is_graph_available
-from ..s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode
+from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
 
 class EPOCH_OT_reset_index(Operator):
     bl_idname = "epoch_manager.reset_index"

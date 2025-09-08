@@ -1,12 +1,12 @@
 import bpy # type: ignore
-from ..s3Dgraphy import get_graph
-from ..s3Dgraphy import remove_graph
-from ..s3Dgraphy.nodes.group_node import GroupNode
+from s3dgraphy import get_graph
+from s3dgraphy import remove_graph
+from s3dgraphy.nodes.group_node import GroupNode
 
 from ..populate_lists import *
 from ..functions import *
 from ..functions import normalize_path, show_popup_message
-from ..s3Dgraphy.multigraph.multigraph import load_graph_from_file
+from s3dgraphy.multigraph.multigraph import load_graph_from_file
 
 
 class EM_import_GraphML(bpy.types.Operator):

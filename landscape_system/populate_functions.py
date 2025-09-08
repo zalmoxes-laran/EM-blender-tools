@@ -58,7 +58,7 @@ def get_all_loaded_graphs(context):
     # Itera sui file GraphML registrati
     for graph_file in scene.em_tools.graphml_files:
         try:
-            from ..s3Dgraphy import get_graph
+            from s3dgraphy import get_graph
             graph = get_graph(graph_file.name)
             
             if graph and hasattr(graph, 'nodes') and len(graph.nodes) > 0:
@@ -317,7 +317,7 @@ def populate_lists_single_mode(context):
     try:
         # Usa la logica esistente per popolare da un singolo grafo
         from ..populate_lists import populate_blender_lists_from_graph, clear_lists
-        from ..s3Dgraphy import get_active_graph
+        from s3dgraphy import get_active_graph
         
         # Pulisci le liste
         clear_lists(context)

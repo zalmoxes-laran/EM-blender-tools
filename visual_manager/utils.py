@@ -7,9 +7,9 @@ and other visual management utilities.
 import bpy
 import json
 import os
-from ..s3Dgraphy.nodes.stratigraphic_node import StratigraphicNode
-from ..s3Dgraphy import get_graph, get_all_graph_ids
-from ..s3Dgraphy.multigraph.multigraph import multi_graph_manager
+from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
+from s3dgraphy import get_graph, get_all_graph_ids
+from s3dgraphy.multigraph.multigraph import multi_graph_manager
 
 DEFAULT_COLOR = (0.5, 0.5, 0.5, 1.0)  # Grigio medio
 

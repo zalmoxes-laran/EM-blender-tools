@@ -16,6 +16,67 @@ else
     PYTHON_CMD="python"
 fi
 
+# ============================================
+# DEV SYNC FUNCTIONS
+# ============================================
+
+# Function to check if development s3dgraphy is active
+check_dev_s3dgraphy() {
+    if [ -f "scripts/sync_s3dgraphy_dev.py" ]; then
+        if $PYTHON_CMD scripts/sync_s3dgraphy_dev.py --status 2>/dev/null | grep -q "DEVELOPMENT"; then
+            DEV_S3DGRAPHY_ACTIVE="true"
+        else
+            DEV_S3DGRAPHY_ACTIVE="false"
+        fi
+    else
+        DEV_S3DGRAPHY_ACTIVE="false"
+    fi
+}
+
+# Function to warn about dev version before setup
+warn_dev_override() {
+    if [ "$DEV_S3DGRAPHY_ACTIVE" = "true" ]; then
+        echo
+        echo "⚠️  WARNING: Development version of s3dgraphy is currently active"
+        echo "   Running 'setup' will replace it with the PyPI version"
+        echo
+        read -p "Continue anyway? (y/N): " continue
+        if [ "$continue" != "y" ] && [ "$continue" != "Y" ]; then
+            echo
+            echo "🚫 Setup cancelled"
+            echo "💡 Use './em.sh s3d restore' if you want to switch to PyPI version"
+            exit 1
+        fi
+        echo
+        echo "🔄 Proceeding with PyPI version replacement..."
+    fi
+}
+
+# Function to notify after setup that dev version was replaced
+notify_dev_replaced() {
+    if [ "$DEV_S3DGRAPHY_ACTIVE" = "true" ]; then
+        echo
+        echo "ℹ️  Development version of s3dgraphy was replaced with PyPI version"
+        echo "💡 Use './em.sh s3d on' to reactivate development version if needed"
+    fi
+}
+
+# s3dgraphy development sync command
+s3d_command() {
+    echo
+    if [ -f "sync_dev.sh" ]; then
+        ./sync_dev.sh "$@"
+    else
+        echo "❌ s3dgraphy development sync not available"
+        echo "Please ensure sync_dev.sh is in the EM-blender-tools root directory"
+        echo "Run setup first if this is a fresh installation"
+    fi
+}
+
+# ============================================
+# UTILITY FUNCTIONS
+# ============================================
+
 # Help function
 show_help() {
     echo "Usage: ./em.sh [command] [options]"
@@ -23,7 +84,16 @@ show_help() {
     echo "=== SETUP ==="
     echo "  setup              Setup development environment"
     echo
-    echo "=== DEVELOPMENT ==="
+    echo "=== s3dgraphy DEVELOPMENT ==="
+    echo "  s3d                Activate s3dgraphy development version"
+    echo "  s3d on             Same as above"
+    echo "  s3d off            Restore PyPI version"
+    echo "  s3d status         Check current s3dgraphy version"
+    echo "  s3d clean          Clean build + activate development version"
+    echo "  s3d restore        Restore PyPI version"
+    echo "  s3d help           Show detailed s3dgraphy sync help"
+    echo
+    echo "=== EM TOOLS DEVELOPMENT ==="
     echo "  inc [part]         Increment version part:"
     echo "                       dev_build : 1.5.0-dev.43 → 1.5.0-dev.44"
     echo "                       patch     : 1.5.0 → 1.5.1"
@@ -47,8 +117,10 @@ show_help() {
     echo
     echo "=== EXAMPLES ==="
     echo "  ./em.sh setup      # First time setup"
-    echo "  ./em.sh dev        # Quick dev iteration"
-    echo "  ./em.sh devrel     # Dev release to GitHub"
+    echo "  ./em.sh s3d        # Activate s3dgraphy development version"
+    echo "  ./em.sh s3d off    # Back to s3dgraphy PyPI version"
+    echo "  ./em.sh dev        # Quick EMtools dev iteration"
+    echo "  ./em.sh devrel     # EMtools dev release to GitHub"
     echo "  ./em.sh inc patch  # Increment patch: 1.5.0 → 1.5.1"
     echo "  ./em.sh build stable # Build stable package (no version change)"
     echo "  ./em.sh rc         # 1.5.0-dev.X → 1.5.1-rc.1"
@@ -56,6 +128,13 @@ show_help() {
     echo "  ./em.sh stable     # 1.5.1-rc.X → 1.5.1"
     echo "  ./em.sh commit \"fix: bug in loader\""
     echo "  ./em.sh push"
+    echo
+    echo "=== s3dgraphy DEVELOPMENT WORKFLOW ==="
+    echo "  ./em.sh s3d        # Activate s3dgraphy dev version"
+    echo "  [modify s3dgraphy in other VSCode session]"
+    echo "  ./em.sh s3d        # Re-sync after changes"
+    echo "  [test in Blender]"
+    echo "  ./em.sh s3d off    # Back to stable when done"
     echo
 }
 
@@ -76,6 +155,10 @@ suggest_commit_message() {
     fi
 }
 
+# ============================================
+# MAIN COMMAND PROCESSING
+# ============================================
+
 # Check for help
 if [ $# -eq 0 ] || [ "$1" = "help" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     show_help
@@ -85,6 +168,14 @@ fi
 # Parse commands
 case "$1" in
     setup)
+        # Check if dev s3dgraphy is active before setup
+        check_dev_s3dgraphy
+        
+        # Warn user if dev version will be overridden
+        if [ "$2" = "force" ]; then
+            warn_dev_override
+        fi
+        
         echo "Setting up development environment..."
         # Change to scripts directory before running setup
         cd scripts
@@ -102,6 +193,14 @@ case "$1" in
         esac
         # Return to original directory
         cd "$SCRIPT_DIR"
+        
+        # Notify if dev version was replaced
+        notify_dev_replaced
+        ;;
+    
+    s3d)
+        shift  # Remove 's3d' from arguments
+        s3d_command "$@"
         ;;
     
     inc)

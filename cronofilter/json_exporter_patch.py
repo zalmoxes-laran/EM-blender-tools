@@ -72,8 +72,8 @@ def apply_json_exporter_patch():
     """
     try:
         # Import the JSONExporter class
-        from ..s3Dgraphy.exporter.json_exporter import JSONExporter
-        from ..s3Dgraphy.multigraph.multigraph import get_all_graph_ids, get_graph
+        from s3dgraphy.exporter.json_exporter import JSONExporter
+        from s3dgraphy.multigraph.multigraph import get_all_graph_ids, get_graph
         import json
         
         # Store the original export_graphs method
@@ -139,7 +139,7 @@ def validate_patch():
     Validate that the patch was applied correctly by checking if the method was replaced.
     """
     try:
-        from ..s3Dgraphy.exporter.json_exporter import JSONExporter
+        from s3dgraphy.exporter.json_exporter import JSONExporter
         
         # Check if the method exists and has our enhanced functionality
         method = getattr(JSONExporter, 'export_graphs', None)
