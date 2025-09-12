@@ -309,109 +309,28 @@ class AUXILIARY_UL_files(bpy.types.UIList):
             row.operator("auxiliary.import_now", text="", icon="IMPORT", emboss=False)
 
 def get_emdb_mappings():
-    """Funzione per ottenere i mapping EMdb disponibili"""
-    mappings = []
-    mapping_dir = os.path.join(os.path.dirname(__file__), "emdbjson")
-    
-    # Verifica se la directory esiste
-    if not os.path.exists(mapping_dir):
-        os.makedirs(mapping_dir)
-        return [("none", "No mappings found", "")]
+    """Get available EMdb mapping files from registry"""
+    mappings = [("none", "No Mapping", "Select a mapping file")]
     
     try:
-        for file in os.listdir(mapping_dir):
-            if file.endswith('.json'):
-                file_path = os.path.join(mapping_dir, file)
-                try:
-                    with open(file_path, 'r') as f:
-                        content = f.read()
-                        if not content.strip():  # Se il file è vuoto
-                            print(f"Warning: Empty mapping file: {file}")
-                            continue
-                            
-                        try:
-                            data = json.loads(content)
-                            name = data.get("name", os.path.splitext(file)[0])
-                            mappings.append((file, name, data.get("description", "")))
-                        except json.JSONDecodeError as e:
-                            print(f"Error decoding JSON from {file}: {str(e)}")
-                            continue
-                except IOError as e:
-                    print(f"Error reading file {file}: {str(e)}")
-                    continue
-                    
+        from s3dgraphy.mappings import mapping_registry
+        available_mappings = mapping_registry.list_available_mappings('emdb')
+        mappings.extend(available_mappings)
     except Exception as e:
-        print(f"Error scanning mapping directory: {str(e)}")
-        
-    return mappings if mappings else [("none", "No mappings found", "")]
-
-def get_emdb_mappings():
-    """Funzione per ottenere i mapping EMdb disponibili"""
-    mappings = []
-    mapping_dir = os.path.join(os.path.dirname(__file__), "emdbjson")
+        print(f"Error loading EMdb mappings: {str(e)}")
     
-    # Verifica se la directory esiste
-    if not os.path.exists(mapping_dir):
-        os.makedirs(mapping_dir)
-        return [("none", "No mappings found", "")]
-    
-    try:
-        for file in os.listdir(mapping_dir):
-            if file.endswith('.json'):
-                file_path = os.path.join(mapping_dir, file)
-                try:
-                    with open(file_path, 'r') as f:
-                        content = f.read()
-                        if not content.strip():  # Se il file è vuoto
-                            print(f"Warning: Empty mapping file: {file}")
-                            continue
-                            
-                        try:
-                            data = json.loads(content)
-                            name = data.get("name", os.path.splitext(file)[0])
-                            mappings.append((file, name, data.get("description", "")))
-                        except json.JSONDecodeError as e:
-                            print(f"Error decoding JSON from {file}: {str(e)}")
-                            continue
-                except IOError as e:
-                    print(f"Error reading file {file}: {str(e)}")
-                    continue
-                    
-    except Exception as e:
-        print(f"Error scanning mapping directory: {str(e)}")
-        
-    return mappings if mappings else [("none", "No mappings found", "")]
+    return mappings
 
 def get_pyarchinit_mappings(self, context):
-    """Get available pyArchInit mapping files"""
-    mappings = []
-    mapping_dir = os.path.join(os.path.dirname(__file__), "pyarchinit_mappings")
-    
-    mappings.append(("none", "No Mapping", "Select a mapping file"))
-    
-    if not os.path.exists(mapping_dir):
-        os.makedirs(mapping_dir)
-        return mappings
+    """Get available pyArchInit mapping files from registry"""
+    mappings = [("none", "No Mapping", "Select a mapping file")]
     
     try:
-        for file in os.listdir(mapping_dir):
-            if file.endswith('.json'):
-                file_path = os.path.join(mapping_dir, file)
-                try:
-                    with open(file_path, 'r') as f:
-                        data = json.load(f)
-                        # Usa il nome del file senza estensione come identificatore
-                        file_id = os.path.splitext(file)[0]
-                        mappings.append((
-                            file_id,  # identificatore senza .json
-                            data.get("name", file_id),  # nome visualizzato
-                            data.get("description", "")  # descrizione/tooltip
-                        ))
-                except Exception as e:
-                    print(f"Error reading mapping {file}: {str(e)}")
-                    continue
+        from s3dgraphy.mappings import mapping_registry
+        available_mappings = mapping_registry.list_available_mappings('pyarchinit')
+        mappings.extend(available_mappings)
     except Exception as e:
-        print(f"Error scanning mapping directory: {str(e)}")
+        print(f"Error loading pyArchInit mappings: {str(e)}")
     
     return mappings
 class EMToolsSettings(bpy.types.PropertyGroup):
@@ -955,24 +874,16 @@ class EM_SetupPanel(bpy.types.Panel):
             op.graphml_index = -1  # Non applicabile in modalità 3DGIS
             op.auxiliary_index = -1  # Non applicabile in modalità 3DGIS
 
-
 def get_mapping_description(mapping_file, mapping_type="emdb"):
-    """Recupera la descrizione del mapping dal file JSON."""
-    if mapping_type == "pyarchinit":
-        mapping_dir = os.path.join(os.path.dirname(__file__), "pyarchinit_mappings")
-    else:
-        mapping_dir = os.path.join(os.path.dirname(__file__), "emdbjson")
-    
+    """Recupera la descrizione del mapping dal registry."""
     try:
-        # Aggiungi l'estensione .json se non è già presente
-        if not mapping_file.endswith('.json'):
-            mapping_file = f"{mapping_file}.json"
-            
-        mapping_path = os.path.join(mapping_dir, mapping_file)
-        print(f"Looking for mapping file at: {mapping_path}")  # Debug
+        from s3dgraphy.mappings import mapping_registry
         
-        with open(mapping_path) as f:
-            return json.load(f)
+        # Usa il mapping type corretto
+        registry_type = "emdb" if mapping_type == "emdb" else "pyarchinit"
+        
+        mapping_data = mapping_registry.load_mapping(mapping_file, registry_type)
+        return mapping_data
     except Exception as e:
         print(f"Error loading mapping description: {str(e)}")
         return None
