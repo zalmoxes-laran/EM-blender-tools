@@ -199,10 +199,19 @@ class EM_import_GraphML(bpy.types.Operator):
             node_send = scene.em_list[scene.em_list_index]
 
     def post_import_material_setup(self, context):
-        if context.scene.proxy_display_mode == "EM":
+        current_mode = context.scene.proxy_display_mode
+        
+        if current_mode == "EM":
             bpy.ops.emset.emmaterial()
-        else:
+        elif current_mode == "Epochs":
             bpy.ops.emset.epochmaterial()
+        elif current_mode == "Properties":
+            # Mantieni Properties attivo dopo import
+            if hasattr(context.scene, 'property_values') and context.scene.property_values:
+                try:
+                    bpy.ops.visual.apply_colors()
+                except:
+                    pass  # Fallback sicuro
 
     def newnames_forproperties_from_fathernodes(self, scene):
         poly_property_counter = 1

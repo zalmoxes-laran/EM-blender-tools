@@ -280,7 +280,7 @@ class EM_listitem_OT_to3D(Operator):
     bl_label = "Use element's name from the list above to rename selected 3D object"
     bl_options = {"REGISTER", "UNDO"}
 
-    list_type: StringProperty()
+    list_type: StringProperty() # type: ignore
 
     @classmethod
     def poll(cls, context):
@@ -297,10 +297,16 @@ class EM_listitem_OT_to3D(Operator):
         context.active_object.name = item.name
         update_icons(context, self.list_type)
         if self.list_type == "em_list":
-            if scene.proxy_display_mode == "EM":
+            current_mode = scene.proxy_display_mode
+            
+            if current_mode == "EM":
                 bpy.ops.emset.emmaterial()
-            else:
+            elif current_mode == "Epochs":
                 bpy.ops.emset.epochmaterial()
+            elif current_mode == "Properties":
+                # Mantieni Properties attivo - non cambiarlo!
+                pass
+            # Future modalità qui
         return {'FINISHED'}
 
 class EM_update_icon_list(Operator):
