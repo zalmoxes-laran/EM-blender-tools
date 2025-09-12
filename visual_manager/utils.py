@@ -25,9 +25,6 @@ def create_property_value_mapping_old(graph, property_name):
     """
     print(f"\n=== Creating Property Value Mapping for '{property_name}' (Legacy) ===")
     
-
-
-
     mapping = {}
     
     # Find all property nodes with the given name
@@ -64,47 +61,149 @@ def create_property_value_mapping_old(graph, property_name):
     print(f"Legacy mapping created with {len(mapping)} entries")
     return mapping
 
-def create_property_value_mapping(context):
-    """Create materials for property values"""
+def create_property_value_mapping(graph, property_name):
+    """
+    Complete optimized version using graph indices for property mapping.
+    Creates both the node->value mapping and materials for visualization.
+    """
+    print(f"\n=== Creating Property Value Mapping for '{property_name}' (Optimized) ===")
+    
+    mapping = {}
+    
+    try:
+        # Usa gli indici ottimizzati del grafo
+        indices = graph.indices
+        
+        # Ottieni tutti i valori per questa proprietà usando gli indici
+        property_values = indices.get_property_values(property_name)
+        print(f"Found {len(property_values)} unique property values using indices")
+        
+        # Track stratigraphic nodes that have this property
+        connected_strat_nodes = set()
+        
+        # Process each property value using optimized lookup
+        for value in property_values:
+            # Skip special values for now
+            if not (value.startswith("empty property") or value.startswith("no property")):
+                # Get stratigraphic nodes with this property value - O(1) lookup
+                strat_node_ids = indices.get_strat_nodes_by_property_value(property_name, value)
+                
+                for strat_node_id in strat_node_ids:
+                    connected_strat_nodes.add(strat_node_id)
+                    strat_node = graph.find_node_by_id(strat_node_id)
+                    
+                    if strat_node:
+                        # Use actual value or special tag for empty values
+                        if value and value.strip():
+                            mapping[strat_node.name] = value
+                        else:
+                            mapping[strat_node.name] = f"empty property {property_name} node"
+        
+        # Handle "no property" case using optimized node type lookup
+        if hasattr(indices, 'nodes_by_type'):
+            strat_nodes = indices.nodes_by_type.get('stratigraphic', [])
+            # Also check for 'US' type nodes (common stratigraphic type)
+            strat_nodes.extend(indices.nodes_by_type.get('US', []))
+        else:
+            # Fallback to manual iteration if indices don't have node type lookup
+            strat_nodes = [node for node in graph.nodes 
+                          if hasattr(node, 'node_type') and 
+                          node.node_type in ['stratigraphic', 'US']]
+        
+        # Add nodes without this property
+        for strat_node in strat_nodes:
+            node_id = getattr(strat_node, 'node_id', None)
+            if node_id and node_id not in connected_strat_nodes:
+                mapping[strat_node.name] = f"no property {property_name} node"
+        
+        print(f"Optimized mapping created with {len(mapping)} entries")
+        
+    except Exception as e:
+        print(f"Warning: Optimized method failed ({e}), falling back to legacy method")
+        # Fallback to legacy implementation
+        return create_property_value_mapping_old(graph, property_name)
+    
+    return mapping
+
+
+def create_property_materials(context, property_values_list=None):
+    """
+    Create Blender materials for property values.
+    Separated from mapping function for better modularity.
+    """
     scene = context.scene
     materials = {}
     
     alpha_value = scene.proxy_display_alpha
     
-    for item in scene.property_values:
-        material_name = f"prop_{item.value}"
+    # Use provided list or scene property_values
+    values_to_process = property_values_list or scene.property_values
+    
+    for item in values_to_process:
+        material_name = f"prop_{item.value if hasattr(item, 'value') else item}"
         
-        # Crea o ottieni il materiale
+        # Create or get existing material
         if material_name in bpy.data.materials:
             mat = bpy.data.materials[material_name]
         else:
             mat = bpy.data.materials.new(name=material_name)
-        
-        # Configura il materiale
-        mat.use_nodes = True
-        mat.node_tree.nodes.clear()
-        
-        if alpha_value < 1.0:
-            mat.blend_method = 'BLEND'
-        else:
-            mat.blend_method = scene.proxy_blend_mode
-        
-        # Crea i nodi
-        output = mat.node_tree.nodes.new('ShaderNodeOutputMaterial')
-        principled = mat.node_tree.nodes.new('ShaderNodeBsdfPrincipled')
-        
-        # Collega i nodi
-        mat.node_tree.links.new(principled.outputs['BSDF'], output.inputs['Surface'])
-        
-        # Imposta il colore e l'alpha
-        principled.inputs['Base Color'].default_value = (*item.color[:3], 1.0)
-        
-        if 'Alpha' in principled.inputs:
+            mat.use_nodes = True
+            mat.node_tree.nodes.clear()
+            
+            # Set blend method based on alpha
+            if alpha_value < 1.0:
+                mat.blend_method = 'BLEND'
+            else:
+                mat.blend_method = scene.proxy_blend_mode if hasattr(scene, 'proxy_blend_mode') else 'OPAQUE'
+            
+            # Create shader nodes
+            output = mat.node_tree.nodes.new('ShaderNodeOutputMaterial')
+            output.location = (0, 0)
+            principled = mat.node_tree.nodes.new('ShaderNodeBsdfPrincipled')
+            principled.location = (-200, 0)
+            
+            # Connect nodes
+            mat.node_tree.links.new(principled.outputs['BSDF'], output.inputs['Surface'])
+            
+            # Set material properties
+            if hasattr(item, 'color') and len(item.color) >= 3:
+                principled.inputs['Base Color'].default_value = (*item.color[:3], alpha_value)
+            else:
+                # Default gray color
+                principled.inputs['Base Color'].default_value = (0.5, 0.5, 0.5, alpha_value)
+            
             principled.inputs['Alpha'].default_value = alpha_value
         
-        materials[item.value] = mat
+        materials[material_name] = mat
     
+    print(f"Created/updated {len(materials)} materials")
     return materials
+
+
+def create_property_value_mapping_with_materials(graph, property_name, context=None):
+    """
+    Combined function that creates both mapping and materials.
+    Use this when you need both functionality.
+    """
+    # Create the optimized mapping
+    mapping = create_property_value_mapping(graph, property_name)
+    
+    # Create materials if context is provided
+    materials = {}
+    if context:
+        # Extract unique values from mapping
+        unique_values = list(set(mapping.values()))
+        
+        # Create simple objects with value attribute for material creation
+        class ValueItem:
+            def __init__(self, value, color=(0.5, 0.5, 0.5, 1.0)):
+                self.value = value
+                self.color = color
+        
+        value_items = [ValueItem(value) for value in unique_values]
+        materials = create_property_materials(context, value_items)
+    
+    return mapping, materials
 
 def apply_property_colors(context, property_mapping, color_scheme):
     """Applies colors to mesh objects based on property values."""
