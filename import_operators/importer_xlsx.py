@@ -14,9 +14,9 @@ class GenericXLSXImporter(BaseImporter):
     This importer is specific to EM-tools and handles basic Excel file parsing with minimal assumptions
     about the file structure.
     """
-    
+        
     def __init__(self, filepath: str, sheet_name: str = "Sheet1", id_column: str = "ID", 
-                 overwrite: bool = False, mode: str = "3DGIS"):
+                overwrite: bool = False, mode: str = "3DGIS"):
         """
         Initialize the generic XLSX importer.
         
@@ -31,9 +31,9 @@ class GenericXLSXImporter(BaseImporter):
         super().__init__(filepath=filepath, id_column=id_column, overwrite=overwrite, mode=mode)
         
         self.sheet_name = sheet_name
-        self.mode = mode  # Lo salviamo come attributo della classe figlia
+        self.mode = mode
 
-        # Inizializzazione del grafo
+        # Inizializzazione del grafo con nome specifico per modalità
         if mode == "3DGIS":
             self.graph_id = "3dgis_graph"
         else:
@@ -42,14 +42,13 @@ class GenericXLSXImporter(BaseImporter):
         # Crea il grafo
         self.graph = Graph(graph_id=self.graph_id)
 
-
         # Debug print
-        print(f"\nDebug - Graph Initialization:")
+        print(f"\nEM-tools Debug - Graph Initialization:")
         print(f"Creating graph with ID: {self.graph_id}")
 
         # Registra il grafo nel MultiGraphManager
         multi_graph_manager.graphs[self.graph_id] = self.graph
-        print(f"\nDebug - Graph Registration:")
+        print(f"\nEM-tools Debug - Graph Registration:")
         print(f"Registering graph with ID: {self.graph_id}")
         print(f"Current registered graphs: {list(multi_graph_manager.graphs.keys())}")
 

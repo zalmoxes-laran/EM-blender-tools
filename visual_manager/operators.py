@@ -86,80 +86,130 @@ class VISUAL_OT_update_property_values(Operator):
             if not em_tools.mode_switch:  # Modalità 3D GIS
                 # Nome hardcodato per modalità 3D GIS
                 graph_name = "3dgis_graph"
-                print(f"3D GIS mode: processing hardcoded graph '{graph_name}'")
+                print(f"EM-tools: 3D GIS mode - processing hardcoded graph '{graph_name}'")
+                
+                # *** VALIDAZIONE ESISTENZA GRAFO 3D GIS ***
+                from s3dgraphy.multigraph.multigraph import multi_graph_manager
+                if graph_name not in multi_graph_manager.graphs:
+                    message = f"3D GIS graph '{graph_name}' not found. Please import data first."
+                    self.report({'WARNING'}, message)
+                    print(f"❌ {message}")
+                    return {'FINISHED'}
                 
                 graph = get_graph(graph_name)
                 if graph:
                     print(f"Processing graph '{graph_name}'")
-                    mapping = create_property_value_mapping(graph, scene.selected_property)
+                    mapping = self._create_complete_property_mapping(graph, scene.selected_property)
                     values.update(mapping.values())
                     processed_graphs = 1
                     print(f"Found {len(set(mapping.values()))} unique values")
                 else:
-                    message = f"3D GIS graph '{graph_name}' not found"
+                    message = f"3D GIS graph '{graph_name}' not accessible"
                     self.report({'ERROR'}, message)
-                    print(f"Error: {message}")
-                    return {'CANCELLED'}
-                        
+                    print(f"❌ {message}")
+                    return {'FINISHED'}
+                    
             else:  # Modalità Advanced EM
                 if scene.show_all_graphs:  # Modalità multigrafo
-                    print("Advanced EM multigrafo mode: processing all loaded graphs...")
                     graph_ids = get_all_graph_ids()
-                    print(f"Found {len(graph_ids)} graph(s): {graph_ids}")
-                    
+                    print(f"Advanced EM multigrafo mode: processing {len(graph_ids)} graphs")
                     for graph_id in graph_ids:
                         graph = get_graph(graph_id)
                         if graph:
-                            print(f"\nProcessing graph '{graph_id}'")
-                            mapping = create_property_value_mapping(graph, scene.selected_property)
+                            print(f"Processing graph '{graph_id}'")
+                            mapping = self._create_complete_property_mapping(graph, scene.selected_property)
                             values.update(mapping.values())
                             processed_graphs += 1
-                        else:
-                            print(f"Warning: Could not retrieve graph '{graph_id}'")
                 else:  # Solo grafo attivo
                     if em_tools.active_file_index >= 0:
-                        graphml = em_tools.graphml_files[em_tools.active_file_index]
-                        graph = get_graph(graphml.name)
-                        
+                        active_file = em_tools.graphml_files[em_tools.active_file_index]
+                        graph = get_graph(active_file.name)
                         if graph:
-                            print(f"\nProcessing active graph '{graphml.name}'")
-                            mapping = create_property_value_mapping(graph, scene.selected_property)
+                            print(f"Processing active graph '{active_file.name}'")
+                            mapping = self._create_complete_property_mapping(graph, scene.selected_property)
                             values.update(mapping.values())
                             processed_graphs = 1
                         else:
-                            message = "No active graph found. Please load a GraphML file first."
-                            self.report({'ERROR'}, message)
-                            print(f"Error: {message}")
-                            return {'CANCELLED'}
+                            print(f"Graph '{active_file.name}' not found")
                     else:
-                        message = "No GraphML file selected"
-                        self.report({'ERROR'}, message)
-                        print(f"Error: {message}")
-                        return {'CANCELLED'}
-            
-            # Sort and add values to property_values collection
-            print("\nAdding property values:")
-            for value in sorted(values):
+                        print("No active GraphML file selected in Advanced EM mode")
+
+            # Update property values
+            sorted_values = sorted(values)
+            for value in sorted_values:
                 item = scene.property_values.add()
-                item.value = str(value)
-                item.color = (0.5, 0.5, 0.5, 1.0)  # Default gray
-                print(f"Added value: {value}")
-            
-            summary = f"Successfully processed {processed_graphs} graph(s) and found {len(values)} unique values"
-            print(f"\n{summary}")
-            self.report({'INFO'}, summary)
-            
-            return {'FINISHED'}
+                item.value = str(value)  # Usa 'value' come nell'originale
+
+            print(f"Updated property values: {len(sorted_values)} unique values from {processed_graphs} graphs")
             
         except Exception as e:
-            import traceback
-            print("\nError during property values update:")
-            print(traceback.format_exc())
+            print(f"Error in update_property_values: {e}")
             self.report({'ERROR'}, f"Error updating property values: {str(e)}")
-            return {'CANCELLED'}
         finally:
             VISUAL_OT_update_property_values._is_updating = False
-            print("\n=== Property Values Update Completed ===")
+        
+        return {'FINISHED'}
+
+    def _create_complete_property_mapping(self, graph, property_name):
+        """
+        Approccio ibrido: prima trova i nodi property, poi le connessioni
+        Più efficiente e segue la logica originale
+        """
+        mapping = {}
+        
+        # 1. Trova TUTTI i nodi property con questo nome
+        property_nodes = [node for node in graph.nodes 
+                        if hasattr(node, 'node_type') and node.node_type == "property" 
+                        and node.name == property_name]
+        
+        print(f"Found {len(property_nodes)} property nodes for '{property_name}'")
+        
+        # 2. Tieni traccia delle US già elaborate
+        connected_strat_nodes = set()
+        
+        # 3. Per ogni nodo property, trova le US collegate
+        for prop_node in property_nodes:
+            value = getattr(prop_node, 'description', '')
+            is_empty = not (value and value.strip())
+            
+            print(f"Processing property node {prop_node.node_id}: empty={is_empty}, value='{value}'")
+            
+            # Trova tutte le US collegate a questo nodo property
+            connected_us = []
+            for edge in graph.edges:
+                if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
+                    strat_node = graph.find_node_by_id(edge.edge_source)
+                    if strat_node:
+                        connected_us.append(strat_node)
+                        connected_strat_nodes.add(strat_node.node_id)
+            
+            print(f"  Connected to {len(connected_us)} US: {[us.name for us in connected_us]}")
+            
+            # Assegna il valore appropriato
+            for us_node in connected_us:
+                if is_empty:
+                    mapping[us_node.name] = f"empty property {property_name} node"
+                    print(f"  -> {us_node.name}: EMPTY PROPERTY")
+                else:
+                    mapping[us_node.name] = value
+                    print(f"  -> {us_node.name}: '{value}'")
+        
+        # 4. Trova tutte le US che NON hanno questa proprietà
+        from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
+        all_strat_nodes = [node for node in graph.nodes 
+                        if hasattr(node, 'node_type') and isinstance(node, StratigraphicNode)]
+        
+        no_property_count = 0
+        for strat_node in all_strat_nodes:
+            if strat_node.node_id not in connected_strat_nodes:
+                mapping[strat_node.name] = f"no property {property_name} node"
+                no_property_count += 1
+        
+        print(f"Final mapping: {len(mapping)} total US")
+        print(f"  - With property: {len(connected_strat_nodes)}")  
+        print(f"  - Without property: {no_property_count}")
+        
+        return mapping
 
 
 class VISUAL_OT_apply_colors(Operator):

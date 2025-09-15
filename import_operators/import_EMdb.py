@@ -80,6 +80,22 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             # Get import settings
             settings = self.get_import_settings(context)
             
+            # *** PULIZIA AUTOMATICA 3D GIS - SOLO IN EM-TOOLS ***
+            if settings['mode'] == '3DGIS':
+                from s3dgraphy.multigraph.multigraph import multi_graph_manager
+                from ..populate_lists import clear_lists
+                
+                hardcoded_name = "3dgis_graph"
+                
+                # Rimuovi il grafo esistente se presente
+                if hardcoded_name in multi_graph_manager.graphs:
+                    multi_graph_manager.remove_graph(hardcoded_name)
+                    print(f"🗑️ EM-tools: Automatically removed existing 3D GIS graph '{hardcoded_name}'")
+                
+                # Pulisci le liste di Blender
+                clear_lists(context)
+                print("🧹 EM-tools: Cleared Blender lists for clean 3D GIS import")
+            
             # Create appropriate importer based on type
             if settings['import_type'] == "generic_xlsx":
                 importer = GenericXLSXImporter(
@@ -115,7 +131,13 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             from pathlib import Path
             
             filepath = Path(settings['filepath'])
-            graph_name = f"{filepath.stem}_{settings['import_type']}"
+            
+            # Usa nome hardcodato per 3D GIS, altrimenti nome dinamico
+            if settings['mode'] == '3DGIS':
+                graph_name = "3dgis_graph"
+                print(f"✅ EM-tools: Using hardcoded graph name for 3D GIS: '{graph_name}'")
+            else:
+                graph_name = f"{filepath.stem}_{settings['import_type']}"
             
             if not hasattr(graph, 'attributes'):
                 graph.attributes = {}
@@ -135,43 +157,33 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             if self.auxiliary_mode and settings['parent_graphml']:
                 pass
             else:
-                clear_lists(context)
-                populate_blender_lists_from_graph(context, graph)
+                # Populate Blender lists from the imported graph
+                populate_blender_lists_from_graph(context, graph)  # ← ORDINE CORRETTO
 
-            # *** AGGIORNAMENTO VISUAL MANAGER ***
-            try:
-                if hasattr(bpy.ops, 'visual') and hasattr(bpy.ops.visual, 'update_property_values'):
-                    bpy.ops.visual.update_property_values()
-                    print("✅ Visual Manager aggiornato")
-            except Exception as e:
-                print(f"⚠️  Errore aggiornamento Visual Manager: {e}")
-
-            # *** RESET PROPRIETÀ VISUAL MANAGER ***
-            try:
-                context.scene.selected_property = ""
-                # Ottieni le proprietà dal grafo registrato
-                from s3dgraphy import get_graph
-                registered_graph = get_graph(graph_name)
-                if registered_graph and hasattr(registered_graph, 'indices'):
-                    available_props = list(registered_graph.indices.get_property_names())
-                    if available_props:
-                        first_property = sorted(available_props)[0]
-                        context.scene.selected_property = first_property
-                        print(f"✅ Proprietà Visual Manager impostata su: {first_property}")
-                        bpy.ops.visual.update_property_values()
-            except Exception as e:
-                print(f"⚠️  Errore reset proprietà: {e}")
-
-            # Display warnings
-            for warning in importer.warnings:
-                self.report({'WARNING'}, warning)
-
-            self.report({'INFO'}, "Import completed successfully")
+            self.report({'INFO'}, f"Successfully imported {len(graph.nodes)} nodes from {settings['import_type']}")
             return {'FINISHED'}
 
         except Exception as e:
             self.report({'ERROR'}, f"Import failed: {str(e)}")
             return {'CANCELLED'}
+
+    def _clean_3dgis_graph(self, context):
+        """Pulisce completamente il grafo 3D GIS esistente - SOLO EM-TOOLS"""
+        from s3dgraphy.multigraph.multigraph import multi_graph_manager
+        from ..populate_lists import clear_lists
+        
+        hardcoded_name = "3dgis_graph"
+        
+        if hardcoded_name in multi_graph_manager.graphs:
+            # Rimuovi il grafo esistente
+            multi_graph_manager.remove_graph(hardcoded_name)
+            print(f"🗑️ EM-tools: Removed existing 3D GIS graph '{hardcoded_name}'")
+            
+            # Pulisci le liste di Blender - PASSA CONTEXT
+            clear_lists(context)
+            print("🧹 EM-tools: Cleared Blender lists for clean 3D GIS import")
+        else:
+            print(f"ℹ️ EM-tools: No existing 3D GIS graph to clean")
 
 def register():
     bpy.utils.register_class(EM_OT_import_3dgis_database)
