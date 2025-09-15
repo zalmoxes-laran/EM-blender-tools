@@ -82,26 +82,28 @@ class VISUAL_OT_update_property_values(Operator):
             values = set()
             processed_graphs = 0
             
-            # LOGICA UNIFICATA PER ENTRAMBE LE MODALITÀ
+            # LOGICA CORRETTA PER ENTRAMBE LE MODALITÀ
             if not em_tools.mode_switch:  # Modalità 3D GIS
-                print("3D GIS mode: processing all available graphs...")
-                graph_ids = get_all_graph_ids()
-                print(f"Found {len(graph_ids)} graph(s): {graph_ids}")
+                # Nome hardcodato per modalità 3D GIS
+                graph_name = "3dgis_graph"
+                print(f"3D GIS mode: processing hardcoded graph '{graph_name}'")
                 
-                for graph_id in graph_ids:
-                    graph = get_graph(graph_id)
-                    if graph:
-                        print(f"\nProcessing graph '{graph_id}'")
-                        mapping = create_property_value_mapping(graph, scene.selected_property)
-                        values.update(mapping.values())
-                        processed_graphs += 1
-                        print(f"Found {len(set(mapping.values()))} unique values in this graph")
-                    else:
-                        print(f"Warning: Could not retrieve graph '{graph_id}'")
+                graph = get_graph(graph_name)
+                if graph:
+                    print(f"Processing graph '{graph_name}'")
+                    mapping = create_property_value_mapping(graph, scene.selected_property)
+                    values.update(mapping.values())
+                    processed_graphs = 1
+                    print(f"Found {len(set(mapping.values()))} unique values")
+                else:
+                    message = f"3D GIS graph '{graph_name}' not found"
+                    self.report({'ERROR'}, message)
+                    print(f"Error: {message}")
+                    return {'CANCELLED'}
                         
             else:  # Modalità Advanced EM
-                if scene.show_all_graphs:
-                    print("Advanced EM mode: processing all loaded graphs...")
+                if scene.show_all_graphs:  # Modalità multigrafo
+                    print("Advanced EM multigrafo mode: processing all loaded graphs...")
                     graph_ids = get_all_graph_ids()
                     print(f"Found {len(graph_ids)} graph(s): {graph_ids}")
                     
@@ -114,8 +116,7 @@ class VISUAL_OT_update_property_values(Operator):
                             processed_graphs += 1
                         else:
                             print(f"Warning: Could not retrieve graph '{graph_id}'")
-                else:
-                    # Process only the active GraphML file
+                else:  # Solo grafo attivo
                     if em_tools.active_file_index >= 0:
                         graphml = em_tools.graphml_files[em_tools.active_file_index]
                         graph = get_graph(graphml.name)
@@ -174,17 +175,17 @@ class VISUAL_OT_apply_colors(Operator):
         em_tools = scene.em_tools
         
         if not em_tools.mode_switch:  # Modalità 3D GIS
-            # In 3D GIS, usa il primo grafo disponibile
-            graph_ids = get_all_graph_ids()
-            if graph_ids:
-                graph = get_graph(graph_ids[0])
-                print(f"3D GIS mode: using graph '{graph_ids[0]}'")
+            # Nome hardcodato per modalità 3D GIS
+            graph_name = "3dgis_graph"
+            graph = get_graph(graph_name)
+            if graph:
+                print(f"3D GIS mode: using hardcoded graph '{graph_name}'")
                 return graph
             else:
-                print("3D GIS mode: no graphs available")
+                print(f"3D GIS mode: hardcoded graph '{graph_name}' not found")
                 return None
         else:  # Modalità Advanced EM
-            # Usa il grafo selezionato dall'active_file_index
+            # Usa il grafo attivo selezionato
             if em_tools.active_file_index >= 0:
                 graphml = em_tools.graphml_files[em_tools.active_file_index]
                 graph = get_graph(graphml.name)
