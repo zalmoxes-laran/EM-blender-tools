@@ -10,8 +10,14 @@ import os
 from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
 from s3dgraphy import get_graph, get_all_graph_ids
 from s3dgraphy.multigraph.multigraph import multi_graph_manager
+import time
 
 DEFAULT_COLOR = (0.5, 0.5, 0.5, 1.0)  # Grigio medio
+
+# Cache variables per get_available_properties
+CACHE_DURATION = 5.0  # Cache duration in seconds
+_cached_properties = []
+_last_cache_time = 0
 
 # Variabili per il caching delle proprietà disponibili
 _cached_properties = None
@@ -266,28 +272,26 @@ def hex_to_rgb(value):
 def get_available_properties(context):
     """
     Get list of available property names using optimized indices.
+    Supporta sia modalità 3D GIS che Advanced EM.
     """
-    global _cached_properties, _last_cache_time
-    import time
-    
-    # Usa la cache se disponibile e non è scaduta
-    current_time = time.time()
-    if (_cached_properties is not None and 
-            current_time - _last_cache_time < _cache_lifetime):
-        return _cached_properties
-    
-    print(f"\n=== Getting Available Properties (OPTIMIZED) ===")
     scene = context.scene
     em_tools = scene.em_tools
     properties = set()
+    
+    # Cache check
+    global _cached_properties, _last_cache_time
+    current_time = time.time()
+    if _cached_properties and (current_time - _last_cache_time) < CACHE_DURATION:
+        return _cached_properties
 
     if not em_tools.mode_switch:  # Modalità 3D GIS
-        mgr = multi_graph_manager
-        graph = mgr.graphs.get("3dgis_graph")
-        if graph:
-            # USA GLI INDICI OTTIMIZZATI! 🚀
-            properties.update(graph.indices.get_property_names())
-    else:  # Modalità EM Advanced
+        # In modalità 3D GIS, usa tutti i grafi disponibili
+        graph_ids = get_all_graph_ids()
+        for graph_id in graph_ids:
+            graph = get_graph(graph_id)
+            if graph and hasattr(graph, 'indices'):
+                properties.update(graph.indices.get_property_names())
+    else:  # Modalità Advanced EM
         if scene.show_all_graphs:
             graph_ids = get_all_graph_ids()
         else:
@@ -299,14 +303,13 @@ def get_available_properties(context):
 
         for graph_id in graph_ids:
             graph = get_graph(graph_id)
-            if graph:
-                # USA GLI INDICI OTTIMIZZATI! 🚀
+            if graph and hasattr(graph, 'indices'):
                 properties.update(graph.indices.get_property_names())
 
     result = sorted(list(properties))
     print(f"Found {len(result)} properties using optimized indices")
 
-    # Aggiorna la cache
+    # Update cache
     _cached_properties = result
     _last_cache_time = current_time
 

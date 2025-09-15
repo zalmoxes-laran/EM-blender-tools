@@ -82,8 +82,9 @@ class VISUAL_OT_update_property_values(Operator):
             values = set()
             processed_graphs = 0
             
-            if scene.show_all_graphs or not em_tools.mode_switch:
-                print("Processing all loaded graphs...")
+            # LOGICA UNIFICATA PER ENTRAMBE LE MODALITÀ
+            if not em_tools.mode_switch:  # Modalità 3D GIS
+                print("3D GIS mode: processing all available graphs...")
                 graph_ids = get_all_graph_ids()
                 print(f"Found {len(graph_ids)} graph(s): {graph_ids}")
                 
@@ -94,29 +95,46 @@ class VISUAL_OT_update_property_values(Operator):
                         mapping = create_property_value_mapping(graph, scene.selected_property)
                         values.update(mapping.values())
                         processed_graphs += 1
+                        print(f"Found {len(set(mapping.values()))} unique values in this graph")
                     else:
                         print(f"Warning: Could not retrieve graph '{graph_id}'")
-            else:
-                # Process only the active GraphML file
-                if em_tools.active_file_index >= 0:
-                    graphml = em_tools.graphml_files[em_tools.active_file_index]
-                    graph = get_graph(graphml.name)
+                        
+            else:  # Modalità Advanced EM
+                if scene.show_all_graphs:
+                    print("Advanced EM mode: processing all loaded graphs...")
+                    graph_ids = get_all_graph_ids()
+                    print(f"Found {len(graph_ids)} graph(s): {graph_ids}")
                     
-                    if graph:
-                        print(f"\nProcessing active graph '{graphml.name}'")
-                        mapping = create_property_value_mapping(graph, scene.selected_property)
-                        values.update(mapping.values())
-                        processed_graphs = 1
+                    for graph_id in graph_ids:
+                        graph = get_graph(graph_id)
+                        if graph:
+                            print(f"\nProcessing graph '{graph_id}'")
+                            mapping = create_property_value_mapping(graph, scene.selected_property)
+                            values.update(mapping.values())
+                            processed_graphs += 1
+                        else:
+                            print(f"Warning: Could not retrieve graph '{graph_id}'")
+                else:
+                    # Process only the active GraphML file
+                    if em_tools.active_file_index >= 0:
+                        graphml = em_tools.graphml_files[em_tools.active_file_index]
+                        graph = get_graph(graphml.name)
+                        
+                        if graph:
+                            print(f"\nProcessing active graph '{graphml.name}'")
+                            mapping = create_property_value_mapping(graph, scene.selected_property)
+                            values.update(mapping.values())
+                            processed_graphs = 1
+                        else:
+                            message = "No active graph found. Please load a GraphML file first."
+                            self.report({'ERROR'}, message)
+                            print(f"Error: {message}")
+                            return {'CANCELLED'}
                     else:
-                        message = "No active graph found. Please load a GraphML file first."
+                        message = "No GraphML file selected"
                         self.report({'ERROR'}, message)
                         print(f"Error: {message}")
                         return {'CANCELLED'}
-                else:
-                    message = "No GraphML file selected"
-                    self.report({'ERROR'}, message)
-                    print(f"Error: {message}")
-                    return {'CANCELLED'}
             
             # Sort and add values to property_values collection
             print("\nAdding property values:")
@@ -150,6 +168,32 @@ class VISUAL_OT_apply_colors(Operator):
     bl_description = "Apply the selected colors to proxies based on their property values"
     bl_options = {'REGISTER', 'UNDO'}
     
+    def get_active_graph_for_mode(self, context):
+        """Determina il grafo attivo in base alla modalità"""
+        scene = context.scene
+        em_tools = scene.em_tools
+        
+        if not em_tools.mode_switch:  # Modalità 3D GIS
+            # In 3D GIS, usa il primo grafo disponibile
+            graph_ids = get_all_graph_ids()
+            if graph_ids:
+                graph = get_graph(graph_ids[0])
+                print(f"3D GIS mode: using graph '{graph_ids[0]}'")
+                return graph
+            else:
+                print("3D GIS mode: no graphs available")
+                return None
+        else:  # Modalità Advanced EM
+            # Usa il grafo selezionato dall'active_file_index
+            if em_tools.active_file_index >= 0:
+                graphml = em_tools.graphml_files[em_tools.active_file_index]
+                graph = get_graph(graphml.name)
+                print(f"Advanced EM mode: using active graph '{graphml.name}'")
+                return graph
+            else:
+                print("Advanced EM mode: no active GraphML file selected")
+                return None
+    
     def execute(self, context):
         scene = context.scene
         em_tools = scene.em_tools
@@ -158,138 +202,81 @@ class VISUAL_OT_apply_colors(Operator):
             self.report({'ERROR'}, "No property selected")
             return {'CANCELLED'}
         
+        # USA LA NUOVA LOGICA PER DETERMINARE IL GRAFO ATTIVO
+        graph = self.get_active_graph_for_mode(context)
+        
+        if not graph:
+            self.report({'ERROR'}, "No active graph found")
+            return {'CANCELLED'}
+        
         alpha_value = scene.proxy_display_alpha
         
-        if not em_tools.mode_switch:
-            mgr = multi_graph_manager
-            print("\nDebug - Graph Manager Status:")
-            print(f"Available graphs: {list(mgr.graphs.keys())}")
+        print(f"\nApplying colors using graph with {len(graph.nodes)} nodes")
+        print(f"Selected property: {scene.selected_property}")
+        print(f"Available property values: {len(scene.property_values)}")
+        
+        try:
+            # Create mapping from property values to colors
+            color_mapping = {}
+            for item in scene.property_values:
+                color_mapping[item.value] = item.color
             
-            graph = mgr.graphs.get("3dgis_graph")
-        else:
-            if em_tools.active_file_index >= 0:
-                try:
-                    graphml = em_tools.graphml_files[em_tools.active_file_index]
-                    graph = get_graph(graphml.name)
-                except Exception as e:
-                    self.report({'ERROR'}, f"Error loading graph: {str(e)}")
-                    return {'CANCELLED'}
-
-        if graph:
-            # Create a mapping of property values to colors
-            color_mapping = {item.value: item.color for item in scene.property_values}
+            # Create property-to-node mapping
+            property_mapping = create_property_value_mapping(graph, scene.selected_property)
             
-            # Create materials
-            materials = {}
-            for value, color in color_mapping.items():
-                mat_name = f"prop_{scene.selected_property}_{value}"
-                mat = bpy.data.materials.get(mat_name)
-                if not mat:
-                    mat = bpy.data.materials.new(name=mat_name)
-                    mat.use_nodes = True
-                    mat.node_tree.nodes.clear()
+            # Apply colors to mesh objects
+            colored_count = 0
+            total_objects = 0
+            
+            for obj in scene.objects:
+                if obj.type == 'MESH':
+                    total_objects += 1
+                    obj_name = obj.name
                     
-                    if alpha_value < 1.0:
-                        mat.blend_method = 'BLEND'
-                    else:
-                        mat.blend_method = scene.proxy_blend_mode
-                    
-                    # Crea i nodi shader
-                    output = mat.node_tree.nodes.new('ShaderNodeOutputMaterial')
-                    output.location = (0, 0)
-                    principled = mat.node_tree.nodes.new('ShaderNodeBsdfPrincipled')
-                    principled.location = (-200, 0)
-                    
-                    # Collega i nodi
-                    mat.node_tree.links.new(principled.outputs['BSDF'], output.inputs['Surface'])
-                else:
-                    # Trova il nodo Principled BSDF esistente
-                    principled = None
-                    for node in mat.node_tree.nodes:
-                        if node.type == 'BSDF_PRINCIPLED':
-                            principled = node
-                            break
-                    
-                    # Se non esiste, crealo
-                    if not principled:
-                        mat.node_tree.nodes.clear()
-                        output = mat.node_tree.nodes.new('ShaderNodeOutputMaterial')
-                        output.location = (0, 0)
-                        principled = mat.node_tree.nodes.new('ShaderNodeBsdfPrincipled')
-                        principled.location = (-200, 0)
-                        mat.node_tree.links.new(principled.outputs['BSDF'], output.inputs['Surface'])
-                    
-                    if alpha_value < 1.0:
-                        mat.blend_method = 'BLEND'
-                    else:
-                        mat.blend_method = scene.proxy_blend_mode
-                
-                if principled:
-                    principled.inputs['Base Color'].default_value = (*color[:3], 1.0)
-                    
-                    if 'Alpha' in principled.inputs:
-                        principled.inputs['Alpha'].default_value = alpha_value
-                    elif 'Transmission' in principled.inputs:
-                        # Fallback per versioni più vecchie di Blender
-                        principled.inputs['Transmission'].default_value = 1.0 - alpha_value
-                
-                materials[value] = mat
-
-            # Find all property nodes of the selected type
-            property_nodes = [node for node in graph.nodes 
-                            if node.node_type == "property" 
-                            and node.name == scene.selected_property]
-
-            # Set per tracciare i nodi stratigrafici che hanno la proprietà
-            connected_strat_nodes = set()
-            colored_objects = 0
-
-            # Prima gestisci i nodi con valori e quelli vuoti
-            for prop_node in property_nodes:
-                # Traccia tutti i nodi stratigrafici connessi a questa proprietà
-                for edge in graph.edges:
-                    if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
-                        connected_strat_nodes.add(edge.edge_source)
-                        strat_node = graph.find_node_by_id(edge.edge_source)
-                        if strat_node:
-                            # Determina il valore appropriato
-                            if prop_node.description:
-                                value = prop_node.description
+                    if obj_name in property_mapping:
+                        property_value = str(property_mapping[obj_name])
+                        
+                        if property_value in color_mapping:
+                            color = color_mapping[property_value]
+                            
+                            # Create or get material
+                            mat_name = f"prop_{scene.selected_property}_{property_value}"
+                            if mat_name not in bpy.data.materials:
+                                mat = bpy.data.materials.new(name=mat_name)
+                                mat.use_nodes = True
+                                
+                                # Set base color
+                                if mat.node_tree and mat.node_tree.nodes:
+                                    principled = mat.node_tree.nodes.get("Principled BSDF")
+                                    if principled:
+                                        principled.inputs[0].default_value = (*color[:3], alpha_value)
                             else:
-                                value = f"empty property {scene.selected_property} node"
-
-                            # Se abbiamo un materiale per questo valore, applicalo
-                            if value in materials:
-                                proxy = bpy.data.objects.get(strat_node.name)
-                                if proxy and proxy.type == 'MESH':
-                                    if proxy.data.materials:
-                                        proxy.data.materials[0] = materials[value]
-                                    else:
-                                        proxy.data.materials.append(materials[value])
-                                    colored_objects += 1
-
-            # Ora gestisci i nodi stratigrafici senza questa proprietà
-            no_prop_value = f"no property {scene.selected_property} node"
-            if no_prop_value in materials:
-                for node in graph.nodes:
-                    if isinstance(node, StratigraphicNode) and node.node_id not in connected_strat_nodes:
-                        proxy = bpy.data.objects.get(node.name)
-                        if proxy and proxy.type == 'MESH':
-                            if proxy.data.materials:
-                                proxy.data.materials[0] = materials[no_prop_value]
+                                mat = bpy.data.materials[mat_name]
+                            
+                            # Apply material to object
+                            if obj.data.materials:
+                                obj.data.materials[0] = mat
                             else:
-                                proxy.data.materials.append(materials[no_prop_value])
-                            colored_objects += 1
-
-            print(f"\nApplied colors with alpha = {alpha_value} to {colored_objects} objects")
-            if alpha_value < 1.0:
-                print(f"Materials set to BLEND mode for transparency")
+                                obj.data.materials.append(mat)
+                            
+                            colored_count += 1
+                        else:
+                            print(f"Warning: No color defined for value '{property_value}' on object '{obj_name}'")
+                    else:
+                        print(f"Warning: No property value found for object '{obj_name}'")
             
-            self.report({'INFO'}, f"Applied colors to {colored_objects} objects (alpha: {alpha_value:.2f})")
+            summary = f"Applied colors to {colored_count} of {total_objects} mesh objects"
+            print(f"\n{summary}")
+            self.report({'INFO'}, summary)
+            
             return {'FINISHED'}
             
-        self.report({'ERROR'}, "No active graph")
-        return {'CANCELLED'}
+        except Exception as e:
+            import traceback
+            print("\nError during color application:")
+            print(traceback.format_exc())
+            self.report({'ERROR'}, f"Error applying colors: {str(e)}")
+            return {'CANCELLED'}
 
 
 class VISUAL_OT_select_proxies(Operator):
@@ -298,7 +285,7 @@ class VISUAL_OT_select_proxies(Operator):
     bl_label = "Select Proxies"
     bl_description = "Select all proxies with this property value"
 
-    value: StringProperty()
+    value: StringProperty() # type: ignore
 
     def execute(self, context):
         scene = context.scene

@@ -77,22 +77,17 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
 
     def execute(self, context):
         try:
+            # Get import settings
             settings = self.get_import_settings(context)
             
-            # Validate filepath
-            if not settings['filepath']:
-                self.report({'ERROR'}, "No file path specified")
-                return {'CANCELLED'}
-
             # Create appropriate importer based on type
             if settings['import_type'] == "generic_xlsx":
                 importer = GenericXLSXImporter(
                     filepath=settings['filepath'],
                     sheet_name=settings['sheet_name'],
-                    id_column=settings['id_column'],
-                    mode=settings['mode']
+                    id_column=settings['id_column']
                 )
-            
+                
             elif settings['import_type'] == "emdb_xlsx":
                 mapping_name = settings['mapping'] if settings['mapping'] != 'none' else None
                 importer = MappedXLSXImporter(
@@ -102,7 +97,6 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
                 )
 
             elif settings['import_type'] == "pyarchinit":
-                # Aggiungi estensione .json al nome del mapping
                 mapping_name = f"{settings['mapping']}.json" if settings['mapping'] != 'none' else None
                 importer = PyArchInitImporter(
                     filepath=settings['filepath'],
@@ -116,16 +110,59 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             graph = importer.parse()
             importer.display_warnings()
 
+            # *** REGISTRA IL GRAFO NEL SISTEMA S3DGRAPHY ***
+            from s3dgraphy.multigraph.multigraph import multi_graph_manager
+            from pathlib import Path
+            
+            filepath = Path(settings['filepath'])
+            graph_name = f"{filepath.stem}_{settings['import_type']}"
+            
+            if not hasattr(graph, 'attributes'):
+                graph.attributes = {}
+            graph.attributes['graph_code'] = graph_name
+            graph.attributes['source_file'] = str(filepath)
+            graph.attributes['import_type'] = settings['import_type']
+            
+            graph.graph_id = graph_name
+            multi_graph_manager.graphs[graph_name] = graph
+            
+            print(f"✅ Grafo '{graph_name}' registrato nel sistema s3dgraphy")
+            print(f"✅ Nodi nel grafo: {len(graph.nodes)}")
+            print(f"✅ Archi nel grafo: {len(graph.edges)}")
+            # *** FINE REGISTRAZIONE ***
+
             # Handle results based on mode
             if self.auxiliary_mode and settings['parent_graphml']:
-                # TODO: Link data to parent GraphML
                 pass
             else:
-                # Clear and populate Blender lists
                 clear_lists(context)
                 populate_blender_lists_from_graph(context, graph)
 
-            # Display any warnings
+            # *** AGGIORNAMENTO VISUAL MANAGER ***
+            try:
+                if hasattr(bpy.ops, 'visual') and hasattr(bpy.ops.visual, 'update_property_values'):
+                    bpy.ops.visual.update_property_values()
+                    print("✅ Visual Manager aggiornato")
+            except Exception as e:
+                print(f"⚠️  Errore aggiornamento Visual Manager: {e}")
+
+            # *** RESET PROPRIETÀ VISUAL MANAGER ***
+            try:
+                context.scene.selected_property = ""
+                # Ottieni le proprietà dal grafo registrato
+                from s3dgraphy import get_graph
+                registered_graph = get_graph(graph_name)
+                if registered_graph and hasattr(registered_graph, 'indices'):
+                    available_props = list(registered_graph.indices.get_property_names())
+                    if available_props:
+                        first_property = sorted(available_props)[0]
+                        context.scene.selected_property = first_property
+                        print(f"✅ Proprietà Visual Manager impostata su: {first_property}")
+                        bpy.ops.visual.update_property_values()
+            except Exception as e:
+                print(f"⚠️  Errore reset proprietà: {e}")
+
+            # Display warnings
             for warning in importer.warnings:
                 self.report({'WARNING'}, warning)
 
