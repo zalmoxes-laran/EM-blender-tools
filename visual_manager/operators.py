@@ -15,6 +15,8 @@ from s3dgraphy.multigraph.multigraph import multi_graph_manager
 
 from .utils import (
     create_property_value_mapping, 
+    create_property_materials_for_scene_values,
+    apply_materials_to_objects,
     save_color_scheme, 
     load_color_scheme,
     get_available_properties,
@@ -51,8 +53,8 @@ def update_selected_property(self, context):
 
 def get_enum_items(self, context):
     """Funzione getter per gli items dell'enum property"""
-    props = get_available_properties(context)
-    return [(p, p, f"Select {p} property") for p in props]
+    from .utils import get_enum_items
+    return get_enum_items(self, context)
 
 
 class VISUAL_OT_update_property_values(Operator):
@@ -66,19 +68,26 @@ class VISUAL_OT_update_property_values(Operator):
     def execute(self, context):
         # Evita ricorsione
         if VISUAL_OT_update_property_values._is_updating:
-            print("Evitata chiamata ricorsiva a visual.update_property_values")
-            return {'FINISHED'}
+            print("Evitata chiamata ricorsiva a update_property_values")
+            return {'CANCELLED'}
         
         VISUAL_OT_update_property_values._is_updating = True
-        scene = context.scene
-        em_tools = scene.em_tools
-
+        
         try:
-            print("\n=== Starting Property Values Update ===")
+            scene = context.scene
+            em_tools = scene.em_tools
+            
+            if not scene.selected_property:
+                self.report({'WARNING'}, "No property selected")
+                return {'CANCELLED'}
+            
+            print(f"\n{'='*50}")
+            print(f"UPDATING PROPERTY VALUES FOR: {scene.selected_property}")
+            print(f"{'='*50}")
             
             # Clear existing values
             scene.property_values.clear()
-        
+            
             values = set()
             processed_graphs = 0
             
@@ -86,10 +95,9 @@ class VISUAL_OT_update_property_values(Operator):
             if not em_tools.mode_switch:  # Modalità 3D GIS
                 # Nome hardcodato per modalità 3D GIS
                 graph_name = "3dgis_graph"
-                print(f"EM-tools: 3D GIS mode - processing hardcoded graph '{graph_name}'")
+                print(f"3D GIS mode: processing hardcoded graph '{graph_name}'")
                 
-                # *** VALIDAZIONE ESISTENZA GRAFO 3D GIS ***
-                from s3dgraphy.multigraph.multigraph import multi_graph_manager
+                # Validazione esistenza grafo 3D GIS
                 if graph_name not in multi_graph_manager.graphs:
                     message = f"3D GIS graph '{graph_name}' not found. Please import data first."
                     self.report({'WARNING'}, message)
@@ -99,7 +107,8 @@ class VISUAL_OT_update_property_values(Operator):
                 graph = get_graph(graph_name)
                 if graph:
                     print(f"Processing graph '{graph_name}'")
-                    mapping = self._create_complete_property_mapping(graph, scene.selected_property)
+                    # USA LA STESSA FUNZIONE DI APPLY_COLORS PER COERENZA
+                    mapping = create_property_value_mapping(graph, scene.selected_property)
                     values.update(mapping.values())
                     processed_graphs = 1
                     print(f"Found {len(set(mapping.values()))} unique values")
@@ -110,106 +119,93 @@ class VISUAL_OT_update_property_values(Operator):
                     return {'FINISHED'}
                     
             else:  # Modalità Advanced EM
-                if scene.show_all_graphs:  # Modalità multigrafo
+                if hasattr(scene, 'show_all_graphs') and scene.show_all_graphs:  # Modalità multigrafo
                     graph_ids = get_all_graph_ids()
                     print(f"Advanced EM multigrafo mode: processing {len(graph_ids)} graphs")
+                    
                     for graph_id in graph_ids:
-                        graph = get_graph(graph_id)
-                        if graph:
-                            print(f"Processing graph '{graph_id}'")
-                            mapping = self._create_complete_property_mapping(graph, scene.selected_property)
-                            values.update(mapping.values())
-                            processed_graphs += 1
+                        try:
+                            graph = get_graph(graph_id)
+                            if graph:
+                                # USA LA STESSA FUNZIONE DI APPLY_COLORS PER COERENZA
+                                mapping = create_property_value_mapping(graph, scene.selected_property)
+                                values.update(mapping.values())
+                                processed_graphs += 1
+                                print(f"Processed graph '{graph_id}': {len(set(mapping.values()))} unique values")
+                        except Exception as e:
+                            print(f"Error processing graph '{graph_id}': {e}")
+                            continue
+                            
                 else:  # Solo grafo attivo
-                    if em_tools.active_file_index >= 0:
+                    if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > em_tools.active_file_index:
                         active_file = em_tools.graphml_files[em_tools.active_file_index]
                         graph = get_graph(active_file.name)
                         if graph:
-                            print(f"Processing active graph '{active_file.name}'")
-                            mapping = self._create_complete_property_mapping(graph, scene.selected_property)
+                            print(f"Advanced EM single graph mode: processing '{active_file.name}'")
+                            # USA LA STESSA FUNZIONE DI APPLY_COLORS PER COERENZA
+                            mapping = create_property_value_mapping(graph, scene.selected_property)
                             values.update(mapping.values())
                             processed_graphs = 1
+                            print(f"Found {len(set(mapping.values()))} unique values")
                         else:
-                            print(f"Graph '{active_file.name}' not found")
+                            message = f"Graph '{active_file.name}' not found"
+                            self.report({'ERROR'}, message)
+                            print(f"❌ {message}")
+                            return {'FINISHED'}
                     else:
-                        print("No active GraphML file selected in Advanced EM mode")
-
-            # Update property values
-            sorted_values = sorted(values)
-            for value in sorted_values:
+                        message = "No active GraphML file selected"
+                        self.report({'WARNING'}, message)
+                        print(f"❌ {message}")
+                        return {'FINISHED'}
+            
+            # Converti i valori in lista ordinata
+            unique_values = sorted(list(values))
+            print(f"\n=== Property Values Summary ===")
+            print(f"Property: {scene.selected_property}")
+            print(f"Processed graphs: {processed_graphs}")
+            print(f"Unique values found: {len(unique_values)}")
+            
+            # Controlla se abbiamo i valori speciali
+            has_empty = any(v.startswith("empty property") for v in unique_values)
+            has_no_property = any(v.startswith("no property") for v in unique_values)
+            print(f"Special values - Empty: {has_empty}, No property: {has_no_property}")
+            
+            # Aggiungi i valori alla collezione scene con colori di default
+            default_colors = [
+                (1.0, 0.0, 0.0, 1.0),  # Rosso
+                (0.0, 1.0, 0.0, 1.0),  # Verde
+                (0.0, 0.0, 1.0, 1.0),  # Blu
+                (1.0, 1.0, 0.0, 1.0),  # Giallo
+                (1.0, 0.0, 1.0, 1.0),  # Magenta
+                (0.0, 1.0, 1.0, 1.0),  # Ciano
+                (1.0, 0.5, 0.0, 1.0),  # Arancione
+                (0.5, 0.0, 1.0, 1.0),  # Viola
+                (0.0, 0.5, 0.0, 1.0),  # Verde scuro
+                (0.5, 0.5, 0.5, 1.0),  # Grigio
+            ]
+            
+            for i, value in enumerate(unique_values):
                 item = scene.property_values.add()
-                item.value = str(value)  # Usa 'value' come nell'originale
-
-            print(f"Updated property values: {len(sorted_values)} unique values from {processed_graphs} graphs")
+                item.value = value
+                # Assegna colore ciclico
+                color_idx = i % len(default_colors)
+                item.color = default_colors[color_idx]
+                print(f"  {i+1}. '{value}' -> {item.color}")
+            
+            message = f"Found {len(unique_values)} unique values for {scene.selected_property}"
+            print(f"\n✅ {message}")
+            print(f"{'='*50}")
+            self.report({'INFO'}, message)
+            return {'FINISHED'}
             
         except Exception as e:
-            print(f"Error in update_property_values: {e}")
+            import traceback
+            print(f"\nError in update_property_values:")
+            print(traceback.format_exc())
             self.report({'ERROR'}, f"Error updating property values: {str(e)}")
+            return {'CANCELLED'}
         finally:
             VISUAL_OT_update_property_values._is_updating = False
-        
-        return {'FINISHED'}
-
-    def _create_complete_property_mapping(self, graph, property_name):
-        """
-        Approccio ibrido: prima trova i nodi property, poi le connessioni
-        Più efficiente e segue la logica originale
-        """
-        mapping = {}
-        
-        # 1. Trova TUTTI i nodi property con questo nome
-        property_nodes = [node for node in graph.nodes 
-                        if hasattr(node, 'node_type') and node.node_type == "property" 
-                        and node.name == property_name]
-        
-        print(f"Found {len(property_nodes)} property nodes for '{property_name}'")
-        
-        # 2. Tieni traccia delle US già elaborate
-        connected_strat_nodes = set()
-        
-        # 3. Per ogni nodo property, trova le US collegate
-        for prop_node in property_nodes:
-            value = getattr(prop_node, 'description', '')
-            is_empty = not (value and value.strip())
-            
-            print(f"Processing property node {prop_node.node_id}: empty={is_empty}, value='{value}'")
-            
-            # Trova tutte le US collegate a questo nodo property
-            connected_us = []
-            for edge in graph.edges:
-                if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
-                    strat_node = graph.find_node_by_id(edge.edge_source)
-                    if strat_node:
-                        connected_us.append(strat_node)
-                        connected_strat_nodes.add(strat_node.node_id)
-            
-            print(f"  Connected to {len(connected_us)} US: {[us.name for us in connected_us]}")
-            
-            # Assegna il valore appropriato
-            for us_node in connected_us:
-                if is_empty:
-                    mapping[us_node.name] = f"empty property {property_name} node"
-                    print(f"  -> {us_node.name}: EMPTY PROPERTY")
-                else:
-                    mapping[us_node.name] = value
-                    print(f"  -> {us_node.name}: '{value}'")
-        
-        # 4. Trova tutte le US che NON hanno questa proprietà
-        from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
-        all_strat_nodes = [node for node in graph.nodes 
-                        if hasattr(node, 'node_type') and isinstance(node, StratigraphicNode)]
-        
-        no_property_count = 0
-        for strat_node in all_strat_nodes:
-            if strat_node.node_id not in connected_strat_nodes:
-                mapping[strat_node.name] = f"no property {property_name} node"
-                no_property_count += 1
-        
-        print(f"Final mapping: {len(mapping)} total US")
-        print(f"  - With property: {len(connected_strat_nodes)}")  
-        print(f"  - Without property: {no_property_count}")
-        
-        return mapping
 
 
 class VISUAL_OT_apply_colors(Operator):
@@ -236,7 +232,7 @@ class VISUAL_OT_apply_colors(Operator):
                 return None
         else:  # Modalità Advanced EM
             # Usa il grafo attivo selezionato
-            if em_tools.active_file_index >= 0:
+            if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > em_tools.active_file_index:
                 graphml = em_tools.graphml_files[em_tools.active_file_index]
                 graph = get_graph(graphml.name)
                 print(f"Advanced EM mode: using active graph '{graphml.name}'")
@@ -247,86 +243,66 @@ class VISUAL_OT_apply_colors(Operator):
     
     def execute(self, context):
         scene = context.scene
-        em_tools = scene.em_tools
         
+        # Verifica prerequisiti
         if not scene.selected_property:
             self.report({'ERROR'}, "No property selected")
             return {'CANCELLED'}
         
-        # USA LA NUOVA LOGICA PER DETERMINARE IL GRAFO ATTIVO
-        graph = self.get_active_graph_for_mode(context)
+        if not hasattr(scene, 'property_values') or len(scene.property_values) == 0:
+            self.report({'ERROR'}, "No property values available. Please update property values first.")
+            return {'CANCELLED'}
         
+        # Ottieni il grafo attivo
+        graph = self.get_active_graph_for_mode(context)
         if not graph:
             self.report({'ERROR'}, "No active graph found")
             return {'CANCELLED'}
         
-        alpha_value = scene.proxy_display_alpha
-        
-        print(f"\nApplying colors using graph with {len(graph.nodes)} nodes")
-        print(f"Selected property: {scene.selected_property}")
+        print(f"\n{'='*50}")
+        print(f"APPLYING COLORS FOR PROPERTY: {scene.selected_property}")
+        print(f"{'='*50}")
+        print(f"Using graph with {len(graph.nodes)} nodes")
         print(f"Available property values: {len(scene.property_values)}")
         
+        # Debug: stampa i colori disponibili
+        print(f"\nProperty values and colors:")
+        for i, item in enumerate(scene.property_values):
+            print(f"  {i+1}. '{item.value}' -> {item.color}")
+        
         try:
-            # Create mapping from property values to colors
-            color_mapping = {}
-            for item in scene.property_values:
-                color_mapping[item.value] = item.color
-            
-            # Create property-to-node mapping
+            # STEP 1: Crea il mapping property value -> object names
+            # ADESSO USA LA STESSA FUNZIONE DI UPDATE_PROPERTY_VALUES
             property_mapping = create_property_value_mapping(graph, scene.selected_property)
+            print(f"\n✓ STEP 1: Created property mapping with {len(property_mapping)} entries")
             
-            # Apply colors to mesh objects
-            colored_count = 0
-            total_objects = 0
+            # STEP 2: Crea i materiali per tutti i valori presenti in scene.property_values
+            materials_by_value = create_property_materials_for_scene_values(context)
+            print(f"✓ STEP 2: Created {len(materials_by_value)} materials")
             
-            for obj in scene.objects:
-                if obj.type == 'MESH':
-                    total_objects += 1
-                    obj_name = obj.name
-                    
-                    if obj_name in property_mapping:
-                        property_value = str(property_mapping[obj_name])
-                        
-                        if property_value in color_mapping:
-                            color = color_mapping[property_value]
-                            
-                            # Create or get material
-                            mat_name = f"prop_{scene.selected_property}_{property_value}"
-                            if mat_name not in bpy.data.materials:
-                                mat = bpy.data.materials.new(name=mat_name)
-                                mat.use_nodes = True
-                                
-                                # Set base color
-                                if mat.node_tree and mat.node_tree.nodes:
-                                    principled = mat.node_tree.nodes.get("Principled BSDF")
-                                    if principled:
-                                        principled.inputs[0].default_value = (*color[:3], alpha_value)
-                            else:
-                                mat = bpy.data.materials[mat_name]
-                            
-                            # Apply material to object
-                            if obj.data.materials:
-                                obj.data.materials[0] = mat
-                            else:
-                                obj.data.materials.append(mat)
-                            
-                            colored_count += 1
-                        else:
-                            print(f"Warning: No color defined for value '{property_value}' on object '{obj_name}'")
-                    else:
-                        print(f"Warning: No property value found for object '{obj_name}'")
+            # STEP 3: Applica i materiali agli oggetti
+            colored_count = apply_materials_to_objects(context, property_mapping, materials_by_value)
+            print(f"✓ STEP 3: Applied materials to objects")
             
-            summary = f"Applied colors to {colored_count} of {total_objects} mesh objects"
-            print(f"\n{summary}")
+            # Report risultato
+            total_meshes = len([obj for obj in scene.objects if obj.type == 'MESH'])
+            summary = f"Applied colors to {colored_count} of {total_meshes} mesh objects"
+            print(f"\n{'='*50}")
+            print(f"✅ SUCCESS: {summary}")
+            print(f"{'='*50}")
             self.report({'INFO'}, summary)
             
             return {'FINISHED'}
             
         except Exception as e:
             import traceback
-            print("\nError during color application:")
+            error_msg = f"Error applying colors: {str(e)}"
+            print(f"\n{'='*50}")
+            print(f"❌ ERROR: {error_msg}")
+            print("Full traceback:")
             print(traceback.format_exc())
-            self.report({'ERROR'}, f"Error applying colors: {str(e)}")
+            print(f"{'='*50}")
+            self.report({'ERROR'}, error_msg)
             return {'CANCELLED'}
 
 
@@ -346,78 +322,58 @@ class VISUAL_OT_select_proxies(Operator):
             self.report({'ERROR'}, "No property selected")
             return {'CANCELLED'}
             
+        print(f"\nSelecting proxies with value: '{self.value}'")
+        
         # Deselect all objects first
         bpy.ops.object.select_all(action='DESELECT')
 
-        if not scene.em_tools.mode_switch:
-            mgr = multi_graph_manager
-            print("\nDebug - Graph Manager Status:")
-            print(f"Available graphs: {list(mgr.graphs.keys())}")
-            
-            graph = mgr.graphs.get("3dgis_graph")
-        else:
-            if em_tools.active_file_index >= 0:
+        # Determina il grafo attivo basato sulla modalità - USA LA STESSA LOGICA
+        graph = None
+        if not scene.em_tools.mode_switch:  # Modalità 3D GIS
+            graph = get_graph("3dgis_graph")
+            if graph:
+                print(f"Using 3D GIS graph")
+        else:  # Modalità Advanced EM
+            if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > em_tools.active_file_index:
                 try:
                     graphml = em_tools.graphml_files[em_tools.active_file_index]
                     graph = get_graph(graphml.name)
+                    print(f"Using Advanced EM graph: {graphml.name}")
                 except Exception as e:
                     self.report({'ERROR'}, f"Error loading graph: {str(e)}")
                     return {'CANCELLED'}
         
-        if graph:
-            selected_count = 0
-            connected_strat_nodes = set()
-
-            # Trova tutti i nodi property del tipo selezionato
-            property_nodes = [node for node in graph.nodes 
-                            if node.node_type == "property" 
-                            and node.name == scene.selected_property]
-
-            # Prima raccogli tutti i nodi stratigrafici connessi
-            for prop_node in property_nodes:
-                for edge in graph.edges:
-                    if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
-                        connected_strat_nodes.add(edge.edge_source)
-
-            if self.value == f"no property {scene.selected_property} node":
-                # Seleziona i proxy che non hanno questa proprietà
-                for node in graph.nodes:
-                    if isinstance(node, StratigraphicNode) and node.node_id not in connected_strat_nodes:
-                        proxy = bpy.data.objects.get(node.name)
-                        if proxy and proxy.type == 'MESH':
-                            proxy.select_set(True)
-                            selected_count += 1
-
-            elif self.value == f"empty property {scene.selected_property} node":
-                # Seleziona i proxy con proprietà ma senza valore
-                for prop_node in property_nodes:
-                    if not prop_node.description:
-                        for edge in graph.edges:
-                            if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
-                                strat_node = graph.find_node_by_id(edge.edge_source)
-                                if strat_node:
-                                    proxy = bpy.data.objects.get(strat_node.name)
-                                    if proxy and proxy.type == 'MESH':
-                                        proxy.select_set(True)
-                                        selected_count += 1
-            else:
-                # Seleziona i proxy con il valore specifico
-                for prop_node in property_nodes:
-                    if prop_node.description == self.value:
-                        for edge in graph.edges:
-                            if edge.edge_type == "has_property" and edge.edge_target == prop_node.node_id:
-                                strat_node = graph.find_node_by_id(edge.edge_source)
-                                if strat_node:
-                                    proxy = bpy.data.objects.get(strat_node.name)
-                                    if proxy and proxy.type == 'MESH':
-                                        proxy.select_set(True)
-                                        selected_count += 1
+        if not graph:
+            self.report({'ERROR'}, "No active graph found")
+            return {'CANCELLED'}
+        
+        try:
+            # USA LA STESSA FUNZIONE PER COERENZA
+            property_mapping = create_property_value_mapping(graph, scene.selected_property)
+            print(f"Created property mapping with {len(property_mapping)} entries")
             
-            self.report({'INFO'}, f"Selected {selected_count} objects")
+            # Seleziona gli oggetti che hanno questo valore
+            selected_count = 0
+            for obj_name, prop_value in property_mapping.items():
+                if str(prop_value) == self.value:
+                    proxy = bpy.data.objects.get(obj_name)
+                    if proxy and proxy.type == 'MESH':
+                        proxy.select_set(True)
+                        selected_count += 1
+                        print(f"  Selected: {obj_name}")
+            
+            message = f"Selected {selected_count} objects with value '{self.value}'"
+            print(f"✅ {message}")
+            self.report({'INFO'}, message)
             return {'FINISHED'}
             
-        self.report({'ERROR'}, "No active graph")
-        return {'CANCELLED'}
+        except Exception as e:
+            import traceback
+            error_msg = f"Error selecting proxies: {str(e)}"
+            print(f"❌ {error_msg}")
+            print(traceback.format_exc())
+            self.report({'ERROR'}, error_msg)
+            return {'CANCELLED'}
 
 
 class VISUAL_OT_apply_color_ramp(Operator):
@@ -445,7 +401,7 @@ class VISUAL_OT_apply_color_ramp(Operator):
         # Sort property values for sequential/diverging ramps
         values = list(scene.property_values)
         if props.ramp_type in ["sequential", "diverging"]:
-            values.sort(key=lambda x: float(x.value) if x.value.replace(".", "").isdigit() else float("-inf"))
+            values.sort(key=lambda x: float(x.value) if x.value.replace(".", "").replace("-", "").isdigit() else float("-inf"))
         
         # Assign colors to values
         num_colors = len(colors)

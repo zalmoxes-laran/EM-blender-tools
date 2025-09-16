@@ -853,20 +853,26 @@ def update_icons(context,list_type):
 ## #### #### #### #### #### #### #### ####
 
 def update_property_materials_alpha(alpha_value):
-    """Update alpha for all property-based materials"""
+    """
+    Update alpha for all property-based materials.
+    Updated to work with new material naming convention from visual_manager.
+    """
     scene = bpy.context.scene
     
     # Trova tutti i materiali che iniziano con i prefissi delle Properties
     property_materials = []
     for mat in bpy.data.materials:
-        # I materiali delle Properties dovrebbero avere nomi specifici
-        # Adatta questi prefissi in base alla tua implementazione
-        if mat.name.startswith(('prop_', 'property_', 'no_property')):
+        # Nuovi prefissi basati sulla convenzione visual_manager
+        # I materiali delle Properties ora hanno nomi come: "prop_property_name_value"
+        if (mat.name.startswith('prop_') or 
+            mat.name.startswith('property_') or 
+            mat.name.startswith('no_property')):
             property_materials.append(mat)
     
     # Aggiorna l'alpha di tutti i materiali delle Properties
+    updated_count = 0
     for mat in property_materials:
-        if mat.use_nodes:
+        if mat.use_nodes and mat.node_tree:
             # Trova il nodo Principled BSDF
             principled_node = None
             for node in mat.node_tree.nodes:
@@ -878,26 +884,65 @@ def update_property_materials_alpha(alpha_value):
                 # Aggiorna l'alpha
                 if 'Alpha' in principled_node.inputs:
                     principled_node.inputs['Alpha'].default_value = alpha_value
-                elif 'Transmission' in principled_node.inputs:
-                    principled_node.inputs['Transmission'].default_value = 1.0 - alpha_value
+                
+                # Aggiorna anche il colore base per mantenere l'alpha coerente
+                current_color = principled_node.inputs['Base Color'].default_value
+                if len(current_color) >= 3:
+                    new_color = (*current_color[:3], alpha_value)
+                    principled_node.inputs['Base Color'].default_value = new_color
                 
                 # Assicurati che il blend mode sia corretto per la trasparenza
                 if alpha_value < 1.0:
                     mat.blend_method = 'BLEND'
                 else:
-                    mat.blend_method = scene.proxy_blend_mode
+                    mat.blend_method = getattr(scene, 'proxy_blend_mode', 'OPAQUE')
+                
+                updated_count += 1
     
-    print(f"Updated alpha to {alpha_value} for {len(property_materials)} property materials")
+    print(f"Updated alpha to {alpha_value} for {updated_count}/{len(property_materials)} property materials")
+    return updated_count
 
 def update_display_mode(self, context):
+    """Updated display mode function with better error handling"""
     scene = bpy.context.scene
     
-    if scene.proxy_display_mode == "EM":
-        bpy.ops.emset.emmaterial()
-    elif scene.proxy_display_mode == "Epochs":
-        bpy.ops.emset.epochmaterial()
-    elif scene.proxy_display_mode == "Properties":
-        update_property_materials_alpha(scene.proxy_display_alpha)
+    try:
+        if scene.proxy_display_mode == "EM":
+            bpy.ops.emset.emmaterial()
+        elif scene.proxy_display_mode == "Epochs":
+            bpy.ops.emset.epochmaterial()
+        elif scene.proxy_display_mode == "Properties":
+            # Prima aggiorna l'alpha dei materiali esistenti
+            update_property_materials_alpha(scene.proxy_display_alpha)
+            
+            # Poi riapplica i colori se necessario
+            if (hasattr(scene, 'selected_property') and scene.selected_property and
+                hasattr(scene, 'property_values') and len(scene.property_values) > 0):
+                try:
+                    bpy.ops.visual.apply_colors()
+                except Exception as e:
+                    print(f"Warning: Could not reapply property colors: {e}")
+    except Exception as e:
+        print(f"Error in update_display_mode: {e}")
+
+
+def apply_property_colors_legacy_compatibility(context):
+    """
+    Legacy compatibility function for code that might still call old functions.
+    This simply redirects to the new visual manager system.
+    """
+    scene = context.scene
+    
+    if not hasattr(scene, 'selected_property') or not scene.selected_property:
+        print("No property selected for legacy compatibility function")
+        return False
+    
+    try:
+        bpy.ops.visual.apply_colors()
+        return True
+    except Exception as e:
+        print(f"Error in legacy compatibility function: {e}")
+        return False
     
 def check_material_presence(matname):
     mat_presence = False
