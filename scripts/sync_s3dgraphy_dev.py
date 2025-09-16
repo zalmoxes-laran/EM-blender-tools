@@ -20,7 +20,7 @@ from pathlib import Path
 class S3dGraphyDevSyncer:
     def __init__(self):
         # EMtools root is where this script is located
-        if __file__.endswith('/scripts/sync_s3dgraphy_dev.py'):
+        if Path(__file__).parent.name == 'scripts':
             self.emtools_root = Path(__file__).parent.parent
         else:
             # If run from root directory

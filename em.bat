@@ -15,65 +15,11 @@ if "%1"=="--help" goto :show_help
 cd /d "%~dp0"
 
 :: ============================================
-:: DEV SYNC FUNCTIONS
-:: ============================================
-
-:: Function to check if development s3dgraphy is active
-:check_dev_s3dgraphy
-    if exist "scripts\sync_s3dgraphy_dev.py" (
-        python scripts\sync_s3dgraphy_dev.py --status 2>nul | findstr "DEVELOPMENT" >nul
-        if not errorlevel 1 (
-            set "DEV_S3DGRAPHY_ACTIVE=true"
-        ) else (
-            set "DEV_S3DGRAPHY_ACTIVE=false"
-        )
-    ) else (
-        set "DEV_S3DGRAPHY_ACTIVE=false"
-    )
-goto :eof
-
-:: Function to warn about dev version before setup
-:warn_dev_override
-    if "%DEV_S3DGRAPHY_ACTIVE%"=="true" (
-        echo.
-        echo ⚠️  WARNING: Development version of s3dgraphy is currently active
-        echo    Running 'setup' will replace it with the PyPI version
-        echo.
-        set /p "continue=Continue anyway? (y/N): "
-        if /i not "!continue!"=="y" (
-            echo.
-            echo 🚫 Setup cancelled
-            echo 💡 Use 'em s3d restore' if you want to switch to PyPI version
-            exit /b 1
-        )
-        echo.
-        echo 🔄 Proceeding with PyPI version replacement...
-    )
-goto :eof
-
-:: Function to notify after setup that dev version was replaced
-:notify_dev_replaced
-    if "%DEV_S3DGRAPHY_ACTIVE%"=="true" (
-        echo.
-        echo ℹ️  Development version of s3dgraphy was replaced with PyPI version
-        echo 💡 Use 'em s3d on' to reactivate development version if needed
-    )
-goto :eof
-
-:: ============================================
 :: MAIN COMMANDS
 :: ============================================
 
 :: Setup command
 if "%1"=="setup" (
-    :: Check if dev s3dgraphy is active before setup
-    call :check_dev_s3dgraphy
-    
-    :: Warn user if dev version will be overridden
-    if "%2"=="force" (
-        call :warn_dev_override
-    )
-    
     echo Setting up development environment...
     
     :: Verifica che esista la cartella scripts
@@ -93,6 +39,12 @@ if "%1"=="setup" (
         exit /b 1
     )
     
+    :: Crea la directory wheels se non esiste
+    if not exist "wheels" (
+        echo Creating wheels directory...
+        mkdir wheels
+    )
+    
     echo Changing to scripts directory...
     pushd scripts
     
@@ -103,11 +55,13 @@ if "%1"=="setup" (
         if exist "wheels" (
             rmdir /s /q "wheels"
             echo Wheels directory removed
+            mkdir wheels
+            echo Wheels directory recreated
         )
         cd scripts
     )
     
-    :: FIXED: Passa il parametro force allo script di setup
+    :: Esegui setup con o senza force
     echo Running setup script...
     if "%2"=="force" (
         call setup_dev_windows.bat force
@@ -129,21 +83,53 @@ if "%1"=="setup" (
     )
     
     echo Setup completed successfully!
-    
-    :: Notify if dev version was replaced
-    call :notify_dev_replaced
-    
     goto :end
 )
 
 :: s3dgraphy development sync command
 if "%1"=="s3d" (
+    :: Assicurati che la directory wheels esista per s3d
+    if not exist "wheels" (
+        echo Creating wheels directory for s3d sync...
+        mkdir wheels
+    )
+    
     echo.
-    if exist "sync_dev.bat" (
-        call sync_dev.bat %2 %3 %4
+    :: Chiama direttamente lo script Python invece di sync_dev.bat per evitare problemi di working directory
+    if exist "scripts\sync_s3dgraphy_dev.py" (
+        :: Gestisci i vari sottocomandi s3d
+        if "%2"=="status" (
+            python scripts\sync_s3dgraphy_dev.py --status
+        ) else if "%2"=="restore" (
+            python scripts\sync_s3dgraphy_dev.py --restore
+        ) else if "%2"=="off" (
+            python scripts\sync_s3dgraphy_dev.py --restore
+        ) else if "%2"=="clean" (
+            python scripts\sync_s3dgraphy_dev.py --clean
+        ) else if "%2"=="help" (
+            echo.
+            echo 🔧 s3dgraphy Development Sync Helper
+            echo ====================================
+            echo.
+            echo COMMANDS:
+            echo   em s3d               Auto-detect s3dgraphy location
+            echo   em s3d on            Same as above
+            echo   em s3d off           Restore PyPI version
+            echo   em s3d status        Show current s3dgraphy version
+            echo   em s3d clean         Clean build + activate development
+            echo   em s3d restore       Restore PyPI version
+            echo.
+            echo NOTE: After any change, restart Blender
+        ) else if "%2"=="" (
+            :: Default: auto-detect e attiva
+            python scripts\sync_s3dgraphy_dev.py
+        ) else (
+            :: Parametro come path
+            python scripts\sync_s3dgraphy_dev.py "%2"
+        )
     ) else (
         echo ❌ s3dgraphy development sync not available
-        echo Please ensure sync_dev.bat is in the EM-blender-tools root directory
+        echo Please ensure scripts\sync_s3dgraphy_dev.py exists
         echo Run setup first if this is a fresh installation
     )
     goto :end
@@ -167,37 +153,25 @@ if "%1"=="inc" (
 )
 
 if "%1"=="build" (
-    :: Debug delle variabili
-    echo DEBUG: Argument 1 = "%1"
-    echo DEBUG: Argument 2 = "%2"
-    
     if "%2"=="" (
         set MODE=dev
-        echo DEBUG: No mode specified, using default: dev
     ) else (
         set MODE=%2
-        echo DEBUG: Mode specified: %2
     )
     
-    echo DEBUG: Final MODE = "!MODE!"
-    echo.
     echo Building extension in !MODE! mode...
     echo This creates a .blext package for testing/distribution
-    
-    :: Mostra il comando che verrà eseguito
+    echo.
     echo COMMAND: python scripts\dev.py build --mode !MODE!
     echo.
     
     python scripts\dev.py build --mode !MODE!
     
-    :: Controlla se il comando ha avuto successo
     if errorlevel 1 (
         echo ERROR: Build failed!
         goto :end
     )
     
-    :: Resto del codice...
-    echo.
     echo Build completed successfully!
     goto :end
 )
@@ -209,36 +183,28 @@ if "%1"=="dev" (
     echo.
     echo Suggested commit message:
     for /f "tokens=3" %%v in ('python scripts\version_manager.py current ^| findstr "Current version"') do set VERSION=%%v
-
-    :found_version
     echo "build: increment dev to %VERSION%"
     goto :end
 )
 
-:: NEW: Dev Release Workflow
 if "%1"=="devrel" (
     echo Creating development release for GitHub...
     python scripts\dev.py inc
     python scripts\dev.py build
     
-    :: FIX: Elimina tag vuoto se esiste
+    :: Elimina tag vuoto se esiste
     git tag -d v 2>nul
     git push origin :refs/tags/v 2>nul
     
-    :: FIX: Il comando version_manager.py current restituisce "Current version: X.X.X (mode: dev)"
-    :: Quindi prendiamo il token 3 (dopo "Current version:")
+    :: Estrai versione
     for /f "tokens=3" %%v in ('python scripts\version_manager.py current') do set VERSION=%%v
     
-    echo.
-    echo Debug: Versione estratta dal command = [%VERSION%]
-    
-    :: Verifica che la versione sia valida (contiene almeno un punto)
+    :: Verifica che la versione sia valida
     echo %VERSION% | findstr /C:"." >nul
     if errorlevel 1 (
         echo ERROR: Invalid version format: %VERSION%
         echo Trying alternative method - reading from manifest...
         
-        :: Fallback: leggi dal manifest
         for /f "tokens=3" %%v in ('findstr "^version" blender_manifest.toml') do (
             set VERSION=%%v
             set VERSION=!VERSION:"=!
@@ -246,7 +212,6 @@ if "%1"=="devrel" (
         echo Debug: Version from manifest = [!VERSION!]
     )
     
-    :: Final check
     if "%VERSION%"=="" (
         echo ERROR: Could not extract version!
         pause
@@ -264,7 +229,7 @@ if "%1"=="devrel" (
     goto :end
 )
 
-:: Release commands - CON AUTO-INCREMENT
+:: Release commands
 if "%1"=="release" (
     if "%2"=="" goto :release_help
     if "%2"=="--help" goto :release_help
@@ -323,7 +288,8 @@ if "%1"=="commit" (
 
 if "%1"=="push" (
     echo Pushing current changes and tags...
-    git push origin $(git branch --show-current)
+    for /f "tokens=*" %%i in ('git branch --show-current') do set CURRENT_BRANCH=%%i
+    git push origin !CURRENT_BRANCH!
     for /f "tokens=*" %%a in ('python scripts\version_manager.py current') do set VERSION=%%a
     for %%b in (%VERSION%) do set VERSION=%%b
     git push origin v%VERSION% 2>nul

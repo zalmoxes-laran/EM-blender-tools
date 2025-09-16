@@ -23,6 +23,16 @@ if errorlevel 1 (
     exit /b 1
 )
 
+:: Installa build tools essenziali
+echo.
+echo Installing essential Python build tools...
+python -m pip install build wheel setuptools --upgrade --user
+if errorlevel 1 (
+    echo WARNING: Build tools installation failed
+) else (
+    echo SUCCESS: Build tools ready
+)
+
 :: Setup version management
 echo Setting up version management...
 cd ..
