@@ -172,7 +172,7 @@ class EM_strat_sync_visibility(Operator):
                     if obj.name in visible_proxy_names:
                         contains_visible_proxy = True
             
-            # Activate collection COMPLETELY (base + view layer) if it contains visible proxies
+            # Activate collection COMPLETELY (base + view layer + parent) if it contains visible proxies
             if contains_visible_proxy:
                 if activate_collection_fully(context, collection):
                     activated_collections.append(collection.name)
@@ -229,6 +229,7 @@ class EM_strat_sync_visibility(Operator):
         
         # Get RM objects from the RM list
         rm_objects = []
+        activated_collections = []
         
         # Find objects in the scene that are registered as RM in the rm_list
         for item in scene.rm_list:
@@ -250,6 +251,45 @@ class EM_strat_sync_visibility(Operator):
                     
                     if rm_item:
                         rm_objects.append((obj, rm_item))
+        
+        # Find collections that contain RM objects that should be visible
+        visible_rm_objects = []
+        for obj, rm_item in rm_objects:
+            # Check if this RM belongs to the active epoch
+            belongs_to_active_epoch = False
+            
+            # Check the first epoch and any additional epochs
+            if rm_item.first_epoch == active_epoch_name:
+                belongs_to_active_epoch = True
+            else:
+                # Check additional epochs
+                for epoch_item in rm_item.epochs:
+                    if epoch_item.name == active_epoch_name:
+                        belongs_to_active_epoch = True
+                        break
+            
+            if belongs_to_active_epoch:
+                visible_rm_objects.append(obj)
+        
+        # Activate collections that contain visible RM objects
+        collections_to_check = set()
+        
+        # Add RM collection
+        if rm_collection:
+            collections_to_check.add(rm_collection)
+        
+        # Find all collections containing visible RM objects
+        for obj in visible_rm_objects:
+            for collection in bpy.data.collections:
+                if obj.name in collection.objects:
+                    collections_to_check.add(collection)
+        
+        # ATTIVA COMPLETAMENTE le collezioni (base + view layer + parent)
+        for collection in collections_to_check:
+            contains_visible_rm = any(obj.name in collection.objects for obj in visible_rm_objects)
+            if contains_visible_rm:
+                if activate_collection_fully(context, collection):
+                    activated_collections.append(collection.name)
         
         # Hide/Show RM objects based on epoch association AND sync render state
         hidden_count = 0
@@ -283,7 +323,12 @@ class EM_strat_sync_visibility(Operator):
                     obj.hide_render = True
                     hidden_count += 1
         
-        self.report({'INFO'}, f"RM visibility and render synchronized: {shown_count} shown, {hidden_count} hidden for epoch '{active_epoch_name}'")
+        # Report results
+        message = f"RM visibility and render synchronized: {shown_count} shown, {hidden_count} hidden for epoch '{active_epoch_name}'"
+        if activated_collections:
+            message += f". Activated collections: {', '.join(activated_collections)}"
+        
+        self.report({'INFO'}, message)
 
 class EM_strat_show_all_proxies(Operator):
     """Reset filters and show all proxy objects"""
