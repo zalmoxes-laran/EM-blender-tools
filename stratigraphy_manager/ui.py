@@ -86,7 +86,7 @@ class EM_ToolsPanel:
         # FILTER SECTION
         filter_box = layout.box()
 
-        # 1) Header “Filter system” with triangle
+        # 1) Header "Filter system" with triangle
         row = filter_box.row(align=True)
 
         #row.separator()
@@ -101,6 +101,25 @@ class EM_ToolsPanel:
         )
         row.label(text="Available filters", icon='FILTER')
 
+        # PULSANTI SHOW ALL - inseriti prima del pulsante help
+        # Crea una sotto-riga per i pulsanti piccoli
+        quick_row = row.row(align=True)
+        quick_row.scale_x = 1.0  # Rende tutti i pulsanti di questa riga più piccoli
+        quick_row.enabled = graph_available  # Abilitati solo se il grafo è disponibile
+        
+        # Pulsante Show All Proxies
+        quick_row.operator(
+            "em.strat_show_all_proxies", 
+            text="", 
+            icon='MESH_CIRCLE'
+        )
+        
+        # Pulsante Show All RMs
+        quick_row.operator(
+            "em.strat_show_all_rms",
+            text="", 
+            icon='MESH_UVSPHERE'
+        )
 
         help1 = row.operator("em.help_popup", text="", icon='QUESTION')
         help1.title = "Filter System Help"
@@ -111,9 +130,12 @@ class EM_ToolsPanel:
             "- The filter will be applied in realtime\n"
             "  to the selected epoch and/or activity.\n"
             "- To reset the filter, click on the\n"
-            "  red cross icon in the top right corner.\n" 
+            "  red cross icon in the top right corner.\n"
+            "- Small icons: Show All Proxies / Show All RMs\n"
         )
         help1.url = "EMstructure.html#us-usv-manager"
+
+
 
         # 2) Filter contents (only when open)
         if scene.show_filter_system:

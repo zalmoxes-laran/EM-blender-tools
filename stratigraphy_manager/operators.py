@@ -11,6 +11,46 @@ from bpy.types import Operator
 from ..functions import check_material_presence, em_setup_mat_cycles, update_icons
 from ..functions import select_3D_obj, select_list_element_from_obj_proxy
 
+def find_layer_collection(layer_collection, collection_name):
+    """Trova ricorsivamente un layer_collection dato il nome della collection"""
+    if layer_collection.name == collection_name:
+        return layer_collection
+    
+    for child in layer_collection.children:
+        found = find_layer_collection(child, collection_name)
+        if found:
+            return found
+    return None
+
+def activate_collection_fully(context, collection):
+    """
+    Attiva completamente una collezione sia a livello base che nel view layer
+    E attiva ricorsivamente tutte le collezioni padre
+    Returns: True se la collezione è stata attivata, False se era già attiva
+    """
+    was_activated = False
+    
+    # 1. Attiva collection base
+    if collection.hide_viewport:
+        collection.hide_viewport = False
+        was_activated = True
+    
+    # 2. Attiva layer collection nel view layer
+    layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+    if layer_collection and layer_collection.exclude:
+        layer_collection.exclude = False
+        was_activated = True
+        
+        # 3. ATTIVA RICORSIVAMENTE tutte le collezioni padre
+        parent = layer_collection.parent
+        while parent and parent != context.view_layer.layer_collection:
+            if parent.exclude:
+                parent.exclude = False
+                was_activated = True
+            parent = parent.parent
+    
+    return was_activated
+
 class EM_strat_toggle_visibility(Operator):
     bl_idname = "em.strat_toggle_visibility"
     bl_label = "Toggle Stratigraphy Visibility"
@@ -28,12 +68,14 @@ class EM_strat_toggle_visibility(Operator):
             obj = bpy.data.objects.get(item.name)
             
             if obj:
-                # Toggle visibility
-                obj.hide_viewport = not obj.hide_viewport
-                item.is_visible = not obj.hide_viewport
+                # Toggle visibility AND render synchronously
+                new_visibility = not obj.hide_viewport
+                obj.hide_viewport = not new_visibility
+                obj.hide_render = not new_visibility  # Sync render with viewport
+                item.is_visible = new_visibility
                 
-                # If the object is hidden in a collection, activate it
-                if not obj.hide_viewport:
+                # If the object is shown, activate its collections
+                if new_visibility:
                     self.activate_object_collections(obj, context)
                     
                 return {'FINISHED'}
@@ -54,9 +96,9 @@ class EM_strat_toggle_visibility(Operator):
         activated_collections = []
         
         for collection in bpy.data.collections:
-            if obj.name in collection.objects and collection.hide_viewport:
-                collection.hide_viewport = False
-                activated_collections.append(collection.name)
+            if obj.name in collection.objects:
+                if activate_collection_fully(context, collection):
+                    activated_collections.append(collection.name)
         
         if activated_collections:
             self.show_activation_message(", ".join(activated_collections))
@@ -130,10 +172,10 @@ class EM_strat_sync_visibility(Operator):
                     if obj.name in visible_proxy_names:
                         contains_visible_proxy = True
             
-            # Activate collection if it contains visible proxies and is currently hidden
-            if contains_visible_proxy and collection.hide_viewport:
-                collection.hide_viewport = False
-                activated_collections.append(collection.name)
+            # Activate collection COMPLETELY (base + view layer) if it contains visible proxies
+            if contains_visible_proxy:
+                if activate_collection_fully(context, collection):
+                    activated_collections.append(collection.name)
         
         # Also add any objects with matching names that might not be in proxy collections
         for obj_name in all_em_list_names:
@@ -142,18 +184,22 @@ class EM_strat_sync_visibility(Operator):
                 proxy_objects.append(obj)
                 proxy_objects_set.add(obj)
         
-        # Hide/Show proxy objects based on the list
+        # Hide/Show proxy objects based on the list AND sync render state
         hidden_count = 0
         shown_count = 0
         
         for obj in proxy_objects:
             if obj.name in visible_proxy_names:
-                if obj.hide_viewport:
+                # Object should be visible AND renderable
+                if obj.hide_viewport or obj.hide_render:
                     obj.hide_viewport = False
+                    obj.hide_render = False
                     shown_count += 1
             else:
-                if not obj.hide_viewport:
+                # Object should be hidden AND non-renderable
+                if not obj.hide_viewport or not obj.hide_render:
                     obj.hide_viewport = True
+                    obj.hide_render = True
                     hidden_count += 1
         
         # Update visibility icons in the em_list
@@ -163,11 +209,12 @@ class EM_strat_sync_visibility(Operator):
                 item.is_visible = not obj.hide_viewport
         
         # Report results
-        message = f"Proxy visibility synchronized: {shown_count} shown, {hidden_count} hidden"
+        message = f"Proxy visibility and render synchronized: {shown_count} shown, {hidden_count} hidden"
         if activated_collections:
             message += f". Activated collections: {', '.join(activated_collections)}"
         
         self.report({'INFO'}, message)
+        
     def sync_rm_visibility(self, context):
         """Synchronize RM object visibility based on active epoch"""
         scene = context.scene
@@ -204,7 +251,7 @@ class EM_strat_sync_visibility(Operator):
                     if rm_item:
                         rm_objects.append((obj, rm_item))
         
-        # Hide/Show RM objects based on epoch association
+        # Hide/Show RM objects based on epoch association AND sync render state
         hidden_count = 0
         shown_count = 0
         
@@ -222,17 +269,198 @@ class EM_strat_sync_visibility(Operator):
                         belongs_to_active_epoch = True
                         break
             
-            # Handle visibility
+            # Handle visibility AND render synchronously
             if belongs_to_active_epoch:
-                if obj.hide_viewport:
+                # Object should be visible AND renderable
+                if obj.hide_viewport or obj.hide_render:
                     obj.hide_viewport = False
+                    obj.hide_render = False
                     shown_count += 1
             else:
-                if not obj.hide_viewport:
+                # Object should be hidden AND non-renderable
+                if not obj.hide_viewport or not obj.hide_render:
                     obj.hide_viewport = True
+                    obj.hide_render = True
                     hidden_count += 1
         
-        self.report({'INFO'}, f"RM visibility synchronized: {shown_count} shown, {hidden_count} hidden for epoch '{active_epoch_name}'")
+        self.report({'INFO'}, f"RM visibility and render synchronized: {shown_count} shown, {hidden_count} hidden for epoch '{active_epoch_name}'")
+
+class EM_strat_show_all_proxies(Operator):
+    """Reset filters and show all proxy objects"""
+    bl_idname = "em.strat_show_all_proxies"
+    bl_label = "Show All Proxies"
+    bl_description = "Reset all filters and show all proxy objects with render enabled"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        scene = context.scene
+        
+        # 1. First reset all filters using the existing operator
+        if scene.filter_by_epoch or scene.filter_by_activity:
+            bpy.ops.em.reset_filters()
+        
+        # 2. Enable sync to ensure the system is active
+        scene.sync_list_visibility = True
+        
+        # 3. Use the existing sync system but with all proxies visible
+        shown_count = self.sync_all_proxies(scene, context)
+        
+        self.report({'INFO'}, f"All proxies shown and made renderable: {shown_count} objects")
+        return {'FINISHED'}
+    
+    def sync_all_proxies(self, scene, context):
+        """Show all proxy objects using the existing system logic"""
+        # Use the same logic as sync_proxy_visibility but without filtering
+        proxy_objects = []
+        proxy_objects_set = set()
+        activated_collections = []
+        
+        # Strategy: Look for collections that contain objects matching our em_list names
+        proxy_collections = set()
+        
+        # First pass: identify which collections contain objects from em_list
+        all_em_list_names = {item.name for item in scene.em_list}
+        for collection in bpy.data.collections:
+            for obj in collection.objects:
+                if obj.name in all_em_list_names and obj.type == 'MESH':
+                    proxy_collections.add(collection)
+                    break
+        
+        # Add the original "Proxy" collection if it exists
+        proxy_collection = bpy.data.collections.get('Proxy')
+        if proxy_collection:
+            proxy_collections.add(proxy_collection)
+        
+        # Second pass: add ALL mesh objects from identified proxy collections
+        for collection in proxy_collections:
+            for obj in collection.objects:
+                if obj.type == 'MESH' and obj not in proxy_objects_set:
+                    proxy_objects.append(obj)
+                    proxy_objects_set.add(obj)
+            
+            # ATTIVA COMPLETAMENTE le collezioni proxy (base + view layer)
+            if activate_collection_fully(context, collection):
+                activated_collections.append(collection.name)
+        
+        # Also add any objects with matching names that might not be in proxy collections
+        for obj_name in all_em_list_names:
+            obj = bpy.data.objects.get(obj_name)
+            if obj and obj.type == 'MESH' and obj not in proxy_objects_set:
+                proxy_objects.append(obj)
+                proxy_objects_set.add(obj)
+                
+                # ATTIVA anche le collezioni di questi oggetti singoli
+                for collection in bpy.data.collections:
+                    if obj.name in collection.objects:
+                        if activate_collection_fully(context, collection):
+                            if collection.name not in activated_collections:
+                                activated_collections.append(collection.name)
+        
+        # Show ALL proxy objects and make them renderable
+        shown_count = 0
+        for obj in proxy_objects:
+            if obj.hide_viewport or obj.hide_render:
+                obj.hide_viewport = False
+                obj.hide_render = False
+                shown_count += 1
+        
+        # Update visibility icons in the em_list
+        for item in scene.em_list:
+            obj = bpy.data.objects.get(item.name)
+            if obj:
+                item.is_visible = not obj.hide_viewport
+        
+        # MOSTRA messaggio collezioni attivate (riusa la funzione esistente)
+        if activated_collections:
+            self.show_activation_message(", ".join(activated_collections))
+            
+        return shown_count
+    
+    def show_activation_message(self, collection_names):
+        """Mostra il messaggio delle collezioni attivate"""
+        def draw(self, context):
+            self.layout.label(text="The following collections have been activated:")
+            self.layout.label(text=collection_names)
+        
+        bpy.context.window_manager.popup_menu(draw, title="Collections Activated", icon='INFO')
+    
+    def show_activation_message(self, collection_names):
+        """Riusa il metodo esistente per mostrare il messaggio delle collezioni attivate"""
+        def draw(self, context):
+            self.layout.label(text="The following collections have been activated:")
+            self.layout.label(text=collection_names)
+        
+        bpy.context.window_manager.popup_menu(draw, title="Collections Activated", icon='INFO')
+
+class EM_strat_show_all_rms(Operator):
+    """Reset filters and show all RM objects"""
+    bl_idname = "em.strat_show_all_rms"
+    bl_label = "Show All RMs"  
+    bl_description = "Reset all filters and show all RM objects with render enabled"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        scene = context.scene
+        
+        # 1. First reset all filters using the existing operator
+        if scene.filter_by_epoch or scene.filter_by_activity:
+            bpy.ops.em.reset_filters()
+        
+        # 2. Enable RM sync if available
+        if hasattr(scene, 'sync_rm_visibility'):
+            scene.sync_rm_visibility = True
+        
+        # 3. Use the existing RM system but show all RMs
+        shown_count = self.sync_all_rms(scene, context)
+        
+        self.report({'INFO'}, f"All RM objects shown and made renderable: {shown_count} objects")
+        return {'FINISHED'}
+    
+    def sync_all_rms(self, scene, context):
+        """Show all RM objects using the existing system logic"""
+        shown_count = 0
+        activated_collections = []
+        
+        # Use the SAME logic as sync_rm_visibility but without epoch filtering
+        rm_objects = []
+        
+        # Find objects in the scene that are registered as RM in the rm_list
+        for item in scene.rm_list:
+            obj = bpy.data.objects.get(item.name)
+            if obj and obj.type == 'MESH':
+                rm_objects.append(obj)
+        
+        # Also check for objects in the RM collection
+        rm_collection = bpy.data.collections.get('RM')
+        if rm_collection:
+            for obj in rm_collection.objects:
+                if obj.type == 'MESH' and obj not in rm_objects:
+                    rm_objects.append(obj)
+            
+            # ATTIVA COMPLETAMENTE la collezione RM (base + view layer)
+            if activate_collection_fully(context, rm_collection):
+                activated_collections.append('RM')
+        
+        # ATTIVA anche eventuali altre collezioni che contengono RM
+        for obj in rm_objects:
+            for collection in bpy.data.collections:
+                if obj.name in collection.objects:
+                    if activate_collection_fully(context, collection):
+                        if collection.name not in activated_collections:
+                            activated_collections.append(collection.name)
+        
+        # Show and make renderable ALL RM objects
+        for obj in rm_objects:
+            if obj.hide_viewport or obj.hide_render:
+                obj.hide_viewport = False
+                obj.hide_render = False
+                shown_count += 1
+        
+        # MOSTRA messaggio collezioni attivate (riusa la funzione esistente)
+        if activated_collections:
+            self.show_activation_message(", ".join(activated_collections))
+        
+        return shown_count
 
 class EM_strat_activate_collections(Operator):
     bl_idname = "em.strat_activate_collections"
@@ -256,9 +484,9 @@ class EM_strat_activate_collections(Operator):
                     contains_proxy = True
                     break
             
-            if contains_proxy and collection.hide_viewport:
-                collection.hide_viewport = False
-                activated_collections.append(collection.name)
+            if contains_proxy:
+                if activate_collection_fully(context, collection):
+                    activated_collections.append(collection.name)
         
         if activated_collections:
             self.show_activation_message(", ".join(activated_collections))
@@ -590,6 +818,8 @@ def register_operators():
     operators = [
         EM_strat_toggle_visibility,
         EM_strat_sync_visibility,
+        EM_strat_show_all_proxies,
+        EM_strat_show_all_rms,
         EM_strat_activate_collections,
         EM_listitem_OT_to3D,
         EM_update_icon_list,
@@ -624,6 +854,8 @@ def unregister_operators():
         EM_update_icon_list,
         EM_listitem_OT_to3D,
         EM_strat_activate_collections,
+        EM_strat_show_all_rms,
+        EM_strat_show_all_proxies,
         EM_strat_sync_visibility,
         EM_strat_toggle_visibility,
     ]
