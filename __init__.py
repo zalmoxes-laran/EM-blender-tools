@@ -86,6 +86,21 @@ def check_dependencies():
 DEPENDENCIES_LOADED = check_dependencies()
 
 # ============================
+# KEYMAP INTEGRATION
+# ============================
+
+# Importa il keymap manager se i moduli sono caricati
+if DEPENDENCIES_LOADED:
+    try:
+        from . import keymap_manager
+        KEYMAP_MANAGER_LOADED = True
+    except ImportError as e:
+        logger.warning(f"Could not import keymap_manager: {e}")
+        KEYMAP_MANAGER_LOADED = False
+else:
+    KEYMAP_MANAGER_LOADED = False
+
+# ============================
 # PROPERTY GROUP CLASSES
 # ============================
 
@@ -654,6 +669,15 @@ def register_modules():
     except Exception as e:
         logger.error(f"Error registering landscape system: {e}")
 
+    # Registra il keymap manager per ultimo
+    if KEYMAP_MANAGER_LOADED:
+        try:
+            keymap_manager.register()
+            logger.info("Keymap manager registered successfully")
+        except Exception as e:
+            logger.error(f"Error registering keymap manager: {e}")
+
+
 def unregister_modules():
     """Unregister all modules in reverse dependency order"""
     if not MODULE_IMPORT_SUCCESS:
@@ -664,6 +688,15 @@ def unregister_modules():
     from .import_operators import importer_graphml, import_EMdb
     from .operators import graphml_converter
     
+    # Rimuovi il keymap manager per primo
+    if KEYMAP_MANAGER_LOADED:
+        try:
+            keymap_manager.unregister()
+            logger.info("Keymap manager unregistered successfully")
+        except Exception as e:
+            logger.error(f"Error unregistering keymap manager: {e}")
+
+
     # FASE 1: Landscape system (va rimosso per primo)
     try:
         landscape_system.unregister()
