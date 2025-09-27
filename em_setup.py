@@ -1220,7 +1220,7 @@ class AUXILIARY_OT_import_now(bpy.types.Operator):
         doc_node = DocumentNode(
             node_id=str(uuid.uuid4()),
             name=doc_id,
-            url=os.path.relpath(file_path, base_resource_folder)
+            url=str(os.path.relpath(file_path, base_resource_folder))
         )
         doc_node.attributes = getattr(doc_node, 'attributes', {})
         doc_node.attributes['resource_type'] = filename.split('.')[-1].lower()
@@ -1231,7 +1231,7 @@ class AUXILIARY_OT_import_now(bpy.types.Operator):
         link_node = LinkNode(
             node_id=str(uuid.uuid4()),
             name=f"Resource_{filename}",
-            url=file_path
+            url=str(file_path)
         )
         graph.add_node(link_node)
         

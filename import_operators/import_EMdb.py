@@ -145,6 +145,8 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
 
             # ✅ Se auxiliary mode, aggiorna anche le liste Blender
             if self.auxiliary_mode:
+                from ..populate_lists import clear_lists
+                clear_lists(context)  # ✅ AGGIUNTO: Clear prima del refresh
                 populate_blender_lists_from_graph(context, graph)
                 self.report({'INFO'}, f"Successfully imported auxiliary data to existing graph")
                 return {'FINISHED'}
