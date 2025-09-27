@@ -45,6 +45,7 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
                 'sheet_name': em_tools.xlsx_sheet_name,
                 'id_column': em_tools.xlsx_id_column,
                 'parent_graphml': graphml,
+                'resource_folder': aux_file.resource_folder,  # ✅ NUOVO
                 'mode': 'EM_ADVANCED'
             }
         else:
@@ -103,12 +104,28 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
                     sheet_name=settings['sheet_name'],
                     id_column=settings['id_column']
                 )
-                
+                            
             elif settings['import_type'] == "emdb_xlsx":
                 mapping_name = settings['mapping'] if settings['mapping'] != 'none' else None
+                
+                # ✅ EMtools logic: get existing graph for EM_ADVANCED mode
+                existing_graph = None
+                if settings['mode'] == 'EM_ADVANCED':
+                    # EM_ADVANCED mode: get existing GraphML graph
+                    graphml = settings['parent_graphml'] 
+                    existing_graph = get_graph(graphml.name)
+                    if not existing_graph:
+                        self.report({'ERROR'}, f"GraphML graph '{graphml.name}' not found")
+                        return {'CANCELLED'}
+                    print(f"EMtools: Using existing graph for EM_ADVANCED mode")
+                else:
+                    print(f"EMtools: Creating new graph for 3DGIS mode")
+                
+                # s3dgraphy doesn't know about modes, just existing_graph or not
                 importer = MappedXLSXImporter(
                     filepath=settings['filepath'], 
                     mapping_name=mapping_name,
+                    existing_graph=existing_graph,  # ✅ Generic parameter
                     overwrite=True
                 )
 
@@ -125,6 +142,12 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             # Execute import
             graph = importer.parse()
             importer.display_warnings()
+
+            # ✅ Se auxiliary mode, aggiorna anche le liste Blender
+            if self.auxiliary_mode:
+                populate_blender_lists_from_graph(context, graph)
+                self.report({'INFO'}, f"Successfully imported auxiliary data to existing graph")
+                return {'FINISHED'}
 
             # *** REGISTRA IL GRAFO NEL SISTEMA S3DGRAPHY ***
             from s3dgraphy.multigraph.multigraph import multi_graph_manager

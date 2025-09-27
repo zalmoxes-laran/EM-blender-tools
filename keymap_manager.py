@@ -23,13 +23,11 @@ class EMKeymapManager:
         # Keymap per la 3D Viewport
         km = wm.keyconfigs.addon.keymaps.new(name='3D View', space_type='VIEW_3D')
         
-        # Option+Shift+R - Ricarica GraphML attivo
+        # F5 - Ricarica GraphML attivo (universale per "refresh")
         kmi = km.keymap_items.new(
             'em_tools.reload_active_graphml', 
-            type='R', 
-            value='PRESS',
-            shift=True,
-            alt=True  # ALT è Option su Mac
+            type='F5', 
+            value='PRESS'
         )
         addon_keymaps.append((km, kmi))
         
@@ -103,7 +101,7 @@ class EMToolsReloadActiveGraphML(bpy.types.Operator):
     """Ricarica il file GraphML attualmente attivo"""
     bl_idname = "em_tools.reload_active_graphml"
     bl_label = "Reload Active GraphML"
-    bl_description = "Reload the currently active GraphML file (Option+Shift+R)"
+    bl_description = "Reload the currently active GraphML file (F5)"
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):

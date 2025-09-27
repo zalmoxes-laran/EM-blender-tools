@@ -248,6 +248,14 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         items=lambda self, context: get_emdb_mappings(),
         description="Select EMdb format"
     ) # type: ignore
+    
+    # ✅ NUOVO: Cartella padre per ricerca risorse
+    resource_folder: bpy.props.StringProperty(
+        name="Resource Folder",
+        description="Parent folder to search for resources (photos, 3D scans, etc.)",
+        subtype='DIR_PATH'
+    ) # type: ignore
+    
     expanded: bpy.props.BoolProperty(
         name="Show Details",
         default=False
@@ -729,10 +737,15 @@ class EM_SetupPanel(bpy.types.Panel):
                         row.prop(aux_file, "filepath", text="Path")
                         row.prop(aux_file, "file_type", text="Type")
 
+
                         # EMdb mapping se necessario
                         if aux_file.file_type == "emdb_xlsx":
                             row = box.row()
                             row.prop(aux_file, "emdb_mapping", text="Format")
+
+                        # ✅ NUOVO: Cartella risorse
+                        row = box.row()
+                        row.prop(aux_file, "resource_folder", text="Resource Folder")
 
             # Advanced Tools section
             box = layout.box()
@@ -1040,11 +1053,203 @@ class AUXILIARY_OT_import_now(bpy.types.Operator):
         graphml = em_tools.graphml_files[em_tools.active_file_index]
         aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
 
-        # Qui andrà la logica di import che riutilizzerà
-        # gli importers esistenti
-        self.report({'INFO'}, f"Importing {aux_file.name}")
+        # ✅ 1. Importa file xlsx (aggiunge proprietà ai nodi esistenti)
+        result = bpy.ops.em.import_3dgis_database(
+            auxiliary_mode=True,
+            graphml_index=em_tools.active_file_index,
+            auxiliary_index=graphml.active_auxiliary_index
+        )
+        
+        if result != {'FINISHED'}:
+            self.report({'ERROR'}, "Failed to import auxiliary file")
+            return {'CANCELLED'}
+        
+        # ✅ 2. Processa cartella risorse (se specificata)
+        if aux_file.resource_folder:
+            try:
+                self._process_resource_folder(context, graphml, aux_file)
+                self.report({'INFO'}, f"Imported {aux_file.name} with resources")
+            except Exception as e:
+                self.report({'WARNING'}, f"Imported {aux_file.name} but resource processing failed: {str(e)}")
+        else:
+            self.report({'INFO'}, f"Imported {aux_file.name}")
+            
         return {'FINISHED'}
+        
+    def _process_resource_folder(self, context, graphml, aux_file):
+        """Processa cartella risorse con ricerca ricorsiva"""
+        from s3dgraphy import get_graph
+        import os
+        import uuid
+        from s3dgraphy.nodes.document_node import DocumentNode
+        from s3dgraphy.nodes.link_node import LinkNode
+        
+        graph = get_graph(graphml.name)
+        if not graph:
+            raise Exception(f"Graph {graphml.name} not found")
+            
+        allowed_formats = self._get_allowed_formats_from_mapping(aux_file)
+        
+        print(f"Processing resource folder: {aux_file.resource_folder}")
+        print(f"Allowed formats: {allowed_formats if allowed_formats else 'ALL FORMATS'}")
+        
+        # ✅ Ottieni tutti gli ID dalla colonna xlsx (già importati come proprietà)
+        imported_ids = self._get_imported_node_ids(graph)
+        
+        # ✅ Per ogni ID, ricerca ricorsiva della cartella
+        for node_id in imported_ids:
+            matching_folders = self._find_folders_by_name(aux_file.resource_folder, node_id)
+            
+            if matching_folders:
+                print(f"Found {len(matching_folders)} folder(s) for ID {node_id}:")
+                for folder_path in matching_folders:
+                    print(f"  - {folder_path}")
+                    self._process_node_resource_folder(graph, node_id, folder_path, allowed_formats, aux_file.resource_folder)
+            else:
+                print(f"No folder found for ID {node_id}")
 
+    def _get_allowed_formats_from_mapping(self, aux_file):
+        """Ottieni allowed_formats dal mapping JSON specifico"""
+        if aux_file.file_type == "emdb_xlsx" and aux_file.emdb_mapping != "none":
+            try:
+                from s3dgraphy.mappings import mapping_registry
+                mapping_data = mapping_registry.load_mapping(aux_file.emdb_mapping, "emdb")
+                return mapping_data.get('allowed_formats', None)
+            except Exception as e:
+                print(f"Error loading mapping: {e}")
+                return None
+        return None  # No restrictions = tutti i formati
+    
+    def _get_imported_node_ids(self, graph):
+        """Ottieni tutti gli ID dei nodi che sono stati importati dall'xlsx"""
+        node_ids = []
+        for node in graph.nodes:
+            # Cerca nei nodi che hanno nome senza prefisso grafo
+            original_name = getattr(node, 'attributes', {}).get('original_name', node.name)
+            # Se è un nome che potrebbe avere una cartella corrispondente
+            if original_name and not original_name.startswith(('D.', 'DOC.', 'PROP.')):
+                node_ids.append(original_name)
+        return node_ids
+    
+    def _find_folders_by_name(self, root_folder, target_name):
+        """Trova ricorsivamente tutte le cartelle con nome specifico"""
+        import os
+        matching_folders = []
+        
+        try:
+            for root, dirs, files in os.walk(root_folder):
+                # ✅ Controlla se una delle sottocartelle ha il nome cercato
+                if target_name in dirs:
+                    match_path = os.path.join(root, target_name)
+                    matching_folders.append(match_path)
+                    print(f"Found matching folder: {match_path}")
+        
+        except Exception as e:
+            print(f"Error scanning {root_folder}: {e}")
+            
+        return matching_folders
+    
+    def _process_node_resource_folder(self, graph, node_id, folder_path, allowed_formats, base_resource_folder):
+        """Processa tutti i file nella cartella di un nodo specifico"""
+        import os
+        
+        target_node = self._find_node_by_name(graph, node_id)
+        if not target_node:
+            print(f"Warning: Node {node_id} not found in graph")
+            return
+            
+        # ✅ Include il percorso relativo nel nome del documento per disambiguare
+        folder_suffix = self._get_folder_suffix(folder_path, base_resource_folder)
+        
+        # Scansiona tutti i file nella cartella
+        for filename in os.listdir(folder_path):
+            file_path = os.path.join(folder_path, filename)
+            if os.path.isfile(file_path):
+                if self._is_allowed_format(filename, allowed_formats):
+                    print(f"Creating DocumentNode for: {folder_suffix}/{filename}")
+                    self._create_document_for_resource(
+                        graph, target_node, file_path, filename, folder_suffix, base_resource_folder
+                    )
+                else:
+                    print(f"Skipping {filename} (format not allowed)")
+
+    def _find_node_by_name(self, graph, target_name):
+        """Trova nodo per nome"""
+        for node in graph.nodes:
+            original_name = getattr(node, 'attributes', {}).get('original_name', node.name)
+            if node.name == target_name or original_name == target_name:
+                return node
+        return None
+        
+    def _get_folder_suffix(self, folder_path, base_resource_folder):
+        """Ottieni suffisso identificativo per cartelle multiple"""
+        import os
+        relative_path = os.path.relpath(folder_path, base_resource_folder)
+        parts = relative_path.split(os.sep)
+        if len(parts) > 1:
+            return "_".join(parts[:-1])  # Tutto tranne l'ultima parte (nome cartella target)
+        return "main"
+
+    def _is_allowed_format(self, filename, allowed_formats):
+        """Controlla se il file ha formato consentito"""
+        if allowed_formats is None:
+            return True  # Nessuna restrizione = tutti i formati OK
+            
+        ext = filename.lower().split('.')[-1]
+        return ext in [fmt.lower() for fmt in allowed_formats]
+    
+    def _create_document_for_resource(self, graph, target_node, file_path, filename, folder_suffix, base_resource_folder):
+        """Crea DocumentNode → LinkNode per la risorsa"""
+        import os
+        import uuid
+        from s3dgraphy.nodes.document_node import DocumentNode
+        from s3dgraphy.nodes.link_node import LinkNode
+        
+        # Conta documenti esistenti per questo nodo
+        existing_docs = [n for n in graph.nodes 
+                        if hasattr(n, 'name') and n.name.startswith(f"DOC.{target_node.name}")]
+        doc_index = len(existing_docs) + 1
+        
+        # ✅ Include folder_suffix nel nome se presente
+        if folder_suffix and folder_suffix != "main":
+            doc_id = f"DOC.{target_node.name}.{folder_suffix}.{doc_index:03d}"
+        else:
+            doc_id = f"DOC.{target_node.name}.{doc_index:03d}"
+        
+        # Crea DocumentNode
+        doc_node = DocumentNode(
+            node_id=str(uuid.uuid4()),
+            name=doc_id,
+            url=os.path.relpath(file_path, base_resource_folder)
+        )
+        doc_node.attributes = getattr(doc_node, 'attributes', {})
+        doc_node.attributes['resource_type'] = filename.split('.')[-1].lower()
+        doc_node.attributes['source_folder'] = folder_suffix
+        graph.add_node(doc_node)
+        
+        # Crea LinkNode
+        link_node = LinkNode(
+            node_id=str(uuid.uuid4()),
+            name=f"Resource_{filename}",
+            url=file_path
+        )
+        graph.add_node(link_node)
+        
+        # Collegamenti
+        graph.add_edge(
+            edge_id=f"us_to_doc_{doc_index}",
+            edge_source=target_node.node_id, 
+            edge_target=doc_node.node_id,
+            edge_type="generic_connection"  # Usa edge type esistente
+        )
+        graph.add_edge(
+            edge_id=f"doc_to_link_{doc_index}",
+            edge_source=doc_node.node_id,
+            edge_target=link_node.node_id, 
+            edge_type="has_linked_resource"
+        )
+        
+        print(f"Created: {doc_id} → {filename}")
 
 
 # Lista delle classi da registrare
