@@ -9,6 +9,8 @@ from bpy.types import Panel, UIList
 
 from .data import ensure_valid_index
 
+from .. import icons_manager  
+
 class EM_STRAT_UL_List(UIList):
     """Custom UIList for displaying stratigraphic units with visibility toggle"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -111,7 +113,8 @@ class EM_ToolsPanel:
         quick_row.operator(
             "em.strat_show_all_proxies", 
             text="", 
-            icon='MESH_CIRCLE'
+            #icon='MESH_CIRCLE'
+            icon_value=icons_manager.get_icon_value("show_all_proxies")
         )
         
         # Pulsante Show All RMs
@@ -293,6 +296,138 @@ class EM_ToolsPanel:
                             select_list_element_from_obj_proxy(obj, "em_list")
         #else:
         #    row.label(text="No stratigraphic units here :-(")
+
+        # ✅ NUOVO: Documents section
+        self.draw_documents_section(layout, context)
+
+    def draw_documents_section(self, layout, context):
+        """Draw documents section for selected stratigraphic unit"""
+        scene = context.scene
+        
+        # Check if we have a selected stratigraphic unit
+        if not scene.em_list or scene.em_list_index < 0:
+            return
+        
+        selected_us = scene.em_list[scene.em_list_index]
+        
+        # Documents header box
+        docs_box = layout.box()
+        
+        # Header with triangle
+        header_row = docs_box.row(align=True)
+        
+        # Use a scene boolean for show/hide (simple approach)
+        if not hasattr(scene, 'show_strat_documents'):
+            scene.show_strat_documents = False
+        
+        icon = 'TRIA_DOWN' if scene.show_strat_documents else 'TRIA_RIGHT'
+        header_row.prop(scene, "show_strat_documents", emboss=False, icon=icon, text="")
+        header_row.label(text=f"Documents for {selected_us.name}", icon='DOCUMENTS')
+        
+        # Documents content (if expanded)
+        if scene.show_strat_documents:
+            # Get documents directly from graph
+            documents = self._get_documents_from_graph(context, selected_us.id_node)
+            
+            if len(documents) == 0:
+                # No documents message
+                content_row = docs_box.row()
+                content_row.label(text="No documents found", icon='INFO')
+            else:
+                # Show each document
+                for doc_node in documents:
+                    self.draw_document_item(docs_box, context, doc_node)
+
+    def _get_documents_from_graph(self, context, us_node_id):
+        """Get DocumentNode connected to this US directly from the graph"""
+        from s3dgraphy import get_graph
+        
+        try:
+            scene = context.scene
+            em_tools = scene.em_tools
+            
+            if em_tools.active_file_index >= 0:
+                graphml = em_tools.graphml_files[em_tools.active_file_index]
+                graph = get_graph(graphml.name)
+                
+                if graph:
+                    connected_docs = []
+                    
+                    # Find edges from US to DocumentNode
+                    for edge in graph.edges:
+                        if edge.edge_source == us_node_id:
+                            target_node = graph.find_node_by_id(edge.edge_target)
+                            if target_node and hasattr(target_node, 'node_type') and target_node.node_type == 'document':
+                                connected_docs.append(target_node)
+                    
+                    print(f"Found {len(connected_docs)} documents for US node {us_node_id}")
+                    return connected_docs
+                    
+        except Exception as e:
+            print(f"Error getting documents from graph: {e}")
+        
+        return []
+
+    def draw_document_item(self, layout, context, doc_node):
+        """Draw individual document item directly from DocumentNode"""
+        
+        # Document item box
+        item_box = layout.box()
+        
+        # Main info row
+        main_row = item_box.row(align=True)
+        
+        # Document icon and name
+        info_col = main_row.column(align=True)
+        info_col.label(text=doc_node.name, icon='FILE')
+        
+        # Show file type if available
+        doc_url = getattr(doc_node, 'url', '')
+        if doc_url:
+            ext = doc_url.lower().split('.')[-1] if '.' in doc_url else 'unknown'
+            is_image = ext in ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp']
+            
+            if is_image:
+                info_col.label(text=f"Image ({ext.upper()})", icon='IMAGE_DATA')
+            else:
+                info_col.label(text=f"Document ({ext.upper()})", icon='FILE')
+        
+        # Action buttons
+        buttons_row = main_row.row(align=True)
+        buttons_row.scale_x = 0.8
+        
+        # Preview button (only for images)
+        if doc_url and ext in ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp']:
+            preview_op = buttons_row.operator("strat.preview_document", text="", icon='PREVIEW_RANGE')
+            preview_op.document_url = doc_url
+            preview_op.document_name = doc_node.name
+        
+        # Open file button
+        if doc_url:
+            open_op = buttons_row.operator("strat.open_document_file", text="", icon='FILE_FOLDER')
+            open_op.document_url = doc_url
+            
+            # Open folder button  
+            folder_op = buttons_row.operator("strat.open_document_folder", text="", icon='FOLDER_REDIRECT')
+            folder_op.document_url = doc_url
+
+    def draw_image_preview(self, layout, context):
+        """Draw image preview section"""
+        scene = context.scene
+        docs = scene.strat_documents
+        
+        if not docs.loaded_image:
+            return
+        
+        # Preview box
+        preview_box = layout.box()
+        preview_row = preview_box.row()
+        preview_row.label(text="Preview:", icon='IMAGE_DATA')
+        
+        # Image preview
+        preview_row = preview_box.row()
+        preview_row.template_preview(docs.loaded_image, show_buttons=False)
+
 
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     """Panel in the 3D View for the Stratigraphy Manager"""

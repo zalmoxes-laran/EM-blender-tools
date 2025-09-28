@@ -27,7 +27,8 @@ class EMKeymapManager:
         kmi = km.keymap_items.new(
             'em_tools.reload_active_graphml', 
             type='F5', 
-            value='PRESS'
+            value='PRESS',
+            shift=True,
         )
         addon_keymaps.append((km, kmi))
         

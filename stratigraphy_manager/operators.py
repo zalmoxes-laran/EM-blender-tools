@@ -5,6 +5,7 @@ stratigraphic units in the 3D viewport and in the UI lists.
 """
 
 import bpy
+import os
 from bpy.props import StringProperty, IntProperty, BoolProperty
 from bpy.types import Operator
 
@@ -857,6 +858,138 @@ class EM_debug_filters(Operator):
             traceback.print_exc()  
             return {'CANCELLED'}
 
+class STRAT_OT_preview_document(bpy.types.Operator):
+    """Preview document image"""
+    bl_idname = "strat.preview_document"
+    bl_label = "Preview Document"
+    bl_description = "Preview document image"
+    
+    document_url: bpy.props.StringProperty()
+    document_name: bpy.props.StringProperty()
+    
+    def execute(self, context):
+        if not self.document_url:
+            return {'CANCELLED'}
+        
+        # Build full path and load image
+        full_path = self._build_file_path(context, self.document_url)
+        
+        if full_path and os.path.exists(full_path):
+            try:
+                # Load image for preview (reuse paradata manager approach)
+                img = bpy.data.images.load(full_path)
+                img.name = f"StratPreview_{self.document_name}"
+                img.use_fake_user = False
+                
+                # Store in a simple scene property for UI access
+                context.scene.strat_preview_image = img
+                
+                self.report({'INFO'}, f"Loaded preview: {self.document_name}")
+            except Exception as e:
+                self.report({'ERROR'}, f"Error loading image: {str(e)}")
+                return {'CANCELLED'}
+        else:
+            self.report({'WARNING'}, f"Image not found: {self.document_url}")
+            return {'CANCELLED'}
+        
+        return {'FINISHED'}
+    
+    def _build_file_path(self, context, relative_path):
+        """Build full file path from relative path"""
+        scene = context.scene
+        
+        # Get resource folder from auxiliary file settings
+        try:
+            em_tools = scene.em_tools
+            if em_tools.active_file_index >= 0:
+                graphml = em_tools.graphml_files[em_tools.active_file_index]
+                if graphml.auxiliary_files:
+                    aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
+                    if aux_file.resource_folder:
+                        return os.path.join(aux_file.resource_folder, relative_path)
+        except:
+            pass
+        
+        # Fallback: try as absolute path
+        if os.path.isabs(relative_path):
+            return relative_path
+            
+        return None
+
+class STRAT_OT_open_document_file(bpy.types.Operator):
+    """Open document file in system default application"""
+    bl_idname = "strat.open_document_file"
+    bl_label = "Open File"
+    bl_description = "Open document file in system default application"
+    
+    document_url: bpy.props.StringProperty()
+    
+    def execute(self, context):
+        if not self.document_url:
+            return {'CANCELLED'}
+            
+        full_path = STRAT_OT_preview_document._build_file_path(None, context, self.document_url)
+        
+        if full_path and os.path.exists(full_path):
+            import subprocess
+            import platform
+            
+            try:
+                if platform.system() == "Windows":
+                    os.startfile(full_path)
+                elif platform.system() == "Darwin":  # macOS
+                    subprocess.run(["open", full_path])
+                else:  # Linux
+                    subprocess.run(["xdg-open", full_path])
+                    
+                self.report({'INFO'}, f"Opened: {os.path.basename(full_path)}")
+            except Exception as e:
+                self.report({'ERROR'}, f"Error opening file: {str(e)}")
+                return {'CANCELLED'}
+        else:
+            self.report({'ERROR'}, f"File not found: {self.document_url}")
+            return {'CANCELLED'}
+        
+        return {'FINISHED'}
+
+class STRAT_OT_open_document_folder(bpy.types.Operator):
+    """Open document folder in system file manager"""
+    bl_idname = "strat.open_document_folder"
+    bl_label = "Open Folder"
+    bl_description = "Open document folder in system file manager"
+    
+    document_url: bpy.props.StringProperty()
+    
+    def execute(self, context):
+        if not self.document_url:
+            return {'CANCELLED'}
+            
+        full_path = STRAT_OT_preview_document._build_file_path(None, context, self.document_url)
+        
+        if full_path and os.path.exists(full_path):
+            folder_path = os.path.dirname(full_path)
+            
+            import subprocess
+            import platform
+            
+            try:
+                if platform.system() == "Windows":
+                    subprocess.run(["explorer", folder_path])
+                elif platform.system() == "Darwin":  # macOS
+                    subprocess.run(["open", folder_path])
+                else:  # Linux
+                    subprocess.run(["xdg-open", folder_path])
+                    
+                self.report({'INFO'}, f"Opened folder: {folder_path}")
+            except Exception as e:
+                self.report({'ERROR'}, f"Error opening folder: {str(e)}")
+                return {'CANCELLED'}
+        else:
+            self.report({'ERROR'}, f"File not found: {self.document_url}")
+            return {'CANCELLED'}
+        
+        return {'FINISHED'}
+
 
 def register_operators():
     """Register all operator classes."""
@@ -875,7 +1008,10 @@ def register_operators():
         EM_set_epoch_materials,
         SET_materials_using_em_list,
         SET_materials_using_epoch_list,
-        EM_debug_filters
+        EM_debug_filters,
+        STRAT_OT_preview_document,
+        STRAT_OT_open_document_file,
+        STRAT_OT_open_document_folder,
     ]
     
     for cls in operators:
@@ -888,6 +1024,9 @@ def register_operators():
 def unregister_operators():
     """Unregister all operator classes."""
     operators = [
+        STRAT_OT_open_document_folder,
+        STRAT_OT_open_document_file,
+        STRAT_OT_preview_document,
         EM_debug_filters,
         SET_materials_using_epoch_list,
         SET_materials_using_em_list,

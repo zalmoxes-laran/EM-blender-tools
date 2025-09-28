@@ -32,6 +32,7 @@ from bpy.props import ( # type: ignore
     EnumProperty,
 ) # type: ignore
 from bpy.types import PropertyGroup # type: ignore
+from . import icons_manager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -616,6 +617,7 @@ def register_modules():
     
     # FASE 1: Moduli core indipendenti (nessuna dipendenza UI)
     core_independent_modules = [
+        icons_manager,
         em_setup,
         EMdb_excel,
         activity_manager, 
@@ -742,7 +744,8 @@ def unregister_modules():
         stratigraphy_manager,
         activity_manager,
         EMdb_excel,
-        em_setup
+        em_setup,
+        icons_manager
     ]
     
     for module in core_modules:

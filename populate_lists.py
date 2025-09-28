@@ -11,6 +11,21 @@ from s3dgraphy.nodes.extractor_node import ExtractorNode  # Import diretto
 from s3dgraphy.nodes.combiner_node import CombinerNode  # Import diretto
 from s3dgraphy.nodes.epoch_node import EpochNode  # Import diretto
 
+def clean_value_for_ui(value):
+    """Clean any value to be safe for Blender UI (always returns string)."""
+    import pandas as pd
+    
+    if value is None or pd.isna(value):
+        return ""
+    
+    # Convert to string and clean
+    str_value = str(value).strip()
+    
+    # Handle specific bad values
+    if str_value.lower() in ['nan', 'null', 'none']:
+        return ""
+        
+    return str_value
 
 def get_connected_epoch_for_node(graph, node):
     """
@@ -173,7 +188,7 @@ def populate_document_node(scene, node, index):
             
         em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(em_item.name)
         em_item.id_node = node.node_id
-        em_item.url = node.url if hasattr(node, 'url') and node.url is not None else ""
+        em_item.url = clean_value_for_ui(getattr(node, 'url', ''))
         em_item.icon_url = "CHECKBOX_HLT" if node.url else "CHECKBOX_DEHLT"
         em_item.description = node.description
         index += 1
@@ -196,7 +211,7 @@ def populate_property_node(scene, node, index):
     
     em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
     em_item.id_node = node.node_id
-    em_item.url = node.value if hasattr(node, 'value') else ""
+    em_item.url = clean_value_for_ui(getattr(node, 'value', ''))
     em_item.icon_url = "CHECKBOX_HLT" if em_item.url else "CHECKBOX_DEHLT"
     em_item.description = node.description
     return index + 1
@@ -214,7 +229,7 @@ def populate_extractor_node(scene, node, index):
     
     em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(em_item.name)
     em_item.id_node = node.node_id
-    em_item.url = node.source if hasattr(node, 'source') and node.source is not None else ""
+    em_item.url = clean_value_for_ui(getattr(node, 'source', ''))
     em_item.icon_url = "CHECKBOX_HLT" if node.source else "CHECKBOX_DEHLT"
     em_item.description = node.description
     return index + 1
@@ -225,7 +240,8 @@ def populate_combiner_node(scene, node, index):
     em_item.name = node.name
     em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
     em_item.id_node = node.node_id
-    em_item.url = node.sources[0] if node.sources else ""
+    raw_url = node.sources[0] if node.sources else ""
+    em_item.url = clean_value_for_ui(raw_url)
     em_item.icon_url = "CHECKBOX_HLT" if node.sources else "CHECKBOX_DEHLT"
     em_item.description = node.description
     return index + 1

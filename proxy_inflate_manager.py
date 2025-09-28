@@ -11,7 +11,7 @@ class VIEW3D_PT_ProxyInflatePanel(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'EM'
-    bl_parent_id = "VIEW3D_PT_VisualPanel"  # Adding as subpanel to Visual Manager
+    bl_parent_id = "VIEW3D_PT_visual_panel"  # Adding as subpanel to Visual Manager
     bl_options = {'DEFAULT_CLOSED'}
     
 

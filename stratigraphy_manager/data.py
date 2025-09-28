@@ -185,6 +185,14 @@ def register_data():
         default=False
     )
 
+    bpy.types.Scene.show_strat_documents = BoolProperty(
+        name="Show documents", 
+        description="Show/hide documents section",
+        default=False
+    )
+    
+    bpy.types.Scene.strat_preview_image = PointerProperty(type=bpy.types.Image)
+
 def unregister_data():
     """Unregister all data classes."""
     # Remove collection properties
@@ -198,6 +206,9 @@ def unregister_data():
         del bpy.types.Scene.em_reused
 
     del bpy.types.Scene.show_filter_system
+
+    del bpy.types.Scene.show_strat_documents
+    del bpy.types.Scene.strat_preview_image
     
     # Unregister classes in reverse order
     classes = [
