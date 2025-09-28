@@ -121,7 +121,7 @@ class EM_ToolsPanel:
         quick_row.operator(
             "em.strat_show_all_rms",
             text="", 
-            icon='MESH_UVSPHERE'
+            icon_value=icons_manager.get_icon_value("show_all_RMs")
         )
 
         help1 = row.operator("em.help_popup", text="", icon='QUESTION')
@@ -326,17 +326,57 @@ class EM_ToolsPanel:
         
         # Documents content (if expanded)
         if scene.show_strat_documents:
-            # Get documents directly from graph
-            documents = self._get_documents_from_graph(context, selected_us.id_node)
             
-            if len(documents) == 0:
-                # No documents message
-                content_row = docs_box.row()
-                content_row.label(text="No documents found", icon='INFO')
+            # Controlla se ci sono thumbnails disponibili
+            from ..thumb_utils import has_doc_thumbs
+            
+            if has_doc_thumbs():
+                # ✅ NUOVO: Griglia anteprime con thumbnails
+                thumb_row = docs_box.row()
+                thumb_row.template_icon_view(
+                    scene.em_tools, 
+                    "em_doc_previews", 
+                    show_labels=False,
+                    scale=5.0
+                )
+                
+                # Pulsanti azione per documento selezionato
+                if hasattr(scene.em_tools, 'em_doc_previews') and scene.em_tools.em_doc_previews:
+                    action_row = docs_box.row(align=True)
+                    '''
+                    # Pulsante seleziona (opzionale)
+                    select_op = action_row.operator(
+                        "emtools.select_doc_from_thumb", 
+                        text="Select",
+                        icon='RESTRICT_SELECT_OFF'
+                    )
+                    select_op.doc_key = scene.em_tools.em_doc_previews
+                    '''
+                    # Pulsante apri originale (IMPORTANTE: usa sempre src_path)
+                    open_op = action_row.operator(
+                        "emtools.open_original_doc", 
+                        text="Open original",
+                        icon='FILE_FOLDER'
+                    )
+                    open_op.doc_key = scene.em_tools.em_doc_previews
+            
             else:
-                # Show each document
-                for doc_node in documents:
-                    self.draw_document_item(docs_box, context, doc_node)
+                # ✅ FALLBACK: Sistema precedente senza thumbnails
+                documents = self._get_documents_from_graph(context, selected_us.id_node)
+                
+                if len(documents) == 0:
+                    # No documents message
+                    content_row = docs_box.row()
+                    content_row.label(text="No documents found", icon='INFO')
+                else:
+                    # Show each document (sistema precedente)
+                    for doc_node in documents:
+                        self.draw_document_item(docs_box, context, doc_node)
+                
+                # Suggerimento per generare thumbnails
+                if documents:  # Solo se ci sono documenti
+                    hint_row = docs_box.row()
+                    hint_row.label(text="💡 Genera thumbnails in EMsetup → File ausiliari", icon='INFO')
 
     def _get_documents_from_graph(self, context, us_node_id):
         """Get DocumentNode connected to this US directly from the graph"""

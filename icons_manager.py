@@ -29,6 +29,7 @@ def load_icons():
     # Lista delle icone disponibili (aggiungi qui le nuove)
     icon_files = {
         "show_all_proxies": "show_all_proxies.png",
+        "show_all_RMs": "show_all_RMs.png"
         # "em_logo": "em_logo.png",           # ← aggiungi quando pronte
         # "node_us": "node_us.png",           # ← aggiungi quando pronte
         # "node_usm": "node_usm.png",         # ← aggiungi quando pronte

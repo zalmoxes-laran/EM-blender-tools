@@ -27,6 +27,10 @@ from .functions import get_compatible_icon
 
 from s3dgraphy import get_all_graph_ids
 
+from bpy.props import EnumProperty   # type: ignore
+
+from .thumb_utils import reload_doc_previews_from_cache, has_doc_thumbs  
+
 class EM_create_collection(bpy.types.Operator):
     bl_idname = "create.collection"
     bl_label = "Create Standard Collections"
@@ -426,6 +430,15 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         description="Display collection management tools",
         default=False
     ) # type: ignore
+
+    # Proprietà per thumbnails
+    em_doc_previews: EnumProperty(
+        name="Document Previews",
+        description="Anteprima documenti dalla cache locale",
+        items=lambda self, context: reload_doc_previews_from_cache(),
+        update=lambda self, context: None  # Gestiamo la selezione diversamente
+    ) # type: ignore
+
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files with icons to indicate graph presence and actions"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -746,6 +759,19 @@ class EM_SetupPanel(bpy.types.Panel):
                         # ✅ NUOVO: Cartella risorse
                         row = box.row()
                         row.prop(aux_file, "resource_folder", text="Resource Folder")
+
+                        # ✅ NUOVO: Sezione thumbnails
+                        thumb_row = box.row(align=True)
+
+                        # Indicatore esistenza thumbs
+                        if has_doc_thumbs():
+                            thumb_row.label(text="", icon='OUTLINER_OB_IMAGE')  # Verde/attivo
+                        else:
+                            thumb_row.label(text="", icon='ERROR')  # Rosso/inattivo
+
+                        # Pulsanti thumbnails
+                        thumb_row.operator("emtools.build_doc_thumbs", text="(Ri)genera thumbnails")
+                        thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
 
             # Advanced Tools section
             box = layout.box()

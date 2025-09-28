@@ -34,6 +34,8 @@ from bpy.props import ( # type: ignore
 from bpy.types import PropertyGroup # type: ignore
 from . import icons_manager
 
+from .thumb_utils import cleanup_preview_collections
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("EMTools")
@@ -614,6 +616,7 @@ def register_modules():
     from .export_operators import exporter_heriverse
     from .import_operators import import_EMdb
     from .operators import graphml_converter
+    from . import thumb_operators
     
     # FASE 1: Moduli core indipendenti (nessuna dipendenza UI)
     core_independent_modules = [
@@ -635,6 +638,7 @@ def register_modules():
         graphml_converter,
         operators,
         cronofilter,
+        thumb_operators
     ]
     
     for module in core_independent_modules:
@@ -689,6 +693,7 @@ def unregister_modules():
     from .export_operators import exporter_heriverse
     from .import_operators import importer_graphml, import_EMdb
     from .operators import graphml_converter
+    from . import thumb_operators
     
     # Rimuovi il keymap manager per primo
     if KEYMAP_MANAGER_LOADED:
@@ -728,6 +733,7 @@ def unregister_modules():
     
     # FASE 4: Moduli core in ordine inverso
     core_modules = [
+        thumb_operators,
         cronofilter,
         operators,
         graphml_converter,
@@ -745,7 +751,7 @@ def unregister_modules():
         activity_manager,
         EMdb_excel,
         em_setup,
-        icons_manager
+        icons_manager,
     ]
     
     for module in core_modules:
