@@ -369,47 +369,115 @@ class EM_ToolsPanel:
         return []
 
     def draw_document_item(self, layout, context, doc_node):
-        """Draw individual document item directly from DocumentNode"""
+        """Draw individual document item with asset-style preview"""
         
         # Document item box
         item_box = layout.box()
         
-        # Main info row
-        main_row = item_box.row(align=True)
-        
-        # Document icon and name
-        info_col = main_row.column(align=True)
-        info_col.label(text=doc_node.name, icon='FILE')
-        
-        # Show file type if available
+        # Get file info
         doc_url = getattr(doc_node, 'url', '')
-        if doc_url:
-            ext = doc_url.lower().split('.')[-1] if '.' in doc_url else 'unknown'
-            is_image = ext in ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp']
-            
-            if is_image:
-                info_col.label(text=f"Image ({ext.upper()})", icon='IMAGE_DATA')
-            else:
-                info_col.label(text=f"Document ({ext.upper()})", icon='FILE')
+        if not doc_url:
+            # Simple text fallback
+            item_box.label(text=f"{doc_node.name} (No URL)", icon='FILE')
+            return
         
-        # Action buttons
-        buttons_row = main_row.row(align=True)
+        ext = doc_url.lower().split('.')[-1] if '.' in doc_url else 'unknown'
+        is_image = ext in ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp']
+        
+        if is_image:
+            # Image preview with asset-style layout
+            self.draw_image_asset_item(item_box, context, doc_node, doc_url, ext)
+        else:
+            # Non-image document
+            self.draw_document_text_item(item_box, context, doc_node, doc_url, ext)
+
+    def draw_image_asset_item(self, layout, context, doc_node, doc_url, ext):
+        """Draw image with asset-style preview"""
+        
+        # Main row: preview + info + buttons
+        main_row = layout.row(align=True)
+        
+        # Left: Image preview area
+        preview_col = main_row.column(align=True)
+        preview_col.scale_x = 0.3
+        
+        # Check if preview exists (READ ONLY)
+        preview_image = self._check_existing_preview(doc_node.name)
+        
+        if preview_image:
+            # Show existing image preview
+            preview_col.template_preview(preview_image, show_buttons=False)
+        else:
+            # Show load button placeholder
+            preview_box = preview_col.box()
+            preview_box.scale_y = 2.0
+            load_op = preview_box.operator("strat.preview_document", text="Load", icon='PREVIEW_RANGE')
+            load_op.document_url = doc_url
+            load_op.document_name = doc_node.name
+        
+        # Right: Info and buttons
+        info_col = main_row.column(align=True)
+        
+        # Document name
+        info_col.label(text=doc_node.name, icon='IMAGE_DATA')
+        info_col.label(text=f"{ext.upper()} Image", icon='FILE')
+        
+        # Action buttons row
+        buttons_row = info_col.row(align=True)
+        buttons_row.scale_y = 0.8
+        
+        # Load/Refresh preview
+        load_op = buttons_row.operator("strat.preview_document", text="Preview", icon='PREVIEW_RANGE')
+        load_op.document_url = doc_url
+        load_op.document_name = doc_node.name
+        
+        # Open file
+        open_op = buttons_row.operator("strat.open_document_file", text="Open", icon='FILE_FOLDER')
+        open_op.document_url = doc_url
+        
+        # Open folder
+        folder_op = buttons_row.operator("strat.open_document_folder", text="Folder", icon='FOLDER_REDIRECT')
+        folder_op.document_url = doc_url
+
+    def _check_existing_preview(self, doc_name):
+        """Check if preview already exists (READ ONLY)"""
+        preview_name = f"StratPreview_{doc_name}"
+        
+        # SOLO lettura - nessuna modifica
+        for img in bpy.data.images:
+            if img.name == preview_name:
+                return img
+        
+        return None
+
+    def draw_document_text_item(self, layout, context, doc_node, doc_url, ext):
+        """Draw non-image document item"""
+        
+        main_row = layout.row(align=True)
+        
+        # Document icon
+        icon_col = main_row.column(align=True)
+        icon_col.scale_x = 0.15
+        if ext == 'pdf':
+            icon_col.label(text="", icon='FILE_TEXT')
+        else:
+            icon_col.label(text="", icon='FILE')
+        
+        # Info
+        info_col = main_row.column(align=True)
+        info_col.label(text=doc_node.name)
+        info_col.label(text=f"{ext.upper()} Document")
+        
+        # Buttons
+        buttons_col = main_row.column(align=True)
+        buttons_row = buttons_col.row(align=True)
         buttons_row.scale_x = 0.8
         
-        # Preview button (only for images)
-        if doc_url and ext in ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp']:
-            preview_op = buttons_row.operator("strat.preview_document", text="", icon='PREVIEW_RANGE')
-            preview_op.document_url = doc_url
-            preview_op.document_name = doc_node.name
+        open_op = buttons_row.operator("strat.open_document_file", text="", icon='FILE_FOLDER')
+        open_op.document_url = doc_url
         
-        # Open file button
-        if doc_url:
-            open_op = buttons_row.operator("strat.open_document_file", text="", icon='FILE_FOLDER')
-            open_op.document_url = doc_url
-            
-            # Open folder button  
-            folder_op = buttons_row.operator("strat.open_document_folder", text="", icon='FOLDER_REDIRECT')
-            folder_op.document_url = doc_url
+        folder_op = buttons_row.operator("strat.open_document_folder", text="", icon='FOLDER_REDIRECT')
+        folder_op.document_url = doc_url
 
     def draw_image_preview(self, layout, context):
         """Draw image preview section"""

@@ -866,7 +866,7 @@ class STRAT_OT_preview_document(bpy.types.Operator):
     
     document_url: bpy.props.StringProperty()
     document_name: bpy.props.StringProperty()
-    
+        
     def execute(self, context):
         if not self.document_url:
             return {'CANCELLED'}
@@ -876,13 +876,25 @@ class STRAT_OT_preview_document(bpy.types.Operator):
         
         if full_path and os.path.exists(full_path):
             try:
-                # Load image for preview (reuse paradata manager approach)
-                img = bpy.data.images.load(full_path)
-                img.name = f"StratPreview_{self.document_name}"
-                img.use_fake_user = False
+                # Check if already loaded
+                preview_name = f"StratPreview_{self.document_name}"
+                existing_img = None
                 
-                # Store in a simple scene property for UI access
-                context.scene.strat_preview_image = img
+                for img in bpy.data.images:
+                    if img.name == preview_name:
+                        existing_img = img
+                        break
+                
+                if existing_img:
+                    # Reload existing
+                    existing_img.reload()
+                    img = existing_img
+                else:
+                    # Load new
+                    img = bpy.data.images.load(full_path)
+                    img.name = preview_name
+                
+                img.use_fake_user = True  # ✅ Keep in memory
                 
                 self.report({'INFO'}, f"Loaded preview: {self.document_name}")
             except Exception as e:
