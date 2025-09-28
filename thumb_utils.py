@@ -16,6 +16,92 @@ from PIL import Image, ImageOps
 # Collezione globale per le preview
 preview_collections = {}
 
+# AGGIUNGI questa funzione a thumb_utils.py:
+
+def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int, int]]:
+    """Carica preview filtrate per una specifica US"""
+    global preview_collections
+    
+    if not us_node_id:
+        return []
+    
+    thumbs_root = em_thumbs_root()
+    
+    # Ottieni DocumentNode collegati a questa US
+    from s3dgraphy import get_graph
+    scene = bpy.context.scene
+    em_tools = scene.em_tools
+    
+    if em_tools.active_file_index < 0:
+        return []
+        
+    graphml = em_tools.graphml_files[em_tools.active_file_index]
+    graph = get_graph(graphml.name)
+    
+    if not graph:
+        return []
+    
+    # Trova DocumentNode collegati a questa US
+    us_document_ids = set()
+    for edge in graph.edges:
+        #if edge.edge_source == us_node_id and edge.edge_type == "has_documentation":
+        if edge.edge_source == us_node_id and edge.edge_type == "generic_connection":
+            us_document_ids.add(edge.edge_target)
+    
+    if not us_document_ids:
+        return []
+    
+    # Inizializza preview collection se necessario
+    if "doc_previews" not in preview_collections:
+        pcoll = bpy.utils.previews.new()
+        preview_collections["doc_previews"] = pcoll
+    else:
+        pcoll = preview_collections["doc_previews"]
+    
+    # Carica indice
+    index_data = load_index_json(thumbs_root)
+    
+    enum_items = []
+    i = 0
+    
+    for doc_key, item_data in index_data.get("items", {}).items():
+        doc_node_id = item_data.get("doc_node_id")
+        
+        # FILTRA: solo DocumentNode di questa US
+        if doc_node_id not in us_document_ids:
+            continue
+            
+        thumb_rel_path = item_data.get("thumb", "")
+        if not thumb_rel_path:
+            continue
+            
+        thumb_abs_path = thumbs_root / thumb_rel_path
+        
+        if thumb_abs_path.exists():
+            try:
+                if doc_key not in pcoll:
+                    thumb = pcoll.load(doc_key, str(thumb_abs_path), 'IMAGE')
+                    icon_id = thumb.icon_id
+                else:
+                    icon_id = pcoll[doc_key].icon_id
+                
+                src_path = item_data.get("src_path", doc_key)
+                doc_name = os.path.basename(src_path)
+                
+                enum_items.append((
+                    doc_key,        # identifier
+                    doc_name,       # name
+                    src_path,       # description
+                    icon_id,        # icon
+                    i               # number
+                ))
+                i += 1
+                
+            except Exception as e:
+                print(f"Errore caricando preview per {doc_key}: {e}")
+    
+    return enum_items
+
 def em_thumbs_root() -> Path:
     """Restituisce la cartella root per le thumbnails della scena corrente"""
     blend_path = bpy.data.filepath

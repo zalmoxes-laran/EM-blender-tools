@@ -11,7 +11,8 @@ from bpy.types import Operator
 from s3dgraphy import get_graph
 from .thumb_utils import (
     em_thumbs_root, load_index_json, save_index_json, 
-    generate_thumbnail, get_thumb_path, reload_doc_previews_from_cache
+    generate_thumbnail, get_thumb_path, reload_doc_previews_from_cache,
+    get_file_hash  
 )
 
 class EMTOOLS_OT_build_doc_thumbs(Operator):
@@ -90,8 +91,20 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
                         continue
                     
                     # Genera chiave per l'indice (usa node_id del DocumentNode)
-                    doc_key = f"doc_{node.node_id}"
+                    # ✅ NUOVO: Genera chiave basata su percorso file per evitare duplicati
+                    file_hash = get_file_hash(src_path)
+                    doc_key = f"doc_{file_hash}"
                     
+                    # ✅ Aggiorna/sovrascrivi se esiste già
+                    needs_regen = True
+                    if doc_key in index_data["items"]:
+                        stored_item = index_data["items"][doc_key]
+                        stored_mtime = stored_item.get("src_mtime", 0)
+                        current_mtime = os.path.getmtime(src_path)
+                        
+                        if thumb_path.exists() and stored_mtime >= current_mtime:
+                            needs_regen = False
+                            print(f"Thumbnail già aggiornata per: {node.name}")                    
                     # Ottieni percorso thumbnail
                     thumb_path = get_thumb_path(src_path, thumbs_root)
                     
@@ -110,7 +123,7 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
                         if generate_thumbnail(src_path, thumb_path):
                             generated_count += 1
                             
-                            # Aggiorna indice
+                            # Aggiorna/sovrascrivi indice (evita duplicati)
                             thumb_rel_path = thumb_path.relative_to(thumbs_root)
                             index_data["items"][doc_key] = {
                                 "thumb": str(thumb_rel_path).replace("\\", "/"),
@@ -118,7 +131,8 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
                                 "src_mtime": os.path.getmtime(src_path),
                                 "src_size": os.path.getsize(src_path),
                                 "doc_node_id": node.node_id,
-                                "doc_name": node.name
+                                "doc_name": node.name,
+                                "file_hash": file_hash  # ✅ Aggiungi hash per debug
                             }
                             
                             print(f"Generata thumbnail per: {node.name}")

@@ -329,37 +329,29 @@ class EM_ToolsPanel:
             
             # Controlla se ci sono thumbnails disponibili
             from ..thumb_utils import has_doc_thumbs
-            
+                            
             if has_doc_thumbs():
-                # ✅ NUOVO: Griglia anteprime con thumbnails
+                # ✅ USA EnumProperty filtrata per questa US
                 thumb_row = docs_box.row()
                 thumb_row.template_icon_view(
                     scene.em_tools, 
-                    "em_doc_previews", 
+                    "em_us_doc_previews",  # ✅ Proprietà filtrata
                     show_labels=False,
                     scale=5.0
                 )
                 
-                # Pulsanti azione per documento selezionato
-                if hasattr(scene.em_tools, 'em_doc_previews') and scene.em_tools.em_doc_previews:
+                # Pulsanti azione
+                if (hasattr(scene.em_tools, 'em_us_doc_previews') and 
+                    scene.em_tools.em_us_doc_previews):
+                    
                     action_row = docs_box.row(align=True)
-                    '''
-                    # Pulsante seleziona (opzionale)
-                    select_op = action_row.operator(
-                        "emtools.select_doc_from_thumb", 
-                        text="Select",
-                        icon='RESTRICT_SELECT_OFF'
-                    )
-                    select_op.doc_key = scene.em_tools.em_doc_previews
-                    '''
-                    # Pulsante apri originale (IMPORTANTE: usa sempre src_path)
                     open_op = action_row.operator(
                         "emtools.open_original_doc", 
-                        text="Open original",
+                        text="Apri originale",
                         icon='FILE_FOLDER'
                     )
-                    open_op.doc_key = scene.em_tools.em_doc_previews
-            
+                    open_op.doc_key = scene.em_tools.em_us_doc_previews
+                                
             else:
                 # ✅ FALLBACK: Sistema precedente senza thumbnails
                 documents = self._get_documents_from_graph(context, selected_us.id_node)
@@ -376,7 +368,25 @@ class EM_ToolsPanel:
                 # Suggerimento per generare thumbnails
                 if documents:  # Solo se ci sono documenti
                     hint_row = docs_box.row()
-                    hint_row.label(text="💡 Genera thumbnails in EMsetup → File ausiliari", icon='INFO')
+                    hint_row.label(text="💡 Generate thumbnails in EMsetup → Auxiliary files", icon='INFO')
+
+    def _doc_belongs_to_us(self, doc_key, us_node_id):
+        """Verifica se una thumbnail appartiene all'US selezionata"""
+        from ..thumb_utils import em_thumbs_root, load_index_json
+        
+        thumbs_root = em_thumbs_root()
+        index_data = load_index_json(thumbs_root)
+        
+        # Ottieni info del documento dalla thumbnail
+        item_data = index_data.get("items", {}).get(doc_key, {})
+        doc_node_id = item_data.get("doc_node_id")
+        
+        if doc_node_id:
+            # Verifica se questo DocumentNode è collegato all'US
+            documents = self._get_documents_from_graph(bpy.context, us_node_id)
+            return any(doc.node_id == doc_node_id for doc in documents)
+        
+        return False
 
     def _get_documents_from_graph(self, context, us_node_id):
         """Get DocumentNode connected to this US directly from the graph"""
@@ -535,6 +545,36 @@ class EM_ToolsPanel:
         # Image preview
         preview_row = preview_box.row()
         preview_row.template_preview(docs.loaded_image, show_buttons=False)
+
+    def _get_thumbnails_for_documents(self, documents):
+        """Ottiene thumbnails specifiche per una lista di DocumentNode"""
+        from ..thumb_utils import em_thumbs_root, load_index_json
+        
+        thumbs_root = em_thumbs_root()
+        index_data = load_index_json(thumbs_root)
+        
+        us_thumbnails = []
+        
+        for doc_node in documents:
+            # Genera doc_key come nel sistema di generazione
+            doc_key = f"doc_{doc_node.node_id}"
+            
+            if doc_key in index_data.get("items", {}):
+                item_data = index_data["items"][doc_key]
+                thumb_rel_path = item_data.get("thumb", "")
+                
+                if thumb_rel_path:
+                    thumb_abs_path = thumbs_root / thumb_rel_path
+                    
+                    if thumb_abs_path.exists():
+                        us_thumbnails.append((
+                            doc_key,
+                            str(thumb_abs_path),
+                            doc_node.name,
+                            item_data.get("src_path", "")
+                        ))
+        
+        return us_thumbnails
 
 
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):

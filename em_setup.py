@@ -439,6 +439,32 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         update=lambda self, context: None  # Gestiamo la selezione diversamente
     ) # type: ignore
 
+    def get_us_doc_previews(self, context):
+        """Callback per ottenere thumbnails dell'US selezionata"""
+        scene = context.scene
+        
+        # Ottieni US selezionata
+        if not hasattr(scene, 'em_list') or scene.em_list_index < 0:
+            return []
+        
+        if scene.em_list_index >= len(scene.em_list):
+            return []
+            
+        selected_us = scene.em_list[scene.em_list_index]
+        
+        # Carica thumbnails filtrate
+        from .thumb_utils import reload_doc_previews_for_us
+        return reload_doc_previews_for_us(selected_us.id_node)
+
+    # AGGIUNGI questa proprietà alla classe EMToolsSettings:
+    em_us_doc_previews: EnumProperty(
+        name="US Document Previews", 
+        description="Anteprima documenti per l'US selezionata",
+        items=get_us_doc_previews,
+        update=lambda self, context: None
+    ) # type: ignore
+
+
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files with icons to indicate graph presence and actions"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -1266,7 +1292,8 @@ class AUXILIARY_OT_import_now(bpy.types.Operator):
             edge_id=f"us_to_doc_{doc_index}",
             edge_source=target_node.node_id, 
             edge_target=doc_node.node_id,
-            edge_type="has_documentation"  # Usa edge type esistente
+            #edge_type="has_documentation"
+            edge_type="generic_connection"
         )
         graph.add_edge(
             edge_id=f"doc_to_link_{doc_index}",
