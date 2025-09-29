@@ -13,6 +13,8 @@ from bpy.props import PointerProperty, StringProperty, BoolProperty # type: igno
 
 from urllib.parse import urlparse
 
+from . import icons_manager
+
 # Variabili globali per tracciare lo stato degli aggiornamenti
 _paradata_update_in_progress = False
 _paradata_refresh_needed = False
@@ -555,7 +557,7 @@ class EM_ParadataPanel:
         col2.prop(scene, "paradata_streaming_mode", text='Filter Paradata', icon="SHORTDISPLAY")
 
         row = layout.row()
-        row.label(text="Properties: (" + str(property_list_length) + ")")
+        row.label(icon_value=icons_manager.get_icon_value("property"), text="Properties: (" + str(property_list_length) + ")")
         #row.prop(scene, "prop_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
         row = layout.row()
         row.template_list("EM_UL_properties_managers", "", scene, property_list_var, scene, property_list_index_var, rows=2)
@@ -586,7 +588,7 @@ class EM_ParadataPanel:
         
         # Sezione Combiners
         row = layout.row()
-        row.label(text="Combiners: (" + str(combiner_list_length) + ")")
+        row.label(icon_value=icons_manager.get_icon_value("combiner"), text="Combiners: (" + str(combiner_list_length) + ")")
 
         if combiner_list_length > 0:
             #row.prop(scene, "comb_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
@@ -623,7 +625,7 @@ class EM_ParadataPanel:
         
         # Sezione Extractors
         row = layout.row()
-        row.label(text="Extractors: (" + str(extractor_list_length) + ")")
+        row.label(icon_value=icons_manager.get_icon_value("extractor"), text="Extractors: (" + str(extractor_list_length) + ")")
         #row.prop(scene, "extr_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
         row = layout.row()
         row.template_list("EM_UL_extractors_managers", "", scene, extractor_list_var, scene, extractor_list_index_var, rows=2)
@@ -676,7 +678,7 @@ class EM_ParadataPanel:
         
         # Sezione Documents
         row = layout.row()
-        row.label(text="Docs: (" + str(source_list_length) + ")")
+        row.label(icon_value=icons_manager.get_icon_value("document"), text="Docs: (" + str(source_list_length) + ")")
         row = layout.row()
         row.template_list("EM_UL_sources_managers", "", scene, source_list_var, scene, source_list_index_var, rows=2)
         
