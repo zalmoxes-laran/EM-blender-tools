@@ -782,22 +782,22 @@ class EM_SetupPanel(bpy.types.Panel):
                             row = box.row()
                             row.prop(aux_file, "emdb_mapping", text="Format")
 
-                        # ✅ NUOVO: Cartella risorse
-                        row = box.row()
-                        row.prop(aux_file, "resource_folder", text="Resource Folder")
+                            # ✅ NUOVO: Cartella risorse
+                            row = box.row()
+                            row.prop(aux_file, "resource_folder", text="Resource Folder")
 
-                        # ✅ NUOVO: Sezione thumbnails
-                        thumb_row = box.row(align=True)
+                            # ✅ NUOVO: Sezione thumbnails
+                            thumb_row = box.row(align=True)
 
-                        # Indicatore esistenza thumbs
-                        if has_doc_thumbs():
-                            thumb_row.label(text="", icon='OUTLINER_OB_IMAGE')  # Verde/attivo
-                        else:
-                            thumb_row.label(text="", icon='ERROR')  # Rosso/inattivo
+                            # Indicatore esistenza thumbs
+                            if has_doc_thumbs():
+                                thumb_row.label(text="", icon='OUTLINER_OB_IMAGE')  # Verde/attivo
+                            else:
+                                thumb_row.label(text="", icon='ERROR')  # Rosso/inattivo
 
-                        # Pulsanti thumbnails
-                        thumb_row.operator("emtools.build_doc_thumbs", text="(Ri)genera thumbnails")
-                        thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
+                            # Pulsanti thumbnails
+                            thumb_row.operator("emtools.build_doc_thumbs", text="(Ri)genera thumbnails")
+                            thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
 
             # Advanced Tools section
             box = layout.box()
