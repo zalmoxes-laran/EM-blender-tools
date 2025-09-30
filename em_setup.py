@@ -440,23 +440,34 @@ class EMToolsSettings(bpy.types.PropertyGroup):
     ) # type: ignore
 
     def get_us_doc_previews(self, context):
-        """Callback per ottenere thumbnails dell'US selezionata"""
+        """
+        Callback per ottenere thumbnails dell'US selezionata.
+        Gestisce correttamente il caso di lista vuota per evitare errori UI.
+        """
         scene = context.scene
         
         # Ottieni US selezionata
         if not hasattr(scene, 'em_list') or scene.em_list_index < 0:
-            return []
+            # Nessuna US selezionata - restituisci item placeholder
+            return [("", "No US selected", "", 0, 0)]
         
         if scene.em_list_index >= len(scene.em_list):
-            return []
+            # Indice fuori range - restituisci item placeholder
+            return [("", "Invalid US index", "", 0, 0)]
             
         selected_us = scene.em_list[scene.em_list_index]
         
         # Carica thumbnails filtrate
         from .thumb_utils import reload_doc_previews_for_us
-        return reload_doc_previews_for_us(selected_us.id_node)
+        items = reload_doc_previews_for_us(selected_us.id_node)
+        
+        # ✅ CRITICO: Se non ci sono thumbnails, restituisci placeholder
+        # Questo previene che Blender mantenga un valore invalido dall'US precedente
+        if not items or len(items) == 0:
+            return [("", "No thumbnails available", "", 0, 0)]
+        
+        return items
 
-    # AGGIUNGI questa proprietà alla classe EMToolsSettings:
     em_us_doc_previews: EnumProperty(
         name="US Document Previews", 
         description="Anteprima documenti per l'US selezionata",
@@ -1127,7 +1138,7 @@ class AUXILIARY_OT_import_now(bpy.types.Operator):
             self.report({'INFO'}, f"Imported {aux_file.name}")
             
         return {'FINISHED'}
-        
+            
     def _process_resource_folder(self, context, graphml, aux_file):
         """Processa cartella risorse con ricerca ricorsiva"""
         from s3dgraphy import get_graph
@@ -1136,13 +1147,34 @@ class AUXILIARY_OT_import_now(bpy.types.Operator):
         from s3dgraphy.nodes.document_node import DocumentNode
         from s3dgraphy.nodes.link_node import LinkNode
         
+        # ✅ RISOLVI il path della resource_folder PRIMA di usarlo
+        resource_folder_raw = aux_file.resource_folder
+        
+        # Risolvi con la stessa logica di resolve_resource_folder
+        if os.path.isabs(resource_folder_raw) and not resource_folder_raw.startswith("//"):
+            base_resource_folder = os.path.normpath(resource_folder_raw)
+        elif resource_folder_raw.startswith("//"):
+            base_resource_folder = os.path.normpath(bpy.path.abspath(resource_folder_raw))
+        else:
+            blend_path = bpy.data.filepath
+            if blend_path:
+                blend_dir = os.path.dirname(blend_path)
+                base_resource_folder = os.path.normpath(os.path.join(blend_dir, resource_folder_raw))
+            else:
+                raise Exception("File .blend non salvato, impossibile usare path relativi senza //")
+        
+        print(f"✓ Resource folder risolta per import: {base_resource_folder}")
+        
+        if not os.path.exists(base_resource_folder):
+            raise Exception(f"Resource folder non trovata: {base_resource_folder}")
+        
         graph = get_graph(graphml.name)
         if not graph:
             raise Exception(f"Graph {graphml.name} not found")
             
         allowed_formats = self._get_allowed_formats_from_mapping(aux_file)
         
-        print(f"Processing resource folder: {aux_file.resource_folder}")
+        print(f"Processing resource folder: {base_resource_folder}")
         print(f"Allowed formats: {allowed_formats if allowed_formats else 'ALL FORMATS'}")
         
         # ✅ Ottieni tutti gli ID dalla colonna xlsx (già importati come proprietà)
@@ -1150,13 +1182,15 @@ class AUXILIARY_OT_import_now(bpy.types.Operator):
         
         # ✅ Per ogni ID, ricerca ricorsiva della cartella
         for node_id in imported_ids:
-            matching_folders = self._find_folders_by_name(aux_file.resource_folder, node_id)
+            # ✅ USA base_resource_folder invece di aux_file.resource_folder
+            matching_folders = self._find_folders_by_name(base_resource_folder, node_id)
             
             if matching_folders:
                 print(f"Found {len(matching_folders)} folder(s) for ID {node_id}:")
                 for folder_path in matching_folders:
                     print(f"  - {folder_path}")
-                    self._process_node_resource_folder(graph, node_id, folder_path, allowed_formats, aux_file.resource_folder)
+                    # ✅ PASSA base_resource_folder come ultimo parametro
+                    self._process_node_resource_folder(graph, node_id, folder_path, allowed_formats, base_resource_folder)
             else:
                 print(f"No folder found for ID {node_id}")
 
@@ -1249,7 +1283,7 @@ class AUXILIARY_OT_import_now(bpy.types.Operator):
             
         ext = filename.lower().split('.')[-1]
         return ext in [fmt.lower() for fmt in allowed_formats]
-    
+        
     def _create_document_for_resource(self, graph, target_node, file_path, filename, folder_suffix, base_resource_folder):
         """Crea DocumentNode → LinkNode per la risorsa"""
         import os
@@ -1262,28 +1296,42 @@ class AUXILIARY_OT_import_now(bpy.types.Operator):
                         if hasattr(n, 'name') and n.name.startswith(f"DOC.{target_node.name}")]
         doc_index = len(existing_docs) + 1
         
-        # ✅ Include folder_suffix nel nome se presente
+        # Include folder_suffix nel nome se presente
         if folder_suffix and folder_suffix != "main":
             doc_id = f"DOC.{target_node.name}.{folder_suffix}.{doc_index:03d}"
         else:
             doc_id = f"DOC.{target_node.name}.{doc_index:03d}"
         
+        # ✅ Calcola path relativo alla base_resource_folder
+        try:
+            relative_path = os.path.relpath(file_path, base_resource_folder)
+            # Normalizza gli slash per essere cross-platform (sempre /)
+            relative_path = relative_path.replace("\\", "/")
+        except ValueError:
+            # Se file_path e base_resource_folder sono su drive diversi (Windows)
+            print(f"⚠️ Impossibile calcolare path relativo per {filename}, uso assoluto")
+            relative_path = file_path
+        
+        print(f"Creating DocumentNode: {doc_id}")
+        print(f"  File path: {file_path}")
+        print(f"  Relative path: {relative_path}")
+        
         # Crea DocumentNode
         doc_node = DocumentNode(
             node_id=str(uuid.uuid4()),
             name=doc_id,
-            url=str(os.path.relpath(file_path, base_resource_folder))
+            url=relative_path  # ✅ Path relativo
         )
         doc_node.attributes = getattr(doc_node, 'attributes', {})
         doc_node.attributes['resource_type'] = filename.split('.')[-1].lower()
         doc_node.attributes['source_folder'] = folder_suffix
         graph.add_node(doc_node)
         
-        # Crea LinkNode
+        # Crea LinkNode con LO STESSO path relativo
         link_node = LinkNode(
             node_id=str(uuid.uuid4()),
             name=f"Resource_{filename}",
-            url=str(file_path)
+            url=relative_path  # ✅ Path relativo (non assoluto!)
         )
         graph.add_node(link_node)
         
@@ -1292,8 +1340,7 @@ class AUXILIARY_OT_import_now(bpy.types.Operator):
             edge_id=f"us_to_doc_{doc_index}",
             edge_source=target_node.node_id, 
             edge_target=doc_node.node_id,
-            #edge_type="has_documentation"
-            edge_type="generic_connection"
+            edge_type="generic_connection"  # ✅ Questo è il tipo di edge che reload_doc_previews_for_us() cerca!
         )
         graph.add_edge(
             edge_id=f"doc_to_link_{doc_index}",
@@ -1302,8 +1349,7 @@ class AUXILIARY_OT_import_now(bpy.types.Operator):
             edge_type="has_linked_resource"
         )
         
-        print(f"Created: {doc_id} → {filename}")
-
+        print(f"✓ Created: {doc_id} → {filename} (path: {relative_path})")
 
 # Lista delle classi da registrare
 classes = [

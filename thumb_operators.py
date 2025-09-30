@@ -117,17 +117,34 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
                         if generate_thumbnail(file_path, thumb_path):
                             thumbs_generated += 1
                             
-                            # ✅ Salva nell'indice (SENZA doc_node_id)
-                            # Il matching avviene al momento del retrieval
+                            # ✅ Calcola path RELATIVO alla directory del .blend
+                            blend_path = bpy.data.filepath
+                            if blend_path:
+                                blend_dir = os.path.dirname(blend_path)
+                                try:
+                                    # Path relativo al .blend
+                                    relative_src_path = os.path.relpath(file_path, blend_dir)
+                                    # Normalizza gli slash per essere cross-platform
+                                    relative_src_path = relative_src_path.replace("\\", "/")
+                                except ValueError:
+                                    # Se file_path e blend_dir sono su drive diversi (Windows)
+                                    # usa il path assoluto come fallback
+                                    relative_src_path = file_path
+                                    print(f"⚠️  Impossibile calcolare path relativo per {filename}, uso assoluto")
+                            else:
+                                # File blend non salvato - usa path assoluto
+                                relative_src_path = file_path
+                                print(f"⚠️  File .blend non salvato, uso path assoluto per {filename}")
+                            
+                            # Salva nell'indice con path relativo
                             thumb_rel_path = thumb_path.relative_to(thumbs_root)
                             index_data["items"][doc_key] = {
                                 "thumb": str(thumb_rel_path).replace("\\", "/"),
-                                "src_path": file_path,
+                                "src_path": relative_src_path,  # ✅ Path RELATIVO al .blend!
                                 "src_mtime": os.path.getmtime(file_path),
                                 "src_size": os.path.getsize(file_path),
                                 "file_hash": file_hash,
                                 "filename": filename
-                                # ❌ NON serve doc_node_id - il matching è dinamico
                             }
                             
                             print(f"✓ Generata: {filename}")
