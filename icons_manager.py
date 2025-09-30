@@ -32,8 +32,9 @@ def load_icons():
         "show_all_RMs": "show_all_RMs.png",
         "combiner": "combiner.png",
         "extractor": "extractor.png",           
-        "document": "document.png",         # ← aggiungi quando pronte
-        "property": "property.png",       # ← aggiungi quando pronte
+        "document": "document.png",         
+        "property": "property.png",       
+        "pyarchinit": "pyarchinit.png",   
     }
     
     # Carica ogni icona che esiste

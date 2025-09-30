@@ -5,6 +5,7 @@ from s3dgraphy import get_graph, remove_graph
 from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
 
 from .import_operators.importer_graphml import EM_import_GraphML
+from . import icons_manager  
 
 from .populate_lists import *
 
@@ -232,12 +233,16 @@ class EM_OT_manage_object_prefixes(bpy.types.Operator):
             bpy.ops.list_icon.update(list_type="all")
         
         return {'FINISHED'}
+
 class AuxiliaryFileProperties(bpy.types.PropertyGroup):
+
     name: bpy.props.StringProperty(name="File Name") # type: ignore
     filepath: bpy.props.StringProperty(
         name="File Path",
-        subtype='FILE_PATH'
+        subtype='FILE_PATH',
+        description="Path to the auxiliary file"
     ) # type: ignore
+
     file_type: bpy.props.EnumProperty(
         name="File Type",
         items=[
@@ -247,6 +252,7 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         ],
         default="emdb_xlsx"
     ) # type: ignore
+
     emdb_mapping: bpy.props.EnumProperty(
         name="EMdb Format",
         items=lambda self, context: get_emdb_mappings(),
@@ -264,6 +270,7 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         name="Show Details",
         default=False
     ) # type: ignore
+
 class EMToolsProperties(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="GraphML File") # type: ignore
     expanded: bpy.props.BoolProperty(name="Auxiliary files", default=False) # type: ignore
@@ -292,23 +299,31 @@ class EMToolsProperties(bpy.types.PropertyGroup):
         description="Include this graph in multigrafo exports",
         default=True
     ) # type: ignore
+
 class AUXILIARY_UL_files(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             row = layout.row(align=True)
             
             # Menu contestuale
-            op = row.operator("auxiliary.context_menu", 
-                            text="", 
-                            icon='DOWNARROW_HLT',
-                            emboss=False)
+            #op = row.operator("auxiliary.context_menu", 
+            #                text="", 
+            #                icon='DOWNARROW_HLT',
+            #                emboss=False)
             
             # Nome file
             row.prop(item, "name", text="", emboss=False)
             
             # Tipo file icon
-            icon = 'SPREADSHEET' if item.file_type == "emdb_xlsx" else 'FILE_VOLUME'
-            row.label(text="", icon=icon)
+            
+            if item.file_type == "emdb_xlsx":
+                row.label(text="", icon='SPREADSHEET')
+
+            if item.file_type == "pyarchinit":
+                row.label(text="", icon_value=icons_manager.get_icon_value("pyarchinit"))
+
+            if item.file_type == "generic_xlsx":
+                row.label(text="", icon='SPREADSHEET')
             
             # Stato del file
             if item.filepath:
@@ -317,8 +332,8 @@ class AUXILIARY_UL_files(bpy.types.UIList):
                 row.label(text="", icon='ERROR')
 
             # Quick actions
-            row.operator("auxiliary.reload", text="", icon="FILE_REFRESH", emboss=False).file_index = index
-            row.operator("auxiliary.import_now", text="", icon="IMPORT", emboss=False)
+            #row.operator("auxiliary.reload", text="", icon="FILE_REFRESH", emboss=False).file_index = index
+            row.operator("auxiliary.import_now", text="", icon="FILE_REFRESH", emboss=False)
 
 def get_emdb_mappings():
     """Get available EMdb mapping files from registry"""
@@ -795,19 +810,22 @@ class EM_SetupPanel(bpy.types.Panel):
 
                             # ✅ NUOVO: Cartella risorse
                             row = box.row()
-                            row.prop(aux_file, "resource_folder", text="Resource Folder")
+                            row.prop(aux_file, "resource_folder", text="Resources")
+
+                            row = box.row()
+                            row.label(text="Thumbnails of the images from the resource folder? Click below.")
 
                             # ✅ NUOVO: Sezione thumbnails
                             thumb_row = box.row(align=True)
 
                             # Indicatore esistenza thumbs
                             if has_doc_thumbs():
-                                thumb_row.label(text="", icon='OUTLINER_OB_IMAGE')  # Verde/attivo
+                                thumb_row.label(text="", icon='KEYTYPE_JITTER_VEC')  # Verde/attivo
                             else:
-                                thumb_row.label(text="", icon='ERROR')  # Rosso/inattivo
+                                thumb_row.label(text="", icon='KEYTYPE_GENERATED_VEC')  # Rosso/inattivo
 
                             # Pulsanti thumbnails
-                            thumb_row.operator("emtools.build_doc_thumbs", text="(Ri)genera thumbnails")
+                            thumb_row.operator("emtools.build_doc_thumbs", text="(Re)generate thumbnails")
                             thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
 
             # Advanced Tools section

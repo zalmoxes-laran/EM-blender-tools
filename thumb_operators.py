@@ -15,10 +15,10 @@ from .thumb_utils import (
 )
 
 class EMTOOLS_OT_build_doc_thumbs(Operator):
-    """Genera/rigenera thumbnails per tutte le immagini nella resource_folder"""
+    """Generate/regenerate thumbnails for all images in the resource_folder"""
     bl_idname = "emtools.build_doc_thumbs"
-    bl_label = "(Ri)genera thumbnails"
-    bl_description = "Scansiona la resource_folder e genera thumbnails nella cache locale"
+    bl_label = "(Re)generate thumbnails"
+    bl_description = "Scan the resource_folder and generate thumbnails in the local cache"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
@@ -27,33 +27,33 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
         
         # Ottieni file ausiliare attivo per prendere la resource_folder
         if em_tools.active_file_index < 0 or not em_tools.graphml_files:
-            self.report({'ERROR'}, "Carica prima un file GraphML per configurare la resource_folder")
+            self.report({'ERROR'}, "First upload a GraphML file to configure the resource_folder")
             return {'CANCELLED'}
             
         graphml = em_tools.graphml_files[em_tools.active_file_index]
         
         if not graphml.auxiliary_files or graphml.active_auxiliary_index < 0:
-            self.report({'ERROR'}, "Nessun file ausiliario configurato. Vai in EMsetup → File ausiliari")
+            self.report({'ERROR'}, "No auxiliary files configured. Go to EMsetup → Auxiliary files")
             return {'CANCELLED'}
             
         aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
         
         if not aux_file.resource_folder:
-            self.report({'ERROR'}, "Cartella risorse non configurata. Vai in EMsetup → File ausiliari e imposta 'Resource Folder'")
+            self.report({'ERROR'}, "Resource folder not configured. Go to EMsetup → Auxiliary Files and set 'Resource Folder'.'")
             return {'CANCELLED'}
         
         # Converti in path assoluto usando os.path
         resource_folder = os.path.abspath(bpy.path.abspath(aux_file.resource_folder))
         
         if not os.path.exists(resource_folder):
-            self.report({'ERROR'}, f"Cartella risorse non trovata: {resource_folder}")
+            self.report({'ERROR'}, f"Resource folder not found: {resource_folder}")
             return {'CANCELLED'}
         
         # Setup cartella thumbs univoca per questa resource_folder
         thumbs_root = em_thumbs_root(resource_folder)
         
-        print(f"Generazione thumbs da: {resource_folder}")
-        print(f"Thumbs salvate in: {thumbs_root}")
+        print(f"Gernerating thumbs from: {resource_folder}")
+        print(f"Thumbs saved in: {thumbs_root}")
         
         # Carica indice esistente
         index_data = load_index_json(thumbs_root)
@@ -68,7 +68,7 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
         supported_formats = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.pdf'}
         
         # Scansiona TUTTE le immagini nella resource_folder (ricorsivamente)
-        print(f"Scansionando cartella: {resource_folder}")
+        print(f"Scanning folder: {resource_folder}")
         
         for root, dirs, files in os.walk(resource_folder):
             for filename in files:
@@ -100,16 +100,16 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
                         if thumb_path.exists() and stored_mtime >= current_mtime:
                             needs_regen = False
                             thumbs_skipped += 1
-                            print(f"  → SKIP: {filename} (già aggiornata)")
+                            print(f"  → SKIP: {filename} (already updated)")
                         else:
-                            print(f"  → REGEN: {filename} (da aggiornare)")
+                            print(f"  → REGEN: {filename} (to be updated)")
                     except OSError as e:
                         # File non accessibile
                         print(f"  → ERROR: {filename} - {e}")
                         thumbs_errors += 1
                         continue
                 else:
-                    print(f"NEW: {filename} (chiave {doc_key} non in indice)")
+                    print(f"NEW: {filename} (key {doc_key} not in index)")
                 
                 # Genera thumbnail se necessario
                 if needs_regen:
@@ -130,11 +130,11 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
                                     # Se file_path e blend_dir sono su drive diversi (Windows)
                                     # usa il path assoluto come fallback
                                     relative_src_path = file_path
-                                    print(f"⚠️  Impossibile calcolare path relativo per {filename}, uso assoluto")
+                                    print(f"⚠️  Unable to calculate relative path for {filename}, using absolute path instead.")
                             else:
                                 # File blend non salvato - usa path assoluto
                                 relative_src_path = file_path
-                                print(f"⚠️  File .blend non salvato, uso path assoluto per {filename}")
+                                print(f"⚠️  Un-saved .blend file, use absolute path for {filename}")
                             
                             # Salva nell'indice con path relativo
                             thumb_rel_path = thumb_path.relative_to(thumbs_root)
@@ -153,10 +153,10 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
                                 print(f"Generate {thumbs_generated} thumbnails...")
                         else:
                             thumbs_errors += 1
-                            print(f"Errore generando: {filename}")
+                            print(f"Error generating: {filename}")
                     except Exception as e:
                         thumbs_errors += 1
-                        print(f"Errore su {filename}: {e}")
+                        print(f"Error on {filename}: {e}")
         
         # Salva indice aggiornato
         save_index_json(thumbs_root, index_data)
@@ -204,13 +204,13 @@ class EMTOOLS_OT_open_doc_thumbs_folder(Operator):
         graphml = em_tools.graphml_files[em_tools.active_file_index]
         
         if not graphml.auxiliary_files or graphml.active_auxiliary_index < 0:
-            self.report({'ERROR'}, "Nessun file ausiliario configurato")
+            self.report({'ERROR'}, "No auxiliary files configured")
             return {'CANCELLED'}
             
         aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
         
         if not aux_file.resource_folder:
-            self.report({'ERROR'}, "Cartella risorse non configurata")
+            self.report({'ERROR'}, "Resource folder not configured")
             return {'CANCELLED'}
         
         resource_folder = os.path.abspath(bpy.path.abspath(aux_file.resource_folder))
@@ -219,7 +219,7 @@ class EMTOOLS_OT_open_doc_thumbs_folder(Operator):
         thumbs_path = str(thumbs_root)
         
         if not os.path.exists(thumbs_path):
-            self.report({'WARNING'}, f"Cartella thumbs non ancora creata: {thumbs_path}")
+            self.report({'WARNING'}, f"Thumbs folder not yet created: {thumbs_path}")
             return {'CANCELLED'}
         
         # Apri nel file manager
@@ -230,10 +230,10 @@ class EMTOOLS_OT_open_doc_thumbs_folder(Operator):
                 subprocess.call(['open', thumbs_path] if os.uname().sysname == 'Darwin' 
                               else ['xdg-open', thumbs_path])
             
-            self.report({'INFO'}, f"Aperta cartella: {os.path.basename(thumbs_path)}")
+            self.report({'INFO'}, f"Open folder: {os.path.basename(thumbs_path)}")
             
         except Exception as e:
-            self.report({'ERROR'}, f"Impossibile aprire cartella: {e}")
+            self.report({'ERROR'}, f"Unable to open folder: {e}")
             if os.name == 'nt':
                 self.report({'INFO'}, f"Naviga manualmente a: {thumbs_path}")
             return {'CANCELLED'}
@@ -242,10 +242,10 @@ class EMTOOLS_OT_open_doc_thumbs_folder(Operator):
 
 
 class EMTOOLS_OT_select_doc_from_thumb(Operator):
-    """Seleziona DocumentNode dalla thumbnail cliccata"""
+    """Select DocumentNode from the clicked thumbnail"""
     bl_idname = "emtools.select_doc_from_thumb"
-    bl_label = "Seleziona documento"
-    bl_description = "Seleziona il DocumentNode corrispondente a questa thumbnail"
+    bl_label = "Select document"
+    bl_description = "Select the DocumentNode corresponding to this thumbnail"
     bl_options = {'REGISTER', 'UNDO'}
     
     doc_key: bpy.props.StringProperty() # type: ignore
@@ -257,15 +257,15 @@ class EMTOOLS_OT_select_doc_from_thumb(Operator):
         # TODO: Implementa selezione del nodo nella UI
         print(f"Selezionato DocumentNode con doc_key: {self.doc_key}")
         
-        self.report({'INFO'}, f"Selezionato documento: {self.doc_key}")
+        self.report({'INFO'}, f"Selected document: {self.doc_key}")
         return {'FINISHED'}
 
 
 class EMTOOLS_OT_open_original_doc(Operator):
-    """Apre il documento originale dal percorso salvato nell'indice"""
+    """Opens the original document from the path saved in the index"""
     bl_idname = "emtools.open_original_doc"
-    bl_label = "Apri originale"
-    bl_description = "Apre il documento originale usando il percorso memorizzato nell'indice"
+    bl_label = "Open original"
+    bl_description = "Opens the original document using the path stored in the index"
     bl_options = {'REGISTER'}
     
     doc_key: bpy.props.StringProperty() # type: ignore
@@ -279,7 +279,7 @@ class EMTOOLS_OT_open_original_doc(Operator):
         src_path = get_src_path_from_doc_key(self.doc_key)
         
         if not src_path or not os.path.exists(src_path):
-            self.report({'ERROR'}, "File originale non trovato")
+            self.report({'ERROR'}, "Original file not found")
             return {'CANCELLED'}
         
         try:

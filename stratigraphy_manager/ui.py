@@ -349,7 +349,7 @@ class EM_ToolsPanel:
                     action_row = docs_box.row(align=True)
                     open_op = action_row.operator(
                         "emtools.open_original_doc", 
-                        text="Apri originale",
+                        text="Open original",
                         icon='FILE_FOLDER'
                     )
                     open_op.doc_key = scene.em_tools.em_us_doc_previews
