@@ -128,9 +128,9 @@ class VIEW3D_PT_visual_panel(Panel):
         scene = context.scene
         box = layout.box()
         
-        if hasattr(scene, 'em_tools') and scene.em_tools.mode_switch:
-            row = box.row()
-            row.prop(scene, "show_all_graphs", text="Show All Graphs")
+        #if hasattr(scene, 'em_tools') and scene.em_tools.mode_switch:
+        #    row = box.row()
+        #    row.prop(scene, "show_all_graphs", text="Show All Graphs")
         
         row = box.row()
         if hasattr(scene, 'property_enum'):

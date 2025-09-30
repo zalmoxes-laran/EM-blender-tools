@@ -67,6 +67,7 @@ class EM_create_collection(bpy.types.Operator):
             self.report({'INFO'}, "All standard collections already exist")
             
         return {'FINISHED'}
+    
 class EM_OT_benchmark_property_functions(bpy.types.Operator):
     bl_idname = "em.benchmark_property_functions"
     bl_label = "Benchmark Property Functions"
@@ -77,6 +78,7 @@ class EM_OT_benchmark_property_functions(bpy.types.Operator):
         test_optimization_performance(context)
         self.report({'INFO'}, "Benchmark completed. Check console for results.")
         return {'FINISHED'}
+    
 class EM_OT_rebuild_graph_indices(bpy.types.Operator):
     bl_idname = "em.rebuild_graph_indices"
     bl_label = "Rebuild Graph Indices"
@@ -141,6 +143,7 @@ def get_em_tools_version():
     
     # Fallback statico se non riesce a leggere
     return "unknown"
+
 class EM_OT_manage_object_prefixes(bpy.types.Operator):
     bl_idname = "em.manage_object_prefixes"
     bl_label = "Manage Object Prefixes"
@@ -310,10 +313,7 @@ class AUXILIARY_UL_files(bpy.types.UIList):
             #                text="", 
             #                icon='DOWNARROW_HLT',
             #                emboss=False)
-            
-            # Nome file
-            row.prop(item, "name", text="", emboss=False)
-            
+                        
             # Tipo file icon
             
             if item.file_type == "emdb_xlsx":
@@ -325,6 +325,9 @@ class AUXILIARY_UL_files(bpy.types.UIList):
             if item.file_type == "generic_xlsx":
                 row.label(text="", icon='SPREADSHEET')
             
+            # Nome file
+            row.prop(item, "name", text="", emboss=False)
+
             # Stato del file
             if item.filepath:
                 row.label(text="", icon='CHECKMARK')
@@ -490,7 +493,6 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         update=lambda self, context: None
     ) # type: ignore
 
-
 class EMTOOLS_UL_files(bpy.types.UIList):
     """UIList to display the GraphML files with icons to indicate graph presence and actions"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -540,7 +542,8 @@ class EMTOOLS_UL_files(bpy.types.UIList):
                 row = layout.row(align=True)
                 # Flag pubblicabile (come in rm_manager)
                 if hasattr(item, 'is_publishable'):
-                    row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
+                    row.prop(item, "is_publishable", text="", icon_value=icons_manager.get_icon_value("em_publish") if item.is_publishable else icons_manager.get_icon_value("em_no_publish"))
+                
                 else:
                     # Se la proprietà non esiste ancora, mostra un pulsante disabilitato
                     row.label(text="", icon='QUESTION')
@@ -551,7 +554,7 @@ class EMTOOLS_UL_files(bpy.types.UIList):
                 row = layout.row()
                 row.enabled = False
                 if hasattr(item, 'is_publishable'):
-                    row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
+                    row.prop(item, "is_publishable", text="", icon_value=icons_manager.get_icon_value("em_publish") if item.is_publishable else icons_manager.get_icon_value("em_no_publish"))
                 else:
                     # Se la proprietà non esiste ancora, mostra un pulsante disabilitato
                     row.label(text="", icon='QUESTION')
@@ -583,6 +586,7 @@ class EMToolsSwitchModeOperator(bpy.types.Operator):
             self.report({'INFO'}, "Switched to 3D GIS Mode")
         
         return {'FINISHED'}
+    
 class EM_SetupPanel(bpy.types.Panel):
     
     bl_label = f"EM setup {get_em_tools_version()}"
@@ -813,7 +817,7 @@ class EM_SetupPanel(bpy.types.Panel):
                             row.prop(aux_file, "resource_folder", text="Resources")
 
                             row = box.row()
-                            row.label(text="Thumbnails of the images from the resource folder? Click below.")
+                            row.label(text="Thumnbnails for the resource folder? Click below.")
 
                             # ✅ NUOVO: Sezione thumbnails
                             thumb_row = box.row(align=True)
@@ -822,7 +826,7 @@ class EM_SetupPanel(bpy.types.Panel):
                             if has_doc_thumbs():
                                 thumb_row.label(text="", icon='KEYTYPE_JITTER_VEC')  # Verde/attivo
                             else:
-                                thumb_row.label(text="", icon='KEYTYPE_GENERATED_VEC')  # Rosso/inattivo
+                                thumb_row.label(text="", icon='KEYTYPE_KEYFRAME_VEC')  # Rosso/inattivo
 
                             # Pulsanti thumbnails
                             thumb_row.operator("emtools.build_doc_thumbs", text="(Re)generate thumbnails")

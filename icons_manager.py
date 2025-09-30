@@ -34,7 +34,9 @@ def load_icons():
         "extractor": "extractor.png",           
         "document": "document.png",         
         "property": "property.png",       
-        "pyarchinit": "pyarchinit.png",   
+        "pyarchinit": "pyarchinit.png",
+        "em_no_publish": "em_no_publish.png",
+        "em_publish": "em_publish.png"  
     }
     
     # Carica ogni icona che esiste
