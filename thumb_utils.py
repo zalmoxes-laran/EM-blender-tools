@@ -16,91 +16,6 @@ from PIL import Image, ImageOps
 # Collezione globale per le preview
 preview_collections = {}
 
-# AGGIUNGI questa funzione a thumb_utils.py:
-
-def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int, int]]:
-    """Carica preview filtrate per una specifica US"""
-    global preview_collections
-    
-    if not us_node_id:
-        return []
-    
-    thumbs_root = em_thumbs_root()
-    
-    # Ottieni DocumentNode collegati a questa US
-    from s3dgraphy import get_graph
-    scene = bpy.context.scene
-    em_tools = scene.em_tools
-    
-    if em_tools.active_file_index < 0:
-        return []
-        
-    graphml = em_tools.graphml_files[em_tools.active_file_index]
-    graph = get_graph(graphml.name)
-    
-    if not graph:
-        return []
-    
-    # Trova DocumentNode collegati a questa US
-    us_document_ids = set()
-    for edge in graph.edges:
-        #if edge.edge_source == us_node_id and edge.edge_type == "has_documentation":
-        if edge.edge_source == us_node_id and edge.edge_type == "generic_connection":
-            us_document_ids.add(edge.edge_target)
-    
-    if not us_document_ids:
-        return []
-    
-    # Inizializza preview collection se necessario
-    if "doc_previews" not in preview_collections:
-        pcoll = bpy.utils.previews.new()
-        preview_collections["doc_previews"] = pcoll
-    else:
-        pcoll = preview_collections["doc_previews"]
-    
-    # Carica indice
-    index_data = load_index_json(thumbs_root)
-    
-    enum_items = []
-    i = 0
-    
-    for doc_key, item_data in index_data.get("items", {}).items():
-        doc_node_id = item_data.get("doc_node_id")
-        
-        # FILTRA: solo DocumentNode di questa US
-        if doc_node_id not in us_document_ids:
-            continue
-            
-        thumb_rel_path = item_data.get("thumb", "")
-        if not thumb_rel_path:
-            continue
-            
-        thumb_abs_path = thumbs_root / thumb_rel_path
-        
-        if thumb_abs_path.exists():
-            try:
-                if doc_key not in pcoll:
-                    thumb = pcoll.load(doc_key, str(thumb_abs_path), 'IMAGE')
-                    icon_id = thumb.icon_id
-                else:
-                    icon_id = pcoll[doc_key].icon_id
-                
-                src_path = item_data.get("src_path", doc_key)
-                doc_name = os.path.basename(src_path)
-                
-                enum_items.append((
-                    doc_key,        # identifier
-                    doc_name,       # name
-                    src_path,       # description
-                    icon_id,        # icon
-                    i               # number
-                ))
-                i += 1
-                
-            except Exception as e:
-                print(f"Errore caricando preview per {doc_key}: {e}")
-    
-    return enum_items
 
 def em_thumbs_root(resource_folder_path: str = None) -> Path:
     """
@@ -148,6 +63,7 @@ def em_thumbs_root(resource_folder_path: str = None) -> Path:
     
     return Path(thumbs_dir)
 
+
 def get_file_hash(file_path: str) -> str:
     """Genera hash SHA1 per il file (per naming cache)"""
     hash_sha1 = hashlib.sha1()
@@ -162,6 +78,7 @@ def get_file_hash(file_path: str) -> str:
         hash_sha1.update(file_path.encode('utf-8'))
         return hash_sha1.hexdigest()
 
+
 def get_thumb_path(file_path: str, thumbs_root: Path) -> Path:
     """Genera percorso per thumbnail usando bucket hash structure"""
     file_hash = get_file_hash(file_path)
@@ -169,6 +86,7 @@ def get_thumb_path(file_path: str, thumbs_root: Path) -> Path:
     bucket_path = thumbs_root / file_hash[:2] / file_hash[2:4]
     bucket_path.mkdir(parents=True, exist_ok=True)
     return bucket_path / f"{file_hash}.png"
+
 
 def load_index_json(thumbs_root: Path) -> Dict:
     """Carica l'indice JSON dalla cache"""
@@ -185,6 +103,7 @@ def load_index_json(thumbs_root: Path) -> Dict:
         "items": {}
     }
 
+
 def save_index_json(thumbs_root: Path, index_data: Dict):
     """Salva l'indice JSON nella cache"""
     index_path = thumbs_root / "index.json"
@@ -193,6 +112,7 @@ def save_index_json(thumbs_root: Path, index_data: Dict):
             json.dump(index_data, f, indent=2, ensure_ascii=False)
     except IOError as e:
         print(f"Errore salvando index.json: {e}")
+
 
 def generate_thumbnail(src_path: str, thumb_path: Path, size: Tuple[int, int] = (256, 256)) -> bool:
     """Genera thumbnail da file immagine/documento"""
@@ -228,6 +148,7 @@ def generate_thumbnail(src_path: str, thumb_path: Path, size: Tuple[int, int] = 
                 pix = page.get_pixmap(matrix=mat)
                 img_data = pix.tobytes("ppm")
                 
+                import io
                 with Image.open(io.BytesIO(img_data)) as img:
                     img_resized = ImageOps.fit(img, size, Image.Resampling.LANCZOS)
                     img_resized.save(thumb_path, 'PNG', quality=90)
@@ -236,7 +157,7 @@ def generate_thumbnail(src_path: str, thumb_path: Path, size: Tuple[int, int] = 
             except ImportError:
                 print("PyMuPDF non disponibile per PDF thumbnails")
                 return create_placeholder_thumb(thumb_path, "PDF", size)
-        
+
         else:
             # File non supportato - crea placeholder
             return create_placeholder_thumb(thumb_path, ext.upper(), size)
@@ -244,6 +165,7 @@ def generate_thumbnail(src_path: str, thumb_path: Path, size: Tuple[int, int] = 
     except Exception as e:
         print(f"Errore generando thumbnail per {src_path}: {e}")
         return create_placeholder_thumb(thumb_path, "ERR", size)
+
 
 def create_placeholder_thumb(thumb_path: Path, text: str, size: Tuple[int, int] = (256, 256)) -> bool:
     """Crea thumbnail placeholder per file non supportati"""
@@ -277,15 +199,188 @@ def create_placeholder_thumb(thumb_path: Path, text: str, size: Tuple[int, int] 
         print(f"Errore creando placeholder: {e}")
         return False
 
+
+# ============================================================================
+# ✅ CORREZIONE 1: has_doc_thumbs() CON RESOURCE_FOLDER
+# ============================================================================
 def has_doc_thumbs() -> bool:
-    """Controlla se esistono thumbnails per la scena corrente"""
-    thumbs_root = em_thumbs_root()
+    """
+    Verifica se esistono thumbnails disponibili per la resource_folder corrente.
+    Controlla:
+    1. Se c'è un file ausiliario attivo con resource_folder configurata
+    2. Se esiste la cartella thumbs per quella resource_folder
+    3. Se l'indice contiene almeno una thumbnail
     
-    # Cerca file PNG nella struttura bucket
-    for bucket_dir in thumbs_root.glob("??/??"):
-        if any(bucket_dir.glob("*.png")):
-            return True
-    return False
+    Returns:
+        bool: True se ci sono thumbs disponibili, False altrimenti
+    """
+    try:
+        scene = bpy.context.scene
+        em_tools = scene.em_tools
+        
+        # Controlla se c'è un GraphML caricato
+        if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            return False
+        
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+        
+        # Controlla se c'è un file ausiliario attivo
+        if not graphml.auxiliary_files or graphml.active_auxiliary_index < 0:
+            return False
+        
+        aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
+        
+        # Controlla se la resource_folder è configurata
+        if not aux_file.resource_folder:
+            return False
+        
+        # ✅ CORREZIONE: Ottieni path assoluto della resource_folder
+        resource_folder = os.path.abspath(bpy.path.abspath(aux_file.resource_folder))
+        
+        if not os.path.exists(resource_folder):
+            return False
+        
+        # ✅ CORREZIONE: Calcola thumbs_root per questa resource_folder
+        thumbs_root = em_thumbs_root(resource_folder)
+        
+        # Carica l'indice
+        index_data = load_index_json(thumbs_root)
+        
+        # Controlla se ci sono items nell'indice
+        items = index_data.get("items", {})
+        
+        if not items:
+            return False
+        
+        # Verifica che almeno una thumbnail esista fisicamente
+        for doc_key, item_data in items.items():
+            thumb_rel_path = item_data.get("thumb", "")
+            if thumb_rel_path:
+                thumb_abs_path = thumbs_root / thumb_rel_path
+                if thumb_abs_path.exists():
+                    return True
+        
+        return False
+        
+    except Exception as e:
+        print(f"Errore in has_doc_thumbs(): {e}")
+        return False
+
+
+# ============================================================================
+# ✅ CORREZIONE 2: reload_doc_previews_for_us() CON RESOURCE_FOLDER
+# ============================================================================
+def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int, int]]:
+    """
+    Carica preview filtrate per una specifica US.
+    IMPORTANTE: Usa il thumbs_root corretto basato sulla resource_folder.
+    """
+    global preview_collections
+    
+    if not us_node_id:
+        return []
+    
+    try:
+        scene = bpy.context.scene
+        em_tools = scene.em_tools
+        
+        # Verifica che ci sia un GraphML attivo
+        if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            return []
+        
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+        
+        # Verifica che ci sia un file ausiliario attivo con resource_folder
+        if not graphml.auxiliary_files or graphml.active_auxiliary_index < 0:
+            return []
+        
+        aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
+        
+        if not aux_file.resource_folder:
+            return []
+        
+        # ✅ CORREZIONE: Calcola thumbs_root usando la resource_folder corretta
+        resource_folder = os.path.abspath(bpy.path.abspath(aux_file.resource_folder))
+        thumbs_root = em_thumbs_root(resource_folder)
+        
+        # Ottieni il grafo
+        from s3dgraphy import get_graph
+        graph = get_graph(graphml.name)
+        
+        if not graph:
+            return []
+        
+        # Trova DocumentNode collegati a questa US
+        us_document_ids = set()
+        for edge in graph.edges:
+            # ✅ USA "generic_connection" come nel codice di import
+            if edge.edge_source == us_node_id and edge.edge_type == "generic_connection":
+                us_document_ids.add(edge.edge_target)
+        
+        if not us_document_ids:
+            print(f"Nessun DocumentNode collegato all'US {us_node_id}")
+            return []
+        
+        print(f"Trovati {len(us_document_ids)} DocumentNode per US {us_node_id}")
+        
+        # Inizializza preview collection se necessario
+        if "doc_previews" not in preview_collections:
+            pcoll = bpy.utils.previews.new()
+            preview_collections["doc_previews"] = pcoll
+        else:
+            pcoll = preview_collections["doc_previews"]
+        
+        # Carica indice
+        index_data = load_index_json(thumbs_root)
+        
+        enum_items = []
+        i = 0
+        
+        for doc_key, item_data in index_data.get("items", {}).items():
+            doc_node_id = item_data.get("doc_node_id")
+            
+            # FILTRA: solo DocumentNode di questa US
+            if doc_node_id not in us_document_ids:
+                continue
+            
+            thumb_rel_path = item_data.get("thumb", "")
+            if not thumb_rel_path:
+                continue
+            
+            thumb_abs_path = thumbs_root / thumb_rel_path
+            
+            if thumb_abs_path.exists():
+                try:
+                    if doc_key not in pcoll:
+                        thumb = pcoll.load(doc_key, str(thumb_abs_path), 'IMAGE')
+                        icon_id = thumb.icon_id
+                    else:
+                        icon_id = pcoll[doc_key].icon_id
+                    
+                    src_path = item_data.get("src_path", doc_key)
+                    doc_name = os.path.basename(src_path)
+                    
+                    enum_items.append((
+                        doc_key,        # identifier
+                        doc_name,       # name
+                        src_path,       # description
+                        icon_id,        # icon
+                        i               # number
+                    ))
+                    i += 1
+                    
+                except Exception as e:
+                    print(f"Errore caricando preview per {doc_key}: {e}")
+        
+        print(f"Caricate {len(enum_items)} thumbnails per l'US")
+        return enum_items
+        
+    except Exception as e:
+        print(f"Errore in reload_doc_previews_for_us: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
 
 def reload_doc_previews_from_cache() -> List[Tuple[str, str, str, int, int]]:
     """Carica preview dalla cache per EnumProperty"""
@@ -340,6 +435,7 @@ def reload_doc_previews_from_cache() -> List[Tuple[str, str, str, int, int]]:
     
     return enum_items
 
+
 def get_src_path_from_doc_key(doc_key: str) -> Optional[str]:
     """Ottiene il percorso originale del documento dal doc_key"""
     thumbs_root = em_thumbs_root()
@@ -347,6 +443,7 @@ def get_src_path_from_doc_key(doc_key: str) -> Optional[str]:
     
     item_data = index_data.get("items", {}).get(doc_key, {})
     return item_data.get("src_path")
+
 
 def cleanup_preview_collections():
     """Pulisce le preview collections (per unregister)"""

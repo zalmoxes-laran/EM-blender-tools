@@ -72,6 +72,9 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
         # Scansiona TUTTE le immagini nella resource_folder (ricorsivamente)
         print(f"Scansionando cartella: {resource_folder}")
         
+        # ✅ CORREZIONE 3: Ottieni il grafo per trovare i doc_node_id
+        graph = get_graph(graphml.name)
+        
         for root, dirs, files in os.walk(resource_folder):
             for filename in files:
                 file_path = os.path.join(root, filename)
@@ -99,23 +102,15 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
                     try:
                         current_mtime = os.path.getmtime(file_path)
                         
-                        # DEBUG: Stampa informazioni
-                        print(f"CHECK: {filename}")
-                        print(f"  - Chiave: {doc_key}")
-                        print(f"  - Thumb exists: {thumb_path.exists()}")
-                        print(f"  - Stored mtime: {stored_mtime}")
-                        print(f"  - Current mtime: {current_mtime}")
-                        print(f"  - Thumb path: {thumb_path}")
-                        
                         if thumb_path.exists() and stored_mtime >= current_mtime:
                             needs_regen = False
                             thumbs_skipped += 1
-                            print(f"  → SKIP (già aggiornata)")
+                            print(f"  → SKIP: {filename} (già aggiornata)")
                         else:
-                            print(f"  → REGEN (da aggiornare)")
+                            print(f"  → REGEN: {filename} (da aggiornare)")
                     except OSError as e:
                         # File non accessibile
-                        print(f"  → ERROR: {e}")
+                        print(f"  → ERROR: {filename} - {e}")
                         thumbs_errors += 1
                         continue
                 else:
@@ -127,7 +122,34 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
                         if generate_thumbnail(file_path, thumb_path):
                             thumbs_generated += 1
                             
-                            # Aggiorna indice
+                            # ============================================================================
+                            # ✅ CORREZIONE 3: Trova il DocumentNode collegato a questo file
+                            # per memorizzare il doc_node_id nell'indice
+                            # ============================================================================
+                            doc_node_id = None
+                            
+                            # Cerca nel grafo se esiste un DocumentNode che punta a questo file
+                            if graph:
+                                for node in graph.nodes:
+                                    if hasattr(node, 'node_type') and node.node_type == 'document':
+                                        # Trova LinkNode collegati a questo DocumentNode
+                                        for edge in graph.edges:
+                                            if edge.edge_source == node.node_id and edge.edge_type == "has_linked_resource":
+                                                target_node = graph.find_node_by_id(edge.edge_target)
+                                                
+                                                if target_node and hasattr(target_node, 'url'):
+                                                    # Confronta i path
+                                                    link_url = target_node.url
+                                                    link_path = os.path.abspath(bpy.path.abspath(link_url))
+                                                    
+                                                    if os.path.normpath(link_path) == os.path.normpath(file_path):
+                                                        doc_node_id = node.node_id
+                                                        break
+                                        
+                                        if doc_node_id:
+                                            break
+                            
+                            # Aggiorna indice CON doc_node_id
                             thumb_rel_path = thumb_path.relative_to(thumbs_root)
                             index_data["items"][doc_key] = {
                                 "thumb": str(thumb_rel_path).replace("\\", "/"),
@@ -135,8 +157,14 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
                                 "src_mtime": os.path.getmtime(file_path),
                                 "src_size": os.path.getsize(file_path),
                                 "file_hash": file_hash,
-                                "filename": filename
+                                "filename": filename,
+                                "doc_node_id": doc_node_id  # ✅ AGGIUNTO
                             }
+                            
+                            if doc_node_id:
+                                print(f"✓ Generata: {filename} (DocumentNode: {doc_node_id})")
+                            else:
+                                print(f"✓ Generata: {filename} (nessun DocumentNode collegato)")
                             
                             if thumbs_generated % 10 == 0:  # Log ogni 10
                                 print(f"Generate {thumbs_generated} thumbnails...")
@@ -174,6 +202,7 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
         
         return {'FINISHED'}
     
+
 class EMTOOLS_OT_open_doc_thumbs_folder(Operator):
     """Apre la cartella delle thumbnails"""
     bl_idname = "emtools.open_doc_thumbs_folder"
@@ -185,7 +214,6 @@ class EMTOOLS_OT_open_doc_thumbs_folder(Operator):
         scene = context.scene
         em_tools = scene.em_tools
         
-        # Ottieni resource_folder dal file ausiliare attivo
         if em_tools.active_file_index < 0 or not em_tools.graphml_files:
             self.report({'ERROR'}, "Carica prima un file GraphML")
             return {'CANCELLED'}
@@ -193,49 +221,39 @@ class EMTOOLS_OT_open_doc_thumbs_folder(Operator):
         graphml = em_tools.graphml_files[em_tools.active_file_index]
         
         if not graphml.auxiliary_files or graphml.active_auxiliary_index < 0:
-            self.report({'ERROR'}, "Nessun file ausiliario attivo")
+            self.report({'ERROR'}, "Nessun file ausiliario configurato")
             return {'CANCELLED'}
             
         aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
         
         if not aux_file.resource_folder:
-            self.report({'ERROR'}, "Resource folder non configurata")
+            self.report({'ERROR'}, "Cartella risorse non configurata")
             return {'CANCELLED'}
         
-        # Converti in path assoluto
         resource_folder = os.path.abspath(bpy.path.abspath(aux_file.resource_folder))
-        
-        # Ottieni la cartella thumbs CORRETTA
         thumbs_root = em_thumbs_root(resource_folder)
-        
-        if not thumbs_root.exists():
-            self.report({'ERROR'}, f"Cartella thumbnails non esiste ancora: {thumbs_root}")
-            return {'CANCELLED'}
         
         thumbs_path = str(thumbs_root)
         
-        try:
-            # Prova prima il metodo di Blender
-            res = bpy.ops.wm.path_open(filepath=thumbs_path)
-            if res == {"FINISHED"}:
-                return {'FINISHED'}
-        except:
-            pass
+        if not os.path.exists(thumbs_path):
+            self.report({'WARNING'}, f"Cartella thumbs non ancora creata: {thumbs_path}")
+            return {'CANCELLED'}
         
+        # Apri nel file manager
         try:
-            # Windows
-            subprocess.Popen(['explorer', thumbs_path])
-        except:
-            try:
-                # macOS
-                subprocess.call(['open', thumbs_path])
-            except:
-                try:
-                    # Linux
-                    subprocess.call(['xdg-open', thumbs_path])
-                except:
-                    self.report({'ERROR'}, f"Impossibile aprire cartella. Naviga manualmente a: {thumbs_path}")
-                    return {'CANCELLED'}
+            if os.name == 'nt':  # Windows
+                os.startfile(thumbs_path)
+            elif os.name == 'posix':  # macOS e Linux
+                subprocess.call(['open', thumbs_path] if os.uname().sysname == 'Darwin' 
+                              else ['xdg-open', thumbs_path])
+            
+            self.report({'INFO'}, f"Aperta cartella: {os.path.basename(thumbs_path)}")
+            
+        except Exception as e:
+            self.report({'ERROR'}, f"Impossibile aprire cartella: {e}")
+            if os.name == 'nt':
+                self.report({'INFO'}, f"Naviga manualmente a: {thumbs_path}")
+            return {'CANCELLED'}
         
         return {'FINISHED'}
 
