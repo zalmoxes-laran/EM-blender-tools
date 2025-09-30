@@ -267,17 +267,24 @@ def has_doc_thumbs() -> bool:
         return False
 
 
-# ============================================================================
-# ✅ CORREZIONE 2: reload_doc_previews_for_us() CON RESOURCE_FOLDER
-# ============================================================================
 def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int, int]]:
     """
     Carica preview filtrate per una specifica US.
-    IMPORTANTE: Usa il thumbs_root corretto basato sulla resource_folder.
+    
+    FLUSSO CORRETTO:
+    1. Trova DocumentNode collegati all'US
+    2. Per ogni DocumentNode, trova LinkNode collegati
+    3. Dall'URL del LinkNode, calcola file_hash
+    4. Cerca nell'indice la chiave doc_{file_hash}
+    5. Se esiste, restituisci la thumb
+    
+    Returns:
+        List di tuple (doc_key, doc_name, src_path, icon_id, number)
     """
     global preview_collections
     
     if not us_node_id:
+        print("reload_doc_previews_for_us: us_node_id vuoto")
         return []
     
     try:
@@ -286,42 +293,60 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
         
         # Verifica che ci sia un GraphML attivo
         if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            print("reload_doc_previews_for_us: Nessun GraphML caricato")
             return []
         
         graphml = em_tools.graphml_files[em_tools.active_file_index]
         
         # Verifica che ci sia un file ausiliario attivo con resource_folder
         if not graphml.auxiliary_files or graphml.active_auxiliary_index < 0:
+            print("reload_doc_previews_for_us: Nessun file ausiliario configurato")
             return []
         
         aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
         
         if not aux_file.resource_folder:
+            print("reload_doc_previews_for_us: Resource folder non configurata")
             return []
         
-        # ✅ CORREZIONE: Calcola thumbs_root usando la resource_folder corretta
+        # ✅ Calcola thumbs_root usando la resource_folder corretta
         resource_folder = os.path.abspath(bpy.path.abspath(aux_file.resource_folder))
         thumbs_root = em_thumbs_root(resource_folder)
+        
+        print(f"reload_doc_previews_for_us: thumbs_root = {thumbs_root}")
         
         # Ottieni il grafo
         from s3dgraphy import get_graph
         graph = get_graph(graphml.name)
         
         if not graph:
+            print("reload_doc_previews_for_us: Grafo non caricato")
             return []
         
-        # Trova DocumentNode collegati a questa US
-        us_document_ids = set()
+        # ========================================================================
+        # STEP 1: Trova DocumentNode collegati a questo US
+        # ========================================================================
+        us_document_nodes = []
         for edge in graph.edges:
-            # ✅ USA "generic_connection" come nel codice di import
             if edge.edge_source == us_node_id and edge.edge_type == "generic_connection":
-                us_document_ids.add(edge.edge_target)
+                target_node = graph.find_node_by_id(edge.edge_target)
+                if target_node and hasattr(target_node, 'node_type'):
+                    # Case-insensitive check
+                    if target_node.node_type.lower() == 'document':
+                        us_document_nodes.append(target_node)
         
-        if not us_document_ids:
-            print(f"Nessun DocumentNode collegato all'US {us_node_id}")
+        if not us_document_nodes:
+            print(f"reload_doc_previews_for_us: Nessun DocumentNode collegato all'US {us_node_id}")
             return []
         
-        print(f"Trovati {len(us_document_ids)} DocumentNode per US {us_node_id}")
+        print(f"reload_doc_previews_for_us: Trovati {len(us_document_nodes)} DocumentNode per US")
+        
+        # ========================================================================
+        # STEP 2: Per ogni DocumentNode, trova LinkNode e calcola hash
+        # ========================================================================
+        
+        # Carica l'indice delle thumbs
+        index_data = load_index_json(thumbs_root)
         
         # Inizializza preview collection se necessario
         if "doc_previews" not in preview_collections:
@@ -330,57 +355,93 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
         else:
             pcoll = preview_collections["doc_previews"]
         
-        # Carica indice
-        index_data = load_index_json(thumbs_root)
-        
         enum_items = []
         i = 0
         
-        for doc_key, item_data in index_data.get("items", {}).items():
-            doc_node_id = item_data.get("doc_node_id")
-            
-            # FILTRA: solo DocumentNode di questa US
-            if doc_node_id not in us_document_ids:
-                continue
-            
-            thumb_rel_path = item_data.get("thumb", "")
-            if not thumb_rel_path:
-                continue
-            
-            thumb_abs_path = thumbs_root / thumb_rel_path
-            
-            if thumb_abs_path.exists():
-                try:
-                    if doc_key not in pcoll:
-                        thumb = pcoll.load(doc_key, str(thumb_abs_path), 'IMAGE')
-                        icon_id = thumb.icon_id
-                    else:
-                        icon_id = pcoll[doc_key].icon_id
+        for doc_node in us_document_nodes:
+            # Trova LinkNode collegati a questo DocumentNode
+            for edge in graph.edges:
+                if edge.edge_source == doc_node.node_id and edge.edge_type == "has_linked_resource":
+                    target_node = graph.find_node_by_id(edge.edge_target)
                     
-                    src_path = item_data.get("src_path", doc_key)
-                    doc_name = os.path.basename(src_path)
-                    
-                    enum_items.append((
-                        doc_key,        # identifier
-                        doc_name,       # name
-                        src_path,       # description
-                        icon_id,        # icon
-                        i               # number
-                    ))
-                    i += 1
-                    
-                except Exception as e:
-                    print(f"Errore caricando preview per {doc_key}: {e}")
+                    if target_node and hasattr(target_node, 'node_type'):
+                        # Case-insensitive check
+                        if target_node.node_type.lower() == 'link':
+                            # ✅ STEP 3: Ottieni URL dal LinkNode
+                            # L'URL è in link_node.data['url']
+                            file_url = ''
+                            if hasattr(target_node, 'data') and isinstance(target_node.data, dict):
+                                file_url = target_node.data.get('url', '')
+                            
+                            if not file_url:
+                                print(f"  LinkNode {target_node.node_id} senza URL")
+                                continue
+                            
+                            # Converti a path assoluto
+                            file_path = os.path.abspath(bpy.path.abspath(file_url))
+                            
+                            print(f"  Cercando thumb per: {file_path}")
+                            
+                            if not os.path.exists(file_path):
+                                print(f"  ⚠️  File non esiste: {file_path}")
+                                continue
+                            
+                            # ✅ STEP 4: Calcola hash del file
+                            file_hash = get_file_hash(file_path)
+                            doc_key = f"doc_{file_hash}"
+                            
+                            print(f"  doc_key calcolato: {doc_key}")
+                            
+                            # ✅ STEP 5: Cerca nell'indice thumbs
+                            if doc_key in index_data.get("items", {}):
+                                item_data = index_data["items"][doc_key]
+                                thumb_rel_path = item_data.get("thumb", "")
+                                
+                                if not thumb_rel_path:
+                                    print(f"  ⚠️  Nessun thumb_rel_path per {doc_key}")
+                                    continue
+                                
+                                thumb_abs_path = thumbs_root / thumb_rel_path
+                                
+                                if not thumb_abs_path.exists():
+                                    print(f"  ⚠️  Thumb non esiste: {thumb_abs_path}")
+                                    continue
+                                
+                                # ✅ TROVATA! Carica la thumb
+                                try:
+                                    if doc_key not in pcoll:
+                                        thumb = pcoll.load(doc_key, str(thumb_abs_path), 'IMAGE')
+                                        icon_id = thumb.icon_id
+                                    else:
+                                        icon_id = pcoll[doc_key].icon_id
+                                    
+                                    # Nome del documento
+                                    doc_name = os.path.basename(file_path)
+                                    
+                                    enum_items.append((
+                                        doc_key,        # identifier
+                                        doc_name,       # name
+                                        file_path,      # description (path completo)
+                                        icon_id,        # icon
+                                        i               # number
+                                    ))
+                                    i += 1
+                                    
+                                    print(f"  ✓ Thumb aggiunta: {doc_name}")
+                                    
+                                except Exception as e:
+                                    print(f"  ✗ Errore caricando preview per {doc_key}: {e}")
+                            else:
+                                print(f"  ⚠️  doc_key {doc_key} non trovato nell'indice")
         
-        print(f"Caricate {len(enum_items)} thumbnails per l'US")
+        print(f"reload_doc_previews_for_us: Totale {len(enum_items)} thumbnails caricate")
         return enum_items
         
     except Exception as e:
-        print(f"Errore in reload_doc_previews_for_us: {e}")
+        print(f"❌ Errore in reload_doc_previews_for_us: {e}")
         import traceback
         traceback.print_exc()
         return []
-
 
 def reload_doc_previews_from_cache() -> List[Tuple[str, str, str, int, int]]:
     """Carica preview dalla cache per EnumProperty"""

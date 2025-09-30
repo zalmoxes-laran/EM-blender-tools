@@ -8,7 +8,6 @@ import subprocess
 from pathlib import Path
 import bpy
 from bpy.types import Operator
-from s3dgraphy import get_graph
 from .thumb_utils import (
     em_thumbs_root, load_index_json, save_index_json, 
     generate_thumbnail, get_thumb_path, reload_doc_previews_from_cache,
@@ -16,17 +15,16 @@ from .thumb_utils import (
 )
 
 class EMTOOLS_OT_build_doc_thumbs(Operator):
-    """Genera/rigenera thumbnails per tutti i DocumentNode della scena"""
+    """Genera/rigenera thumbnails per tutte le immagini nella resource_folder"""
     bl_idname = "emtools.build_doc_thumbs"
     bl_label = "(Ri)genera thumbnails"
-    bl_description = "Scansiona i DocumentNode e genera thumbnails nella cache locale"
+    bl_description = "Scansiona la resource_folder e genera thumbnails nella cache locale"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         scene = context.scene
         em_tools = scene.em_tools
         
-        # ✅ NUOVO APPROCCIO: Non serve il grafo, solo la resource_folder
         # Ottieni file ausiliare attivo per prendere la resource_folder
         if em_tools.active_file_index < 0 or not em_tools.graphml_files:
             self.report({'ERROR'}, "Carica prima un file GraphML per configurare la resource_folder")
@@ -71,9 +69,6 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
         
         # Scansiona TUTTE le immagini nella resource_folder (ricorsivamente)
         print(f"Scansionando cartella: {resource_folder}")
-        
-        # ✅ CORREZIONE 3: Ottieni il grafo per trovare i doc_node_id
-        graph = get_graph(graphml.name)
         
         for root, dirs, files in os.walk(resource_folder):
             for filename in files:
@@ -122,34 +117,8 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
                         if generate_thumbnail(file_path, thumb_path):
                             thumbs_generated += 1
                             
-                            # ============================================================================
-                            # ✅ CORREZIONE 3: Trova il DocumentNode collegato a questo file
-                            # per memorizzare il doc_node_id nell'indice
-                            # ============================================================================
-                            doc_node_id = None
-                            
-                            # Cerca nel grafo se esiste un DocumentNode che punta a questo file
-                            if graph:
-                                for node in graph.nodes:
-                                    if hasattr(node, 'node_type') and node.node_type == 'document':
-                                        # Trova LinkNode collegati a questo DocumentNode
-                                        for edge in graph.edges:
-                                            if edge.edge_source == node.node_id and edge.edge_type == "has_linked_resource":
-                                                target_node = graph.find_node_by_id(edge.edge_target)
-                                                
-                                                if target_node and hasattr(target_node, 'url'):
-                                                    # Confronta i path
-                                                    link_url = target_node.url
-                                                    link_path = os.path.abspath(bpy.path.abspath(link_url))
-                                                    
-                                                    if os.path.normpath(link_path) == os.path.normpath(file_path):
-                                                        doc_node_id = node.node_id
-                                                        break
-                                        
-                                        if doc_node_id:
-                                            break
-                            
-                            # Aggiorna indice CON doc_node_id
+                            # ✅ Salva nell'indice (SENZA doc_node_id)
+                            # Il matching avviene al momento del retrieval
                             thumb_rel_path = thumb_path.relative_to(thumbs_root)
                             index_data["items"][doc_key] = {
                                 "thumb": str(thumb_rel_path).replace("\\", "/"),
@@ -157,14 +126,11 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
                                 "src_mtime": os.path.getmtime(file_path),
                                 "src_size": os.path.getsize(file_path),
                                 "file_hash": file_hash,
-                                "filename": filename,
-                                "doc_node_id": doc_node_id  # ✅ AGGIUNTO
+                                "filename": filename
+                                # ❌ NON serve doc_node_id - il matching è dinamico
                             }
                             
-                            if doc_node_id:
-                                print(f"✓ Generata: {filename} (DocumentNode: {doc_node_id})")
-                            else:
-                                print(f"✓ Generata: {filename} (nessun DocumentNode collegato)")
+                            print(f"✓ Generata: {filename}")
                             
                             if thumbs_generated % 10 == 0:  # Log ogni 10
                                 print(f"Generate {thumbs_generated} thumbnails...")
@@ -178,11 +144,11 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
         # Salva indice aggiornato
         save_index_json(thumbs_root, index_data)
         
-        # Ricarica preview per UI (opzionale, dipende se serve)
+        # Ricarica preview per UI (opzionale)
         try:
             reload_doc_previews_from_cache()
         except:
-            pass  # Potrebbe fallire se il grafo non è caricato
+            pass
         
         # Report finale dettagliato
         total_processed = thumbs_generated + thumbs_skipped
@@ -271,30 +237,18 @@ class EMTOOLS_OT_select_doc_from_thumb(Operator):
         if not self.doc_key:
             return {'CANCELLED'}
         
-        # Trova il DocumentNode corrispondente
-        thumbs_root = em_thumbs_root()
-        index_data = load_index_json(thumbs_root)
-        
-        item_data = index_data.get("items", {}).get(self.doc_key, {})
-        doc_node_id = item_data.get("doc_node_id")
-        
-        if not doc_node_id:
-            self.report({'WARNING'}, "DocumentNode non trovato per questa thumbnail")
-            return {'CANCELLED'}
-        
         # TODO: Implementa selezione del nodo nella UI
-        # Questo dipenderà da come gestisci la selezione nel tuo UI manager
-        print(f"Selezionato DocumentNode: {doc_node_id}")
+        print(f"Selezionato DocumentNode con doc_key: {self.doc_key}")
         
-        self.report({'INFO'}, f"Selezionato documento: {item_data.get('doc_name', 'Sconosciuto')}")
+        self.report({'INFO'}, f"Selezionato documento: {self.doc_key}")
         return {'FINISHED'}
 
 
 class EMTOOLS_OT_open_original_doc(Operator):
-    """Apre il documento originale dal percorso del LinkNode"""
+    """Apre il documento originale dal percorso salvato nell'indice"""
     bl_idname = "emtools.open_original_doc"
     bl_label = "Apri originale"
-    bl_description = "Apre il documento originale usando il percorso memorizzato nel LinkNode"
+    bl_description = "Apre il documento originale usando il percorso memorizzato nell'indice"
     bl_options = {'REGISTER'}
     
     doc_key: bpy.props.StringProperty() # type: ignore
@@ -303,7 +257,7 @@ class EMTOOLS_OT_open_original_doc(Operator):
         if not self.doc_key:
             return {'CANCELLED'}
         
-        # Ottieni percorso originale
+        # Ottieni percorso originale dall'indice
         from .thumb_utils import get_src_path_from_doc_key
         src_path = get_src_path_from_doc_key(self.doc_key)
         
