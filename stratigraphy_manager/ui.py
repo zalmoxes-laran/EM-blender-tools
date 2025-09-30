@@ -11,6 +11,8 @@ from .data import ensure_valid_index
 
 from .. import icons_manager  
 
+import os
+
 class EM_STRAT_UL_List(UIList):
     """Custom UIList for displaying stratigraphic units with visibility toggle"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -548,35 +550,73 @@ class EM_ToolsPanel:
 
     def _get_thumbnails_for_documents(self, documents):
         """Ottiene thumbnails specifiche per una lista di DocumentNode"""
-        from ..thumb_utils import em_thumbs_root, load_index_json
+        from ..thumb_utils import em_thumbs_root, load_index_json, get_file_hash
+        from s3dgraphy import get_graph
+        import os
         
-        thumbs_root = em_thumbs_root()
+        scene = bpy.context.scene
+        em_tools = scene.em_tools
+        
+        if em_tools.active_file_index < 0:
+            return []
+        
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+        
+        # Ottieni resource_folder per calcolare thumbs_root corretto
+        if not graphml.auxiliary_files or graphml.active_auxiliary_index < 0:
+            return []
+        
+        aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
+        if not aux_file.resource_folder:
+            return []
+        
+        resource_folder = os.path.abspath(bpy.path.abspath(aux_file.resource_folder))
+        thumbs_root = em_thumbs_root(resource_folder)
         index_data = load_index_json(thumbs_root)
+        
+        graph = get_graph(graphml.name)
+        if not graph:
+            return []
         
         us_thumbnails = []
         
         for doc_node in documents:
-            # Genera doc_key come nel sistema di generazione
-            doc_key = f"doc_{doc_node.node_id}"
-            
-            if doc_key in index_data.get("items", {}):
-                item_data = index_data["items"][doc_key]
-                thumb_rel_path = item_data.get("thumb", "")
-                
-                if thumb_rel_path:
-                    thumb_abs_path = thumbs_root / thumb_rel_path
+            # Trova LinkNode collegati a questo DocumentNode
+            for edge in graph.edges:
+                if edge.edge_source == doc_node.node_id and edge.edge_type == "has_linked_resource":
+                    target_node = graph.find_node_by_id(edge.edge_target)
                     
-                    if thumb_abs_path.exists():
-                        us_thumbnails.append((
-                            doc_key,
-                            str(thumb_abs_path),
-                            doc_node.name,
-                            item_data.get("src_path", "")
-                        ))
+                    if target_node and hasattr(target_node, 'node_type') and target_node.node_type == 'link':
+                        # Ottieni URL dal LinkNode
+                        file_url = target_node.data.get("url", "") if hasattr(target_node, 'data') else ""
+                        
+                        if file_url:
+                            # Converti a path assoluto
+                            file_path = os.path.abspath(bpy.path.abspath(file_url))
+                            
+                            if os.path.exists(file_path):
+                                # Calcola hash del file
+                                file_hash = get_file_hash(file_path)
+                                doc_key = f"doc_{file_hash}"
+                                
+                                # Cerca nell'indice thumbs
+                                if doc_key in index_data.get("items", {}):
+                                    item_data = index_data["items"][doc_key]
+                                    thumb_rel_path = item_data.get("thumb", "")
+                                    
+                                    if thumb_rel_path:
+                                        thumb_abs_path = thumbs_root / thumb_rel_path
+                                        
+                                        if thumb_abs_path.exists():
+                                            us_thumbnails.append((
+                                                doc_key,
+                                                str(thumb_abs_path),
+                                                doc_node.name,
+                                                item_data.get("src_path", "")
+                                            ))
         
+        print(f"Found {len(us_thumbnails)} thumbnails for {len(documents)} documents")
         return us_thumbnails
-
-
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     """Panel in the 3D View for the Stratigraphy Manager"""
     bl_category = "EM"

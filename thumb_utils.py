@@ -102,20 +102,51 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
     
     return enum_items
 
-def em_thumbs_root() -> Path:
-    """Restituisce la cartella root per le thumbnails della scena corrente"""
+def em_thumbs_root(resource_folder_path: str = None) -> Path:
+    """
+    Restituisce la cartella thumbnails per una resource_folder specifica.
+    Se due file ausiliari usano la stessa resource_folder, condividono le thumbs.
+    
+    Args:
+        resource_folder_path: Path assoluto o relativo della resource_folder.
+                             Se None, usa cartella temporanea.
+    
+    Returns:
+        Path alla cartella thumbs specifica per questa resource_folder
+    """
     blend_path = bpy.data.filepath
-    if not blend_path:
-        # Se non è stato salvato il file .blend, usa una cartella temporanea
+    
+    # Se non c'è resource_folder, usa temp
+    if not resource_folder_path:
         import tempfile
         temp_dir = Path(tempfile.gettempdir()) / "EM_thumbs_temp"
         temp_dir.mkdir(exist_ok=True)
         return temp_dir
     
-    blend_dir = Path(blend_path).parent
-    thumbs_dir = blend_dir / "EM_thumbs"
-    thumbs_dir.mkdir(exist_ok=True)
-    return thumbs_dir
+    # Converte in path assoluto usando os.path
+    abs_resource_path = os.path.abspath(bpy.path.abspath(resource_folder_path))
+    
+    # Genera hash univoco basato sul path assoluto della resource_folder
+    # Se due file ausiliari puntano alla stessa cartella → stesso hash → stesse thumbs
+    path_hash = hashlib.md5(abs_resource_path.encode('utf-8')).hexdigest()[:8]
+    
+    # Nome univoco: NomeCartella_hash
+    folder_name = os.path.basename(os.path.normpath(abs_resource_path))
+    unique_name = f"{folder_name}_{path_hash}"
+    
+    # Se il .blend è salvato, thumbs vicino al .blend
+    # Altrimenti in temp
+    if blend_path:
+        blend_dir = os.path.dirname(blend_path)
+        thumbs_dir = os.path.join(blend_dir, "EM_thumbs", unique_name)
+    else:
+        import tempfile
+        thumbs_dir = os.path.join(tempfile.gettempdir(), "EM_thumbs", unique_name)
+    
+    # Crea la directory
+    os.makedirs(thumbs_dir, exist_ok=True)
+    
+    return Path(thumbs_dir)
 
 def get_file_hash(file_path: str) -> str:
     """Genera hash SHA1 per il file (per naming cache)"""
