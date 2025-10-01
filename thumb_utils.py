@@ -16,6 +16,11 @@ from PIL import Image, ImageOps
 # Collezione globale per le preview
 preview_collections = {}
 
+# Cache per evitare loop infiniti nel caricamento thumbnails
+_cached_us_thumbs = {}  # {us_node_id: [(doc_key, name, desc, icon_id, i), ...]}
+_last_us_id = None
+_last_resource_folder = None
+
 def resolve_resource_folder(resource_folder_path: str) -> str:
     """
     Risolve correttamente la resource_folder sia che sia assoluta o relativa.
@@ -330,12 +335,22 @@ def has_doc_thumbs() -> bool:
         return False
 
 
+# thumb_utils.py - AGGIUNGI QUESTE VARIABILI GLOBALI ALL'INIZIO DEL FILE
+
+# Cache per evitare loop infiniti nel caricamento thumbnails
+_cached_us_thumbs = {}  # {us_node_id: [(doc_key, name, desc, icon_id, i), ...]}
+_last_us_id = None
+_last_resource_folder = None
+
+# ... resto del codice ...
+
 def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int, int]]:
     """
     Carica preview filtrate per una specifica US.
     IMPORTANTE: Usa il thumbs_root corretto basato sulla resource_folder.
+    ✅ CON CACHE per evitare loop infiniti
     """
-    global preview_collections
+    global preview_collections, _cached_us_thumbs, _last_us_id, _last_resource_folder
     
     if not us_node_id:
         return []
@@ -359,14 +374,20 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
         if not aux_file.resource_folder:
             return []
         
-        # ✅ USA resolve_resource_folder
         resource_folder = resolve_resource_folder(aux_file.resource_folder)
         
         if not resource_folder or not os.path.exists(resource_folder):
             print(f"⚠️ Resource folder non valida: {aux_file.resource_folder}")
             return []
         
-        print(f"✓ Resource folder risolta: {resource_folder}")
+        # ✅ CACHE CHECK: Se US e resource_folder non sono cambiati, restituisci cache
+        cache_key = f"{us_node_id}_{resource_folder}"
+        if cache_key in _cached_us_thumbs:
+            # print(f"✓ Usando cache per US {us_node_id[:8]}... ({len(_cached_us_thumbs[cache_key])} thumbs)")
+            return _cached_us_thumbs[cache_key]
+        
+        # Se siamo qui, dobbiamo ricaricare (US cambiato o primo caricamento)
+        print(f"🔄 Caricamento thumbnails per US {us_node_id[:8]}...")
         
         thumbs_root = em_thumbs_root(resource_folder)
         
@@ -384,10 +405,9 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
                 us_document_ids.add(edge.edge_target)
         
         if not us_document_ids:
-            print(f"Nessun DocumentNode collegato all'US {us_node_id}")
+            # Nessun documento, salva lista vuota in cache
+            _cached_us_thumbs[cache_key] = []
             return []
-        
-        print(f"Trovati {len(us_document_ids)} DocumentNode per US {us_node_id}")
         
         # Inizializza preview collection se necessario
         if "doc_previews" not in preview_collections:
@@ -414,7 +434,6 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
                     link_node = graph.find_node_by_id(edge.edge_target)
                     
                     if link_node and hasattr(link_node, 'node_type') and link_node.node_type.lower() == 'link':
-                        # Ottieni URL dal LinkNode
                         file_url = ''
                         if hasattr(link_node, 'data') and isinstance(link_node.data, dict):
                             file_url = link_node.data.get('url', '')
@@ -422,29 +441,22 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
                         if not file_url:
                             continue
                         
-                        # ✅ RISOLUZIONE CORRETTA: resource_folder + path relativo
+                        # Risoluzione path
                         if os.path.isabs(file_url):
-                            # Retrocompatibilità: path assoluto vecchio formato
                             file_path = file_url
                         else:
-                            # Path relativo (nuovo formato): combina con resource_folder
                             file_path = os.path.join(resource_folder, file_url)
                             file_path = os.path.normpath(file_path)
                         
-                        # Verifica che il file esista PRIMA di calcolare hash
                         if not os.path.exists(file_path):
-                            print(f"  ⚠ File non trovato: {file_path}")
-                            print(f"     URL da LinkNode: {file_url}")
-                            print(f"     Resource folder: {resource_folder}")
                             continue
                         
-                        # ✅ Calcola hash sul CONTENUTO del file (portabile)
+                        # Calcola hash
                         file_hash = get_file_hash(file_path)
                         doc_key = f"doc_{file_hash}"
                         
                         # Cerca nell'indice
                         if doc_key not in index_data.get("items", {}):
-                            print(f"  ⚠ Thumbnail non trovata per hash {file_hash[:8]}...")
                             continue
                         
                         item_data = index_data["items"][doc_key]
@@ -479,7 +491,11 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
                             except Exception as e:
                                 print(f"  Errore caricando preview per {doc_key}: {e}")
         
-        print(f"Caricate {len(enum_items)} thumbnails per l'US")
+        print(f"✅ Caricate {len(enum_items)} thumbnails per l'US")
+        
+        # ✅ SALVA IN CACHE
+        _cached_us_thumbs[cache_key] = enum_items
+        
         return enum_items
         
     except Exception as e:
@@ -488,6 +504,12 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
         traceback.print_exc()
         return []
 
+# ✅  FUNZIONE PER PULIRE LA CACHE QUANDO NECESSARIO
+def clear_us_thumbs_cache():
+    """Pulisce la cache delle thumbnails US. Da chiamare quando si rigenera."""
+    global _cached_us_thumbs
+    _cached_us_thumbs.clear()
+    print("🗑️ Cache thumbnails US pulita")
 
 def reload_doc_previews_from_cache() -> List[Tuple[str, str, str, int, int]]:
     """Carica preview dalla cache per EnumProperty"""

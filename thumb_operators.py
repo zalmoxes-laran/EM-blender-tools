@@ -171,18 +171,22 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
         total_processed = thumbs_generated + thumbs_skipped
         
         if total_images_found == 0:
-            self.report({'WARNING'}, f"Nessuna immagine trovata in: {os.path.basename(resource_folder)}")
+            self.report({'WARNING'}, f"No image found in: {os.path.basename(resource_folder)}")
         elif thumbs_generated > 0:
             self.report({'INFO'}, 
-                    f"✓ Create {thumbs_generated} nuove thumbnails | "
-                    f"{thumbs_skipped} già aggiornate | "
-                    f"{thumbs_errors} errori | "
-                    f"Totale immagini: {total_images_found}")
+                    f"✓ Created {thumbs_generated} new thumbnails | "
+                    f"{thumbs_skipped} already updated | "
+                    f"{thumbs_errors} errors | "
+                    f"Total images: {total_images_found}")
         else:
             self.report({'INFO'}, 
-                    f"✓ Tutte le {total_processed} thumbnails erano già aggiornate | "
-                    f"Totale immagini: {total_images_found}")
-        
+                    f"✓ All {total_processed} thumbnails were already up-to-date | "
+                    f"Total images: {total_images_found}")
+
+        # ✅ PULISCI LA CACHE dopo la rigenerazione
+        from .thumb_utils import clear_us_thumbs_cache
+        clear_us_thumbs_cache()
+
         return {'FINISHED'}
     
 
