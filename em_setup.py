@@ -1306,23 +1306,13 @@ class AUXILIARY_OT_import_now(bpy.types.Operator):
         ext = filename.lower().split('.')[-1]
         return ext in [fmt.lower() for fmt in allowed_formats]
         
+
     def _create_document_for_resource(self, graph, target_node, file_path, filename, folder_suffix, base_resource_folder):
-        """Crea DocumentNode → LinkNode per la risorsa"""
+        """Crea DocumentNode → LinkNode per la risorsa (con controllo duplicati)"""
         import os
         import uuid
         from s3dgraphy.nodes.document_node import DocumentNode
         from s3dgraphy.nodes.link_node import LinkNode
-        
-        # Conta documenti esistenti per questo nodo
-        existing_docs = [n for n in graph.nodes 
-                        if hasattr(n, 'name') and n.name.startswith(f"DOC.{target_node.name}")]
-        doc_index = len(existing_docs) + 1
-        
-        # Include folder_suffix nel nome se presente
-        if folder_suffix and folder_suffix != "main":
-            doc_id = f"DOC.{target_node.name}.{folder_suffix}.{doc_index:03d}"
-        else:
-            doc_id = f"DOC.{target_node.name}.{doc_index:03d}"
         
         # ✅ Calcola path relativo alla base_resource_folder
         try:
@@ -1334,7 +1324,55 @@ class AUXILIARY_OT_import_now(bpy.types.Operator):
             print(f"⚠️ Impossibile calcolare path relativo per {filename}, uso assoluto")
             relative_path = file_path
         
-        print(f"Creating DocumentNode: {doc_id}")
+        # ✅ FIX DUPLICATI: Prima controlla se esiste già un documento per questo file
+        existing_doc = None
+        for node in graph.nodes:
+            if (hasattr(node, 'node_type') and node.node_type == 'document' and
+                hasattr(node, 'url') and node.url == relative_path):
+                # Trovato documento esistente con lo stesso URL
+                existing_doc = node
+                print(f"✅ Found existing DocumentNode for file: {filename}")
+                break
+        
+        if existing_doc:
+            # ✅ Verifica che sia collegato al nodo target
+            edge_exists = False
+            edge_id = f"{target_node.node_id}_generic_connection_{existing_doc.node_id}"
+            
+            for edge in graph.edges:
+                if (edge.edge_source == target_node.node_id and 
+                    edge.edge_target == existing_doc.node_id and
+                    edge.edge_type == "generic_connection"):
+                    edge_exists = True
+                    break
+            
+            if not edge_exists:
+                # Crea edge se non esiste
+                graph.add_edge(
+                    edge_id=edge_id,
+                    edge_source=target_node.node_id,
+                    edge_target=existing_doc.node_id,
+                    edge_type="generic_connection"
+                )
+                print(f"✅ Added edge to existing DocumentNode")
+            else:
+                print(f"✅ Edge already exists to DocumentNode")
+            
+            return existing_doc
+        
+        # ✅ Se non esiste, crea nuovo documento
+        # Conta documenti esistenti per calcolare l'indice progressivo
+        existing_docs = [n for n in graph.nodes 
+                        if hasattr(n, 'name') and n.name.startswith(f"DOC.{target_node.name}")]
+        doc_index = len(existing_docs) + 1
+        
+        # Include folder_suffix nel nome se presente
+        if folder_suffix and folder_suffix != "main":
+            doc_id = f"DOC.{target_node.name}.{folder_suffix}.{doc_index:03d}"
+        else:
+            doc_id = f"DOC.{target_node.name}.{doc_index:03d}"
+        
+        print(f"Creating NEW DocumentNode: {doc_id}")
         print(f"  File path: {file_path}")
         print(f"  Relative path: {relative_path}")
         
@@ -1346,32 +1384,40 @@ class AUXILIARY_OT_import_now(bpy.types.Operator):
         )
         doc_node.attributes = getattr(doc_node, 'attributes', {})
         doc_node.attributes['resource_type'] = filename.split('.')[-1].lower()
-        doc_node.attributes['source_folder'] = folder_suffix
+        
         graph.add_node(doc_node)
         
-        # Crea LinkNode con LO STESSO path relativo
+        # Crea edge verso il nodo target
+        edge_id = f"{target_node.node_id}_generic_connection_{doc_node.node_id}"
+        graph.add_edge(
+            edge_id=edge_id,
+            edge_source=target_node.node_id,
+            edge_target=doc_node.node_id,
+            edge_type="generic_connection"
+        )
+        
+        # Crea LinkNode per il file
+        link_id = f"LINK.{doc_id}"
         link_node = LinkNode(
             node_id=str(uuid.uuid4()),
-            name=f"Resource_{filename}",
-            url=relative_path  # ✅ Path relativo (non assoluto!)
+            name=link_id,
+            url=relative_path
         )
+        link_node.data = {'url': relative_path, 'filename': filename}
+        
         graph.add_node(link_node)
         
-        # Collegamenti
+        # Crea edge tra DocumentNode e LinkNode
+        link_edge_id = f"{doc_node.node_id}_has_linked_resource_{link_node.node_id}"
         graph.add_edge(
-            edge_id=f"us_to_doc_{doc_index}",
-            edge_source=target_node.node_id, 
-            edge_target=doc_node.node_id,
-            edge_type="generic_connection"  # ✅ Questo è il tipo di edge che reload_doc_previews_for_us() cerca!
-        )
-        graph.add_edge(
-            edge_id=f"doc_to_link_{doc_index}",
+            edge_id=link_edge_id,
             edge_source=doc_node.node_id,
-            edge_target=link_node.node_id, 
+            edge_target=link_node.node_id,
             edge_type="has_linked_resource"
         )
         
-        print(f"✓ Created: {doc_id} → {filename} (path: {relative_path})")
+        print(f"✅ Created DocumentNode and LinkNode for: {filename}")
+        return doc_node
 
 # Lista delle classi da registrare
 classes = [
