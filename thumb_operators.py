@@ -184,8 +184,8 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
                     f"Total images: {total_images_found}")
 
         # ✅ PULISCI LA CACHE dopo la rigenerazione
-        from .thumb_utils import clear_us_thumbs_cache
-        clear_us_thumbs_cache()
+        from .thumb_utils import clear_all_thumbs_caches
+        clear_all_thumbs_caches()
 
         return {'FINISHED'}
     

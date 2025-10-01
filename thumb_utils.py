@@ -21,29 +21,41 @@ _cached_us_thumbs = {}  # {us_node_id: [(doc_key, name, desc, icon_id, i), ...]}
 _last_us_id = None
 _last_resource_folder = None
 
-def resolve_resource_folder(resource_folder_path: str) -> str:
+_resolved_paths_cache = {}  # {raw_path: resolved_absolute_path}
+
+def resolve_resource_folder(resource_folder_path: str, verbose: bool = False) -> str:
     """
     Risolve correttamente la resource_folder sia che sia assoluta o relativa.
+    ✅ CON CACHE per evitare di risolvere lo stesso path ripetutamente.
     
     Args:
         resource_folder_path: Path che può essere:
             - Assoluto: "/path/completo/Resources"
             - Relativo Blender: "//Resources" o "//../Resources" (relativo al .blend)
             - Relativo semplice: "Resources" o "../Resources"
+        verbose: Se True, stampa i log di debug (default: False)
     
     Returns:
         Path assoluto risolto correttamente, o None se impossibile
     """
+    global _resolved_paths_cache
+    
     if not resource_folder_path:
         return None
     
     # Pulisci solo spazi, NON normalizzare ancora!
     resource_folder_path = resource_folder_path.strip()
     
+    # ✅ CHECK CACHE: se già risolto, ritorna subito
+    if resource_folder_path in _resolved_paths_cache:
+        return _resolved_paths_cache[resource_folder_path]
+    
     # Se è già assoluto (non inizia con // e non contiene ..), ritorna
     if os.path.isabs(resource_folder_path) and not resource_folder_path.startswith("//"):
         result = os.path.normpath(resource_folder_path)
-        print(f"✓ Path assoluto: {result}")
+        if verbose:
+            print(f"✓ Path assoluto: {result}")
+        _resolved_paths_cache[resource_folder_path] = result
         return result
     
     # Se inizia con //, lascia che bpy.path.abspath lo risolva
@@ -52,32 +64,41 @@ def resolve_resource_folder(resource_folder_path: str) -> str:
         resolved = bpy.path.abspath(resource_folder_path)
         # SOLO ORA normalizza il risultato
         result = os.path.normpath(resolved)
-        print(f"✓ Path relativo Blender: {resource_folder_path} → {result}")
+        if verbose:
+            print(f"✓ Path relativo Blender: {resource_folder_path} → {result}")
         
         # Verifica che il path esista
         if os.path.exists(result):
+            _resolved_paths_cache[resource_folder_path] = result
             return result
         else:
-            print(f"⚠️ Path risolto non esiste: {result}")
+            if verbose:
+                print(f"⚠️ Path risolto non esiste: {result}")
+            _resolved_paths_cache[resource_folder_path] = None
             return None
     
     # Path relativo semplice (senza //)
     blend_path = bpy.data.filepath
     if not blend_path:
-        print("⚠️ File .blend non salvato, impossibile risolvere path relativi senza //")
+        if verbose:
+            print("⚠️ File .blend non salvato, impossibile risolvere path relativi senza //")
         return None
     
     blend_dir = os.path.dirname(blend_path)
     # Risolvi il path relativo rispetto alla directory del .blend
     absolute_path = os.path.join(blend_dir, resource_folder_path)
     result = os.path.normpath(absolute_path)
-    print(f"✓ Path relativo: {resource_folder_path} → {result}")
+    if verbose:
+        print(f"✓ Path relativo: {resource_folder_path} → {result}")
     
     # Verifica che il path esista
     if os.path.exists(result):
+        _resolved_paths_cache[resource_folder_path] = result
         return result
     else:
-        print(f"⚠️ Path risolto non esiste: {result}")
+        if verbose:
+            print(f"⚠️ Path risolto non esiste: {result}")
+        _resolved_paths_cache[resource_folder_path] = None
         return None
 
 def em_thumbs_root(resource_folder_path: str = None) -> Path:
@@ -373,9 +394,12 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
         
         if not aux_file.resource_folder:
             return []
-        
-        resource_folder = resolve_resource_folder(aux_file.resource_folder)
-        
+                
+        # ✅ Usa verbose=True solo se stiamo caricando per la prima volta (non in cache)
+        cache_key_temp = f"{us_node_id}_{aux_file.resource_folder}"
+        is_first_load = cache_key_temp not in _cached_us_thumbs
+        resource_folder = resolve_resource_folder(aux_file.resource_folder, verbose=is_first_load)  
+              
         if not resource_folder or not os.path.exists(resource_folder):
             print(f"⚠️ Resource folder non valida: {aux_file.resource_folder}")
             return []
@@ -510,6 +534,20 @@ def clear_us_thumbs_cache():
     global _cached_us_thumbs
     _cached_us_thumbs.clear()
     print("🗑️ Cache thumbnails US pulita")
+
+# ✅ NUOVA FUNZIONE
+def clear_resolved_paths_cache():
+    """Pulisce la cache dei path risolti. Da chiamare quando cambia il file .blend."""
+    global _resolved_paths_cache
+    _resolved_paths_cache.clear()
+    print("🗑️ Cache path risolti pulita")
+
+# ✅ NUOVA FUNZIONE COMBO
+def clear_all_thumbs_caches():
+    """Pulisce tutte le cache del sistema thumbnails."""
+    clear_us_thumbs_cache()
+    clear_resolved_paths_cache()
+    print("🧹 Tutte le cache thumbnails pulite")
 
 def reload_doc_previews_from_cache() -> List[Tuple[str, str, str, int, int]]:
     """Carica preview dalla cache per EnumProperty"""
@@ -653,9 +691,12 @@ def get_src_path_from_doc_key(doc_key: str) -> Optional[str]:
 
 
 def cleanup_preview_collections():
-    """Pulisce le preview collections (per unregister)"""
+    """Pulisce le preview collections e tutte le cache (per unregister)"""
     global preview_collections
     
     for pcoll in preview_collections.values():
         bpy.utils.previews.remove(pcoll)
     preview_collections.clear()
+    
+    # ✅ Pulisci anche tutte le cache
+    clear_all_thumbs_caches()
