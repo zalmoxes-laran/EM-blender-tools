@@ -32,6 +32,72 @@ from bpy.props import EnumProperty   # type: ignore
 
 from .thumb_utils import reload_doc_previews_from_cache, has_doc_thumbs  
 
+
+def auto_import_auxiliary_files(context, graphml_index):
+    """
+    Itera su tutti i file ausiliari di un GraphML e importa automaticamente
+    quelli con la flag auto_reload_on_em_update attiva.
+    
+    Args:
+        context: Blender context
+        graphml_index: Indice del file GraphML nella lista
+    
+    Returns:
+        tuple: (numero_importati, numero_errori)
+    """
+    em_tools = context.scene.em_tools
+    
+    if graphml_index < 0 or graphml_index >= len(em_tools.graphml_files):
+        print(f"⚠️ Invalid GraphML index: {graphml_index}")
+        return 0, 0
+    
+    graphml = em_tools.graphml_files[graphml_index]
+    
+    imported_count = 0
+    error_count = 0
+    
+    print(f"\n🔄 Auto-import: Checking auxiliary files for '{graphml.name}'...")
+    
+    for i, aux_file in enumerate(graphml.auxiliary_files):
+        # Salta se auto-reload non è attivo
+        if not aux_file.auto_reload_on_em_update:
+            continue
+        
+        # Verifica che il file sia configurato
+        if not aux_file.filepath:
+            print(f"⚠️ Skipping '{aux_file.name}': no filepath configured")
+            error_count += 1
+            continue
+        
+        print(f"📥 Auto-importing '{aux_file.name}' ({aux_file.file_type})...")
+        
+        try:
+            # Chiama l'operatore di import
+            result = bpy.ops.em.import_3dgis_database(
+                auxiliary_mode=True,
+                graphml_index=graphml_index,
+                auxiliary_index=i
+            )
+            
+            if result == {'FINISHED'}:
+                imported_count += 1
+                print(f"✅ Successfully imported '{aux_file.name}'")
+            else:
+                error_count += 1
+                print(f"❌ Failed to import '{aux_file.name}'")
+                
+        except Exception as e:
+            error_count += 1
+            print(f"❌ Error importing '{aux_file.name}': {str(e)}")
+    
+    if imported_count > 0:
+        print(f"\n✅ Auto-import completed: {imported_count} file(s) imported, {error_count} error(s)")
+    elif error_count > 0:
+        print(f"\n⚠️ Auto-import completed with {error_count} error(s)")
+    else:
+        print(f"\nℹ️ No auxiliary files marked for auto-import")
+    
+    return imported_count, error_count
 class EM_create_collection(bpy.types.Operator):
     bl_idname = "create.collection"
     bl_label = "Create Standard Collections"
@@ -274,6 +340,13 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         default=False
     ) # type: ignore
 
+    # ✅ NUOVA PROPRIETÀ per auto-reload
+    auto_reload_on_em_update: bpy.props.BoolProperty(
+        name="Auto-reload on EM Update",
+        description="Automatically import this auxiliary file when the parent GraphML is loaded/reloaded",
+        default=False
+    ) # type: ignore    
+
 class EMToolsProperties(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="GraphML File") # type: ignore
     expanded: bpy.props.BoolProperty(name="Auxiliary files", default=False) # type: ignore
@@ -315,7 +388,10 @@ class AUXILIARY_UL_files(bpy.types.UIList):
             #                emboss=False)
                         
             # Tipo file icon
-            
+
+
+
+
             if item.file_type == "emdb_xlsx":
                 row.label(text="", icon='SPREADSHEET')
 
@@ -337,6 +413,10 @@ class AUXILIARY_UL_files(bpy.types.UIList):
             # Quick actions
             #row.operator("auxiliary.reload", text="", icon="FILE_REFRESH", emboss=False).file_index = index
             row.operator("auxiliary.import_now", text="", icon="FILE_REFRESH", emboss=False)
+
+           # ✅ NUOVO: Icona toggle per auto-reload
+            icon_auto = 'CHECKBOX_HLT' if item.auto_reload_on_em_update else 'CHECKBOX_DEHLT'
+            row.prop(item, "auto_reload_on_em_update", text="", icon=icon_auto, emboss=False)
 
 def get_emdb_mappings():
     """Get available EMdb mapping files from registry"""
@@ -466,12 +546,12 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         
         # Ottieni US selezionata
         if not hasattr(scene, 'em_list') or scene.em_list_index < 0:
-            # Nessuna US selezionata - restituisci item placeholder
-            return [("", "No US selected", "", 0, 0)]
+            # ✅ CORRETTO: Usa "NONE" invece di stringa vuota
+            return [("NONE", "No US selected", "", 0, 0)]
         
         if scene.em_list_index >= len(scene.em_list):
-            # Indice fuori range - restituisci item placeholder
-            return [("", "Invalid US index", "", 0, 0)]
+            # ✅ CORRETTO: Usa "NONE" invece di stringa vuota
+            return [("NONE", "Invalid US index", "", 0, 0)]
             
         selected_us = scene.em_list[scene.em_list_index]
         
@@ -479,10 +559,10 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         from .thumb_utils import reload_doc_previews_for_us
         items = reload_doc_previews_for_us(selected_us.id_node)
         
-        # ✅ CRITICO: Se non ci sono thumbnails, restituisci placeholder
-        # Questo previene che Blender mantenga un valore invalido dall'US precedente
+        # ✅ CRITICO: Se non ci sono thumbnails, restituisci placeholder con ID valido
+        # Usa "NONE" invece di "" per evitare il warning di Blender
         if not items or len(items) == 0:
-            return [("", "No thumbnails available", "", 0, 0)]
+            return [("NONE", "No thumbnails available", "", 0, 0)]
         
         return items
 

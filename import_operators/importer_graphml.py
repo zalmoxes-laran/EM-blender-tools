@@ -137,6 +137,15 @@ class EM_import_GraphML(bpy.types.Operator):
                 bpy.ops.activity.refresh_list(graphml_index=self.graphml_index)
 
 
+                from ..em_setup import auto_import_auxiliary_files
+                imported, errors = auto_import_auxiliary_files(context, self.graphml_index)
+                
+                if imported > 0:
+                    self.report({'INFO'}, f"GraphML loaded + {imported} auxiliary file(s) auto-imported")
+                elif errors > 0:
+                    self.report({'WARNING'}, f"GraphML loaded but {errors} auxiliary import(s) failed")
+                
+
             except Exception as e:
                 error_msg = f"Error loading graph: {e}"
                 print(error_msg)
