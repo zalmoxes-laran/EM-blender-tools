@@ -9,6 +9,7 @@ from . import icons_manager
 
 from .populate_lists import *
 
+
 from bpy.props import (BoolProperty, # type: ignore
                        FloatProperty,
                        StringProperty,
@@ -32,6 +33,8 @@ from bpy.props import EnumProperty   # type: ignore
 
 from .thumb_utils import reload_doc_previews_from_cache, has_doc_thumbs  
 
+import hashlib  # ✅ Necessario per path hash
+from pathlib import Path
 
 def auto_import_auxiliary_files(context, graphml_index):
     """
@@ -309,7 +312,8 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
     filepath: bpy.props.StringProperty(
         name="File Path",
         subtype='FILE_PATH',
-        description="Path to the auxiliary file"
+        description="Path to the auxiliary file",
+        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
     ) # type: ignore
 
     file_type: bpy.props.EnumProperty(
@@ -328,11 +332,12 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         description="Select EMdb format"
     ) # type: ignore
     
-    # ✅ NUOVO: Cartella padre per ricerca risorse
+    # ✅ MODIFICATO: Cartella padre per ricerca risorse (con supporto Blender 4.5)
     resource_folder: bpy.props.StringProperty(
         name="Resource Folder",
-        description="Parent folder to search for resources (photos, 3D scans, etc.)",
-        subtype='DIR_PATH'
+        description="Parent folder to search for resources. Use relative path (// prefix) for cross-PC compatibility",
+        subtype='DIR_PATH',
+        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
     ) # type: ignore
     
     expanded: bpy.props.BoolProperty(
@@ -350,13 +355,22 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
 class EMToolsProperties(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="GraphML File") # type: ignore
     expanded: bpy.props.BoolProperty(name="Auxiliary files", default=False) # type: ignore
-    graphml_path: bpy.props.StringProperty(name="GraphML Path", subtype='FILE_PATH')   # type: ignore # Aggiungiamo il campo per il percorso
+    graphml_path: bpy.props.StringProperty(
+        name="GraphML Path",
+        subtype='FILE_PATH',
+        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
+    )   # type: ignore # Aggiungiamo il campo per il percorso
     dosco_dir: bpy.props.StringProperty(name="DosCo Directory", subtype='DIR_PATH') # type: ignore
-    xlsx_filepath: bpy.props.StringProperty(name="Source File (xlsx)", subtype='FILE_PATH') # type: ignore
+    xlsx_filepath: bpy.props.StringProperty(
+        name="Source File (xlsx)",
+        subtype='FILE_PATH',
+        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
+    ) # type: ignore
     xlsx_3DGIS_database_file: bpy.props.StringProperty(
         name="3D GIS Database File", 
         description="Path to the 3D GIS database Excel file",
-        subtype='FILE_PATH'
+        subtype='FILE_PATH',
+        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
     )     # type: ignore
     emdb_filepath: bpy.props.StringProperty(name="EMdb File (sqlite)", subtype='FILE_PATH') # type: ignore
     is_graph: bpy.props.BoolProperty(name="Graph Exists", default=False)  # type: ignore # Aggiungi questa riga
@@ -443,6 +457,7 @@ def get_pyarchinit_mappings(self, context):
         print(f"Error loading pyArchInit mappings: {str(e)}")
     
     return mappings
+
 class EMToolsSettings(bpy.types.PropertyGroup):
     # Proprietà esistenti
     graphml_files: bpy.props.CollectionProperty(type=EMToolsProperties) # type: ignore
@@ -468,7 +483,8 @@ class EMToolsSettings(bpy.types.PropertyGroup):
     generic_xlsx_file: bpy.props.StringProperty(
         name="Excel File",
         description="Path to generic Excel file",
-        subtype='FILE_PATH'
+        subtype='FILE_PATH',
+        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
     ) # type: ignore
     xlsx_sheet_name: bpy.props.StringProperty(
         name="Sheet Name",
@@ -485,7 +501,8 @@ class EMToolsSettings(bpy.types.PropertyGroup):
     pyarchinit_db_path: bpy.props.StringProperty(
         name="SQLite Database",
         description="Path to pyArchInit SQLite database",
-        subtype='FILE_PATH'
+        subtype='FILE_PATH',
+        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
     ) # type: ignore
     pyarchinit_table: bpy.props.StringProperty(
         name="Table Name",
@@ -497,7 +514,8 @@ class EMToolsSettings(bpy.types.PropertyGroup):
     emdb_xlsx_file: bpy.props.StringProperty(
         name="EMdb Excel File",
         description="Path to EMdb Excel file",
-        subtype='FILE_PATH'
+        subtype='FILE_PATH',
+        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
     ) # type: ignore
     emdb_mapping: bpy.props.EnumProperty(
         name="EMdb Format",
@@ -834,7 +852,7 @@ class EM_SetupPanel(bpy.types.Panel):
                         warning_box.label(text="- Update the epochs placeholder dates (xx)")
                     
                     op = warning_box.operator("wm.url_open", text="Quick guide", icon="HELP")
-                    op.url = "https://docs.extendedmatrix.org/en/1.5.0dev/data_funnel.html#general-background-data"
+                    op.url = "https://docs.extendedmatrix.org/en/1.5.0dev/data_funnel.html#important-considerations"
 
                 box = layout.box()
                 em_settings = bpy.context.window_manager.em_addon_settings
@@ -896,6 +914,17 @@ class EM_SetupPanel(bpy.types.Panel):
                             row = box.row()
                             row.prop(aux_file, "resource_folder", text="Resources")
 
+                            # ✅ NUOVO: Warning se path assoluto (non cross-PC compatible)
+                            if aux_file.resource_folder:
+                                if os.path.isabs(aux_file.resource_folder) and not aux_file.resource_folder.startswith('//'):
+                                    warn_box = box.box()
+                                    warn_box.alert = True
+                                    warn_row = warn_box.row()
+                                    warn_row.label(text="Resources: use relative path (// prefix) for cross-PC compatibility", icon='ERROR')
+                                    warn_row = warn_box.row()
+                                    warn_row.label(text="Example: //Resources  or  //../../SharedFolder/Resources")
+                            
+
                             row = box.row()
                             row.label(text="Thumnbnails for the resource folder? Click below.")
 
@@ -911,6 +940,24 @@ class EM_SetupPanel(bpy.types.Panel):
                             # Pulsanti thumbnails
                             thumb_row.operator("emtools.build_doc_thumbs", text="(Re)generate thumbnails")
                             thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
+                            op = thumb_row.operator("wm.url_open", text="", icon="HELP")
+                            op.url = "https://docs.extendedmatrix.org/projects/EM-tools/en/1.5.0/EMstructure.html#setting-up-resource-folders"
+
+
+
+                            # ✅ Info compatta: solo nome cartella thumbs + bottone apri
+                            if aux_file.resource_folder:
+                                from .thumb_utils import em_thumbs_root
+                                try:
+                                    thumbs_root = em_thumbs_root(aux_file.resource_folder)
+                                    folder_name = thumbs_root.name  # Solo il nome, tipo "Resources_abc12345"
+                                    
+                                    row = box.row(align=True)
+                                    row.label(text=f"Thumbs: {folder_name}", icon='FILE_CACHE')
+                                    #row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILEBROWSER')
+                                except Exception as e:
+                                    pass  # Silenzioso se non può calcolare
+
 
             # Advanced Tools section
             box = layout.box()

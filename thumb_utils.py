@@ -104,10 +104,11 @@ def resolve_resource_folder(resource_folder_path: str, verbose: bool = False) ->
 def em_thumbs_root(resource_folder_path: str = None) -> Path:
     """
     Restituisce la cartella thumbnails per una resource_folder specifica.
+    ✅ NUOVO: Hash basato sul path RELATIVO per portabilità cross-PC OneDrive.
     Se due file ausiliari usano la stessa resource_folder, condividono le thumbs.
     
     Args:
-        resource_folder_path: Path assoluto o relativo della resource_folder.
+        resource_folder_path: Path relativo (//Resources) o assoluto della resource_folder.
                              Se None, usa cartella temporanea.
     
     Returns:
@@ -122,24 +123,29 @@ def em_thumbs_root(resource_folder_path: str = None) -> Path:
         temp_dir.mkdir(exist_ok=True)
         return temp_dir
     
-    # ✅ Usa resolve_resource_folder per risolvere correttamente
-    abs_resource_path = resolve_resource_folder(resource_folder_path)
-    if not abs_resource_path:
-        import tempfile
-        temp_dir = Path(tempfile.gettempdir()) / "EM_thumbs_temp"
-        temp_dir.mkdir(exist_ok=True)
-        return temp_dir
+    # ✅ CHIAVE: Usa il path RELATIVO ORIGINALE per l'hash (non quello assoluto)
+    # Questo garantisce che lo stesso path relativo generi lo stesso hash su PC diversi
+    path_for_hash = resource_folder_path.strip()
     
-    # Genera hash univoco basato sul path assoluto della resource_folder
-    # Se due file ausiliari puntano alla stessa cartella → stesso hash → stesse thumbs
-    path_hash = hashlib.md5(abs_resource_path.encode('utf-8')).hexdigest()[:8]
+    # Normalizza solo i separatori per consistenza cross-platform
+    path_for_hash = path_for_hash.replace('\\', '/')
     
-    # Nome univoco: NomeCartella_hash
-    folder_name = os.path.basename(os.path.normpath(abs_resource_path))
+    # Genera hash dal path relativo
+    path_hash = hashlib.md5(path_for_hash.encode('utf-8')).hexdigest()[:8]
+    
+    # Estrai nome cartella dal path relativo
+    if path_for_hash.startswith('//'):
+        folder_name = os.path.basename(path_for_hash.lstrip('/'))
+    else:
+        folder_name = os.path.basename(os.path.normpath(path_for_hash))
+    
+    # Se la cartella è vuota, usa un default
+    if not folder_name:
+        folder_name = "Resources"
+    
     unique_name = f"{folder_name}_{path_hash}"
     
-    # Se il .blend è salvato, thumbs vicino al .blend
-    # Altrimenti in temp
+    # Crea thumbs vicino al .blend (o in temp se non salvato)
     if blend_path:
         blend_dir = os.path.dirname(blend_path)
         thumbs_dir = os.path.join(blend_dir, "EM_thumbs", unique_name)
@@ -152,6 +158,29 @@ def em_thumbs_root(resource_folder_path: str = None) -> Path:
     
     return Path(thumbs_dir)
 
+def get_thumbs_path_display(resource_folder_path: str = None) -> str:
+    """
+    Ritorna una stringa user-friendly per mostrare il path della cartella thumbs nella UI.
+    
+    Returns:
+        Stringa formattata per la UI (es. ".../EM_thumbs/Resources_abc12345")
+    """
+    if not resource_folder_path:
+        return "[Not configured]"
+    
+    try:
+        thumbs_root = em_thumbs_root(resource_folder_path)
+        
+        # Mostra solo le ultime 2-3 parti del path per brevità
+        parts = Path(thumbs_root).parts
+        if len(parts) >= 3:
+            display = f".../{'/'.join(parts[-3:])}"
+        else:
+            display = str(thumbs_root)
+        
+        return display
+    except Exception as e:
+        return f"[Error: {str(e)}]"
 
 def get_file_hash(file_path: str) -> str:
     """Genera hash SHA1 per il file (per naming cache)"""
