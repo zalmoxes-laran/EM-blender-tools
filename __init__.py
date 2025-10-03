@@ -366,12 +366,12 @@ if DEPENDENCIES_LOADED:
         from . import (
             operators,
             em_setup,
+            visual_manager,  # <-- Solo UI e operatori base
             stratigraphy_manager,
             epoch_manager,
             functions,
             paradata_manager,
             export_manager,
-            visual_manager,  # <-- Solo UI e operatori base
             EMdb_excel,
             em_statistics,
             graph2geometry,
@@ -382,7 +382,6 @@ if DEPENDENCIES_LOADED:
             proxy_to_rm_projection,
             cronofilter,
             landscape_system,
-
         )
         
         
@@ -420,7 +419,6 @@ def register_base_classes():
             logger.warning(f"Could not register {cls.__name__}: {e}")
 
     
-
 def setup_scene_collections():
     """Setup all collection properties on Scene"""
     collection_types = {
@@ -623,6 +621,7 @@ def register_modules():
         icons_manager,
         em_setup,
         EMdb_excel,
+        visual_manager,
         activity_manager, 
         stratigraphy_manager,
         epoch_manager,
@@ -647,14 +646,14 @@ def register_modules():
             logger.debug(f"Registered core independent module: {module.__name__}")
         except Exception as e:
             logger.error(f"Error registering core module {module.__name__}: {e}")
-    
+    '''
     # FASE 2: Visual Manager (crea i pannelli parent) 
     try:
-        visual_manager.register()
+        #visual_manager.register()
         logger.debug(f"Registered visual manager (creates parent panels)")
     except Exception as e:
         logger.error(f"Error registering visual manager: {e}")
-    
+    '''
     # FASE 3: Moduli che dipendono dai pannelli del Visual Manager
     ui_dependent_modules = [
         proxy_inflate_manager,  # Dipende da VIEW3D_PT_visual_panel

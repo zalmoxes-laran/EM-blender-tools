@@ -135,23 +135,24 @@ class VIEW3D_PT_visual_panel(Panel):
         row = box.row()
         if hasattr(scene, 'property_enum'):
             row.prop(scene, "property_enum", text="Select Property")
+        if scene.selected_property and len(scene.property_values) > 0:
+            #row = box.row()
+            row.operator("visual.apply_colors", text="", icon='COLOR')
+
+
 
         if hasattr(scene, 'selected_property') and scene.selected_property:
+
             row = box.row()
             row.template_list("VISUAL_UL_property_values", "", 
                             scene, "property_values",
                             scene, "active_value_index")
 
-            # Color scheme management
-            row = box.row(align=True)
-            row.operator("visual.save_color_scheme", text="Save Schema", icon='FILE_TICK')
-            row.operator("visual.load_color_scheme", text="Load Schema", icon='FILE_FOLDER')
-
             # Color Ramp section
             if hasattr(scene, 'color_ramp_props'):
                 row = box.row()
                 row.prop(scene.color_ramp_props, "advanced_options", 
-                        text="Color Ramp", 
+                        text="Customize Color Ramp", 
                         icon='TRIA_DOWN' if scene.color_ramp_props.advanced_options else 'TRIA_RIGHT',
                         emboss=False)
 
@@ -170,9 +171,12 @@ class VIEW3D_PT_visual_panel(Panel):
                     
                         preview.operator("visual.apply_color_ramp", text="Apply Color Ramp")
 
-            if scene.selected_property and len(scene.property_values) > 0:
-                row = box.row()
-                row.operator("visual.apply_colors", text="Apply Colors to Proxies", icon='COLOR')
+            # Color scheme management
+            row = box.row(align=True)
+            row.operator("visual.save_color_scheme", text="Save Schema", icon='FILE_TICK')
+            row.operator("visual.load_color_scheme", text="Load Schema", icon='FILE_FOLDER')
+
+
 
     def draw_display_controls(self, layout, context):
         """Draw display control buttons"""

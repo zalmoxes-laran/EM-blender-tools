@@ -693,8 +693,10 @@ class EM_SetupPanel(bpy.types.Panel):
     bl_region_type = 'UI'
     bl_category = "EM"
 
+
     def draw(self, context):
         layout = self.layout
+        #layout.template_icon(icon_value=icons_manager.get_icon_value("em_logo"), scale=2.0)
         scene = context.scene
         em_tools = scene.em_tools
 

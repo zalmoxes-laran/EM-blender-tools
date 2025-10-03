@@ -1,6 +1,6 @@
 # EMtools/icons_manager.py
-import bpy
-import bpy.utils.previews
+import bpy # type: ignore
+import bpy.utils.previews # type: ignore
 import os
 import logging
 
@@ -36,7 +36,8 @@ def load_icons():
         "property": "property.png",       
         "pyarchinit": "pyarchinit.png",
         "em_no_publish": "em_no_publish.png",
-        "em_publish": "em_publish.png"  
+        "em_publish": "em_publish.png",
+        "em_logo": "em_logo.png",  
     }
     
     # Carica ogni icona che esiste
