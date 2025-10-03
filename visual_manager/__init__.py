@@ -3,7 +3,7 @@ Visual Manager - Solo UI e Operatori Base
 Questo modulo contiene SOLO l'interfaccia utente e gli operatori base per la gestione delle proprietà.
 """
 
-import bpy
+import bpy # type: ignore
 
 # Import solo i moduli base necessari per l'UI
 from .data import register_data, unregister_data

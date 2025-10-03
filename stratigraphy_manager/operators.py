@@ -602,10 +602,10 @@ class EM_update_icon_list(Operator):
 class EM_select_list_item(Operator):
     bl_idname = "select.listitem"
     bl_label = "Select element in the list above from a 3D proxy"
-    bl_description = "Select the row in the stratigraphy manager corresponding to the active proxy in the scene"
+    bl_description = "(alt+F win/linux; option+F on mac) to select the 3D object from the list above"
     bl_options = {"REGISTER", "UNDO"}
 
-    list_type: StringProperty()
+    list_type: StringProperty() # type: ignore
 
     def execute(self, context):
         scene = context.scene

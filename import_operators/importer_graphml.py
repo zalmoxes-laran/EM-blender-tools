@@ -12,7 +12,7 @@ from s3dgraphy.multigraph.multigraph import load_graph_from_file
 class EM_import_GraphML(bpy.types.Operator):
     bl_idname = "import.em_graphml"
     bl_label = "Import EM (GraphML)"
-    bl_description = "Load/reload this EM from disk and set it active"
+    bl_description = "(SHIF+F) Load/reload this EM from disk and set it active"
     bl_options = {"REGISTER", "UNDO"}
 
     # Aggiungiamo una proprietà per passare l'indice del file GraphML selezionato
