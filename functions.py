@@ -505,7 +505,6 @@ def select_3D_obj(node_name, context=None, graph=None):
         context: Contesto Blender (opzionale)
         graph: Istanza del grafo (opzionale)
     """
-    import bpy
     
     # Converti il nome del nodo nel nome del proxy (aggiunge prefisso se necessario)
     proxy_name = node_name_to_proxy_name(node_name, context=context, graph=graph)
@@ -891,29 +890,40 @@ def switch_paradata_lists(self, context):
 def check_objs_in_scene_and_provide_icon_for_list_element(node_name, graph=None, context=None):
     """
     Verifica se esiste un oggetto 3D in scena corrispondente al nodo e fornisce l'icona appropriata.
-    
-    ✅ MODIFICATO: Ora gestisce automaticamente il prefisso
-    
-    Args:
-        node_name (str): Il nome del nodo (senza prefisso)
-        graph: Istanza del grafo (opzionale)
-        context: Contesto Blender (opzionale)
-    
-    Returns:
-        str: Nome dell'icona appropriata
     """
+    
+    # 🔍 DEBUG: Stampa informazioni sul graph
+    print(f"\n🔍 DEBUG check_objs - node_name: {node_name}")
+    print(f"🔍 DEBUG check_objs - graph: {graph}")
+    print(f"🔍 DEBUG check_objs - graph type: {type(graph)}")
+    
+    if graph:
+        print(f"🔍 DEBUG check_objs - hasattr 'attributes': {hasattr(graph, 'attributes')}")
+        if hasattr(graph, 'attributes'):
+            print(f"🔍 DEBUG check_objs - graph.attributes: {graph.attributes}")
+            print(f"🔍 DEBUG check_objs - graph_code in attributes: {'graph_code' in graph.attributes}")
+            if 'graph_code' in graph.attributes:
+                print(f"🔍 DEBUG check_objs - graph_code value: '{graph.attributes['graph_code']}'")
     
     # ✅ Converti il nome del nodo nel nome del proxy (aggiunge prefisso se necessario)
     proxy_name = node_name_to_proxy_name(node_name, context=context, graph=graph)
     
+    print(f"🔍 DEBUG check_objs - proxy_name result: '{proxy_name}'")
+    
     # Cerca l'oggetto 3D usando il nome con prefisso
     obj = bpy.data.objects.get(proxy_name)
     
+    print(f"🔍 DEBUG check_objs - obj found: {obj is not None}")
+    if not obj:
+        # Verifica se esiste un oggetto con un nome simile
+        similar_objects = [o.name for o in bpy.data.objects if node_name in o.name]
+        print(f"🔍 DEBUG check_objs - similar objects in scene: {similar_objects}")
+    
     # Restituisci l'icona appropriata
     if obj:
-        return "OUTLINER_OB_MESH"  # Oggetto esiste in scena
+        return "LINKED"  # Oggetto esiste in scena
     else:
-        return "MESH_DATA"  # Oggetto non esiste
+        return "UNLINKED"  # Oggetto non esiste
 
 
 def update_icons(context, list_type):
@@ -921,13 +931,11 @@ def update_icons(context, list_type):
     Aggiorna le icone di una lista in base alla presenza degli oggetti 3D in scena.
     
     ✅ MODIFICATO: Ora ottiene il graph attivo e lo passa a check_objs
-    
-    Args:
-        context: Blender context
-        list_type: Nome della lista da aggiornare (es. "em_list")
     """
     import bpy
     from .functions import is_graph_available as check_graph
+    
+    print(f"\n🔍 DEBUG update_icons - Starting for list_type: {list_type}")
     
     scene = context.scene
     list_path = "scene." + list_type
@@ -935,16 +943,35 @@ def update_icons(context, list_type):
     # ✅ Ottieni il grafo attivo
     graph_exists, graph = check_graph(context)
     
+    print(f"🔍 DEBUG update_icons - graph_exists: {graph_exists}")
+    print(f"🔍 DEBUG update_icons - graph: {graph}")
+    
     # Se il grafo non esiste, usa None (funzionerà comunque per oggetti senza prefisso)
     active_graph = graph if graph_exists else None
     
     # Aggiorna l'icona per ogni elemento
+    element_count = 0
     for element in eval(list_path):
-        element.icon = check_objs_in_scene_and_provide_icon_for_list_element(
+        element_count += 1
+        
+        old_icon = element.icon
+        print(f"\n🔍 DEBUG update_icons - Element #{element_count}: {element.name}")
+        print(f"🔍 DEBUG update_icons - Old icon: {old_icon}")
+        
+        new_icon = check_objs_in_scene_and_provide_icon_for_list_element(
             element.name, 
-            graph=active_graph,  # ✅ Passa il graph
+            graph=active_graph,
             context=context
         )
+        
+        print(f"🔍 DEBUG update_icons - New icon returned: {new_icon}")
+        
+        element.icon = new_icon
+        
+        print(f"🔍 DEBUG update_icons - Icon after assignment: {element.icon}")
+        print(f"🔍 DEBUG update_icons - Assignment successful: {element.icon == new_icon}")
+    
+    print(f"\n🔍 DEBUG update_icons - Completed. Updated {element_count} elements")
     
     return
 

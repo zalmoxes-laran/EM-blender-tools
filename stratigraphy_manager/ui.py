@@ -18,7 +18,7 @@ class EM_STRAT_UL_List(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         icons_style = 'OUTLINER'
         scene = context.scene
-        is_in_scene = item.icon == 'RESTRICT_INSTANCED_OFF'
+        is_in_scene = item.icon == 'LINKED'  # Check if the item is linked in the scene
         
         # Layout with better spacing
         row = layout.row(align=True)
