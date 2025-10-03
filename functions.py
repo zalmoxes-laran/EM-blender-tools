@@ -1,11 +1,11 @@
 import xml.etree.ElementTree as ET
-import bpy
+import bpy # type: ignore
 import os
 import re
 import json
 import shutil
-import bpy.props as prop
-from bpy.props import (BoolProperty,
+import bpy.props as prop # type: ignore
+from bpy.props import (BoolProperty, # type: ignore
                        FloatProperty,
                        StringProperty,
                        EnumProperty,
@@ -21,6 +21,14 @@ from s3dgraphy import load_graph_from_file, get_graph
 
 import platform
 from pathlib import Path
+
+# ✅ AGGIUNGERE questa import
+from .operators.addon_prefix_helpers import (
+    node_name_to_proxy_name, 
+    proxy_name_to_node_name,
+    get_proxy_from_node,
+    get_active_graph_code
+)
 
 def get_compatible_icon(icon_name):
     """Return the appropriate icon name based on Blender version"""
@@ -486,22 +494,62 @@ def check_if_current_obj_has_brother_inlist(obj_name, list_type):
             return is_brother
     return is_brother
 
-def select_3D_obj(name):
-    #scene = bpy.context.scene
+def select_3D_obj(node_name, context=None, graph=None):
+    """
+    Seleziona un oggetto 3D a partire dal nome del nodo.
+    
+    ✅ MODIFICATO: ora accetta il nome pulito del nodo e gestisce il prefisso internamente
+    
+    Args:
+        node_name: Il nome del nodo (senza prefisso)
+        context: Contesto Blender (opzionale)
+        graph: Istanza del grafo (opzionale)
+    """
+    import bpy
+    
+    # Converti il nome del nodo nel nome del proxy (aggiunge prefisso se necessario)
+    proxy_name = node_name_to_proxy_name(node_name, context=context, graph=graph)
+    
+    # Seleziona l'oggetto
     bpy.ops.object.select_all(action="DESELECT")
-    object_to_select = bpy.data.objects[name]
-    object_to_select.select_set(True)
-    bpy.context.view_layer.objects.active = object_to_select
+    obj = bpy.data.objects.get(proxy_name)
+    
+    if obj:
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+    else:
+        print(f"Warning: Object '{proxy_name}' not found in scene")
 
-def select_list_element_from_obj_proxy(obj, list_type):
-    scene = bpy.context.scene
+def select_list_element_from_obj_proxy(obj, list_type, context=None, graph=None):
+    """
+    Seleziona l'elemento nella lista a partire dal proxy 3D.
+    
+    ✅ MODIFICATO: ora gestisce la rimozione del prefisso per comparare i nomi
+    
+    Args:
+        obj: L'oggetto 3D Blender
+        list_type: Il tipo di lista (es. "em_list")
+        context: Contesto Blender (opzionale)
+        graph: Istanza del grafo (opzionale)
+    """
+    
+    if context is None:
+        context = bpy.context
+        
+    scene = context.scene
+    
+    # Ottieni il nome del nodo dal nome del proxy (rimuove prefisso)
+    node_name = proxy_name_to_node_name(obj.name, context=context, graph=graph)
+    
     index_list = 0
-    list_cmd = ("scene."+ list_type)
-    list_index_cmd = ("scene."+ list_type+"_index = index_list")
+    list_cmd = ("scene." + list_type)
+    list_index_cmd = ("scene." + list_type + "_index = index_list")
+    
     for i in eval(list_cmd):
-        if obj.name == i.name:
+        # Compara il nome pulito del nodo con il nome pulito nella lista
+        if node_name == i.name:
             exec(list_index_cmd)
-            pass
+            break
         index_list += 1
 
 ## diverrà deprecata !
@@ -564,7 +612,19 @@ def stream_extractors(self, context):
     bpy.ops.em.update_paradata_lists()
     return
 
-def create_derived_lists(node):
+def create_derived_lists(node, graph=None):
+    """
+    Crea le liste derivate di proprietà per un nodo.
+    
+    ✅ MODIFICATO: aggiunto supporto per graph
+    
+    Args:
+        node: Il nodo per cui creare le liste
+        graph: Istanza del grafo (opzionale)
+    """
+    import bpy
+    from .functions import is_graph_available as check_graph
+    
     context = bpy.context
     scene = context.scene
     prop_index = 0
@@ -576,13 +636,12 @@ def create_derived_lists(node):
     print(f"\nRicerca proprietà per il nodo {node.name} (ID: {node.id_node})")
     
     # Get the active graph
-    from .functions import is_graph_available as check_graph
-    graph_exists, graph = check_graph(context)
+    if graph is None:
+        graph_exists, graph = check_graph(context)
+        if not graph_exists:
+            print("Error: Graph not available")
+            return
     
-    if not graph_exists:
-        print("Error: Graph not available")
-        return
-        
     # Verify if the node ID exists in the graph
     found_node = graph.find_node_by_id(node.id_node)
     if not found_node:
@@ -602,16 +661,19 @@ def create_derived_lists(node):
                 property_nodes.append(target_node)
                 is_property = True
     
-    # Aggiorniamo la lista delle proprietà
+    # Aggiorniamo la lista delle proprietà - ✅ SENZA prefisso
     if property_nodes:
         for i, prop_node in enumerate(property_nodes):
             scene.em_v_properties_list.add()
             property_item = scene.em_v_properties_list[i]
+            
+            # USA SEMPRE IL NOME PULITO
             property_item.name = prop_node.name
+            
             property_item.description = prop_node.description if hasattr(prop_node, 'description') else ""
             property_item.url = prop_node.value if hasattr(prop_node, 'value') else ""
             property_item.id_node = prop_node.node_id
-            property_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(prop_node.name)
+            property_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(prop_node.name, graph=graph)
             property_item.icon_url = "CHECKBOX_HLT" if property_item.url else "CHECKBOX_DEHLT"
             prop_index += 1
 
@@ -620,28 +682,6 @@ def create_derived_lists(node):
     # Reset property index if needed
     if scene.em_v_properties_list_index >= len(scene.em_v_properties_list):
         scene.em_v_properties_list_index = 0 if len(scene.em_v_properties_list) > 0 else -1
-
-    if is_property:
-        if scene.prop_paradata_streaming_mode:
-            if scene.em_v_properties_list_index >= 0 and len(scene.em_v_properties_list) > 0:
-                selected_property_node = scene.em_v_properties_list[scene.em_v_properties_list_index]
-                is_combiner = create_derived_combiners_list(selected_property_node)
-                if not is_combiner:
-                    create_derived_extractors_list(selected_property_node)
-            else:
-                print("No active property selected")
-        else:
-            for v_list_property in scene.em_v_properties_list:
-                is_combiner = create_derived_combiners_list(v_list_property)
-                if not is_combiner:
-                    create_derived_extractors_list(v_list_property)                
-
-    else:
-        EM_list_clear(context, "em_v_extractors_list")
-        EM_list_clear(context, "em_v_sources_list")
-        EM_list_clear(context, "em_v_combiners_list")
-
-    return
 
 def create_derived_combiners_list(passed_property_item):
     context = bpy.context
@@ -700,7 +740,19 @@ def create_derived_combiners_list(passed_property_item):
 
     return is_combiner
 
-def create_derived_extractors_list(passed_property_item):
+def create_derived_extractors_list(passed_property_item, graph=None):
+    """
+    Crea la lista di extractors collegati a una proprietà.
+    
+    ✅ MODIFICATO: rimosso l'aggiunta manuale del prefisso
+    
+    Args:
+        passed_property_item: L'item della proprietà selezionata
+        graph: Istanza del grafo (opzionale)
+    """
+    import bpy
+    from .functions import is_graph_available as check_graph
+    
     context = bpy.context
     scene = context.scene
     extr_index = 0
@@ -710,12 +762,11 @@ def create_derived_extractors_list(passed_property_item):
     print(f"La proprietà: {passed_property_item.name} ha id_nodo: {passed_property_item.id_node}")
     
     # Recuperiamo il grafo corrente
-    from .functions import is_graph_available as check_graph
-    graph_exists, graph = check_graph(context)
-    
-    if not graph_exists:
-        print("Errore: Grafo non disponibile")
-        return False
+    if graph is None:
+        graph_exists, graph = check_graph(context)
+        if not graph_exists:
+            print("Errore: Grafo non disponibile")
+            return False
     
     # Cerchiamo estrattori collegati alla proprietà
     extractor_nodes = []
@@ -728,29 +779,38 @@ def create_derived_extractors_list(passed_property_item):
                 extractor_nodes.append(target_node)
                 is_extractor = True
 
-    # Aggiorniamo la lista degli estrattori - aggiungendo il prefisso del grafo
+    # ✅ MODIFICATO: usa sempre il nome pulito (senza prefisso)
     if extractor_nodes:
         for i, extr_node in enumerate(extractor_nodes):
             scene.em_v_extractors_list.add()
             extractor_item = scene.em_v_extractors_list[i]
             
-            # Add graph code prefix for extractors
-            graph_code = extr_node.attributes.get('graph_code', '')
-            if graph_code:
-                extractor_item.name = f"{graph_code}.{extr_node.name}"
-            else:
-                extractor_item.name = extr_node.name
-                
+            # USA SEMPRE IL NOME PULITO
+            extractor_item.name = extr_node.name
+            
             extractor_item.description = extr_node.description if hasattr(extr_node, 'description') else ""
             extractor_item.url = extr_node.source if hasattr(extr_node, 'source') else ""
             extractor_item.id_node = extr_node.node_id
             extractor_item.icon_url = "CHECKBOX_HLT" if extractor_item.url else "CHECKBOX_DEHLT"
-            extractor_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(extractor_item.name)
+            extractor_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(extractor_item.name, graph=graph)
             extr_index += 1
 
     return is_extractor
 
-def create_derived_sources_list(passed_extractor_item):
+
+def create_derived_sources_list(passed_extractor_item, graph=None):
+    """
+    Crea la lista di documenti collegati a un estrattore.
+    
+    ✅ MODIFICATO: rimosso l'aggiunta manuale del prefisso
+    
+    Args:
+        passed_extractor_item: L'item dell'estrattore selezionato
+        graph: Istanza del grafo (opzionale)
+    """
+    import bpy
+    from .functions import is_graph_available as check_graph
+    
     context = bpy.context
     scene = context.scene
     sour_index = 0
@@ -759,12 +819,11 @@ def create_derived_sources_list(passed_extractor_item):
     print(f"passed_extractor_item: {passed_extractor_item.name} con id: {passed_extractor_item.id_node}")
     
     # Recuperiamo il grafo corrente
-    from .functions import is_graph_available as check_graph
-    graph_exists, graph = check_graph(context)
-    
-    if not graph_exists:
-        print("Errore: Grafo non disponibile")
-        return
+    if graph is None:
+        graph_exists, graph = check_graph(context)
+        if not graph_exists:
+            print("Errore: Grafo non disponibile")
+            return
     
     # Cerchiamo fonti collegate all'estrattore
     source_nodes = []
@@ -776,24 +835,20 @@ def create_derived_sources_list(passed_extractor_item):
                 print(f"Trovata fonte: {target_node.name} (ID: {target_node.node_id})")
                 source_nodes.append(target_node)
 
-    # Aggiorniamo la lista delle fonti - con il prefisso del grafo
+    # ✅ MODIFICATO: usa sempre il nome pulito (senza prefisso)
     if source_nodes:
         for i, src_node in enumerate(source_nodes):
             scene.em_v_sources_list.add()
             source_item = scene.em_v_sources_list[i]
             
-            # Add graph code prefix for documents
-            graph_code = src_node.attributes.get('graph_code', '')
-            if graph_code:
-                source_item.name = f"{graph_code}.{src_node.name}"
-            else:
-                source_item.name = src_node.name
-                
+            # USA SEMPRE IL NOME PULITO
+            source_item.name = src_node.name
+            
             source_item.description = src_node.description if hasattr(src_node, 'description') else ""
             source_item.url = src_node.url if hasattr(src_node, 'url') else ""
             source_item.id_node = src_node.node_id
             source_item.icon_url = "CHECKBOX_HLT" if source_item.url else "CHECKBOX_DEHLT"
-            source_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(source_item.name)
+            source_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(source_item.name, graph=graph)
             sour_index += 1
 
     print(f"sources: {sour_index}")
@@ -833,13 +888,32 @@ def switch_paradata_lists(self, context):
 #### Check the presence-absence of US against the GraphML ####
 ## #### #### #### #### #### #### #### #### #### #### #### ####
 
-def check_objs_in_scene_and_provide_icon_for_list_element(list_element_name):
-    data = bpy.data
-    icon_check = 'RESTRICT_INSTANCED_ON'
-    for ob in data.objects:
-        if ob.name == list_element_name:
-            icon_check = 'RESTRICT_INSTANCED_OFF'
-    return icon_check
+def check_objs_in_scene_and_provide_icon_for_list_element(node_name, graph=None, context=None):
+    """
+    Verifica se esiste un oggetto 3D in scena corrispondente al nodo e fornisce l'icona appropriata.
+    
+    ✅ MODIFICATO: Ora gestisce automaticamente il prefisso
+    
+    Args:
+        node_name (str): Il nome del nodo (senza prefisso)
+        graph: Istanza del grafo (opzionale)
+        context: Contesto Blender (opzionale)
+    
+    Returns:
+        str: Nome dell'icona appropriata
+    """
+    
+    # ✅ Converti il nome del nodo nel nome del proxy (aggiunge prefisso se necessario)
+    proxy_name = node_name_to_proxy_name(node_name, context=context, graph=graph)
+    
+    # Cerca l'oggetto 3D usando il nome con prefisso
+    obj = bpy.data.objects.get(proxy_name)
+    
+    # Restituisci l'icona appropriata
+    if obj:
+        return "OUTLINER_OB_MESH"  # Oggetto esiste in scena
+    else:
+        return "MESH_DATA"  # Oggetto non esiste
 
 def update_icons(context,list_type):
     scene = context.scene
@@ -1519,20 +1593,28 @@ def update_visibility_icons(context, list_type="em_list"):
         if obj:
             item.is_visible = not obj.hide_viewport
 
-def check_and_activate_collection(obj_name):
+def check_and_activate_collection(node_name, context=None, graph=None):
     """
-    Checks if an object is in a hidden collection and activates it.
+    Verifica se un oggetto è in una collection nascosta e la attiva.
+    
+    ✅ MODIFICATO: ora gestisce il prefisso internamente
     
     Args:
-        obj_name: Name of the object to check
+        node_name: Nome del nodo (senza prefisso)
+        context: Blender context (optional)
+        graph: Graph instance (optional)
         
     Returns:
         tuple: (bool, list) where bool indicates if any collections were activated,
                and list contains the names of activated collections
     """
     import bpy
+    
+    # Converti il nome del nodo nel nome del proxy
+    proxy_name = node_name_to_proxy_name(node_name, context=context, graph=graph)
+    
     activated_collections = []
-    obj = bpy.data.objects.get(obj_name)
+    obj = bpy.data.objects.get(proxy_name)
     
     if not obj:
         return False, []
@@ -1545,54 +1627,71 @@ def check_and_activate_collection(obj_name):
             
     return bool(activated_collections), activated_collections
 
-def update_em_list_with_visibility_info(context):
+def update_em_list_with_visibility_info(context, graph=None):
     """
-    Update the visibility status of all items in the em_list.
+    Aggiorna lo stato di visibilità di tutti gli elementi in em_list.
+    
+    ✅ MODIFICATO: ora usa le funzioni helper
     
     Args:
         context: Blender context
+        graph: Graph instance (optional)
     """
+    import bpy
+    
     scene = context.scene
     
     for item in scene.em_list:
-        obj = bpy.data.objects.get(item.name)
+        # Converti il nome del nodo nel nome del proxy
+        proxy_name = node_name_to_proxy_name(item.name, context=context, graph=graph)
+        obj = bpy.data.objects.get(proxy_name)
+        
         if obj:
             item.is_visible = not obj.hide_viewport
 
 
-def generate_blender_object_name(node):
+def generate_blender_object_name(node, context=None):
     """
     Genera un nome univoco per un oggetto Blender basato sul nodo.
     
+    ✅ MODIFICATO: ora usa la funzione helper centralizzata
+    
     Args:
         node: Il nodo per cui generare il nome
+        context: Contesto Blender (opzionale)
         
     Returns:
-        str: Il nome univoco per l'oggetto Blender
+        str: Il nome univoco per l'oggetto Blender (con prefisso se necessario)
     """
-    # Se il nome è già prefissato, usalo direttamente
-    if '_' in node.name:
-        return node.name
+    # Se il nodo ha un grafo associato, usa quello
+    graph = None
+    if hasattr(node, 'graph'):
+        graph = node.graph
+    elif hasattr(node, 'attributes') and 'graph_code' in node.attributes:
+        # Crea un oggetto fittizio per passare il graph_code
+        class TempGraph:
+            def __init__(self, code):
+                self.attributes = {'graph_code': code}
+        graph = TempGraph(node.attributes['graph_code'])
     
-    # Altrimenti, costruisci il nome con il prefisso
-    prefix = ""
-    graph_code = node.attributes.get('graph_code')
+    # Usa la funzione helper per aggiungere il prefisso
+    return node_name_to_proxy_name(node.name, context=context, graph=graph)
+
+def get_proxy_from_list_item(item, context=None, graph=None):
+    """
+    Ottiene l'oggetto 3D proxy corrispondente a un elemento di lista.
     
-    if graph_code:
-        prefix = f"{graph_code}."
-    else:
-        # Prova a ricavare il codice dal graph_id
-        graph_id = node.attributes.get('graph_id')
-        if graph_id:
-            # Usa le prime lettere dell'ID per un prefisso sintetico
-            prefix = f"{graph_id[:5]}."
+    ✅ NUOVA FUNZIONE
     
-    # Se non abbiamo un prefisso, usa il nome direttamente
-    if not prefix:
-        return node.name
+    Args:
+        item: L'elemento della lista (con .name attribute)
+        context: Contesto Blender (opzionale)
+        graph: Istanza del grafo (opzionale)
+        
+    Returns:
+        bpy.types.Object or None: L'oggetto proxy se trovato, None altrimenti
+    """
     
-    # Assicurati che il nome non superi i limiti di Blender
-    max_name_length = 60 - len(prefix)
-    safe_name = node.name[:max_name_length]
-    
-    return f"{prefix}{safe_name}"
+    # Converti il nome del nodo nel nome del proxy
+    proxy_name = node_name_to_proxy_name(item.name, context=context, graph=graph)
+    return bpy.data.objects.get(proxy_name)

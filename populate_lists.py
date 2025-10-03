@@ -1,3 +1,6 @@
+# populate_lists.py
+# VERSIONE REFACTORED - Rimossi prefissi manuali, delegati alle funzioni helper
+
 import bpy # type: ignore
 
 from .functions import *
@@ -44,9 +47,47 @@ def get_connected_epoch_for_node(graph, node):
                 return target_node.name
     return None
 
+def hex_to_rgb(value):
+    """Convert hex color to RGB with gamma correction"""
+    gamma = 2.2
+    value = value.lstrip('#')
+    lv = len(value)
+    fin = list(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
+    r = pow(fin[0] / 255, gamma)
+    g = pow(fin[1] / 255, gamma)
+    b = pow(fin[2] / 255, gamma)
+    fin.clear()
+    fin.append(r)
+    fin.append(g)
+    fin.append(b)
+    return tuple(fin)
+
 def populate_blender_lists_from_graph(context, graph):
     """
     Popola le liste di Blender con i dati dal grafo.
+    Delega alla funzione specifica in base alla modalità.
+    """
+    # Check if in 3D GIS mode or Advanced EM mode
+    scene = context.scene
+    em_settings = bpy.context.window_manager.em_addon_settings if hasattr(bpy.context.window_manager, 'em_addon_settings') else None
+    
+    if em_settings and hasattr(em_settings, 'em_mode_selection'):
+        if em_settings.em_mode_selection == 'OP3':  # 3D GIS mode
+            # Use 3D GIS specific population logic
+            print("Populating lists in 3D GIS mode")
+            # TODO: implement 3D GIS specific population if different
+            populate_lists_for_advanced_em(context, graph)
+        else:  # Advanced EM modes
+            populate_lists_for_advanced_em(context, graph)
+    else:
+        # Default to Advanced EM
+        populate_lists_for_advanced_em(context, graph)
+
+def populate_lists_for_advanced_em(context, graph):
+    """
+    Popola le liste per Advanced EM.
+    
+    ✅ MODIFICATO: Ora passa il parametro graph a tutte le funzioni populate_*
     
     Args:
         context: Il contesto Blender
@@ -98,25 +139,26 @@ def populate_blender_lists_from_graph(context, graph):
             em_list_index_ema = populate_stratigraphic_node(scene, node, em_list_index_ema, graph)
             em_reused_index_ema = populate_reuse_US_table(scene, node, em_reused_index_ema, graph)
     
+    # ✅ MODIFICATO: passa il graph a tutte le funzioni
     # 2. Nodi documento
     for node in document_nodes:
-        em_sources_index_ema = populate_document_node(scene, node, em_sources_index_ema)
+        em_sources_index_ema = populate_document_node(scene, node, em_sources_index_ema, graph)
     
     # 3. Nodi proprietà
     for node in property_nodes:
-        em_properties_index_ema = populate_property_node(scene, node, em_properties_index_ema)
+        em_properties_index_ema = populate_property_node(scene, node, em_properties_index_ema, graph)
     
     # 4. Nodi estrattore
     for node in extractor_nodes:
-        em_extractors_index_ema = populate_extractor_node(scene, node, em_extractors_index_ema)
+        em_extractors_index_ema = populate_extractor_node(scene, node, em_extractors_index_ema, graph)
     
     # 5. Nodi combinatore
     for node in combiner_nodes:
-        em_combiners_index_ema = populate_combiner_node(scene, node, em_combiners_index_ema)
+        em_combiners_index_ema = populate_combiner_node(scene, node, em_combiners_index_ema, graph)
     
     # 6. Nodi epoca
     for node in epoch_nodes:
-        em_epoch_list_ema = populate_epoch_node(scene, node, em_epoch_list_ema)
+        em_epoch_list_ema = populate_epoch_node(scene, node, em_epoch_list_ema, graph)
     
     # 7. Archi
     for edge in graph.edges:
@@ -124,38 +166,50 @@ def populate_blender_lists_from_graph(context, graph):
         em_edges_index_ema += 1
 
 def populate_reuse_US_table(scene, node, index, graph):
+    """
+    Popola la tabella dei riusi per un nodo.
+    Già corretto - usa nomi puliti.
+    """
     survived_in_epoch = graph.get_connected_epoch_nodes_list_by_edge_type(node, "survive_in_epoch")
-    #print(f"Per il nodo {node.name}:")
-
+    
     if survived_in_epoch:
-        #graph.print_connected_epoch_nodes_and_edge_types(node)
         for current_epoch in survived_in_epoch:
             scene.em_reused.add()
             em_item = scene.em_reused[-1]
             em_item.epoch = current_epoch.name
-            em_item.em_element = node.name
-            #print(f"Sto aggiungendo all'elenco dei reused il nodo {em_item.em_element} per l'epoca {em_item.epoch}")
+            em_item.em_element = node.name  # ✅ Nome pulito
             index += 1
             
     return index
 
-# Update to the populate_stratigraphic_node function in populate_lists.py
-
 def populate_stratigraphic_node(scene, node, index, graph):
+    """
+    Popola la lista di unità stratigrafiche.
+    
+    ✅ MODIFICATO: Ora usa SEMPRE il nome pulito del nodo, senza prefisso.
+                  Passa il grafo a check_objs_in_scene_and_provide_icon_for_list_element.
+    """
     scene.em_list.add()
     em_item = scene.em_list[-1]
+    
+    # ✅ USA SEMPRE IL NOME PULITO (senza prefisso)
     em_item.name = node.name
+    
     em_item.description = node.description
     em_item.shape = node.attributes.get('shape', "")
     em_item.y_pos = node.attributes.get('y_pos', 0.0)
     em_item.fill_color = node.attributes.get('fill_color', "")
     em_item.border_style = node.attributes.get('border_style', "")
-    em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+    
+    # ✅ MODIFICATO: passa anche il grafo per gestire il prefisso
+    em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
+    
     em_item.id_node = node.node_id
-    em_item.node_type = node.node_type  # Save the node type in the list
+    em_item.node_type = node.node_type
 
-    # Set visibility status based on actual viewport visibility
-    obj = bpy.data.objects.get(node.name)
+    # ✅ MODIFICATO: usa la funzione helper per trovare il proxy
+    from .operators.addon_prefix_helpers import get_proxy_from_node
+    obj = get_proxy_from_node(node, graph=graph)
     if obj:
         em_item.is_visible = not obj.hide_viewport
     else:
@@ -168,10 +222,21 @@ def populate_stratigraphic_node(scene, node, index, graph):
     
     return index + 1
 
-def populate_document_node(scene, node, index):
+def populate_document_node(scene, node, index, graph=None):
+    """
+    Popola la lista dei documenti.
+    
+    ✅ MODIFICATO: Ora usa SEMPRE il nome pulito del nodo, senza prefisso.
+    
+    Args:
+        scene: Blender scene
+        node: Document node
+        index: Current index
+        graph: Graph instance (optional, for icon check)
+    """
     source_already_in_list = False
     for source_item in scene.em_sources_list:
-        if source_item.id_node == node.node_id:  # Check by ID instead of name
+        if source_item.id_node == node.node_id:
             source_already_in_list = True
             break
 
@@ -179,14 +244,11 @@ def populate_document_node(scene, node, index):
         scene.em_sources_list.add()
         em_item = scene.em_sources_list[-1]
         
-        # Add graph code prefix only for documents
-        graph_code = node.attributes.get('graph_code', '')
-        if graph_code:
-            em_item.name = f"{graph_code}.{node.name}"
-        else:
-            em_item.name = node.name
-            
-        em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(em_item.name)
+        # ✅ USA SEMPRE IL NOME PULITO (rimosso il blocco che aggiungeva il prefisso)
+        em_item.name = node.name
+        
+        # ✅ MODIFICATO: passa il grafo per gestire il prefisso nella ricerca icona
+        em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
         em_item.id_node = node.node_id
         em_item.url = clean_value_for_ui(getattr(node, 'url', ''))
         em_item.icon_url = "CHECKBOX_HLT" if node.url else "CHECKBOX_DEHLT"
@@ -195,50 +257,81 @@ def populate_document_node(scene, node, index):
 
     return index
 
-
-
-def populate_property_node(scene, node, index):
+def populate_property_node(scene, node, index, graph=None):
+    """
+    Popola la lista delle proprietà.
+    
+    ✅ MODIFICATO: Aggiunto supporto per graph parameter.
+    
+    Args:
+        scene: Blender scene
+        node: Property node
+        index: Current index
+        graph: Graph instance (optional, for icon check)
+    """
     scene.em_properties_list.add()
     em_item = scene.em_properties_list[-1]
     
-    # IMPORTANT: Use the original node name without any graph code prefix
-    # If the node has an original_name attribute, use that (which is the name without prefixes)
+    # ✅ GIÀ CORRETTO: usa il nome pulito
     if hasattr(node, 'attributes') and 'original_name' in node.attributes:
         em_item.name = node.attributes['original_name']
     else:
-        # Otherwise, use the node name directly
         em_item.name = node.name
     
-    em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+    # ✅ MODIFICATO: passa il grafo
+    em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
     em_item.id_node = node.node_id
     em_item.url = clean_value_for_ui(getattr(node, 'value', ''))
     em_item.icon_url = "CHECKBOX_HLT" if em_item.url else "CHECKBOX_DEHLT"
     em_item.description = node.description
     return index + 1
 
-def populate_extractor_node(scene, node, index):
+def populate_extractor_node(scene, node, index, graph=None):
+    """
+    Popola la lista degli estrattori.
+    
+    ✅ MODIFICATO: Ora usa SEMPRE il nome pulito del nodo, senza prefisso.
+    
+    Args:
+        scene: Blender scene
+        node: Extractor node
+        index: Current index
+        graph: Graph instance (optional, for icon check)
+    """
     scene.em_extractors_list.add()
     em_item = scene.em_extractors_list[-1]
     
-    # Add graph code prefix only for extractors
-    graph_code = node.attributes.get('graph_code', '')
-    if graph_code:
-        em_item.name = f"{graph_code}.{node.name}"
-    else:
-        em_item.name = node.name
+    # ✅ USA SEMPRE IL NOME PULITO (rimosso il blocco che aggiungeva il prefisso)
+    em_item.name = node.name
     
-    em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(em_item.name)
+    # ✅ MODIFICATO: passa il grafo
+    em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
     em_item.id_node = node.node_id
     em_item.url = clean_value_for_ui(getattr(node, 'source', ''))
     em_item.icon_url = "CHECKBOX_HLT" if node.source else "CHECKBOX_DEHLT"
     em_item.description = node.description
     return index + 1
 
-def populate_combiner_node(scene, node, index):
+def populate_combiner_node(scene, node, index, graph=None):
+    """
+    Popola la lista dei combinatori.
+    
+    ✅ MODIFICATO: Aggiunto supporto per graph parameter.
+    
+    Args:
+        scene: Blender scene
+        node: Combiner node
+        index: Current index
+        graph: Graph instance (optional, for icon check)
+    """
     scene.em_combiners_list.add()
     em_item = scene.em_combiners_list[-1]
+    
+    # ✅ GIÀ CORRETTO: usa il nome pulito
     em_item.name = node.name
-    em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+    
+    # ✅ MODIFICATO: passa il grafo
+    em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
     em_item.id_node = node.node_id
     raw_url = node.sources[0] if node.sources else ""
     em_item.url = clean_value_for_ui(raw_url)
@@ -246,7 +339,12 @@ def populate_combiner_node(scene, node, index):
     em_item.description = node.description
     return index + 1
 
-def populate_epoch_node(scene, node, index):
+def populate_epoch_node(scene, node, index, graph=None):
+    """
+    Popola la lista delle epoche.
+    
+    ✅ GIÀ CORRETTO: usa il nome pulito, nessuna modifica necessaria.
+    """
     scene.epoch_list.add()
     epoch_item = scene.epoch_list[-1]
     epoch_item.name = node.name
@@ -257,12 +355,14 @@ def populate_epoch_node(scene, node, index):
     epoch_item.end_time = node.end_time
     epoch_item.epoch_color = node.color
     epoch_item.epoch_RGB_color = hex_to_rgb(node.color)
-    #print("il colore è:" +epoch_item.epoch_color)
-
     epoch_item.description = node.description
     return index + 1
 
 def populate_edges(scene, edge, index):
+    """
+    Popola la lista degli archi.
+    Nessuna modifica necessaria.
+    """
     scene.edges_list.add()
     edge_item = scene.edges_list[index]
     edge_item.id_node = edge.edge_id
@@ -272,6 +372,10 @@ def populate_edges(scene, edge, index):
     return index + 1
 
 def clear_lists(context):
+    """
+    Pulisce tutte le liste in Blender.
+    Nessuna modifica necessaria.
+    """
     # Clear existing lists in Blender
     EM_list_clear(context, "em_list")
     EM_list_clear(context, "em_reused")
@@ -282,6 +386,4 @@ def clear_lists(context):
     EM_list_clear(context, "edges_list")
     EM_list_clear(context, "epoch_list")
     
-    #context.scene.em_list_index_ema = 0
-
     return None
