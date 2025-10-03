@@ -412,7 +412,7 @@ class EM_ToolsPanel:
                             if target_node and hasattr(target_node, 'node_type') and target_node.node_type == 'document':
                                 connected_docs.append(target_node)
                     
-                    print(f"Found {len(connected_docs)} documents for US node {us_node_id}")
+                    #print(f"Found {len(connected_docs)} documents for US node {us_node_id}")
                     return connected_docs
                     
         except Exception as e:
