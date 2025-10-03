@@ -608,9 +608,27 @@ class EM_select_list_item(Operator):
     list_type: StringProperty() # type: ignore
 
     def execute(self, context):
+        """
+        Seleziona un elemento nella lista dal proxy 3D.
+        
+        ✅ MODIFICATO: Ora ottiene il graph attivo e lo passa
+        """
+        from ..functions import is_graph_available as check_graph
+        
         scene = context.scene
         obj = context.object
-        select_list_element_from_obj_proxy(obj, self.list_type)
+        
+        # ✅ Ottieni il grafo attivo
+        graph_exists, graph = check_graph(context)
+        active_graph = graph if graph_exists else None
+        
+        select_list_element_from_obj_proxy(
+            obj, 
+            self.list_type,
+            context=context,
+            graph=active_graph  # ✅ Passa il graph
+        )
+        
         return {'FINISHED'}
 
 class EM_select_from_list_item(Operator):
@@ -618,19 +636,40 @@ class EM_select_from_list_item(Operator):
     bl_label = "Select 3D obj from the list above"
     bl_options = {"REGISTER", "UNDO"}
 
-    list_type: StringProperty()
-    specific_item: StringProperty(default="")  # Add this line
+    list_type: StringProperty() # type: ignore
+    specific_item: StringProperty(default="") # type: ignore
 
     def execute(self, context):
+        """
+        Seleziona un oggetto 3D dalla lista.
+        
+        ✅ MODIFICATO: Ora ottiene il graph attivo e lo passa a select_3D_obj
+        """
+        from ..functions import is_graph_available as check_graph
+        
         scene = context.scene
+        
+        # ✅ Ottieni il grafo attivo
+        graph_exists, graph = check_graph(context)
+        active_graph = graph if graph_exists else None
+        
         if self.specific_item:
             # Use the specific item name passed from the UI
-            select_3D_obj(self.specific_item)
+            select_3D_obj(
+                self.specific_item, 
+                context=context,
+                graph=active_graph  # ✅ Passa il graph
+            )
         else:
             # Fallback to the old behavior using the active index
-            list_type_cmd = "scene."+self.list_type+"[scene."+self.list_type+"_index]"
+            list_type_cmd = "scene." + self.list_type + "[scene." + self.list_type + "_index]"
             list_item = eval(list_type_cmd)
-            select_3D_obj(list_item.name)
+            select_3D_obj(
+                list_item.name,
+                context=context, 
+                graph=active_graph  # ✅ Passa il graph
+            )
+        
         return {'FINISHED'}
 
 class EM_not_in_matrix(Operator):

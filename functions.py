@@ -915,11 +915,37 @@ def check_objs_in_scene_and_provide_icon_for_list_element(node_name, graph=None,
     else:
         return "MESH_DATA"  # Oggetto non esiste
 
-def update_icons(context,list_type):
+
+def update_icons(context, list_type):
+    """
+    Aggiorna le icone di una lista in base alla presenza degli oggetti 3D in scena.
+    
+    ✅ MODIFICATO: Ora ottiene il graph attivo e lo passa a check_objs
+    
+    Args:
+        context: Blender context
+        list_type: Nome della lista da aggiornare (es. "em_list")
+    """
+    import bpy
+    from .functions import is_graph_available as check_graph
+    
     scene = context.scene
-    list_path = "scene."+list_type
+    list_path = "scene." + list_type
+    
+    # ✅ Ottieni il grafo attivo
+    graph_exists, graph = check_graph(context)
+    
+    # Se il grafo non esiste, usa None (funzionerà comunque per oggetti senza prefisso)
+    active_graph = graph if graph_exists else None
+    
+    # Aggiorna l'icona per ogni elemento
     for element in eval(list_path):
-        element.icon = check_objs_in_scene_and_provide_icon_for_list_element(element.name)
+        element.icon = check_objs_in_scene_and_provide_icon_for_list_element(
+            element.name, 
+            graph=active_graph,  # ✅ Passa il graph
+            context=context
+        )
+    
     return
 
 ## #### #### #### #### #### #### #### ####                       
