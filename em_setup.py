@@ -694,6 +694,12 @@ class EM_SetupPanel(bpy.types.Panel):
     bl_category = "EM"
 
 
+    def draw_header(self, context):
+        layout = self.layout
+        # visualizza un’icona prima del titolo
+        layout.template_icon(icon_value=icons_manager.get_icon_value("em_logo"))
+
+
     def draw(self, context):
         layout = self.layout
         #layout.template_icon(icon_value=icons_manager.get_icon_value("em_logo"), scale=2.0)
