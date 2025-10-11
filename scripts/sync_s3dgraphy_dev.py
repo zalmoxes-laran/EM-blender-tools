@@ -3,6 +3,8 @@
 EMtools → s3dgraphy Development Sync Script
 Replaces s3dgraphy wheel with development version without touching requirements.
 
+NUOVO: Rimuove s3dgraphy dal site-packages di Blender prima di aggiornare!
+
 Usage:
     python sync_s3dgraphy_dev.py                     # Auto-detect s3dgraphy
     python sync_s3dgraphy_dev.py /path/to/s3dgraphy  # Manual path
@@ -29,6 +31,101 @@ class S3dGraphyDevSyncer:
         self.wheels_dir = self.emtools_root / "wheels"
         self.s3dgraphy_root = None
         
+        # NUOVO: Rileva il site-packages di Blender
+        self.blender_site_packages = self.detect_blender_site_packages()
+        
+    def detect_blender_site_packages(self):
+        """
+        Rileva TUTTI i percorsi dei site-packages di Blender installati.
+        Ritorna una lista di Path, non un singolo path.
+        """
+        found_paths = []
+        
+        # Cerca nelle posizioni comuni
+        common_paths = [
+            Path.home() / "AppData" / "Roaming" / "Blender Foundation" / "Blender",  # Windows
+            Path.home() / ".config" / "blender",  # Linux
+            Path.home() / "Library" / "Application Support" / "Blender",  # macOS
+        ]
+        
+        for base in common_paths:
+            if not base.exists():
+                continue
+            
+            # Cerca TUTTE le versioni di Blender (4.3, 4.4, 4.5, 4.6, etc.)
+            for version_dir in sorted(base.glob("*.*")):
+                site_packages = version_dir / "extensions" / ".local" / "lib" / "python3.11" / "site-packages"
+                if site_packages.exists():
+                    found_paths.append(site_packages)
+        
+        if found_paths:
+            print(f"✅ Trovati {len(found_paths)} site-packages di Blender:")
+            for path in found_paths:
+                # Estrae la versione dal path
+                version = path.parts[-6] if len(path.parts) >= 6 else "unknown"
+                print(f"   - Blender {version}: {path}")
+        else:
+            print("⚠️  Nessun site-packages di Blender trovato")
+            print("    Il modulo potrebbe non aggiornarsi correttamente")
+        
+        return found_paths if found_paths else []
+    
+    def clean_blender_site_packages(self):
+        """
+        NUOVO: Rimuove s3dgraphy da TUTTI i site-packages di Blender trovati.
+        Non fa assunzioni sulla versione - pulisce qualsiasi cosa trovi.
+        """
+        if not self.blender_site_packages:
+            print("⚠️  Nessun site-packages di Blender rilevato, skip pulizia")
+            return False
+        
+        print(f"\n🧹 Pulizia s3dgraphy da TUTTI i site-packages di Blender...")
+        
+        total_removed = 0
+        
+        # Itera su TUTTE le versioni di Blender trovate
+        for site_packages_path in self.blender_site_packages:
+            version = site_packages_path.parts[-6] if len(site_packages_path.parts) >= 6 else "unknown"
+            print(f"\n   📂 Blender {version}:")
+            print(f"      {site_packages_path}")
+            
+            removed_here = False
+            
+            # Rimuove la cartella s3dgraphy
+            s3dgraphy_dir = site_packages_path / "s3dgraphy"
+            if s3dgraphy_dir.exists():
+                print(f"      🗑️  Rimozione cartella: s3dgraphy/")
+                shutil.rmtree(s3dgraphy_dir)
+                removed_here = True
+                total_removed += 1
+            else:
+                print(f"      ℹ️  Cartella s3dgraphy/ non presente")
+            
+            # Rimuove TUTTE le cartelle .dist-info di s3dgraphy (qualsiasi versione)
+            dist_info_pattern = list(site_packages_path.glob("s3dgraphy-*.dist-info"))
+            if dist_info_pattern:
+                for dist_info in dist_info_pattern:
+                    print(f"      🗑️  Rimozione: {dist_info.name}")
+                    shutil.rmtree(dist_info)
+                    removed_here = True
+                    total_removed += 1
+            else:
+                print(f"      ℹ️  Nessun .dist-info di s3dgraphy trovato")
+            
+            if removed_here:
+                print(f"      ✅ Pulito!")
+            else:
+                print(f"      ℹ️  Niente da pulire")
+        
+        print(f"\n   📊 Totale elementi rimossi: {total_removed}")
+        
+        if total_removed > 0:
+            print("   ✅ Pulizia completata su tutte le versioni!")
+        else:
+            print("   ℹ️  Nessuna installazione di s3dgraphy trovata")
+        
+        return True
+        
     def find_s3dgraphy_automatically(self):
         """Try to find s3dgraphy repository automatically"""
         possible_locations = [
@@ -51,7 +148,7 @@ class S3dGraphyDevSyncer:
     
     def is_valid_s3dgraphy_directory(self, path):
         """Check if a directory looks like s3dgraphy"""
-        if not path.exists():
+        if not path or not path.exists():
             return False
             
         # Check for characteristic s3dgraphy files
@@ -72,6 +169,9 @@ class S3dGraphyDevSyncer:
     def backup_current_wheels(self):
         """Backup current s3dgraphy wheels"""
         current_wheels = self.get_current_s3dgraphy_wheels()
+        if not current_wheels:
+            return
+            
         backup_dir = self.wheels_dir / ".backup"
         backup_dir.mkdir(exist_ok=True)
         
@@ -127,10 +227,11 @@ class S3dGraphyDevSyncer:
                 continue
         
         print("❌ All build commands failed!")
+        print("   Make sure 'build' package is installed: pip install build")
         return False
     
     def find_latest_s3dgraphy_wheel(self):
-        """Find the most recently built s3dgraphy wheel"""
+        """Find the latest built wheel in s3dgraphy/dist"""
         dist_dir = self.s3dgraphy_root / "dist"
         if not dist_dir.exists():
             return None
@@ -139,143 +240,146 @@ class S3dGraphyDevSyncer:
         if not wheels:
             return None
             
-        # Return the most recent wheel
+        # Return the most recently created wheel
         return max(wheels, key=lambda p: p.stat().st_mtime)
     
     def remove_current_s3dgraphy_wheels(self):
-        """Remove current s3dgraphy wheels from EMtools (but keep backup)"""
+        """Remove current s3dgraphy wheels from EMtools"""
         current_wheels = self.get_current_s3dgraphy_wheels()
-        
         for wheel in current_wheels:
-            print(f"🗑️  Removing: {wheel.name}")
+            print(f"🗑️  Removing old wheel: {wheel.name}")
             wheel.unlink()
     
     def install_dev_wheel(self, wheel_path):
-        """Install development wheel to EMtools"""
-        # Ensure wheels directory exists
-        self.wheels_dir.mkdir(exist_ok=True)
+        """Copy development wheel to EMtools wheels directory"""
+        dest = self.wheels_dir / wheel_path.name
+        shutil.copy2(wheel_path, dest)
+        print(f"📥 Installed: {dest.name}")
+    
+    def show_status(self):
+        """Show current s3dgraphy status"""
+        print("\n📊 s3dgraphy Status")
+        print("=" * 50)
         
-        # Copy new wheel
-        dest_path = self.wheels_dir / wheel_path.name
-        shutil.copy2(wheel_path, dest_path)
+        # Check wheels directory
+        current_wheels = self.get_current_s3dgraphy_wheels()
+        if current_wheels:
+            print(f"📦 Wheels in EMtools:")
+            for wheel in current_wheels:
+                print(f"   - {wheel.name}")
+        else:
+            print("📦 No s3dgraphy wheels in EMtools")
         
-        print(f"📦 Installed dev wheel: {dest_path.name}")
-        print(f"🔗 Source: {wheel_path}")
-        return dest_path
+        # Check site-packages in ALL Blender versions
+        if self.blender_site_packages:
+            print(f"\n📂 Blender installations trovate: {len(self.blender_site_packages)}")
+            
+            for site_packages_path in self.blender_site_packages:
+                version = site_packages_path.parts[-6] if len(site_packages_path.parts) >= 6 else "unknown"
+                print(f"\n   🔹 Blender {version}:")
+                
+                s3d_dir = site_packages_path / "s3dgraphy"
+                dist_infos = list(site_packages_path.glob("s3dgraphy-*.dist-info"))
+                
+                if s3d_dir.exists():
+                    print(f"      ✅ s3dgraphy/ presente")
+                else:
+                    print(f"      ❌ s3dgraphy/ assente")
+                    
+                if dist_infos:
+                    print(f"      📋 dist-info:")
+                    for dist_info in dist_infos:
+                        print(f"         - {dist_info.name}")
+                else:
+                    print(f"      📋 Nessun dist-info")
+        else:
+            print(f"\n📂 Nessun site-packages di Blender trovato")
+        
+        # Check for development version marker
+        backup_dir = self.wheels_dir / ".backup"
+        if backup_dir.exists() and any(backup_dir.glob("*.whl")):
+            print(f"\n🔧 Backup wheels disponibili in .backup/")
+            print(f"   Probabile versione DEVELOPMENT attiva")
+        else:
+            print(f"\n📦 Probabile versione PyPI attiva")
+        
+        print("=" * 50)
     
     def restore_pypi_version(self):
         """Restore PyPI version of s3dgraphy"""
-        print("🔄 Restoring PyPI version of s3dgraphy...")
+        print("♻️  Restoring PyPI version...")
         
-        # Remove current dev wheels
+        # Remove development wheels
         self.remove_current_s3dgraphy_wheels()
         
-        # Check if we have backups
-        backup_dir = self.wheels_dir / ".backup"
-        if backup_dir.exists():
-            backup_wheels = list(backup_dir.glob("s3dgraphy-*.whl"))
-            if backup_wheels:
-                # Restore the most recent backup
-                latest_backup = max(backup_wheels, key=lambda p: p.stat().st_mtime)
-                restored_path = self.wheels_dir / latest_backup.name
-                shutil.copy2(latest_backup, restored_path)
-                print(f"♻️  Restored from backup: {latest_backup.name}")
-                return True
+        # NUOVO: Pulisci anche dal site-packages di Blender!
+        self.clean_blender_site_packages()
         
-        # No backup available, download from PyPI
-        print("📥 No backup found, downloading from PyPI...")
-        return self.download_from_pypi()
-    
-    def download_from_pypi(self):
-        """Download s3dgraphy from PyPI"""
-        # Read the required version from requirements
+        # Re-download PyPI version
         requirements_file = self.emtools_root / "scripts" / "requirements_wheels.txt"
-        s3dgraphy_req = "s3dgraphy>=0.1.0"  # default
+        if not requirements_file.exists():
+            print("❌ requirements_wheels.txt not found!")
+            return False
         
-        if requirements_file.exists():
-            with open(requirements_file, 'r') as f:
-                for line in f:
-                    if line.strip().startswith('s3dgraphy'):
-                        s3dgraphy_req = line.strip()
-                        break
+        # Find s3dgraphy line in requirements
+        with open(requirements_file, 'r') as f:
+            for line in f:
+                if line.strip().startswith('s3dgraphy'):
+                    package = line.strip()
+                    break
+            else:
+                print("❌ s3dgraphy not found in requirements!")
+                return False
         
-        print(f"📦 Downloading: {s3dgraphy_req}")
-        
+        print(f"📥 Downloading PyPI version: {package}")
         cmd = [
             sys.executable, '-m', 'pip', 'download',
-            s3dgraphy_req,
+            package,
             '--only-binary=:all:',
             '--python-version=3.11',
             '--no-deps',
             '-d', str(self.wheels_dir)
         ]
         
-        try:
-            subprocess.run(cmd, check=True)
-            print("✅ Downloaded from PyPI")
-            return True
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to download: {e}")
+        result = subprocess.run(cmd)
+        if result.returncode != 0:
+            print("❌ Failed to download PyPI version")
             return False
+        
+        print("✅ PyPI version restored")
+        return True
     
     def regenerate_manifest_if_needed(self):
-        """Regenerate manifest only if the version changed significantly"""
-        version_manager = self.emtools_root / "scripts" / "version_manager.py"
-        
-        if not version_manager.exists():
-            print("⚠️  version_manager.py not found - skipping manifest check")
-            return
-            
-        print("🔄 Updating blender_manifest.toml...")
-        
-        try:
-            subprocess.run([
-                sys.executable, 
-                str(version_manager), 
-                "update"
-            ], cwd=self.emtools_root, check=True, capture_output=True)
-            
-            print("✅ Manifest updated")
-            
-        except subprocess.CalledProcessError as e:
-            print(f"⚠️  Failed to update manifest: {e}")
-    
-    def show_status(self):
-        """Show current s3dgraphy status in EMtools"""
-        current_wheels = self.get_current_s3dgraphy_wheels()
-        
-        print("\n📊 Current s3dgraphy status in EMtools:")
-        if current_wheels:
-            for wheel in current_wheels:
-                # Try to determine if it's dev or PyPI version
-                if "dev" in wheel.name or "+dev" in wheel.name:
-                    status = "🔧 DEVELOPMENT"
-                else:
-                    status = "📦 PyPI"
-                print(f"   {status}: {wheel.name}")
-        else:
-            print("   ❌ No s3dgraphy wheels found!")
-        
-        # Check for backups
-        backup_dir = self.wheels_dir / ".backup"
-        if backup_dir.exists():
-            backups = list(backup_dir.glob("s3dgraphy-*.whl"))
-            if backups:
-                print(f"💾 Backups available: {len(backups)}")
+        """Regenerate blender_manifest.toml if it exists"""
+        manifest_path = self.emtools_root / "blender_manifest.toml"
+        if manifest_path.exists():
+            print("🔄 Regenerating manifest...")
+            version_manager = self.emtools_root / "scripts" / "version_manager.py"
+            if version_manager.exists():
+                subprocess.run([sys.executable, str(version_manager), "update"], 
+                             cwd=self.emtools_root)
     
     def sync_dev_version(self, s3dgraphy_path=None, clean=False):
-        """Sync development version of s3dgraphy"""
-        print("🚀 Syncing s3dgraphy development version to EMtools...")
+        """Main sync function"""
+        print("\n" + "=" * 50)
+        print("🔧 s3dgraphy Development Version Sync")
+        print("=" * 50)
+        
+        # 0. NUOVO: Prima di tutto, pulisci il site-packages di Blender!
+        print("\n🎯 Step 0: Pulizia Blender site-packages")
+        self.clean_blender_site_packages()
         
         # 1. Find s3dgraphy
+        print("\n🎯 Step 1: Locating s3dgraphy")
         if s3dgraphy_path:
-            self.s3dgraphy_root = Path(s3dgraphy_path)
+            self.s3dgraphy_root = Path(s3dgraphy_path).resolve()
         else:
             self.s3dgraphy_root = self.find_s3dgraphy_automatically()
         
         if not self.s3dgraphy_root:
-            print("❌ Could not find s3dgraphy directory!")
-            print("   Try: python sync_s3dgraphy_dev.py /path/to/s3dgraphy")
+            print("❌ s3dgraphy not found automatically!")
+            print("   Please specify path manually:")
+            print("   python sync_s3dgraphy_dev.py /path/to/s3dgraphy")
             return False
             
         if not self.is_valid_s3dgraphy_directory(self.s3dgraphy_root):
@@ -285,13 +389,16 @@ class S3dGraphyDevSyncer:
         print(f"🎯 Source s3dgraphy: {self.s3dgraphy_root}")
         
         # 2. Backup current wheels
+        print("\n🎯 Step 2: Backup current wheels")
         self.backup_current_wheels()
         
         # 3. Build development wheel
+        print("\n🎯 Step 3: Build s3dgraphy wheel")
         if not self.build_s3dgraphy_wheel(clean=clean):
             return False
         
         # 4. Find the wheel
+        print("\n🎯 Step 4: Locate built wheel")
         wheel_path = self.find_latest_s3dgraphy_wheel()
         if not wheel_path:
             print("❌ No wheel found after build!")
@@ -300,14 +407,20 @@ class S3dGraphyDevSyncer:
         print(f"📦 Built wheel: {wheel_path.name}")
         
         # 5. Replace in EMtools
+        print("\n🎯 Step 5: Install in EMtools")
         self.remove_current_s3dgraphy_wheels()
         self.install_dev_wheel(wheel_path)
         
         # 6. Update manifest
+        print("\n🎯 Step 6: Update manifest")
         self.regenerate_manifest_if_needed()
         
+        print("\n" + "=" * 50)
         print("✅ Development version sync completed!")
-        print("🔄 Reload EM Tools extension in Blender to use updated s3dgraphy")
+        print("=" * 50)
+        print("\n🔄 IMPORTANTE: Riavvia Blender per caricare la nuova versione")
+        print("   Il modulo in site-packages è stato pulito e verrà")
+        print("   reinstallato automaticamente dal wheel al prossimo avvio")
         
         return True
 
