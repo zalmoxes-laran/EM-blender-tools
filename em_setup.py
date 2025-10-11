@@ -967,6 +967,23 @@ class EM_SetupPanel(bpy.types.Panel):
                                     pass  # Silenzioso se non può calcolare
 
 
+                        elif aux_file.file_type == "pyarchinit":
+                            row = box.row()
+                            row.prop(em_tools, "pyarchinit_mapping", text="Table Mapping")
+
+                            # Mostra info sul mapping selezionato
+                            if em_tools.pyarchinit_mapping != "none":
+                                desc_box = box.box()
+                                desc_box.label(text="Mapping Info:")
+                                mapping_data = get_mapping_description(em_tools.pyarchinit_mapping, "pyarchinit")
+                                if mapping_data:
+                                    row = desc_box.row()
+                                    row.label(text=f"Name: {mapping_data['name']}")
+                                    if "description" in mapping_data:
+                                        desc_box.label(text=mapping_data["description"])
+                                    if "table_settings" in mapping_data:
+                                        desc_box.label(text=f"Table: {mapping_data['table_settings']['table_name']}")
+
             # Advanced Tools section
             box = layout.box()
             box.prop(em_tools, "show_advanced_tools", 
