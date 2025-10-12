@@ -36,6 +36,20 @@ from .thumb_utils import reload_doc_previews_from_cache, has_doc_thumbs
 import hashlib  # ✅ Necessario per path hash
 from pathlib import Path
 
+
+def get_pyarchinit_mappings(self, context):
+    """Get available pyArchInit mapping files from registry"""
+    mappings = [("none", "No Mapping", "Select a mapping file")]
+    
+    try:
+        from s3dgraphy.mappings import mapping_registry
+        available_mappings = mapping_registry.list_available_mappings('pyarchinit')
+        mappings.extend(available_mappings)
+    except Exception as e:
+        print(f"Error loading pyArchInit mappings: {str(e)}")
+    
+    return mappings
+
 def auto_import_auxiliary_files(context, graphml_index):
     """
     Itera su tutti i file ausiliari di un GraphML e importa automaticamente
@@ -331,7 +345,13 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         items=lambda self, context: get_emdb_mappings(),
         description="Select EMdb format"
     ) # type: ignore
-    
+
+    pyarchinit_mapping: bpy.props.EnumProperty(
+        name="pyArchInit Mapping",
+        items=get_pyarchinit_mappings,
+        description="Select pyArchInit table mapping"
+    ) # type: ignore
+
     # ✅ MODIFICATO: Cartella padre per ricerca risorse (con supporto Blender 4.5)
     resource_folder: bpy.props.StringProperty(
         name="Resource Folder",
@@ -442,19 +462,6 @@ def get_emdb_mappings():
         mappings.extend(available_mappings)
     except Exception as e:
         print(f"Error loading EMdb mappings: {str(e)}")
-    
-    return mappings
-
-def get_pyarchinit_mappings(self, context):
-    """Get available pyArchInit mapping files from registry"""
-    mappings = [("none", "No Mapping", "Select a mapping file")]
-    
-    try:
-        from s3dgraphy.mappings import mapping_registry
-        available_mappings = mapping_registry.list_available_mappings('pyarchinit')
-        mappings.extend(available_mappings)
-    except Exception as e:
-        print(f"Error loading pyArchInit mappings: {str(e)}")
     
     return mappings
 

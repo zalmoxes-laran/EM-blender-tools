@@ -38,14 +38,22 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             # EM Advanced mode - auxiliary file
             graphml = em_tools.graphml_files[self.graphml_index]
             aux_file = graphml.auxiliary_files[self.auxiliary_index]
+
+            if aux_file.file_type == "emdb_xlsx":
+                mapping = aux_file.emdb_mapping
+            elif aux_file.file_type == "pyarchinit":
+                mapping = aux_file.pyarchinit_mapping
+            else:
+                mapping = None
+
             return {
                 'import_type': aux_file.file_type,
                 'filepath': aux_file.filepath,
-                'mapping': aux_file.emdb_mapping if aux_file.file_type == "emdb_xlsx" else None,
+                'mapping': mapping,
                 'sheet_name': em_tools.xlsx_sheet_name,
                 'id_column': em_tools.xlsx_id_column,
                 'parent_graphml': graphml,
-                'resource_folder': aux_file.resource_folder,  # ✅ NUOVO
+                'resource_folder': aux_file.resource_folder,
                 'mode': 'EM_ADVANCED'
             }
         else:
@@ -108,7 +116,7 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             elif settings['import_type'] == "emdb_xlsx":
                 mapping_name = settings['mapping'] if settings['mapping'] != 'none' else None
                 
-                # ✅ EMtools logic: get existing graph for EM_ADVANCED mode
+                # EMtools logic: get existing graph for EM_ADVANCED mode
                 existing_graph = None
                 if settings['mode'] == 'EM_ADVANCED':
                     # EM_ADVANCED mode: get existing GraphML graph
@@ -130,23 +138,42 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
                 )
 
             elif settings['import_type'] == "pyarchinit":
-                mapping_name = f"{settings['mapping']}.json" if settings['mapping'] != 'none' else None
+                # Stessa logica di emdb_xlsx
+                mapping_name = settings['mapping'] if settings['mapping'] != 'none' else None
+                
+                # Get existing graph for EM_ADVANCED mode
+                existing_graph = None
+                if settings['mode'] == 'EM_ADVANCED':
+                    # EM_ADVANCED mode: get existing GraphML graph
+                    graphml = settings['parent_graphml']
+                    existing_graph = get_graph(graphml.name)
+                    if not existing_graph:
+                        self.report({'ERROR'}, f"GraphML graph '{graphml.name}' not found")
+                        return {'CANCELLED'}
+                    print(f"EMtools: Using existing graph for EM_ADVANCED mode (pyarchinit)")
+                else:
+                    print(f"EMtools: Creating new graph for 3DGIS mode (pyarchinit)")
+                
+                # s3dgraphy doesn't know about modes, just existing_graph or not
                 importer = PyArchInitImporter(
                     filepath=settings['filepath'],
-                    mapping_name=mapping_name
+                    mapping_name=mapping_name,
+                    existing_graph=existing_graph,
+                    overwrite=True
                 )
             else:
                 self.report({'ERROR'}, f"Unknown import type: {settings['import_type']}")
                 return {'CANCELLED'}
 
+
             # Execute import
             graph = importer.parse()
             importer.display_warnings()
 
-            # ✅ Se auxiliary mode, aggiorna anche le liste Blender
+            # Se auxiliary mode, aggiorna anche le liste Blender
             if self.auxiliary_mode:
                 from ..populate_lists import clear_lists
-                clear_lists(context)  # ✅ AGGIUNTO: Clear prima del refresh
+                clear_lists(context)  # Clear prima del refresh
                 populate_blender_lists_from_graph(context, graph)
                 self.report({'INFO'}, f"Successfully imported auxiliary data to existing graph")
                 return {'FINISHED'}
@@ -160,7 +187,7 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             # Usa nome hardcodato per 3D GIS, altrimenti nome dinamico
             if settings['mode'] == '3DGIS':
                 graph_name = "3dgis_graph"
-                print(f"✅ EM-tools: Using hardcoded graph name for 3D GIS: '{graph_name}'")
+                print(f"EM-tools: Using hardcoded graph name for 3D GIS: '{graph_name}'")
             else:
                 graph_name = f"{filepath.stem}_{settings['import_type']}"
             
