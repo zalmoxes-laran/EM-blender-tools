@@ -88,7 +88,19 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
         try:
             # Get import settings
             settings = self.get_import_settings(context)
+
+            # ✅ VALIDAZIONE: pyArchInit richiede sempre un mapping valido
+            if settings['import_type'] == "pyarchinit":
+                if not settings.get('mapping') or settings['mapping'] == 'none':
+                    self.report({'ERROR'}, "pyArchInit import requires a valid mapping. Please select a mapping from the dropdown.")
+                    return {'CANCELLED'}
             
+            # ✅ VALIDAZIONE: emdb_xlsx richiede sempre un mapping valido
+            if settings['import_type'] == "emdb_xlsx":
+                if not settings.get('mapping') or settings['mapping'] == 'none':
+                    self.report({'ERROR'}, "EMdb Excel import requires a valid mapping. Please select a format from the dropdown.")
+                    return {'CANCELLED'}
+
             # *** PULIZIA AUTOMATICA 3D GIS - SOLO IN EM-TOOLS ***
             if settings['mode'] == '3DGIS':
                 from s3dgraphy.multigraph.multigraph import multi_graph_manager
