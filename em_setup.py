@@ -333,9 +333,9 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
     file_type: bpy.props.EnumProperty(
         name="File Type",
         items=[
-            ("generic_xlsx", "Generic Excel", "Import from generic Excel file"),
-            ("pyarchinit", "pyArchInit", "Import from pyArchInit SQLite DB"),
-            ("emdb_xlsx", "EMdb Excel", "Import from EMdb Excel format")
+            #("generic_xlsx", "Generic Excel", "Import from generic Excel file"),
+            ("emdb_xlsx", "EMdb Excel", "Import from EMdb Excel format"),
+            ("pyarchinit", "pyArchInit", "Import from pyArchInit SQLite DB")
         ],
         default="emdb_xlsx"
     ) # type: ignore
@@ -976,13 +976,13 @@ class EM_SetupPanel(bpy.types.Panel):
 
                         elif aux_file.file_type == "pyarchinit":
                             row = box.row()
-                            row.prop(em_tools, "pyarchinit_mapping", text="Table Mapping")
+                            row.prop(aux_file, "pyarchinit_mapping", text="Table Mapping")
 
                             # Mostra info sul mapping selezionato
-                            if em_tools.pyarchinit_mapping != "none":
+                            if aux_file.pyarchinit_mapping != "none":
                                 desc_box = box.box()
                                 desc_box.label(text="Mapping Info:")
-                                mapping_data = get_mapping_description(em_tools.pyarchinit_mapping, "pyarchinit")
+                                mapping_data = get_mapping_description(aux_file.pyarchinit_mapping, "pyarchinit")
                                 if mapping_data:
                                     row = desc_box.row()
                                     row.label(text=f"Name: {mapping_data['name']}")
