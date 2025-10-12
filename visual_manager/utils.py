@@ -272,10 +272,18 @@ def apply_materials_to_objects(context, property_mapping, materials_by_value):
     Returns:
         int: number of objects that were colored
     """
+
+    from ..operators.addon_prefix_helpers import proxy_name_to_node_name
+    from ..functions import is_graph_available as check_graph
+
     scene = context.scene
     colored_count = 0
     total_objects = 0
-    
+
+    #  Ottieni il grafo attivo
+    graph_exists, graph = check_graph(context)
+    active_graph = graph if graph_exists else None
+
     print(f"\nApplying materials to objects:")
     print(f"  Property mapping: {len(property_mapping)} entries")
     print(f"  Available materials: {len(materials_by_value)} materials")
@@ -283,10 +291,11 @@ def apply_materials_to_objects(context, property_mapping, materials_by_value):
     for obj in scene.objects:
         if obj.type == 'MESH':
             total_objects += 1
-            obj_name = obj.name
+
+            node_name = proxy_name_to_node_name(obj.name, context=context, graph=active_graph)
             
-            if obj_name in property_mapping:
-                property_value = str(property_mapping[obj_name])
+            if node_name in property_mapping:
+                property_value = str(property_mapping[node_name])
                 
                 if property_value in materials_by_value:
                     mat = materials_by_value[property_value]
@@ -298,10 +307,10 @@ def apply_materials_to_objects(context, property_mapping, materials_by_value):
                         obj.data.materials.append(mat)
                     
                     colored_count += 1
-                    print(f"  ✓ Applied material '{mat.name}' to object '{obj_name}' (value: '{property_value}')")
+                    print(f"  ✓ Applied material '{mat.name}' to object '{obj.name}' (value: '{property_value}')")
                     
                 else:
-                    print(f"  ⚠ Warning: No material found for value '{property_value}' on object '{obj_name}'")
+                    print(f"  ⚠ Warning: No material found for value '{property_value}' on object '{node_name}'")
             else:
                 # Oggetto non ha questa proprietà
                 pass  # Non loggare per evitare spam, ma potremmo volerlo colorare diversamente

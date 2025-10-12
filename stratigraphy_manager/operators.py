@@ -565,10 +565,22 @@ class EM_listitem_OT_to3D(Operator):
             return (obj.type in ['MESH'])
 
     def execute(self, context):
+
+        from ..functions import is_graph_available as check_graph
+        from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+
         scene = context.scene
         item_name_picker_cmd = "scene."+self.list_type+"[scene."+self.list_type+"_index]"
         item = eval(item_name_picker_cmd)
-        context.active_object.name = item.name
+
+        # ✅ Ottieni il grafo attivo
+        graph_exists, graph = check_graph(context)
+        active_graph = graph if graph_exists else None
+        
+        # ✅ Converti il nome con prefisso
+        proxy_name = node_name_to_proxy_name(item.name, context=context, graph=active_graph)
+        context.active_object.name = proxy_name
+
         update_icons(context, self.list_type)
         if self.list_type == "em_list":
             current_mode = scene.proxy_display_mode
