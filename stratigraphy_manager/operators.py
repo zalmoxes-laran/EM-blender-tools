@@ -749,7 +749,14 @@ class SET_materials_using_em_list(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        # ✅ AGGIUNTO: Import delle funzioni necessarie
         from ..functions import consolidate_EM_material_presence, em_setup_mat_cycles
+        from ..functions import is_graph_available as check_graph
+        from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+        
+        # ✅ AGGIUNTO: Ottieni il grafo attivo una sola volta
+        graph_exists, graph = check_graph(context)
+        active_graph = graph if graph_exists else None
         
         # Prepare EM materials
         overwrite_mats = True
@@ -757,11 +764,27 @@ class SET_materials_using_em_list(Operator):
         
         # Apply materials based on node types
         em_list_lenght = len(context.scene.em_list)
+        applied_count = 0  # ✅ AGGIUNTO: Counter per il report
+        
         counter = 0
         while counter < em_list_lenght:
             current_ob_em_list = context.scene.em_list[counter]
             if current_ob_em_list.icon == 'RESTRICT_INSTANCED_OFF':
-                current_ob_scene = context.scene.objects[current_ob_em_list.name]
+                # ✅ MODIFICATO: Converti il nome con prefisso
+                proxy_name = node_name_to_proxy_name(
+                    current_ob_em_list.name, 
+                    context=context, 
+                    graph=active_graph
+                )
+                
+                # ✅ MODIFICATO: Usa get() invece di [] per evitare KeyError
+                current_ob_scene = context.scene.objects.get(proxy_name)
+                
+                if not current_ob_scene:
+                    print(f"⚠️ Warning: Object '{proxy_name}' not found in scene (node: {current_ob_em_list.name})")
+                    counter += 1
+                    continue
+                
                 ob_material_name = 'US'  # Default
                 
                 # Check the node_type first (most reliable method)
@@ -792,10 +815,23 @@ class SET_materials_using_em_list(Operator):
                     elif current_ob_em_list.shape == 'roundrectangle':
                         ob_material_name = 'USD'
                 
-                mat = bpy.data.materials[ob_material_name]
-                current_ob_scene.data.materials.clear()
-                current_ob_scene.data.materials.append(mat)
+                # ✅ AGGIUNTO: Controllo se il materiale esiste
+                if ob_material_name in bpy.data.materials:
+                    mat = bpy.data.materials[ob_material_name]
+                    current_ob_scene.data.materials.clear()
+                    current_ob_scene.data.materials.append(mat)
+                    applied_count += 1
+                    print(f"✅ Applied {ob_material_name} material to {proxy_name}")
+                else:
+                    print(f"⚠️ Warning: Material '{ob_material_name}' not found")
+                    
             counter += 1
+        
+        # ✅ AGGIUNTO: Report finale
+        print(f"\n{'='*50}")
+        print(f"✅ Applied EM materials to {applied_count} of {em_list_lenght} objects")
+        print(f"{'='*50}")
+        self.report({'INFO'}, f"Applied EM materials to {applied_count} objects")
         
         return {'FINISHED'}
 
@@ -806,14 +842,22 @@ class SET_materials_using_epoch_list(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        # ✅ AGGIUNTO: Import delle funzioni necessarie
         from ..functions import (
             check_material_presence, 
             em_setup_mat_cycles, 
             consolidate_epoch_material_presence
         )
+        from ..functions import is_graph_available as check_graph
+        from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+        
+        # ✅ AGGIUNTO: Ottieni il grafo attivo una sola volta
+        graph_exists, graph = check_graph(context)
+        active_graph = graph if graph_exists else None
         
         scene = context.scene 
         mat_prefix = "ep_"
+        applied_count = 0  # ✅ AGGIUNTO: Counter per il report
         
         # Create/update epoch materials
         for epoch in scene.epoch_list:
@@ -828,9 +872,29 @@ class SET_materials_using_epoch_list(Operator):
             for em_element in scene.em_list:
                 if em_element.icon == "RESTRICT_INSTANCED_OFF":
                     if em_element.epoch == epoch.name:
-                        obj = bpy.data.objects[em_element.name]
-                        obj.data.materials.clear()
-                        obj.data.materials.append(mat)
+                        # ✅ MODIFICATO: Converti il nome con prefisso
+                        proxy_name = node_name_to_proxy_name(
+                            em_element.name, 
+                            context=context, 
+                            graph=active_graph
+                        )
+                        
+                        # ✅ MODIFICATO: Usa get() invece di [] per evitare KeyError
+                        obj = bpy.data.objects.get(proxy_name)
+                        
+                        if obj:
+                            obj.data.materials.clear()
+                            obj.data.materials.append(mat)
+                            applied_count += 1
+                            print(f"✅ Applied epoch material '{matname}' to {proxy_name}")
+                        else:
+                            print(f"⚠️ Warning: Object '{proxy_name}' not found in scene (node: {em_element.name})")
+        
+        # ✅ AGGIUNTO: Report finale
+        print(f"\n{'='*50}")
+        print(f"✅ Applied Epoch materials to {applied_count} objects")
+        print(f"{'='*50}")
+        self.report({'INFO'}, f"Applied Epoch materials to {applied_count} objects")
         
         return {'FINISHED'}
 

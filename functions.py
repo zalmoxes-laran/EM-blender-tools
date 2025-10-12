@@ -1124,22 +1124,47 @@ def em_setup_mat_cycles(matname, R, G, B, A=1.0):
 
 
 def set_materials_using_EM_list(context):
+    """
+    Set materials for proxies based on EM node types.
+    ✅ FIXED: Now handles prefixed proxy names
+    """
+    from .operators.addon_prefix_helpers import node_name_to_proxy_name
+    
+    # Ottieni il grafo attivo
+    graph_exists, graph = is_graph_available(context)
+    active_graph = graph if graph_exists else None
+    
     em_list_lenght = len(context.scene.em_list)
     counter = 0
     while counter < em_list_lenght:
         current_ob_em_list = context.scene.em_list[counter]
         overwrite_mats = True
         consolidate_EM_material_presence(overwrite_mats)
+        
         if current_ob_em_list.icon == 'RESTRICT_INSTANCED_OFF':
-            current_ob_scene = context.scene.objects[current_ob_em_list.name]
+            # ✅ MODIFICATO: Converti il nome con prefisso
+            proxy_name = node_name_to_proxy_name(
+                current_ob_em_list.name,
+                context=context,
+                graph=active_graph
+            )
+            
+            # ✅ MODIFICATO: Usa get() per gestire oggetti mancanti
+            current_ob_scene = context.scene.objects.get(proxy_name)
+            
+            if not current_ob_scene:
+                print(f"⚠️ Warning: Object '{proxy_name}' not found")
+                counter += 1
+                continue
+            
             ob_material_name = 'US'  # Default
             
-            # Check the node_type first (most reliable method)
+            # Resto della logica invariata...
             if hasattr(current_ob_em_list, 'node_type') and current_ob_em_list.node_type:
                 if current_ob_em_list.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']:
                     ob_material_name = current_ob_em_list.node_type
             else:
-                # Fallback to shape + border style
+                # Fallback con shape/border
                 if current_ob_em_list.shape == 'rectangle':
                     ob_material_name = 'US'
                 elif current_ob_em_list.shape == 'ellipse_white':
@@ -1151,13 +1176,11 @@ def set_materials_using_EM_list(context):
                 elif current_ob_em_list.shape == 'hexagon':
                     ob_material_name = 'USVn'
                 elif current_ob_em_list.shape == 'octagon':
-                    # Check border style for octagon shapes
                     if current_ob_em_list.border_style == '#D8BD30':
                         ob_material_name = 'SF'
                     elif current_ob_em_list.border_style == '#B19F61':
                         ob_material_name = 'VSF'
                     else:
-                        # Default for octagon without recognized border
                         ob_material_name = 'VSF'
                 elif current_ob_em_list.shape == 'roundrectangle':
                     ob_material_name = 'USD'
@@ -1202,22 +1225,45 @@ def consolidate_epoch_material_presence(matname):
     return epoch_mat
 
 def set_materials_using_epoch_list(context):
+    """
+    Set materials for proxies based on their epoch assignments.
+    ✅ FIXED: Now handles prefixed proxy names
+    """
+    from .operators.addon_prefix_helpers import node_name_to_proxy_name
+    
+    # Ottieni il grafo attivo
+    graph_exists, graph = is_graph_available(context)
+    active_graph = graph if graph_exists else None
+    
     scene = context.scene 
     mat_prefix = "ep_"
+    
     for epoch in scene.epoch_list:
         matname = mat_prefix + epoch.name
         mat = consolidate_epoch_material_presence(matname)
         R = epoch.epoch_RGB_color[0]
         G = epoch.epoch_RGB_color[1]
         B = epoch.epoch_RGB_color[2]
-        em_setup_mat_cycles(matname,R,G,B)
+        em_setup_mat_cycles(matname, R, G, B)
+        
         for em_element in scene.em_list:
             if em_element.icon == "RESTRICT_INSTANCED_OFF":
                 if em_element.epoch == epoch.name:
-                    #print(em_element.name + " element is in epoch "+epoch.name)
-                    obj = bpy.data.objects[em_element.name]
-                    obj.data.materials.clear()
-                    obj.data.materials.append(mat)
+                    # ✅ MODIFICATO: Converti il nome con prefisso
+                    proxy_name = node_name_to_proxy_name(
+                        em_element.name,
+                        context=context,
+                        graph=active_graph
+                    )
+                    
+                    # ✅ MODIFICATO: Usa get() per gestire oggetti mancanti
+                    obj = bpy.data.objects.get(proxy_name)
+                    
+                    if obj:
+                        obj.data.materials.clear()
+                        obj.data.materials.append(mat)
+                    else:
+                        print(f"⚠️ Warning: Object '{proxy_name}' not found")
 
 
 
