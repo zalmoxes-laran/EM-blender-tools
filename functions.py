@@ -985,7 +985,7 @@ def update_icons(context, list_type):
     element_count = 0
     for element in eval(list_path):
         element_count += 1
-        
+
         old_icon = element.icon
         print(f"\n🔍 DEBUG update_icons - Element #{element_count}: {element.name}")
         print(f"🔍 DEBUG update_icons - Old icon: {old_icon}")
@@ -997,12 +997,20 @@ def update_icons(context, list_type):
         )
         
         print(f"🔍 DEBUG update_icons - New icon returned: {new_icon}")
-        
-        element.icon = new_icon
-        
-        print(f"🔍 DEBUG update_icons - Icon after assignment: {element.icon}")
-        print(f"🔍 DEBUG update_icons - Assignment successful: {element.icon == new_icon}")
-    
+
+        # Avoid reassigning the same value to prevent Blender 4.5 from
+        # re-triggering icon updates recursively which leads to a
+        # stack overflow. Prior versions ignored identical assignments,
+        # but Blender 4.5 fires the RNA update callback even when the
+        # value does not change. Guarding the assignment keeps the
+        # update chain finite.
+        if old_icon != new_icon:
+            element.icon = new_icon
+            print(f"🔍 DEBUG update_icons - Icon after assignment: {element.icon}")
+            print(f"🔍 DEBUG update_icons - Assignment successful: {element.icon == new_icon}")
+        else:
+            print("🔍 DEBUG update_icons - Icon unchanged, skipping assignment")
+
     print(f"\n🔍 DEBUG update_icons - Completed. Updated {element_count} elements")
     
     return
