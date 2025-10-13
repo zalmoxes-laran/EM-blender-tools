@@ -836,11 +836,12 @@ def update_anastylosis_list_on_graph_load(dummy):
         scene.em_tools.active_file_index >= 0):
         
         try:
-            # Run in a timer to ensure proper context
-            bpy.app.timers.register(
-                lambda: bpy.ops.anastylosis.update_list(from_graph=True), 
-                first_interval=0.5
-            )
+            # ✅ BLENDER 4.5 COMPATIBLE: Timer callback must return None or float
+            def timer_callback():
+                bpy.ops.anastylosis.update_list(from_graph=True)
+                return None  # Required for Blender 4.5+
+            
+            bpy.app.timers.register(timer_callback, first_interval=0.5)
         except Exception as e:
             print(f"Error updating anastylosis list on graph load: {e}")
 
