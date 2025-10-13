@@ -960,6 +960,9 @@ def check_objs_in_scene_and_provide_icon_for_list_element(node_name, graph=None,
     else:
         return "UNLINKED"  # Oggetto non esiste
 
+_icon_update_in_progress = False
+
+
 def update_icons(context, list_type):
     """
     Aggiorna le icone di una lista in base alla presenza degli oggetti 3D in scena.
@@ -967,52 +970,70 @@ def update_icons(context, list_type):
     ✅ MODIFICATO: Ora ottiene il graph attivo e lo passa a check_objs
     """
     
-    print(f"\n🔍 DEBUG update_icons - Starting for list_type: {list_type}")
-    
-    scene = context.scene
-    list_path = "scene." + list_type
-    
-    # ✅ Ottieni il grafo attivo
-    graph_exists, graph = is_graph_available(context)
-    
-    print(f"🔍 DEBUG update_icons - graph_exists: {graph_exists}")
-    print(f"🔍 DEBUG update_icons - graph: {graph}")
-    
-    # Se il grafo non esiste, usa None (funzionerà comunque per oggetti senza prefisso)
-    active_graph = graph if graph_exists else None
-    
-    # Aggiorna l'icona per ogni elemento
-    element_count = 0
-    for element in eval(list_path):
-        element_count += 1
+    global _icon_update_in_progress
 
-        old_icon = element.icon
-        print(f"\n🔍 DEBUG update_icons - Element #{element_count}: {element.name}")
-        print(f"🔍 DEBUG update_icons - Old icon: {old_icon}")
-        
-        new_icon = check_objs_in_scene_and_provide_icon_for_list_element(
-            element.name, 
-            graph=active_graph,
-            context=context
+    if _icon_update_in_progress:
+        print(
+            "🔍 DEBUG update_icons - Re-entry detected, skipping to avoid recursion"
         )
-        
-        print(f"🔍 DEBUG update_icons - New icon returned: {new_icon}")
+        return
 
-        # Avoid reassigning the same value to prevent Blender 4.5 from
-        # re-triggering icon updates recursively which leads to a
-        # stack overflow. Prior versions ignored identical assignments,
-        # but Blender 4.5 fires the RNA update callback even when the
-        # value does not change. Guarding the assignment keeps the
-        # update chain finite.
-        if old_icon != new_icon:
-            element.icon = new_icon
-            print(f"🔍 DEBUG update_icons - Icon after assignment: {element.icon}")
-            print(f"🔍 DEBUG update_icons - Assignment successful: {element.icon == new_icon}")
-        else:
-            print("🔍 DEBUG update_icons - Icon unchanged, skipping assignment")
+    print(f"\n🔍 DEBUG update_icons - Starting for list_type: {list_type}")
 
-    print(f"\n🔍 DEBUG update_icons - Completed. Updated {element_count} elements")
-    
+    _icon_update_in_progress = True
+    try:
+        scene = context.scene
+        collection = getattr(scene, list_type, None)
+        if collection is None:
+            print(
+                f"🔍 DEBUG update_icons - No collection named '{list_type}' on scene"
+            )
+            return
+
+        # ✅ Ottieni il grafo attivo
+        graph_exists, graph = is_graph_available(context)
+
+        print(f"🔍 DEBUG update_icons - graph_exists: {graph_exists}")
+        print(f"🔍 DEBUG update_icons - graph: {graph}")
+
+        # Se il grafo non esiste, usa None (funzionerà comunque per oggetti senza prefisso)
+        active_graph = graph if graph_exists else None
+
+        # Aggiorna l'icona per ogni elemento
+        element_count = 0
+        for element in collection:
+            element_count += 1
+
+            old_icon = element.icon
+            print(f"\n🔍 DEBUG update_icons - Element #{element_count}: {element.name}")
+            print(f"🔍 DEBUG update_icons - Old icon: {old_icon}")
+
+            new_icon = check_objs_in_scene_and_provide_icon_for_list_element(
+                element.name,
+                graph=active_graph,
+                context=context
+            )
+
+            print(f"🔍 DEBUG update_icons - New icon returned: {new_icon}")
+
+            # Avoid reassigning the same value to prevent Blender 4.5 from
+            # re-triggering icon updates recursively which leads to a
+            # stack overflow. Prior versions ignored identical assignments,
+            # but Blender 4.5 fires the RNA update callback even when the
+            # value does not change. Guarding the assignment keeps the
+            # update chain finite.
+            if old_icon != new_icon:
+                element.icon = new_icon
+                print(f"🔍 DEBUG update_icons - Icon after assignment: {element.icon}")
+                print(f"🔍 DEBUG update_icons - Assignment successful: {element.icon == new_icon}")
+            else:
+                print("🔍 DEBUG update_icons - Icon unchanged, skipping assignment")
+
+        print(f"\n🔍 DEBUG update_icons - Completed. Updated {element_count} elements")
+
+    finally:
+        _icon_update_in_progress = False
+
     return
 
 ## #### #### #### #### #### #### #### ####                       
