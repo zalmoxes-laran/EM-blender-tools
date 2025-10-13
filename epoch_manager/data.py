@@ -94,7 +94,7 @@ def update_epoch_selection(self, context):
     This function is called whenever the selected epoch changes.
     """
     scene = context.scene
-    
+    '''
     # Safety check: verify that epoch_list exists and the index is valid
     if len(scene.epoch_list) == 0:
         scene.epoch_list_index = -1  # Changed from 0 to -1 for empty lists
@@ -104,7 +104,7 @@ def update_epoch_selection(self, context):
     if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
         scene.epoch_list_index = 0
         return  # Add return to avoid running the rest of the function
-    
+    '''
     # At this point we know the index is valid and we can proceed
     print(f"\n--- Epoch selection changed to index {scene.epoch_list_index} ---")
     active_epoch = scene.epoch_list[scene.epoch_list_index]

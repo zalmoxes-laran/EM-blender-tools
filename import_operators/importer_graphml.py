@@ -90,12 +90,16 @@ class EM_import_GraphML(bpy.types.Operator):
                     show_popup_message(context, "Graph Error", error_msg, 'ERROR')
                     return {'CANCELLED'}
                                 
-
+                
                 
                 print(f"Aggiornato ID nell'interfaccia a: {graphml.name}")
                 # Imposta esplicitamente gli indici a 0 prima di popolare
                 scene.em_list_index = 0
+                
                 scene.epoch_list_index = 0
+                
+                
+                
                 if hasattr(scene, "em_sources_list_index"):
                     scene.em_sources_list_index = 0
                 if hasattr(scene, "em_properties_list_index"):
@@ -105,11 +109,13 @@ class EM_import_GraphML(bpy.types.Operator):
                 if hasattr(scene, "em_combiners_list_index"):
                     scene.em_combiners_list_index = 0
 
+                
                 # Integrazione di dati esterni PRIMA di popolare le liste
                 em_settings = bpy.context.window_manager.em_addon_settings
                 if em_settings.overwrite_url_with_dosco_filepath:
                     inspect_load_dosco_files_on_graph(graph_instance, dosco_dir)  # ← Nuova funzione
 
+                
                 # Ora procedi con il popolamento delle liste (che avranno già URL aggiornati)
                 populate_blender_lists_from_graph(context, graph_instance)
                 ensure_valid_index(scene.em_list, "em_list_index", context)
@@ -127,6 +133,7 @@ class EM_import_GraphML(bpy.types.Operator):
                 # ho disabilitato questa funzione perchè non mi sembra utile. Se serve, si può riabilitare
                 
                 #crea liste derivate per lo streaming dei paradati
+                
                 create_derived_lists(scene.em_list[scene.em_list_index])
                 
                 #setup dei materiali di scena dopo l'importazione del graphml
@@ -136,7 +143,7 @@ class EM_import_GraphML(bpy.types.Operator):
 
                 bpy.ops.activity.refresh_list(graphml_index=self.graphml_index)
 
-
+                 
                 from ..em_setup import auto_import_auxiliary_files
                 imported, errors = auto_import_auxiliary_files(context, self.graphml_index)
                 
