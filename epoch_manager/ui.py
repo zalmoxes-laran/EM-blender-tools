@@ -72,7 +72,7 @@ class EM_BasePanel:
             return False
         
         # Logica originale: mostra solo in modalità Advanced EM
-        return em_tools.mode_switch
+        return em_tools.mode_em_advanced
 
 
     def draw(self, context):

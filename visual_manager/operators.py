@@ -92,7 +92,7 @@ class VISUAL_OT_update_property_values(Operator):
             processed_graphs = 0
             
             # LOGICA CORRETTA PER ENTRAMBE LE MODALITÀ
-            if not em_tools.mode_switch:  # Modalità 3D GIS
+            if not em_tools.mode_em_advanced:  # Modalità 3D GIS
                 # Nome hardcodato per modalità 3D GIS
                 graph_name = "3dgis_graph"
                 print(f"3D GIS mode: processing hardcoded graph '{graph_name}'")
@@ -220,7 +220,7 @@ class VISUAL_OT_apply_colors(Operator):
         scene = context.scene
         em_tools = scene.em_tools
         
-        if not em_tools.mode_switch:  # Modalità 3D GIS
+        if not em_tools.mode_em_advanced:  # Modalità 3D GIS
             # Nome hardcodato per modalità 3D GIS
             graph_name = "3dgis_graph"
             graph = get_graph(graph_name)
@@ -329,7 +329,7 @@ class VISUAL_OT_select_proxies(Operator):
 
         # Determina il grafo attivo basato sulla modalità - USA LA STESSA LOGICA
         graph = None
-        if not scene.em_tools.mode_switch:  # Modalità 3D GIS
+        if not scene.em_tools.mode_em_advanced:  # Modalità 3D GIS
             graph = get_graph("3dgis_graph")
             if graph:
                 print(f"Using 3D GIS graph")

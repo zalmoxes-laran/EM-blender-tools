@@ -446,8 +446,8 @@ class EM_ParadataPanel:
     @classmethod
     def poll(cls, context):
         em_tools = context.scene.em_tools
-        # Restituisce True se mode_switch è False, quindi il pannello viene mostrato solo in modalità 3D GIS
-        return em_tools.mode_switch
+        # Restituisce True se mode_em_advanced è False, quindi il pannello viene mostrato solo in modalità 3D GIS
+        return em_tools.mode_em_advanced
 
     def draw(self, context):
         layout = self.layout
@@ -640,7 +640,7 @@ class EM_ParadataPanel:
             if op:  # Check if operator is valid
                 op.list_type = extractor_list_var
             
-            if scene.em_list_index >= 0 and len(scene.em_list) > 0 and scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
+            if scene.em_list_index >= 0 and len(scene.em_list) > 0 and scene.em_list[scene.em_list_index].icon == 'LINKED':
                 op = row.operator("select.fromlistitem", text='', icon="MESH_CUBE")
                 if op:  # Check if operator is valid
                     op.list_type = extractor_list_var
@@ -693,7 +693,7 @@ class EM_ParadataPanel:
             if op:  # Check if operator is valid
                 op.list_type = source_list_var
             
-            if scene.em_list_index >= 0 and len(scene.em_list) > 0 and scene.em_list[scene.em_list_index].icon == 'RESTRICT_INSTANCED_OFF':
+            if scene.em_list_index >= 0 and len(scene.em_list) > 0 and scene.em_list[scene.em_list_index].icon == 'LINKED':
                 op = row.operator("select.fromlistitem", text='', icon="MESH_CUBE")
                 if op:  # Check if operator is valid
                     op.list_type = source_list_var

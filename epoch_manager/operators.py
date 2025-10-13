@@ -40,7 +40,7 @@ class EM_toggle_select(Operator):
             # check_same_ids()  # check scene ids
             current_e_manager = scene.epoch_list[self.group_em_idx]
             for us in scene.em_list:
-                if us.icon == "RESTRICT_INSTANCED_OFF":
+                if us.icon == "LINKED":
                     #print(f"La US {us.name} appartiene all'epoca {us.epoch}")
                     if current_e_manager.name == us.epoch:
                         object_to_select = bpy.data.objects[us.name]
@@ -82,7 +82,7 @@ class EM_toggle_visibility(Operator):
             #parsing the em list
             for us in scene.em_list:
                 #selecting only in-scene em elements
-                if us.icon == "RESTRICT_INSTANCED_OFF":
+                if us.icon == "LINKED":
                     # check if the us is in epoch
                     if current_e_manager.name == us.epoch:
                         # identify object to be turned on/off
@@ -106,7 +106,7 @@ class EM_toggle_selectable(Operator):
             # check_same_ids()  # check scene ids
             current_e_manager = scene.epoch_list[self.group_em_idx]
             for us in scene.em_list:
-                if us.icon == "RESTRICT_INSTANCED_OFF":
+                if us.icon == "LINKED":
                     if current_e_manager.name == us.epoch:
                         object_to_set_visibility = bpy.data.objects[us.name]
                         object_to_set_visibility.hide_select = current_e_manager.is_locked

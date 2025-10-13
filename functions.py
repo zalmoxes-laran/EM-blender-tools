@@ -397,14 +397,12 @@ def is_graph_available(context):
         graphml = em_tools.graphml_files[em_tools.active_file_index]
         
         # Try to get the actual graph
-        from s3dgraphy import get_graph
         graph = get_graph(graphml.name)
         
         return bool(graph), graph
     except Exception as e:
         print(f"Error accessing graph: {str(e)}")
         return False, None
-
 
 def is_valid_url(url_string):
     parsed_url = urlparse(url_string)
@@ -621,8 +619,6 @@ def create_derived_lists(node, graph=None):
         node: Il nodo per cui creare le liste
         graph: Istanza del grafo (opzionale)
     """
-    import bpy
-    from .functions import is_graph_available as check_graph
     
     context = bpy.context
     scene = context.scene
@@ -636,7 +632,7 @@ def create_derived_lists(node, graph=None):
     
     # Get the active graph
     if graph is None:
-        graph_exists, graph = check_graph(context)
+        graph_exists, graph = is_graph_available(context)
         if not graph_exists:
             print("Error: Graph not available")
             return
@@ -692,8 +688,7 @@ def create_derived_combiners_list(passed_property_item):
     print(f"La proprietà: {passed_property_item.name} ha id_nodo: {passed_property_item.id_node}")
     
     # Recuperiamo il grafo corrente
-    from .functions import is_graph_available as check_graph
-    graph_exists, graph = check_graph(context)
+    graph_exists, graph = is_graph_available(context)
     
     if not graph_exists:
         print("Errore: Grafo non disponibile")
@@ -749,8 +744,6 @@ def create_derived_extractors_list(passed_property_item, graph=None):
         passed_property_item: L'item della proprietà selezionata
         graph: Istanza del grafo (opzionale)
     """
-    import bpy
-    from .functions import is_graph_available as check_graph
     
     context = bpy.context
     scene = context.scene
@@ -762,7 +755,7 @@ def create_derived_extractors_list(passed_property_item, graph=None):
     
     # Recuperiamo il grafo corrente
     if graph is None:
-        graph_exists, graph = check_graph(context)
+        graph_exists, graph = is_graph_available(context)
         if not graph_exists:
             print("Errore: Grafo non disponibile")
             return False
@@ -807,8 +800,6 @@ def create_derived_sources_list(passed_extractor_item, graph=None):
         passed_extractor_item: L'item dell'estrattore selezionato
         graph: Istanza del grafo (opzionale)
     """
-    import bpy
-    from .functions import is_graph_available as check_graph
     
     context = bpy.context
     scene = context.scene
@@ -819,7 +810,7 @@ def create_derived_sources_list(passed_extractor_item, graph=None):
     
     # Recuperiamo il grafo corrente
     if graph is None:
-        graph_exists, graph = check_graph(context)
+        graph_exists, graph = is_graph_available(context)
         if not graph_exists:
             print("Errore: Grafo non disponibile")
             return
@@ -884,7 +875,7 @@ def switch_paradata_lists(self, context):
     return
 
 ## #### #### #### #### #### #### #### #### #### #### #### ####
-#### Check the presence-absence of US against the GraphML ####
+#### Check the presence-absence of US against the graph.  ####
 ## #### #### #### #### #### #### #### #### #### #### #### ####
 
 def check_objs_in_scene_and_provide_icon_for_list_element(node_name, graph=None, context=None):
@@ -932,8 +923,6 @@ def update_icons(context, list_type):
     
     ✅ MODIFICATO: Ora ottiene il graph attivo e lo passa a check_objs
     """
-    import bpy
-    from .functions import is_graph_available as check_graph
     
     print(f"\n🔍 DEBUG update_icons - Starting for list_type: {list_type}")
     
@@ -941,7 +930,7 @@ def update_icons(context, list_type):
     list_path = "scene." + list_type
     
     # ✅ Ottieni il grafo attivo
-    graph_exists, graph = check_graph(context)
+    graph_exists, graph = is_graph_available(context)
     
     print(f"🔍 DEBUG update_icons - graph_exists: {graph_exists}")
     print(f"🔍 DEBUG update_icons - graph: {graph}")
@@ -1084,8 +1073,6 @@ def check_material_presence(matname):
 #  #### #### #### #### #### #### ####
 
 
-from s3dgraphy.utils.utils import get_material_color
-
 def consolidate_EM_material_presence(overwrite_mats):
     EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
     for EM_mat_name in EM_mat_list:
@@ -1141,7 +1128,7 @@ def set_materials_using_EM_list(context):
         overwrite_mats = True
         consolidate_EM_material_presence(overwrite_mats)
         
-        if current_ob_em_list.icon == 'RESTRICT_INSTANCED_OFF':
+        if current_ob_em_list.icon == 'LINKED':
             # ✅ MODIFICATO: Converti il nome con prefisso
             proxy_name = node_name_to_proxy_name(
                 current_ob_em_list.name,
@@ -1247,7 +1234,7 @@ def set_materials_using_epoch_list(context):
         em_setup_mat_cycles(matname, R, G, B)
         
         for em_element in scene.em_list:
-            if em_element.icon == "RESTRICT_INSTANCED_OFF":
+            if em_element.icon == "LINKED":
                 if em_element.epoch == epoch.name:
                     # ✅ MODIFICATO: Converti il nome con prefisso
                     proxy_name = node_name_to_proxy_name(
@@ -1635,43 +1622,6 @@ def update_or_create_link_node(graph, source_node, url, preserve_existing=True):
                 edge_type="has_linked_resource"
             )
 
-
-def is_graph_available(context):
-    """
-    Check if a valid graph is available in the current context.
-    
-    Args:
-        context: Blender context
-        
-    Returns:
-        tuple: (bool, graph) where bool indicates if a graph is available,
-               and graph is the actual graph object or None
-    """
-    if not hasattr(context.scene, 'em_tools'):
-        return False, None
-        
-    em_tools = context.scene.em_tools
-    
-    # Check if graphml_files collection exists and has items
-    if not hasattr(em_tools, 'graphml_files') or len(em_tools.graphml_files) == 0:
-        return False, None
-        
-    # Check if active_file_index is valid
-    if em_tools.active_file_index < 0 or em_tools.active_file_index >= len(em_tools.graphml_files):
-        return False, None
-        
-    try:
-        # Get the active graphml file
-        graphml = em_tools.graphml_files[em_tools.active_file_index]
-        
-        # Try to get the actual graph
-        from s3dgraphy import get_graph
-        graph = get_graph(graphml.name)
-        
-        return bool(graph), graph
-    except Exception as e:
-        print(f"Error accessing graph: {str(e)}")
-        return False, None
 
 def update_visibility_icons(context, list_type="em_list"):
     """

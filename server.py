@@ -16,8 +16,8 @@ class EM_ServerPanel:
     @classmethod
     def poll(cls, context):
         em_tools = context.scene.em_tools
-        # Restituisce True se mode_switch è False, quindi il pannello viene mostrato solo in modalità 3D GIS
-        return em_tools.mode_switch
+        # Restituisce True se mode_em_advanced è False, quindi il pannello viene mostrato solo in modalità 3D GIS
+        return em_tools.mode_em_advanced
     
     def draw(self, context):
         layout = self.layout

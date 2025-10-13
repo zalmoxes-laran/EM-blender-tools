@@ -32,8 +32,8 @@ class EM_ExportPanel:
     @classmethod
     def poll(cls, context):
         em_tools = context.scene.em_tools
-        # Restituisce True se mode_switch è False, quindi il pannello viene mostrato solo in modalità 3D GIS
-        return em_tools.mode_switch
+        # Restituisce True se mode_em_advanced è False, quindi il pannello viene mostrato solo in modalità 3D GIS
+        return em_tools.mode_em_advanced
     '''
     
     def draw(self, context):
@@ -856,7 +856,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
 
     def set_has_proxy_value(self, string):
         hasproxy = False
-        if string == "RESTRICT_INSTANCED_OFF":
+        if string == "LINKED":
             hasproxy = True
         return hasproxy
 

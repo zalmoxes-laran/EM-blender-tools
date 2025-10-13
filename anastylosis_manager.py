@@ -748,7 +748,7 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
     def poll(cls, context):
         em_tools = context.scene.em_tools
         # Show only if we're in advanced EM mode
-        return em_tools.mode_switch
+        return em_tools.mode_em_advanced
     
     def draw(self, context):
         layout = self.layout

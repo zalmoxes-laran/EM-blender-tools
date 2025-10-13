@@ -751,11 +751,11 @@ class SET_materials_using_em_list(Operator):
     def execute(self, context):
         # ✅ AGGIUNTO: Import delle funzioni necessarie
         from ..functions import consolidate_EM_material_presence, em_setup_mat_cycles
-        from ..functions import is_graph_available as check_graph
+        from ..functions import is_graph_available
         from ..operators.addon_prefix_helpers import node_name_to_proxy_name
         
         # ✅ AGGIUNTO: Ottieni il grafo attivo una sola volta
-        graph_exists, graph = check_graph(context)
+        graph_exists, graph = is_graph_available(context)
         active_graph = graph if graph_exists else None
         
         # Prepare EM materials
@@ -769,7 +769,7 @@ class SET_materials_using_em_list(Operator):
         counter = 0
         while counter < em_list_lenght:
             current_ob_em_list = context.scene.em_list[counter]
-            if current_ob_em_list.icon == 'RESTRICT_INSTANCED_OFF':
+            if current_ob_em_list.icon == 'LINKED':
                 # ✅ MODIFICATO: Converti il nome con prefisso
                 proxy_name = node_name_to_proxy_name(
                     current_ob_em_list.name, 
@@ -870,7 +870,7 @@ class SET_materials_using_epoch_list(Operator):
             
             # Apply materials to objects in this epoch
             for em_element in scene.em_list:
-                if em_element.icon == "RESTRICT_INSTANCED_OFF":
+                if em_element.icon == "LINKED":
                     if em_element.epoch == epoch.name:
                         # ✅ MODIFICATO: Converti il nome con prefisso
                         proxy_name = node_name_to_proxy_name(

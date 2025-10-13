@@ -469,7 +469,7 @@ class EMToolsSettings(bpy.types.PropertyGroup):
     # Proprietà esistenti
     graphml_files: bpy.props.CollectionProperty(type=EMToolsProperties) # type: ignore
     active_file_index: bpy.props.IntProperty() # type: ignore
-    mode_switch: bpy.props.BoolProperty(
+    mode_em_advanced: bpy.props.BoolProperty(
         name="Modalità EM Avanzata",
         description="Switch tra modalità 3D GIS e modalità EM avanzata",
         default=True
@@ -682,10 +682,10 @@ class EMToolsSwitchModeOperator(bpy.types.Operator):
         em_tools = context.scene.em_tools
         
         # Alterna tra le due modalità
-        em_tools.mode_switch = not em_tools.mode_switch
+        em_tools.mode_em_advanced = not em_tools.mode_em_advanced
         
         # Messaggio per informare l'utente
-        if em_tools.mode_switch:
+        if em_tools.mode_em_advanced:
             self.report({'INFO'}, "Switched to Advanced EM Mode")
         else:
             self.report({'INFO'}, "Switched to 3D GIS Mode")
@@ -722,7 +722,7 @@ class EM_SetupPanel(bpy.types.Panel):
             activemode_label = ""
             active_label = ""
             # Cambia l'etichetta del pulsante in base alla modalità attiva
-            if em_tools.mode_switch:
+            if em_tools.mode_em_advanced:
                 activemode_label = "Switch to 3D GIS"
                 active_label = "Advanced EM Mode active"
             else:
@@ -734,7 +734,7 @@ class EM_SetupPanel(bpy.types.Panel):
             col = split.column()
             col.operator("emtools.switch_mode", text=activemode_label)
 
-        if em_tools.mode_switch:
+        if em_tools.mode_em_advanced:
 
             # ========================================================================
             # SEZIONE LANDSCAPE MODE - COMPATTA SU UNA RIGA

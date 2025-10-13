@@ -5,8 +5,8 @@ core functionality: property management, color schemes, and label tools.
 No references to the old visualization_modules system.
 """
 
-import bpy
-from bpy.types import Panel, UIList, Menu
+import bpy # type: ignore
+from bpy.types import Panel, UIList, Menu # type: ignore
 
 from .color_ramps import COLOR_RAMPS
 
@@ -68,7 +68,6 @@ class VISUAL_UL_camera_list(UIList):
             layout.alignment = 'CENTER'
             layout.label(text=item.name, icon=camera_icon)
 
-
 class VISUAL_MT_display_mode_menu(Menu):
     """Menu for display mode selection"""
     bl_label = "Display Mode Menu"
@@ -77,7 +76,7 @@ class VISUAL_MT_display_mode_menu(Menu):
     def draw(self, context):
         layout = self.layout
 
-        if context.scene.em_tools.mode_switch:
+        if context.scene.em_tools.mode_em_advanced:
             layout.operator("emset.emmaterial", text="EM")
             layout.operator("emset.epochmaterial", text="Epochs")
 
@@ -118,7 +117,7 @@ class VIEW3D_PT_visual_panel(Panel):
         self.draw_label_tools(layout, context)
         
         # RM Coloring (only in advanced mode, RM sync active, AND experimental features)
-        if (hasattr(scene, 'em_tools') and scene.em_tools.mode_switch and 
+        if (hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced and 
             getattr(scene, 'sync_rm_visibility', False) and
             hasattr(scene.em_tools, 'experimental_features') and scene.em_tools.experimental_features):
             self.draw_rm_coloring(layout, context)
@@ -128,7 +127,7 @@ class VIEW3D_PT_visual_panel(Panel):
         scene = context.scene
         box = layout.box()
         
-        #if hasattr(scene, 'em_tools') and scene.em_tools.mode_switch:
+        #if hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced:
         #    row = box.row()
         #    row.prop(scene, "show_all_graphs", text="Show All Graphs")
         

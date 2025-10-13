@@ -368,7 +368,7 @@ def get_available_properties(context):
     if _cached_properties and (current_time - _last_cache_time) < CACHE_DURATION:
         return _cached_properties
 
-    if not em_tools.mode_switch:  # Modalità 3D GIS
+    if not em_tools.mode_em_advanced:  # Modalità 3D GIS
         # Nome hardcodato per modalità 3D GIS
         graph = get_graph("3dgis_graph")
         if graph and hasattr(graph, 'indices'):
