@@ -28,7 +28,7 @@ class GenericXLSXImporter(BaseImporter):
             mode: Either "3DGIS" or "EM_ADVANCED"
         """
         
-        super().__init__(filepath=filepath, id_column=id_column, overwrite=overwrite, mode=mode)
+        super().__init__(filepath=filepath, id_column=id_column, overwrite=overwrite)
         
         self.sheet_name = sheet_name
         self.mode = mode

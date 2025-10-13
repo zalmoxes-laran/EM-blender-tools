@@ -327,7 +327,7 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         name="File Path",
         subtype='FILE_PATH',
         description="Path to the auxiliary file",
-        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
     ) # type: ignore
 
     file_type: bpy.props.EnumProperty(
@@ -357,7 +357,7 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         name="Resource Folder",
         description="Parent folder to search for resources. Use relative path (// prefix) for cross-PC compatibility",
         subtype='DIR_PATH',
-        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
     ) # type: ignore
     
     expanded: bpy.props.BoolProperty(
@@ -378,19 +378,19 @@ class EMToolsProperties(bpy.types.PropertyGroup):
     graphml_path: bpy.props.StringProperty(
         name="GraphML Path",
         subtype='FILE_PATH',
-        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
     )   # type: ignore # Aggiungiamo il campo per il percorso
     dosco_dir: bpy.props.StringProperty(name="DosCo Directory", subtype='DIR_PATH') # type: ignore
     xlsx_filepath: bpy.props.StringProperty(
         name="Source File (xlsx)",
         subtype='FILE_PATH',
-        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
     ) # type: ignore
     xlsx_3DGIS_database_file: bpy.props.StringProperty(
         name="3D GIS Database File", 
         description="Path to the 3D GIS database Excel file",
         subtype='FILE_PATH',
-        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
     )     # type: ignore
     emdb_filepath: bpy.props.StringProperty(name="EMdb File (sqlite)", subtype='FILE_PATH') # type: ignore
     is_graph: bpy.props.BoolProperty(name="Graph Exists", default=False)  # type: ignore # Aggiungi questa riga
@@ -427,7 +427,7 @@ class AUXILIARY_UL_files(bpy.types.UIList):
 
 
             if item.file_type == "emdb_xlsx":
-                row.label(text="", icon='SPREADSHEET')
+                row.label(text="", icon_value=icons_manager.get_icon_value("EMdb_logo"))
 
             if item.file_type == "pyarchinit":
                 row.label(text="", icon_value=icons_manager.get_icon_value("pyarchinit"))
@@ -465,6 +465,35 @@ def get_emdb_mappings():
     
     return mappings
 
+def get_us_doc_previews_callback(self, context):
+    """
+    Callback per ottenere thumbnails dell'US selezionata.
+    Gestisce correttamente il caso di lista vuota per evitare errori UI.
+    """
+    scene = context.scene
+    
+    # Ottieni US selezionata
+    if not hasattr(scene, 'em_list') or scene.em_list_index < 0:
+        # ✅ CORRETTO: Usa "NONE" invece di stringa vuota
+        return [("NONE", "No US selected", "", 0, 0)]
+    
+    if scene.em_list_index >= len(scene.em_list):
+        # ✅ CORRETTO: Usa "NONE" invece di stringa vuota
+        return [("NONE", "Invalid US index", "", 0, 0)]
+        
+    selected_us = scene.em_list[scene.em_list_index]
+    
+    # Carica thumbnails filtrate
+    from .thumb_utils import reload_doc_previews_for_us
+    items = reload_doc_previews_for_us(selected_us.id_node)
+    
+    # ✅ CRITICO: Se non ci sono thumbnails, restituisci placeholder con ID valido
+    # Usa "NONE" invece di "" per evitare il warning di Blender
+    if not items or len(items) == 0:
+        return [("NONE", "No thumbnails available", "", 0, 0)]
+    
+    return items
+
 class EMToolsSettings(bpy.types.PropertyGroup):
     # Proprietà esistenti
     graphml_files: bpy.props.CollectionProperty(type=EMToolsProperties) # type: ignore
@@ -491,7 +520,7 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         name="Excel File",
         description="Path to generic Excel file",
         subtype='FILE_PATH',
-        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
     ) # type: ignore
     xlsx_sheet_name: bpy.props.StringProperty(
         name="Sheet Name",
@@ -503,13 +532,14 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         description="Name of the column containing unique IDs",
         default="ID"
     ) # type: ignore
+    
 
     # pyArchInit properties
     pyarchinit_db_path: bpy.props.StringProperty(
         name="SQLite Database",
         description="Path to pyArchInit SQLite database",
         subtype='FILE_PATH',
-        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
     ) # type: ignore
     pyarchinit_table: bpy.props.StringProperty(
         name="Table Name",
@@ -522,7 +552,7 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         name="EMdb Excel File",
         description="Path to EMdb Excel file",
         subtype='FILE_PATH',
-        options={'RELATIVE_PATH'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
     ) # type: ignore
     emdb_mapping: bpy.props.EnumProperty(
         name="EMdb Format",
@@ -562,39 +592,10 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         update=lambda self, context: None  # Gestiamo la selezione diversamente
     ) # type: ignore
 
-    def get_us_doc_previews(self, context):
-        """
-        Callback per ottenere thumbnails dell'US selezionata.
-        Gestisce correttamente il caso di lista vuota per evitare errori UI.
-        """
-        scene = context.scene
-        
-        # Ottieni US selezionata
-        if not hasattr(scene, 'em_list') or scene.em_list_index < 0:
-            # ✅ CORRETTO: Usa "NONE" invece di stringa vuota
-            return [("NONE", "No US selected", "", 0, 0)]
-        
-        if scene.em_list_index >= len(scene.em_list):
-            # ✅ CORRETTO: Usa "NONE" invece di stringa vuota
-            return [("NONE", "Invalid US index", "", 0, 0)]
-            
-        selected_us = scene.em_list[scene.em_list_index]
-        
-        # Carica thumbnails filtrate
-        from .thumb_utils import reload_doc_previews_for_us
-        items = reload_doc_previews_for_us(selected_us.id_node)
-        
-        # ✅ CRITICO: Se non ci sono thumbnails, restituisci placeholder con ID valido
-        # Usa "NONE" invece di "" per evitare il warning di Blender
-        if not items or len(items) == 0:
-            return [("NONE", "No thumbnails available", "", 0, 0)]
-        
-        return items
-
     em_us_doc_previews: EnumProperty(
         name="US Document Previews", 
         description="Anteprima documenti per l'US selezionata",
-        items=get_us_doc_previews,
+        items=get_us_doc_previews_callback,
         update=lambda self, context: None
     ) # type: ignore
 

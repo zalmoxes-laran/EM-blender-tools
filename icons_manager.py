@@ -37,7 +37,8 @@ def load_icons():
         "pyarchinit": "pyarchinit.png",
         "em_no_publish": "em_no_publish.png",
         "em_publish": "em_publish.png",
-        "em_logo": "em_logo_small.png",  
+        "em_logo": "em_logo_small.png",
+        "EMdb_logo": "EMdb_logo.png",  
     }
     
     # Carica ogni icona che esiste
