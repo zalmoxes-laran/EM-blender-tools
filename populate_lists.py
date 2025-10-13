@@ -261,7 +261,7 @@ def populate_property_node(scene, node, index, graph=None):
     """
     Popola la lista delle proprietà.
     
-    ✅ MODIFICATO: Aggiunto supporto per graph parameter.
+    Aggiunto supporto per graph parameter.
     
     Args:
         scene: Blender scene
@@ -272,13 +272,11 @@ def populate_property_node(scene, node, index, graph=None):
     scene.em_properties_list.add()
     em_item = scene.em_properties_list[-1]
     
-    # ✅ GIÀ CORRETTO: usa il nome pulito
     if hasattr(node, 'attributes') and 'original_name' in node.attributes:
         em_item.name = node.attributes['original_name']
     else:
         em_item.name = node.name
     
-    # ✅ MODIFICATO: passa il grafo
     em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
     em_item.id_node = node.node_id
     em_item.url = clean_value_for_ui(getattr(node, 'value', ''))
