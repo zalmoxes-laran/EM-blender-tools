@@ -709,37 +709,47 @@ class EM_SetupPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        #layout.template_icon(icon_value=icons_manager.get_icon_value("em_logo"), scale=2.0)
         scene = context.scene
         em_tools = scene.em_tools
 
-        if em_tools.experimental_features:
-            box = layout.box()
-            row = box.row(align=True)
-            split = row.split()
-            col = split.column()
+        # ========================================================================
+        # WORKING METHODS SECTION
+        # ========================================================================
 
-            activemode_label = ""
-            active_label = ""
-            # Cambia l'etichetta del pulsante in base alla modalità attiva
-            if em_tools.mode_em_advanced:
-                activemode_label = "Switch to 3D GIS"
-                active_label = "Advanced EM Mode active"
-            else:
-                activemode_label = "Switch to Advanced EM"
-                active_label = "3D GIS Mode active"
-            
-            # Disegna il pulsante
-            col.label(text=active_label)
-            col = split.column()
-            col.operator("emtools.switch_mode", text=activemode_label)
+        box = layout.box()
+        row = box.row(align=True)
+        split = row.split()
+        col = split.column()
 
+        activemode_label = ""
+        active_label = ""
+        # Cambia l'etichetta del pulsante in base alla modalità attiva
         if em_tools.mode_em_advanced:
+            activemode_label = "Switch to Basic 3D GIS"
+            active_label = "Active Mode: Advanced EM"
+        else:
+            activemode_label = "Switch to Advanced EM"
+            active_label = "Active Mode: Basic 3D GIS"
+        
+        # Disegna il pulsante
+        col.label(text=active_label)
+        col = split.column()
+        col.operator("emtools.switch_mode", text=activemode_label)
 
-            # ========================================================================
-            # SEZIONE LANDSCAPE MODE - COMPATTA SU UNA RIGA
-            # ========================================================================
-            
+        if not em_tools.mode_em_advanced and len(em_tools.graphml_files) > 0:
+            row = box.row()
+            row.alert = True  # Imposta il colore rosso
+            row.label(text=" Warning: Starting from a blank file is strongly recommended", icon='ERROR')
+            row = box.row()
+            row.alert = True
+            row.label(text="when working in Basic 3D GIS mode with existing Advanced EM graphs.")
+
+        # ========================================================================
+        # SEZIONE LANDSCAPE MODE - (in experimental mode)
+        # ========================================================================
+        
+        if em_tools.experimental_features:
+
             # Conta i grafi caricati e validi
             loaded_graphs = []
             if em_tools.graphml_files:
@@ -791,9 +801,12 @@ class EM_SetupPanel(bpy.types.Panel):
                 enable_op.enable = True  # Per attivare
 
 
-            # ========================================================================
-            # FINE SEZIONE LANDSCAPE MODE
-            # ========================================================================
+        # ========================================================================
+        # END OF LANDSCAPE MODE SECTION
+        # ========================================================================
+
+
+        if em_tools.mode_em_advanced:
 
             # List of GraphML files
             row = layout.row()
@@ -1056,6 +1069,10 @@ class EM_SetupPanel(bpy.types.Panel):
                     warning_box.alert = True
                     warning_box.label(text="Warning: these features are experimental.", icon='ERROR')
                     warning_box.label(text="They should not be used in a production environment.")
+
+        ################################################################################
+        # 3D GIS MODE SECTION
+        ################################################################################    
 
         else:
             # UI per modalità 3D GIS
