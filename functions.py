@@ -521,8 +521,6 @@ def select_list_element_from_obj_proxy(obj, list_type, context=None, graph=None)
     """
     Seleziona l'elemento nella lista a partire dal proxy 3D.
     
-    ✅ MODIFICATO: ora gestisce la rimozione del prefisso per comparare i nomi
-    
     Args:
         obj: L'oggetto 3D Blender
         list_type: Il tipo di lista (es. "em_list")
@@ -542,12 +540,38 @@ def select_list_element_from_obj_proxy(obj, list_type, context=None, graph=None)
     list_cmd = ("scene." + list_type)
     list_index_cmd = ("scene." + list_type + "_index = index_list")
     
+    # ✅ NUOVO: Flag per verificare se troviamo una corrispondenza
+    found = False
+    
     for i in eval(list_cmd):
         # Compara il nome pulito del nodo con il nome pulito nella lista
         if node_name == i.name:
             exec(list_index_cmd)
+            found = True
             break
         index_list += 1
+    
+    # ✅ NUOVO: Se non troviamo una corrispondenza, mostra popup
+    if not found:
+        # Ottieni il nome del grafo attivo
+        graph_name = "Unknown"
+        if graph:
+            graph_name = graph.attributes.get('graph_code', 'Unknown')
+            if not graph_name or graph_name in ["", "site_ID"]:
+                graph_name = getattr(graph, 'name', 'Unknown')
+        else:
+            # Prova a ottenere il nome del grafo dal context
+            em_tools = scene.em_tools
+            if em_tools.active_file_index >= 0 and em_tools.active_file_index < len(em_tools.graphml_files):
+                graphml = em_tools.graphml_files[em_tools.active_file_index]
+                graph_name = graphml.name
+        
+        show_popup_message(
+            context,
+            "No Corresponding US Found",
+            f"Object '{obj.name}' does not have a corresponding US in graph '{graph_name}'",
+            'ERROR'
+        )
 
 ## diverrà deprecata !
 def add_sceneobj_to_epochs():
