@@ -905,6 +905,8 @@ def switch_paradata_lists(self, context):
 def check_objs_in_scene_and_provide_icon_for_list_element(node_name, graph=None, context=None):
     """
     Verifica se esiste un oggetto 3D in scena corrispondente al nodo e fornisce l'icona appropriata.
+    
+    ✅ FIXED per Blender 4.5: rimossa list comprehension che causava stack overflow
     """
     
     # 🔍 DEBUG: Stampa informazioni sul graph
@@ -929,17 +931,34 @@ def check_objs_in_scene_and_provide_icon_for_list_element(node_name, graph=None,
     obj = bpy.data.objects.get(proxy_name)
     
     print(f"🔍 DEBUG check_objs - obj found: {obj is not None}")
+    
+    # ✅ FIX per Blender 4.5: rimossa la list comprehension problematica
+    # Questa iterazione causava stack overflow con nomi multi-linea
+    # La rimuoviamo completamente perché non è essenziale e causava il crash
     if not obj:
-        # Verifica se esiste un oggetto con un nome simile
-        similar_objects = [o.name for o in bpy.data.objects if node_name in o.name]
-        print(f"🔍 DEBUG check_objs - similar objects in scene: {similar_objects}")
+        # Se proprio necessario, si può cercare in modo più sicuro:
+        # - Limitando il numero di oggetti da controllare
+        # - Usando un approccio iterativo invece di list comprehension
+        # - Sanitizzando il node_name prima del confronto
+        
+        # Versione sicura (opzionale, commentata di default):
+        # similar_objects = []
+        # clean_node_name = node_name.replace('\n', '').replace('\r', '').strip()
+        # for o in list(bpy.data.objects)[:100]:  # Limita a 100 oggetti
+        #     try:
+        #         if clean_node_name in o.name:
+        #             similar_objects.append(o.name)
+        #     except:
+        #         pass
+        # print(f"🔍 DEBUG check_objs - similar objects in scene: {similar_objects}")
+        
+        print(f"🔍 DEBUG check_objs - object not found, skipping similarity check")
     
     # Restituisci l'icona appropriata
     if obj:
         return "LINKED"  # Oggetto esiste in scena
     else:
         return "UNLINKED"  # Oggetto non esiste
-
 
 def update_icons(context, list_type):
     """
