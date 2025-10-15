@@ -20,6 +20,70 @@ _paradata_update_in_progress = False
 _paradata_refresh_needed = False
 
 
+def draw_multiline_text(layout, text, max_chars=50, icon='NONE'):
+    """
+    Disegna testo su più righe se supera max_chars.
+    Versione migliorata che gestisce meglio il wrapping.
+    
+    Args:
+        layout: Layout di Blender
+        text: Testo da visualizzare  
+        max_chars: Caratteri approssimativi per riga
+        icon: Icona da mostrare
+    """
+    if not text:
+        layout.label(text="(empty)", icon='ERROR')
+        return
+    
+    text_str = str(text).strip()
+    
+    # Se il testo è corto, mostralo direttamente
+    if len(text_str) <= max_chars:
+        row = layout.row()
+        row.scale_y = 0.9
+        row.label(text=text_str, icon=icon)
+        return
+    
+    # Per testo lungo: crea un box contenitore
+    box = layout.box()
+    box.scale_y = 0.8
+    col = box.column(align=True)
+    
+    # Dividi in righe
+    words = text_str.split()
+    current_line = ""
+    line_count = 0
+    
+    for word in words:
+        # Calcola la lunghezza se aggiungessimo questa parola
+        test_line = (current_line + " " + word) if current_line else word
+        
+        if len(test_line) <= max_chars:
+            current_line = test_line
+        else:
+            # Emetti la riga corrente
+            if current_line:
+                row = col.row()
+                row.scale_y = 0.9
+                if line_count == 0:
+                    row.label(text=current_line, icon=icon)
+                else:
+                    row.label(text=current_line)
+                line_count += 1
+            
+            # Inizia nuova riga con la parola corrente
+            current_line = word
+    
+    # Emetti l'ultima riga
+    if current_line:
+        row = col.row()
+        row.scale_y = 0.9
+        if line_count == 0:
+            row.label(text=current_line, icon=icon)
+        else:
+            row.label(text=current_line)
+
+
 # Funzione di utilità per controllare lo stato degli aggiornamenti
 def set_paradata_update_state(state):
     global _paradata_update_in_progress, _paradata_refresh_needed
@@ -561,15 +625,23 @@ class EM_ParadataPanel:
         #row.prop(scene, "prop_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
         row = layout.row()
         row.template_list("EM_UL_properties_managers", "", scene, property_list_var, scene, property_list_index_var, rows=2)
-        
+                
         # Mostra sempre il box, anche se non ci sono elementi
         box = layout.box()
         if property_index_valid:
             item_property = eval(property_list_cmd)[property_list_index]
+            
+            # Name
             row = box.row()
-            row.prop(item_property, "name", text="", icon='FILE_TEXT')
+            row.label(text="Name:", icon='FILE_TEXT')
             row = box.row()
-            row.prop(item_property, "description", text="", slider=True, emboss=True, icon='TEXT')
+            draw_multiline_text(row, item_property.name, max_chars=50)
+            
+            # Description
+            row = box.row()
+            row.label(text="Description:", icon='TEXT')
+            row = box.row()
+            draw_multiline_text(row, item_property.description, max_chars=50)
         else:
             row = box.row()
             row.label(text="No properties available")
@@ -599,14 +671,28 @@ class EM_ParadataPanel:
             box = layout.box()
             if combiner_index_valid:
                 item_property = eval(combiner_list_cmd)[combiner_list_index]
+                
+                # Name
                 row = box.row()
-                row.prop(item_property, "name", text="", icon='FILE_TEXT')
+                row.label(text="Name:", icon='FILE_TEXT')
                 row = box.row()
-                row.prop(item_property, "description", text="", slider=True, emboss=True, icon='TEXT')
+                draw_multiline_text(row, item_property.name, max_chars=50)
+                
+                # Description
                 row = box.row()
-                row.prop(item_property, "url", text="", slider=True, emboss=True, icon='URL')
-                op = row.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
-                if op:  # Check if operator is valid
+                row.label(text="Description:", icon='TEXT')
+                row = box.row()
+                draw_multiline_text(row, item_property.description, max_chars=50)
+                
+                # URL
+                row = box.row()
+                row.label(text="URL:", icon='URL')
+                split = row.split(factor=0.85)
+                col_url = split.column()
+                draw_multiline_text(col_url, item_property.url, max_chars=45)
+                col_btn = split.column()
+                op = col_btn.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
+                if op:
                     op.node_type = combiner_list_var
         #else:
         #    row = box.row()
@@ -634,32 +720,51 @@ class EM_ParadataPanel:
         box = layout.box()
         if extractor_index_valid:
             item_source = eval(extractor_list_cmd)[extractor_list_index]
+            
+            # Name con pulsanti
             row = box.row()
-            row.prop(item_source, "name", text="", icon='FILE_TEXT')
-            op = row.operator("listitem.toobj", icon="PASTEDOWN", text='')
-            if op:  # Check if operator is valid
+            row.label(text="Name:", icon='FILE_TEXT')
+            row = box.row()
+            split = row.split(factor=0.7)
+            col_name = split.column()
+            draw_multiline_text(col_name, item_source.name, max_chars=40)
+            
+            # Pulsanti azione
+            col_btns = split.column(align=True)
+            btn_row = col_btns.row(align=True)
+            op = btn_row.operator("listitem.toobj", icon="PASTEDOWN", text='')
+            if op:
                 op.list_type = extractor_list_var
             
             if scene.em_list_index >= 0 and len(scene.em_list) > 0 and scene.em_list[scene.em_list_index].icon == 'LINKED':
-                op = row.operator("select.fromlistitem", text='', icon="MESH_CUBE")
-                if op:  # Check if operator is valid
+                op = btn_row.operator("select.fromlistitem", text='', icon="MESH_CUBE")
+                if op:
                     op.list_type = extractor_list_var
             else:
-                row.label(text="", icon='MESH_CUBE')
+                btn_row.label(text="", icon='MESH_CUBE')
             
             if obj and check_if_current_obj_has_brother_inlist(obj.name, extractor_list_var):
-                op = row.operator("select.listitem", text='', icon="LONGDISPLAY")
-                if op:  # Check if operator is valid
+                op = btn_row.operator("select.listitem", text='', icon="LONGDISPLAY")
+                if op:
                     op.list_type = extractor_list_var
             else:
-                row.label(text="", icon='LONGDISPLAY')   
+                btn_row.label(text="", icon='LONGDISPLAY')
             
+            # Description
             row = box.row()
-            row.prop(item_source, "description", text="", slider=True, emboss=True, icon='TEXT')
+            row.label(text="Description:", icon='TEXT')
             row = box.row()
-            row.prop(item_source, "url", text="", slider=True, emboss=True, icon='URL')
-            op = row.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
-            if op:  # Check if operator is valid
+            draw_multiline_text(row, item_source.description, max_chars=50)
+            
+            # URL
+            row = box.row()
+            row.label(text="URL:", icon='URL')
+            split = row.split(factor=0.85)
+            col_url = split.column()
+            draw_multiline_text(col_url, item_source.url, max_chars=45)
+            col_btn = split.column()
+            op = col_btn.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
+            if op:
                 op.node_type = extractor_list_var
         else:
             row = box.row()
@@ -686,37 +791,55 @@ class EM_ParadataPanel:
         box = layout.box()
         if source_index_valid:
             item_source = eval(source_list_cmd)[source_list_index]
-            row = box.row()
-            row.prop(item_source, "name", text="", icon='FILE_TEXT')
             
-            op = row.operator("listitem.toobj", icon="PASTEDOWN", text='')
-            if op:  # Check if operator is valid
+            # Name con pulsanti
+            row = box.row()
+            row.label(text="Name:", icon='FILE_TEXT')
+            row = box.row()
+            split = row.split(factor=0.7)
+            col_name = split.column()
+            draw_multiline_text(col_name, item_source.name, max_chars=40)
+            
+            # Pulsanti azione
+            col_btns = split.column(align=True)
+            btn_row = col_btns.row(align=True)
+            op = btn_row.operator("listitem.toobj", icon="PASTEDOWN", text='')
+            if op:
                 op.list_type = source_list_var
             
             if scene.em_list_index >= 0 and len(scene.em_list) > 0 and scene.em_list[scene.em_list_index].icon == 'LINKED':
-                op = row.operator("select.fromlistitem", text='', icon="MESH_CUBE")
-                if op:  # Check if operator is valid
+                op = btn_row.operator("select.fromlistitem", text='', icon="MESH_CUBE")
+                if op:
                     op.list_type = source_list_var
             else:
-                row.label(text="", icon='MESH_CUBE')
+                btn_row.label(text="", icon='MESH_CUBE')
             
             if obj and check_if_current_obj_has_brother_inlist(obj.name, source_list_var):
-                op = row.operator("select.listitem", text='', icon="LONGDISPLAY")
-                if op:  # Check if operator is valid
+                op = btn_row.operator("select.listitem", text='', icon="LONGDISPLAY")
+                if op:
                     op.list_type = source_list_var
             else:
-                row.label(text="", icon='LONGDISPLAY')
+                btn_row.label(text="", icon='LONGDISPLAY')
             
+            # Description
             row = box.row()
-            row.prop(item_source, "description", text="", slider=True, emboss=True, icon='TEXT')
+            row.label(text="Description:", icon='TEXT')
             row = box.row()
-            row.prop(item_source, "url", text="", slider=True, emboss=True, icon='URL')
-            op = row.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
-            if op:  # Check if operator is valid
+            draw_multiline_text(row, item_source.description, max_chars=50)
+            
+            # URL
+            row = box.row()
+            row.label(text="URL:", icon='URL')
+            split = row.split(factor=0.85)
+            col_url = split.column()
+            draw_multiline_text(col_url, item_source.url, max_chars=45)
+            col_btn = split.column()
+            op = col_btn.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
+            if op:
                 op.node_type = source_list_var
         else:
             row = box.row()
-            row.label(text="No document available")
+            row.label(text="No documents available")
 
         ###############################################################################
         ##          Image Preview
