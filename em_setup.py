@@ -380,7 +380,11 @@ class EMToolsProperties(bpy.types.PropertyGroup):
         subtype='FILE_PATH',
         options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
     )   # type: ignore # Aggiungiamo il campo per il percorso
-    dosco_dir: bpy.props.StringProperty(name="DosCo Directory", subtype='DIR_PATH') # type: ignore
+    dosco_dir: bpy.props.StringProperty(
+        name="DosCo Directory", 
+        subtype='DIR_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
+        ) # type: ignore
     xlsx_filepath: bpy.props.StringProperty(
         name="Source File (xlsx)",
         subtype='FILE_PATH',

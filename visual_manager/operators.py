@@ -311,34 +311,40 @@ class VISUAL_OT_select_proxies(Operator):
     bl_idname = "visual.select_proxies"
     bl_label = "Select Proxies"
     bl_description = "Select all proxies with this property value"
-
     value: StringProperty() # type: ignore
-
+    
     def execute(self, context):
+        # Import corretto dal modulo operators già importato nel package
+        from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+        
         scene = context.scene
         em_tools = scene.em_tools
         
         if not scene.selected_property:
             self.report({'ERROR'}, "No property selected")
             return {'CANCELLED'}
-            
+        
         print(f"\nSelecting proxies with value: '{self.value}'")
         
         # Deselect all objects first
         bpy.ops.object.select_all(action='DESELECT')
-
-        # Determina il grafo attivo basato sulla modalità - USA LA STESSA LOGICA
+        
+        # Determina il grafo attivo basato sulla modalità
         graph = None
-        if not scene.em_tools.mode_em_advanced:  # Modalità 3D GIS
+        use_prefix = True  # Flag per sapere se usare il prefisso
+        
+        if not scene.em_tools.mode_em_advanced: # Modalità 3D GIS
             graph = get_graph("3dgis_graph")
+            use_prefix = False  # 3DGIS non usa prefissi!
             if graph:
-                print(f"Using 3D GIS graph")
-        else:  # Modalità Advanced EM
+                print(f"Using 3D GIS graph (no prefix)")
+        else: # Modalità Advanced EM
+            use_prefix = True  # Advanced EM usa i prefissi
             if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > em_tools.active_file_index:
                 try:
                     graphml = em_tools.graphml_files[em_tools.active_file_index]
                     graph = get_graph(graphml.name)
-                    print(f"Using Advanced EM graph: {graphml.name}")
+                    print(f"Using Advanced EM graph: {graphml.name} (with prefix)")
                 except Exception as e:
                     self.report({'ERROR'}, f"Error loading graph: {str(e)}")
                     return {'CANCELLED'}
@@ -354,17 +360,29 @@ class VISUAL_OT_select_proxies(Operator):
             
             # Seleziona gli oggetti che hanno questo valore
             selected_count = 0
-            for obj_name, prop_value in property_mapping.items():
+            for node_name, prop_value in property_mapping.items():
                 if str(prop_value) == self.value:
-                    proxy = bpy.data.objects.get(obj_name)
+                    # Determina il nome del proxy in base alla modalità
+                    if use_prefix:
+                        # Advanced EM: usa il prefisso
+                        proxy_name = node_name_to_proxy_name(node_name, context=context, graph=graph)
+                    else:
+                        # Basic 3DGIS: usa il nome diretto senza prefisso
+                        proxy_name = node_name
+                    
+                    # Cerca l'oggetto con il nome appropriato
+                    proxy = bpy.data.objects.get(proxy_name)
                     if proxy and proxy.type == 'MESH':
                         proxy.select_set(True)
                         selected_count += 1
-                        print(f"  Selected: {obj_name}")
+                        print(f"  Selected: {proxy_name}")
+                    else:
+                        print(f"  Warning: Proxy not found or not mesh: {proxy_name}")
             
             message = f"Selected {selected_count} objects with value '{self.value}'"
             print(f"✅ {message}")
             self.report({'INFO'}, message)
+            
             return {'FINISHED'}
             
         except Exception as e:
