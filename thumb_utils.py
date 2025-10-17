@@ -139,8 +139,11 @@ def em_thumbs_root(resource_folder_path: str = None) -> Path:
     else:
         folder_name = os.path.basename(os.path.normpath(path_for_hash))
     
+    
+
     # Se la cartella è vuota, usa un default
     if not folder_name:
+        #print("⚠️ Nome cartella vuoto, usando default 'Resources'") 
         folder_name = "Resources"
     
     unique_name = f"{folder_name}_{path_hash}"
@@ -581,8 +584,25 @@ def clear_all_thumbs_caches():
 def reload_doc_previews_from_cache() -> List[Tuple[str, str, str, int, int]]:
     """Carica preview dalla cache per EnumProperty"""
     global preview_collections
+
+    scene = bpy.context.scene
+    em_tools = scene.em_tools
     
-    thumbs_root = em_thumbs_root()
+    if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+        return {'CANCELLED'}
+        
+    graphml = em_tools.graphml_files[em_tools.active_file_index]
+    
+    if not graphml.auxiliary_files or graphml.active_auxiliary_index < 0:
+        return {'CANCELLED'}
+        
+    aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
+    
+    if not aux_file.resource_folder:
+        return {'CANCELLED'}
+    
+    resource_folder = os.path.abspath(bpy.path.abspath(aux_file.resource_folder))
+    thumbs_root = em_thumbs_root(resource_folder)
     
     # Inizializza preview collection se necessario
     if "doc_previews" not in preview_collections:

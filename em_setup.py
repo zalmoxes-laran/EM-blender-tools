@@ -352,7 +352,6 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         description="Select pyArchInit table mapping"
     ) # type: ignore
 
-    # ✅ MODIFICATO: Cartella padre per ricerca risorse (con supporto Blender 4.5)
     resource_folder: bpy.props.StringProperty(
         name="Resource Folder",
         description="Parent folder to search for resources. Use relative path (// prefix) for cross-PC compatibility",
@@ -365,12 +364,24 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         default=False
     ) # type: ignore
 
-    # ✅ NUOVA PROPRIETÀ per auto-reload
     auto_reload_on_em_update: bpy.props.BoolProperty(
         name="Auto-reload on EM Update",
         description="Automatically import this auxiliary file when the parent GraphML is loaded/reloaded",
         default=False
     ) # type: ignore    
+
+    custom_thumbs_path: bpy.props.StringProperty(
+        name="Thumbnails Path",
+        description="Custom path for thumbnails folder (leave empty for automatic)",
+        subtype='DIR_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()  # ✅ Solo Blender 4.5+
+    ) # type: ignore
+    
+    show_resources_section: bpy.props.BoolProperty(
+        name="Show Document Resources",
+        description="Expand/collapse document resources section",
+        default=False
+    ) # type: ignore
 
 class EMToolsProperties(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="GraphML File") # type: ignore
@@ -943,53 +954,56 @@ class EM_SetupPanel(bpy.types.Panel):
                             row = box.row()
                             row.prop(aux_file, "emdb_mapping", text="Format")
 
-                            # ✅ NUOVO: Cartella risorse
-                            row = box.row()
-                            row.prop(aux_file, "resource_folder", text="Resources")
-
-                            # ✅ NUOVO: Warning se path assoluto (non cross-PC compatible)
-                            if aux_file.resource_folder:
-                                if os.path.isabs(aux_file.resource_folder) and not aux_file.resource_folder.startswith('//'):
-                                    warn_box = box.box()
-                                    warn_box.alert = True
-                                    warn_row = warn_box.row()
-                                    warn_row.label(text="Resources: use relative path (// prefix) for cross-PC compatibility", icon='ERROR')
-                                    warn_row = warn_box.row()
-                                    warn_row.label(text="Example: //Resources  or  //../../SharedFolder/Resources")
+                            # SEZIONE COLLASSABILE DOCUMENT RESOURCES
+                            resources_box = box.box()
                             
-
-                            row = box.row()
-                            row.label(text="Thumnbnails for the resource folder? Click below.")
-
-                            # ✅ NUOVO: Sezione thumbnails
-                            thumb_row = box.row(align=True)
-
-                            # Indicatore esistenza thumbs
-                            if has_doc_thumbs():
-                                thumb_row.label(text="", icon='KEYTYPE_JITTER_VEC')  # Verde/attivo
-                            else:
-                                thumb_row.label(text="", icon='KEYTYPE_KEYFRAME_VEC')  # Rosso/inattivo
-
-                            # Pulsanti thumbnails
-                            thumb_row.operator("emtools.build_doc_thumbs", text="(Re)generate thumbnails")
-                            thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
-                            op = thumb_row.operator("wm.url_open", text="", icon="HELP")
-                            op.url = "https://docs.extendedmatrix.org/projects/EM-tools/en/1.5.0/EMstructure.html#setting-up-resource-folders"
-
-
-
-                            # ✅ Info compatta: solo nome cartella thumbs + bottone apri
-                            if aux_file.resource_folder:
-                                from .thumb_utils import em_thumbs_root
-                                try:
-                                    thumbs_root = em_thumbs_root(aux_file.resource_folder)
-                                    folder_name = thumbs_root.name  # Solo il nome, tipo "Resources_abc12345"
-                                    
-                                    row = box.row(align=True)
-                                    row.label(text=f"Thumbs: {folder_name}", icon='FILE_CACHE')
-                                    #row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILEBROWSER')
-                                except Exception as e:
-                                    pass  # Silenzioso se non può calcolare
+                            # Header con triangolino
+                            header_row = resources_box.row(align=True)
+                            icon = 'TRIA_DOWN' if aux_file.show_resources_section else 'TRIA_RIGHT'
+                            header_row.prop(aux_file, "show_resources_section", 
+                                          text=f"Document Resources for {active_file.auxiliary_files[active_file.active_auxiliary_index].name}", 
+                                          icon=icon, 
+                                          emboss=False)
+                            
+                            # Mostra contenuto solo se espanso
+                            if aux_file.show_resources_section:
+                                # Cartella risorse
+                                col = resources_box.column()
+                                row = col.row()
+                                row.prop(aux_file, "resource_folder", text="Resources Folder")
+                                
+                                # Warning se path assoluto
+                                if aux_file.resource_folder:
+                                    if os.path.isabs(aux_file.resource_folder) and not aux_file.resource_folder.startswith('//'):
+                                        warn_box = col.box()
+                                        warn_box.alert = True
+                                        warn_row = warn_box.row()
+                                        warn_row.label(text="Use relative path (// prefix) for cross-PC compatibility", 
+                                                      icon='ERROR')
+                                        warn_row = warn_box.row()
+                                        warn_row.label(text="Example: //Resources  or  //../../SharedFolder/Resources")
+                                
+                                # Path thumbnails personalizzabile
+                                row = col.row()
+                                row.prop(aux_file, "custom_thumbs_path", text="Thumbnails Path")
+                                                                
+                                # Sezione thumbnails
+                                col.separator()
+                                col.label(text="Thumbnails Generation:")
+                                
+                                thumb_row = col.row(align=True)
+                                
+                                # Indicatore esistenza thumbs
+                                if has_doc_thumbs():
+                                    thumb_row.label(text="", icon='KEYTYPE_JITTER_VEC')
+                                else:
+                                    thumb_row.label(text="", icon='KEYTYPE_KEYFRAME_VEC')
+                                
+                                # Pulsanti thumbnails
+                                thumb_row.operator("emtools.build_doc_thumbs", text="(Re)generate")
+                                thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
+                                op = thumb_row.operator("wm.url_open", text="", icon="HELP")
+                                op.url = "https://docs.extendedmatrix.org/projects/EM-tools/en/1.5.0/EMstructure.html#setting-up-resource-folders"
 
 
                         elif aux_file.file_type == "pyarchinit":

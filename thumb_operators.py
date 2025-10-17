@@ -42,15 +42,42 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
             self.report({'ERROR'}, "Resource folder not configured. Go to EMsetup → Auxiliary Files and set 'Resource Folder'.'")
             return {'CANCELLED'}
         
-        # Converti in path assoluto usando os.path
-        resource_folder = os.path.abspath(bpy.path.abspath(aux_file.resource_folder))
-        
-        if not os.path.exists(resource_folder):
-            self.report({'ERROR'}, f"Resource folder not found: {resource_folder}")
-            return {'CANCELLED'}
-        
-        # Setup cartella thumbs univoca per questa resource_folder
-        thumbs_root = em_thumbs_root(resource_folder)
+        if not aux_file.custom_thumbs_path:
+
+            # Converti in path assoluto usando os.path
+            resource_folder = os.path.abspath(bpy.path.abspath(aux_file.resource_folder))
+            
+            if not os.path.exists(resource_folder):
+                self.report({'ERROR'}, f"Resource folder not found: {resource_folder}")
+                return {'CANCELLED'}
+            
+            # Setup cartella thumbs univoca per questa resource_folder
+            thumbs_root = em_thumbs_root(resource_folder)
+
+            #aux_file.custom_thumbs_path = str(os.path.relpath(thumbs_root, bpy.path.abspath("//")))  # Salva il path custom nell'aux_file
+
+            aux_file.custom_thumbs_path = bpy.path.relpath(os.fspath(thumbs_root))
+
+
+
+            #aux_file.custom_thumbs_path = os.path.relpath(thumbs_root, bpy.path.abspath("//"))
+
+
+        else:
+            # Usa il path custom per le thumbs
+            thumbs_root = Path(os.path.abspath(bpy.path.abspath(aux_file.custom_thumbs_path)))
+            resource_folder = os.path.abspath(bpy.path.abspath(aux_file.resource_folder))
+            
+            if not os.path.exists(resource_folder):
+                self.report({'ERROR'}, f"Resource folder not found: {resource_folder}")
+                return {'CANCELLED'}
+            
+            if not thumbs_root.exists():
+                try:
+                    thumbs_root.mkdir(parents=True, exist_ok=True)
+                except Exception as e:
+                    self.report({'ERROR'}, f"Unable to create custom thumbs folder: {e}")
+                    return {'CANCELLED'}
         
         print(f"Gernerating thumbs from: {resource_folder}")
         print(f"Thumbs saved in: {thumbs_root}")
