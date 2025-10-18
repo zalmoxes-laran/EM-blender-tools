@@ -31,7 +31,7 @@ class EM_toggle_select(Operator):
     bl_description = "Toggle Select"
     bl_options = {'REGISTER', 'UNDO'}
 
-    group_em_idx: IntProperty()
+    group_em_idx: IntProperty() # type: ignore
 
     def execute(self, context):
         scene = context.scene
@@ -98,7 +98,7 @@ class EM_toggle_selectable(Operator):
     bl_description = "Toggle Selectable"
     bl_options = {'REGISTER', 'UNDO'}
 
-    group_em_idx: IntProperty()
+    group_em_idx: IntProperty() # type: ignore
 
     def execute(self, context):
         scene = context.scene
@@ -108,6 +108,7 @@ class EM_toggle_selectable(Operator):
             for us in scene.em_list:
                 if us.icon == "LINKED":
                     if current_e_manager.name == us.epoch:
+
                         object_to_set_visibility = bpy.data.objects[us.name]
                         object_to_set_visibility.hide_select = current_e_manager.is_locked
         current_e_manager.is_locked = not current_e_manager.is_locked

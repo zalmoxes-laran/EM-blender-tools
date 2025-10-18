@@ -1,8 +1,3 @@
-"""
-Stratigraphy Manager - Central module for managing stratigraphic units
-This module provides functionality for viewing, filtering, and managing
-stratigraphic units within the Extended Matrix framework.
-"""
 
 import bpy
 from bpy.utils import register_class, unregister_class
@@ -17,6 +12,32 @@ from .filters import register_filters, unregister_filters
 # Module info
 __all__ = ['register', 'unregister']
 
+# Update functions che non ritornano valori
+def update_filter_by_epoch(self, context):
+    """Update function per filter_by_epoch"""
+    if hasattr(bpy.ops.em, 'filter_lists'):
+        bpy.ops.em.filter_lists()
+
+def update_filter_by_activity(self, context):
+    """Update function per filter_by_activity"""
+    if hasattr(bpy.ops.em, 'filter_lists'):
+        bpy.ops.em.filter_lists()
+
+def update_include_surviving(self, context):
+    """Update function per include_surviving_units"""
+    if context.scene.filter_by_epoch and hasattr(bpy.ops.em, 'filter_lists'):
+        bpy.ops.em.filter_lists()
+
+def update_show_reconstruction(self, context):
+    """Update function per show_reconstruction_units"""
+    if context.scene.filter_by_epoch and hasattr(bpy.ops.em, 'filter_lists'):
+        bpy.ops.em.filter_lists()
+
+def update_sync_visibility(self, context):
+    """Update function per sync visibility"""
+    if hasattr(bpy.ops.em, 'strat_sync_visibility'):
+        bpy.ops.em.strat_sync_visibility()
+
 def register():
     """Register all Stratigraphy Manager classes and properties."""
     # Register in proper dependency order
@@ -26,13 +47,12 @@ def register():
     register_ui()
     
     # Register properties that need to be on the Scene
-    # These were previously in __init__.py but belong in this module
     if not hasattr(bpy.types.Scene, "filter_by_epoch"):
         bpy.types.Scene.filter_by_epoch = BoolProperty(
             name="Filter by Epoch",
             description="Show only elements from the active epoch",
             default=False,
-            update=lambda self, context: bpy.ops.em.filter_lists()
+            update=update_filter_by_epoch
         )
     
     if not hasattr(bpy.types.Scene, "filter_by_activity"):
@@ -40,7 +60,7 @@ def register():
             name="Filter by Activity",
             description="Show only elements from the active activity",
             default=False,
-            update=lambda self, context: bpy.ops.em.filter_lists()
+            update=update_filter_by_activity
         )
     
     if not hasattr(bpy.types.Scene, "include_surviving_units"):
@@ -48,7 +68,7 @@ def register():
             name="Include Surviving Units",
             description="Include units that survive in this epoch but were created in previous epochs",
             default=True,
-            update=lambda self, context: bpy.ops.em.filter_lists() if context.scene.filter_by_epoch else None
+            update=update_include_surviving
         )
     
     if not hasattr(bpy.types.Scene, "show_reconstruction_units"):
@@ -56,7 +76,7 @@ def register():
             name="Show Reconstruction Units",
             description="Show reconstruction units in the filtered list",
             default=True,
-            update=lambda self, context: bpy.ops.em.filter_lists() if context.scene.filter_by_epoch else None
+            update=update_show_reconstruction
         )
     
     if not hasattr(bpy.types.Scene, "sync_list_visibility"):
@@ -64,7 +84,7 @@ def register():
             name="Sync Visibility",
             description="Synchronize proxy visibility with the current list (shows only proxies in the filtered list)",
             default=False,
-            update=lambda self, context: bpy.ops.em.strat_sync_visibility()
+            update=update_sync_visibility
         )
     
     if not hasattr(bpy.types.Scene, "sync_rm_visibility"):
@@ -72,32 +92,27 @@ def register():
             name="Sync RM Visibility",
             description="Synchronize Representation Model visibility based on active epoch",
             default=False,
-            update=lambda self, context: bpy.ops.em.strat_sync_visibility()
+            update=update_sync_visibility
         )
 
 def unregister():
     """Unregister all Stratigraphy Manager classes and properties."""
-    # Remove properties
-    if hasattr(bpy.types.Scene, "filter_by_epoch"):
-        del bpy.types.Scene.filter_by_epoch
-    
-    if hasattr(bpy.types.Scene, "filter_by_activity"):
-        del bpy.types.Scene.filter_by_activity
-    
-    if hasattr(bpy.types.Scene, "include_surviving_units"):
-        del bpy.types.Scene.include_surviving_units
-    
-    if hasattr(bpy.types.Scene, "show_reconstruction_units"):
-        del bpy.types.Scene.show_reconstruction_units
-    
-    if hasattr(bpy.types.Scene, "sync_list_visibility"):
-        del bpy.types.Scene.sync_list_visibility
-    
-    if hasattr(bpy.types.Scene, "sync_rm_visibility"):
-        del bpy.types.Scene.sync_rm_visibility
-    
-    # Unregister in reverse dependency order
+    # Unregister in reverse order
     unregister_ui()
     unregister_operators()
     unregister_filters()
     unregister_data()
+    
+    # Remove Scene properties
+    properties_to_remove = [
+        "filter_by_epoch",
+        "filter_by_activity",
+        "include_surviving_units",
+        "show_reconstruction_units",
+        "sync_list_visibility",
+        "sync_rm_visibility",
+    ]
+    
+    for prop_name in properties_to_remove:
+        if hasattr(bpy.types.Scene, prop_name):
+            delattr(bpy.types.Scene, prop_name)

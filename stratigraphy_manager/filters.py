@@ -4,9 +4,9 @@ This module contains the central filtering logic for the Stratigraphy Manager,
 providing a consistent way to filter stratigraphic units based on multiple criteria.
 """
 
-import bpy
-from bpy.props import BoolProperty
-from bpy.types import Operator
+import bpy # type: ignore
+from bpy.props import BoolProperty # type: ignore
+from bpy.types import Operator # type: ignore
 
 from ..functions import is_reconstruction_us
 from .data import ensure_valid_index
@@ -41,16 +41,16 @@ class EM_filter_lists(Operator):
         active_epoch_name = None
         if scene.filter_by_epoch and scene.epoch_list_index >= 0 and len(scene.epoch_list) > 0:
             active_epoch_name = scene.epoch_list[scene.epoch_list_index].name
-            print(f"Active epoch: {active_epoch_name}")
+            #print(f"Active epoch: {active_epoch_name}")
         
         # Debug: Print active activity
         active_activity_name = None  
         if scene.filter_by_activity and scene.activity_manager.active_index >= 0 and len(scene.activity_manager.activities) > 0:
             active_activity_name = scene.activity_manager.activities[scene.activity_manager.active_index].name
-            print(f"Active activity: {active_activity_name}")
+            #print(f"Active activity: {active_activity_name}")
         
         for node in strat_nodes:
-            print(f"\nEvaluating node: {node.name} (UUID: {node.node_id})")
+            #print(f"\nEvaluating node: {node.name} (UUID: {node.node_id})")
             include_node = True
             
             # Apply epoch filter if active
@@ -74,27 +74,27 @@ class EM_filter_lists(Operator):
                                 connected_epochs.append({"name": target_node.name, "type": "created"})
                                 if target_node.name == active_epoch_name:
                                     created_in_epoch = True
-                                    print(f"  Node was created in active epoch: {active_epoch_name}")
+                                    #print(f"  Node was created in active epoch: {active_epoch_name}")
                                     
                             elif edge.edge_type == "survive_in_epoch":
                                 connected_epochs.append({"name": target_node.name, "type": "survives"})
                                 if target_node.name == active_epoch_name:
                                     survives_in_epoch = True
-                                    print(f"  Node survives in active epoch: {active_epoch_name}")
+                                    #print(f"  Node survives in active epoch: {active_epoch_name}")
                 
                 # Debug: show all epochs connected to this node
-                if connected_epochs:
-                    print(f"  Connected epochs: {connected_epochs}")
-                else:
-                    print(f"  No epochs connected to this node")
+                #if connected_epochs:
+                #    print(f"  Connected epochs: {connected_epochs}")
+                #else:
+                #    print(f"  No epochs connected to this node")
                 
                 # Include the node if it was created in this epoch or survives in this epoch (when option is enabled)
                 include_node = created_in_epoch or (survives_in_epoch and scene.include_surviving_units)
                 
-                if include_node:
-                    print(f"  Node INCLUDED for epoch filter")
-                else:
-                    print(f"  Node EXCLUDED for epoch filter")
+                #if include_node:
+                #    print(f"  Node INCLUDED for epoch filter")
+                #else:
+                #    print(f"  Node EXCLUDED for epoch filter")
             
             # Apply activity filter if active and if the node is still included
             if scene.filter_by_activity and include_node and active_activity_name:
@@ -106,30 +106,30 @@ class EM_filter_lists(Operator):
                         activity_node = graph.find_node_by_id(edge.edge_target)
                         if activity_node and hasattr(activity_node, 'name') and activity_node.name == active_activity_name:
                             in_activity = True
-                            print(f"  Node is in active activity: {active_activity_name}")
+                            #print(f"  Node is in active activity: {active_activity_name}")
                             break
                 
                 include_node = in_activity
                 
-                if include_node:
-                    print(f"  Node INCLUDED for activity filter")
-                else:
-                    print(f"  Node EXCLUDED for activity filter")
+                #if include_node:
+                #    print(f"  Node INCLUDED for activity filter")
+                #else:
+                #    print(f"  Node EXCLUDED for activity filter")
             
             # Apply reconstruction filter if the node is a reconstruction unit
             if include_node and is_reconstruction_us(node):
                 include_node = scene.show_reconstruction_units
-                if include_node:
-                    print(f"  Reconstruction node INCLUDED")
-                else:
-                    print(f"  Reconstruction node EXCLUDED")
+                #if include_node:
+                #    print(f"  Reconstruction node INCLUDED")
+                #else:
+                #    print(f"  Reconstruction node EXCLUDED")
             
             # If the node passes all filters, add it to the list
             if include_node:
                 filtered_items.append(node)
-                print(f"  FINAL RESULT: Node {node.name} INCLUDED in filtered list")
-            else:
-                print(f"  FINAL RESULT: Node {node.name} EXCLUDED from filtered list")
+                #print(f"  FINAL RESULT: Node {node.name} INCLUDED in filtered list")
+            #else:
+            #    print(f"  FINAL RESULT: Node {node.name} EXCLUDED from filtered list")
         
         # Update the em_list with filtered elements
         # Save the currently selected element (if present)
@@ -137,16 +137,16 @@ class EM_filter_lists(Operator):
         if scene.em_list_index >= 0 and scene.em_list_index < len(scene.em_list):
             try:
                 current_selected = scene.em_list[scene.em_list_index].name
-                print(f"Current selection: {current_selected}")
+                #print(f"Current selection: {current_selected}")
             except IndexError:
-                print(f"IndexError: index {scene.em_list_index} out of range for list with {len(scene.em_list)} items")
+                #print(f"IndexError: index {scene.em_list_index} out of range for list with {len(scene.em_list)} items")
                 current_selected = None
         
         # Clear the current list
         EM_list_clear(context, "em_list")
         
         # Rebuild the list with filtered elements
-        print(f"\nPopulating em_list with {len(filtered_items)} filtered items")
+        #print(f"\nPopulating em_list with {len(filtered_items)} filtered items")
         for i, node in enumerate(filtered_items):
             # Use the existing function to populate the list
             populate_stratigraphic_node(scene, node, i, graph)

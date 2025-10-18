@@ -135,7 +135,7 @@ class EM_ToolsPanel:
             "- The filter will be applied in realtime\n"
             "  to the selected epoch and/or activity.\n"
             "- To reset the filter, click on the\n"
-            "  red cross icon in the top right corner.\n"
+            "  X icon in the top right corner.\n"
             "- Small icons: Show All Proxies / Show All RMs\n"
         )
         help1.url = "EMstructure.html#us-usv-manager"

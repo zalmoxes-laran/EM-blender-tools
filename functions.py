@@ -908,7 +908,8 @@ def check_objs_in_scene_and_provide_icon_for_list_element(node_name, graph=None,
     
     ✅ FIXED per Blender 4.5: rimossa list comprehension che causava stack overflow
     """
-    
+
+    '''
     # 🔍 DEBUG: Stampa informazioni sul graph
     print(f"\n🔍 DEBUG check_objs - node_name: {node_name}")
     print(f"🔍 DEBUG check_objs - graph: {graph}")
@@ -921,21 +922,22 @@ def check_objs_in_scene_and_provide_icon_for_list_element(node_name, graph=None,
             print(f"🔍 DEBUG check_objs - graph_code in attributes: {'graph_code' in graph.attributes}")
             if 'graph_code' in graph.attributes:
                 print(f"🔍 DEBUG check_objs - graph_code value: '{graph.attributes['graph_code']}'")
-    
+    '''
+
     # ✅ Converti il nome del nodo nel nome del proxy (aggiunge prefisso se necessario)
     proxy_name = node_name_to_proxy_name(node_name, context=context, graph=graph)
     
-    print(f"🔍 DEBUG check_objs - proxy_name result: '{proxy_name}'")
+    #print(f"🔍 DEBUG check_objs - proxy_name result: '{proxy_name}'")
     
     # Cerca l'oggetto 3D usando il nome con prefisso
     obj = bpy.data.objects.get(proxy_name)
     
-    print(f"🔍 DEBUG check_objs - obj found: {obj is not None}")
+    #print(f"🔍 DEBUG check_objs - obj found: {obj is not None}")
     
     # ✅ FIX per Blender 4.5: rimossa la list comprehension problematica
     # Questa iterazione causava stack overflow con nomi multi-linea
     # La rimuoviamo completamente perché non è essenziale e causava il crash
-    if not obj:
+    #if not obj:
         # Se proprio necessario, si può cercare in modo più sicuro:
         # - Limitando il numero di oggetti da controllare
         # - Usando un approccio iterativo invece di list comprehension
@@ -952,7 +954,7 @@ def check_objs_in_scene_and_provide_icon_for_list_element(node_name, graph=None,
         #         pass
         # print(f"🔍 DEBUG check_objs - similar objects in scene: {similar_objects}")
         
-        print(f"🔍 DEBUG check_objs - object not found, skipping similarity check")
+        #print(f"🔍 DEBUG check_objs - object not found, skipping similarity check")
     
     # Restituisci l'icona appropriata
     if obj:
@@ -967,7 +969,7 @@ def update_icons(context, list_type):
     ✅ MODIFICATO: Ora ottiene il graph attivo e lo passa a check_objs
     """
     
-    print(f"\n🔍 DEBUG update_icons - Starting for list_type: {list_type}")
+    #print(f"\n🔍 DEBUG update_icons - Starting for list_type: {list_type}")
     
     scene = context.scene
     list_path = "scene." + list_type
@@ -975,8 +977,8 @@ def update_icons(context, list_type):
     # ✅ Ottieni il grafo attivo
     graph_exists, graph = is_graph_available(context)
     
-    print(f"🔍 DEBUG update_icons - graph_exists: {graph_exists}")
-    print(f"🔍 DEBUG update_icons - graph: {graph}")
+    #print(f"🔍 DEBUG update_icons - graph_exists: {graph_exists}")
+    #print(f"🔍 DEBUG update_icons - graph: {graph}")
     
     # Se il grafo non esiste, usa None (funzionerà comunque per oggetti senza prefisso)
     active_graph = graph if graph_exists else None
@@ -987,8 +989,8 @@ def update_icons(context, list_type):
         element_count += 1
         
         old_icon = element.icon
-        print(f"\n🔍 DEBUG update_icons - Element #{element_count}: {element.name}")
-        print(f"🔍 DEBUG update_icons - Old icon: {old_icon}")
+        #print(f"\n🔍 DEBUG update_icons - Element #{element_count}: {element.name}")
+        #print(f"🔍 DEBUG update_icons - Old icon: {old_icon}")
         
         new_icon = check_objs_in_scene_and_provide_icon_for_list_element(
             element.name, 
@@ -996,14 +998,14 @@ def update_icons(context, list_type):
             context=context
         )
         
-        print(f"🔍 DEBUG update_icons - New icon returned: {new_icon}")
+        #print(f"🔍 DEBUG update_icons - New icon returned: {new_icon}")
         
         element.icon = new_icon
         
-        print(f"🔍 DEBUG update_icons - Icon after assignment: {element.icon}")
-        print(f"🔍 DEBUG update_icons - Assignment successful: {element.icon == new_icon}")
+        #print(f"🔍 DEBUG update_icons - Icon after assignment: {element.icon}")
+        #print(f"🔍 DEBUG update_icons - Assignment successful: {element.icon == new_icon}")
     
-    print(f"\n🔍 DEBUG update_icons - Completed. Updated {element_count} elements")
+    #print(f"\n🔍 DEBUG update_icons - Completed. Updated {element_count} elements")
     
     return
 

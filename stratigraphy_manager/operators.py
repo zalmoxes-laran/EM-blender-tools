@@ -12,6 +12,8 @@ from bpy.types import Operator
 from ..functions import check_material_presence, em_setup_mat_cycles, update_icons
 from ..functions import select_3D_obj, select_list_element_from_obj_proxy
 
+from s3dgraphy.utils.utils import manage_id_prefix, get_base_name, add_graph_prefix
+
 def find_layer_collection(layer_collection, collection_name):
     """Trova ricorsivamente un layer_collection dato il nome della collection"""
     if layer_collection.name == collection_name:
@@ -26,7 +28,9 @@ def find_layer_collection(layer_collection, collection_name):
 def activate_collection_fully(context, collection):
     """
     Attiva completamente una collezione sia a livello base che nel view layer
-    E attiva ricorsivamente tutte le collezioni padre
+    E attiva ricorsivamente tutte le collezioni padre.
+    
+    Retrocompatibile con tutte le versioni di Blender (non usa layer_collection.parent)
     Returns: True se la collezione è stata attivata, False se era già attiva
     """
     was_activated = False
@@ -43,12 +47,34 @@ def activate_collection_fully(context, collection):
         was_activated = True
         
         # 3. ATTIVA RICORSIVAMENTE tutte le collezioni padre
-        parent = layer_collection.parent
-        while parent and parent != context.view_layer.layer_collection:
-            if parent.exclude:
-                parent.exclude = False
-                was_activated = True
-            parent = parent.parent
+        # Metodo retrocompatibile: costruisce il percorso dalla root
+        def build_path_to_target(layer_col, target_name, path=None):
+            """Costruisce il percorso dalla root alla collezione target"""
+            if path is None:
+                path = []
+            
+            if layer_col.name == target_name:
+                path.append(layer_col)
+                return True
+            
+            # Cerca ricorsivamente nei figli
+            for child in layer_col.children:
+                if build_path_to_target(child, target_name, path):
+                    # Inserisci questo nodo all'inizio del path (prima del figlio)
+                    path.insert(0, layer_col)
+                    return True
+            
+            return False
+        
+        # Costruisci il path dalla root alla collezione target
+        path = []
+        if build_path_to_target(context.view_layer.layer_collection, collection.name, path):
+            # Attiva tutte le collezioni nel percorso (esclusa la root del view layer)
+            for layer_col in path:
+                if layer_col != context.view_layer.layer_collection:
+                    if layer_col.exclude:
+                        layer_col.exclude = False
+                        was_activated = True
     
     return was_activated
 
@@ -151,7 +177,7 @@ class EM_strat_sync_visibility(Operator):
         all_em_list_names = {item.name for item in scene.em_list}
         for collection in bpy.data.collections:
             for obj in collection.objects:
-                if obj.name in all_em_list_names and obj.type == 'MESH':
+                if get_base_name(obj.name) in all_em_list_names and obj.type == 'MESH':
                     proxy_collections.add(collection)
                     break
         
@@ -170,7 +196,7 @@ class EM_strat_sync_visibility(Operator):
                     proxy_objects_set.add(obj)
                     
                     # Check if this collection should be activated
-                    if obj.name in visible_proxy_names:
+                    if get_base_name(obj.name) in visible_proxy_names:
                         contains_visible_proxy = True
             
             # Activate collection COMPLETELY (base + view layer + parent) if it contains visible proxies
@@ -180,7 +206,7 @@ class EM_strat_sync_visibility(Operator):
         
         # Also add any objects with matching names that might not be in proxy collections
         for obj_name in all_em_list_names:
-            obj = bpy.data.objects.get(obj_name)
+            obj = bpy.data.objects.get(get_base_name(obj_name))
             if obj and obj.type == 'MESH' and obj not in proxy_objects_set:
                 proxy_objects.append(obj)
                 proxy_objects_set.add(obj)
@@ -190,7 +216,7 @@ class EM_strat_sync_visibility(Operator):
         shown_count = 0
         
         for obj in proxy_objects:
-            if obj.name in visible_proxy_names:
+            if get_base_name(obj.name) in visible_proxy_names:
                 # Object should be visible AND renderable
                 if obj.hide_viewport or obj.hide_render:
                     obj.hide_viewport = False
@@ -205,7 +231,7 @@ class EM_strat_sync_visibility(Operator):
         
         # Update visibility icons in the em_list
         for item in scene.em_list:
-            obj = bpy.data.objects.get(item.name)
+            obj = bpy.data.objects.get(get_base_name(item.name)) 
             if obj:
                 item.is_visible = not obj.hide_viewport
         
@@ -429,14 +455,6 @@ class EM_strat_show_all_proxies(Operator):
             self.layout.label(text=collection_names)
         
         bpy.context.window_manager.popup_menu(draw, title="Collections Activated", icon='INFO')
-    
-    def show_activation_message(self, collection_names):
-        """Riusa il metodo esistente per mostrare il messaggio delle collezioni attivate"""
-        def draw(self, context):
-            self.layout.label(text="The following collections have been activated:")
-            self.layout.label(text=collection_names)
-        
-        bpy.context.window_manager.popup_menu(draw, title="Collections Activated", icon='INFO')
 
 class EM_strat_show_all_rms(Operator):
     """Reset filters and show all RM objects"""
@@ -502,11 +520,21 @@ class EM_strat_show_all_rms(Operator):
                 obj.hide_render = False
                 shown_count += 1
         
-        # MOSTRA messaggio collezioni attivate (riusa la funzione esistente)
+        # MOSTRA messaggio collezioni attivate
         if activated_collections:
             self.show_activation_message(", ".join(activated_collections))
         
         return shown_count
+    
+    def show_activation_message(self, collection_names):
+        """Mostra il messaggio delle collezioni attivate"""
+        def draw(self, context):
+            self.layout.label(text="The following collections have been activated:")
+            self.layout.label(text=collection_names)
+        
+        bpy.context.window_manager.popup_menu(draw, title="Collections Activated", icon='INFO')
+
+
 
 class EM_strat_activate_collections(Operator):
     bl_idname = "em.strat_activate_collections"
