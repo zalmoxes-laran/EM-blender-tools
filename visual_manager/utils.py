@@ -220,6 +220,12 @@ def create_property_materials_for_scene_values(context):
                     principled.inputs['Base Color'].default_value = rgba_color
                     principled.inputs['Alpha'].default_value = alpha_value
                     print(f"  Updated material '{mat_name}': color = {rgba_color}")
+
+                    mat.diffuse_color[0] = item.color[0]
+                    mat.diffuse_color[1] = item.color[1]
+                    mat.diffuse_color[2] = item.color[2]
+                    mat.diffuse_color[3] = alpha_value
+
         else:
             # Create new material
             mat = bpy.data.materials.new(name=mat_name)
@@ -231,7 +237,10 @@ def create_property_materials_for_scene_values(context):
                 mat.blend_method = 'BLEND'
             else:
                 mat.blend_method = 'OPAQUE'
-            
+
+            mat.show_transparent_back = False
+            mat.use_backface_culling = False
+
             # Create shader nodes
             output = mat.node_tree.nodes.new('ShaderNodeOutputMaterial')
             output.location = (0, 0)
@@ -246,12 +255,23 @@ def create_property_materials_for_scene_values(context):
                 rgba_color = (*item.color[:3], alpha_value)
                 principled.inputs['Base Color'].default_value = rgba_color
                 print(f"  Created material '{mat_name}': color = {rgba_color}")
+
+                mat.diffuse_color[0] = item.color[0]
+                mat.diffuse_color[1] = item.color[1]
+                mat.diffuse_color[2] = item.color[2]
+                mat.diffuse_color[3] = alpha_value
+
             else:
                 # Default gray color
                 rgba_color = (*DEFAULT_COLOR[:3], alpha_value)
                 principled.inputs['Base Color'].default_value = rgba_color
                 print(f"  Created material '{mat_name}': using default color = {rgba_color}")
-            
+
+                mat.diffuse_color[0] = DEFAULT_COLOR[0]
+                mat.diffuse_color[1] = DEFAULT_COLOR[1]
+                mat.diffuse_color[2] = DEFAULT_COLOR[2]
+                mat.diffuse_color[3] = alpha_value
+
             principled.inputs['Alpha'].default_value = alpha_value
         
         materials_by_value[property_value] = mat
