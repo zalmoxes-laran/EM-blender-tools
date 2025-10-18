@@ -383,6 +383,12 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         default=False
     ) # type: ignore
 
+    show_thumbs_path_section: bpy.props.BoolProperty(
+        name="Show Thumbnails Path",
+        description="Expand/collapse thumbnails path settings",
+        default=False
+    ) # type: ignore
+
 class EMToolsProperties(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="GraphML File") # type: ignore
     expanded: bpy.props.BoolProperty(name="Auxiliary files", default=False) # type: ignore
@@ -948,22 +954,21 @@ class EM_SetupPanel(bpy.types.Panel):
                         row.prop(aux_file, "filepath", text="Path")
                         row.prop(aux_file, "file_type", text="Type")
 
-
                         # EMdb mapping se necessario
                         if aux_file.file_type == "emdb_xlsx":
                             row = box.row()
                             row.prop(aux_file, "emdb_mapping", text="Format")
-
+                            
                             # SEZIONE COLLASSABILE DOCUMENT RESOURCES
                             resources_box = box.box()
                             
                             # Header con triangolino
                             header_row = resources_box.row(align=True)
                             icon = 'TRIA_DOWN' if aux_file.show_resources_section else 'TRIA_RIGHT'
-                            header_row.prop(aux_file, "show_resources_section", 
-                                          text=f"Document Resources for {active_file.auxiliary_files[active_file.active_auxiliary_index].name}", 
-                                          icon=icon, 
-                                          emboss=False)
+                            header_row.prop(aux_file, "show_resources_section",
+                                        text=f"Document Resources for {aux_file.name}",
+                                        icon=icon,
+                                        emboss=False)
                             
                             # Mostra contenuto solo se espanso
                             if aux_file.show_resources_section:
@@ -978,33 +983,50 @@ class EM_SetupPanel(bpy.types.Panel):
                                         warn_box = col.box()
                                         warn_box.alert = True
                                         warn_row = warn_box.row()
-                                        warn_row.label(text="Use relative path (// prefix) for cross-PC compatibility", 
-                                                      icon='ERROR')
+                                        warn_row.label(text="Use relative path (// prefix) for cross-PC compatibility",
+                                                    icon='ERROR')
                                         warn_row = warn_box.row()
-                                        warn_row.label(text="Example: //Resources  or  //../../SharedFolder/Resources")
+                                        warn_row.label(text="Example: //Resources or //../../SharedFolder/Resources")
                                 
-                                # Path thumbnails personalizzabile
-                                row = col.row()
-                                row.prop(aux_file, "custom_thumbs_path", text="Thumbnails Path")
-                                                                
                                 # Sezione thumbnails
                                 col.separator()
                                 col.label(text="Thumbnails Generation:")
                                 
                                 thumb_row = col.row(align=True)
                                 
-                                # Indicatore esistenza thumbs
+                                # Indicatore esistenza thumbs (ICONE ORIGINALI!)
                                 if has_doc_thumbs():
-                                    thumb_row.label(text="", icon='KEYTYPE_JITTER_VEC')
+                                    thumb_row.label(text="", icon='KEYTYPE_JITTER_VEC')  # Verde
                                 else:
-                                    thumb_row.label(text="", icon='KEYTYPE_KEYFRAME_VEC')
+                                    thumb_row.label(text="", icon='KEYTYPE_KEYFRAME_VEC')  # Rosso
                                 
                                 # Pulsanti thumbnails
                                 thumb_row.operator("emtools.build_doc_thumbs", text="(Re)generate")
                                 thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
                                 op = thumb_row.operator("wm.url_open", text="", icon="HELP")
                                 op.url = "https://docs.extendedmatrix.org/projects/EM-tools/en/1.5.0/EMstructure.html#setting-up-resource-folders"
-
+                                
+                                # THUMBNAILS PATH - Sotto triangolino collassabile
+                                path_box = col.box()
+                                path_row = path_box.row(align=True)
+                                
+                                # Triangolino per espandere/collassare
+                                path_icon = 'TRIA_DOWN' if aux_file.show_thumbs_path_section else 'TRIA_RIGHT'
+                                path_row.prop(aux_file, "show_thumbs_path_section",
+                                            text="Thumbnails Path",
+                                            icon=path_icon,
+                                            emboss=False)
+                                
+                                # Mostra il campo path solo se espanso
+                                if aux_file.show_thumbs_path_section:
+                                    path_col = path_box.column()
+                                    path_row = path_col.row()
+                                    path_row.prop(aux_file, "custom_thumbs_path", text="")
+                                    
+                                    # Se non c'è path custom, mostra info
+                                    if not aux_file.custom_thumbs_path:
+                                        info_row = path_col.row()
+                                        info_row.label(text="Path will be auto-generated on first use", icon='INFO')
 
                         elif aux_file.file_type == "pyarchinit":
                             row = box.row()
