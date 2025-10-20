@@ -1,10 +1,14 @@
+# import_operators/import_EMdb.py
+
 import bpy # type: ignore
 from bpy.props import BoolProperty, StringProperty, IntProperty # type: ignore
 from ..populate_lists import populate_blender_lists_from_graph, clear_lists
 from .importer_xlsx import GenericXLSXImporter
-from s3dgraphy import get_graph
+from s3dgraphy import get_graph, Graph
 from s3dgraphy.importer.pyarchinit_importer import PyArchInitImporter
 from s3dgraphy.importer.mapped_xlsx_importer import MappedXLSXImporter
+from s3dgraphy.multigraph.multigraph import multi_graph_manager
+
 
 class EM_OT_import_3dgis_database(bpy.types.Operator):
     """Import operator for both 3D GIS mode and advanced EM mode"""
@@ -13,7 +17,7 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
     bl_description = "Import data from selected database format"
     bl_options = {'REGISTER', 'UNDO'}
 
-    # Per gestire import da auxiliary files
+    # Properties for auxiliary files
     auxiliary_mode: BoolProperty(
         name="Auxiliary Mode",
         description="Whether this is an auxiliary file import",
@@ -86,171 +90,166 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
 
     def execute(self, context):
         try:
-            # Get import settings
+            # 1. Get import settings
             settings = self.get_import_settings(context)
-
-            # ✅ VALIDAZIONE: pyArchInit richiede sempre un mapping valido
-            if settings['import_type'] == "pyarchinit":
-                if not settings.get('mapping') or settings['mapping'] == 'none':
-                    self.report({'ERROR'}, "pyArchInit import requires a valid mapping. Please select a mapping from the dropdown.")
-                    return {'CANCELLED'}
             
-            # ✅ VALIDAZIONE: emdb_xlsx richiede sempre un mapping valido
-            if settings['import_type'] == "emdb_xlsx":
-                if not settings.get('mapping') or settings['mapping'] == 'none':
-                    self.report({'ERROR'}, "EMdb Excel import requires a valid mapping. Please select a format from the dropdown.")
-                    return {'CANCELLED'}
-
-            # *** PULIZIA AUTOMATICA 3D GIS - SOLO IN EM-TOOLS ***
-            if settings['mode'] == '3DGIS':
-                from s3dgraphy.multigraph.multigraph import multi_graph_manager
-                from ..populate_lists import clear_lists
-                
-                hardcoded_name = "3dgis_graph"
-                
-                # Rimuovi il grafo esistente se presente
-                if hardcoded_name in multi_graph_manager.graphs:
-                    multi_graph_manager.remove_graph(hardcoded_name)
-                    print(f"🗑️ EM-tools: Automatically removed existing 3D GIS graph '{hardcoded_name}'")
-                
-                # Pulisci le liste di Blender
-                clear_lists(context)
-                print("🧹 EM-tools: Cleared Blender lists for clean 3D GIS import")
-            
-            # Create appropriate importer based on type
-            if settings['import_type'] == "generic_xlsx":
-                importer = GenericXLSXImporter(
-                    filepath=settings['filepath'],
-                    sheet_name=settings['sheet_name'],
-                    id_column=settings['id_column']
-                )
-                            
-            elif settings['import_type'] == "emdb_xlsx":
-                mapping_name = settings['mapping'] if settings['mapping'] != 'none' else None
-                
-                # EMtools logic: get existing graph for EM_ADVANCED mode
-                existing_graph = None
-                if settings['mode'] == 'EM_ADVANCED':
-                    # EM_ADVANCED mode: get existing GraphML graph
-                    graphml = settings['parent_graphml'] 
-                    existing_graph = get_graph(graphml.name)
-                    if not existing_graph:
-                        self.report({'ERROR'}, f"GraphML graph '{graphml.name}' not found")
-                        return {'CANCELLED'}
-                    print(f"EMtools: Using existing graph for EM_ADVANCED mode")
-                else:
-                    print(f"EMtools: Creating new graph for 3DGIS mode")
-                
-                # s3dgraphy doesn't know about modes, just existing_graph or not
-                importer = MappedXLSXImporter(
-                    filepath=settings['filepath'], 
-                    mapping_name=mapping_name,
-                    existing_graph=existing_graph,  # ✅ Generic parameter
-                    overwrite=True
-                )
-
-            elif settings['import_type'] == "pyarchinit":
-                # Stessa logica di emdb_xlsx
-                mapping_name = settings['mapping'] if settings['mapping'] != 'none' else None
-                
-                # Get existing graph for EM_ADVANCED mode
-                existing_graph = None
-                if settings['mode'] == 'EM_ADVANCED':
-                    # EM_ADVANCED mode: get existing GraphML graph
-                    graphml = settings['parent_graphml']
-                    existing_graph = get_graph(graphml.name)
-                    if not existing_graph:
-                        self.report({'ERROR'}, f"GraphML graph '{graphml.name}' not found")
-                        return {'CANCELLED'}
-                    print(f"EMtools: Using existing graph for EM_ADVANCED mode (pyarchinit)")
-                else:
-                    print(f"EMtools: Creating new graph for 3DGIS mode (pyarchinit)")
-                
-                # s3dgraphy doesn't know about modes, just existing_graph or not
-                importer = PyArchInitImporter(
-                    filepath=settings['filepath'],
-                    mapping_name=mapping_name,
-                    existing_graph=existing_graph,
-                    overwrite=True
-                )
-            else:
-                self.report({'ERROR'}, f"Unknown import type: {settings['import_type']}")
+            # 2. VALIDAZIONE
+            if not self._validate_settings(settings):
                 return {'CANCELLED'}
-
-
-            # Execute import
+            
+            # 3. PULIZIA (solo per 3DGIS)
+            if settings['mode'] == '3DGIS':
+                self._clean_3dgis_state(context)
+            
+            # 4. PREPARAZIONE GRAFO
+            # ✅ Per EM_ADVANCED: ritorna grafo esistente
+            # ✅ Per 3DGIS: ritorna None (importer lo creerà)
+            graph_to_use = self._prepare_graph(settings)
+            if settings['mode'] == 'EM_ADVANCED' and not graph_to_use:
+                return {'CANCELLED'}
+            
+            # 5. CREAZIONE IMPORTER
+            importer = self._create_importer(settings, graph_to_use)
+            if not importer:
+                return {'CANCELLED'}
+            
+            # 6. IMPORT
             graph = importer.parse()
             importer.display_warnings()
-
-            # Se auxiliary mode, aggiorna anche le liste Blender
-            if self.auxiliary_mode:
-                from ..populate_lists import clear_lists
-                clear_lists(context)  # Clear prima del refresh
-                populate_blender_lists_from_graph(context, graph)
-                self.report({'INFO'}, f"Successfully imported auxiliary data to existing graph")
-                return {'FINISHED'}
-
-            # *** REGISTRA IL GRAFO NEL SISTEMA S3DGRAPHY ***
-            from s3dgraphy.multigraph.multigraph import multi_graph_manager
-            from pathlib import Path
             
-            filepath = Path(settings['filepath'])
-            
-            # Usa nome hardcodato per 3D GIS, altrimenti nome dinamico
+            # 7. REGISTRAZIONE GRAFO (solo per 3DGIS, dopo l'import)
             if settings['mode'] == '3DGIS':
-                graph_name = "3dgis_graph"
-                print(f"EM-tools: Using hardcoded graph name for 3D GIS: '{graph_name}'")
-            else:
-                graph_name = f"{filepath.stem}_{settings['import_type']}"
+                graph.graph_id = "3dgis_graph"
+                multi_graph_manager.graphs["3dgis_graph"] = graph
+                print(f"✅ EM-tools: Registered graph '3dgis_graph' after import")
+                print(f"✅ Nodes in graph: {len(graph.nodes)}")
             
-            if not hasattr(graph, 'attributes'):
-                graph.attributes = {}
-            graph.attributes['graph_code'] = graph_name
-            graph.attributes['source_file'] = str(filepath)
-            graph.attributes['import_type'] = settings['import_type']
+            # 8. METADATA
+            self._set_graph_metadata(settings, graph)
             
-            graph.graph_id = graph_name
-            multi_graph_manager.graphs[graph_name] = graph
+            # 9. POST-PROCESSING
+            return self._handle_import_results(context, settings, graph)
             
-            print(f"✅ Grafo '{graph_name}' registrato nel sistema s3dgraphy")
-            print(f"✅ Nodi nel grafo: {len(graph.nodes)}")
-            print(f"✅ Archi nel grafo: {len(graph.edges)}")
-            # *** FINE REGISTRAZIONE ***
-
-            # Handle results based on mode
-            if self.auxiliary_mode and settings['parent_graphml']:
-                pass
-            else:
-                # Populate Blender lists from the imported graph
-                populate_blender_lists_from_graph(context, graph)  # ← ORDINE CORRETTO
-
-            self.report({'INFO'}, f"Successfully imported {len(graph.nodes)} nodes from {settings['import_type']}")
-            return {'FINISHED'}
-
         except Exception as e:
             self.report({'ERROR'}, f"Import failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return {'CANCELLED'}
-
-    def _clean_3dgis_graph(self, context):
-        """Pulisce completamente il grafo 3D GIS esistente - SOLO EM-TOOLS"""
-        from s3dgraphy.multigraph.multigraph import multi_graph_manager
-        from ..populate_lists import clear_lists
-        
+    
+    def _validate_settings(self, settings):
+        """Validate import settings"""
+        if settings['import_type'] in ["pyarchinit", "emdb_xlsx"]:
+            if not settings.get('mapping') or settings['mapping'] == 'none':
+                self.report({'ERROR'}, f"{settings['import_type']} import requires a valid mapping. Please select a mapping from the dropdown.")
+                return False
+        return True
+    
+    def _clean_3dgis_state(self, context):
+        """Clean existing 3DGIS graph and Blender lists"""
         hardcoded_name = "3dgis_graph"
         
         if hardcoded_name in multi_graph_manager.graphs:
-            # Rimuovi il grafo esistente
             multi_graph_manager.remove_graph(hardcoded_name)
             print(f"🗑️ EM-tools: Removed existing 3D GIS graph '{hardcoded_name}'")
-            
-            # Pulisci le liste di Blender - PASSA CONTEXT
-            clear_lists(context)
-            print("🧹 EM-tools: Cleared Blender lists for clean 3D GIS import")
+        
+        clear_lists(context)
+        print("🧹 EM-tools: Cleared Blender lists for clean 3D GIS import")
+    
+    def _prepare_graph(self, settings):
+        """
+        Prepare graph for import based on mode.
+        
+        Returns:
+            - For EM_ADVANCED: existing graph from GraphML
+            - For 3DGIS: None (importer will create it)
+        """
+        if settings['mode'] == 'EM_ADVANCED':
+            # EM_ADVANCED: recupera grafo esistente
+            graphml = settings['parent_graphml']
+            existing_graph = get_graph(graphml.name)
+            if not existing_graph:
+                self.report({'ERROR'}, f"GraphML graph '{graphml.name}' not found")
+                return None
+            print(f"✅ EM-tools: Using existing graph '{graphml.name}' for EM_ADVANCED")
+            return existing_graph
         else:
-            print(f"ℹ️ EM-tools: No existing 3D GIS graph to clean")
+            # 3DGIS: ritorna None, l'importer creerà il grafo
+            print(f"✅ EM-tools: Importer will create new graph for 3DGIS")
+            return None
+    
+    def _create_importer(self, settings, graph_to_use):
+        """
+        Create appropriate importer.
+        
+        Args:
+            graph_to_use: Existing graph for EM_ADVANCED, None for 3DGIS
+        """
+        import_type = settings['import_type']
+        
+        if import_type == "generic_xlsx":
+            # ⚠️ GenericXLSXImporter va refactorato in futuro
+            # Per ora manteniamo comportamento attuale
+            return GenericXLSXImporter(
+                filepath=settings['filepath'],
+                sheet_name=settings['sheet_name'],
+                id_column=settings['id_column'],
+                mode=settings['mode']
+            )
+        
+        elif import_type == "emdb_xlsx":
+            mapping_name = settings['mapping'] if settings['mapping'] != 'none' else None
+            
+            # ✅ Passa graph_to_use: None per 3DGIS, grafo esistente per EM_ADVANCED
+            return MappedXLSXImporter(
+                filepath=settings['filepath'],
+                mapping_name=mapping_name,
+                existing_graph=graph_to_use,  # None per 3DGIS, grafo per EM_ADVANCED
+                overwrite=True
+            )
+        
+        elif import_type == "pyarchinit":
+            mapping_name = settings['mapping'] if settings['mapping'] != 'none' else None
+            
+            # ✅ Passa graph_to_use: None per 3DGIS, grafo esistente per EM_ADVANCED
+            return PyArchInitImporter(
+                filepath=settings['filepath'],
+                mapping_name=mapping_name,
+                existing_graph=graph_to_use,  # None per 3DGIS, grafo per EM_ADVANCED
+                overwrite=True
+            )
+        
+        else:
+            self.report({'ERROR'}, f"Unknown import type: {import_type}")
+            return None
+    
+    def _set_graph_metadata(self, settings, graph):
+        """Set metadata on the graph after import"""
+        if not hasattr(graph, 'attributes'):
+            graph.attributes = {}
+        
+        graph.attributes['source_file'] = str(settings['filepath'])
+        graph.attributes['import_type'] = settings['import_type']
+        
+        print(f"✅ EM-tools: Set metadata on graph '{graph.graph_id}'")
+    
+    def _handle_import_results(self, context, settings, graph):
+        """Handle post-import processing"""
+        if self.auxiliary_mode:
+            # Auxiliary mode: refresh lists
+            clear_lists(context)
+            populate_blender_lists_from_graph(context, graph)
+            self.report({'INFO'}, "Successfully imported auxiliary data to existing graph")
+        else:
+            # Normal mode: populate lists
+            populate_blender_lists_from_graph(context, graph)
+            self.report({'INFO'}, f"Successfully imported {len(graph.nodes)} nodes from {settings['import_type']}")
+        
+        return {'FINISHED'}
+
 
 def register():
     bpy.utils.register_class(EM_OT_import_3dgis_database)
+
 
 def unregister():
     bpy.utils.unregister_class(EM_OT_import_3dgis_database)
