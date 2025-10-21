@@ -401,19 +401,7 @@ class VIEW3D_PT_visual_panel(Panel):
             settings_box = box.box()
             row = settings_box.row()
             
-            # Check if show_settings property exists, create it if not
-            if not hasattr(label_settings, 'show_settings'):
-                # Add the property to the existing LabelSettings class
-                from ..visual_manager.data import LabelSettings
-                if not hasattr(LabelSettings, 'show_settings'):
-                    LabelSettings.show_settings = bpy.props.BoolProperty(
-                        name="Show Settings",
-                        description="Show label creation settings", 
-                        default=False
-                    )
-                    # Re-register to apply the new property
-                    bpy.utils.unregister_class(LabelSettings)
-                    bpy.utils.register_class(LabelSettings)
+
             
             show_settings = getattr(label_settings, 'show_settings', False)
             
