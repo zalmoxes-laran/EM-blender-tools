@@ -89,6 +89,30 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             # Get import settings
             settings = self.get_import_settings(context)
 
+            # ✅ VALIDAZIONE PREVENTIVA PER AUXILIARY MODE
+            if self.auxiliary_mode:
+                em_tools = context.scene.em_tools
+                graphml = em_tools.graphml_files[self.graphml_index]
+                
+                # Verifica se il grafo è già caricato
+                from s3dgraphy import get_graph
+                existing_graph = get_graph(graphml.name)
+                
+                if not existing_graph:
+                    # ✅ POPUP ELEGANTE
+                    from ..functions import show_popup_message
+                    show_popup_message(
+                        context,
+                        title="GraphML Not Loaded",
+                        message=f"The GraphML file '{graphml.graph_code}' must be loaded first.\n\n"
+                                f"Steps:\n"
+                                f"1. Go to 'GraphML List' section above\n"
+                                f"2. Click the Import button (↓) next to '{graphml.graph_code}'\n"
+                                f"3. Then retry importing this auxiliary file",
+                        icon='ERROR'
+                    )
+                    return {'FINISHED'}
+
             # ✅ VALIDAZIONE: pyArchInit richiede sempre un mapping valido
             if settings['import_type'] == "pyarchinit":
                 if not settings.get('mapping') or settings['mapping'] == 'none':
