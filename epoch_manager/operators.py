@@ -4,9 +4,9 @@ This module contains all the operators needed for interacting with
 epochs in the 3D viewport and in the UI lists.
 """
 
-import bpy
-from bpy.props import StringProperty, IntProperty, BoolProperty
-from bpy.types import Operator
+import bpy # type: ignore
+from bpy.props import StringProperty, IntProperty, BoolProperty # type: ignore
+from bpy.types import Operator # type: ignore
 
 from ..functions import is_graph_available
 from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
@@ -34,24 +34,44 @@ class EM_toggle_select(Operator):
     group_em_idx: IntProperty() # type: ignore
 
     def execute(self, context):
+        from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+        from ..functions import is_graph_available
+        
         scene = context.scene
         missing_objects = []
+        
+        # Ottieni il grafo attivo
+        graph_exists, graph = is_graph_available(context)
+        active_graph = graph if graph_exists else None
+        
         if self.group_em_idx < len(scene.epoch_list):
-            # check_same_ids()  # check scene ids
             current_e_manager = scene.epoch_list[self.group_em_idx]
+            
             for us in scene.em_list:
                 if us.icon == "LINKED":
-                    #print(f"La US {us.name} appartiene all'epoca {us.epoch}")
                     if current_e_manager.name == us.epoch:
-                        object_to_select = bpy.data.objects[us.name]
-                        try:
-                            object_to_select.select_set(True)
-                        except RuntimeError as e:
-                            if "can't be selected because it is not in View Layer" in str(e):
-                                missing_objects.append(object_to_select.name)
-                            else:
-                                self.report({'ERROR'}, f"Error selecting object '{object_to_select.name}': {e}")
-                                return {'CANCELLED'}
+                        # ✅ MODIFICATO: Converti il nome con prefisso
+                        proxy_name = node_name_to_proxy_name(
+                            us.name,
+                            context=context,
+                            graph=active_graph
+                        )
+                        
+                        # ✅ MODIFICATO: Usa get() per gestire oggetti mancanti
+                        object_to_select = bpy.data.objects.get(proxy_name)
+                        
+                        if object_to_select:
+                            try:
+                                object_to_select.select_set(True)
+                            except RuntimeError as e:
+                                if "can't be selected because it is not in View Layer" in str(e):
+                                    missing_objects.append(proxy_name)
+                                else:
+                                    self.report({'ERROR'}, f"Error selecting object '{proxy_name}': {e}")
+                                    return {'CANCELLED'}
+                        else:
+                            print(f"⚠️ Warning: Object '{proxy_name}' not found")
+                            missing_objects.append(proxy_name)
 
         if missing_objects:
             self.report({'WARNING'}, f"The following objects cannot be selected because they are in inactive layers: {', '.join(missing_objects)}")
@@ -72,22 +92,42 @@ class EM_toggle_visibility(Operator):
     bl_description = "Toggle Visibility"
     bl_options = {'REGISTER', 'UNDO'}
 
-    group_em_vis_idx: IntProperty()
+    group_em_vis_idx: IntProperty() # type: ignore
     
     def execute(self, context):
+        from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+        from ..functions import is_graph_available
+        
         scene = context.scene
+        
+        # Ottieni il grafo attivo
+        graph_exists, graph = is_graph_available(context)
+        active_graph = graph if graph_exists else None
+        
         if self.group_em_vis_idx < len(scene.epoch_list):
-            # check_same_ids()  # check scene ids
             current_e_manager = scene.epoch_list[self.group_em_vis_idx]
-            #parsing the em list
+            
+            # Parsing the em list
             for us in scene.em_list:
-                #selecting only in-scene em elements
+                # Selecting only in-scene em elements
                 if us.icon == "LINKED":
-                    # check if the us is in epoch
+                    # Check if the us is in epoch
                     if current_e_manager.name == us.epoch:
-                        # identify object to be turned on/off
-                        object_to_set_visibility = bpy.data.objects[us.name]
-                        object_to_set_visibility.hide_viewport = current_e_manager.use_toggle
+                        # ✅ MODIFICATO: Converti il nome con prefisso
+                        proxy_name = node_name_to_proxy_name(
+                            us.name,
+                            context=context,
+                            graph=active_graph
+                        )
+                        
+                        # ✅ MODIFICATO: Usa get() per gestire oggetti mancanti
+                        object_to_set_visibility = bpy.data.objects.get(proxy_name)
+                        
+                        if object_to_set_visibility:
+                            object_to_set_visibility.hide_viewport = current_e_manager.use_toggle
+                        else:
+                            print(f"⚠️ Warning: Object '{proxy_name}' not found")
+                            
         current_e_manager.use_toggle = not current_e_manager.use_toggle
         return {'FINISHED'}
 
@@ -101,16 +141,36 @@ class EM_toggle_selectable(Operator):
     group_em_idx: IntProperty() # type: ignore
 
     def execute(self, context):
+        from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+        from ..functions import is_graph_available
+        
         scene = context.scene
+        
+        # Ottieni il grafo attivo
+        graph_exists, graph = is_graph_available(context)
+        active_graph = graph if graph_exists else None
+        
         if self.group_em_idx < len(scene.epoch_list):
-            # check_same_ids()  # check scene ids
             current_e_manager = scene.epoch_list[self.group_em_idx]
+            
             for us in scene.em_list:
                 if us.icon == "LINKED":
                     if current_e_manager.name == us.epoch:
-
-                        object_to_set_visibility = bpy.data.objects[us.name]
-                        object_to_set_visibility.hide_select = current_e_manager.is_locked
+                        # ✅ MODIFICATO: Converti il nome con prefisso
+                        proxy_name = node_name_to_proxy_name(
+                            us.name,
+                            context=context,
+                            graph=active_graph
+                        )
+                        
+                        # ✅ MODIFICATO: Usa get() per gestire oggetti mancanti
+                        object_to_set_visibility = bpy.data.objects.get(proxy_name)
+                        
+                        if object_to_set_visibility:
+                            object_to_set_visibility.hide_select = current_e_manager.is_locked
+                        else:
+                            print(f"⚠️ Warning: Object '{proxy_name}' not found")
+                            
         current_e_manager.is_locked = not current_e_manager.is_locked
         return {'FINISHED'}
 
@@ -121,7 +181,7 @@ class EM_select_epoch_rm(Operator):
     bl_description = "Select RM for a given epoch"
     bl_options = {'REGISTER', 'UNDO'}
 
-    rm_epoch: StringProperty()
+    rm_epoch: StringProperty() # type: ignore
 
     def execute(self, context):
         #scene = context.scene
@@ -139,8 +199,8 @@ class EM_add_remove_epoch_models(Operator):
     bl_description = "Add and remove models from epochs"
     bl_options = {'REGISTER', 'UNDO'}
 
-    rm_epoch: StringProperty()
-    rm_add: BoolProperty()
+    rm_epoch: StringProperty() # type: ignore
+    rm_add: BoolProperty() # type: ignore
 
     def execute(self, context):
         scene = context.scene
@@ -170,7 +230,7 @@ class EM_change_selected_objects(Operator):
     bl_description = "Change Selected"
     bl_options = {'REGISTER', 'UNDO'}
 
-    sg_objects_changer: StringProperty()
+    sg_objects_changer: StringProperty() # type: ignore
     sg_do_with_groups = [
         'COLOR_WIRE', 'DEFAULT_COLOR_WIRE', 'LOCKED', 'UNLOCKED']
 
@@ -259,6 +319,23 @@ class EM_UpdateUSListOperator(Operator):
 
         return {'FINISHED'}
 
+class EPOCH_OT_reset_visibility_ui(Operator):
+    """Reset all epoch visibility toggles to ON"""
+    bl_idname = "epoch_manager.reset_visibility_ui"
+    bl_label = "Reset Visibility UI"
+    bl_description = "Reset all epoch visibility toggles to their initial state (ON)"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    def execute(self, context):
+        scene = context.scene
+        
+        # Imposta tutti gli use_toggle a True
+        for epoch in scene.epoch_list:
+            epoch.use_toggle = True
+        
+        self.report({'INFO'}, f"Reset {len(scene.epoch_list)} epoch visibility toggles")
+        return {'FINISHED'}
+
 def register_operators():
     """Register all operator classes."""
     operators = [
@@ -270,6 +347,7 @@ def register_operators():
         EM_add_remove_epoch_models,
         EM_change_selected_objects,
         EM_UpdateUSListOperator,
+        EPOCH_OT_reset_visibility_ui
     ]
     
     for cls in operators:
@@ -282,6 +360,7 @@ def register_operators():
 def unregister_operators():
     """Unregister all operator classes."""
     operators = [
+        EPOCH_OT_reset_visibility_ui,
         EM_UpdateUSListOperator,
         EM_change_selected_objects,
         EM_add_remove_epoch_models,

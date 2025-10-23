@@ -4,9 +4,9 @@ This module provides functionality for viewing, filtering, and managing
 time periods within the Extended Matrix framework.
 """
 
-import bpy
-from bpy.utils import register_class, unregister_class
-from bpy.props import BoolProperty
+import bpy # type: ignore
+from bpy.utils import register_class, unregister_class # type: ignore
+from bpy.props import BoolProperty # type: ignore
 
 # Import local modules
 from .data import register_data, unregister_data

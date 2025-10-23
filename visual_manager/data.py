@@ -4,8 +4,8 @@ This module contains all PropertyGroup definitions and data structures
 needed for the Visual Manager with renamed properties to avoid conflicts.
 """
 
-import bpy
-from bpy.props import (
+import bpy # type: ignore
+from bpy.props import ( # type: ignore
     StringProperty,
     BoolProperty,
     FloatProperty,
@@ -15,11 +15,11 @@ from bpy.props import (
     FloatVectorProperty,
     EnumProperty
 )
-from bpy.types import PropertyGroup
+from bpy.types import PropertyGroup # type: ignore
 
 class PropertyValueItem(PropertyGroup):
     """Property value item for color mapping"""
-    value: StringProperty(name="Value")
+    value: StringProperty(name="Value") # type: ignore
     color: FloatVectorProperty(
         name="Color",
         subtype='COLOR',
@@ -27,7 +27,7 @@ class PropertyValueItem(PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.5, 0.5, 0.5, 1.0)
-    )
+    ) # type: ignore
 
 def get_ramp_types(self, context):
     """Return color ramp types for the enum property"""
@@ -49,19 +49,19 @@ class ColorRampProperties(PropertyGroup):
         name="Scale Type",
         items=get_ramp_types,
         description="Type of color scale"
-    )
+    ) # type: ignore
     
     ramp_name: EnumProperty(
         name="Color Ramp",
         items=get_ramp_names,
         description="Selected color ramp"
-    )
+    ) # type: ignore
 
     advanced_options: BoolProperty(
         name="Show advanced options",
         description="Show advanced export options like compression settings",
         default=False
-    )
+    ) # type: ignore
 
 class CameraItem(PropertyGroup):
     """Camera information for label management"""
@@ -69,17 +69,17 @@ class CameraItem(PropertyGroup):
         name="Camera Name",
         description="Name of the camera",
         default=""
-    )
+    ) # type: ignore
     has_labels: BoolProperty(
         name="Has Labels",
         description="Whether this camera has labels generated",
         default=False
-    )
+    ) # type: ignore
     label_count: IntProperty(
         name="Label Count",
         description="Number of labels for this camera",
         default=0
-    )
+    ) # type: ignore
 
 class LabelSettings(PropertyGroup):
     """Settings for label creation and appearance"""
@@ -90,7 +90,7 @@ class LabelSettings(PropertyGroup):
         min=0.0,
         max=1.0,
         default=(1.0, 1.0, 1.0)
-    )
+    ) # type: ignore
     
     emission_strength: FloatProperty(
         name="Emission Strength",
@@ -98,7 +98,7 @@ class LabelSettings(PropertyGroup):
         min=0.0,
         max=10.0,
         default=1.0
-    )
+    ) # type: ignore
     
     label_distance: FloatProperty(
         name="Label Distance",
@@ -106,7 +106,7 @@ class LabelSettings(PropertyGroup):
         min=0.1,
         max=10.0,
         default=1.0
-    )
+    ) # type: ignore
     
     label_scale: FloatVectorProperty(
         name="Label Scale",
@@ -115,19 +115,25 @@ class LabelSettings(PropertyGroup):
         min=0.001,
         max=1.0,
         default=(0.03, 0.03, 0.03)
-    )
+    ) # type: ignore
     
     auto_move_cameras: BoolProperty(
         name="Auto Move Cameras to CAMS collection",
         description="Automatically move cameras to CAMS collection when creating labels",
         default=True
-    )
+    ) # type: ignore
     
     show_label_tools: BoolProperty(
         name="Show Label Tools",
         description="Show/hide label management tools",
         default=False
-    )
+    ) # type: ignore
+
+    show_settings: BoolProperty(
+        name="Show Settings",
+        description="Show label creation settings",
+        default=False
+    ) # type: ignore
 
 def register_data():
     """Register all data classes."""

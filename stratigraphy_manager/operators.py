@@ -366,6 +366,8 @@ class EM_strat_show_all_proxies(Operator):
 
     def execute(self, context):
         scene = context.scene
+
+        bpy.ops.epoch_manager.reset_visibility_ui()
         
         # 1. First reset all filters using the existing operator
         if scene.filter_by_epoch or scene.filter_by_activity:

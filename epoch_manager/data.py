@@ -4,8 +4,8 @@ This module contains all PropertyGroup definitions and data structures
 needed for the Epoch Manager.
 """
 
-import bpy
-from bpy.props import (
+import bpy # type: ignore
+from bpy.props import ( # type: ignore
     StringProperty,
     BoolProperty,
     FloatProperty,
@@ -14,7 +14,7 @@ from bpy.props import (
     PointerProperty,
     FloatVectorProperty
 )
-from bpy.types import PropertyGroup
+from bpy.types import PropertyGroup # type: ignore
 
 class EPOCHListItem(PropertyGroup):
     """Period/Epoch information"""
@@ -22,48 +22,48 @@ class EPOCHListItem(PropertyGroup):
         name="Name",
         description="Name of this epoch",
         default="Untitled"
-    )
+    ) # type: ignore
     id: StringProperty(
         name="id",
         description="Unique identifier",
         default=""
-    )
+    ) # type: ignore
     min_y: FloatProperty(
         name="Min Y Position",
         description="Minimum Y position",
         default=0.0
-    )
+    ) # type: ignore
     max_y: FloatProperty(
         name="Max Y Position",
         description="Maximum Y position",
         default=0.0
-    )
+    ) # type: ignore
     height: FloatProperty(
         name="Height",
         description="Height of epoch row",
         default=0.0
-    )
+    ) # type: ignore
     epoch_color: StringProperty(
         name="Epoch Color",
         description="Color code for epoch",
         default=""
-    )
+    ) # type: ignore
     start_time: FloatProperty(
         name="Start Time",
         description="Starting time for epoch",
         default=0.0
-    )
+    ) # type: ignore
     end_time: FloatProperty(
         name="End Time",
         description="Ending time for epoch",
         default=0.0
-    )
-    use_toggle: BoolProperty(name="Toggle", default=True)
-    is_locked: BoolProperty(name="Locked", default=True)
-    is_selected: BoolProperty(name="Selected", default=False)
-    rm_models: BoolProperty(name="RM Models", default=False)
-    reconstruction_on: BoolProperty(name="Reconstruction", default=False)
-    unique_id: StringProperty(default="")
+    ) # type: ignore
+    use_toggle: BoolProperty(name="Toggle", default=True) # type: ignore
+    is_locked: BoolProperty(name="Locked", default=True) # type: ignore
+    is_selected: BoolProperty(name="Selected", default=False) # type: ignore
+    rm_models: BoolProperty(name="RM Models", default=False) # type: ignore
+    reconstruction_on: BoolProperty(name="Reconstruction", default=False) # type: ignore
+    unique_id: StringProperty(default="") # type: ignore
     epoch_RGB_color: FloatVectorProperty(
         name="Epoch RGB Color",
         subtype="COLOR",
@@ -71,21 +71,21 @@ class EPOCHListItem(PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.5, 0.5, 0.5)
-    )
+    ) # type: ignore
     wire_color: FloatVectorProperty(
         name="Wire Color",
         subtype='COLOR',
         default=(0.2, 0.2, 0.2),
         min=0.0, max=1.0,
         description="Wire color of the group"
-    )
+    ) # type: ignore
 
 class EMUSItem(PropertyGroup):
     """Information about a stratigraphic unit"""
-    name: StringProperty(name="Name", default="")
-    description: StringProperty(name="Description", default="")
-    status: StringProperty(name="Status", default="")
-    y_pos: StringProperty(name="y_pos", default="")
+    name: StringProperty(name="Name", default="") # type: ignore
+    description: StringProperty(name="Description", default="") # type: ignore
+    status: StringProperty(name="Status", default="") # type: ignore
+    y_pos: StringProperty(name="y_pos", default="") # type: ignore
 
 
 def update_epoch_selection(self, context):
