@@ -124,3 +124,5 @@ em-blender-tools_updater/EM-blender-tools_updater_status.json
 build/
 /build/
 **/build/
+
+blext/
