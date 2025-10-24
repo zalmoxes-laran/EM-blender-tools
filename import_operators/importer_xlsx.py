@@ -52,10 +52,9 @@ class GenericXLSXImporter(BaseImporter):
         print(f"Registering graph with ID: {self.graph_id}")
         print(f"Current registered graphs: {list(multi_graph_manager.graphs.keys())}")
 
-
     def _read_excel_file(self) -> pd.DataFrame:
         """
-        Read the Excel file using pandas.
+        Read the Excel file using pandas, senza creare lock sul file.
         """
         try:
             # Debug prints
@@ -72,22 +71,29 @@ class GenericXLSXImporter(BaseImporter):
             
             print(f"File exists and has size: {os.path.getsize(abs_filepath)} bytes")
             
-            # Verifica del file Excel
+            # ✅ SOLUZIONE: Usa openpyxl in modalità read_only
+            # Questo evita di creare lock sul file
             try:
-                xl = pd.ExcelFile(abs_filepath)
-                print(f"Available sheets: {xl.sheet_names}")
+                # Prima verifica gli sheet disponibili
+                from openpyxl import load_workbook
+                wb = load_workbook(abs_filepath, read_only=True, data_only=True)
+                sheet_names = wb.sheetnames
+                print(f"Available sheets: {sheet_names}")
+                wb.close()  # ✅ Chiudi subito il workbook
+                
             except Exception as e:
                 print(f"Error reading Excel file structure: {str(e)}")
                 raise ImportError(f"Invalid Excel file: {str(e)}")
-                
-            # Lettura del file
+            
+            # Lettura del file con pandas
             try:
                 df = pd.read_excel(
                     abs_filepath,
                     sheet_name=self.sheet_name,
                     na_values=['', 'NA', 'N/A'],
                     keep_default_na=True,
-                    engine='openpyxl'
+                    engine='openpyxl',
+                    engine_kwargs={'read_only': True, 'data_only': True}  # ✅ Parametri per evitare lock
                 )
                 print(f"Successfully read DataFrame with shape: {df.shape}")
                 print(f"Columns found: {list(df.columns)}")
