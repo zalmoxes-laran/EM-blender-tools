@@ -55,45 +55,59 @@ class GenericXLSXImporter(BaseImporter):
     def _read_excel_file(self) -> pd.DataFrame:
         """
         Read the Excel file using pandas, senza creare lock sul file.
+        Legge il file completamente in memoria per evitare conflitti di accesso.
         """
+        file_content = None
+        xl = None
+        
         try:
+            import io
+            
             # Debug prints
             print(f"\nDebug Excel file path:")
             print(f"Original filepath: {self.filepath}")
             abs_filepath = bpy.path.abspath(self.filepath)
             print(f"Absolute filepath: {abs_filepath}")
             
-            # Verifica del file
-            if not os.path.exists(abs_filepath):
-                print(f"File does not exist at: {abs_filepath}")
-                print(f"Current working directory: {os.getcwd()}")
-                raise ImportError(f"File not found: {abs_filepath}")
+            # ✅ Verifica del file - MA solo dopo aver tentato la lettura
+            # Non usiamo os.path.exists() perché può dare Permission Denied su file aperti
             
-            print(f"File exists and has size: {os.path.getsize(abs_filepath)} bytes")
-            
-            # ✅ SOLUZIONE: Usa openpyxl in modalità read_only
-            # Questo evita di creare lock sul file
+            # ✅ SOLUZIONE: Leggi il file completamente in memoria
+            print(f"Reading file into memory buffer...")
             try:
-                # Prima verifica gli sheet disponibili
-                from openpyxl import load_workbook
-                wb = load_workbook(abs_filepath, read_only=True, data_only=True)
-                sheet_names = wb.sheetnames
+                with open(abs_filepath, 'rb') as f:
+                    file_content = io.BytesIO(f.read())
+                print(f"File loaded in memory successfully")
+            except FileNotFoundError:
+                raise ImportError(f"File not found: {abs_filepath}")
+            except PermissionError:
+                raise ImportError(f"Permission denied accessing file: {abs_filepath}. File may be locked by another application.")
+            
+            # Verifica gli sheet disponibili usando il buffer
+            try:
+                xl = pd.ExcelFile(file_content, engine='openpyxl')
+                sheet_names = xl.sheet_names
                 print(f"Available sheets: {sheet_names}")
-                wb.close()  # ✅ Chiudi subito il workbook
-                
             except Exception as e:
                 print(f"Error reading Excel file structure: {str(e)}")
                 raise ImportError(f"Invalid Excel file: {str(e)}")
+            finally:
+                # ✅ Chiudi sempre ExcelFile se è stato aperto
+                if xl is not None:
+                    xl.close()
+                    print("ExcelFile closed")
             
-            # Lettura del file con pandas
+            # ✅ Riporta il puntatore all'inizio del buffer per rileggerlo
+            file_content.seek(0)
+            
+            # Lettura del DataFrame dal buffer in memoria
             try:
                 df = pd.read_excel(
-                    abs_filepath,
+                    file_content,  # ✅ Usa il buffer invece del filepath
                     sheet_name=self.sheet_name,
                     na_values=['', 'NA', 'N/A'],
                     keep_default_na=True,
-                    engine='openpyxl',
-                    engine_kwargs={'read_only': True, 'data_only': True}  # ✅ Parametri per evitare lock
+                    engine='openpyxl'
                 )
                 print(f"Successfully read DataFrame with shape: {df.shape}")
                 print(f"Columns found: {list(df.columns)}")
@@ -112,6 +126,18 @@ class GenericXLSXImporter(BaseImporter):
             
         except Exception as e:
             raise ImportError(f"Error reading Excel file: {str(e)}")
+        
+        finally:
+            # ✅ PULIZIA FINALE: Libera tutte le risorse
+            if file_content is not None:
+                file_content.close()
+                print("Memory buffer closed and released")
+            
+            # Forza garbage collection per rilasciare immediatamente la memoria
+            import gc
+            gc.collect()
+            print("Garbage collection completed - all locks released")
+
     
     def _clean_row_data(self, row: pd.Series) -> Dict[str, Any]:
         """Clean and prepare row data for processing."""
