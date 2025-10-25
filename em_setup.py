@@ -36,66 +36,6 @@ from .thumb_utils import reload_doc_previews_from_cache, has_doc_thumbs
 import hashlib  # ✅ Necessario per path hash
 from pathlib import Path
 
-def validate_enum_value(prop_name, get_items_func, context):
-    """
-    Valida che il valore di un EnumProperty esista ancora nella lista items.
-    Se non esiste, lo resetta al default.
-    
-    Args:
-        prop_name: Nome della proprietà (es: 'emdb_mapping')
-        get_items_func: Funzione che genera gli items
-        context: Blender context
-    """
-    try:
-        # Ottieni l'oggetto che contiene la proprietà
-        # Può essere su scene.em_tools o su un GraphML file
-        if hasattr(context.scene, 'em_tools'):
-            em_tools = context.scene.em_tools
-            
-            # Valida le proprietà globali
-            if hasattr(em_tools, prop_name):
-                current_value = getattr(em_tools, prop_name)
-                
-                # Ottieni la lista valida di items
-                if callable(get_items_func):
-                    valid_items = get_items_func(em_tools, context)
-                else:
-                    valid_items = get_items_func
-                
-                valid_ids = [item[0] for item in valid_items]
-                
-                # Se il valore corrente non è nella lista, resetta
-                if current_value and current_value not in valid_ids:
-                    print(f"⚠️ Invalid {prop_name} value: '{current_value}' - resetting to 'none'")
-                    setattr(em_tools, prop_name, 'none')
-            
-            # Valida anche gli auxiliary files
-            if hasattr(em_tools, 'graphml_files'):
-                for graphml_file in em_tools.graphml_files:
-                    if hasattr(graphml_file, 'auxiliary_files'):
-                        for aux_file in graphml_file.auxiliary_files:
-                            if hasattr(aux_file, prop_name):
-                                current_value = getattr(aux_file, prop_name)
-                                
-                                if callable(get_items_func):
-                                    valid_items = get_items_func(aux_file, context)
-                                else:
-                                    valid_items = get_items_func
-                                
-                                valid_ids = [item[0] for item in valid_items]
-                                
-                                if current_value and current_value not in valid_ids:
-                                    print(f"⚠️ Invalid {prop_name} in auxiliary file: '{current_value}' - resetting")
-                                    setattr(aux_file, prop_name, 'none')
-    
-    except Exception as e:
-        print(f"Error validating {prop_name}: {e}")
-
-
-def validate_all_mapping_enums(context):
-    """Valida tutti gli EnumProperty che usano mappings dinamici"""
-    validate_enum_value('emdb_mapping', get_emdb_mappings, context)
-    validate_enum_value('pyarchinit_mapping', get_pyarchinit_mappings, context)
 
 def get_pyarchinit_mappings(self, context):
     """Get available pyArchInit mapping files from registry"""
@@ -545,6 +485,102 @@ def get_emdb_mappings():
         print(f"Error loading EMdb mappings: {str(e)}")
     
     return mappings
+
+
+def validate_enum_value(obj, prop_name, get_items_func, context):
+    """
+    Valida che il valore di un EnumProperty esista ancora nella lista items.
+    Se non esiste, lo resetta al default 'none'.
+    
+    Args:
+        obj: Oggetto che contiene la proprietà (em_tools, graphml_file, aux_file)
+        prop_name: Nome della proprietà (es: 'emdb_mapping')
+        get_items_func: Funzione che genera gli items
+        context: Blender context
+    """
+    try:
+        if not hasattr(obj, prop_name):
+            return False
+        
+        current_value = getattr(obj, prop_name)
+        
+        # Se è già 'none', ok
+        if not current_value or current_value == 'none':
+            return False
+        
+        # Ottieni la lista valida di items
+        try:
+            if callable(get_items_func):
+                # Passa self e context alla funzione
+                valid_items = get_items_func(obj, context)
+            else:
+                valid_items = get_items_func
+        except Exception as e:
+            print(f"⚠️ Error getting valid items for {prop_name}: {e}")
+            return False
+        
+        # Estrai gli ID validi
+        valid_ids = [item[0] for item in valid_items if len(item) > 0]
+        
+        # Se il valore corrente non è nella lista, resetta
+        if current_value not in valid_ids:
+            print(f"⚠️ Invalid {prop_name} value: '{current_value}' (not in {valid_ids}) - resetting to 'none'")
+            setattr(obj, prop_name, 'none')
+            return True  # Indica che c'è stata una modifica
+        
+        return False
+    
+    except Exception as e:
+        print(f"Error validating {prop_name}: {e}")
+        return False
+
+
+def validate_all_mapping_enums(context):
+    """
+    Valida tutti gli EnumProperty che usano mappings dinamici.
+    Cerca in tutte le posizioni dove possono essere salvati i mapping.
+    """
+    modified_count = 0
+    
+    try:
+        if not hasattr(context, 'scene') or not hasattr(context.scene, 'em_tools'):
+            print("⚠️ Cannot validate mappings: em_tools not found")
+            return
+        
+        em_tools = context.scene.em_tools
+        
+        # 1. Valida le proprietà globali su em_tools
+        print("Validating global mapping properties...")
+        if validate_enum_value(em_tools, 'emdb_mapping', get_emdb_mappings, context):
+            modified_count += 1
+        if validate_enum_value(em_tools, 'pyarchinit_mapping', get_pyarchinit_mappings, context):
+            modified_count += 1
+        
+        # 2. Valida i mapping nei GraphML files (se presenti)
+        if hasattr(em_tools, 'graphml_files'):
+            print(f"Validating {len(em_tools.graphml_files)} GraphML files...")
+            for i, graphml_file in enumerate(em_tools.graphml_files):
+                # 3. Valida gli auxiliary files
+                if hasattr(graphml_file, 'auxiliary_files'):
+                    print(f"  GraphML {i}: checking {len(graphml_file.auxiliary_files)} auxiliary files...")
+                    for j, aux_file in enumerate(graphml_file.auxiliary_files):
+                        if validate_enum_value(aux_file, 'emdb_mapping', get_emdb_mappings, context):
+                            print(f"    - Reset auxiliary file {j} emdb_mapping")
+                            modified_count += 1
+                        if validate_enum_value(aux_file, 'pyarchinit_mapping', get_pyarchinit_mappings, context):
+                            print(f"    - Reset auxiliary file {j} pyarchinit_mapping")
+                            modified_count += 1
+        
+        if modified_count > 0:
+            print(f"✓ Mapping validation complete: {modified_count} invalid values reset")
+        else:
+            print("✓ Mapping validation complete: all values valid")
+    
+    except Exception as e:
+        print(f"Error in validate_all_mapping_enums: {e}")
+        import traceback
+        traceback.print_exc()
+
 
 def get_us_doc_previews_callback(self, context):
     """
