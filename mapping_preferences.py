@@ -1,124 +1,356 @@
 """
 Mapping Preferences Module
-Gestisce le preferenze per i percorsi personalizzati dei file di mapping
+Gestisce i percorsi personalizzati dei file di mapping.
+Default: usa user_mappings dentro l'addon (portabile)
+Avanzato: permette di puntare altrove (non portabile)
 """
 
-import bpy # type: ignore
-from bpy.types import AddonPreferences, Operator # type: ignore
-from bpy.props import StringProperty, BoolProperty # type: ignore
+import bpy
+from bpy.types import AddonPreferences, Operator
+from bpy.props import StringProperty, BoolProperty, EnumProperty
 import os
 
 import logging
 log = logging.getLogger(__name__)
 
-@bpy.app.handlers.persistent
-def reset_initialization_flag(dummy):
-    """Reset del flag quando si ricarica il file (per development)"""
+
+def get_addon_dir():
+    """Ottiene la directory root dell'addon"""
+    return os.path.dirname(os.path.realpath(__file__))
+
+
+def get_default_user_mappings_path(mapping_type=''):
+    """
+    Ottiene il percorso di default per user_mappings.
+    
+    Args:
+        mapping_type: 'emdb', 'pyarchinit', o '' per la root
+        
+    Returns:
+        Path alla cartella user_mappings (o sottocartella)
+    """
+    addon_dir = get_addon_dir()
+    user_mappings_dir = os.path.join(addon_dir, "user_mappings")
+    
+    if mapping_type:
+        return os.path.join(user_mappings_dir, mapping_type)
+    return user_mappings_dir
+
+
+def ensure_user_mappings_exist():
+    """Crea la struttura user_mappings se non esiste"""
+    user_path = get_default_user_mappings_path()
+    
+    if not os.path.exists(user_path):
+        try:
+            os.makedirs(user_path)
+            
+            # Crea sottocartelle
+            for subdir in ['emdb', 'pyarchinit']:
+                subdir_path = os.path.join(user_path, subdir)
+                os.makedirs(subdir_path, exist_ok=True)
+                
+                # Crea README
+                readme_path = os.path.join(subdir_path, 'README.txt')
+                with open(readme_path, 'w', encoding='utf-8') as f:
+                    f.write(f"Place your custom {subdir} mapping JSON files here.\n")
+                    f.write(f"They will be loaded automatically and have priority over built-in mappings.\n")
+            
+            # README principale
+            readme_main = os.path.join(user_path, 'README.txt')
+            with open(readme_main, 'w', encoding='utf-8') as f:
+                f.write("EM Tools - User Custom Mappings\n")
+                f.write("=" * 50 + "\n\n")
+                f.write("This folder contains your custom mapping files.\n")
+                f.write("These mappings are stored with your Blender installation\n")
+                f.write("and will be available across all .blend files.\n\n")
+                f.write("Subfolders:\n")
+                f.write("  📁 emdb/        - EMdb Excel format mappings\n")
+                f.write("  📁 pyarchinit/  - pyArchInit database mappings\n\n")
+                f.write("Simply copy your .json mapping files to the appropriate folder.\n")
+            
+            log.info(f"✓ Created user_mappings structure: {user_path}")
+        except Exception as e:
+            log.error(f"Error creating user_mappings: {e}")
+    
+    return user_path
+
+
+def resolve_path(path_string):
+    """Risolve percorsi relativi Blender (//)"""
+    if not path_string:
+        return ""
+    
     try:
-        addon_prefs = bpy.context.preferences.addons.get(__package__, None)
-        if addon_prefs:
-            addon_prefs.preferences.mappings_initialized = False
-    except:
-        pass
+        resolved = bpy.path.abspath(path_string)
+        resolved = os.path.normpath(resolved)
+        return resolved
+    except Exception as e:
+        log.warning(f"Error resolving path '{path_string}': {e}")
+        return ""
+
+
+def get_mapping_path(prefs, mapping_type):
+    """
+    Ottiene il percorso effettivo per un tipo di mapping.
+    Se custom è vuoto o non valido, usa il default.
+    
+    Args:
+        prefs: Addon preferences
+        mapping_type: 'emdb' o 'pyarchinit'
+        
+    Returns:
+        Percorso valido o None
+    """
+    custom_attr = f"custom_{mapping_type}_path"
+    custom_path = getattr(prefs, custom_attr, "")
+    
+    if custom_path:
+        # L'utente ha impostato un percorso custom
+        resolved = resolve_path(custom_path)
+        if resolved and os.path.exists(resolved):
+            return resolved
+        else:
+            log.warning(f"Custom {mapping_type} path not valid: {custom_path}")
+    
+    # Fallback al default (user_mappings dentro addon)
+    default_path = get_default_user_mappings_path(mapping_type)
+    if os.path.exists(default_path):
+        return default_path
+    
+    return None
+
+
 class EMToolsMappingPreferences(AddonPreferences):
     """Preferenze per i percorsi di mapping personalizzati"""
     bl_idname = __package__
     
-    # Percorsi personalizzati per i mapping
+    # Modalità semplice/avanzata
+    show_advanced: BoolProperty(
+        name="Show Advanced Settings",
+        description="Show advanced path configuration (for non-portable setups)",
+        default=False
+    )
+    
+    # Percorsi custom (opzionali - default è user_mappings interno)
     custom_emdb_path: StringProperty(
-        name="Custom EMdb Mappings Folder",
-        description="Custom folder containing EMdb mapping JSON files",
+        name="EMdb Mappings Path",
+        description="Leave empty to use default user_mappings folder (recommended for portability)",
         subtype='DIR_PATH',
-        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set(),
         default="",
-        update=lambda self, context: update_custom_mappings(self, context, 'emdb')
-    ) # type: ignore
+        update=lambda self, context: update_mapping_path(self, context, 'emdb')
+    )
     
     custom_pyarchinit_path: StringProperty(
-        name="Custom pyArchInit Mappings Folder",
-        description="Custom folder containing pyArchInit mapping JSON files",
+        name="pyArchInit Mappings Path",
+        description="Leave empty to use default user_mappings folder (recommended for portability)",
         subtype='DIR_PATH',
-        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set(),
         default="",
-        update=lambda self, context: update_custom_mappings(self, context, 'pyarchinit')
-    ) # type: ignore
+        update=lambda self, context: update_mapping_path(self, context, 'pyarchinit')
+    )
     
-    # Flag per sapere se i percorsi sono stati inizializzati
+    # Flag inizializzazione
     mappings_initialized: BoolProperty(
         name="Mappings Initialized",
         default=False
-    ) # type: ignore
+    )
     
     def draw(self, context):
         layout = self.layout
         
-        # Sezione Custom Mapping Paths
+        # ===== SEZIONE PRINCIPALE: USER MAPPINGS =====
         box = layout.box()
-        box.label(text="Custom Mapping Directories", icon='FILEBROWSER')
+        box.label(text="📦 User Custom Mappings", icon='PACKAGE')
         
-        # EMdb mappings
+        default_path = get_default_user_mappings_path()
+        
+        # Info sulla location
+        info_box = box.box()
+        info_box.label(text="Default Location (Portable):", icon='INFO')
+        
+        # Split per mostrare il path e il bottone
+        split = info_box.split(factor=0.85)
+        col1 = split.column()
+        col1.label(text=default_path)
+        col2 = split.column()
+        col2.operator("emtools.open_folder", 
+                     text="", 
+                     icon='FILEBROWSER').folder_path = default_path
+        
+        # Statistiche
+        stats_row = box.row(align=True)
+        
+        emdb_path = get_default_user_mappings_path('emdb')
+        emdb_count = len([f for f in os.listdir(emdb_path) if f.endswith('.json')]) if os.path.exists(emdb_path) else 0
+        
+        pyarch_path = get_default_user_mappings_path('pyarchinit')
+        pyarch_count = len([f for f in os.listdir(pyarch_path) if f.endswith('.json')]) if os.path.exists(pyarch_path) else 0
+        
+        col = stats_row.column()
+        col.label(text=f"EMdb: {emdb_count} mappings", icon='CHECKMARK' if emdb_count > 0 else 'DOT')
+        
+        col = stats_row.column()
+        col.label(text=f"pyArchInit: {pyarch_count} mappings", icon='CHECKMARK' if pyarch_count > 0 else 'DOT')
+        
+        # Info su come usare
+        help_box = box.box()
+        help_box.label(text="💡 How to add mappings:", icon='QUESTION')
+        help_box.label(text="1. Click the folder icon above to open user_mappings")
+        help_box.label(text="2. Copy your .json mapping files to emdb/ or pyarchinit/")
+        help_box.label(text="3. Click 'Reload Mappings' or restart Blender")
+        
+        layout.separator()
+        
+        # ===== SEZIONE AVANZATA (COLLAPSIBLE) =====
+        box = layout.box()
         row = box.row()
-        row.label(text="EMdb Mappings:")
-        row = box.row()
-        row.prop(self, "custom_emdb_path", text="")
-        if self.custom_emdb_path and os.path.exists(self.custom_emdb_path):
+        row.prop(self, "show_advanced", 
+                icon='TRIA_DOWN' if self.show_advanced else 'TRIA_RIGHT',
+                emboss=False)
+        
+        if self.show_advanced:
+            warning_box = box.box()
+            warning_box.alert = True
+            warning_box.label(text="⚠ Warning: Custom paths are NOT portable!", icon='ERROR')
+            warning_box.label(text="Files with custom paths won't work on other computers.")
+            warning_box.label(text="Leave empty for portable setup.")
+            
+            box.separator()
+            
+            # EMdb custom path
             row = box.row()
-            row.label(text="✓ Folder exists", icon='CHECKMARK')
-        elif self.custom_emdb_path:
+            row.label(text="Custom EMdb Path:")
             row = box.row()
-            row.label(text="⚠ Folder not found", icon='ERROR')
-        
-        box.separator()
-        
-        # pyArchInit mappings
-        row = box.row()
-        row.label(text="pyArchInit Mappings:")
-        row = box.row()
-        row.prop(self, "custom_pyarchinit_path", text="")
-        if self.custom_pyarchinit_path and os.path.exists(self.custom_pyarchinit_path):
+            split = row.split(factor=0.7)
+            split.prop(self, "custom_emdb_path", text="")
+            
+            op = split.operator("emtools.reset_to_default", text="Reset to Default")
+            op.mapping_type = 'emdb'
+            
+            # Mostra percorso effettivo
+            effective_path = get_mapping_path(self, 'emdb')
+            if effective_path:
+                is_default = (effective_path == get_default_user_mappings_path('emdb'))
+                info_row = box.row()
+                info_row.label(
+                    text=f"{'✓ Using default' if is_default else '⚠ Using custom'}: {effective_path}",
+                    icon='CHECKMARK' if is_default else 'ERROR'
+                )
+            
+            box.separator()
+            
+            # pyArchInit custom path
             row = box.row()
-            row.label(text="✓ Folder exists", icon='CHECKMARK')
-        elif self.custom_pyarchinit_path:
+            row.label(text="Custom pyArchInit Path:")
             row = box.row()
-            row.label(text="⚠ Folder not found", icon='ERROR')
+            split = row.split(factor=0.7)
+            split.prop(self, "custom_pyarchinit_path", text="")
+            
+            op = split.operator("emtools.reset_to_default", text="Reset to Default")
+            op.mapping_type = 'pyarchinit'
+            
+            # Mostra percorso effettivo
+            effective_path = get_mapping_path(self, 'pyarchinit')
+            if effective_path:
+                is_default = (effective_path == get_default_user_mappings_path('pyarchinit'))
+                info_row = box.row()
+                info_row.label(
+                    text=f"{'✓ Using default' if is_default else '⚠ Using custom'}: {effective_path}",
+                    icon='CHECKMARK' if is_default else 'ERROR'
+                )
         
-        box.separator()
+        layout.separator()
         
-        # Pulsante per ricaricare manualmente
-        row = box.row()
+        # ===== AZIONI =====
+        row = layout.row(align=True)
+        row.scale_y = 1.5
         row.operator("emtools.reload_custom_mappings", 
                      text="Reload All Mappings", 
                      icon='FILE_REFRESH')
-        
-        # Info
-        info_box = layout.box()
-        info_box.label(text="ℹ Info:", icon='INFO')
-        info_box.label(text="Place your custom mapping JSON files in these folders.")
-        info_box.label(text="They will be loaded automatically and appear in dropdowns.")
-        info_box.label(text="Custom mappings have priority over built-in ones.")
 
 
-def update_custom_mappings(prefs, context, mapping_type):
-    """Aggiorna i mapping quando viene modificato un percorso"""
-    path = getattr(prefs, f"custom_{mapping_type}_path", "")
+def update_mapping_path(prefs, context, mapping_type):
+    """Callback quando si modifica un percorso custom"""
+    custom_attr = f"custom_{mapping_type}_path"
+    custom_path = getattr(prefs, custom_attr, "")
     
-    if not path or not os.path.exists(path):
-        log.warning(f"Custom {mapping_type} path not valid: {path}")
+    if not custom_path:
+        log.info(f"{mapping_type} path cleared - will use default")
         return
     
-    try:
-        from s3dgraphy import add_custom_mapping_directory
-        add_custom_mapping_directory(mapping_type, path, priority='high')
-        log.info(f"✓ Registered custom {mapping_type} mappings from: {path}")
-    except Exception as e:
-        log.error(f"Error registering custom {mapping_type} mappings: {e}")
+    resolved = resolve_path(custom_path)
+    if resolved and os.path.exists(resolved):
+        log.info(f"Custom {mapping_type} path set: {resolved}")
+        # Ricarica i mapping
+        try:
+            from s3dgraphy import add_custom_mapping_directory
+            add_custom_mapping_directory(mapping_type, resolved, priority='high')
+        except Exception as e:
+            log.error(f"Error loading custom {mapping_type} mappings: {e}")
+    else:
+        log.warning(f"Invalid {mapping_type} path: {custom_path}")
+
+
+class EMTOOLS_OT_open_folder(Operator):
+    """Apri una cartella nel file manager"""
+    bl_idname = "emtools.open_folder"
+    bl_label = "Open Folder"
+    bl_description = "Open folder in system file manager"
+    bl_options = {'REGISTER'}
+    
+    folder_path: StringProperty()
+    
+    def execute(self, context):
+        import subprocess
+        import platform
+        
+        if not os.path.exists(self.folder_path):
+            self.report({'ERROR'}, f"Folder not found: {self.folder_path}")
+            return {'CANCELLED'}
+        
+        try:
+            if platform.system() == "Windows":
+                os.startfile(self.folder_path)
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.Popen(["open", self.folder_path])
+            else:  # Linux
+                subprocess.Popen(["xdg-open", self.folder_path])
+            
+            self.report({'INFO'}, f"Opened: {self.folder_path}")
+            return {'FINISHED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Cannot open folder: {str(e)}")
+            return {'CANCELLED'}
+
+
+class EMTOOLS_OT_reset_to_default(Operator):
+    """Reset custom path to default"""
+    bl_idname = "emtools.reset_to_default"
+    bl_label = "Reset to Default"
+    bl_description = "Clear custom path and use default user_mappings folder"
+    bl_options = {'REGISTER'}
+    
+    mapping_type: StringProperty()
+    
+    def execute(self, context):
+        prefs = context.preferences.addons[__package__].preferences
+        
+        custom_attr = f"custom_{self.mapping_type}_path"
+        setattr(prefs, custom_attr, "")
+        
+        self.report({'INFO'}, f"Reset {self.mapping_type} path to default")
+        
+        # Ricarica i mapping
+        bpy.ops.emtools.reload_custom_mappings()
+        
+        return {'FINISHED'}
 
 
 class EMTOOLS_OT_reload_custom_mappings(Operator):
-    """Ricarica tutti i mapping personalizzati"""
+    """Ricarica tutti i mapping"""
     bl_idname = "emtools.reload_custom_mappings"
     bl_label = "Reload Custom Mappings"
-    bl_description = "Reload all custom mapping directories"
+    bl_description = "Reload all mapping files from configured directories"
     bl_options = {'REGISTER'}
     
     def execute(self, context):
@@ -127,35 +359,41 @@ class EMTOOLS_OT_reload_custom_mappings(Operator):
         try:
             from s3dgraphy import add_custom_mapping_directory
             
-            reloaded = []
+            loaded = []
             
-            # Ricarica EMdb mappings
-            if prefs.custom_emdb_path and os.path.exists(prefs.custom_emdb_path):
-                add_custom_mapping_directory('emdb', prefs.custom_emdb_path, priority='high')
-                reloaded.append('EMdb')
+            # Carica EMdb
+            emdb_path = get_mapping_path(prefs, 'emdb')
+            if emdb_path:
+                add_custom_mapping_directory('emdb', emdb_path, priority='high')
+                count = len([f for f in os.listdir(emdb_path) if f.endswith('.json')])
+                is_default = (emdb_path == get_default_user_mappings_path('emdb'))
+                loaded.append(f"EMdb: {count} {'(default)' if is_default else '(custom)'}")
             
-            # Ricarica pyArchInit mappings
-            if prefs.custom_pyarchinit_path and os.path.exists(prefs.custom_pyarchinit_path):
-                add_custom_mapping_directory('pyarchinit', prefs.custom_pyarchinit_path, priority='high')
-                reloaded.append('pyArchInit')
+            # Carica pyArchInit
+            pyarch_path = get_mapping_path(prefs, 'pyarchinit')
+            if pyarch_path:
+                add_custom_mapping_directory('pyarchinit', pyarch_path, priority='high')
+                count = len([f for f in os.listdir(pyarch_path) if f.endswith('.json')])
+                is_default = (pyarch_path == get_default_user_mappings_path('pyarchinit'))
+                loaded.append(f"pyArchInit: {count} {'(default)' if is_default else '(custom)'}")
             
-            if reloaded:
-                self.report({'INFO'}, f"Reloaded custom mappings: {', '.join(reloaded)}")
+            if loaded:
+                self.report({'INFO'}, f"Reloaded: {' | '.join(loaded)}")
             else:
-                self.report({'WARNING'}, "No valid custom mapping paths configured")
+                self.report({'WARNING'}, "No mappings found")
             
             return {'FINISHED'}
             
         except Exception as e:
-            self.report({'ERROR'}, f"Error reloading mappings: {str(e)}")
+            self.report({'ERROR'}, f"Error: {str(e)}")
             return {'CANCELLED'}
 
 
 class EMTOOLS_OT_open_mapping_preferences(Operator):
-    """Apri il pannello delle preferenze mapping"""
+    """Apri preferenze mapping"""
     bl_idname = "emtools.open_mapping_preferences"
     bl_label = "Open Mapping Preferences"
-    bl_description = "Open the addon preferences to configure custom mapping paths"
+    bl_description = "Open addon preferences panel"
     bl_options = {'REGISTER'}
     
     def execute(self, context):
@@ -163,33 +401,35 @@ class EMTOOLS_OT_open_mapping_preferences(Operator):
         return {'FINISHED'}
 
 
-# Lista delle classi da registrare
+# Classi da registrare
 classes = [
     EMToolsMappingPreferences,
+    EMTOOLS_OT_open_folder,
+    EMTOOLS_OT_reset_to_default,
     EMTOOLS_OT_reload_custom_mappings,
     EMTOOLS_OT_open_mapping_preferences,
 ]
 
 
 def register():
-    """Registra le classi delle preferenze"""
+    """Registra le classi"""
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
-            log.debug(f"Registered mapping preference class: {cls.__name__}")
-        except ValueError as e:
-            log.warning(f'{cls} is already registered, unregister and retry...')
+        except ValueError:
             bpy.utils.unregister_class(cls)
             bpy.utils.register_class(cls)
-
-    # Registra handler per reset del flag
+    
+    # Assicura che user_mappings esista
+    ensure_user_mappings_exist()
+    
+    # Handler per reset flag
     if reset_initialization_flag not in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.append(reset_initialization_flag)
 
+
 def unregister():
-    """Deregistra le classi delle preferenze"""
-    
-    # Rimuovi handler
+    """Deregistra le classi"""
     if reset_initialization_flag in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.remove(reset_initialization_flag)
     
@@ -200,56 +440,58 @@ def unregister():
             pass
 
 
+@bpy.app.handlers.persistent
+def reset_initialization_flag(dummy):
+    """Reset flag on file load"""
+    try:
+        addon_prefs = bpy.context.preferences.addons.get(__package__, None)
+        if addon_prefs:
+            addon_prefs.preferences.mappings_initialized = False
+    except:
+        pass
+
+
 def initialize_custom_mappings():
-    """
-    Inizializza i percorsi personalizzati all'avvio dell'addon.
-    Usa un timer per assicurarsi che il context sia disponibile.
-    """
+    """Inizializza i mapping all'avvio"""
     def load_mappings():
-        """Funzione interna che carica i mapping"""
         try:
-            # Accedi alle preferenze
             addon_prefs = bpy.context.preferences.addons.get(__package__, None)
             if not addon_prefs:
-                log.warning("Cannot access addon preferences during initialization")
-                return None  # Stop timer
+                return None
             
             prefs = addon_prefs.preferences
             
-            # Se già inizializzato, salta
             if prefs.mappings_initialized:
-                log.debug("Custom mappings already initialized")
-                return None  # Stop timer
+                return None
             
             from s3dgraphy import add_custom_mapping_directory
             
             loaded = []
             
-            # Registra i percorsi personalizzati se esistono
-            if prefs.custom_emdb_path and os.path.exists(prefs.custom_emdb_path):
-                add_custom_mapping_directory('emdb', prefs.custom_emdb_path, priority='high')
-                loaded.append(f"EMdb ({prefs.custom_emdb_path})")
+            # Carica EMdb
+            emdb_path = get_mapping_path(prefs, 'emdb')
+            if emdb_path:
+                add_custom_mapping_directory('emdb', emdb_path, priority='high')
+                count = len([f for f in os.listdir(emdb_path) if f.endswith('.json')])
+                if count > 0:
+                    loaded.append(f"EMdb ({count})")
             
-            if prefs.custom_pyarchinit_path and os.path.exists(prefs.custom_pyarchinit_path):
-                add_custom_mapping_directory('pyarchinit', prefs.custom_pyarchinit_path, priority='high')
-                loaded.append(f"pyArchInit ({prefs.custom_pyarchinit_path})")
+            # Carica pyArchInit
+            pyarch_path = get_mapping_path(prefs, 'pyarchinit')
+            if pyarch_path:
+                add_custom_mapping_directory('pyarchinit', pyarch_path, priority='high')
+                count = len([f for f in os.listdir(pyarch_path) if f.endswith('.json')])
+                if count > 0:
+                    loaded.append(f"pyArchInit ({count})")
             
-            # Marca come inizializzato
             prefs.mappings_initialized = True
             
             if loaded:
-                log.info(f"✓ Loaded custom mappings: {', '.join(loaded)}")
-            else:
-                log.debug("No custom mapping paths configured")
+                log.info(f"✓ Loaded user mappings: {', '.join(loaded)}")
             
         except Exception as e:
-            log.error(f"Error initializing custom mappings: {e}")
-            import traceback
-            traceback.print_exc()
+            log.error(f"Error loading mappings: {e}")
         
-        return None  # Stop timer (run once)
+        return None
     
-    # Usa un timer per eseguire il caricamento quando il context è pronto
-    # 0.1 secondi di delay dovrebbero essere sufficienti
     bpy.app.timers.register(load_mappings, first_interval=0.1)
-    log.debug("Scheduled custom mappings initialization")

@@ -126,3 +126,7 @@ build/
 **/build/
 
 blext/
+
+# Ignora i mapping JSON degli utenti ma mantieni la struttura
+user_mappings/*/*.json
+!user_mappings/*/README.txt

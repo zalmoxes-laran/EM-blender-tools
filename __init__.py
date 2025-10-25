@@ -103,6 +103,7 @@ if DEPENDENCIES_LOADED:
 else:
     KEYMAP_MANAGER_LOADED = False
 
+
 # ============================
 # PROPERTY GROUP CLASSES
 # ============================
@@ -393,6 +394,25 @@ if DEPENDENCIES_LOADED:
 else:
     logger.warning("Skipping module imports due to missing dependencies")
     MODULE_IMPORT_SUCCESS = False
+
+# ============================
+@bpy.app.handlers.persistent
+def validate_mappings_on_load(dummy):
+    """Valida i mapping quando si carica un file .blend"""
+    try:
+        # Usa un timer per essere sicuri che tutto sia caricato
+        def do_validation():
+            try:
+                from . import em_setup
+                em_setup.validate_all_mapping_enums(bpy.context)
+            except Exception as e:
+                print(f"Error validating mappings on load: {e}")
+            return None  # Stop timer
+        
+        bpy.app.timers.register(do_validation, first_interval=0.5)
+    except Exception as e:
+        print(f"Error scheduling mapping validation: {e}")
+
 
 # ============================
 # REGISTRATION FUNCTIONS
@@ -697,7 +717,10 @@ def register_modules():
     except Exception as e:
         logger.warning(f"Error scheduling custom mappings initialization: {e}")
 
-
+    # Registra handler per validazione mapping
+    if validate_mappings_on_load not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(validate_mappings_on_load)
+        logger.info("Registered mapping validation handler")
 
 
 def unregister_modules():
@@ -710,7 +733,12 @@ def unregister_modules():
     from .import_operators import importer_graphml, import_EMdb
     from .operators import graphml_converter
     from . import thumb_operators
-    
+
+    # Rimuovi handler per validazione mapping
+    if validate_mappings_on_load in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(validate_mappings_on_load)
+        logger.info("Removed mapping validation handler")
+
     # Rimuovi il keymap manager per primo
     if KEYMAP_MANAGER_LOADED:
         try:
