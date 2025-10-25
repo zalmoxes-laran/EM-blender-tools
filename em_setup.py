@@ -954,11 +954,14 @@ class EM_SetupPanel(bpy.types.Panel):
                         row.prop(aux_file, "filepath", text="Path")
                         row.prop(aux_file, "file_type", text="Type")
 
+
                         # EMdb mapping se necessario
                         if aux_file.file_type == "emdb_xlsx":
                             row = box.row()
                             row.prop(aux_file, "emdb_mapping", text="Format")
-                            
+                            row.operator("emtools.open_mapping_preferences", 
+                                        text="", 
+                                        icon='PREFERENCES')
                             # SEZIONE COLLASSABILE DOCUMENT RESOURCES
                             resources_box = box.box()
                             
@@ -1031,6 +1034,9 @@ class EM_SetupPanel(bpy.types.Panel):
                         elif aux_file.file_type == "pyarchinit":
                             row = box.row()
                             row.prop(aux_file, "pyarchinit_mapping", text="Table Mapping")
+                            row.operator("emtools.open_mapping_preferences", 
+                                        text="", 
+                                        icon='PREFERENCES')
 
                             # Mostra info sul mapping selezionato
                             if aux_file.pyarchinit_mapping != "none":

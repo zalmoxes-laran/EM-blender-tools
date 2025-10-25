@@ -365,6 +365,7 @@ if DEPENDENCIES_LOADED:
         # Import addon modules - these will be imported during registration
         from . import (
             operators,
+            mapping_preferences,
             em_setup,
             visual_manager,  # <-- Solo UI e operatori base
             stratigraphy_manager,
@@ -616,6 +617,13 @@ def register_modules():
     from .operators import graphml_converter
     from . import thumb_operators
     
+    # FASE 0: Preferenze (devono essere registrate per prime)
+    try:
+        mapping_preferences.register()
+        logger.debug("Registered mapping preferences")
+    except Exception as e:
+        logger.warning(f"Error registering mapping preferences: {e}")
+
     # FASE 1: Moduli core indipendenti (nessuna dipendenza UI)
     core_independent_modules = [
         icons_manager,
@@ -682,6 +690,12 @@ def register_modules():
         except Exception as e:
             logger.error(f"Error registering keymap manager: {e}")
 
+    # Inizializza i percorsi personalizzati
+    try:
+        mapping_preferences.initialize_custom_mappings()
+        logger.info("Custom mapping paths initialized")
+    except Exception as e:
+        logger.warning(f"Error initializing custom mappings: {e}")
 
 def unregister_modules():
     """Unregister all modules in reverse dependency order"""
@@ -759,6 +773,14 @@ def unregister_modules():
             logger.debug(f"Unregistered core module: {module.__name__}")
         except Exception as e:
             logger.warning(f"Error unregistering core module {module.__name__}: {e}")
+
+    # Rimuovi preferenze per ultime
+    try:
+        mapping_preferences.unregister()
+        logger.debug("Unregistered mapping preferences")
+    except Exception as e:
+        logger.warning(f"Error unregistering mapping preferences: {e}")
+
 
 def register():
     """Main registration function"""
