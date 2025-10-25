@@ -693,9 +693,12 @@ def register_modules():
     # Inizializza i percorsi personalizzati
     try:
         mapping_preferences.initialize_custom_mappings()
-        logger.info("Custom mapping paths initialized")
+        logger.info("Scheduled custom mapping paths initialization")
     except Exception as e:
-        logger.warning(f"Error initializing custom mappings: {e}")
+        logger.warning(f"Error scheduling custom mappings initialization: {e}")
+
+
+
 
 def unregister_modules():
     """Unregister all modules in reverse dependency order"""

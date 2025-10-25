@@ -1144,6 +1144,9 @@ class EM_SetupPanel(bpy.types.Panel):
                 options_box.label(text="pyArchInit Import Settings:")
                 options_box.prop(em_tools, "pyarchinit_db_path", text="SQLite Database")
                 options_box.prop(em_tools, "pyarchinit_mapping", text="Select Mapping")
+                options_box.operator("emtools.open_mapping_preferences", 
+                            text="", 
+                            icon='PREFERENCES')
                 
                 # Mostra info sul mapping selezionato
                 if em_tools.pyarchinit_mapping != "none":
@@ -1162,6 +1165,9 @@ class EM_SetupPanel(bpy.types.Panel):
                 options_box.label(text="EMdb Excel Import Settings:")
                 options_box.prop(em_tools, "emdb_xlsx_file", text="EMdb Excel File")
                 options_box.prop(em_tools, "emdb_mapping", text="EMdb Format")
+                options_box.operator("emtools.open_mapping_preferences", 
+                            text="", 
+                            icon='PREFERENCES')
                 
                 # Mostra una descrizione del formato selezionato
                 if em_tools.emdb_mapping != "none":

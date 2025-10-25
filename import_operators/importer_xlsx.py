@@ -54,56 +54,105 @@ class GenericXLSXImporter(BaseImporter):
 
     def _read_excel_file(self) -> pd.DataFrame:
         """
-        Read the Excel file using pandas, senza creare lock sul file.
-        Legge il file completamente in memoria per evitare conflitti di accesso.
+        Read the Excel file using pandas, compatibile con file aperti su Windows.
+        Su Windows, copia il file in temp prima di leggerlo per evitare lock.
         """
         file_content = None
         xl = None
+        temp_file_path = None
         
         try:
             import io
+            import tempfile
+            import shutil
+            import platform
             
             # Debug prints
             print(f"\nDebug Excel file path:")
             print(f"Original filepath: {self.filepath}")
             abs_filepath = bpy.path.abspath(self.filepath)
             print(f"Absolute filepath: {abs_filepath}")
+            print(f"Platform: {platform.system()}")
             
-            # ✅ Verifica del file - MA solo dopo aver tentato la lettura
-            # Non usiamo os.path.exists() perché può dare Permission Denied su file aperti
+            # ✅ STRATEGIA DOPPIA: Buffer su macOS/Linux, copia temp su Windows
+            is_windows = platform.system() == "Windows"
             
-            # ✅ SOLUZIONE: Leggi il file completamente in memoria
-            print(f"Reading file into memory buffer...")
+            if is_windows:
+                # ✅ WINDOWS: Copia il file in una location temporanea
+                print(f"Windows detected - using temporary file copy strategy...")
+                
+                try:
+                    # Crea file temporaneo con stesso nome per debug
+                    temp_dir = tempfile.gettempdir()
+                    temp_filename = f"em_import_{os.path.basename(abs_filepath)}"
+                    temp_file_path = os.path.join(temp_dir, temp_filename)
+                    
+                    # Copia il file
+                    print(f"Copying to temp: {temp_file_path}")
+                    shutil.copy2(abs_filepath, temp_file_path)
+                    print(f"File copied successfully")
+                    
+                    # Usa il file temporaneo
+                    working_path = temp_file_path
+                    
+                except FileNotFoundError:
+                    raise ImportError(f"File not found: {abs_filepath}")
+                except PermissionError:
+                    # Se anche la copia fallisce, prova copyfile (senza metadata)
+                    try:
+                        print(f"copy2 failed, trying copyfile...")
+                        shutil.copyfile(abs_filepath, temp_file_path)
+                        working_path = temp_file_path
+                    except Exception as e:
+                        raise ImportError(f"Cannot access file (locked or no permissions): {abs_filepath}. Error: {str(e)}")
+                except Exception as e:
+                    raise ImportError(f"Error copying file: {str(e)}")
+                    
+            else:
+                # ✅ macOS/Linux: Usa buffer in memoria (più veloce)
+                print(f"macOS/Linux detected - using memory buffer strategy...")
+                
+                try:
+                    with open(abs_filepath, 'rb') as f:
+                        file_content = io.BytesIO(f.read())
+                    print(f"File loaded in memory ({len(file_content.getvalue())} bytes)")
+                    working_path = file_content
+                    
+                except FileNotFoundError:
+                    raise ImportError(f"File not found: {abs_filepath}")
+                except PermissionError:
+                    raise ImportError(f"Permission denied: {abs_filepath}")
+                except Exception as e:
+                    raise ImportError(f"Error reading file: {str(e)}")
+            
+            # Verifica gli sheet disponibili
             try:
-                with open(abs_filepath, 'rb') as f:
-                    file_content = io.BytesIO(f.read())
-                print(f"File loaded in memory successfully")
-            except FileNotFoundError:
-                raise ImportError(f"File not found: {abs_filepath}")
-            except PermissionError:
-                raise ImportError(f"Permission denied accessing file: {abs_filepath}. File may be locked by another application.")
-            
-            # Verifica gli sheet disponibili usando il buffer
-            try:
-                xl = pd.ExcelFile(file_content, engine='openpyxl')
+                if is_windows:
+                    # Su Windows usa il file temporaneo
+                    xl = pd.ExcelFile(working_path, engine='openpyxl')
+                else:
+                    # Su macOS/Linux usa il buffer
+                    xl = pd.ExcelFile(working_path, engine='openpyxl')
+                    
                 sheet_names = xl.sheet_names
                 print(f"Available sheets: {sheet_names}")
+                
             except Exception as e:
                 print(f"Error reading Excel file structure: {str(e)}")
                 raise ImportError(f"Invalid Excel file: {str(e)}")
             finally:
-                # ✅ Chiudi sempre ExcelFile se è stato aperto
                 if xl is not None:
                     xl.close()
                     print("ExcelFile closed")
             
-            # ✅ Riporta il puntatore all'inizio del buffer per rileggerlo
-            file_content.seek(0)
+            # Riporta il puntatore all'inizio se è un buffer
+            if not is_windows and file_content:
+                file_content.seek(0)
             
-            # Lettura del DataFrame dal buffer in memoria
+            # Lettura del DataFrame
             try:
                 df = pd.read_excel(
-                    file_content,  # ✅ Usa il buffer invece del filepath
+                    working_path,  # File temp su Windows, buffer su macOS/Linux
                     sheet_name=self.sheet_name,
                     na_values=['', 'NA', 'N/A'],
                     keep_default_na=True,
@@ -124,19 +173,32 @@ class GenericXLSXImporter(BaseImporter):
                 
             return df
             
+        except ImportError:
+            raise
         except Exception as e:
             raise ImportError(f"Error reading Excel file: {str(e)}")
         
         finally:
-            # ✅ PULIZIA FINALE: Libera tutte le risorse
+            # ✅ PULIZIA: Libera risorse
             if file_content is not None:
-                file_content.close()
-                print("Memory buffer closed and released")
+                try:
+                    file_content.close()
+                    print("Memory buffer closed")
+                except:
+                    pass
             
-            # Forza garbage collection per rilasciare immediatamente la memoria
+            # ✅ WINDOWS: Rimuovi file temporaneo
+            if temp_file_path and os.path.exists(temp_file_path):
+                try:
+                    os.remove(temp_file_path)
+                    print(f"Temporary file removed: {temp_file_path}")
+                except Exception as e:
+                    print(f"Warning: Could not remove temp file: {e}")
+            
+            # Garbage collection
             import gc
             gc.collect()
-            print("Garbage collection completed - all locks released")
+            print("Resources released")
 
     
     def _clean_row_data(self, row: pd.Series) -> Dict[str, Any]:

@@ -3,14 +3,23 @@ Mapping Preferences Module
 Gestisce le preferenze per i percorsi personalizzati dei file di mapping
 """
 
-import bpy
-from bpy.types import AddonPreferences, Operator
-from bpy.props import StringProperty, BoolProperty
+import bpy # type: ignore
+from bpy.types import AddonPreferences, Operator # type: ignore
+from bpy.props import StringProperty, BoolProperty # type: ignore
 import os
 
 import logging
 log = logging.getLogger(__name__)
 
+@bpy.app.handlers.persistent
+def reset_initialization_flag(dummy):
+    """Reset del flag quando si ricarica il file (per development)"""
+    try:
+        addon_prefs = bpy.context.preferences.addons.get(__package__, None)
+        if addon_prefs:
+            addon_prefs.preferences.mappings_initialized = False
+    except:
+        pass
 class EMToolsMappingPreferences(AddonPreferences):
     """Preferenze per i percorsi di mapping personalizzati"""
     bl_idname = __package__
@@ -20,23 +29,25 @@ class EMToolsMappingPreferences(AddonPreferences):
         name="Custom EMdb Mappings Folder",
         description="Custom folder containing EMdb mapping JSON files",
         subtype='DIR_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set(),
         default="",
         update=lambda self, context: update_custom_mappings(self, context, 'emdb')
-    )
+    ) # type: ignore
     
     custom_pyarchinit_path: StringProperty(
         name="Custom pyArchInit Mappings Folder",
         description="Custom folder containing pyArchInit mapping JSON files",
         subtype='DIR_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set(),
         default="",
         update=lambda self, context: update_custom_mappings(self, context, 'pyarchinit')
-    )
+    ) # type: ignore
     
     # Flag per sapere se i percorsi sono stati inizializzati
     mappings_initialized: BoolProperty(
         name="Mappings Initialized",
         default=False
-    )
+    ) # type: ignore
     
     def draw(self, context):
         layout = self.layout
@@ -171,9 +182,17 @@ def register():
             bpy.utils.unregister_class(cls)
             bpy.utils.register_class(cls)
 
+    # Registra handler per reset del flag
+    if reset_initialization_flag not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(reset_initialization_flag)
 
 def unregister():
     """Deregistra le classi delle preferenze"""
+    
+    # Rimuovi handler
+    if reset_initialization_flag in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(reset_initialization_flag)
+    
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
@@ -182,31 +201,55 @@ def unregister():
 
 
 def initialize_custom_mappings():
-    """Inizializza i percorsi personalizzati all'avvio dell'addon"""
-    try:
-        prefs = bpy.context.preferences.addons.get(__package__, None)
-        if not prefs:
-            log.warning("Cannot access addon preferences")
-            return
+    """
+    Inizializza i percorsi personalizzati all'avvio dell'addon.
+    Usa un timer per assicurarsi che il context sia disponibile.
+    """
+    def load_mappings():
+        """Funzione interna che carica i mapping"""
+        try:
+            # Accedi alle preferenze
+            addon_prefs = bpy.context.preferences.addons.get(__package__, None)
+            if not addon_prefs:
+                log.warning("Cannot access addon preferences during initialization")
+                return None  # Stop timer
+            
+            prefs = addon_prefs.preferences
+            
+            # Se già inizializzato, salta
+            if prefs.mappings_initialized:
+                log.debug("Custom mappings already initialized")
+                return None  # Stop timer
+            
+            from s3dgraphy import add_custom_mapping_directory
+            
+            loaded = []
+            
+            # Registra i percorsi personalizzati se esistono
+            if prefs.custom_emdb_path and os.path.exists(prefs.custom_emdb_path):
+                add_custom_mapping_directory('emdb', prefs.custom_emdb_path, priority='high')
+                loaded.append(f"EMdb ({prefs.custom_emdb_path})")
+            
+            if prefs.custom_pyarchinit_path and os.path.exists(prefs.custom_pyarchinit_path):
+                add_custom_mapping_directory('pyarchinit', prefs.custom_pyarchinit_path, priority='high')
+                loaded.append(f"pyArchInit ({prefs.custom_pyarchinit_path})")
+            
+            # Marca come inizializzato
+            prefs.mappings_initialized = True
+            
+            if loaded:
+                log.info(f"✓ Loaded custom mappings: {', '.join(loaded)}")
+            else:
+                log.debug("No custom mapping paths configured")
+            
+        except Exception as e:
+            log.error(f"Error initializing custom mappings: {e}")
+            import traceback
+            traceback.print_exc()
         
-        prefs = prefs.preferences
-        
-        # Se già inizializzato, salta
-        if prefs.mappings_initialized:
-            return
-        
-        from s3dgraphy import add_custom_mapping_directory
-        
-        # Registra i percorsi personalizzati se esistono
-        if prefs.custom_emdb_path and os.path.exists(prefs.custom_emdb_path):
-            add_custom_mapping_directory('emdb', prefs.custom_emdb_path, priority='high')
-            log.info(f"✓ Loaded custom EMdb mappings from: {prefs.custom_emdb_path}")
-        
-        if prefs.custom_pyarchinit_path and os.path.exists(prefs.custom_pyarchinit_path):
-            add_custom_mapping_directory('pyarchinit', prefs.custom_pyarchinit_path, priority='high')
-            log.info(f"✓ Loaded custom pyArchInit mappings from: {prefs.custom_pyarchinit_path}")
-        
-        prefs.mappings_initialized = True
-        
-    except Exception as e:
-        log.error(f"Error initializing custom mappings: {e}")
+        return None  # Stop timer (run once)
+    
+    # Usa un timer per eseguire il caricamento quando il context è pronto
+    # 0.1 secondi di delay dovrebbero essere sufficienti
+    bpy.app.timers.register(load_mappings, first_interval=0.1)
+    log.debug("Scheduled custom mappings initialization")
