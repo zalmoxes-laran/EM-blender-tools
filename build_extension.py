@@ -71,18 +71,22 @@ class ExtensionPackager:
         Estrae info GitHub dal manifest
         Returns: (repo, tag)
         """
+        # Default repository
+        DEFAULT_REPO = "zalmoxes-laran/EM-blender-tools"
+        
         website = self.manifest.get('website', '')
         version = self.manifest['version']
         
-        # Estrai owner/repo da URL GitHub
+        # Estrai owner/repo da URL GitHub se presente
         github_match = re.search(r'github\.com/([^/]+/[^/]+)', website)
-        if not github_match:
-            print("\n⚠️  URL GitHub non trovato in 'website'")
-            print("    Inserisci manualmente:")
-            repo = input("    Repository (owner/repo): ").strip()
+        if github_match:
+            default_repo = github_match.group(1).rstrip('/')
         else:
-            repo = github_match.group(1).rstrip('/')
-            print(f"✓ Repository GitHub: {repo}")
+            default_repo = DEFAULT_REPO
+        
+        # Chiedi conferma repository
+        print(f"📦 Repository GitHub (default: {default_repo})")
+        repo = input(f"   Repository [Enter per '{default_repo}']: ").strip() or default_repo
         
         # Tag della release (default: v + version)
         default_tag = f"v{version}"

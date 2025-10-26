@@ -23,13 +23,13 @@ echo Controllo dipendenze...
 python -c "import tomli" >nul 2>&1
 if errorlevel 1 (
     echo Installazione tomli...
-    python -m pip install tomli --quiet
+    python -m pip install --user tomli --quiet
 )
 
 python -c "import requests" >nul 2>&1
 if errorlevel 1 (
     echo Installazione requests...
-    python -m pip install requests --quiet
+    python -m pip install --user requests --quiet
 )
 
 echo.
