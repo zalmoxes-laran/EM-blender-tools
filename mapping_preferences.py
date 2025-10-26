@@ -345,7 +345,6 @@ class EMTOOLS_OT_reset_to_default(Operator):
         
         return {'FINISHED'}
 
-
 class EMTOOLS_OT_reload_custom_mappings(Operator):
     """Ricarica tutti i mapping"""
     bl_idname = "emtools.reload_custom_mappings"
@@ -357,35 +356,111 @@ class EMTOOLS_OT_reload_custom_mappings(Operator):
         prefs = context.preferences.addons[__package__].preferences
         
         try:
+            from s3dgraphy.mappings import mapping_registry
             from s3dgraphy import add_custom_mapping_directory
+            
+            print("\n" + "="*60)
+            print("RELOAD CUSTOM MAPPINGS")
+            print("="*60)
+            
+            # ✅ STEP 1: Svuota COMPLETAMENTE il registry
+            print("\n1. Resetting mapping registry...")
+            mapping_registry._mapping_directories = {
+                'pyarchinit': [],
+                'emdb': [],
+                'generic': []
+            }
+            
+            # Re-inizializza i percorsi built-in (rilegge il filesystem)
+            mapping_registry._initialize_builtin_paths()
+            print("   ✓ Registry reset complete")
             
             loaded = []
             
+            # ✅ STEP 2: Ricarica le directory custom
+            print("\n2. Loading custom directories...")
+            
             # Carica EMdb
             emdb_path = get_mapping_path(prefs, 'emdb')
-            if emdb_path:
+            if emdb_path and os.path.exists(emdb_path):
                 add_custom_mapping_directory('emdb', emdb_path, priority='high')
                 count = len([f for f in os.listdir(emdb_path) if f.endswith('.json')])
                 is_default = (emdb_path == get_default_user_mappings_path('emdb'))
                 loaded.append(f"EMdb: {count} {'(default)' if is_default else '(custom)'}")
+                print(f"   ✓ EMdb: {count} files from {emdb_path}")
             
             # Carica pyArchInit
             pyarch_path = get_mapping_path(prefs, 'pyarchinit')
-            if pyarch_path:
+            if pyarch_path and os.path.exists(pyarch_path):
                 add_custom_mapping_directory('pyarchinit', pyarch_path, priority='high')
                 count = len([f for f in os.listdir(pyarch_path) if f.endswith('.json')])
                 is_default = (pyarch_path == get_default_user_mappings_path('pyarchinit'))
                 loaded.append(f"pyArchInit: {count} {'(default)' if is_default else '(custom)'}")
+                print(f"   ✓ pyArchInit: {count} files from {pyarch_path}")
             
+            # ✅ STEP 3: Ottieni lista valida DOPO il reset
+            print("\n3. Getting valid mapping IDs...")
+            valid_emdb = [m[0] for m in mapping_registry.list_available_mappings('emdb')]
+            valid_pyarch = [m[0] for m in mapping_registry.list_available_mappings('pyarchinit')]
+            print(f"   ✓ Valid EMdb IDs: {valid_emdb}")
+            print(f"   ✓ Valid pyArchInit IDs: {valid_pyarch}")
+            
+            # ✅ STEP 4: FORZA il reset dei valori negli auxiliary files
+            print("\n4. Forcing reset of invalid values in auxiliary files...")
+            from . import em_setup
+            
+            cleaned_count = 0
+            em_tools = context.scene.em_tools
+            
+            if hasattr(em_tools, 'graphml_files'):
+                for i, graphml in enumerate(em_tools.graphml_files):
+                    if hasattr(graphml, 'auxiliary_files'):
+                        for j, aux_file in enumerate(graphml.auxiliary_files):
+                            
+                            if aux_file.file_type == "emdb_xlsx":
+                                current = aux_file.emdb_mapping
+                                if current and current != 'none' and current not in valid_emdb:
+                                    print(f"   ! Resetting GraphML[{i}].Aux[{j}]: '{current}' → 'none'")
+                                    aux_file.emdb_mapping = 'none'
+                                    cleaned_count += 1
+                            
+                            elif aux_file.file_type == "pyarchinit":
+                                current = aux_file.pyarchinit_mapping
+                                if current and current != 'none' and current not in valid_pyarch:
+                                    print(f"   ! Resetting GraphML[{i}].Aux[{j}]: '{current}' → 'none'")
+                                    aux_file.pyarchinit_mapping = 'none'
+                                    cleaned_count += 1
+            
+            print(f"   ✓ Cleaned {cleaned_count} obsolete references")
+            
+            # ✅ STEP 5: Forza il refresh dell'UI
+            print("\n5. Forcing UI refresh...")
+            for window in context.window_manager.windows:
+                for area in window.screen.areas:
+                    area.tag_redraw()
+            
+            # Costruisci messaggio
+            msg_parts = []
             if loaded:
-                self.report({'INFO'}, f"Reloaded: {' | '.join(loaded)}")
+                msg_parts.append(f"Reloaded: {' | '.join(loaded)}")
             else:
-                self.report({'WARNING'}, "No mappings found")
+                msg_parts.append("No mappings found")
+            
+            if cleaned_count > 0:
+                msg_parts.append(f"Cleaned {cleaned_count} obsolete references")
+            
+            print("\n" + "="*60)
+            print("RELOAD COMPLETE")
+            print("="*60 + "\n")
+            
+            self.report({'INFO'}, ' | '.join(msg_parts))
             
             return {'FINISHED'}
             
         except Exception as e:
             self.report({'ERROR'}, f"Error: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return {'CANCELLED'}
 
 
