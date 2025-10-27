@@ -6,20 +6,15 @@ version = "{VERSION}"
 tagline = "Blender tools for Extended Matrix"
 maintainer = "E. Demetrescu <emanuel.demetrescu@cnr.it>"
 type = "add-on"
-license = ["GPL-3.0"]
+license = ["SPDX:GPL-3.0-or-later"]
 
-blender_version_min = "4.0.0"
+blender_version_min = "4.4.0"
 
 platforms = ["windows-x64", "macos-arm64", "macos-x64", "linux-x64"]
-tags = ["3D View", "Import-Export", "Tools"]
+tags = ["3D View", "Import-Export"]
 
 # Permissions required by EM Tools
-permissions = [
-    "files",           # File system access for import/export
-    "network",         # Network access for updates/remote data
-    "clipboard",       # Clipboard access for copy/paste operations
-    "camera",          # Camera access for 3D viewport operations
-]
+permissions = { files = "Import and export data", network = "Download resources and updates", clipboard = "Copy and paste data" }
 
 {WHEELS_SECTION}
 

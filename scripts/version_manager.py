@@ -207,7 +207,7 @@ wheels = [
                 print(f"🔧 Fixed incorrect version format in manifest to {correct_version}")
         
         # Verifica e ripara la versione nel manifest
-        self.repair_manifest_version()
+        #self.repair_manifest_version()
         
         return version
     
