@@ -20,7 +20,7 @@ _paradata_update_in_progress = False
 _paradata_refresh_needed = False
 
 
-def draw_multiline_text(layout, text, max_chars=50, icon='NONE'):
+def draw_multiline_text(layout, text, max_chars=70, icon='NONE'):
     """
     Disegna testo su più righe se supera max_chars.
     Versione migliorata che gestisce meglio il wrapping.
@@ -635,13 +635,13 @@ class EM_ParadataPanel:
             row = box.row()
             row.label(text="Name:", icon='FILE_TEXT')
             row = box.row()
-            draw_multiline_text(row, item_property.name, max_chars=50)
+            draw_multiline_text(row, item_property.name, max_chars=70)
             
             # Description
             row = box.row()
             row.label(text="Description:", icon='TEXT')
             row = box.row()
-            draw_multiline_text(row, item_property.description, max_chars=50)
+            draw_multiline_text(row, item_property.description, max_chars=70)
         else:
             row = box.row()
             row.label(text="No properties available")
@@ -676,20 +676,20 @@ class EM_ParadataPanel:
                 row = box.row()
                 row.label(text="Name:", icon='FILE_TEXT')
                 row = box.row()
-                draw_multiline_text(row, item_property.name, max_chars=50)
+                draw_multiline_text(row, item_property.name, max_chars=70)
                 
                 # Description
                 row = box.row()
                 row.label(text="Description:", icon='TEXT')
                 row = box.row()
-                draw_multiline_text(row, item_property.description, max_chars=50)
+                draw_multiline_text(row, item_property.description, max_chars=70)
                 
                 # URL
                 row = box.row()
                 row.label(text="URL:", icon='URL')
                 split = row.split(factor=0.85)
                 col_url = split.column()
-                draw_multiline_text(col_url, item_property.url, max_chars=45)
+                draw_multiline_text(col_url, item_property.url, max_chars=70)
                 col_btn = split.column()
                 op = col_btn.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
                 if op:
@@ -727,7 +727,7 @@ class EM_ParadataPanel:
             row = box.row()
             split = row.split(factor=0.7)
             col_name = split.column()
-            draw_multiline_text(col_name, item_source.name, max_chars=40)
+            draw_multiline_text(col_name, item_source.name, max_chars=70)
             
             # Pulsanti azione
             col_btns = split.column(align=True)
@@ -754,14 +754,14 @@ class EM_ParadataPanel:
             row = box.row()
             row.label(text="Description:", icon='TEXT')
             row = box.row()
-            draw_multiline_text(row, item_source.description, max_chars=50)
+            draw_multiline_text(row, item_source.description, max_chars=70)
             
             # URL
             row = box.row()
             row.label(text="URL:", icon='URL')
             split = row.split(factor=0.85)
             col_url = split.column()
-            draw_multiline_text(col_url, item_source.url, max_chars=45)
+            draw_multiline_text(col_url, item_source.url, max_chars=70)
             col_btn = split.column()
             op = col_btn.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
             if op:
@@ -798,7 +798,7 @@ class EM_ParadataPanel:
             row = box.row()
             split = row.split(factor=0.7)
             col_name = split.column()
-            draw_multiline_text(col_name, item_source.name, max_chars=40)
+            draw_multiline_text(col_name, item_source.name, max_chars=70)
             
             # Pulsanti azione
             col_btns = split.column(align=True)
@@ -825,14 +825,14 @@ class EM_ParadataPanel:
             row = box.row()
             row.label(text="Description:", icon='TEXT')
             row = box.row()
-            draw_multiline_text(row, item_source.description, max_chars=50)
+            draw_multiline_text(row, item_source.description, max_chars=70)
             
             # URL
             row = box.row()
             row.label(text="URL:", icon='URL')
             split = row.split(factor=0.85)
             col_url = split.column()
-            draw_multiline_text(col_url, item_source.url, max_chars=45)
+            draw_multiline_text(col_url, item_source.url, max_chars=70)
             col_btn = split.column()
             op = col_btn.operator("open.file", icon="EMPTY_SINGLE_ARROW", text='')
             if op:
