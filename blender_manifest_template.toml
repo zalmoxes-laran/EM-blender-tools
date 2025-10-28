@@ -14,8 +14,67 @@ platforms = ["windows-x64", "macos-arm64", "macos-x64", "linux-x64"]
 tags = ["3D View", "Import-Export"]
 
 # Permissions required by EM Tools
-permissions = { files = "Import and export data", network = "Download resources and updates", clipboard = "Copy and paste data" }
+[permissions]
+files = "Import and export data"
+network = "Download resources and updates"
+clipboard = "Copy and paste data"
 
 {WHEELS_SECTION}
 
 {DEPENDENCIES_SECTION}
+
+# Build configuration - exclude development files
+[build]
+paths_exclude_pattern = [
+    # Development directories
+    "scripts/",
+    ".git/",
+    ".github/",
+    ".vscode/",
+    ".idea/",
+    "build/",
+    "dist/",
+    "releases/",
+    "blext/",
+    "downloads/",
+    "__pycache__/",
+    
+    # Development files
+    "*.bat",
+    "*.sh",
+    "build_extension.*",
+    "download_release.*",
+    "sync_dev.*",
+    "delete_pycache.*",
+    "em.bat",
+    "em.sh",
+
+    # Config and template files
+    "blender_manifest_template.toml",
+    "version.json",
+    "version.json.backup",
+    ".gitignore",
+    "*.backup",
+    ".zenodo.json",
+    
+    # Documentation for developers
+    "contributing.md",
+    "roadmap.md",
+    "CONTRIBUTING.md",
+    "ROADMAP.md",
+    
+    # Build artifacts
+    "*.blext",
+    "*.zip",
+    "*.tar.gz",
+    
+    # Hidden files
+    ".*",
+    ".DS_Store",
+    "Thumbs.db",
+    
+    # Python cache
+    "*.pyc",
+    "*.pyo",
+    "*.pyd",
+]
