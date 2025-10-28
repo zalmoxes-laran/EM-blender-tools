@@ -13,15 +13,9 @@ blender_version_min = "4.4.0"
 platforms = ["windows-x64", "macos-arm64", "macos-x64", "linux-x64"]
 tags = ["3D View", "Import-Export"]
 
-# Permissions required by EM Tools
-[permissions]
-files = "Import and export data"
-network = "Download resources and updates"
-clipboard = "Copy and paste data"
+permissions = {{ files = "Import and export data", network = "Download resources and updates", clipboard = "Copy and paste data" }}
 
 {WHEELS_SECTION}
-
-{DEPENDENCIES_SECTION}
 
 # Build configuration - exclude development files
 [build]

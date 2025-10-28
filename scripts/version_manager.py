@@ -76,47 +76,40 @@ class VersionManager:
         self.save_version_config(config)
         self.update_manifest()
         return self.get_version_string(config)
-    
+        
     def generate_wheels_section(self, mode: str) -> str:
         """Genera la sezione wheels per la modalità specifica"""
-        # Controlla se esistono wheels
         wheels_dir = self.root_dir / "wheels"
         if not wheels_dir.exists():
-            return "# No wheels directory found"
+            return ""
         
         wheels = list(wheels_dir.glob("*.whl"))
         if not wheels:
-            return "# No wheels found"
+            return ""
         
-        # Se ci sono wheels, includile sia per dev che prod
-        # Formato corretto per Blender Extensions: array semplice di stringhe con virgole
+        # Genera la lista di wheels con indentazione consistente
         wheels_list = []
-        for i, wheel in enumerate(wheels):
-            if i < len(wheels) - 1:
-                wheels_list.append(f'    "./wheels/{wheel.name}",')
-            else:
-                wheels_list.append(f'    "./wheels/{wheel.name}"')
+        for wheel in wheels:
+            wheels_list.append(f'    "./wheels/{wheel.name}",')
         
+        # Rimuovi la virgola dall'ultima entry
         if wheels_list:
-            # Formato corretto per Blender Extensions
-            return f'''
-# Wheels for dependencies
-wheels = [
-{chr(10).join(wheels_list)}
-]'''
-        else:
-            return "# No valid wheels found"
+            wheels_list[-1] = wheels_list[-1].rstrip(',')
+        
+        # Formato che corrisponde al manifest funzionante
+        return f'''wheels = [
+    {chr(10).join(wheels_list)}
+    ]'''
     
     def generate_dependencies_section(self, mode: str) -> str:
         """Genera la sezione dipendenze"""
         wheels_dir = self.root_dir / "wheels"
         if wheels_dir.exists() and any(wheels_dir.glob("*.whl")):
-            return "# Dependencies included via wheels"
+            return ""  # Se hai wheels, non serve la sezione dependencies
         else:
-            return '''
-# External dependencies required:
-# pip install pandas networkx Pillow openpyxl matplotlib
-# Note: Run setup script to download wheels for packaging'''
+            return '''# External dependencies required:
+    # pip install pandas networkx Pillow openpyxl matplotlib
+    # Note: Run setup script to download wheels for packaging'''
     
     def repair_manifest_version(self):
         """Assicura che il manifest contenga la versione corretta"""
@@ -151,63 +144,28 @@ wheels = [
         config = self.load_version_config()
         version = self.get_version_string(config)
         
-        # Verifica che esista il template
         if not self.manifest_template.exists():
             raise FileNotFoundError(f"Template manifest not found: {self.manifest_template}")
         
-        # Leggi il template
         with open(self.manifest_template, 'r') as f:
             template = f.read()
         
-        # Verifica che il template contenga i placeholder necessari
         if '{VERSION}' not in template:
             raise ValueError("Template manifest missing {VERSION} placeholder")
         
-        # Sostituisci i placeholder
+        # Sostituisci i placeholder - SOLO VERSION e WHEELS_SECTION
         manifest_content = template.format(
             VERSION=version,
-            WHEELS_SECTION=self.generate_wheels_section(config.get('mode', 'dev')),
-            DEPENDENCIES_SECTION=self.generate_dependencies_section(config.get('mode', 'dev'))
+            WHEELS_SECTION=self.generate_wheels_section(config.get('mode', 'dev'))
         )
         
         # Scrivi il manifest finale
         with open(self.manifest_file, 'w') as f:
             f.write(manifest_content)
         
-        # Verifica che il manifest generato sia valido
-        with open(self.manifest_file, 'r') as f:
-            generated = f.read()
-            if 'id = "em_tools"' not in generated:
-                raise ValueError("Generated manifest missing required 'id' field")
-            if f'version = "{version}"' not in generated:
-                raise ValueError(f"Generated manifest missing correct version: {version}")
-        
         print(f"✅ Manifest generated: {self.manifest_file}")
         print(f"   Version: {version}")
         print(f"   Mode: {config.get('mode', 'dev')}")
-        
-        # Aggiunta: Controllo esplicito della sostituzione della versione
-        with open(self.manifest_file, 'r') as f:
-            manifest_content = f.read()
-        
-        if '{VERSION}' in manifest_content:
-            print("⚠️ Warning: VERSION placeholder not replaced!")
-            # Correzione manuale
-            manifest_content = manifest_content.replace('{VERSION}', version)
-            with open(self.manifest_file, 'w') as f:
-                f.write(manifest_content)
-                
-        if 'version = ""' in manifest_content or 'version = "1.5.0"' in manifest_content:
-            if config.get('mode') == 'dev' and config.get('dev_build'):
-                # Correzione manuale per versioni di sviluppo
-                correct_version = f'{config.get("major", 1)}.{config.get("minor", 5)}.{config.get("patch", 0)}-dev.{config.get("dev_build", 0)}'
-                manifest_content = re.sub(r'version\s*=\s*"[^"]*"', f'version = "{correct_version}"', manifest_content)
-                with open(self.manifest_file, 'w') as f:
-                    f.write(manifest_content)
-                print(f"🔧 Fixed incorrect version format in manifest to {correct_version}")
-        
-        # Verifica e ripara la versione nel manifest
-        #self.repair_manifest_version()
         
         return version
     
