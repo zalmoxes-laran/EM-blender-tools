@@ -370,6 +370,7 @@ if DEPENDENCIES_LOADED:
             em_setup,
             visual_manager,  # <-- Solo UI e operatori base
             stratigraphy_manager,
+            graph_editor,
             epoch_manager,
             functions,
             paradata_manager,
@@ -652,6 +653,7 @@ def register_modules():
         visual_manager,
         activity_manager, 
         stratigraphy_manager,
+        graph_editor,
         epoch_manager,
         paradata_manager,
         anastylosis_manager,

@@ -934,9 +934,16 @@ class EM_SetupPanel(bpy.types.Panel):
             row.operator('em_tools.add_file', text="Add GraphML", icon="ADD")
             row.operator('em_tools.remove_file', text="Remove GraphML", icon="REMOVE")
 
-
             # Details for selected GraphML file (codice esistente)
             if em_tools.active_file_index >= 0 and em_tools.graphml_files:
+
+                layout.separator()
+                
+                row = layout.row()
+                row.operator("graphedit.draw_graph", 
+                            text="Open in Graph Editor", 
+                            icon='NODETREE')
+                
                 active_file = em_tools.graphml_files[em_tools.active_file_index]
 
                 # Path to GraphML
