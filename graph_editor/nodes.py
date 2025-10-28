@@ -395,10 +395,10 @@ class EMGraphLinkNode(EMGraphNodeBase):
 
 classes = (
     # Base wrapper
-    EMGraphNodeBase,
+    #EMGraphNodeBase,
     
     # Stratigraphic nodes
-    EMGraphStratigraphicNode,
+    #EMGraphStratigraphicNode,
     EMGraphUSNode,
     EMGraphUSVsNode,
     EMGraphUSVnNode,

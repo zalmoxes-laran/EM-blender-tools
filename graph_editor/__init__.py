@@ -8,11 +8,11 @@ import bpy
 from bpy.utils import register_class, unregister_class
 from bpy.props import BoolProperty
 
-# Import local modules
-from .data import register_data, unregister_data
-from .nodes import register_nodes, unregister_nodes
-from .operators import register_operators, unregister_operators
-from .ui import register_ui, unregister_ui
+# Import local modules - USA IMPORT RELATIVI
+from . import data
+from . import nodes
+from . import operators
+from . import ui
 
 # Module info
 __all__ = ['register', 'unregister']
@@ -22,10 +22,10 @@ def register():
     print("=== REGISTERING GRAPH EDITOR ===")
     
     # Register in proper dependency order
-    register_data()      # Socket, NodeTree, PropertyGroups
-    register_nodes()     # Tutti i tipi di nodi
-    register_operators() # Operatori per gestire il grafo
-    register_ui()        # Pannelli UI
+    data.register_data()      # Socket, NodeTree, PropertyGroups
+    nodes.register_nodes()     # Tutti i tipi di nodi
+    operators.register_operators() # Operatori per gestire il grafo
+    ui.register_ui()        # Pannelli UI
     
     # Register scene properties
     if not hasattr(bpy.types.Scene, "show_graph_editor_tools"):
@@ -67,9 +67,9 @@ def unregister():
             delattr(bpy.types.Scene, prop_name)
     
     # Unregister in reverse order
-    unregister_ui()
-    unregister_operators()
-    unregister_nodes()
-    unregister_data()
+    ui.unregister_ui()
+    operators.unregister_operators()
+    nodes.unregister_nodes()
+    data.unregister_data()
     
     print("=== GRAPH EDITOR UNREGISTRATION COMPLETE ===")
