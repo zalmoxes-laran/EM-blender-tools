@@ -726,26 +726,62 @@ class EM_not_in_matrix(Operator):
         R = 1.0
         G = 0.0
         B = 1.0
+        
+        # Crea il materiale se non esiste
         if not check_material_presence(EM_mat_name):
             newmat = bpy.data.materials.new(EM_mat_name)
-            em_setup_mat_cycles(EM_mat_name,R,G,B)
+            em_setup_mat_cycles(EM_mat_name, R, G, B)
 
+        # ✅ MODIFICATO: Aggiungi import e graph
+        from ..functions import is_graph_available as check_graph
+        from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+        
+        graph_exists, graph = check_graph(context)
+        active_graph = graph if graph_exists else None
+        
+        applied_count = 0  # Counter per statistiche
+        
         for ob in bpy.data.objects:
             if ob.type == 'MESH':
-                if ob.data.materials:
-                    if ob.material_slots[0].material.name in EM_mat_list or ob.material_slots[0].material.name.startswith('ep_'):
-                        matrix_mat = True
-                    else:
-                        matrix_mat = False
-                    not_in_matrix = True
-                    for item in context.scene.em_list:
-                        if item.name == ob.name:
-                            not_in_matrix = False
-                    if matrix_mat and not_in_matrix:
-                        ob.data.materials.clear()
-                        notinmatrix_mat = bpy.data.materials[EM_mat_name]
-                        ob.data.materials.append(notinmatrix_mat)
+                # ✅ CORREZIONE PRINCIPALE: Controlla che material_slots non sia vuoto
+                # e che il primo slot abbia un materiale assegnato
+                if ob.data.materials and len(ob.material_slots) > 0:
+                    # ✅ Verifica che il materiale non sia None
+                    if ob.material_slots[0].material is not None:
+                        mat_name = ob.material_slots[0].material.name
+                        
+                        # Verifica se è un materiale EM o epoch
+                        if mat_name in EM_mat_list or mat_name.startswith('ep_'):
+                            matrix_mat = True
+                        else:
+                            matrix_mat = False
+                        
+                        # Verifica se l'oggetto è nella em_list
+                        not_in_matrix = True
+                        for item in context.scene.em_list:
+                            # ✅ AGGIUNTO: Converti il nome del nodo in proxy name
+                            proxy_name = node_name_to_proxy_name(
+                                item.name, 
+                                context=context, 
+                                graph=active_graph
+                            )
+                            if proxy_name == ob.name:
+                                not_in_matrix = False
+                                break
+                        
+                        # Applica il materiale "NotInTheMatrix" se necessario
+                        if matrix_mat and not_in_matrix:
+                            ob.data.materials.clear()
+                            notinmatrix_mat = bpy.data.materials[EM_mat_name]
+                            ob.data.materials.append(notinmatrix_mat)
+                            applied_count += 1
+                            print(f"✅ Applied 'NotInTheMatrix' material to {ob.name}")
 
+        self.report({'INFO'}, f"Applied 'NotInTheMatrix' material to {applied_count} objects")
+        print(f"{'='*50}")
+        print(f"✅ Total objects marked as 'NotInTheMatrix': {applied_count}")
+        print(f"{'='*50}")
+        
         return {'FINISHED'}
 
 class EM_set_EM_materials(Operator):
