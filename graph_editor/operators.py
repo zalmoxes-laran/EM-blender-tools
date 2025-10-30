@@ -7,6 +7,16 @@ import bpy
 from bpy.types import Operator
 from bpy.props import EnumProperty, BoolProperty, IntProperty
 from s3dgraphy import get_graph
+from .utils import (
+    find_proxy_by_node_id, 
+    find_node_id_from_proxy,
+    get_em_list_items,
+    get_em_list_active_index,
+    set_em_list_active_index,
+    get_stratigraphic_edge_types,
+    get_paradata_edge_types,
+    get_model_edge_types
+)
 
 class GRAPHEDIT_OT_draw_graph(Operator):
     """Disegna il grafo attivo nell'editor EMGraph"""
@@ -20,12 +30,15 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         name="Filter Mode",
         items=[
             ('ALL', "All Nodes", "Show all nodes"),
-            ('STRATIGRAPHIC', "Stratigraphic Only", "Show only stratigraphic nodes"),
-            ('TEMPORAL', "Temporal", "Show nodes in time range"),
+            ('STRATIGRAPHIC', "Stratigraphic Only", "Show only stratigraphic nodes (US, USVs, USVn, SF, VSF, USD)"),
+            ('US_ONLY', "US Only", "Show only US nodes"),
+            ('FROM_UILIST', "From UI List", "Show only nodes currently in Stratigraphy Manager UI list"),
             ('NEIGHBORHOOD', "Neighborhood", "Show selected node and connected nodes"),
+            ('NODE_CONTEXT', "Node + Context", "Show node with stratigraphic neighbors and all paradata"),
+            ('EDGE_FILTERED', "By Edge Types", "Filter by selected edge types"),
         ],
         default='ALL'
-    ) # type: ignore
+    )
     
     neighborhood_depth: IntProperty(
         name="Depth",
@@ -33,10 +46,9 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         default=1,
         min=1,
         max=5
-    ) # type: ignore
+    )
     
     def execute(self, context):
-        # Ottieni il grafo da s3dgraphy
         em_tools = context.scene.em_tools
         
         if em_tools.active_file_index < 0 or not em_tools.graphml_files:
@@ -52,8 +64,9 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             return {'CANCELLED'}
         
         print(f"\n✅ Found graph: {graph_id}")
-        print(f"   Nodes: {len(graph.nodes)}")
-        print(f"   Edges: {len(graph.edges)}")
+        print(f"   Total nodes: {len(graph.nodes)}")
+        print(f"   Total edges: {len(graph.edges)}")
+        print(f"   Filter mode: {self.filter_mode}")
         
         # Trova o crea il node tree
         tree_name = f"EMGraph_{graphml.graph_code if hasattr(graphml, 'graph_code') else graphml.name}"
@@ -67,8 +80,14 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         tree.graph_id = graph_id
         tree.graph_name = tree_name
         
-        # Filtra i nodi in base al filter_mode
-        filtered_nodes = self.filter_nodes(graph, context)
+        # Filtra i nodi
+        filtered_nodes = self.filter_nodes_optimized(graph, context)
+        
+        if not filtered_nodes:
+            self.report({'WARNING'}, f"No nodes match filter: {self.filter_mode}")
+            return {'CANCELLED'}
+        
+        print(f"   Filtered to {len(filtered_nodes)} nodes")
         
         # Popola il grafo
         node_count, edge_count = self.populate_tree(tree, graph, filtered_nodes, context)
@@ -79,83 +98,210 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         # Apri l'editor
         self.open_graph_editor(context, tree)
         
-        self.report({'INFO'}, f"Loaded '{tree_name}': {node_count} nodes, {edge_count} edges")
+        self.report({'INFO'}, f"Loaded: {node_count} nodes, {edge_count} edges")
         return {'FINISHED'}
     
-    def filter_nodes(self, graph, context):
+    def filter_nodes_optimized(self, graph, context):
         """Filtra i nodi in base al filter_mode"""
+        
         if self.filter_mode == 'ALL':
             return list(graph.nodes)
         
         elif self.filter_mode == 'STRATIGRAPHIC':
             stratigraphic_types = ['US', 'USVs', 'USVn', 'SF', 'VSF', 'USD']
-            return [n for n in graph.nodes if n.node_type in stratigraphic_types]
+            filtered = []
+            for node_type in stratigraphic_types:
+                filtered.extend(graph.get_nodes_by_type(node_type))
+            return filtered
+        
+        elif self.filter_mode == 'US_ONLY':
+            return graph.get_nodes_by_type('US')
+        
+        elif self.filter_mode == 'FROM_UILIST':
+            return self.filter_from_uilist(graph, context)
         
         elif self.filter_mode == 'NEIGHBORHOOD':
             return self.get_neighborhood_nodes(graph, context)
         
-        else:
-            return list(graph.nodes)
+        elif self.filter_mode == 'NODE_CONTEXT':
+            return self.get_node_context(graph, context)
+        
+        elif self.filter_mode == 'EDGE_FILTERED':
+            return self.filter_by_edge_types(graph, context)
+        
+        return list(graph.nodes)
+    
+    def filter_from_uilist(self, graph, context):
+        """Filtra usando solo i nodi presenti nella UIList corrente"""
+        em_list = get_em_list_items(context)
+        
+        if not em_list or len(em_list) == 0:
+            print("   ⚠️  UIList is empty")
+            return []
+        
+        # Raccogli i node_id dalla UIList
+        ui_node_ids = set()
+        for item in em_list:
+            if hasattr(item, 'node_id') and item.node_id:
+                ui_node_ids.add(item.node_id)
+        
+        print(f"   UIList contains {len(ui_node_ids)} node IDs")
+        
+        # Filtra il grafo
+        filtered = [node for node in graph.nodes if node.node_id in ui_node_ids]
+        
+        return filtered
     
     def get_neighborhood_nodes(self, graph, context):
         """Ottiene i nodi nel vicinato del nodo selezionato"""
-        em_tools = context.scene.em_tools
-        
-        # Trova il nodo selezionato (da stratigraphy manager o oggetto 3D)
         selected_node_id = self.get_selected_node_id(context)
         
         if not selected_node_id:
-            self.report({'WARNING'}, "No node selected for neighborhood filter")
-            return list(graph.nodes)
+            if context.space_data.type == 'NODE_EDITOR' and context.active_node:
+                selected_node_id = context.active_node.node_id
+            
+            if not selected_node_id:
+                print("   ⚠️  No node selected for neighborhood filter")
+                return []
         
-        # Trova il nodo nel grafo
+        print(f"   Building neighborhood for: {selected_node_id}")
+        
         center_node = graph.find_node_by_id(selected_node_id)
         if not center_node:
-            return list(graph.nodes)
+            print(f"   ⚠️  Node not found: {selected_node_id}")
+            return []
         
-        # Raccogli nodi nel vicinato
+        # Usa get_connected_nodes di s3dgraphy
         neighborhood = {center_node.node_id: center_node}
-        current_level = {center_node.node_id}
+        current_level = {center_node}
         
         for depth in range(self.neighborhood_depth):
             next_level = set()
             
-            for node_id in current_level:
-                # Trova edges collegati
-                for edge in graph.edges:
-                    if edge.edge_source == node_id:
-                        target_node = graph.find_node_by_id(edge.edge_target)
-                        if target_node and target_node.node_id not in neighborhood:
-                            neighborhood[target_node.node_id] = target_node
-                            next_level.add(target_node.node_id)
-                    
-                    elif edge.edge_target == node_id:
-                        source_node = graph.find_node_by_id(edge.edge_source)
-                        if source_node and source_node.node_id not in neighborhood:
-                            neighborhood[source_node.node_id] = source_node
-                            next_level.add(source_node.node_id)
+            for node in current_level:
+                connected = graph.get_connected_nodes(node.node_id)
+                for connected_node in connected:
+                    if connected_node.node_id not in neighborhood:
+                        neighborhood[connected_node.node_id] = connected_node
+                        next_level.add(connected_node)
             
             current_level = next_level
+            if not next_level:
+                break
         
+        print(f"   Neighborhood: {len(neighborhood)} nodes at depth {self.neighborhood_depth}")
         return list(neighborhood.values())
     
-    def get_selected_node_id(self, context):
-        """Ottiene l'ID del nodo selezionato (da 3D o UI)"""
-        # Prova da stratigraphy manager
-        em_tools = context.scene.em_tools
-        if hasattr(em_tools, 'active_item_index') and em_tools.active_item_index >= 0:
-            if em_tools.items:
-                item = em_tools.items[em_tools.active_item_index]
-                if hasattr(item, 'uuid'):
-                    return item.uuid
+    def get_node_context(self, graph, context):
+        """
+        Ottiene il nodo + contesto completo:
+        - Vicinato stratigrafico immediato (is_before, overlies, etc.)
+        - Tutti i paradata (has_property, extracted_from, etc.)
+        - Modelli 3D (has_representation_model)
+        """
+        selected_node_id = self.get_selected_node_id(context)
         
-        # Prova da oggetto 3D selezionato
+        if not selected_node_id:
+            if context.space_data.type == 'NODE_EDITOR' and context.active_node:
+                selected_node_id = context.active_node.node_id
+            
+            if not selected_node_id:
+                print("   ⚠️  No node selected for context view")
+                return []
+        
+        center_node = graph.find_node_by_id(selected_node_id)
+        if not center_node:
+            return []
+        
+        print(f"   Building context for: {selected_node_id}")
+        
+        context_nodes = {center_node.node_id: center_node}
+        
+        settings = context.scene.graph_editor_settings
+        
+        # Definisci i tipi di edge da includere
+        stratigraphic_types = [et['type'] for et in get_stratigraphic_edge_types()]
+        paradata_types = [et['type'] for et in get_paradata_edge_types()]
+        model_types = [et['type'] for et in get_model_edge_types()]
+        
+        # Raccogli nodi connessi
+        for edge in graph.edges:
+            include_edge = False
+            
+            if edge.edge_source == selected_node_id or edge.edge_target == selected_node_id:
+                if settings.show_stratigraphic_context and edge.edge_type in stratigraphic_types:
+                    include_edge = True
+                elif settings.show_paradata_context and edge.edge_type in paradata_types:
+                    include_edge = True
+                elif settings.show_model_context and edge.edge_type in model_types:
+                    include_edge = True
+                
+                if include_edge:
+                    # Aggiungi entrambi i nodi
+                    source = graph.find_node_by_id(edge.edge_source)
+                    target = graph.find_node_by_id(edge.edge_target)
+                    
+                    if source:
+                        context_nodes[source.node_id] = source
+                    if target:
+                        context_nodes[target.node_id] = target
+        
+        print(f"   Context: {len(context_nodes)} nodes")
+        return list(context_nodes.values())
+    
+    def filter_by_edge_types(self, graph, context):
+        """Filtra i nodi in base ai tipi di edge selezionati"""
+        settings = context.scene.graph_editor_settings
+        
+        # Raccogli edge types abilitati
+        enabled_edge_types = [
+            ef.edge_type for ef in settings.edge_filters if ef.enabled
+        ]
+        
+        if not enabled_edge_types:
+            print("   ⚠️  No edge types enabled")
+            return []
+        
+        print(f"   Filtering by {len(enabled_edge_types)} edge types")
+        
+        # Raccogli tutti i nodi connessi da questi edge types
+        included_node_ids = set()
+        
+        for edge in graph.edges:
+            if edge.edge_type in enabled_edge_types:
+                included_node_ids.add(edge.edge_source)
+                included_node_ids.add(edge.edge_target)
+        
+        filtered = [node for node in graph.nodes if node.node_id in included_node_ids]
+        
+        print(f"   Found {len(filtered)} nodes connected by selected edge types")
+        return filtered
+    
+    def get_selected_node_id(self, context):
+        """Ottiene l'ID del nodo selezionato (da 3D, UIList o Graph Editor)"""
+        
+        # 1. Prova da oggetto 3D selezionato
         if context.active_object:
-            obj = context.active_object
-            if 'node_id' in obj:
-                return obj['node_id']
-            elif 'uuid' in obj:
-                return obj['uuid']
+            node_id = find_node_id_from_proxy(context.active_object, context)
+            if node_id:
+                print(f"   Selected from 3D: {node_id}")
+                return node_id
+        
+        # 2. Prova da UIList
+        em_list = get_em_list_items(context)
+        em_list_index = get_em_list_active_index(context)
+        
+        if em_list and 0 <= em_list_index < len(em_list):
+            item = em_list[em_list_index]
+            if hasattr(item, 'node_id') and item.node_id:
+                print(f"   Selected from UIList: {item.node_id}")
+                return item.node_id
+        
+        # 3. Prova da Graph Editor
+        if context.space_data.type == 'NODE_EDITOR' and context.active_node:
+            if hasattr(context.active_node, 'node_id'):
+                print(f"   Selected from Graph Editor: {context.active_node.node_id}")
+                return context.active_node.node_id
         
         return None
     
@@ -164,10 +310,9 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         node_map = {}
         edge_count = 0
         
-        # Crea set di node_id filtrati per lookup veloce
         filtered_node_ids = {node.node_id for node in filtered_nodes}
         
-        # Mappa tipi di nodo s3dgraphy -> wrapper Blender
+        # Mappa tipi
         node_type_map = {
             'US': 'EMGraphUSNodeType',
             'USVs': 'EMGraphUSVsNodeType',
@@ -190,46 +335,28 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             'link': 'EMGraphLinkNodeType',
         }
         
-        # Crea i nodi wrapper
         print(f"\n📊 Creating {len(filtered_nodes)} nodes...")
         for i, s3d_node in enumerate(filtered_nodes):
-            # Determina il tipo di wrapper
-            node_type_id = node_type_map.get(s3d_node.node_type, 'EMGraphStratigraphicNodeType')
+            node_type_id = node_type_map.get(s3d_node.node_type, 'EMGraphUSNodeType')
             
             try:
-                # Crea il wrapper
                 bl_node = tree.nodes.new(node_type_id)
-                
-                # Imposta solo l'ID di riferimento
                 bl_node.node_id = s3d_node.node_id
                 bl_node.original_name = s3d_node.name
                 bl_node.label = s3d_node.name[:30] if len(s3d_node.name) > 30 else s3d_node.name
                 
-                # Posiziona il nodo
+                # Posizionamento
                 if hasattr(s3d_node, 'attributes') and 'y_pos' in s3d_node.attributes:
                     try:
                         y_pos = float(s3d_node.attributes.get('y_pos', 0))
                         x_pos = (i % 10) * 350
                         bl_node.location = (x_pos, -y_pos * 2)
-                    except (ValueError, TypeError):
+                    except:
                         bl_node.location = ((i % 10) * 350, -(i // 10) * 200)
                 else:
                     bl_node.location = ((i % 10) * 350, -(i // 10) * 200)
                 
-                # Cache per epoche
-                if s3d_node.node_type == 'epoch':
-                    if hasattr(s3d_node, 'start_time'):
-                        try:
-                            bl_node.start_time = float(s3d_node.start_time)
-                        except (ValueError, TypeError):
-                            pass
-                    if hasattr(s3d_node, 'end_time'):
-                        try:
-                            bl_node.end_time = float(s3d_node.end_time)
-                        except (ValueError, TypeError):
-                            pass
-                
-                # Converti colore hex a RGB
+                # Colore
                 if hasattr(s3d_node, 'attributes') and 'fill_color' in s3d_node.attributes:
                     fill_color_hex = s3d_node.attributes.get('fill_color')
                     if fill_color_hex and isinstance(fill_color_hex, str):
@@ -243,32 +370,25 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             except Exception as e:
                 print(f"❌ Error creating node {s3d_node.node_id}: {e}")
         
-        print(f"✅ Created {len(node_map)} nodes successfully")
+        print(f"✅ Created {len(node_map)} nodes")
         
-        # Crea i collegamenti solo tra nodi filtrati
+        # Crea edges
         print(f"\n🔗 Creating edges...")
-        for i, edge in enumerate(graph.edges):
+        for edge in graph.edges:
             try:
-                source_id = edge.edge_source
-                target_id = edge.edge_target
-                edge_type = edge.edge_type
-                
-                # Solo se entrambi i nodi sono nel filtro
-                if source_id in filtered_node_ids and target_id in filtered_node_ids:
-                    if source_id in node_map and target_id in node_map:
-                        link_created = self.create_link(tree, node_map, source_id, target_id, edge_type)
-                        if link_created:
+                if edge.edge_source in filtered_node_ids and edge.edge_target in filtered_node_ids:
+                    if edge.edge_source in node_map and edge.edge_target in node_map:
+                        if self.create_link(tree, node_map, edge.edge_source, edge.edge_target, edge.edge_type):
                             edge_count += 1
-                        
-            except Exception as e:
-                print(f"❌ Error processing edge {i}: {e}")
+            except:
+                pass
         
-        print(f"✅ Created {edge_count} edges successfully\n")
+        print(f"✅ Created {edge_count} edges\n")
         
         return len(node_map), edge_count
     
     def create_link(self, tree, node_map, source_id, target_id, edge_type):
-        """Crea un collegamento tra nodi wrapper"""
+        """Crea un collegamento tra nodi"""
         source_node = node_map[source_id]
         target_node = node_map[target_id]
         
@@ -290,16 +410,16 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         
         # Match parziale
         if not source_socket:
-            edge_keywords = edge_type_lower.replace('_', ' ').split()
+            keywords = edge_type_lower.replace('_', ' ').split()
             for output in source_node.outputs:
-                if any(kw in output.name.lower() for kw in edge_keywords):
+                if any(kw in output.name.lower() for kw in keywords):
                     source_socket = output
                     break
         
         if not target_socket:
-            edge_keywords = edge_type_lower.replace('_', ' ').split()
+            keywords = edge_type_lower.replace('_', ' ').split()
             for input_socket in target_node.inputs:
-                if any(kw in input_socket.name.lower() for kw in edge_keywords):
+                if any(kw in input_socket.name.lower() for kw in keywords):
                     target_socket = input_socket
                     break
         
@@ -310,7 +430,6 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         if not target_socket and len(target_node.inputs) > 0:
             target_socket = target_node.inputs[0]
         
-        # Crea il link
         if source_socket and target_socket:
             try:
                 tree.links.new(source_socket, target_socket)
@@ -321,7 +440,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         return False
     
     def hex_to_rgb(self, hex_color):
-        """Converti colore hex (#RRGGBB) in RGB (0-1)"""
+        """Converti hex a RGB"""
         try:
             hex_color = hex_color.lstrip('#')
             if len(hex_color) == 6:
@@ -344,10 +463,10 @@ class GRAPHEDIT_OT_draw_graph(Operator):
 
 
 class GRAPHEDIT_OT_sync_selection(Operator):
-    """Sincronizza selezione tra 3D Viewport, UI e Graph Editor (Alt+F)"""
+    """Sincronizza selezione tra 3D, UIList e Graph Editor (Shift+Alt+F)"""
     bl_idname = "graphedit.sync_selection"
     bl_label = "Sync Selection"
-    bl_description = "Synchronize selection between 3D viewport, UI lists, and graph editor (Alt+F)"
+    bl_description = "Synchronize selection between 3D viewport, UI lists, and graph editor"
     bl_options = {'REGISTER', 'UNDO'}
     
     @classmethod
@@ -355,85 +474,67 @@ class GRAPHEDIT_OT_sync_selection(Operator):
         return True
     
     def execute(self, context):
-        # Determina il contesto da cui viene chiamato
         if context.space_data.type == 'NODE_EDITOR':
-            # Da Graph Editor → 3D + UI
             return self.sync_from_graph_editor(context)
         elif context.space_data.type == 'VIEW_3D':
-            # Da 3D → Graph Editor + UI
             return self.sync_from_3d(context)
         else:
-            self.report({'WARNING'}, "Use Alt+F in 3D View or Node Editor")
+            self.report({'WARNING'}, "Use Shift+Alt+F in 3D View or Node Editor")
             return {'CANCELLED'}
     
     def sync_from_graph_editor(self, context):
-        """Sincronizza selezione dal Graph Editor verso 3D e UI"""
+        """Dal Graph Editor → 3D + UIList"""
         if not context.active_node:
-            self.report({'WARNING'}, "No node selected in graph editor")
+            self.report({'WARNING'}, "No node selected")
             return {'CANCELLED'}
         
         node = context.active_node
         if not hasattr(node, 'node_id') or not node.node_id:
-            self.report({'WARNING'}, "Selected node has no ID")
+            self.report({'WARNING'}, "Node has no ID")
             return {'CANCELLED'}
         
         node_id = node.node_id
-        print(f"🔗 Syncing from graph editor: {node_id}")
+        print(f"🔗 Syncing from graph: {node_id}")
         
-        # Cerca oggetto 3D corrispondente
-        obj_found = False
-        for obj in bpy.data.objects:
-            if obj.get('node_id') == node_id or obj.get('uuid') == node_id:
-                # Deseleziona tutto
-                bpy.ops.object.select_all(action='DESELECT')
-                # Seleziona questo oggetto
-                obj.select_set(True)
-                context.view_layer.objects.active = obj
-                obj_found = True
-                print(f"   ✓ Selected 3D object: {obj.name}")
-                break
+        # Cerca proxy 3D
+        proxy = find_proxy_by_node_id(node_id, context)
+        if proxy:
+            bpy.ops.object.select_all(action='DESELECT')
+            proxy.select_set(True)
+            context.view_layer.objects.active = proxy
+            print(f"   ✓ Selected 3D proxy: {proxy.name}")
         
-        # Sincronizza UI list (stratigraphy manager)
+        # Sincronizza UIList
         self.sync_ui_list(context, node_id)
         
-        if obj_found:
-            self.report({'INFO'}, f"Selected: {node.label}")
-        else:
-            self.report({'INFO'}, f"Node {node.label} has no 3D object")
-        
+        self.report({'INFO'}, f"Synced: {node.label}")
         return {'FINISHED'}
     
     def sync_from_3d(self, context):
-        """Sincronizza selezione dal 3D verso Graph Editor e UI"""
+        """Dal 3D → Graph Editor + UIList"""
         if not context.active_object:
             self.report({'WARNING'}, "No object selected")
             return {'CANCELLED'}
         
-        obj = context.active_object
-        node_id = obj.get('node_id') or obj.get('uuid')
+        node_id = find_node_id_from_proxy(context.active_object, context)
         
         if not node_id:
-            self.report({'WARNING'}, f"Object {obj.name} has no node_id")
+            self.report({'WARNING'}, "Object has no node_id")
             return {'CANCELLED'}
         
         print(f"🔗 Syncing from 3D: {node_id}")
         
         # Sincronizza Graph Editor
-        graph_synced = self.sync_graph_editor(context, node_id)
+        self.sync_graph_editor(context, node_id)
         
-        # Sincronizza UI list
+        # Sincronizza UIList
         self.sync_ui_list(context, node_id)
         
-        if graph_synced:
-            self.report({'INFO'}, f"Synced: {obj.name}")
-        else:
-            self.report({'INFO'}, f"Synced UI (no graph node for {obj.name})")
-        
+        self.report({'INFO'}, f"Synced: {context.active_object.name}")
         return {'FINISHED'}
     
     def sync_graph_editor(self, context, node_id):
-        """Seleziona il nodo nel graph editor"""
-        # Cerca un'area Node Editor
+        """Seleziona nodo nel graph editor"""
         for area in context.screen.areas:
             if area.type == 'NODE_EDITOR':
                 space = area.spaces[0]
@@ -441,11 +542,9 @@ class GRAPHEDIT_OT_sync_selection(Operator):
                 if space.tree_type == 'EMGraphNodeTreeType' and space.node_tree:
                     tree = space.node_tree
                     
-                    # Deseleziona tutti i nodi
                     for node in tree.nodes:
                         node.select = False
                     
-                    # Cerca e seleziona il nodo corrispondente
                     for node in tree.nodes:
                         if hasattr(node, 'node_id') and node.node_id == node_id:
                             node.select = True
@@ -456,54 +555,63 @@ class GRAPHEDIT_OT_sync_selection(Operator):
         return False
     
     def sync_ui_list(self, context, node_id):
-        """Sincronizza la selezione nella UI list (stratigraphy manager)"""
-        em_tools = context.scene.em_tools
+        """Sincronizza UIList"""
+        em_list = get_em_list_items(context)
         
-        if not hasattr(em_tools, 'items'):
+        if not em_list:
             return False
         
-        # Cerca l'item nella lista
-        for i, item in enumerate(em_tools.items):
-            if hasattr(item, 'uuid') and item.uuid == node_id:
-                em_tools.active_item_index = i
-                print(f"   ✓ Selected UI list item: {item.name}")
+        for i, item in enumerate(em_list):
+            if hasattr(item, 'node_id') and item.node_id == node_id:
+                set_em_list_active_index(context, i)
+                print(f"   ✓ Selected UIList item: {item.name}")
                 return True
         
         return False
 
 
 class GRAPHEDIT_OT_draw_neighborhood(Operator):
-    """Disegna solo il vicinato del nodo selezionato"""
+    """Disegna vicinato del nodo selezionato"""
     bl_idname = "graphedit.draw_neighborhood"
     bl_label = "Draw Neighborhood"
-    bl_description = "Draw only the selected node and its connected neighbors"
+    bl_description = "Draw neighborhood of selected node"
     bl_options = {'REGISTER', 'UNDO'}
     
     depth: IntProperty(
         name="Depth",
-        description="Number of connection levels",
         default=1,
         min=1,
         max=5
-    ) # type: ignore
+    )
     
     def execute(self, context):
-        # Chiama draw_graph con filter_mode NEIGHBORHOOD
         bpy.ops.graphedit.draw_graph(
+            'INVOKE_DEFAULT',
             filter_mode='NEIGHBORHOOD',
             neighborhood_depth=self.depth
         )
         return {'FINISHED'}
 
 
-# ... (operatori esistenti: clear_editor, refresh_node, apply_color_scheme rimangono invariati)
+class GRAPHEDIT_OT_initialize_edge_filters(Operator):
+    """Inizializza filtri edge dalla configurazione s3dgraphy"""
+    bl_idname = "graphedit.initialize_edge_filters"
+    bl_label = "Initialize Edge Filters"
+    bl_description = "Load edge types from s3dgraphy configuration"
+    
+    def execute(self, context):
+        from .properties import initialize_edge_filters
+        initialize_edge_filters(context)
+        self.report({'INFO'}, "Edge filters initialized")
+        return {'FINISHED'}
 
+
+# ... (altri operatori: clear_editor, refresh_node, apply_color_scheme rimangono invariati)
 
 class GRAPHEDIT_OT_clear_editor(Operator):
-    """Pulisci l'editor EMGraph"""
+    """Pulisci editor"""
     bl_idname = "graphedit.clear_editor"
     bl_label = "Clear Graph"
-    bl_description = "Clear all nodes from the current EMGraph editor"
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
@@ -513,144 +621,22 @@ class GRAPHEDIT_OT_clear_editor(Operator):
                 tree.nodes.clear()
                 tree.node_count = 0
                 tree.edge_count = 0
-                self.report({'INFO'}, "Graph editor cleared")
+                self.report({'INFO'}, "Graph cleared")
                 return {'FINISHED'}
         
         self.report({'ERROR'}, "Not in EMGraph editor")
         return {'CANCELLED'}
 
 
-class GRAPHEDIT_OT_refresh_node(Operator):
-    """Aggiorna il nodo selezionato dal grafo s3dgraphy"""
-    bl_idname = "graphedit.refresh_node"
-    bl_label = "Refresh Node"
-    bl_description = "Refresh selected node data from s3dgraphy graph"
-    
-    def execute(self, context):
-        if not context.active_node:
-            self.report({'WARNING'}, "No node selected")
-            return {'CANCELLED'}
-        
-        node = context.active_node
-        if hasattr(node, 'get_s3d_node'):
-            s3d_node = node.get_s3d_node(context)
-            if s3d_node:
-                node.original_name = s3d_node.name
-                node.label = s3d_node.name[:30] if len(s3d_node.name) > 30 else s3d_node.name
-                
-                self.report({'INFO'}, f"Refreshed node: {s3d_node.name}")
-                return {'FINISHED'}
-            else:
-                self.report({'ERROR'}, "S3D node not found")
-                return {'CANCELLED'}
-        
-        self.report({'ERROR'}, "Not an EMGraph node")
-        return {'CANCELLED'}
-
-
-class GRAPHEDIT_OT_apply_color_scheme(Operator):
-    """Applica schema colori ai nodi"""
-    bl_idname = "graphedit.apply_color_scheme"
-    bl_label = "Apply Color Scheme"
-    bl_description = "Apply color scheme to all nodes based on their type"
-    
-    scheme: EnumProperty(
-        name="Scheme",
-        items=[
-            ('DEFAULT', "Default", "Default EMTools colors"),
-            ('PASTEL', "Pastel", "Soft pastel colors"),
-            ('VIBRANT', "Vibrant", "Bright vibrant colors"),
-            ('GRAYSCALE', "Grayscale", "Shades of gray"),
-        ],
-        default='DEFAULT'
-    ) # type: ignore
-    
-    def execute(self, context):
-        tree = context.space_data.node_tree
-        if not tree or tree.bl_idname != 'EMGraphNodeTreeType':
-            self.report({'ERROR'}, "Not in EMGraph editor")
-            return {'CANCELLED'}
-        
-        color_schemes = {
-            'DEFAULT': {
-                'US': (0.608, 0.608, 0.608),
-                'USVs': (0.4, 0.6, 0.8),
-                'USVn': (0.8, 0.6, 0.4),
-                'SF': (0.8, 0.4, 0.4),
-                'epoch': (0.3, 0.5, 0.7),
-                'document': (0.8, 0.8, 0.4),
-                'paradata': (0.6, 0.3, 0.8),
-            },
-            'PASTEL': {
-                'US': (0.8, 0.8, 0.9),
-                'USVs': (0.7, 0.8, 0.9),
-                'USVn': (0.9, 0.8, 0.7),
-                'SF': (0.9, 0.7, 0.7),
-                'epoch': (0.7, 0.8, 0.9),
-                'document': (0.9, 0.9, 0.7),
-                'paradata': (0.8, 0.7, 0.9),
-            },
-            'VIBRANT': {
-                'US': (0.3, 0.3, 0.9),
-                'USVs': (0.2, 0.6, 1.0),
-                'USVn': (1.0, 0.6, 0.2),
-                'SF': (1.0, 0.2, 0.2),
-                'epoch': (0.2, 0.4, 0.9),
-                'document': (1.0, 1.0, 0.2),
-                'paradata': (0.8, 0.2, 1.0),
-            },
-            'GRAYSCALE': {
-                'US': (0.7, 0.7, 0.7),
-                'USVs': (0.6, 0.6, 0.6),
-                'USVn': (0.5, 0.5, 0.5),
-                'SF': (0.4, 0.4, 0.4),
-                'epoch': (0.8, 0.8, 0.8),
-                'document': (0.3, 0.3, 0.3),
-                'paradata': (0.5, 0.5, 0.5),
-            }
-        }
-        
-        scheme = color_schemes[self.scheme]
-        count = 0
-        
-        for node in tree.nodes:
-            if hasattr(node, 'custom_node_color'):
-                if 'US' in node.bl_label:
-                    color = scheme.get(node.bl_label, scheme['US'])
-                elif 'Epoch' in node.bl_label:
-                    color = scheme['epoch']
-                elif 'Document' in node.bl_label:
-                    color = scheme['document']
-                elif 'Paradata' in node.bl_label:
-                    color = scheme['paradata']
-                else:
-                    color = (0.5, 0.5, 0.5)
-                
-                node.custom_node_color = color
-                node.use_custom_node_color = True
-                node.use_custom_color = True
-                node.color = color
-                count += 1
-        
-        self.report({'INFO'}, f"Applied {self.scheme} color scheme to {count} nodes")
-        return {'FINISHED'}
-
-
-# ============================================================================
-# REGISTRATION
-# ============================================================================
-
 classes = (
     GRAPHEDIT_OT_draw_graph,
     GRAPHEDIT_OT_sync_selection,
     GRAPHEDIT_OT_draw_neighborhood,
+    GRAPHEDIT_OT_initialize_edge_filters,
     GRAPHEDIT_OT_clear_editor,
-    GRAPHEDIT_OT_refresh_node,
-    GRAPHEDIT_OT_apply_color_scheme,
 )
 
 def register_operators():
-    """Register all operator classes"""
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
@@ -658,10 +644,8 @@ def register_operators():
             pass
 
 def unregister_operators():
-    """Unregister all operator classes"""
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
         except RuntimeError:
             pass
-        

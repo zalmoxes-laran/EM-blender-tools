@@ -4,7 +4,6 @@ Handles keyboard shortcuts for synchronization between 3D, UI, and Graph Editor.
 """
 
 import bpy
-from bpy.types import AddonPreferences
 
 # Lista globale per tenere traccia delle keymap registrate
 addon_keymaps = []
@@ -19,7 +18,7 @@ def register_keymaps():
         return
     
     # ========================================================================
-    # KEYMAP 1: Alt+F nella 3D View
+    # KEYMAP 1: Shift+Alt+F nella 3D View (per evitare collisione con Stratigraphy Manager)
     # ========================================================================
     km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
     
@@ -27,14 +26,15 @@ def register_keymaps():
         'graphedit.sync_selection',
         type='F',
         value='PRESS',
+        shift=True,  # ✅ Aggiunto Shift per evitare collisione
         alt=True
     )
     
     addon_keymaps.append((km, kmi))
-    print("✓ Registrata keymap: Alt+F in 3D View → Sync Selection")
+    print("✓ Registrata keymap: Shift+Alt+F in 3D View → Graph Editor Sync")
     
     # ========================================================================
-    # KEYMAP 2: Alt+F nel Node Editor
+    # KEYMAP 2: Shift+Alt+F nel Node Editor
     # ========================================================================
     km = kc.keymaps.new(name='Node Editor', space_type='NODE_EDITOR')
     
@@ -42,15 +42,15 @@ def register_keymaps():
         'graphedit.sync_selection',
         type='F',
         value='PRESS',
-        shift=True,
+        shift=True,  # ✅ Aggiunto Shift
         alt=True
     )
     
     addon_keymaps.append((km, kmi))
-    print("✓ Registrata keymap: Alt+F in Node Editor → Sync Selection")
+    print("✓ Registrata keymap: Shift+Alt+F in Node Editor → Sync to 3D")
     
     # ========================================================================
-    # KEYMAP 3: N (Neighborhood) nel Node Editor con nodo selezionato
+    # KEYMAP 3: Shift+Alt+N per Neighborhood nel Node Editor
     # ========================================================================
     km = kc.keymaps.new(name='Node Editor', space_type='NODE_EDITOR')
     
@@ -72,7 +72,6 @@ def unregister_keymaps():
     for km, kmi in addon_keymaps:
         try:
             km.keymap_items.remove(kmi)
-            print(f"✓ Rimossa keymap: {kmi.idname}")
         except:
             pass
     
