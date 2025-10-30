@@ -8,11 +8,12 @@ import bpy
 from bpy.utils import register_class, unregister_class
 from bpy.props import BoolProperty
 
-# Import local modules - USA IMPORT RELATIVI
+# Import local modules
 from . import data
 from . import nodes
 from . import operators
 from . import ui
+from . import keymap
 
 # Module info
 __all__ = ['register', 'unregister']
@@ -22,10 +23,11 @@ def register():
     print("=== REGISTERING GRAPH EDITOR ===")
     
     # Register in proper dependency order
-    data.register_data()      # Socket, NodeTree, PropertyGroups
-    nodes.register_nodes()     # Tutti i tipi di nodi
+    data.register_data()          # Socket, NodeTree, PropertyGroups
+    nodes.register_nodes()         # Tutti i tipi di nodi
     operators.register_operators() # Operatori per gestire il grafo
-    ui.register_ui()        # Pannelli UI
+    ui.register_ui()              # Pannelli UI
+    keymap.register_keymaps()     # Keyboard shortcuts
     
     # Register scene properties
     if not hasattr(bpy.types.Scene, "show_graph_editor_tools"):
@@ -67,6 +69,7 @@ def unregister():
             delattr(bpy.types.Scene, prop_name)
     
     # Unregister in reverse order
+    keymap.unregister_keymaps()    # Rimuovi keyboard shortcuts
     ui.unregister_ui()
     operators.unregister_operators()
     nodes.unregister_nodes()

@@ -23,13 +23,45 @@ class GRAPHEDIT_PT_main_panel(Panel):
         layout = self.layout
         scene = context.scene
         
-        # Pulsante principale "Draw Graph"
+        # Sezione Draw Graph
         box = layout.box()
         box.label(text="Graph Operations", icon='NODETREE')
         
         col = box.column(align=True)
-        col.operator("graphedit.draw_graph", icon='FILE_REFRESH', text="Draw Active Graph")
+        
+        # Draw All
+        row = col.row(align=True)
+        op = row.operator("graphedit.draw_graph", icon='FILE_REFRESH', text="All Nodes")
+        op.filter_mode = 'ALL'
+        
+        # Draw Stratigraphic Only
+        row = col.row(align=True)
+        op = row.operator("graphedit.draw_graph", icon='MESH_CUBE', text="Stratigraphic")
+        op.filter_mode = 'STRATIGRAPHIC'
+        
+        col.separator()
+        
+        # Draw Neighborhood
+        row = col.row(align=True)
+        row.operator("graphedit.draw_neighborhood", icon='SNAP_FACE', text="Neighborhood")
+        
+        col.separator()
+        
+        # Clear
         col.operator("graphedit.clear_editor", icon='X', text="Clear Graph")
+        
+        layout.separator()
+        
+        # Sezione Sync
+        sync_box = layout.box()
+        sync_box.label(text="Synchronization", icon='LINKED')
+        
+        col = sync_box.column(align=True)
+        col.operator("graphedit.sync_selection", icon='UV_SYNC_SELECT', text="Sync Selection (Alt+F)")
+        
+        col.label(text="Shortcuts:", icon='KEYINGSET')
+        col.label(text="  Alt+F: Sync selection")
+        col.label(text="  Shift+Alt+N: Neighborhood")
         
         layout.separator()
         
@@ -46,14 +78,45 @@ class GRAPHEDIT_PT_main_panel(Panel):
             
             if tree.graph_id:
                 col.label(text=f"ID: {tree.graph_id[:16]}...")
+
+
+class GRAPHEDIT_PT_filter_panel(Panel):
+    """Pannello filtri avanzati"""
+    bl_label = "Filters"
+    bl_idname = "GRAPHEDIT_PT_filter_panel"
+    bl_space_type = 'NODE_EDITOR'
+    bl_region_type = 'UI'
+    bl_category = "EMGraph"
+    bl_parent_id = "GRAPHEDIT_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    
+    @classmethod
+    def poll(cls, context):
+        return (context.space_data.type == 'NODE_EDITOR' and
+                context.space_data.tree_type == 'EMGraphNodeTreeType')
+    
+    def draw(self, context):
+        layout = self.layout
         
-        layout.separator()
+        box = layout.box()
+        box.label(text="Node Type Filters", icon='FILTER')
         
-        # Opzioni
-        options_box = layout.box()
-        options_box.label(text="Options", icon='SETTINGS')
-        options_box.prop(scene, "graph_editor_auto_layout", text="Auto Layout")
-        options_box.prop(scene, "graph_editor_show_labels", text="Show Labels")
+        col = box.column(align=True)
+        
+        # Filtri per tipo
+        row = col.row(align=True)
+        op = row.operator("graphedit.draw_graph", text="US Only")
+        op.filter_mode = 'STRATIGRAPHIC'
+        
+        # Neighborhood depth
+        col.separator()
+        col.label(text="Neighborhood Depth:")
+        
+        row = col.row(align=True)
+        for depth in [1, 2, 3]:
+            op = row.operator("graphedit.draw_neighborhood", text=str(depth))
+            op.depth = depth
+
 
 class GRAPHEDIT_PT_appearance(Panel):
     """Pannello per colori e aspetto"""
@@ -109,6 +172,7 @@ class GRAPHEDIT_PT_appearance(Panel):
         col.prop(tree, "default_document_color", text="Document")
         col.prop(tree, "default_paradata_color", text="Paradata")
 
+
 class GRAPHEDIT_PT_node_info(Panel):
     """Pannello info nodo selezionato"""
     bl_label = "Node Info"
@@ -151,6 +215,7 @@ class GRAPHEDIT_PT_node_info(Panel):
         
         col = layout.column(align=True)
         col.operator("graphedit.refresh_node", icon='FILE_REFRESH')
+        col.operator("graphedit.sync_selection", icon='UV_SYNC_SELECT', text="Sync to 3D (Alt+F)")
         
         # Colore personalizzato
         if hasattr(node, 'use_custom_node_color'):
@@ -160,14 +225,56 @@ class GRAPHEDIT_PT_node_info(Panel):
             if node.use_custom_node_color:
                 color_box.prop(node, "custom_node_color", text="")
 
+
+class VIEW3D_PT_graphedit_sync(Panel):
+    """Pannello nella 3D View per sincronizzazione veloce"""
+    bl_label = "Graph Sync"
+    bl_idname = "VIEW3D_PT_graphedit_sync"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "EMGraph"
+    
+    def draw(self, context):
+        layout = self.layout
+        
+        box = layout.box()
+        box.label(text="Graph Editor Sync", icon='LINKED')
+        
+        col = box.column(align=True)
+        
+        # Sync button
+        col.operator("graphedit.sync_selection", icon='UV_SYNC_SELECT', text="Sync Selection (Alt+F)")
+        
+        col.separator()
+        
+        # Neighborhood from 3D
+        col.label(text="Quick Actions:")
+        col.operator("graphedit.draw_neighborhood", icon='SNAP_FACE', text="Show in Graph")
+        
+        # Info sull'oggetto selezionato
+        if context.active_object:
+            obj = context.active_object
+            node_id = obj.get('node_id') or obj.get('uuid')
+            
+            if node_id:
+                info_box = layout.box()
+                info_box.label(text="Selected Object", icon='OBJECT_DATA')
+                info_box.label(text=f"Name: {obj.name}")
+                info_box.label(text=f"Node ID: {node_id[:16]}...")
+            else:
+                layout.label(text="No node_id on object", icon='INFO')
+
+
 # ============================================================================
 # REGISTRATION
 # ============================================================================
 
 classes = (
     GRAPHEDIT_PT_main_panel,
+    GRAPHEDIT_PT_filter_panel,
     GRAPHEDIT_PT_appearance,
     GRAPHEDIT_PT_node_info,
+    VIEW3D_PT_graphedit_sync,
 )
 
 def register_ui():
