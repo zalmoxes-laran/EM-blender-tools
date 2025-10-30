@@ -315,7 +315,7 @@ class GRAPHEDIT_PT_node_info(Panel):
 
 
 class VIEW3D_PT_graphedit_sync(Panel):
-    """Pannello 3D View per sync rapido"""
+    """Pannello nella 3D View per sincronizzazione veloce"""
     bl_label = "Graph Sync"
     bl_idname = "VIEW3D_PT_graphedit_sync"
     bl_space_type = 'VIEW_3D'
@@ -348,25 +348,39 @@ class VIEW3D_PT_graphedit_sync(Panel):
         
         col.separator()
         
-        op = col.operator("graphedit.draw_graph", text="Full Context")
+        op = col.operator("graphedit.draw_graph", text="Full Context", icon='LINK_BLEND')
         op.filter_mode = 'NODE_CONTEXT'
         
         # Info oggetto selezionato
         if context.active_object:
-            from .utils import find_node_id_from_proxy
-            
             obj = context.active_object
-            node_id = find_node_id_from_proxy(obj, context)
             
-            if node_id:
-                layout.separator()
-                info_box = layout.box()
-                info_box.label(text="Selected Object", icon='OBJECT_DATA')
-                info_box.label(text=f"{obj.name[:20]}")
-                info_box.label(text=f"Node ID: {node_id[:16]}...")
-            else:
-                layout.separator()
-                layout.label(text="No node_id on object", icon='INFO')
+            # ✅ NON chiamare find_node_id_from_proxy qui (troppo pesante)
+            # Mostra solo info base
+            
+            layout.separator()
+            info_box = layout.box()
+            info_box.label(text="Selected Object", icon='OBJECT_DATA')
+            
+            col = info_box.column(align=True)
+            col.label(text=f"Name: {obj.name[:20]}")
+            
+            # ✅ Controlla solo se ha il prefisso del grafo
+            em_tools = context.scene.em_tools
+            if em_tools.active_file_index >= 0 and em_tools.graphml_files:
+                graphml = em_tools.graphml_files[em_tools.active_file_index]
+                graph_code = graphml.graph_code if hasattr(graphml, 'graph_code') else None
+                
+                if graph_code and obj.name.startswith(f"{graph_code}."):
+                    # ✅ Estrai human name SENZA chiamare funzioni pesanti
+                    human_name = obj.name[len(graph_code) + 1:]
+                    col.label(text=f"Node: {human_name[:16]}")
+                else:
+                    col.label(text="Not a graph node", icon='INFO')
+            
+        else:
+            layout.separator()
+            layout.label(text="No object selected", icon='INFO')
 
 
 class GRAPHEDIT_OT_toggle_edge_category(bpy.types.Operator):

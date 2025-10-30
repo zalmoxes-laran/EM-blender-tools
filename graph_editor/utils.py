@@ -8,6 +8,31 @@ import json
 import os
 from pathlib import Path
 
+def sync_ui_list(context, human_name):
+    """
+    Sincronizza UIList usando item.name.
+    
+    Args:
+        human_name: nome human-readable tipo "USM2193"
+    """
+    em_list = get_em_list_items(context)
+    
+    if not em_list:
+        print(f"   ✗ em_list is empty")
+        return False
+    
+    print(f"   sync_ui_list: searching for name='{human_name}'")
+    
+    # ✅ Cerca per item.name
+    for i, item in enumerate(em_list):
+        if item.name == human_name:
+            set_em_list_active_index(context, i)
+            print(f"   ✓ Selected UIList item: {item.name} (index {i})")
+            return True
+    
+    print(f"   ✗ Item not found in UIList with name: '{human_name}'")
+    return False
+
 def get_active_graph_code(context):
     """Ottiene il graph_code del grafo attivo"""
     em_tools = context.scene.em_tools
@@ -20,39 +45,94 @@ def add_graph_prefix(node_id, context):
     """Aggiunge il prefisso del grafo attivo al node_id"""
     graph_code = get_active_graph_code(context)
     if graph_code:
-        return f"{graph_code}_{node_id}"
+        return f"{graph_code}.{node_id}"  # ✅ Usa punto, non underscore
     return node_id
 
 def remove_graph_prefix(prefixed_name, context):
     """Rimuove il prefisso del grafo dal nome"""
     graph_code = get_active_graph_code(context)
-    if graph_code and prefixed_name.startswith(f"{graph_code}_"):
+    if graph_code and prefixed_name.startswith(f"{graph_code}."):
+        # ✅ Rimuove "AAC." lasciando "USM2193"
         return prefixed_name[len(graph_code) + 1:]
     return prefixed_name
 
 def find_proxy_by_node_id(node_id, context):
-    """Trova il proxy 3D corrispondente a un node_id"""
+    """Trova il proxy 3D corrispondente a un node_id (SENZA prefisso)"""
+    # ✅ Aggiungi il prefisso per cercare l'oggetto
     prefixed_name = add_graph_prefix(node_id, context)
+    
+    print(f"   Looking for proxy: '{prefixed_name}' (from node_id: '{node_id}')")
     
     # Cerca negli oggetti della scena
     for obj in bpy.data.objects:
         if obj.name == prefixed_name:
-            return obj
-        # Fallback: controlla anche la proprietà node_id
-        if obj.get('node_id') == node_id:
+            print(f"   ✓ Found proxy by name: {obj.name}")
             return obj
     
+    # Fallback: controlla anche la proprietà node_id (senza prefisso)
+    for obj in bpy.data.objects:
+        if obj.get('node_id') == node_id:
+            print(f"   ✓ Found proxy by node_id property: {obj.name}")
+            return obj
+    
+    print(f"   ✗ Proxy not found for node_id: {node_id}")
     return None
 
-def find_node_id_from_proxy(proxy_obj, context):
-    """Ottiene il node_id da un oggetto proxy"""
-    # Prova con proprietà node_id
-    if 'node_id' in proxy_obj:
-        return proxy_obj['node_id']
+# ✅ Cache globale (viene svuotata quando cambia grafo)
+_node_cache = {}
+_cached_graph_id = None
+
+def find_node_id_from_proxy(proxy_obj, context, verbose=False):
+    """
+    Ottiene il node_id (UUID) da un oggetto proxy (con cache).
+    """
+    global _node_cache, _cached_graph_id
     
-    # Prova rimuovendo il prefisso dal nome
-    node_id = remove_graph_prefix(proxy_obj.name, context)
-    return node_id
+    from s3dgraphy import get_graph
+    
+    # Rimuovi prefisso dal nome
+    human_name = remove_graph_prefix(proxy_obj.name, context)
+    
+    # Carica grafo
+    em_tools = context.scene.em_tools
+    if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+        return None
+    
+    graphml = em_tools.graphml_files[em_tools.active_file_index]
+    graph_id = graphml.name
+    
+    # ✅ Svuota cache se cambia grafo
+    if _cached_graph_id != graph_id:
+        _node_cache.clear()
+        _cached_graph_id = graph_id
+        if verbose:
+            print(f"   Cache cleared for new graph: {graph_id}")
+    
+    # ✅ Controlla cache
+    if human_name in _node_cache:
+        if verbose:
+            print(f"   ✓ Found in cache: '{human_name}' → '{_node_cache[human_name]}'")
+        return _node_cache[human_name]
+    
+    # Cerca nel grafo
+    graph = get_graph(graph_id)
+    if not graph:
+        return None
+    
+    for node in graph.nodes:
+        if node.name == human_name:
+            # ✅ Salva in cache
+            _node_cache[human_name] = node.node_id
+            
+            if verbose:
+                print(f"   ✓ Found node: name='{node.name}', UUID='{node.node_id}' (cached)")
+            
+            return node.node_id
+    
+    if verbose:
+        print(f"   ✗ Node not found with name: '{human_name}'")
+    
+    return None
 
 def get_em_list_items(context):
     """Ottiene gli item della UIList filtrata"""
@@ -69,14 +149,14 @@ def set_em_list_active_index(context, index):
 def get_connection_rules():
     """
     Carica le regole di connessione da s3dgraphy.
-    Returns: dict con le regole di connessione
+    Returns: list di dict con le regole di connessione
     """
     try:
-        # Import s3dgraphy per accedere ai connection_rules
+        # ✅ Import diretto da s3dgraphy (già caricato all'import)
         from s3dgraphy.graph import connection_rules
         return connection_rules
-    except ImportError:
-        print("⚠️  Could not import connection_rules from s3dgraphy")
+    except ImportError as e:
+        print(f"⚠️  Could not import connection_rules from s3dgraphy: {e}")
         return []
 
 def get_edge_types():
@@ -85,16 +165,19 @@ def get_edge_types():
     Returns: list di dict con type, label, description
     """
     rules = get_connection_rules()
-    return [
-        {
+    
+    edge_types = []
+    for rule in rules:
+        edge_types.append({
             'type': rule['type'],
             'label': rule.get('label', rule['type']),
             'description': rule.get('description', ''),
             'allowed_sources': rule['allowed_connections']['source'],
             'allowed_targets': rule['allowed_connections']['target']
-        }
-        for rule in rules
-    ]
+        })
+    
+    print(f"   Loaded {len(edge_types)} edge types from s3dgraphy")
+    return edge_types
 
 def get_stratigraphic_edge_types():
     """Ottiene solo i tipi di edge stratigrafici"""

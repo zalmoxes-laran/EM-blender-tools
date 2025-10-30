@@ -481,9 +481,9 @@ class GRAPHEDIT_OT_sync_selection(Operator):
         else:
             self.report({'WARNING'}, "Use Shift+Alt+F in 3D View or Node Editor")
             return {'CANCELLED'}
-    
+        
     def sync_from_graph_editor(self, context):
-        """Dal Graph Editor → 3D + UIList"""
+        """Sincronizza dal Graph Editor verso 3D + UIList"""
         if not context.active_node:
             self.report({'WARNING'}, "No node selected")
             return {'CANCELLED'}
@@ -493,44 +493,138 @@ class GRAPHEDIT_OT_sync_selection(Operator):
             self.report({'WARNING'}, "Node has no ID")
             return {'CANCELLED'}
         
-        node_id = node.node_id
-        print(f"🔗 Syncing from graph: {node_id}")
+        uuid = node.node_id  # ✅ Questo è un UUID
+        print(f"🔗 Syncing from graph editor: UUID='{uuid}'")
         
-        # Cerca proxy 3D
-        proxy = find_proxy_by_node_id(node_id, context)
+        # ✅ Converti UUID → human name
+        from s3dgraphy import get_graph
+        em_tools = context.scene.em_tools
+        
+        if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            self.report({'ERROR'}, "No active graph")
+            return {'CANCELLED'}
+        
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+        graph = get_graph(graphml.name)
+        
+        if not graph:
+            self.report({'ERROR'}, "Graph not found")
+            return {'CANCELLED'}
+        
+        s3d_node = graph.find_node_by_id(uuid)
+        if not s3d_node:
+            self.report({'ERROR'}, "Node not found in graph")
+            return {'CANCELLED'}
+        
+        human_name = s3d_node.name
+        print(f"   Converted UUID to human name: '{human_name}'")
+        
+        # ✅ Cerca proxy usando human name + prefisso
+        from .utils import add_graph_prefix
+        prefixed_name = add_graph_prefix(human_name, context)
+        
+        proxy = None
+        for obj in bpy.data.objects:
+            if obj.name == prefixed_name:
+                proxy = obj
+                break
+        
         if proxy:
             bpy.ops.object.select_all(action='DESELECT')
             proxy.select_set(True)
             context.view_layer.objects.active = proxy
             print(f"   ✓ Selected 3D proxy: {proxy.name}")
+        else:
+            print(f"   ✗ Proxy not found: '{prefixed_name}'")
         
-        # Sincronizza UIList
-        self.sync_ui_list(context, node_id)
+        # ✅ Sincronizza UIList usando human name
+        from .utils import sync_ui_list
+        sync_ui_list(context, human_name)
         
-        self.report({'INFO'}, f"Synced: {node.label}")
+        self.report({'INFO'}, f"Synced: {human_name}")
         return {'FINISHED'}
     
     def sync_from_3d(self, context):
-        """Dal 3D → Graph Editor + UIList"""
+        """Sincronizza dal 3D verso Graph Editor + UIList"""
         if not context.active_object:
             self.report({'WARNING'}, "No object selected")
             return {'CANCELLED'}
         
-        node_id = find_node_id_from_proxy(context.active_object, context)
+        obj = context.active_object
         
-        if not node_id:
-            self.report({'WARNING'}, "Object has no node_id")
+        # ✅ Estrai human name dal proxy
+        from .utils import remove_graph_prefix
+        human_name = remove_graph_prefix(obj.name, context)
+        
+        print(f"🔗 Syncing from 3D: '{obj.name}' → human name: '{human_name}'")
+        
+        # ✅ Converti human name → UUID per Graph Editor
+        from s3dgraphy import get_graph
+        em_tools = context.scene.em_tools
+        
+        if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            self.report({'ERROR'}, "No active graph")
             return {'CANCELLED'}
         
-        print(f"🔗 Syncing from 3D: {node_id}")
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+        graph = get_graph(graphml.name)
         
-        # Sincronizza Graph Editor
-        self.sync_graph_editor(context, node_id)
+        if not graph:
+            self.report({'ERROR'}, "Graph not found")
+            return {'CANCELLED'}
         
-        # Sincronizza UIList
-        self.sync_ui_list(context, node_id)
+        # Cerca per node.name
+        s3d_node = None
+        for node in graph.nodes:
+            if node.name == human_name:
+                s3d_node = node
+                break
         
-        self.report({'INFO'}, f"Synced: {context.active_object.name}")
+        if not s3d_node:
+            self.report({'ERROR'}, f"Node not found: {human_name}")
+            return {'CANCELLED'}
+        
+        uuid = s3d_node.node_id
+        print(f"   Converted human name to UUID: '{uuid}'")
+        
+        # ✅ Sincronizza Graph Editor usando UUID - TUTTE LE FINESTRE
+        graph_synced = False
+        
+        for window in bpy.data.window_managers[0].windows:
+            for area in window.screen.areas:
+                if area.type == 'NODE_EDITOR':
+                    space = area.spaces[0]
+                    
+                    if space.tree_type == 'EMGraphNodeTreeType' and space.node_tree:
+                        tree = space.node_tree
+                        
+                        # Deseleziona tutto
+                        for n in tree.nodes:
+                            n.select = False
+                        
+                        # Cerca e seleziona
+                        for n in tree.nodes:
+                            if hasattr(n, 'node_id') and n.node_id == uuid:
+                                n.select = True
+                                tree.nodes.active = n
+                                graph_synced = True
+                                print(f"   ✓ Selected graph node: {n.label}")
+                                break
+                        
+                        if graph_synced:
+                            break
+            
+            if graph_synced:
+                break
+        
+        if not graph_synced:
+            print(f"   ⚠️  Node not found in Graph Editor (may be filtered out)")
+        
+        # ✅ Sincronizza UIList usando human name
+        from .utils import sync_ui_list
+        sync_ui_list(context, human_name)
+        
+        self.report({'INFO'}, f"Synced: {human_name}")
         return {'FINISHED'}
     
     def sync_graph_editor(self, context, node_id):
@@ -554,21 +648,6 @@ class GRAPHEDIT_OT_sync_selection(Operator):
         
         return False
     
-    def sync_ui_list(self, context, node_id):
-        """Sincronizza UIList"""
-        em_list = get_em_list_items(context)
-        
-        if not em_list:
-            return False
-        
-        for i, item in enumerate(em_list):
-            if hasattr(item, 'node_id') and item.node_id == node_id:
-                set_em_list_active_index(context, i)
-                print(f"   ✓ Selected UIList item: {item.name}")
-                return True
-        
-        return False
-
 
 class GRAPHEDIT_OT_draw_neighborhood(Operator):
     """Disegna vicinato del nodo selezionato"""
