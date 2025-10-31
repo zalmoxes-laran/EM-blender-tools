@@ -741,7 +741,7 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
     bl_idname = "VIEW3D_PT_Anastylosis_Manager"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'EM'
+    bl_category = 'EM Annotator'
     bl_options = {'DEFAULT_CLOSED'}
         
     @classmethod

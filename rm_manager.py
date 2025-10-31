@@ -192,7 +192,7 @@ class VIEW3D_PT_RM_Tileset_Properties(Panel):  # Nome corretto per la registrazi
     bl_label = "Tileset Properties"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'EM'
+    bl_category = 'EM Annotator'
     bl_parent_id = "VIEW3D_PT_RM_Manager"
     bl_options = {'DEFAULT_CLOSED'}
     
@@ -1737,7 +1737,7 @@ class VIEW3D_PT_RM_Manager(Panel):
     bl_idname = "VIEW3D_PT_RM_Manager"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'EM'
+    bl_category = 'EM Annotator'
     bl_options = {'DEFAULT_CLOSED'}
         
     @classmethod

@@ -25,9 +25,10 @@ from s3dgraphy.exporter.json_exporter import JSONExporter
 class EM_ExportPanel:
     bl_label = "Export Manager"
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
+    bl_region_type = 'UI'    
     bl_options = {'DEFAULT_CLOSED'}
-    
+
+
     '''
     @classmethod
     def poll(cls, context):
@@ -262,7 +263,7 @@ class EM_ExportPanel:
             '''
 
 class VIEW3D_PT_ExportPanel(Panel, EM_ExportPanel):
-    bl_category = "EM"
+    bl_category = 'EM Bridge'
     bl_idname = "VIEW3D_PT_ExportPanel"
     bl_context = "objectmode"
 

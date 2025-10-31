@@ -812,7 +812,7 @@ class EMToolsSwitchModeOperator(bpy.types.Operator):
     
 class EM_SetupPanel(bpy.types.Panel):
     
-    bl_label = f"EM setup {get_em_tools_version()}"
+    bl_label = f"EM Data Ingestion {get_em_tools_version()}"
     bl_idname = "VIEW3D_PT_EM_Tools_Setup"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
