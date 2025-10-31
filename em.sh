@@ -64,11 +64,41 @@ notify_dev_replaced() {
 # s3dgraphy development sync command
 s3d_command() {
     echo
-    if [ -f "sync_dev.sh" ]; then
-        ./sync_dev.sh "$@"
+    if [ -f "scripts/sync_s3dgraphy_dev.py" ]; then
+        case "$1" in
+            status)
+                $PYTHON_CMD scripts/sync_s3dgraphy_dev.py --status
+                ;;
+            restore|off)
+                $PYTHON_CMD scripts/sync_s3dgraphy_dev.py --restore
+                ;;
+            clean)
+                $PYTHON_CMD scripts/sync_s3dgraphy_dev.py --clean
+                ;;
+            help)
+                echo "🔧 s3dgraphy Development Sync Helper"
+                echo "===================================="
+                echo
+                echo "COMMANDS:"
+                echo "  ./em.sh s3d           Auto-detect s3dgraphy location"
+                echo "  ./em.sh s3d on        Same as above"
+                echo "  ./em.sh s3d off       Restore PyPI version"
+                echo "  ./em.sh s3d status    Show current s3dgraphy version"
+                echo "  ./em.sh s3d clean     Clean build + activate development"
+                echo "  ./em.sh s3d restore   Restore PyPI version"
+                echo
+                echo "NOTE: After any change, restart Blender"
+                ;;
+            ""|on)
+                $PYTHON_CMD scripts/sync_s3dgraphy_dev.py
+                ;;
+            *)
+                $PYTHON_CMD scripts/sync_s3dgraphy_dev.py "$1"
+                ;;
+        esac
     else
         echo "❌ s3dgraphy development sync not available"
-        echo "Please ensure sync_dev.sh is in the EM-blender-tools root directory"
+        echo "Please ensure scripts/sync_s3dgraphy_dev.py exists"
         echo "Run setup first if this is a fresh installation"
     fi
 }
@@ -83,6 +113,7 @@ show_help() {
     echo
     echo "=== SETUP ==="
     echo "  setup              Setup development environment"
+    echo "  setup force        Setup and force re-download wheels"
     echo
     echo "=== s3dgraphy DEVELOPMENT ==="
     echo "  s3d                Activate s3dgraphy development version"
@@ -102,8 +133,11 @@ show_help() {
     echo "                       rc_build  : 1.5.0-rc.1 → 1.5.0-rc.2"
     echo "  build [mode]       Build extension only (no version change)"
     echo "                       dev, rc, stable"
-    echo "  dev                Quick dev: increment dev_build + build"
-    echo "  devrel             DEV RELEASE: inc + build + commit + tag + push"
+    echo "  dev                Quick dev: increment dev_build + build LOCAL .zip"
+    echo
+    echo "=== GITHUB RELEASES (builds .zip on GitHub Actions) ==="
+    echo "  devrel             DEV RELEASE: inc + tag + push → GitHub builds"
+    echo "  ghrelease          STABLE RELEASE: inc + tag + push → GitHub builds"
     echo
     echo "=== RELEASE WORKFLOW ==="
     echo "  rc                 Create Release Candidate (inc patch + build RC)"
@@ -119,15 +153,31 @@ show_help() {
     echo "  ./em.sh setup      # First time setup"
     echo "  ./em.sh s3d        # Activate s3dgraphy development version"
     echo "  ./em.sh s3d off    # Back to s3dgraphy PyPI version"
-    echo "  ./em.sh dev        # Quick EMtools dev iteration"
-    echo "  ./em.sh devrel     # EMtools dev release to GitHub"
+    echo "  ./em.sh dev        # Quick: inc dev + build LOCAL .zip for testing"
+    echo "  ./em.sh devrel     # Push dev tag → GitHub builds .zip x4 platforms"
+    echo "  ./em.sh ghrelease  # Push stable tag → GitHub builds .zip x4 platforms"
     echo "  ./em.sh inc patch  # Increment patch: 1.5.0 → 1.5.1"
-    echo "  ./em.sh build stable # Build stable package (no version change)"
+    echo "  ./em.sh build stable # Build stable .zip locally (for testing)"
     echo "  ./em.sh rc         # 1.5.0-dev.X → 1.5.1-rc.1"
     echo "  ./em.sh rc+        # 1.5.1-rc.1 → 1.5.1-rc.2"
     echo "  ./em.sh stable     # 1.5.1-rc.X → 1.5.1"
     echo "  ./em.sh commit \"fix: bug in loader\""
     echo "  ./em.sh push"
+    echo
+    echo "=== WORKFLOW SUMMARY ==="
+    echo
+    echo "LOCAL DEVELOPMENT (quick testing):"
+    echo "  ./em.sh dev        Creates LOCAL .zip for Blender testing"
+    echo "                     ↓ increment dev version"
+    echo "                     ↓ build .zip locally"
+    echo "                     → Test in Blender"
+    echo
+    echo "GITHUB RELEASES (for distribution):"
+    echo "  ./em.sh devrel     Push tag → GitHub Actions builds .zip x4 platforms"
+    echo "  ./em.sh ghrelease  Push stable tag → GitHub Actions builds .zip x4"
+    echo "                     ↓ tag pushed to GitHub"
+    echo "                     ↓ GitHub Actions compiles (10-15 min)"
+    echo "                     → Release with 4 platform-specific .zip files"
     echo
     echo "=== s3dgraphy DEVELOPMENT WORKFLOW ==="
     echo "  ./em.sh s3d        # Activate s3dgraphy dev version"
@@ -140,7 +190,7 @@ show_help() {
 
 # Get current version for commit messages
 get_version() {
-    $PYTHON_CMD scripts/version_manager.py current | cut -d' ' -f3
+    $PYTHON_CMD scripts/version_manager.py current | awk '{print $3}'
 }
 
 # Generate commit message
@@ -228,18 +278,135 @@ case "$1" in
         ;;
     
     devrel)
-        echo "Creating development release for GitHub..."
-        $PYTHON_CMD scripts/dev.py inc
-        $PYTHON_CMD scripts/dev.py build
-        VERSION=$(get_version)
+        echo "============================================"
+        echo "  Creating GitHub Dev Release"
+        echo "============================================"
         echo
-        echo "Committing and tagging..."
+        echo "⚠️  This will push a TAG to GitHub"
+        echo "🔄 GitHub Actions will build .zip files automatically"
+        echo "⏱️  Build takes ~10-15 minutes"
+        echo
+        read -p "Continue? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "❌ Cancelled"
+            exit 0
+        fi
+        
+        echo
+        echo "📝 Incrementing dev version..."
+        $PYTHON_CMD scripts/dev.py inc
+        
+        VERSION=$(get_version)
+        
+        if [ -z "$VERSION" ]; then
+            echo "❌ ERROR: Could not extract version!"
+            exit 1
+        fi
+        
+        echo
+        echo "============================================"
+        echo "📦 Creating release: v$VERSION"
+        echo "============================================"
+        echo
+        
+        echo "💾 Committing changes..."
         git add -A
         git commit -m "build: dev release $VERSION"
+        
+        echo "🏷️  Creating tag v$VERSION..."
         git tag "v$VERSION"
+        
+        echo "📤 Pushing to GitHub..."
         git push origin $(git branch --show-current)
         git push origin "v$VERSION"
-        echo "✅ Dev release $VERSION pushed to GitHub!"
+        
+        echo
+        echo "============================================"
+        echo "✅ Dev release v$VERSION created!"
+        echo "============================================"
+        echo
+        echo "🔄 GitHub Actions is building .zip files for all platforms..."
+        echo
+        echo "📦 Monitor build progress:"
+        echo "   https://github.com/zalmoxes-laran/EM-blender-tools/actions"
+        echo
+        echo "📥 Downloads will be available at:"
+        echo "   https://github.com/zalmoxes-laran/EM-blender-tools/releases/tag/v$VERSION"
+        echo
+        echo "⏱️  Expected completion: ~10-15 minutes"
+        echo
+        echo "💡 Files will be:"
+        echo "   - em_tools-v$VERSION-windows-x64.zip"
+        echo "   - em_tools-v$VERSION-macosx-arm64.zip"
+        echo "   - em_tools-v$VERSION-macosx-x64.zip"
+        echo "   - em_tools-v$VERSION-linux-x64.zip"
+        echo
+        ;;
+    
+    ghrelease)
+        echo "============================================"
+        echo "  Creating GitHub Stable Release"
+        echo "============================================"
+        echo
+        
+        echo "📊 Current version:"
+        $PYTHON_CMD scripts/version_manager.py current
+        echo
+        
+        read -p "Increment type (patch/minor/major) [patch]: " INCREMENT
+        INCREMENT=${INCREMENT:-patch}
+        
+        echo
+        echo "📝 Incrementing $INCREMENT version and setting to STABLE..."
+        
+        $PYTHON_CMD scripts/version_manager.py inc $INCREMENT
+        $PYTHON_CMD scripts/version_manager.py set-mode --mode stable
+        
+        VERSION=$(get_version)
+        
+        echo
+        echo "============================================"
+        echo "📦 Will create STABLE release: v$VERSION"
+        echo "============================================"
+        echo
+        echo "⚠️  This will:"
+        echo "   1. Commit version changes"
+        echo "   2. Create tag v$VERSION"
+        echo "   3. Push to GitHub"
+        echo "   4. Trigger GitHub Actions build"
+        echo
+        read -p "Proceed with stable release? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo
+            echo "❌ Release cancelled"
+            exit 0
+        fi
+        
+        echo
+        echo "💾 Committing changes..."
+        git add -A
+        git commit -m "release: v$VERSION"
+        
+        echo "🏷️  Creating tag v$VERSION..."
+        git tag "v$VERSION"
+        
+        echo "📤 Pushing to GitHub..."
+        git push origin $(git branch --show-current)
+        git push origin "v$VERSION"
+        
+        echo
+        echo "============================================"
+        echo "✅ Stable release v$VERSION initiated!"
+        echo "============================================"
+        echo
+        echo "🔄 GitHub Actions is building..."
+        echo
+        echo "📦 Monitor: https://github.com/zalmoxes-laran/EM-blender-tools/actions"
+        echo "📥 Release: https://github.com/zalmoxes-laran/EM-blender-tools/releases/tag/v$VERSION"
+        echo "⏱️  Takes ~10-15 minutes"
+        echo
         ;;
     
     rc)
