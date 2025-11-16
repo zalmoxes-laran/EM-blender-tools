@@ -12,6 +12,7 @@ from . import operators
 from . import ui
 from . import utils
 
+
 # Module metadata
 bl_info = {
     "name": "Proxy Box Creator",
@@ -33,15 +34,16 @@ def register():
     print("=" * 60)
     
     # Register in proper dependency order
+
     try:
-        print("1. Registering data structures...")
+        print("2. Registering operators...")
         data.register()
-        print("   ✓ Data registration complete")
+        print("   ✓ Operators registration complete")
     except Exception as e:
-        print(f"   ✗ ERROR in data registration: {e}")
+        print(f"   ✗ ERROR in operators registration: {e}")
         import traceback
         traceback.print_exc()
-    
+
     try:
         print("2. Registering operators...")
         operators.register()

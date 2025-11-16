@@ -3,8 +3,8 @@ UI panels for the Proxy Box Creator
 Displays in the EM Annotator tab.
 """
 
-import bpy
-from bpy.types import Panel
+import bpy # type: ignore
+from bpy.types import Panel # type: ignore
 
 from .utils import POINT_TYPE_LABELS
 
@@ -29,7 +29,7 @@ class PROXYBOX_PT_main_panel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        settings = context.scene.em_tools.proxy_box_settings
+        settings = context.scene.em_tools.proxy_box
         
         # Mode selector
         box = layout.box()
@@ -75,7 +75,7 @@ class PROXYBOX_PT_points_panel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        settings = context.scene.em_tools.proxy_box_settings
+        settings = context.scene.em_tools.proxy_box
         
         # Draw each point (don't add here, let operators handle it)
         for i in range(7):
@@ -168,7 +168,7 @@ class PROXYBOX_PT_settings_panel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        settings = context.scene.em_tools.proxy_box_settings
+        settings = context.scene.em_tools.proxy_box
         
         # Proxy name
         box = layout.box()

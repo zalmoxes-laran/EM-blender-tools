@@ -1795,13 +1795,13 @@ def register():
             print(f"Warning: Class registration error for {cls.__name__}: {e}")
 
     # Create your properties
-    if not hasattr(bpy.types.Scene, 'em_tools'):
-        bpy.types.Scene.em_tools = bpy.props.PointerProperty(type=EMToolsSettings)
+    #if not hasattr(bpy.types.Scene, 'em_tools'):
+    #    bpy.types.Scene.em_tools = bpy.props.PointerProperty(type=EMToolsSettings)
 
 def unregister():
     # Safely unregister window manager property
-    if hasattr(bpy.types.Scene, 'em_tools'):
-        del bpy.types.Scene.em_tools
+    #if hasattr(bpy.types.Scene, 'em_tools'):
+    #    del bpy.types.Scene.em_tools
 
     # Unregister classes in reverse order
     for cls in reversed(classes):

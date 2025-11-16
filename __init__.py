@@ -385,7 +385,8 @@ if DEPENDENCIES_LOADED:
             proxy_to_rm_projection,
             cronofilter,
             landscape_system,
-            proxy_box_creator
+            proxy_box_creator,
+            em_props
         )
         
         
@@ -845,8 +846,17 @@ def register():
         except Exception as e:
             logger.error(f"Error registering proxy_box_creator: {e}")
     
+    # 6. Register em_props LAST (creates Scene.em_tools)
+    if MODULE_IMPORT_SUCCESS:
+        try:
+            em_props.register()
+            logger.info("✓ Registered em_props (Scene.em_tools)")
+        except Exception as e:
+            logger.error(f"✗ Error registering em_props: {e}")
+            import traceback
+            traceback.print_exc()
 
-    # 5. Add menu items
+    # 7. Add menu items
     if MODULE_IMPORT_SUCCESS:
         bpy.types.VIEW3D_MT_mesh_add.append(functions.menu_func)
     
@@ -863,7 +873,15 @@ def unregister():
         except Exception as e:
             logger.warning(f"Error removing menu function: {e}")
 
-    # 2. Unregister proxy_box_creator FIRST (before other modules)
+    # 2. Unregister em_props FIRST (removes Scene.em_tools)
+    if MODULE_IMPORT_SUCCESS:
+        try:
+            em_props.unregister()
+            logger.info("✓ Unregistered em_props")
+        except Exception as e:
+            logger.warning(f"✗ Error unregistering em_props: {e}")
+
+    # 3. Unregister proxy_box_creator FIRST (before other modules)
     if MODULE_IMPORT_SUCCESS:
         try:
             proxy_box_creator.unregister()
@@ -872,11 +890,11 @@ def unregister():
             logger.warning(f"Error unregistering proxy_box_creator: {e}")
     
 
-    # 3. Unregister modules using the new organized function
+    # 4. Unregister modules using the new organized function
     if MODULE_IMPORT_SUCCESS:
         unregister_modules()  # Usa la nuova funzione organizzata
     
-    # 4. Remove properties (utilizza il codice che hai già implementato)
+    # 5. Remove properties (utilizza il codice che hai già implementato)
     # Remove graph reference
     if hasattr(bpy.types.Scene, 'em_graph'):
         bpy.types.Scene.em_graph = None

@@ -1,10 +1,13 @@
 """
 Data structures for the Proxy Box Creator
 This module contains all PropertyGroup definitions and data structures.
+
+REFACTORED: No longer attempts to dynamically attach properties to EMToolsSettings.
+The ProxyBoxSettings class is now referenced in em_props.py centrally.
 """
 
-import bpy
-from bpy.props import (
+import bpy # type: ignore
+from bpy.props import ( # type: ignore
     StringProperty,
     BoolProperty,
     FloatVectorProperty,
@@ -12,7 +15,7 @@ from bpy.props import (
     CollectionProperty,
     EnumProperty
 )
-from bpy.types import PropertyGroup
+from bpy.types import PropertyGroup # type: ignore
 
 
 class ProxyBoxPointSettings(PropertyGroup):
@@ -120,118 +123,46 @@ classes = [
 
 
 def register():
-    """Register all PropertyGroup classes"""
-    print("   [data.py] Starting registration...")
+    """
+    Register all PropertyGroup classes.
+    
+    REFACTORED: This function now ONLY registers the PropertyGroup classes.
+    The property attachment to Scene happens in em_props.py centrally.
+    
+    The problematic code that tried to dynamically attach to EMToolsSettings
+    has been REMOVED.
+    """
+    print("   [proxy_box/data.py] Starting registration...")
     
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
-            print(f"   [data.py] ✓ Registered {cls.__name__}")
+            print(f"   [proxy_box/data.py] ✓ Registered {cls.__name__}")
         except ValueError as e:
-            print(f"   [data.py] ⚠ Warning: Could not register {cls.__name__}: {e}")
+            print(f"   [proxy_box/data.py] ⚠ Warning: Could not register {cls.__name__}: {e}")
     
-    # Add property to EMToolsSettings
-    from bpy.props import PointerProperty
-    
-    print("   [data.py] Attempting to add proxy_box_settings to EMToolsSettings...")
-    
-    # We need to import EMToolsSettings directly from em_setup module
-    # We can't use bpy.context.scene during registration (it's a RestrictedContext)
-    try:
-        # Import from the extension's em_setup module
-        import sys
-        
-        # The module path will be bl_ext.vscode_development.EM-blender-tools.em_setup
-        # But we need to handle the dash in the name
-        em_setup_module_name = None
-        for module_name in sys.modules.keys():
-            if 'EM-blender-tools.em_setup' in module_name or 'EM_blender_tools.em_setup' in module_name:
-                em_setup_module_name = module_name
-                break
-        
-        if em_setup_module_name:
-            em_setup_module = sys.modules[em_setup_module_name]
-            EMToolsSettings = em_setup_module.EMToolsSettings
-            
-            if not hasattr(EMToolsSettings, 'proxy_box_settings'):
-                # CRITICAL: We need to unregister and re-register EMToolsSettings
-                # to make Blender recognize the new property properly
-                
-                # First, remove Scene.em_tools temporarily
-                if hasattr(bpy.types.Scene, 'em_tools'):
-                    del bpy.types.Scene.em_tools
-                    print("   [data.py] Temporarily removed Scene.em_tools")
-                
-                # Unregister the class
-                try:
-                    bpy.utils.unregister_class(EMToolsSettings)
-                    print("   [data.py] Unregistered EMToolsSettings")
-                except:
-                    pass
-                
-                # Add the new property to the class
-                EMToolsSettings.proxy_box_settings = PointerProperty(
-                    type=ProxyBoxSettings,
-                    name="Proxy Box Settings"
-                )
-                print("   [data.py] ✓ Added proxy_box_settings property")
-                
-                # Re-register the class
-                bpy.utils.register_class(EMToolsSettings)
-                print("   [data.py] Re-registered EMToolsSettings")
-                
-                # Re-create Scene.em_tools
-                bpy.types.Scene.em_tools = PointerProperty(type=EMToolsSettings)
-                print("   [data.py] Re-created Scene.em_tools")
-                
-                print("   [data.py] ✓ Successfully integrated proxy_box_settings")
-            else:
-                print("   [data.py] ⚠ proxy_box_settings already exists")
-        else:
-            print("   [data.py] ✗ Could not find em_setup module in sys.modules")
-            
-    except Exception as e:
-        print(f"   [data.py] ✗ Error adding property: {e}")
-        import traceback
-        traceback.print_exc()
-    
-    print("   [data.py] ✓ Data structures registration complete")
+    print("   [proxy_box/data.py] ✓ Data structures registration complete")
+    print("   [proxy_box/data.py] ℹ Property attachment handled by em_props.py")
 
 
 def unregister():
-    """Unregister all PropertyGroup classes"""
-    print("   [data.py] Starting unregistration...")
+    """
+    Unregister all PropertyGroup classes.
     
-    # Remove the property from EMToolsSettings first
-    try:
-        import sys
-        
-        # Find the em_setup module
-        em_setup_module_name = None
-        for module_name in sys.modules.keys():
-            if 'EM-blender-tools.em_setup' in module_name or 'EM_blender_tools.em_setup' in module_name:
-                em_setup_module_name = module_name
-                break
-        
-        if em_setup_module_name:
-            em_setup_module = sys.modules[em_setup_module_name]
-            EMToolsSettings = em_setup_module.EMToolsSettings
-            
-            if hasattr(EMToolsSettings, 'proxy_box_settings'):
-                del EMToolsSettings.proxy_box_settings
-                print("   [data.py] ✓ Removed proxy_box_settings from EMToolsSettings")
-    except Exception as e:
-        print(f"   [data.py] ⚠ Could not remove proxy_box_settings: {e}")
+    REFACTORED: This function now ONLY unregisters the PropertyGroup classes.
+    The property removal from Scene happens in em_props.py centrally.
+    """
+    print("   [proxy_box/data.py] Starting unregistration...")
     
     # Unregister classes in reverse order
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
-            print(f"   [data.py] ✓ Unregistered {cls.__name__}")
+            print(f"   [proxy_box/data.py] ✓ Unregistered {cls.__name__}")
         except RuntimeError as e:
-            print(f"   [data.py] ⚠ Warning: Could not unregister {cls.__name__}: {e}")
+            print(f"   [proxy_box/data.py] ⚠ Warning: Could not unregister {cls.__name__}: {e}")
     
-    print("   [data.py] ✓ Data structures unregistration complete")
+    print("   [proxy_box/data.py] ✓ Data structures unregistration complete")
 
 
 if __name__ == "__main__":
