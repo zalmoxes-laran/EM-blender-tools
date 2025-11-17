@@ -789,9 +789,75 @@ class EMTOOLS_UL_files(bpy.types.UIList):
             layout.label(text=graph_code)
 
 # Definisci la classe per memorizzare i file GraphML e lo stato del grafo
+# Definisci la classe per memorizzare i file GraphML e lo stato del grafo
 class GraphMLFileItem(bpy.types.PropertyGroup):
-    name: bpy.props.StringProperty(name="File Name") # type: ignore
-    is_graph: bpy.props.BoolProperty(name="Graph Exists", default=False) # type: ignore
+    """PropertyGroup per rappresentare un file GraphML caricato"""
+    
+    name: bpy.props.StringProperty(
+        name="File Name",
+        description="Name of the GraphML file"
+    ) # type: ignore
+    
+    is_graph: bpy.props.BoolProperty(
+        name="Graph Exists",
+        description="Whether this graph has been loaded",
+        default=False
+    ) # type: ignore
+    
+    graphml_path: bpy.props.StringProperty(
+        name="GraphML Path",
+        description="Full path to the GraphML file",
+        subtype='FILE_PATH',
+        default=""
+    ) # type: ignore
+    
+    expanded: bpy.props.BoolProperty(
+        name="Show Details",
+        description="Show/hide file details",
+        default=False
+    ) # type: ignore
+    
+    dosco_dir: bpy.props.StringProperty(
+        name="DosCo Directory",
+        description="Path to DosCo documentation folder",
+        subtype='DIR_PATH',
+        default=""
+    ) # type: ignore
+    
+    xlsx_filepath: bpy.props.StringProperty(
+        name="XLSX File",
+        description="Path to Excel source file",
+        subtype='FILE_PATH',
+        default=""
+    ) # type: ignore
+    
+    emdb_filepath: bpy.props.StringProperty(
+        name="EMdb File",
+        description="Path to EMdb SQLite database",
+        subtype='FILE_PATH',
+        default=""
+    ) # type: ignore
+    
+    graph_code: bpy.props.StringProperty(
+        name="Graph Code",
+        description="Human-readable code for the graph (e.g., BAS_IUL)",
+        default=""
+    ) # type: ignore
+    
+    # ===== AUXILIARY FILES SYSTEM =====
+    
+    auxiliary_files: bpy.props.CollectionProperty(
+        type=AuxiliaryFileProperties,
+        name="Auxiliary Files",
+        description="List of auxiliary files linked to this GraphML"
+    ) # type: ignore
+    
+    active_auxiliary_index: bpy.props.IntProperty(
+        name="Active Auxiliary File",
+        description="Index of the currently selected auxiliary file",
+        default=-1
+    ) # type: ignore
+
 class EMToolsSwitchModeOperator(bpy.types.Operator):
     bl_idname = "emtools.switch_mode"
     bl_label = "Switch Mode"
@@ -1761,7 +1827,6 @@ classes = [
     EMToolsAddFile,
     EMToolsRemoveFile,
     EM_InvokePopulateLists,
-    GraphMLFileItem,
     EMToolsSwitchModeOperator,
     AUXILIARY_UL_files,
     AUXILIARY_OT_add_file,

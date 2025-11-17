@@ -41,7 +41,7 @@ class PROXYBOX_OT_record_point(Operator):
         return context.area.type == 'VIEW_3D'
     
     def execute(self, context):
-        settings = context.scene.em_tools.proxy_box_settings
+        settings = context.scene.em_tools.proxy_box
         
         # Ensure we have enough points in the collection
         while len(settings.points) <= self.point_index:
@@ -81,7 +81,7 @@ class PROXYBOX_OT_clear_point(Operator):
     )  # type: ignore
     
     def execute(self, context):
-        settings = context.scene.em_tools.proxy_box_settings
+        settings = context.scene.em_tools.proxy_box
         
         if self.point_index < len(settings.points):
             point = settings.points[self.point_index]
@@ -104,7 +104,7 @@ class PROXYBOX_OT_clear_all_points(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
-        settings = context.scene.em_tools.proxy_box_settings
+        settings = context.scene.em_tools.proxy_box
         settings.points.clear()
         settings.combiner_id = ""
         
@@ -137,7 +137,7 @@ class PROXYBOX_OT_pick_document_from_object(Operator):
                 
                 if document_id:
                     # Save to settings
-                    settings = context.scene.em_tools.proxy_box_settings
+                    settings = context.scene.em_tools.proxy_box
                     
                     # Ensure point exists
                     while len(settings.points) <= self.point_index:
@@ -188,7 +188,7 @@ class PROXYBOX_OT_use_paradata_document(Operator):
         doc_info = get_document_from_paradata_manager(context)
         
         if doc_info:
-            settings = context.scene.em_tools.proxy_box_settings
+            settings = context.scene.em_tools.proxy_box
             
             # Ensure point exists
             while len(settings.points) <= self.point_index:
@@ -215,14 +215,14 @@ class PROXYBOX_OT_create_proxy(Operator):
     
     @classmethod
     def poll(cls, context):
-        settings = context.scene.em_tools.proxy_box_settings
+        settings = context.scene.em_tools.proxy_box
         # Check that all 7 points are recorded
         if len(settings.points) < 7:
             return False
         return all(point.is_recorded for point in settings.points[:7])
     
     def execute(self, context):
-        settings = context.scene.em_tools.proxy_box_settings
+        settings = context.scene.em_tools.proxy_box
         scene = context.scene
         
         # Collect all points
@@ -349,7 +349,7 @@ class PROXYBOX_OT_preview_combiner(Operator):
     bl_description = "Calculate and show the combiner ID that will be used"
     
     def execute(self, context):
-        settings = context.scene.em_tools.proxy_box_settings
+        settings = context.scene.em_tools.proxy_box
         
         if not settings.create_extractors:
             self.report({'INFO'}, "Extractor creation is disabled")

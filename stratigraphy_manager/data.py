@@ -2,10 +2,13 @@
 Data structures for the Stratigraphy Manager
 This module contains all PropertyGroup definitions and data structures
 needed for the Stratigraphy Manager.
+
+REFACTORED: PropertyGroup classes are registered ONLY by em_props.py
+This file now handles ONLY Scene property attachment/removal.
 """
 
-import bpy
-from bpy.props import (
+import bpy # type: ignore
+from bpy.props import ( # type: ignore
     StringProperty,
     BoolProperty,
     FloatProperty,
@@ -13,7 +16,12 @@ from bpy.props import (
     CollectionProperty,
     PointerProperty
 )
-from bpy.types import PropertyGroup
+from bpy.types import PropertyGroup # type: ignore
+
+
+# =====================================================
+# UTILITY FUNCTIONS
+# =====================================================
 
 def ensure_valid_index(collection_property, index_property_name, context=None, show_popup=True):
     """
@@ -46,7 +54,6 @@ def ensure_valid_index(collection_property, index_property_name, context=None, s
         
         # Report if context is provided AND show_popup is True
         if context and show_popup:
-            import bpy
             bpy.context.window_manager.popup_menu(
                 lambda self, ctx: self.layout.label(text=f"Reset {index_property_name} to valid value"),
                 title="Index Out of Range",
@@ -56,73 +63,90 @@ def ensure_valid_index(collection_property, index_property_name, context=None, s
     return True
 
 
+# =====================================================
+# PROPERTY GROUP CLASSES
+# =====================================================
+# NOTE: These classes are registered by em_props.py
+# We only define them here for import by other modules
+
 class EMListItem(PropertyGroup):
-    """Stratigraphic unit information"""
+    """Information about a stratigraphic unit"""
     name: StringProperty(
         name="Name",
-        description="Name of this stratigraphic unit",
+        description="Name of the stratigraphic unit",
         default="Untitled"
-    )
+    ) # type: ignore
+    id: StringProperty(
+        name="id",
+        description="Unique identifier",
+        default=""
+    ) # type: ignore
+    node_id: StringProperty(
+        name="Node ID",
+        description="Node identifier in graph",
+        default=""
+    ) # type: ignore
     description: StringProperty(
         name="Description",
-        description="Description of this stratigraphic unit",
+        description="Description of this unit",
         default=""
-    )
+    ) # type: ignore
     icon: StringProperty(
         name="Icon",
         description="Icon code for UI display",
         default="RESTRICT_INSTANCED_ON"
-    )
+    ) # type: ignore
     icon_db: StringProperty(
         name="Database Icon",
         description="Database icon code",
         default="DECORATE_ANIMATE"
-    )
+    ) # type: ignore
     url: StringProperty(
         name="URL",
         description="URL associated with this unit",
         default=""
-    )
+    ) # type: ignore
     shape: StringProperty(
         name="Shape",
         description="Shape of this unit",
         default=""
-    )
+    ) # type: ignore
     y_pos: FloatProperty(
         name="Y Position",
         description="Y-axis position value",
         default=0.0
-    )
+    ) # type: ignore
     epoch: StringProperty(
         name="Epoch",
         description="Associated epoch",
         default=""
-    )
+    ) # type: ignore
     id_node: StringProperty(
         name="Node ID",
         description="Unique node identifier",
         default=""
-    )
+    ) # type: ignore
     border_style: StringProperty(
         name="Border Style",
         description="Style of the border",
         default=""
-    )
+    ) # type: ignore
     fill_color: StringProperty(
         name="Fill Color",
         description="Fill color code",
         default=""
-    )
+    ) # type: ignore
     is_visible: BoolProperty(
         name="Visible",
         description="Whether this item is visible in the viewport",
         default=True
-    )
+    ) # type: ignore
     node_type: StringProperty(
         name="Node Type",
         description="The type of this node",
         default=""
-    )
+    ) # type: ignore
+
 
 class EMreusedUS(PropertyGroup):
     """Information about reused stratigraphic units"""
@@ -130,12 +154,12 @@ class EMreusedUS(PropertyGroup):
         name="Epoch",
         description="Associated epoch",
         default="Untitled"
-    )
+    ) # type: ignore
     em_element: StringProperty(
         name="EM Element",
         description="Associated EM element",
         default=""
-    )
+    ) # type: ignore
 
 
 def update_stratigraphic_selection(self, context):
@@ -144,27 +168,23 @@ def update_stratigraphic_selection(self, context):
     Updates UI elements and can trigger filtering if needed.
     """
     scene = context.scene
-    
-    # Per ora non facciamo nulla di specifico quando cambia la selezione stratigafica,
-    # ma questa funzione può essere estesa in futuro se necessario
-    
     print(f"Stratigraphic selection changed to index {scene.em_list_index}")
 
 
+# =====================================================
+# REGISTRATION FUNCTIONS
+# =====================================================
+
 def register_data():
-    """Register all data classes."""
-    classes = [
-        EMListItem,
-        EMreusedUS,
-    ]
+    """
+    Register Stratigraphy Manager data structures.
     
-    for cls in classes:
-        try:
-            bpy.utils.register_class(cls)
-        except ValueError:
-            # Class might already be registered
-            pass
-            
+    REFACTORED: PropertyGroup classes are registered by em_props.py
+    This function now ONLY handles Scene property attachment.
+    """
+    # ❌ PropertyGroup registration rimosso (gestito da em_props.py)
+    
+    # ✅ SOLO Scene properties NON gestite da em_props
     # Setup collection properties if not yet existing
     if not hasattr(bpy.types.Scene, "em_list"):
         bpy.types.Scene.em_list = CollectionProperty(type=EMListItem)
@@ -179,7 +199,7 @@ def register_data():
     if not hasattr(bpy.types.Scene, "em_reused"):
         bpy.types.Scene.em_reused = CollectionProperty(type=EMreusedUS)
 
-    bpy.types.Scene.show_filter_system = BoolProperty( # type: ignore
+    bpy.types.Scene.show_filter_system = BoolProperty(
         name="Filter system", 
         description="Show/hide filter options",
         default=False
@@ -193,9 +213,15 @@ def register_data():
     
     bpy.types.Scene.strat_preview_image = PointerProperty(type=bpy.types.Image)
 
+
 def unregister_data():
-    """Unregister all data classes."""
-    # Remove collection properties
+    """
+    Unregister Stratigraphy Manager data structures.
+    
+    REFACTORED: PropertyGroup classes are unregistered by em_props.py
+    This function now ONLY handles Scene property removal.
+    """
+    # ✅ SOLO rimozione Scene properties
     if hasattr(bpy.types.Scene, "em_list"):
         del bpy.types.Scene.em_list
     
@@ -205,20 +231,13 @@ def unregister_data():
     if hasattr(bpy.types.Scene, "em_reused"):
         del bpy.types.Scene.em_reused
 
-    del bpy.types.Scene.show_filter_system
+    if hasattr(bpy.types.Scene, "show_filter_system"):
+        del bpy.types.Scene.show_filter_system
 
-    del bpy.types.Scene.show_strat_documents
-    del bpy.types.Scene.strat_preview_image
+    if hasattr(bpy.types.Scene, "show_strat_documents"):
+        del bpy.types.Scene.show_strat_documents
+        
+    if hasattr(bpy.types.Scene, "strat_preview_image"):
+        del bpy.types.Scene.strat_preview_image
     
-    # Unregister classes in reverse order
-    classes = [
-        EMreusedUS,
-        EMListItem,
-    ]
-    
-    for cls in reversed(classes):
-        try:
-            bpy.utils.unregister_class(cls)
-        except ValueError:
-            # Class might already be unregistered
-            pass
+    # ❌ PropertyGroup unregistration rimosso (gestito da em_props.py)

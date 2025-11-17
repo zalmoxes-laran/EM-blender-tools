@@ -833,9 +833,19 @@ def register():
     
     # 3. Set graph reference
     bpy.types.Scene.em_graph = None
-    
+
+    if MODULE_IMPORT_SUCCESS:
+        try:
+            em_props.register()
+            logger.info("✓ Registered em_props (PropertyGroup classes + Scene.em_tools)")
+        except Exception as e:
+            logger.error(f"✗ Error registering em_props: {e}")
+            import traceback
+            traceback.print_exc() 
+
     # 4. Register all modules in the correct order
-    register_modules()
+    if MODULE_IMPORT_SUCCESS:
+        register_modules()
 
     # 5. Register proxy_box_creator AFTER all other modules
     #    (needs Scene.em_tools to exist)
@@ -846,16 +856,6 @@ def register():
         except Exception as e:
             logger.error(f"Error registering proxy_box_creator: {e}")
     
-    # 6. Register em_props LAST (creates Scene.em_tools)
-    if MODULE_IMPORT_SUCCESS:
-        try:
-            em_props.register()
-            logger.info("✓ Registered em_props (Scene.em_tools)")
-        except Exception as e:
-            logger.error(f"✗ Error registering em_props: {e}")
-            import traceback
-            traceback.print_exc()
-
     # 7. Add menu items
     if MODULE_IMPORT_SUCCESS:
         bpy.types.VIEW3D_MT_mesh_add.append(functions.menu_func)

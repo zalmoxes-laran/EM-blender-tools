@@ -117,8 +117,8 @@ class ProxyBoxSettings(PropertyGroup):
 
 # List of classes to register
 classes = [
-    ProxyBoxPointSettings,
-    ProxyBoxSettings,
+    #ProxyBoxPointSettings,
+    #ProxyBoxSettings,
 ]
 
 

@@ -2,6 +2,9 @@
 Data structures for the Visual Manager 
 This module contains all PropertyGroup definitions and data structures
 needed for the Visual Manager with renamed properties to avoid conflicts.
+
+REFACTORED: PropertyGroup classes are registered ONLY by em_props.py
+This file now handles ONLY Scene property attachment/removal.
 """
 
 import bpy # type: ignore
@@ -17,6 +20,12 @@ from bpy.props import ( # type: ignore
 )
 from bpy.types import PropertyGroup # type: ignore
 
+# =====================================================
+# PROPERTY GROUP CLASSES
+# =====================================================
+# NOTE: These classes are registered by em_props.py
+# We only define them here for import by other modules
+
 class PropertyValueItem(PropertyGroup):
     """Property value item for color mapping"""
     value: StringProperty(name="Value") # type: ignore
@@ -29,10 +38,12 @@ class PropertyValueItem(PropertyGroup):
         default=(0.5, 0.5, 0.5, 1.0)
     ) # type: ignore
 
+
 def get_ramp_types(self, context):
     """Return color ramp types for the enum property"""
     from .color_ramps import COLOR_RAMPS
     return [(k, k.title(), k.title()) for k in COLOR_RAMPS.keys()]
+
 
 def get_ramp_names(self, context):
     """Return color ramp names for the selected type"""
@@ -42,6 +53,7 @@ def get_ramp_names(self, context):
         return [(k, v["name"], v["description"]) 
                 for k, v in COLOR_RAMPS[ramp_type].items()]
     return []
+
 
 class ColorRampProperties(PropertyGroup):
     """Properties for color ramp selection"""
@@ -63,6 +75,7 @@ class ColorRampProperties(PropertyGroup):
         default=False
     ) # type: ignore
 
+
 class CameraItem(PropertyGroup):
     """Camera information for label management"""
     name: StringProperty(
@@ -80,6 +93,7 @@ class CameraItem(PropertyGroup):
         description="Number of labels for this camera",
         default=0
     ) # type: ignore
+
 
 class LabelSettings(PropertyGroup):
     """Settings for label creation and appearance"""
@@ -135,22 +149,21 @@ class LabelSettings(PropertyGroup):
         default=False
     ) # type: ignore
 
+
+# =====================================================
+# REGISTRATION FUNCTIONS
+# =====================================================
+
 def register_data():
-    """Register all data classes."""
-    classes = [
-        PropertyValueItem,
-        ColorRampProperties,
-        CameraItem,
-        LabelSettings,
-    ]
+    """
+    Register Visual Manager data structures.
     
-    for cls in classes:
-        try:
-            bpy.utils.register_class(cls)
-        except ValueError:
-            # Class might already be registered
-            pass
-            
+    REFACTORED: PropertyGroup classes are registered by em_props.py
+    This function now ONLY handles Scene property attachment.
+    """
+    print("Registering visual manager data...")
+    
+    # ✅ SOLO Scene properties NON gestite da em_props
     # Setup collection properties and other scene properties if not yet existing
     if not hasattr(bpy.types.Scene, "property_values"):
         bpy.types.Scene.property_values = CollectionProperty(type=PropertyValueItem)
@@ -181,16 +194,22 @@ def register_data():
     if not hasattr(bpy.types.Scene, "label_settings"):
         bpy.types.Scene.label_settings = PointerProperty(type=LabelSettings)
 
+
 def unregister_data():
-    """Unregister all data classes."""
-    # Remove collection properties - UPDATED NAMES
+    """
+    Unregister Visual Manager data structures.
+    
+    REFACTORED: PropertyGroup classes are unregistered by em_props.py
+    This function now ONLY handles Scene property removal.
+    """
+    # ✅ SOLO rimozione Scene properties
     props_to_remove = [
         "property_values",
         "active_value_index", 
         "show_all_graphs",
         "color_ramp_props",
-        "camera_em_list",  # RENAMED
-        "active_camera_em_index",  # RENAMED
+        "camera_em_list",
+        "active_camera_em_index",
         "label_settings"
     ]
     
@@ -198,17 +217,4 @@ def unregister_data():
         if hasattr(bpy.types.Scene, prop_name):
             delattr(bpy.types.Scene, prop_name)
     
-    # Unregister classes in reverse order
-    classes = [
-        LabelSettings,
-        CameraItem,
-        ColorRampProperties,
-        PropertyValueItem,
-    ]
-    
-    for cls in reversed(classes):
-        try:
-            bpy.utils.unregister_class(cls)
-        except ValueError:
-            # Class might already be unregistered
-            pass
+    # ❌ PropertyGroup unregistration rimosso (gestito da em_props.py)

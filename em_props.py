@@ -19,7 +19,7 @@ from .epoch_manager.data import EPOCHListItem, EMUSItem
 from .visual_manager.data import ColorRampProperties, PropertyValueItem, CameraItem, LabelSettings
 
 # Import from em_setup
-from .em_setup import GraphMLFileItem
+from .em_setup import GraphMLFileItem, AuxiliaryFileProperties
 
 
 # =====================================================
@@ -92,16 +92,6 @@ class EpochManagerProps(PropertyGroup):
 class VisualManagerProps(PropertyGroup):
     """Aggregates all visual manager properties"""
     
-    color_ramps: PointerProperty(
-        type=ColorRampProperties,
-        name="Color Ramp Settings"
-    )  # type: ignore
-    
-    labels: PointerProperty(
-        type=LabelSettings,
-        name="Label Settings"
-    )  # type: ignore
-    
     property_enum: StringProperty(
         name="Property Enum",
         default=""
@@ -111,41 +101,41 @@ class VisualManagerProps(PropertyGroup):
         name="Selected Property",
         default=""
     )  # type: ignore
+    
+    color_ramps: PointerProperty(
+        type=ColorRampProperties,
+        name="Color Ramps"
+    )  # type: ignore
 
 
 class AnastylosisManagerProps(PropertyGroup):
-    """Aggregates all anastylosis-related properties"""
-    pass
+    """Aggregates all anastylosis manager properties"""
+    pass  # Placeholder for future properties
 
 
 class RMManagerProps(PropertyGroup):
-    """Aggregates all RM (Representation Model) properties"""
-    pass
+    """Aggregates all RM manager properties"""
+    pass  # Placeholder for future properties
 
 
 # =====================================================
-# MAIN CONTAINER - COMPLETE
+# MAIN CONTAINER CLASS
 # =====================================================
 
 class EM_Tools(PropertyGroup):
-    """
-    Central container for ALL EM-Tools properties.
-    
-    This PropertyGroup consolidates ALL properties from EMToolsSettings
-    and the various manager modules into a single access point.
-    """
+    """Central container for all EM Tools properties"""
     
     # ===== MODE FLAGS =====
     
     mode_em_advanced: BoolProperty(
         name="Advanced EM Mode",
-        description="Enable Advanced Extended Matrix mode with full graph features",
-        default=False
+        description="Enable Advanced Extended Matrix mode",
+        default=True
     )  # type: ignore
     
     mode_landscape: BoolProperty(
         name="Landscape Mode",
-        description="Enable Landscape mode for terrain and environment management",
+        description="Enable Landscape visualization mode",
         default=False
     )  # type: ignore
     
@@ -161,34 +151,26 @@ class EM_Tools(PropertyGroup):
         default=False
     )  # type: ignore
     
-    show_collection_manager: BoolProperty(
-        name="Show Collection Manager",
-        description="Display collection management tools",
-        default=False
-    )  # type: ignore
-    
-    # ===== 3D GIS MODE PROPERTIES =====
+    # ===== 3D GIS MODE SETTINGS =====
     
     mode_3dgis_import_type: EnumProperty(
-        name="Import Type",
+        name="3D GIS Import Type",
         items=[
-            ("generic_xlsx", "Generic Excel", "Import from generic Excel file"),
-            ("pyarchinit", "pyArchInit", "Import from pyArchInit SQLite DB"),
-            ("emdb_xlsx", "EMdb Excel", "Import from EMdb Excel format")
+            ('GENERIC_XLSX', "Generic XLSX", "Import from generic Excel file"),
+            ('PYARCHINIT_DB', "pyArchInit DB", "Import from pyArchInit SQLite database")
         ],
-        default="generic_xlsx",
-        description="Type of import for 3D GIS mode"
+        default='GENERIC_XLSX'
     )  # type: ignore
     
     generic_xlsx_file: StringProperty(
-        name="Generic Excel File",
-        description="Path to generic Excel file",
+        name="XLSX File",
+        description="Path to generic XLSX file for import",
         subtype='FILE_PATH',
         default=""
     )  # type: ignore
     
     pyarchinit_db_path: StringProperty(
-        name="pyArchInit Database",
+        name="pyArchInit DB",
         description="Path to pyArchInit SQLite database",
         subtype='FILE_PATH',
         default=""
@@ -259,7 +241,8 @@ class EM_Tools(PropertyGroup):
 # =====================================================
 
 classes = (
-    # Sub-PropertyGroups first
+    # ⚠️ CRITICAL ORDER: Sub-PropertyGroups FIRST
+    # These are used by Manager aggregators and EM_Tools
     ProxyBoxPointSettings,
     EMListItem,
     EMreusedUS,
@@ -269,16 +252,20 @@ classes = (
     PropertyValueItem,
     CameraItem,
     LabelSettings,
+    AuxiliaryFileProperties,  # ← MUST be BEFORE GraphMLFileItem
+    GraphMLFileItem,
+    ProxyBoxSettings,
     
-    # Manager aggregators
+    # Manager aggregators SECOND
+    # These use the Sub-PropertyGroups above
     StratigraphyManagerProps,
     EpochManagerProps,
     VisualManagerProps,
     AnastylosisManagerProps,
     RMManagerProps,
     
-    # Main modules
-    ProxyBoxSettings,
+    # Main container LAST
+    # This uses ALL the classes above
     EM_Tools,
 )
 
