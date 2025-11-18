@@ -71,9 +71,9 @@ class ProxyBoxSettings(PropertyGroup):
     
     # Mode toggle
     create_extractors: BoolProperty(
-        name="Create Extractors",
+        name="ctivate Paradata Enrichment",
         description="Create extractor and combiner nodes in the graph (annotation mode). If disabled, only creates the geometry",
-        default=True
+        default=False
     )  # type: ignore
     
     # Proxy settings

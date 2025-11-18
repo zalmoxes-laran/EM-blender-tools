@@ -1,12 +1,13 @@
 """
 Enhanced UI for Proxy Box Creator with Paradata support
-Compact two-row design for each measurement point
+Clean, organized layout with minimal redundancy
+Version 2.2 - Reorganized
 """
 
 import bpy
 from bpy.types import Panel
 
-# Point type labels (importato da utils)
+# Point type labels
 POINT_TYPE_LABELS = {
     0: "Alignment Start",
     1: "Alignment End",
@@ -19,7 +20,7 @@ POINT_TYPE_LABELS = {
 
 
 class PROXYBOX_PT_main_panel(Panel):
-    """Main panel for Proxy Box Creator in EM Annotator tab"""
+    """Main panel for Proxy Box Creator"""
     bl_label = "Proxy Box Creator"
     bl_idname = "PROXYBOX_PT_main_panel"
     bl_space_type = 'VIEW_3D'
@@ -39,52 +40,50 @@ class PROXYBOX_PT_main_panel(Panel):
         layout = self.layout
         settings = context.scene.em_tools.proxy_box
         
-        # Mode selector
-        box = layout.box()
-        box.label(text="Mode:", icon='SETTINGS')
-        row = box.row(align=True)
-        row.prop(settings, "create_extractors", text="With Extractors", toggle=True)
-        
-        layout.separator()
-        
-        # Proxy settings (collapsed by default)
-        box = layout.box()
-        box.label(text="Proxy Configuration:", icon='OBJECT_DATA')
-        
-        col = box.column(align=True)
-        col.prop(settings, "proxy_name", text="Name")
-        col.prop(settings, "pivot_location", text="Pivot")
-        col.prop(settings, "use_proxy_collection", text="Use Proxy Collection")
-        
-        layout.separator()
-        
-        # Status
+        # ═══════════════════════════════════════════════════════
+        # STATUS (always visible)
+        # ═══════════════════════════════════════════════════════
         box = layout.box()
         box.label(text="Status:", icon='INFO')
         
+        col = box.column(align=True)
+        
+        # Points recorded
         recorded_count = sum(1 for p in settings.points[:7] if p.is_recorded)
         all_recorded = recorded_count == 7
         
-        row = box.row()
+        row = col.row()
         if all_recorded:
-            row.label(text=f"✓ Points recorded: 7/7", icon='CHECKMARK')
+            row.label(text="✓ Points recorded: 7/7", icon='CHECKMARK')
         else:
             row.label(text=f"○ Points recorded: {recorded_count}/7", icon='ERROR')
         
-        # Documents assigned (only in paradata mode)
+        # Documents assigned (only if in paradata mode)
         if settings.create_extractors:
             docs_count = sum(1 for p in settings.points[:7] if p.source_document)
             all_have_docs = docs_count == 7
             
-            row = box.row()
+            row = col.row()
             if all_have_docs:
-                row.label(text=f"✓ Documents assigned: 7/7", icon='CHECKMARK')
+                row.label(text="✓ Documents assigned: 7/7", icon='CHECKMARK')
             else:
                 row.label(text=f"○ Documents assigned: {docs_count}/7", icon='ERROR')
+            
+            # Extractors calculated
+            ext_count = sum(1 for p in settings.points[:7] if p.extractor_id)
+            all_have_ext = ext_count == 7
+            
+            row = col.row()
+            if all_have_ext:
+                row.label(text="✓ Extractors calculated: 7/7", icon='CHECKMARK')
+            else:
+                row.label(text=f"○ Extractors calculated: {ext_count}/7", icon='INFO')
         
         layout.separator()
         
-        # Create button
+        # ═══════════════════════════════════════════════════════
+        # CREATE PROXY BUTTON (prominent)
+        # ═══════════════════════════════════════════════════════
         row = layout.row()
         row.scale_y = 1.5
         
@@ -107,13 +106,13 @@ class PROXYBOX_PT_main_panel(Panel):
         
         # Clear all button
         layout.separator()
-        layout.operator("proxybox.clear_all_points", icon='X')
+        layout.operator("proxybox.clear_all_points", text="Clear All Points", icon='X')
 
 
-class PROXYBOX_PT_points_panel_enhanced(Panel):
-    """Enhanced panel for point recording with paradata support"""
-    bl_label = "Measurement Points"
-    bl_idname = "PROXYBOX_PT_points_panel_enhanced"
+class PROXYBOX_PT_settings_panel(Panel):
+    """Settings panel - Collapsible"""
+    bl_label = "Settings"
+    bl_idname = "PROXYBOX_PT_settings_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM Annotator"
@@ -123,9 +122,89 @@ class PROXYBOX_PT_points_panel_enhanced(Panel):
     def draw(self, context):
         layout = self.layout
         settings = context.scene.em_tools.proxy_box
-        scene = context.scene
         
-        # Check if we're in "With Extractors" mode
+        # Mode toggle
+        box = layout.box()
+        box.label(text="Mode:", icon='SETTINGS')
+        box.prop(settings, "create_extractors", text="Activate paradata enrichment")
+        
+        layout.separator()
+        
+        # Proxy configuration
+        box = layout.box()
+        box.label(text="Proxy Configuration:", icon='OBJECT_DATA')
+        
+        col = box.column(align=True)
+        col.prop(settings, "proxy_name", text="Name")
+        col.prop(settings, "pivot_location", text="Pivot")
+        col.prop(settings, "use_proxy_collection", text="Use Proxy Collection")
+
+
+class PROXYBOX_PT_workflow_panel(Panel):
+    """Workflow instructions - Collapsible"""
+    bl_label = "Workflow"
+    bl_idname = "PROXYBOX_PT_workflow_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "EM Annotator"
+    bl_parent_id = "PROXYBOX_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    
+    def draw(self, context):
+        layout = self.layout
+        settings = context.scene.em_tools.proxy_box
+        
+        box = layout.box()
+        
+        if settings.create_extractors:
+            # Workflow with paradata
+            box.label(text="With Paradata Enrichment:", icon='INFO')
+            col = box.column(align=True)
+            col.scale_y = 0.9
+            col.label(text="1. Position 3D cursor on model")
+            col.label(text="2. Click 🔍 to pick source document")
+            col.label(text="3. Click Record button")
+            col.label(text="4. Click ↻ to calculate extractor ID")
+            col.label(text="5. Repeat for all 7 points")
+            col.label(text="6. Click 'Create Proxy'")
+        else:
+            # Workflow without paradata (geometry only)
+            box.label(text="Geometry Only Mode:", icon='INFO')
+            col = box.column(align=True)
+            col.scale_y = 0.9
+            col.label(text="1. Position 3D cursor on model")
+            col.label(text="2. Click Record button")
+            col.label(text="3. Repeat for all 7 points")
+            col.label(text="4. Click 'Create Proxy'")
+        
+        layout.separator()
+        
+        # Point descriptions
+        box = layout.box()
+        box.label(text="Point Descriptions:", icon='QUESTION')
+        col = box.column(align=True)
+        col.scale_y = 0.8
+        col.label(text="• Alignment Start/End: Define main axis")
+        col.label(text="• Thickness: Define perpendicular width")
+        col.label(text="• Quota Min/Max: Define height range")
+        col.label(text="• Length Start/End: Define axis extent")
+
+
+class PROXYBOX_PT_points_panel(Panel):
+    """Measurement points panel with paradata support"""
+    bl_label = "Measurement Points"
+    bl_idname = "PROXYBOX_PT_points_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "EM Annotator"
+    bl_parent_id = "PROXYBOX_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    
+    def draw(self, context):
+        layout = self.layout
+        settings = context.scene.em_tools.proxy_box
+        
+        # Check if we're in paradata mode
         show_paradata = settings.create_extractors
         
         # For each of the 7 points
@@ -211,60 +290,14 @@ class PROXYBOX_PT_points_panel_enhanced(Panel):
                 else:
                     # Show placeholder when no document assigned
                     ext_row.label(text="(assign doc first)")
-        
-        # Separator
-        layout.separator()
-        
-        # Clear all button
-        layout.operator("proxybox.clear_all_points", icon='X')
-        
-        # Status summary
-        layout.separator()
-        self._draw_status_summary(layout, settings)
-    
-    def _draw_status_summary(self, layout, settings):
-        """Draw a compact status summary"""
-        box = layout.box()
-        box.label(text="Status:", icon='INFO')
-        
-        col = box.column(align=True)
-        
-        # Points recorded
-        recorded_count = sum(1 for p in settings.points[:7] if p.is_recorded)
-        all_recorded = recorded_count == 7
-        
-        row = col.row()
-        if all_recorded:
-            row.label(text="✓ Points recorded: 7/7", icon='CHECKMARK')
-        else:
-            row.label(text=f"○ Points recorded: {recorded_count}/7", icon='ERROR')
-        
-        # Documents assigned (only if in paradata mode)
-        if settings.create_extractors:
-            docs_count = sum(1 for p in settings.points[:7] if p.source_document)
-            all_have_docs = docs_count == 7
-            
-            row = col.row()
-            if all_have_docs:
-                row.label(text=f"✓ Documents assigned: 7/7", icon='CHECKMARK')
-            else:
-                row.label(text=f"○ Documents assigned: {docs_count}/7", icon='ERROR')
-            
-            # Extractors calculated
-            ext_count = sum(1 for p in settings.points[:7] if p.extractor_id)
-            all_have_ext = ext_count == 7
-            
-            row = col.row()
-            if all_have_ext:
-                row.label(text=f"✓ Extractors calculated: 7/7", icon='CHECKMARK')
-            else:
-                row.label(text=f"○ Extractors calculated: {ext_count}/7", icon='INFO')
 
 
 # List of classes to register
 classes = [
-    PROXYBOX_PT_main_panel,          # ← Main panel (parent)
-    PROXYBOX_PT_points_panel_enhanced,
+    PROXYBOX_PT_main_panel,
+    PROXYBOX_PT_settings_panel,
+    PROXYBOX_PT_workflow_panel,
+    PROXYBOX_PT_points_panel,
 ]
 
 

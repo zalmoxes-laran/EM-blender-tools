@@ -156,11 +156,22 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
             graph.add_node(extractor)
             
             # Create edge from document to extractor
-            edge_id = f"{doc_id}_extracts_{extractor_id}"
+            # CRITICAL: Find document by NAME (not UUID)
+            doc_node = None
+            for node in graph.nodes:
+                if hasattr(node, 'name') and node.name == doc_id:
+                    doc_node = node
+                    break
+            
+            if not doc_node:
+                print(f"✗ Error: Could not find document node with name: {doc_id}")
+                return False
+            
+            edge_id = f"{doc_node.node_id}_extracts_{extractor.node_id}"
             graph.add_edge(
                 edge_id=edge_id,
-                edge_source=doc_id,
-                edge_target=extractor_id,
+                edge_source=doc_node.node_id,  # Use UUID for edge
+                edge_target=extractor.node_id,  # Use UUID for edge
                 edge_type="has_extractor"
             )
             
@@ -194,10 +205,25 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
             
             # Get next combiner number
             max_num = 0
-            for node_id in graph.nodes:
-                if node_id.startswith('C.'):
+            for node in graph.nodes:
+                # Skip nodes without proper attributes
+                if not hasattr(node, 'node_type') or not hasattr(node, 'name'):
+                    continue
+                
+                # Skip non-combiner nodes
+                if node.node_type != "combiner":
+                    continue
+                
+                node_name = node.name
+                
+                # Skip if name is not a string (defensive)
+                if not isinstance(node_name, str):
+                    continue
+                
+                # Check for combiner names like "C.10"
+                if node_name.startswith('C.'):
                     try:
-                        num = int(node_id.split('.')[1])
+                        num = int(node_name.split('.')[1])
                         max_num = max(max_num, num)
                     except (ValueError, IndexError):
                         continue
@@ -267,10 +293,9 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
         # Create mesh
         try:
             proxy_obj = create_box_mesh(
-                context,
-                geometry['vertices'],
-                settings.proxy_name,
-                settings.pivot_location
+                settings.proxy_name,      # name (string)
+                geometry,                 # geometry (dict)
+                settings.pivot_location   # pivot_location (string)
             )
         except Exception as e:
             print(f"Error creating mesh: {e}")
