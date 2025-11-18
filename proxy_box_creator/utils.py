@@ -1,158 +1,86 @@
 """
 Utility functions for the Proxy Box Creator
-Handles geometry calculations, graph operations, and extractor creation.
+FIXED: Now generates HORIZONTAL (non-inclined) proxies
 """
 
 import bpy
-import mathutils
 from mathutils import Vector
-from typing import Optional, Tuple, List, Dict
-
-
-def get_available_documents(graph) -> List[Tuple[str, str]]:
-    """
-    Get list of available DocumentNode items for dropdowns.
-    
-    Args:
-        graph: The active s3dgraphy graph
-        
-    Returns:
-        List of tuples (document_id, display_name)
-    """
-    if not graph:
-        return []
-    
-    documents = []
-    for node in graph.nodes.values():
-        # Check if it's a DocumentNode (has document-like attributes)
-        if hasattr(node, 'node_type') and 'Document' in node.node_type:
-            doc_id = node.node_id
-            doc_name = getattr(node, 'name', doc_id)
-            documents.append((doc_id, f"{doc_id} - {doc_name}"))
-    
-    return documents
+from typing import Optional, Dict, List, Tuple
+import mathutils
 
 
 def get_document_from_paradata_manager(context) -> Optional[Tuple[str, str]]:
     """
-    Get the currently selected document from the Paradata Manager's document list.
-    Reads from the active element in the sources UI list (em_sources_list or em_v_sources_list).
+    Get the currently selected document from the Paradata Manager.
     
-    Args:
-        context: Blender context
-        
     Returns:
-        Tuple of (document_id, document_name) or None if no selection
+        Tuple of (document_id, document_name) or None
     """
-    scene = context.scene
-    
-    # Determine which list to use based on streaming mode
-    if hasattr(scene, 'paradata_streaming_mode') and scene.paradata_streaming_mode:
-        # Use virtual/filtered lists
-        source_list = scene.em_v_sources_list if hasattr(scene, 'em_v_sources_list') else None
-        source_index = scene.em_v_sources_list_index if hasattr(scene, 'em_v_sources_list_index') else -1
-    else:
-        # Use full lists
-        source_list = scene.em_sources_list if hasattr(scene, 'em_sources_list') else None
-        source_index = scene.em_sources_list_index if hasattr(scene, 'em_sources_list_index') else -1
-    
-    # Check if there's a valid selection in the sources list
-    if source_list and source_index >= 0 and source_index < len(source_list):
-        selected_source = source_list[source_index]
+    try:
+        em_tools = context.scene.em_tools
+        paradata_manager = em_tools.paradata_manager
         
-        # The source item should have name and potentially id_node
-        if hasattr(selected_source, 'name'):
-            doc_name = selected_source.name
-            # Try to get the node ID if available
-            doc_id = getattr(selected_source, 'id_node', doc_name)
-            
-            return (doc_id, doc_name)
+        if paradata_manager.selected_document_index >= 0:
+            doc_list = paradata_manager.document_list
+            if paradata_manager.selected_document_index < len(doc_list):
+                doc = doc_list[paradata_manager.selected_document_index]
+                return (doc.node_id, doc.doc_name)
+    except Exception as e:
+        print(f"Error getting document from Paradata Manager: {e}")
     
     return None
 
 
-def get_next_extractor_number(graph, document_id: str) -> int:
-    """
-    Find the last extractor number for a given document and return the next one.
-    
-    Args:
-        graph: The active s3dgraphy graph
-        document_id: ID of the document node (e.g., "D10")
-        
-    Returns:
-        Next extractor number (e.g., if last is D10.10, returns 11)
-    """
+def get_next_extractor_number(graph) -> int:
+    """Get the next available extractor number in the graph."""
     if not graph:
         return 1
     
-    max_number = 0
-    prefix = f"{document_id}."
+    max_num = 0
+    for node_id in graph.nodes:
+        # Check for extractor IDs like "D10.11"
+        if '.' in node_id:
+            parts = node_id.split('.')
+            if len(parts) == 2:
+                try:
+                    # Try to parse the sub-number (after the dot)
+                    sub_num = int(parts[1])
+                    max_num = max(max_num, sub_num)
+                except ValueError:
+                    continue
     
-    # Scan all nodes looking for extractors belonging to this document
-    for node in graph.nodes.values():
-        node_id = node.node_id
-        
-        # Check if this is an extractor for our document
-        if node_id.startswith(prefix):
-            try:
-                # Extract the number after the dot
-                number_part = node_id[len(prefix):]
-                # Handle cases like "D10.11" vs "D10.11.extra"
-                if '.' in number_part:
-                    number_part = number_part.split('.')[0]
-                number = int(number_part)
-                max_number = max(max_number, number)
-            except (ValueError, IndexError):
-                continue
-    
-    return max_number + 1
+    return max_num + 1
 
 
 def get_next_combiner_number(graph) -> int:
-    """
-    Find the last combiner number in the graph and return the next one.
-    
-    Args:
-        graph: The active s3dgraphy graph
-        
-    Returns:
-        Next combiner number (e.g., if last is C.9, returns 10)
-    """
+    """Get the next available combiner number in the graph."""
     if not graph:
         return 1
     
-    max_number = 0
-    
-    # Scan all nodes looking for combiners
-    for node in graph.nodes.values():
-        node_id = node.node_id
-        
-        # Check if this is a combiner (starts with "C.")
-        if node_id.startswith("C."):
+    max_num = 0
+    for node_id in graph.nodes:
+        # Check for combiner IDs like "C.10"
+        if node_id.startswith('C.'):
             try:
-                number_part = node_id[2:]  # Remove "C."
-                # Handle cases like "C.10" vs "C.10.extra"
-                if '.' in number_part:
-                    number_part = number_part.split('.')[0]
-                number = int(number_part)
-                max_number = max(max_number, number)
+                num = int(node_id.split('.')[1])
+                max_num = max(max_num, num)
             except (ValueError, IndexError):
                 continue
     
-    return max_number + 1
+    return max_num + 1
 
 
-def create_extractor_node(graph, document_id: str, extractor_number: int, 
-                         position: Vector, point_type: str) -> Optional[str]:
+def create_extractor_node(graph, parent_doc_id: str, extractor_number: int, 
+                         point_type: str, position: Vector) -> Optional[str]:
     """
-    Create an ExtractorNode in the graph with metadata.
+    Create an extractor node in the graph.
     
     Args:
         graph: The active s3dgraphy graph
-        document_id: ID of the source document
+        parent_doc_id: ID of the parent document node
         extractor_number: Number for this extractor
+        point_type: Type of point (e.g., "alignment_start")
         position: 3D coordinates
-        point_type: Semantic type (alignment_start, thickness, etc.)
         
     Returns:
         Extractor node ID (e.g., "D10.11") or None on failure
@@ -163,32 +91,34 @@ def create_extractor_node(graph, document_id: str, extractor_number: int,
     try:
         from s3dgraphy.nodes import ExtractorNode
         
-        extractor_id = f"{document_id}.{extractor_number}"
+        extractor_id = f"{parent_doc_id}.{extractor_number}"
         
         # Create the extractor node
         extractor = ExtractorNode(
             node_id=extractor_id,
-            name=extractor_id
+            name=f"{point_type}_{extractor_number}"
         )
         
-        # Add metadata as attributes
+        # Add metadata
         extractor.attributes['point_type'] = point_type
-        extractor.attributes['coordinates'] = f"{position.x:.4f},{position.y:.4f},{position.z:.4f}"
-        extractor.attributes['source_document'] = document_id
+        extractor.attributes['x'] = position.x
+        extractor.attributes['y'] = position.y
+        extractor.attributes['z'] = position.z
+        extractor.attributes['purpose'] = "proxy_box_creator"
         
         # Add to graph
         graph.add_node(extractor)
         
         # Create edge from document to extractor
-        edge_id = f"{document_id}_has_extractor_{extractor_id}"
+        edge_id = f"{parent_doc_id}_has_extractor_{extractor_id}"
         graph.add_edge(
             edge_id=edge_id,
-            edge_source=document_id,
+            edge_source=parent_doc_id,
             edge_target=extractor_id,
             edge_type="has_extractor"
         )
         
-        print(f"✓ Created extractor: {extractor_id} ({point_type})")
+        print(f"✓ Created extractor: {extractor_id}")
         return extractor_id
         
     except Exception as e:
@@ -198,7 +128,7 @@ def create_extractor_node(graph, document_id: str, extractor_number: int,
 
 def create_combiner_node(graph, combiner_number: int, extractor_ids: List[str]) -> Optional[str]:
     """
-    Create a CombinerNode and connect it to all extractors.
+    Create a combiner node that connects multiple extractors.
     
     Args:
         graph: The active s3dgraphy graph
@@ -292,9 +222,12 @@ def calculate_box_geometry(points: List[Vector]) -> Dict:
     """
     Calculate box geometry from 7 measurement points.
     
+    FIXED: Now generates HORIZONTAL proxies by projecting the alignment vector 
+    onto the XY plane, ignoring any vertical inclination.
+    
     Point roles:
     0: alignment_start (origin)
-    1: alignment_end (defines longitudinal axis)
+    1: alignment_end (defines longitudinal axis - projected to XY plane)
     2: thickness (defines transverse direction)
     3: quota_min (minimum Z)
     4: quota_max (maximum Z)
@@ -309,7 +242,7 @@ def calculate_box_geometry(points: List[Vector]) -> Dict:
         - vertices: List of 8 vertices for the box
         - center: Geometric center
         - dimensions: (length, width, height)
-        - alignment_vector: Direction vector
+        - alignment_vector: Direction vector (horizontal)
     """
     if len(points) != 7:
         raise ValueError(f"Expected 7 points, got {len(points)}")
@@ -323,39 +256,85 @@ def calculate_box_geometry(points: List[Vector]) -> Dict:
     p_start_length = points[5]
     p_end_length = points[6]
     
-    # Calculate alignment vector (longitudinal axis = X local)
-    alignment_vector = (p_align_end - p_align_start).normalized()
+    # ═══════════════════════════════════════════════════════════════════════
+    # CRITICAL FIX: Project alignment vector to XY plane (make it horizontal)
+    # ═══════════════════════════════════════════════════════════════════════
     
+    # Calculate the alignment direction in 3D space
+    alignment_3d = p_align_end - p_align_start
+    
+    # Project to XY plane by setting Z component to zero
+    alignment_xy = Vector((alignment_3d.x, alignment_3d.y, 0.0))
+    
+    # Normalize to get the horizontal direction vector
+    alignment_vector = alignment_xy.normalized()
+    
+    print(f"🔧 HORIZONTAL ALIGNMENT: Original 3D vector: {alignment_3d}")
+    print(f"🔧 HORIZONTAL ALIGNMENT: Projected XY vector: {alignment_vector}")
+    
+    # ═══════════════════════════════════════════════════════════════════════
     # Calculate thickness vector (transverse axis = Y local)
+    # Also project this to be perpendicular to horizontal alignment
+    # ═══════════════════════════════════════════════════════════════════════
+    
     # Project p_thickness onto the plane perpendicular to alignment_vector
     to_thickness = p_thickness - p_align_start
-    projection_on_align = to_thickness.project(alignment_vector)
-    thickness_vector = (to_thickness - projection_on_align).normalized()
+    
+    # Project the thickness direction to XY plane as well
+    to_thickness_xy = Vector((to_thickness.x, to_thickness.y, 0.0))
+    
+    # Remove component along alignment to get perpendicular direction
+    projection_on_align = to_thickness_xy.project(alignment_vector)
+    thickness_vector = (to_thickness_xy - projection_on_align).normalized()
     
     # Calculate thickness magnitude (distance from alignment line to thickness point)
-    thickness = (to_thickness - projection_on_align).length
+    # Use the original 3D distance
+    thickness = (to_thickness - to_thickness.project(alignment_3d)).length
     
-    # Z axis is vertical (global Z)
+    print(f"🔧 HORIZONTAL THICKNESS: Thickness vector: {thickness_vector}, magnitude: {thickness:.3f}m")
+    
+    # Z axis is always vertical (global Z)
     z_vector = Vector((0, 0, 1))
     
-    # Calculate height
+    # Calculate height (always vertical distance)
     height = p_quota_max.z - p_quota_min.z
     
-    # Calculate length (project start/end points onto alignment vector)
-    start_proj = (p_start_length - p_align_start).project(alignment_vector)
-    end_proj = (p_end_length - p_align_start).project(alignment_vector)
+    # ═══════════════════════════════════════════════════════════════════════
+    # Calculate length by projecting start/end points onto HORIZONTAL alignment
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    # Project length points onto XY plane
+    p_start_xy = Vector((p_start_length.x, p_start_length.y, 0.0))
+    p_end_xy = Vector((p_end_length.x, p_end_length.y, 0.0))
+    p_align_start_xy = Vector((p_align_start.x, p_align_start.y, 0.0))
+    
+    # Calculate projections along horizontal alignment
+    start_proj = (p_start_xy - p_align_start_xy).project(alignment_vector)
+    end_proj = (p_end_xy - p_align_start_xy).project(alignment_vector)
     
     length = (end_proj - start_proj).length
     
-    # Calculate origin (corner of box at min length, min thickness, min Z)
-    # Start from p_align_start, move along alignment to start_length projection
-    origin = p_align_start + start_proj
-    origin.z = p_quota_min.z
+    print(f"🔧 HORIZONTAL LENGTH: Length: {length:.3f}m")
     
-    # Calculate the 8 vertices of the box
-    # Local coordinates relative to origin
+    # ═══════════════════════════════════════════════════════════════════════
+    # Calculate origin (corner of box at min length, min thickness, min Z)
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    # Start from horizontal projection of p_align_start
+    origin_xy = p_align_start_xy + start_proj
+    
+    # Set Z to minimum quota
+    origin = Vector((origin_xy.x, origin_xy.y, p_quota_min.z))
+    
+    print(f"🔧 HORIZONTAL ORIGIN: Origin: {origin}")
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # Calculate the 8 vertices of the box using HORIZONTAL axes
+    # ═══════════════════════════════════════════════════════════════════════
+    
     vertices = []
     
+    # Generate vertices: 2 Z levels × 2 thickness positions × 2 length positions
     for i in range(2):  # Z levels (bottom, top)
         z_offset = i * height
         for j in range(2):  # Thickness (near, far)
@@ -374,12 +353,14 @@ def calculate_box_geometry(points: List[Vector]) -> Dict:
     # Calculate geometric center
     center = sum(vertices, Vector((0, 0, 0))) / len(vertices)
     
+    print(f"✅ HORIZONTAL BOX CREATED: Dimensions L×W×H = {length:.3f} × {thickness:.3f} × {height:.3f} m")
+    
     return {
         'vertices': vertices,
         'center': center,
         'dimensions': (length, thickness, height),
-        'alignment_vector': alignment_vector,
-        'thickness_vector': thickness_vector,
+        'alignment_vector': alignment_vector,  # Now horizontal!
+        'thickness_vector': thickness_vector,  # Also horizontal!
         'z_vector': z_vector,
         'origin': origin,
         'quota_min': p_quota_min.z,

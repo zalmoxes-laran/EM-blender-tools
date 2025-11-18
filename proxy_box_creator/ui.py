@@ -1,11 +1,10 @@
 """
-UI panels for the Proxy Box Creator
-Displays in the EM Annotator tab.
+Redesigned UI for Proxy Box Creator
+Based on the clean, compact design of alignment_orientation_tool
 """
 
-import bpy # type: ignore
-from bpy.types import Panel # type: ignore
-
+import bpy
+from bpy.types import Panel
 from .utils import POINT_TYPE_LABELS
 
 
@@ -20,7 +19,6 @@ class PROXYBOX_PT_main_panel(Panel):
     
     @classmethod
     def poll(cls, context):
-        # Only show when EM Tools is loaded
         return hasattr(context.scene, 'em_tools')
     
     def draw_header(self, context):
@@ -31,40 +29,31 @@ class PROXYBOX_PT_main_panel(Panel):
         layout = self.layout
         settings = context.scene.em_tools.proxy_box
         
-        # Mode selector
+        # Mode selector (compatto come alignment tool)
         box = layout.box()
         box.label(text="Mode:", icon='SETTINGS')
         row = box.row(align=True)
         row.prop(settings, "create_extractors", text="With Extractors", toggle=True)
         
-        if not settings.create_extractors:
-            box.label(text="Geometry only (no graph annotation)", icon='INFO')
-        else:
-            # Show combiner preview
-            if settings.combiner_id:
-                row = box.row()
-                row.label(text=f"Combiner: {settings.combiner_id}", icon='LINKED')
-            else:
-                row = box.row()
-                row.operator("proxybox.preview_combiner", text="Preview Combiner ID", icon='VIEWZOOM')
+        if settings.create_extractors and settings.combiner_id:
+            box.row().operator("proxybox.preview_combiner", text="Preview Combiner ID", icon='VIEWZOOM')
         
         layout.separator()
         
-        # Instructions
-        help_box = layout.box()
-        help_box.label(text="Workflow:", icon='QUESTION')
-        col = help_box.column(align=True)
-        col.label(text="1. Position 3D cursor on model")
-        col.label(text="2. Select source document")
-        col.label(text="3. Record point position")
-        col.label(text="4. Repeat for all 7 points")
-        col.label(text="5. Create proxy")
+        # Instructions (stile compatto)
+        box = layout.box()
+        box.label(text="Workflow:", icon='QUESTION')
+        box.label(text="1. Position 3D cursor on model")
+        box.label(text="2. Select source document")
+        box.label(text="3. Record point position")
+        box.label(text="4. Repeat for all 7 points")
+        box.label(text="5. Create proxy")
         
         layout.separator()
 
 
 class PROXYBOX_PT_points_panel(Panel):
-    """Sub-panel for point recording"""
+    """Compact panel for point recording - Redesigned"""
     bl_label = "Measurement Points"
     bl_idname = "PROXYBOX_PT_points_panel"
     bl_space_type = 'VIEW_3D'
@@ -76,89 +65,41 @@ class PROXYBOX_PT_points_panel(Panel):
     def draw(self, context):
         layout = self.layout
         settings = context.scene.em_tools.proxy_box
+        scene = context.scene
         
-        # Draw each point (don't add here, let operators handle it)
+        # Per ogni punto, mostra una singola riga compatta
         for i in range(7):
-            # Get point if it exists, otherwise skip
-            if i >= len(settings.points):
-                # Show placeholder for uninitialized point
-                box = layout.box()
-                point_label = POINT_TYPE_LABELS.get(i, f"Point {i+1}")
-                row = box.row()
-                row.label(text=f"○ {point_label}", icon='RADIOBUT_OFF')
-                row = box.row()
-                row.label(text="Not initialized - record to create", icon='INFO')
-                layout.separator()
-                continue
-            
-            point = settings.points[i]
             point_label = POINT_TYPE_LABELS.get(i, f"Point {i+1}")
             
-            # Point box
-            box = layout.box()
+            # Crea la riga principale
+            row = layout.row()
+            row.label(text=f"{point_label}:")
             
-            # Header with point name and status
-            row = box.row()
-            if point.is_recorded:
-                row.label(text=f"✓ {point_label}", icon='CHECKMARK')
-            else:
-                row.label(text=f"○ {point_label}", icon='RADIOBUT_OFF')
-            
-            # Extractor ID if available
-            if point.extractor_id:
-                row.label(text=point.extractor_id, icon='SMALL_TRI_RIGHT_VEC')
-            
-            # Source document selection
-            col = box.column(align=True)
-            
-            if point.source_document:
-                # Show selected document
-                row = col.row(align=True)
-                row.label(text=f"Doc: {point.source_document_name or point.source_document}", 
-                         icon='FILE_TEXT')
-            else:
-                # No document selected yet
-                row = col.row(align=True)
-                row.label(text="No document selected", icon='ERROR')
-            
-            # Document selection buttons
-            row = col.row(align=True)
-            op = row.operator("proxybox.pick_document_from_object", 
-                            text="", icon='EYEDROPPER')
-            op.point_index = i
-            
-            op = row.operator("proxybox.use_paradata_document", 
-                            text="", icon='LOOP_BACK')
-            op.point_index = i
-            
-            # Position display
-            if point.is_recorded:
-                col = box.column(align=True)
+            # Se il punto esiste ed è registrato, mostra le coordinate
+            if i < len(settings.points) and settings.points[i].is_recorded:
+                point = settings.points[i]
                 pos = point.position
-                col.label(text=f"X: {pos[0]:.4f}", icon='BLANK1')
-                col.label(text=f"Y: {pos[1]:.4f}", icon='BLANK1')
-                col.label(text=f"Z: {pos[2]:.4f}", icon='BLANK1')
+                
+                # Colonna per le coordinate (formato compatto)
+                col = row.column(align=True)
+                col.label(text=f"({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})")
+            else:
+                # Mostra "Not initialized"
+                col = row.column(align=True)
+                col.label(text="(0.00, 0.00, 0.00)")
             
-            # Action buttons
-            row = box.row(align=True)
-            
-            op = row.operator("proxybox.record_point", text="Record", icon='TRACKING')
+            # Bottone Record (sempre presente, stile alignment tool)
+            op = row.operator("proxybox.record_point", text="Record", icon='MOUSE_LMB')
             op.point_index = i
-            
-            op = row.operator("proxybox.clear_point", text="Clear", icon='X')
-            op.point_index = i
-            
-            layout.separator()
         
-        # Clear all button
+        # Bottone Clear All (unico, alla fine)
+        layout.operator("proxybox.clear_all_points", icon='X')
+        
         layout.separator()
-        row = layout.row()
-        row.scale_y = 1.2
-        row.operator("proxybox.clear_all_points", text="Clear All Points", icon='TRASH')
 
 
 class PROXYBOX_PT_settings_panel(Panel):
-    """Sub-panel for proxy settings and creation"""
+    """Compact settings panel - Redesigned"""
     bl_label = "Proxy Settings"
     bl_idname = "PROXYBOX_PT_settings_panel"
     bl_space_type = 'VIEW_3D'
@@ -170,22 +111,7 @@ class PROXYBOX_PT_settings_panel(Panel):
         layout = self.layout
         settings = context.scene.em_tools.proxy_box
         
-        # Proxy name
-        box = layout.box()
-        box.label(text="Proxy Configuration:", icon='OBJECT_DATA')
-        box.prop(settings, "proxy_name", text="Name")
-        
-        # Pivot location
-        row = box.row(align=True)
-        row.label(text="Pivot:")
-        row.prop(settings, "pivot_location", text="")
-        
-        # Collection option
-        box.prop(settings, "use_proxy_collection", text="Use Proxy Collection")
-        
-        layout.separator()
-        
-        # Status check
+        # Verifica se tutti i punti sono registrati
         all_recorded = len(settings.points) >= 7 and all(
             p.is_recorded for p in settings.points[:7]
         )
@@ -193,30 +119,42 @@ class PROXYBOX_PT_settings_panel(Panel):
             p.source_document for p in settings.points[:7]
         )
         
-        # Status box
-        status_box = layout.box()
-        status_box.label(text="Status:", icon='INFO')
+        # Mostra le impostazioni SOLO se i punti sono pronti
+        if all_recorded or (len(settings.points) > 0 and any(p.is_recorded for p in settings.points)):
+            box = layout.box()
+            box.label(text="Proxy Configuration:", icon='OBJECT_DATA')
+            
+            col = box.column(align=True)
+            col.prop(settings, "proxy_name", text="Name")
+            col.prop(settings, "pivot_location", text="Pivot")
+            col.prop(settings, "use_proxy_collection", text="Use Proxy Collection")
+            
+            layout.separator()
         
-        col = status_box.column(align=True)
+        # Status box (più compatto)
+        box = layout.box()
+        box.label(text="Status:", icon='INFO')
         
-        # Points recorded check
+        col = box.column(align=True)
+        
+        # Points recorded
         recorded_count = sum(1 for p in settings.points[:7] if p.is_recorded)
         if all_recorded:
-            col.label(text=f"✓ All points recorded ({recorded_count}/7)", icon='CHECKMARK')
+            col.label(text=f"✓ Points recorded: {recorded_count}/7", icon='CHECKMARK')
         else:
             col.label(text=f"○ Points recorded: {recorded_count}/7", icon='ERROR')
         
-        # Documents assigned check
+        # Documents assigned (solo se modalità extractors)
         if settings.create_extractors:
             docs_count = sum(1 for p in settings.points[:7] if p.source_document)
             if all_have_docs:
-                col.label(text=f"✓ All documents assigned ({docs_count}/7)", icon='CHECKMARK')
+                col.label(text=f"✓ Documents assigned: {docs_count}/7", icon='CHECKMARK')
             else:
                 col.label(text=f"○ Documents assigned: {docs_count}/7", icon='ERROR')
         
         layout.separator()
         
-        # Create button
+        # Create button (stile alignment tool - grande e centrale)
         row = layout.row()
         row.scale_y = 1.5
         
@@ -230,7 +168,7 @@ class PROXYBOX_PT_settings_panel(Panel):
             row.operator("proxybox.create_proxy", text="Create Proxy", icon='ADD')
 
 
-# List of panel classes to register
+# Classes to register
 classes = [
     PROXYBOX_PT_main_panel,
     PROXYBOX_PT_points_panel,
@@ -246,7 +184,7 @@ def register():
         except ValueError as e:
             print(f"Warning: Could not register {cls.__name__}: {e}")
     
-    print("✓ Proxy Box Creator UI panels registered")
+    print("✓ Proxy Box Creator UI panels registered (redesigned)")
 
 
 def unregister():
@@ -257,7 +195,7 @@ def unregister():
         except RuntimeError as e:
             print(f"Warning: Could not unregister {cls.__name__}: {e}")
     
-    print("✓ Proxy Box Creator UI panels unregistered")
+    print("✓ Proxy Box Creator UI panels unregistered (redesigned)")
 
 
 if __name__ == "__main__":
