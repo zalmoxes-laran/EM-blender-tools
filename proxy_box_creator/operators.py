@@ -233,7 +233,7 @@ class PROXYBOX_OT_create_proxy(Operator):
         
         if settings.create_extractors:
             # Get the active graph
-            from s3dgraphy.utils.graph_registry import get_graph
+            from s3dgraphy import get_graph
             
             em_tools = scene.em_tools
             if em_tools.active_file_index < 0:
@@ -356,7 +356,7 @@ class PROXYBOX_OT_preview_combiner(Operator):
             return {'CANCELLED'}
         
         # Get the active graph
-        from s3dgraphy.utils.graph_registry import get_graph
+        from s3dgraphy import get_graph
         
         em_tools = context.scene.em_tools
         if em_tools.active_file_index < 0:

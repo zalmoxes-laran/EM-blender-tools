@@ -1,81 +1,53 @@
 """
 Proxy Box Creator Module
-Creates box-shaped proxies from 7 measured points with optional extractor/combiner annotation.
+Enhanced with paradata support
 """
 
-import bpy
-from bpy.utils import register_class, unregister_class
-
-# Import submodules
 from . import data
 from . import operators
 from . import ui
 from . import utils
-
-
-# Module metadata
-bl_info = {
-    "name": "Proxy Box Creator",
-    "author": "EM Tools Development Team",
-    "version": (1, 0, 0),
-    "blender": (4, 4, 0),
-    "location": "View3D > Sidebar > EM Annotator",
-    "description": "Create box-shaped archaeological proxies from measured points",
-    "category": "EM Tools",
-}
-
-__all__ = ['register', 'unregister']
+from . import document_picker      # NEW
+from . import ui_enhanced          # NEW
+from . import create_enhanced      # NEW
 
 
 def register():
-    """Register all classes and properties for the Proxy Box Creator module."""
-    print("=" * 60)
-    print("STARTING PROXY BOX CREATOR REGISTRATION")
-    print("=" * 60)
+    """Register all components"""
+    print("   [proxy_box_creator] Starting registration...")
     
-    # Register in proper dependency order
-
-    try:
-        print("2. Registering operators...")
-        data.register()
-        print("   ✓ Operators registration complete")
-    except Exception as e:
-        print(f"   ✗ ERROR in operators registration: {e}")
-        import traceback
-        traceback.print_exc()
-
-    try:
-        print("2. Registering operators...")
-        operators.register()
-        print("   ✓ Operators registration complete")
-    except Exception as e:
-        print(f"   ✗ ERROR in operators registration: {e}")
-        import traceback
-        traceback.print_exc()
+    # Register in order
+    data.register()
+    operators.register()
+    ui.register()
+    document_picker.register()     # NEW
+    ui_enhanced.register()         # NEW
+    create_enhanced.register()     # NEW
     
-    try:
-        print("3. Registering UI panels...")
-        ui.register()
-        print("   ✓ UI registration complete")
-    except Exception as e:
-        print(f"   ✗ ERROR in UI registration: {e}")
-        import traceback
-        traceback.print_exc()
-    
-    print("=" * 60)
-    print("✓ Proxy Box Creator module registered")
-    print("=" * 60)
+    print("   [proxy_box_creator] ✓ Module registration complete")
 
 
 def unregister():
-    """Unregister all classes and properties for the Proxy Box Creator module."""
-    # Unregister in reverse dependency order
+    """Unregister all components"""
+    print("   [proxy_box_creator] Starting unregistration...")
+    
+    # Unregister in reverse order
+    create_enhanced.unregister()   # NEW
+    ui_enhanced.unregister()       # NEW
+    document_picker.unregister()   # NEW
     ui.unregister()
     operators.unregister()
     data.unregister()
     
-    print("✓ Proxy Box Creator module unregistered")
+    print("   [proxy_box_creator] ✓ Module unregistration complete")
 
 
-if __name__ == "__main__":
-    register()
+__all__ = [
+    'data',
+    'operators',
+    'ui',
+    'utils',
+    'document_picker',
+    'ui_enhanced',
+    'create_enhanced',
+]
