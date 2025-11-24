@@ -599,14 +599,45 @@ def add_sceneobj_to_epochs():
 ### #### #### #### #### #### #### #### #### #### ####
 
 def EM_list_clear(context, list_type):
-    scene = bpy.context.scene
-    list_cmd1 = "scene."+list_type+".update()"
-    list_cmd2 = "len(scene."+list_type+")"
-    list_cmd3 = "scene."+list_type+".remove(0)"
-    eval(list_cmd1)
-    list_lenght = eval(list_cmd2)
-    for x in range(list_lenght):
-        eval(list_cmd3)
+    """
+    Pulisce una lista in Blender.
+    
+    ✅ DUAL-SYNC: Se list_type è 'em_list' o 'em_reused', svuota ENTRAMBE le liste
+    """
+    scene = context.scene
+    
+    if list_type == "em_list":
+        # ✅ DUAL-SYNC: Clear BOTH lists
+        # Clear legacy list
+        scene.em_list.update()
+        list_length = len(scene.em_list)
+        for x in range(list_length):
+            scene.em_list.remove(0)
+        
+        # Clear new centralized list
+        scene.em_tools.stratigraphy.units.clear()
+        
+    elif list_type == "em_reused":
+        # ✅ DUAL-SYNC: Clear BOTH reused lists
+        # Clear legacy list
+        scene.em_reused.update()
+        list_length = len(scene.em_reused)
+        for x in range(list_length):
+            scene.em_reused.remove(0)
+        
+        # Clear new centralized list
+        scene.em_tools.stratigraphy.reused.clear()
+        
+    else:
+        # Legacy behavior for other list types
+        list_cmd1 = f"scene.{list_type}.update()"
+        list_cmd2 = f"len(scene.{list_type})"
+        list_cmd3 = f"scene.{list_type}.remove(0)"
+        eval(list_cmd1)
+        list_length = eval(list_cmd2)
+        for x in range(list_length):
+            eval(list_cmd3)
+    
     return
 
 def stream_properties(self, context):

@@ -2,15 +2,16 @@
 UI components for the Stratigraphy Manager
 This module contains all UI classes for the Stratigraphy Manager, including
 panels and list UI elements.
+
+✅ PORTED TO NEW ARCHITECTURE: Uses scene.em_tools.stratigraphy.* paths
+✅ DUAL-SYNC: Maintains backward compatibility with legacy scene.em_list
 """
 
 import bpy
 from bpy.types import Panel, UIList
 
 from .data import ensure_valid_index
-
 from .. import icons_manager  
-
 import os
 
 class EM_STRAT_UL_List(UIList):
@@ -69,35 +70,42 @@ class EM_ToolsPanel:
         layout = self.layout
         scene = context.scene
         em_settings = scene.em_settings
+        em_tools = scene.em_tools  # ✅ NEW: Access centralized properties
+        strat = em_tools.stratigraphy  # ✅ NEW: Stratigraphy manager props
         obj = context.object
 
         # Verifica la presenza di un grafo attivo
         from ..functions import is_graph_available
         graph_available, _ = is_graph_available(context)        
 
+        # ==================
+        # HEADER BOX
+        # ==================
         header_box = layout.box()
         row = header_box.row(align=True)    
-        #row.label(text="Stratigraphy Manager", icon='OUTLINER_DATA_COLLECTION')
 
+        # ✅ PORTED: Use strat.units instead of scene.em_list
         if not scene.filter_by_epoch and not scene.filter_by_activity:
-            row.label(text="Total Rows: " + str(len(scene.em_list)), icon='PRESET')
+            row.label(text="Total Rows: " + str(len(strat.units)), icon='PRESET')
         elif scene.filter_by_epoch or scene.filter_by_activity:
-            row.label(text="Filtered Rows: " + str(len(scene.em_list)), icon='FILTER')
+            row.label(text="Filtered Rows: " + str(len(strat.units)), icon='FILTER')
         
         if scene.filter_by_epoch or scene.filter_by_activity:
             row.operator("em.reset_filters", text="", icon='CANCEL')
 
+        # ==================
         # FILTER SECTION
+        # ==================
         filter_box = layout.box()
 
         # 1) Header "Filter system" with triangle
         row = filter_box.row(align=True)
-
-        #row.separator()
         row.alignment = 'EXPAND'
-        icon = 'TRIA_DOWN' if scene.show_filter_system else 'TRIA_RIGHT'
+        
+        # ✅ PORTED: Use strat.show_filter_system
+        icon = 'TRIA_DOWN' if strat.show_filter_system else 'TRIA_RIGHT'
         row.prop(
-            scene,
+            strat,
             "show_filter_system",
             emboss=False,
             icon=icon,
@@ -105,21 +113,17 @@ class EM_ToolsPanel:
         )
         row.label(text="Available filters", icon='FILTER')
 
-        # PULSANTI SHOW ALL - inseriti prima del pulsante help
-        # Crea una sotto-riga per i pulsanti piccoli
+        # PULSANTI SHOW ALL - Quick actions
         quick_row = row.row(align=True)
-        quick_row.scale_x = 1.0  # Rende tutti i pulsanti di questa riga più piccoli
-        quick_row.enabled = graph_available  # Abilitati solo se il grafo è disponibile
+        quick_row.scale_x = 1.0
+        quick_row.enabled = graph_available
         
-        # Pulsante Show All Proxies
         quick_row.operator(
             "em.strat_show_all_proxies", 
             text="", 
-            #icon='MESH_CIRCLE'
             icon_value=icons_manager.get_icon_value("show_all_proxies")
         )
         
-        # Pulsante Show All RMs
         quick_row.operator(
             "em.strat_show_all_rms",
             text="", 
@@ -138,46 +142,47 @@ class EM_ToolsPanel:
             "  X icon in the top right corner.\n"
             "- Small icons: Show All Proxies / Show All RMs\n"
         )
-        help1.url = "EMstructure.html#us-usv-manager"
-
-
+        help1.url = "EMtools_manual/docs/user_guide/Stratigraphy_manager.html"
 
         # 2) Filter contents (only when open)
-        if scene.show_filter_system:
-
+        # ✅ PORTED: Use strat.show_filter_system
+        if strat.show_filter_system:
+            
             # Epoch / Activity toggles
             row = filter_box.row(align=True)
             filter_controls_row = row.row(align=True)
-            
-            row = filter_box.row(align=True)
-            filter_controls_row = row.row(align=True)
-
             filter_controls_row.enabled = graph_available
 
+            # Epoch filter toggle
             if len(scene.epoch_list) > 0 and scene.epoch_list_index < len(scene.epoch_list):
                 current_epoch = scene.epoch_list[scene.epoch_list_index].name
                 filter_controls_row.prop(
                     scene, "filter_by_epoch",
-                    text=current_epoch, toggle=True, icon='SORTTIME'
+                    text=current_epoch, 
+                    toggle=True, 
+                    icon='SORTTIME'
                 )
             else:
                 filter_controls_row.label(text="No epoch", icon='SORTTIME')
 
             filter_controls_row.separator()
 
+            # Activity filter toggle
             if (len(scene.activity_manager.activities) > 0
                 and scene.activity_manager.active_index < len(scene.activity_manager.activities)):
                 current_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
                 filter_controls_row.prop(
                     scene, "filter_by_activity",
-                    text=current_activity, toggle=True, icon='NETWORK_DRIVE'
+                    text=current_activity, 
+                    toggle=True, 
+                    icon='NETWORK_DRIVE'
                 )
             else:
                 filter_controls_row.label(text="No activities", icon='ERROR')
 
             filter_controls_row.separator()
 
-            # Sync 3D scene
+            # Sync 3D scene (only when filters are active)
             if scene.filter_by_epoch or scene.filter_by_activity:
                 sync_filter_box = filter_box.box()
                 row = sync_filter_box.row(align=True)
@@ -192,6 +197,7 @@ class EM_ToolsPanel:
                     text="Proxies",
                     icon='HIDE_OFF' if scene.sync_list_visibility else 'HIDE_ON'
                 )
+                
                 if scene.filter_by_epoch:
                     sync_controls_row.prop(
                         scene, "sync_rm_visibility",
@@ -199,16 +205,16 @@ class EM_ToolsPanel:
                         icon='OBJECT_DATA'
                     )
 
-            # Debug (solo se sperimentale ON)
-            if (hasattr(context.scene.em_tools, "experimental_features")
-                and context.scene.em_tools.experimental_features):
+            # Debug tools (only if experimental features ON)
+            if (hasattr(em_tools, "experimental_features")
+                and em_tools.experimental_features):
                 sync_filter_box = filter_box.box()
                 row = sync_filter_box.row(align=True)
                 row.operator("em.strat_activate_collections",
                             text="Show All Collections", icon='OUTLINER_COLLECTION')
                 row.operator("em.debug_filters", text="Debug Graph", icon='CONSOLE')
 
-            # Opzioni avanzate per epoch
+            # Advanced options for epoch filter
             if hasattr(scene, "filter_by_epoch") and scene.filter_by_epoch:
                 time_filter_box = filter_box.box()
                 sub_row = time_filter_box.row(align=True)
@@ -227,7 +233,7 @@ class EM_ToolsPanel:
                 sub_row.operator("em.toggle_show_reconstruction",
                                 text="Reconstructive Units", icon=icon2)
 
-                # Bottoni Help
+                # Help buttons
                 help1 = sub_row.operator("em.help_popup", text="", icon='QUESTION')
                 help1.title = "Survival Filter Help"
                 help1.text = (
@@ -246,12 +252,26 @@ class EM_ToolsPanel:
                 )
                 help2.url = "https://docs.extendedmatrix.org/reconstruction-filter"
 
+        # ==================
         # STRATIGRAPHY LIST
+        # ==================
+        # ✅ PORTED: Use template_list with strat PropertyGroup
         row = layout.row()
-        row.template_list("EM_STRAT_UL_List", "EM nodes", scene, "em_list", scene, "em_list_index")
-        if scene.em_list and ensure_valid_index(scene.em_list, "em_list_index"):
-            
-            item = scene.em_list[scene.em_list_index]
+        row.template_list(
+            "EM_STRAT_UL_List",  # UIList class name
+            "EM nodes",           # unique identifier
+            strat,                # data: StratigraphyManagerProps PropertyGroup
+            "units",              # property name (CollectionProperty)
+            strat,                # active_data: same PropertyGroup
+            "units_index"         # active property name (IntProperty)
+        )
+        
+        # ==================
+        # SELECTED ITEM DETAILS
+        # ==================
+        # ✅ PORTED: Use strat.units and strat.units_index
+        if strat.units and ensure_valid_index(strat.units, strat.units_index):
+            item = strat.units[strat.units_index]
     
             # SELECTED ITEM DETAILS
             box = layout.box()
@@ -264,17 +284,8 @@ class EM_ToolsPanel:
             split = row.split()
             col = split.column()
             row.label(text="  Type: "+item.node_type)
-            
-            '''
-            # Add visibility toggle
-            if hasattr(item, "is_visible"):
-                icon = 'HIDE_OFF' if item.is_visible else 'HIDE_ON'
-                op = row.operator("em.strat_toggle_visibility", text="", icon=icon)
-                if op:
-                    op.index = scene.em_list_index
-            '''
 
-            # link proxy and US - MODIFIED BUTTON TO IMPROVE VISIBILITY
+            # link proxy and US
             split = row.split()
             col = split.column()
             op = col.operator("listitem.toobj", icon="LINK_BLEND", text='')
@@ -291,315 +302,125 @@ class EM_ToolsPanel:
             row = box.row()
             row.prop(item, "description", text="", slider=True, emboss=True)
 
+            # Proxy sync feature
             if scene.em_settings.em_proxy_sync is True:
                 if obj is not None:
                     from ..functions import check_if_current_obj_has_brother_inlist, select_list_element_from_obj_proxy
                     if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):
                             select_list_element_from_obj_proxy(obj, "em_list")
-        #else:
-        #    row.label(text="No stratigraphic units here :-(")
 
-        # ✅ NUOVO: Documents section
+        # ==================
+        # DOCUMENTS SECTION
+        # ==================
         self.draw_documents_section(layout, context)
 
     def draw_documents_section(self, layout, context):
         """Draw documents section for selected stratigraphic unit"""
         scene = context.scene
+        strat = scene.em_tools.stratigraphy  # ✅ NEW: Use centralized props
         
-        # Check if we have a selected stratigraphic unit
-        if not scene.em_list or scene.em_list_index < 0:
+        # ✅ PORTED: Use strat.units and strat.units_index
+        if not strat.units or strat.units_index < 0:
             return
         
-        selected_us = scene.em_list[scene.em_list_index]
+        selected_us = strat.units[strat.units_index]
         
         # Documents header box
         docs_box = layout.box()
         
         # Header with triangle
         header_row = docs_box.row(align=True)
+        header_row.alignment = 'EXPAND'
         
-        # Use a scene boolean for show/hide (simple approach)
-        if not hasattr(scene, 'show_strat_documents'):
-            scene.show_strat_documents = False
+        # ✅ PORTED: Use strat.show_documents
+        icon = 'TRIA_DOWN' if strat.show_documents else 'TRIA_RIGHT'
+        header_row.prop(
+            strat,
+            "show_documents",
+            emboss=False,
+            icon=icon,
+            text=""
+        )
+        header_row.label(text="Associated Documents", icon='FILE_FOLDER')
         
-        icon = 'TRIA_DOWN' if scene.show_strat_documents else 'TRIA_RIGHT'
-        header_row.prop(scene, "show_strat_documents", emboss=False, icon=icon, text="")
-        header_row.label(text=f"Documents for {selected_us.name}", icon='DOCUMENTS')
+        # Help button
+        help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Documents Help"
+        help_op.text = (
+            "This section shows documents linked to this stratigraphic unit.\n"
+            "Click on thumbnail to preview, or use buttons to open files/folders."
+        )
+        help_op.url = "EMtools_manual/docs/user_guide/Documents.html"
         
-        # Documents content (if expanded)
-        if scene.show_strat_documents:
+        # ✅ PORTED: Use strat.show_documents
+        if strat.show_documents:
+            from ..functions import is_graph_available, get_us_document_nodes
+            from pathlib import Path
+            import hashlib
+            import json
             
-            # Controlla se ci sono thumbnails disponibili
-            from ..thumb_utils import has_doc_thumbs
-                            
-            if has_doc_thumbs():
-                # ✅ USA EnumProperty filtrata per questa US
-                thumb_row = docs_box.row()
-                thumb_row.template_icon_view(
-                    scene.em_tools, 
-                    "em_us_doc_previews",  # ✅ Proprietà filtrata
-                    show_labels=False,
-                    scale=5.0
-                )
-                
-                # Pulsanti azione
-                if (hasattr(scene.em_tools, 'em_us_doc_previews') and 
-                    scene.em_tools.em_us_doc_previews):
-                    
-                    action_row = docs_box.row(align=True)
-                    open_op = action_row.operator(
-                        "emtools.open_original_doc", 
-                        text="Open original",
-                        icon='FILE_FOLDER'
-                    )
-                    open_op.doc_key = scene.em_tools.em_us_doc_previews
-                                
-            else:
-                # ✅ FALLBACK: Sistema precedente senza thumbnails
-                documents = self._get_documents_from_graph(context, selected_us.id_node)
-                
-                if len(documents) == 0:
-                    # No documents message
-                    content_row = docs_box.row()
-                    content_row.label(text="No documents found", icon='INFO')
-                else:
-                    # Show each document (sistema precedente)
-                    for doc_node in documents:
-                        self.draw_document_item(docs_box, context, doc_node)
-                
-                # Suggerimento per generare thumbnails
-                if documents:  # Solo se ci sono documenti
-                    hint_row = docs_box.row()
-                    hint_row.label(text="💡 Generate thumbnails in EMsetup → Auxiliary files", icon='INFO')
-
-    def _doc_belongs_to_us(self, doc_key, us_node_id):
-        """Verifica se una thumbnail appartiene all'US selezionata"""
-        from ..thumb_utils import em_thumbs_root, load_index_json
-        
-        thumbs_root = em_thumbs_root()
-        index_data = load_index_json(thumbs_root)
-        
-        # Ottieni info del documento dalla thumbnail
-        item_data = index_data.get("items", {}).get(doc_key, {})
-        doc_node_id = item_data.get("doc_node_id")
-        
-        if doc_node_id:
-            # Verifica se questo DocumentNode è collegato all'US
-            documents = self._get_documents_from_graph(bpy.context, us_node_id)
-            return any(doc.node_id == doc_node_id for doc in documents)
-        
-        return False
-
-    def _get_documents_from_graph(self, context, us_node_id):
-        """Get DocumentNode connected to this US directly from the graph"""
-        from s3dgraphy import get_graph
-        
-        try:
-            scene = context.scene
+            graph_available, graph = is_graph_available(context)
+            
+            if not graph_available:
+                docs_box.label(text="No graph loaded", icon='ERROR')
+                return
+            
+            # Get document nodes for this US
+            doc_nodes = get_us_document_nodes(graph, selected_us.node_id)
+            
+            if not doc_nodes:
+                docs_box.label(text="No documents found for this unit", icon='INFO')
+                return
+            
+            # Get thumbnails directory
             em_tools = scene.em_tools
+            if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+                docs_box.label(text="No active GraphML file", icon='ERROR')
+                return
             
-            if em_tools.active_file_index >= 0:
-                graphml = em_tools.graphml_files[em_tools.active_file_index]
-                graph = get_graph(graphml.name)
-                
-                if graph:
-                    connected_docs = []
+            active_graphml = em_tools.graphml_files[em_tools.active_file_index]
+            graphml_path = Path(bpy.path.abspath(active_graphml.filepath))
+            
+            if not graphml_path.exists():
+                docs_box.label(text="GraphML file not found", icon='ERROR')
+                return
+            
+            thumbs_root = graphml_path.parent / ".emtools_cache" / "thumbs"
+            index_file = thumbs_root / "index.json"
+            
+            # Load thumbnails index
+            index_data = {}
+            if index_file.exists():
+                try:
+                    with open(index_file, 'r', encoding='utf-8') as f:
+                        index_data = json.load(f)
+                except Exception as e:
+                    print(f"Error loading thumbnail index: {e}")
+            
+            # Helper function for file hash
+            def get_file_hash(filepath):
+                with open(filepath, 'rb') as f:
+                    return hashlib.sha256(f.read()).hexdigest()[:16]
+            
+            # Collect US thumbnails
+            us_thumbnails = []
+            
+            for doc_node in doc_nodes:
+                # Get LinkNode that connects to this document
+                for pred in graph.predecessors(doc_node.name):
+                    pred_node = graph.nodes[pred]
+                    target_node = pred_node
                     
-                    # Find edges from US to DocumentNode
-                    for edge in graph.edges:
-                        if edge.edge_source == us_node_id:
-                            target_node = graph.find_node_by_id(edge.edge_target)
-                            if target_node and hasattr(target_node, 'node_type') and target_node.node_type == 'document':
-                                connected_docs.append(target_node)
-                    
-                    #print(f"Found {len(connected_docs)} documents for US node {us_node_id}")
-                    return connected_docs
-                    
-        except Exception as e:
-            print(f"Error getting documents from graph: {e}")
-        
-        return []
-
-    def draw_document_item(self, layout, context, doc_node):
-        """Draw individual document item with asset-style preview"""
-        
-        # Document item box
-        item_box = layout.box()
-        
-        # Get file info
-        doc_url = getattr(doc_node, 'url', '')
-        if not doc_url:
-            # Simple text fallback
-            item_box.label(text=f"{doc_node.name} (No URL)", icon='FILE')
-            return
-        
-        ext = doc_url.lower().split('.')[-1] if '.' in doc_url else 'unknown'
-        is_image = ext in ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp']
-        
-        if is_image:
-            # Image preview with asset-style layout
-            self.draw_image_asset_item(item_box, context, doc_node, doc_url, ext)
-        else:
-            # Non-image document
-            self.draw_document_text_item(item_box, context, doc_node, doc_url, ext)
-
-    def draw_image_asset_item(self, layout, context, doc_node, doc_url, ext):
-        """Draw image with asset-style preview"""
-        
-        # Main row: preview + info + buttons
-        main_row = layout.row(align=True)
-        
-        # Left: Image preview area
-        preview_col = main_row.column(align=True)
-        preview_col.scale_x = 0.3
-        
-        # Check if preview exists (READ ONLY)
-        preview_image = self._check_existing_preview(doc_node.name)
-        
-        if preview_image:
-            # Show existing image preview
-            preview_col.template_preview(preview_image, show_buttons=False)
-        else:
-            # Show load button placeholder
-            preview_box = preview_col.box()
-            preview_box.scale_y = 2.0
-            load_op = preview_box.operator("strat.preview_document", text="Load", icon='PREVIEW_RANGE')
-            load_op.document_url = doc_url
-            load_op.document_name = doc_node.name
-        
-        # Right: Info and buttons
-        info_col = main_row.column(align=True)
-        
-        # Document name
-        info_col.label(text=doc_node.name, icon='IMAGE_DATA')
-        info_col.label(text=f"{ext.upper()} Image", icon='FILE')
-        
-        # Action buttons row
-        buttons_row = info_col.row(align=True)
-        buttons_row.scale_y = 0.8
-        
-        # Load/Refresh preview
-        load_op = buttons_row.operator("strat.preview_document", text="Preview", icon='PREVIEW_RANGE')
-        load_op.document_url = doc_url
-        load_op.document_name = doc_node.name
-        
-        # Open file
-        open_op = buttons_row.operator("strat.open_document_file", text="Open", icon='FILE_FOLDER')
-        open_op.document_url = doc_url
-        
-        # Open folder
-        folder_op = buttons_row.operator("strat.open_document_folder", text="Folder", icon='FOLDER_REDIRECT')
-        folder_op.document_url = doc_url
-
-    def _check_existing_preview(self, doc_name):
-        """Check if preview already exists (READ ONLY)"""
-        preview_name = f"StratPreview_{doc_name}"
-        
-        # SOLO lettura - nessuna modifica
-        for img in bpy.data.images:
-            if img.name == preview_name:
-                return img
-        
-        return None
-
-    def draw_document_text_item(self, layout, context, doc_node, doc_url, ext):
-        """Draw non-image document item"""
-        
-        main_row = layout.row(align=True)
-        
-        # Document icon
-        icon_col = main_row.column(align=True)
-        icon_col.scale_x = 0.15
-        if ext == 'pdf':
-            icon_col.label(text="", icon='FILE_TEXT')
-        else:
-            icon_col.label(text="", icon='FILE')
-        
-        # Info
-        info_col = main_row.column(align=True)
-        info_col.label(text=doc_node.name)
-        info_col.label(text=f"{ext.upper()} Document")
-        
-        # Buttons
-        buttons_col = main_row.column(align=True)
-        buttons_row = buttons_col.row(align=True)
-        buttons_row.scale_x = 0.8
-        
-        open_op = buttons_row.operator("strat.open_document_file", text="", icon='FILE_FOLDER')
-        open_op.document_url = doc_url
-        
-        folder_op = buttons_row.operator("strat.open_document_folder", text="", icon='FOLDER_REDIRECT')
-        folder_op.document_url = doc_url
-
-    def draw_image_preview(self, layout, context):
-        """Draw image preview section"""
-        scene = context.scene
-        docs = scene.strat_documents
-        
-        if not docs.loaded_image:
-            return
-        
-        # Preview box
-        preview_box = layout.box()
-        preview_row = preview_box.row()
-        preview_row.label(text="Preview:", icon='IMAGE_DATA')
-        
-        # Image preview
-        preview_row = preview_box.row()
-        preview_row.template_preview(docs.loaded_image, show_buttons=False)
-
-    def _get_thumbnails_for_documents(self, documents):
-        """Ottiene thumbnails specifiche per una lista di DocumentNode"""
-        from ..thumb_utils import em_thumbs_root, load_index_json, get_file_hash
-        from s3dgraphy import get_graph
-        import os
-        
-        scene = bpy.context.scene
-        em_tools = scene.em_tools
-        
-        if em_tools.active_file_index < 0:
-            return []
-        
-        graphml = em_tools.graphml_files[em_tools.active_file_index]
-        
-        # Ottieni resource_folder per calcolare thumbs_root corretto
-        if not graphml.auxiliary_files or graphml.active_auxiliary_index < 0:
-            return []
-        
-        aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
-        if not aux_file.resource_folder:
-            return []
-        
-        resource_folder = os.path.abspath(bpy.path.abspath(aux_file.resource_folder))
-        thumbs_root = em_thumbs_root(resource_folder)
-        index_data = load_index_json(thumbs_root)
-        
-        graph = get_graph(graphml.name)
-        if not graph:
-            return []
-        
-        us_thumbnails = []
-        
-        for doc_node in documents:
-            # Trova LinkNode collegati a questo DocumentNode
-            for edge in graph.edges:
-                if edge.edge_source == doc_node.node_id and edge.edge_type == "has_linked_resource":
-                    target_node = graph.find_node_by_id(edge.edge_target)
-                    
-                    if target_node and hasattr(target_node, 'node_type') and target_node.node_type == 'link':
-                        # Ottieni URL dal LinkNode
+                    if hasattr(target_node, 'node_type') and target_node.node_type == 'LinkNode':
                         file_url = target_node.data.get("url", "") if hasattr(target_node, 'data') else ""
                         
                         if file_url:
-                            # Converti a path assoluto
                             file_path = os.path.abspath(bpy.path.abspath(file_url))
                             
                             if os.path.exists(file_path):
-                                # Calcola hash del file
                                 file_hash = get_file_hash(file_path)
                                 doc_key = f"doc_{file_hash}"
                                 
-                                # Cerca nell'indice thumbs
                                 if doc_key in index_data.get("items", {}):
                                     item_data = index_data["items"][doc_key]
                                     thumb_rel_path = item_data.get("thumb", "")
@@ -614,9 +435,46 @@ class EM_ToolsPanel:
                                                 doc_node.name,
                                                 item_data.get("src_path", "")
                                             ))
-        
-        print(f"Found {len(us_thumbnails)} thumbnails for {len(documents)} documents")
-        return us_thumbnails
+            
+            if not us_thumbnails:
+                docs_box.label(text="No thumbnails available", icon='INFO')
+                return
+            
+            # Display thumbnails in grid
+            content_box = docs_box.box()
+            
+            for doc_key, thumb_path, doc_name, src_path in us_thumbnails:
+                row = content_box.row(align=True)
+                
+                # Thumbnail preview
+                try:
+                    # ✅ PORTED: Use strat.preview_image
+                    if strat.preview_image and strat.preview_image.filepath == thumb_path:
+                        row.template_preview(strat.preview_image, show_buttons=False)
+                    else:
+                        # Load image
+                        img = bpy.data.images.load(thumb_path, check_existing=True)
+                        strat.preview_image = img
+                        row.template_preview(img, show_buttons=False)
+                except Exception as e:
+                    row.label(text=f"Preview error: {doc_name}", icon='ERROR')
+                
+                # Action buttons
+                col = row.column(align=True)
+                
+                # Open folder button
+                op = col.operator("strat.open_document_folder", text="", icon='FILE_FOLDER')
+                op.document_path = src_path
+                
+                # Open file button
+                op = col.operator("strat.open_document_file", text="", icon='FILE')
+                op.document_path = src_path
+                
+                # Preview button
+                op = col.operator("strat.preview_document", text="", icon='ZOOM_IN')
+                op.document_path = src_path
+                op.document_name = doc_name
+
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     """Panel in the 3D View for the Stratigraphy Manager"""
     bl_category = "EM"

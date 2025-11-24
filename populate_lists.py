@@ -168,16 +168,24 @@ def populate_lists_for_advanced_em(context, graph):
 def populate_reuse_US_table(scene, node, index, graph):
     """
     Popola la tabella dei riusi per un nodo.
-    Già corretto - usa nomi puliti.
+    
+    ✅ DUAL-SYNC: Popola ENTRAMBE le liste di reused
     """
     survived_in_epoch = graph.get_connected_epoch_nodes_list_by_edge_type(node, "survive_in_epoch")
     
     if survived_in_epoch:
         for current_epoch in survived_in_epoch:
-            scene.em_reused.add()
-            em_item = scene.em_reused[-1]
-            em_item.epoch = current_epoch.name
-            em_item.em_element = node.name  # ✅ Nome pulito
+            # ✅ DUAL-SYNC: Add to BOTH lists
+            scene.em_reused.add()  # Legacy
+            legacy_item = scene.em_reused[-1]
+            legacy_item.epoch = current_epoch.name
+            legacy_item.em_element = node.name
+            
+            scene.em_tools.stratigraphy.reused.add()  # New
+            new_item = scene.em_tools.stratigraphy.reused[-1]
+            new_item.epoch = current_epoch.name
+            new_item.em_element = node.name
+            
             index += 1
             
     return index
@@ -186,39 +194,46 @@ def populate_stratigraphic_node(scene, node, index, graph):
     """
     Popola la lista di unità stratigrafiche.
     
+    ✅ DUAL-SYNC: Popola ENTRAMBE le liste (legacy + nuova)
     ✅ MODIFICATO: Ora usa SEMPRE il nome pulito del nodo, senza prefisso.
                   Passa il grafo a check_objs_in_scene_and_provide_icon_for_list_element.
     """
-    scene.em_list.add()
-    em_item = scene.em_list[-1]
+    # ✅ DUAL-SYNC: Populate BOTH lists
+    scene.em_list.add()  # Legacy list
+    legacy_item = scene.em_list[-1]
     
-    # ✅ USA SEMPRE IL NOME PULITO (senza prefisso)
-    em_item.name = node.name
+    scene.em_tools.stratigraphy.units.add()  # New centralized list
+    new_item = scene.em_tools.stratigraphy.units[-1]
     
-    em_item.description = node.description
-    em_item.shape = node.attributes.get('shape', "")
-    em_item.y_pos = node.attributes.get('y_pos', 0.0)
-    em_item.fill_color = node.attributes.get('fill_color', "")
-    em_item.border_style = node.attributes.get('border_style', "")
-    
-    # ✅ MODIFICATO: passa anche il grafo per gestire il prefisso
-    em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
-    
-    em_item.id_node = node.node_id
-    em_item.node_type = node.node_type
+    # Set properties on BOTH items (loop for DRY principle)
+    for em_item in [legacy_item, new_item]:
+        # ✅ USA SEMPRE IL NOME PULITO (senza prefisso)
+        em_item.name = node.name
+        
+        em_item.description = node.description
+        em_item.shape = node.attributes.get('shape', "")
+        em_item.y_pos = node.attributes.get('y_pos', 0.0)
+        em_item.fill_color = node.attributes.get('fill_color', "")
+        em_item.border_style = node.attributes.get('border_style', "")
+        
+        # ✅ MODIFICATO: passa anche il grafo per gestire il prefisso
+        em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
+        
+        em_item.id_node = node.node_id
+        em_item.node_type = node.node_type
 
-    # ✅ MODIFICATO: usa la funzione helper per trovare il proxy
-    from .operators.addon_prefix_helpers import get_proxy_from_node
-    obj = get_proxy_from_node(node, graph=graph)
-    if obj:
-        em_item.is_visible = not obj.hide_viewport
-    else:
-        em_item.is_visible = True
-    
-    first_epoch = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
-    if not first_epoch: 
-        graph.print_node_connections(node)
-    em_item.epoch = first_epoch.name if first_epoch else ""
+        # ✅ MODIFICATO: usa la funzione helper per trovare il proxy
+        from .operators.addon_prefix_helpers import get_proxy_from_node
+        obj = get_proxy_from_node(node, graph=graph)
+        if obj:
+            em_item.is_visible = not obj.hide_viewport
+        else:
+            em_item.is_visible = True
+        
+        first_epoch = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
+        if not first_epoch: 
+            graph.print_node_connections(node)
+        em_item.epoch = first_epoch.name if first_epoch else ""
     
     return index + 1
 
