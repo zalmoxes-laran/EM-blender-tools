@@ -575,24 +575,27 @@ def select_list_element_from_obj_proxy(obj, list_type, context=None, graph=None)
 
 ## diverrà deprecata !
 def add_sceneobj_to_epochs():
+    """
+    Assegna oggetti 3D alle epoche basandosi sulla lista stratigrafica.
+
+    ✅ CLEAN VERSION: Usa solo scene.em_tools.stratigraphy paths
+    """
     scene = bpy.context.scene
-    #deselect all objects
-    selection_names = bpy.context.selected_objects
+    strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+
     bpy.ops.object.select_all(action='DESELECT')
-    #looking through all objects
+
     for obj in bpy.data.objects:
         if obj.type == 'MESH':
-            for USS in scene.em_list:
+            for USS in strat.units:  # ✅ Nuovo path
                 if obj.name == USS.name:
-                    #print("ho trovato un oggetto in scena chiamato "+ str(obj.name)+ " ed un nodo US chiamato: " + str(USS.name))
                     idx = 0
                     for i in scene.epoch_list:
                         if i.name == USS.epoch:
-                            #print("found "+str(USS.epoch)+ " corrispondende all'indice"+str(idx))
                             obj.select_set(True)
                             bpy.ops.epoch_manager.add_to_group(group_em_idx=idx)
                             obj.select_set(False)
-                        idx +=1
+                        idx += 1
                                                 
 ### #### #### #### #### #### #### #### #### #### ####
 #### Functions to extract data from GraphML file ####
@@ -601,35 +604,21 @@ def add_sceneobj_to_epochs():
 def EM_list_clear(context, list_type):
     """
     Pulisce una lista in Blender.
-    
-    ✅ DUAL-SYNC: Se list_type è 'em_list' o 'em_reused', svuota ENTRAMBE le liste
+
+    ✅ CLEAN VERSION: No dual-sync, single path only
     """
     scene = context.scene
-    
+
     if list_type == "em_list":
-        # ✅ DUAL-SYNC: Clear BOTH lists
-        # Clear legacy list
-        scene.em_list.update()
-        list_length = len(scene.em_list)
-        for x in range(list_length):
-            scene.em_list.remove(0)
-        
-        # Clear new centralized list
+        # ✅ SOLO nuova lista centralizzata
         scene.em_tools.stratigraphy.units.clear()
-        
+
     elif list_type == "em_reused":
-        # ✅ DUAL-SYNC: Clear BOTH reused lists
-        # Clear legacy list
-        scene.em_reused.update()
-        list_length = len(scene.em_reused)
-        for x in range(list_length):
-            scene.em_reused.remove(0)
-        
-        # Clear new centralized list
+        # ✅ SOLO nuova lista centralizzata
         scene.em_tools.stratigraphy.reused.clear()
-        
+
     else:
-        # Legacy behavior for other list types
+        # Legacy behavior per altre liste (non stratigrafiche)
         list_cmd1 = f"scene.{list_type}.update()"
         list_cmd2 = f"len(scene.{list_type})"
         list_cmd3 = f"scene.{list_type}.remove(0)"
@@ -637,7 +626,7 @@ def EM_list_clear(context, list_type):
         list_length = eval(list_cmd2)
         for x in range(list_length):
             eval(list_cmd3)
-    
+
     return
 
 def stream_properties(self, context):
@@ -900,33 +889,44 @@ def create_derived_sources_list(passed_extractor_item, graph=None):
 
 def switch_paradata_lists(self, context):
     """
-    Funzione chiamata quando l'utente cambia elemento nella lista US/USV.
-    Aggiorna tutte le liste di paradata in base all'elemento selezionato.
+    Aggiorna paradata lists in base all'US selezionata.
+
+    ✅ CLEAN VERSION: Usa solo scene.em_tools.stratigraphy paths
     """
     scene = context.scene
-    
-    # Verifica se c'è un grafo attivo prima di chiamare l'operatore
-    if scene.paradata_streaming_mode:
-        # Controlla se c'è un file GraphML attivo
-        em_tools = scene.em_tools
-        if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
-            try:
-                # Verifica se il grafo esiste
-                from s3dgraphy import get_graph
-                graphml = em_tools.graphml_files[em_tools.active_file_index]
-                graph = get_graph(graphml.name)
-                
-                if graph:
-                    # Il grafo esiste, aggiorna le liste
-                    bpy.ops.em.update_paradata_lists()
-                else:
-                    print(f"Grafo '{graphml.name}' non trovato, impossibile aggiornare le liste")
-            except Exception as e:
-                print(f"Errore durante la verifica del grafo: {str(e)}")
-        else:
-            print("Nessun file GraphML attivo, impossibile aggiornare le liste")
-    
-    # Il resto del codice...
+    strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+
+    # ✅ Usa nuovo path
+    if strat.units_index >= 0 and strat.units_index < len(strat.units):
+        selected_item = strat.units[strat.units_index]
+
+        # Clear paradata lists
+        EM_list_clear(context, "em_v_properties_list")
+        EM_list_clear(context, "em_v_extractors_list")
+        EM_list_clear(context, "em_v_combiners_list")
+        EM_list_clear(context, "em_v_sources_list")
+
+        # Verifica se c'è un grafo attivo prima di chiamare l'operatore
+        if scene.paradata_streaming_mode:
+            # Controlla se c'è un file GraphML attivo
+            em_tools = scene.em_tools
+            if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
+                try:
+                    # Verifica se il grafo esiste
+                    from s3dgraphy import get_graph
+                    graphml = em_tools.graphml_files[em_tools.active_file_index]
+                    graph = get_graph(graphml.name)
+
+                    if graph:
+                        # Il grafo esiste, aggiorna le liste
+                        bpy.ops.em.update_paradata_lists()
+                    else:
+                        print(f"Grafo '{graphml.name}' non trovato, impossibile aggiornare le liste")
+                except Exception as e:
+                    print(f"Errore durante la verifica del grafo: {str(e)}")
+            else:
+                print("Nessun file GraphML attivo, impossibile aggiornare le liste")
+
     return
 
 ## #### #### #### #### #### #### #### #### #### #### #### ####

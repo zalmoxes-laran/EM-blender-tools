@@ -87,28 +87,35 @@ class EM_strat_toggle_visibility(Operator):
     index: IntProperty(default=-1)  # -1 means use the active index
     
     def execute(self, context):
+        """
+        Toggle visibility for a single stratigraphic unit.
+
+        ✅ CLEAN VERSION: Uses only scene.em_tools.stratigraphy paths
+        """
         scene = context.scene
-        index = self.index if self.index >= 0 else scene.em_list_index
-        
-        if index >= 0 and index < len(scene.em_list):
-            item = scene.em_list[index]
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+
+        index = self.index if self.index >= 0 else strat.units_index
+
+        if index >= 0 and index < len(strat.units):
+            item = strat.units[index]
             obj = bpy.data.objects.get(item.name)
-            
+
             if obj:
                 # Toggle visibility AND render synchronously
                 new_visibility = not obj.hide_viewport
                 obj.hide_viewport = not new_visibility
-                obj.hide_render = not new_visibility  # Sync render with viewport
+                obj.hide_render = not new_visibility
                 item.is_visible = new_visibility
-                
+
                 # If the object is shown, activate its collections
                 if new_visibility:
                     self.activate_object_collections(obj, context)
-                    
+
                 return {'FINISHED'}
             else:
                 self.report({'WARNING'}, f"Object '{item.name}' not found in scene")
-        
+
         return {'CANCELLED'}
     
     def is_in_hidden_collection(self, obj, context):
@@ -157,11 +164,16 @@ class EM_strat_sync_visibility(Operator):
         return {'FINISHED'}
     
     def sync_proxy_visibility(self, context):
-        """Synchronize proxy object visibility with the em_list"""
+        """
+        Synchronize proxy visibility with filtered list.
+
+        ✅ CLEAN VERSION: Uses only scene.em_tools.stratigraphy paths
+        """
         scene = context.scene
-        
-        # Create a set of proxy names that should be visible
-        visible_proxy_names = {item.name for item in scene.em_list}
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+
+        # ✅ Usa SOLO nuovo path
+        visible_proxy_names = {item.name for item in strat.units}
         
         # Find all proxy objects - need to include ALL mesh objects from proxy collections
         # plus any objects with matching names
@@ -229,9 +241,9 @@ class EM_strat_sync_visibility(Operator):
                     obj.hide_render = True
                     hidden_count += 1
         
-        # Update visibility icons in the em_list
-        for item in scene.em_list:
-            obj = bpy.data.objects.get(get_base_name(item.name)) 
+        # ✅ Update icons SOLO nuova lista (no dual-sync!)
+        for item in strat.units:
+            obj = bpy.data.objects.get(get_base_name(item.name))
             if obj:
                 item.is_visible = not obj.hide_viewport
         
@@ -383,17 +395,24 @@ class EM_strat_show_all_proxies(Operator):
         return {'FINISHED'}
     
     def sync_all_proxies(self, scene, context):
-        """Show all proxy objects using the existing system logic"""
+        """
+        Show all proxy objects.
+
+        ✅ CLEAN VERSION: Uses only scene.em_tools.stratigraphy paths
+        """
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+
         # Use the same logic as sync_proxy_visibility but without filtering
         proxy_objects = []
         proxy_objects_set = set()
         activated_collections = []
-        
+
         # Strategy: Look for collections that contain objects matching our em_list names
         proxy_collections = set()
-        
+
         # First pass: identify which collections contain objects from em_list
-        all_em_list_names = {item.name for item in scene.em_list}
+        # ✅ Usa SOLO nuovo path
+        all_em_list_names = {item.name for item in strat.units}
         for collection in bpy.data.collections:
             for obj in collection.objects:
                 if obj.name in all_em_list_names and obj.type == 'MESH':
@@ -438,8 +457,8 @@ class EM_strat_show_all_proxies(Operator):
                 obj.hide_render = False
                 shown_count += 1
         
-        # Update visibility icons in the em_list
-        for item in scene.em_list:
+        # ✅ Update icons SOLO nuova lista (no dual-sync!)
+        for item in strat.units:
             obj = bpy.data.objects.get(item.name)
             if obj:
                 item.is_visible = not obj.hide_viewport

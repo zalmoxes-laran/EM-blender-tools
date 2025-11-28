@@ -465,13 +465,20 @@ def setup_scene_collections():
         setattr(bpy.types.Scene, prop_name, CollectionProperty(type=prop_type))
         logger.debug(f"Setup collection: {prop_name}")
 
+def update_epoch_index(self, context):
+    """Re-filter when epoch changes (if filter active)"""
+    scene = context.scene
+    if scene.filter_by_epoch and hasattr(bpy.ops, 'em') and hasattr(bpy.ops.em, 'filter_lists'):
+        print(f"Epoch changed to index {scene.epoch_list_index}, re-filtering...")
+        bpy.ops.em.filter_lists()
+
 def setup_scene_indices():
     """Setup index properties for collections"""
     indices_with_updates = [
         ('selected_epoch_us_list_index', 0, lambda self, context: getattr(bpy.ops, 'epoch_manager.update_us_list', lambda: None)()),
         ('emviq_error_list_index', 0, functions.switch_paradata_lists if MODULE_IMPORT_SUCCESS else None),
         ('em_list_index', 0, functions.switch_paradata_lists if MODULE_IMPORT_SUCCESS else None),
-        ('epoch_list_index', 0, None),
+        ('epoch_list_index', 0, update_epoch_index),
         ('edges_list_index', 0, None),
         ('em_sources_list_index', 0, None),
         ('em_properties_list_index', 0, None),
