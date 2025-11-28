@@ -1,14 +1,23 @@
 """
-EM-Tools Centralized Property Management - FINAL COMPLETE VERSION
-==================================================================
+EM-Tools Centralized Property Management - CLEAN VERSION
+=========================================================
 
-This version includes ALL properties from EMToolsSettings needed by the entire add-on.
+✅ CLEAN: No legacy properties, single source of truth
+All properties for the entire add-on are defined here under scene.em_tools
+
+This module includes:
+- StratigraphyManagerProps - Stratigraphy manager properties
+- EpochManagerProps - Epoch manager properties  
+- VisualManagerProps - Visual manager properties
+- AnastylosisManagerProps - Anastylosis manager properties
+- RMManagerProps - RM (Representation Model) manager properties
+- EM_Tools - Main container PropertyGroup
 """
 
 import bpy
 from bpy.props import (
     PointerProperty, CollectionProperty, IntProperty, BoolProperty, 
-    StringProperty, EnumProperty
+    StringProperty, EnumProperty, FloatProperty, FloatVectorProperty
 )
 from bpy.types import PropertyGroup
 
@@ -23,40 +32,75 @@ from .em_setup import GraphMLFileItem, AuxiliaryFileProperties
 
 
 # =====================================================
+# UPDATE CALLBACKS
+# =====================================================
+
+def update_stratigraphic_selection(self, context):
+    """
+    Called when the user changes the selection in the stratigraphic list.
+    Updates paradata lists if streaming mode is enabled.
+    """
+    try:
+        # Import here to avoid circular imports
+        from .functions import switch_paradata_lists
+        
+        # Create dummy self object for compatibility with switch_paradata_lists signature
+        class DummySelf:
+            pass
+        dummy = DummySelf()
+        
+        switch_paradata_lists(dummy, context)
+    except Exception as e:
+        print(f"Warning: Could not update paradata lists: {e}")
+
+
+# =====================================================
 # MANAGER AGGREGATOR CLASSES
 # =====================================================
 
 class StratigraphyManagerProps(PropertyGroup):
-    """Aggregates all stratigraphy-related properties"""
+    """
+    Aggregates all stratigraphy-related properties.
+    
+    ✅ CLEAN VERSION: This is the ONLY place for stratigraphy properties.
+    No more scene.em_list, scene.em_list_index, etc.
+    """
     
     units: CollectionProperty(
         type=EMListItem,
-        name="Stratigraphic Units"
+        name="Stratigraphic Units",
+        description="List of stratigraphic units from the active graph"
     )  # type: ignore
     
     units_index: IntProperty(
         name="Selected Unit Index",
-        default=0
+        description="Index of the currently selected stratigraphic unit",
+        default=0,
+        update=update_stratigraphic_selection  # ✅ Callback for paradata updates
     )  # type: ignore
     
     reused: CollectionProperty(
         type=EMreusedUS,
-        name="Reused Units"
+        name="Reused Units",
+        description="List of stratigraphic units that are reused across epochs"
     )  # type: ignore
     
     show_filter_system: BoolProperty(
         name="Show Filter System",
+        description="Show/hide the filter system UI",
         default=False
     )  # type: ignore
     
     show_documents: BoolProperty(
         name="Show Documents",
+        description="Show/hide the documents section",
         default=False
     )  # type: ignore
     
     preview_image: PointerProperty(
         type=bpy.types.Image,
-        name="Preview Image"
+        name="Preview Image",
+        description="Image used for document thumbnail preview"
     )  # type: ignore
 
 
@@ -84,7 +128,7 @@ class EpochManagerProps(PropertyGroup):
     )  # type: ignore
     
     show_details: BoolProperty(
-        name="Show Epoch Details",
+        name="Show Details",
         default=False
     )  # type: ignore
 
@@ -92,30 +136,72 @@ class EpochManagerProps(PropertyGroup):
 class VisualManagerProps(PropertyGroup):
     """Aggregates all visual manager properties"""
     
-    property_enum: StringProperty(
-        name="Property Enum",
-        default=""
+    # Property list for visual representation
+    properties_list: CollectionProperty(
+        type=PropertyValueItem,
+        name="Properties"
     )  # type: ignore
     
-    selected_property: StringProperty(
-        name="Selected Property",
-        default=""
+    properties_index: IntProperty(
+        name="Selected Property Index",
+        default=0
     )  # type: ignore
     
-    color_ramps: PointerProperty(
+    # Color ramp settings
+    color_ramp: PointerProperty(
         type=ColorRampProperties,
-        name="Color Ramps"
+        name="Color Ramp"
+    )  # type: ignore
+    
+    # Camera settings
+    cameras: CollectionProperty(
+        type=CameraItem,
+        name="Cameras"
+    )  # type: ignore
+    
+    cameras_index: IntProperty(
+        name="Selected Camera Index",
+        default=0
+    )  # type: ignore
+    
+    # Label settings
+    labels: PointerProperty(
+        type=LabelSettings,
+        name="Label Settings"
+    )  # type: ignore
+    
+    # UI state
+    show_color_options: BoolProperty(
+        name="Show Color Options",
+        default=False
+    )  # type: ignore
+    
+    show_camera_options: BoolProperty(
+        name="Show Camera Options",
+        default=False
     )  # type: ignore
 
 
 class AnastylosisManagerProps(PropertyGroup):
-    """Aggregates all anastylosis manager properties"""
-    pass  # Placeholder for future properties
+    """Aggregates all anastylosis-related properties"""
+    
+    # Placeholder for anastylosis properties
+    # Will be expanded as needed
+    show_options: BoolProperty(
+        name="Show Anastylosis Options",
+        default=False
+    )  # type: ignore
 
 
 class RMManagerProps(PropertyGroup):
-    """Aggregates all RM manager properties"""
-    pass  # Placeholder for future properties
+    """Aggregates all RM (Representation Model) properties"""
+    
+    # Placeholder for RM properties
+    # Will be expanded as needed
+    show_options: BoolProperty(
+        name="Show RM Options",
+        default=False
+    )  # type: ignore
 
 
 # =====================================================
@@ -123,116 +209,108 @@ class RMManagerProps(PropertyGroup):
 # =====================================================
 
 class EM_Tools(PropertyGroup):
-    """Central container for all EM Tools properties"""
+    """
+    Main container for ALL EM-Tools properties.
     
-    # ===== MODE FLAGS =====
+    ✅ SINGLE SOURCE OF TRUTH: Everything is under scene.em_tools
     
-    mode_em_advanced: BoolProperty(
-        name="Advanced EM Mode",
-        description="Enable Advanced Extended Matrix mode",
-        default=True
-    )  # type: ignore
+    This PropertyGroup is attached to bpy.types.Scene as 'em_tools'
+    and provides centralized access to all add-on properties.
     
-    mode_landscape: BoolProperty(
-        name="Landscape Mode",
-        description="Enable Landscape visualization mode",
-        default=False
-    )  # type: ignore
+    Usage:
+        scene = context.scene
+        em_tools = scene.em_tools
+        
+        # Access stratigraphy
+        strat = em_tools.stratigraphy
+        units = strat.units
+        selected_index = strat.units_index
+        
+        # Access epochs
+        epochs = em_tools.epochs.list
+        
+        # Access visual manager
+        visual = em_tools.visual
+        
+        # etc.
+    """
     
-    experimental_features: BoolProperty(
-        name="Experimental Features",
-        description="Enable experimental/development features",
-        default=False
-    )  # type: ignore
-    
-    show_advanced_tools: BoolProperty(
-        name="Show Advanced Tools",
-        description="Display advanced tools for managing GraphML files and objects",
-        default=False
-    )  # type: ignore
-    
-    # ===== 3D GIS MODE SETTINGS =====
-    
-    mode_3dgis_import_type: EnumProperty(
-        name="3D GIS Import Type",
-        items=[
-            ('GENERIC_XLSX', "Generic XLSX", "Import from generic Excel file"),
-            ('PYARCHINIT_DB', "pyArchInit DB", "Import from pyArchInit SQLite database")
-        ],
-        default='GENERIC_XLSX'
-    )  # type: ignore
-    
-    generic_xlsx_file: StringProperty(
-        name="XLSX File",
-        description="Path to generic XLSX file for import",
-        subtype='FILE_PATH',
-        default=""
-    )  # type: ignore
-    
-    pyarchinit_db_path: StringProperty(
-        name="pyArchInit DB",
-        description="Path to pyArchInit SQLite database",
-        subtype='FILE_PATH',
-        default=""
-    )  # type: ignore
-    
-    # ===== GRAPHML FILES MANAGEMENT =====
-    
-    graphml_files: CollectionProperty(
-        type=GraphMLFileItem,
-        name="GraphML Files"
-    )  # type: ignore
-    
-    active_file_index: IntProperty(
-        name="Active GraphML File",
-        description="Index of the currently active GraphML file",
-        default=-1
-    )  # type: ignore
-    
-    # ===== XLSX IMPORT SETTINGS =====
-    
-    xlsx_sheet_name: StringProperty(
-        name="Sheet Name",
-        description="Name of the Excel sheet to import",
-        default=""
-    )  # type: ignore
-    
-    xlsx_id_column: StringProperty(
-        name="ID Column",
-        description="Column name containing unique identifiers",
-        default=""
-    )  # type: ignore
-    
-    # ===== FEATURE MODULES =====
+    # ============================================
+    # MANAGER CONTAINERS
+    # ============================================
     
     stratigraphy: PointerProperty(
         type=StratigraphyManagerProps,
-        name="Stratigraphy Manager"
+        name="Stratigraphy Manager",
+        description="All stratigraphy-related properties"
     )  # type: ignore
     
     epochs: PointerProperty(
         type=EpochManagerProps,
-        name="Epoch Manager"
-    )  # type: ignore
-    
-    proxy_box: PointerProperty(
-        type=ProxyBoxSettings,
-        name="Proxy Box Creator"
+        name="Epoch Manager",
+        description="All epoch-related properties"
     )  # type: ignore
     
     visual: PointerProperty(
         type=VisualManagerProps,
-        name="Visual Manager"
+        name="Visual Manager",
+        description="All visual representation properties"
     )  # type: ignore
     
     anastylosis: PointerProperty(
         type=AnastylosisManagerProps,
-        name="Anastylosis Manager"
+        name="Anastylosis Manager",
+        description="All anastylosis-related properties"
     )  # type: ignore
     
     rm: PointerProperty(
         type=RMManagerProps,
-        name="RM Manager"
+        name="RM Manager",
+        description="All representation model properties"
+    )  # type: ignore
+    
+    proxy_box: PointerProperty(
+        type=ProxyBoxSettings,
+        name="Proxy Box Creator",
+        description="Proxy box creation settings"
+    )  # type: ignore
+    
+    # ============================================
+    # GRAPHML FILE MANAGEMENT
+    # ============================================
+    
+    graphml_files: CollectionProperty(
+        type=GraphMLFileItem,
+        name="GraphML Files",
+        description="List of GraphML files in this project"
+    )  # type: ignore
+    
+    active_file_index: IntProperty(
+        name="Active File Index",
+        description="Index of the currently active GraphML file",
+        default=-1
+    )  # type: ignore
+    
+    # ============================================
+    # GLOBAL SETTINGS
+    # ============================================
+    
+    experimental_features: BoolProperty(
+        name="Experimental Features",
+        description="Enable experimental and debug features",
+        default=False
+    )  # type: ignore
+    
+    landscape_mode: BoolProperty(
+        name="Landscape Mode",
+        description="Enable landscape mode for viewing multiple graphs",
+        default=False
+    )  # type: ignore
+    
+    multigraph_mode: BoolProperty(
+        name="Multigraph Mode",
+        description="Enable multigraph mode for handling multiple graphs simultaneously",
+        default=False
     )  # type: ignore
 
 
