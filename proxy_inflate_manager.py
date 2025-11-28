@@ -210,9 +210,10 @@ class EM_OT_ProxyInflateAll(Operator):
         
         if not proxy_collection:
             # Try to find proxies from em_list if collection doesn't exist
-            if hasattr(context.scene, 'em_list'):
+            strat = context.scene.em_tools.stratigraphy  # ✅ Nuovo
+            if len(strat.units) > 0:
                 proxy_objects = []
-                for item in context.scene.em_list:
+                for item in strat.units:
                     obj = bpy.data.objects.get(item.name)
                     if obj and obj.type == 'MESH':
                         proxy_objects.append(obj)

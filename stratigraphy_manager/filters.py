@@ -8,9 +8,9 @@ import bpy # type: ignore
 from bpy.props import BoolProperty # type: ignore
 from bpy.types import Operator # type: ignore
 
-from ..functions import is_reconstruction_us
+from ..functions import is_reconstruction_us, EM_list_clear
 from .data import ensure_valid_index
-from ..populate_lists import populate_stratigraphic_node, EM_list_clear
+from ..populate_lists import populate_stratigraphic_node
 
 class EM_filter_lists(Operator):
     bl_idname = "em.filter_lists"
@@ -82,8 +82,6 @@ class EM_filter_lists(Operator):
             current_selected = strat.units[strat.units_index].name
 
         # ✅ Clear SOLO nuova lista
-        from ..populate_lists import populate_stratigraphic_node
-        from ..functions import EM_list_clear
         EM_list_clear(context, "em_list")
 
         # ✅ Rebuild (popola SOLO nuova lista)
@@ -141,8 +139,7 @@ class EM_reset_filters(Operator):
             scene.filter_by_activity = False
 
             # Get graph
-            from ..functions import is_graph_available, EM_list_clear
-            from ..populate_lists import populate_stratigraphic_node
+            from ..functions import is_graph_available
             graph_exists, graph = is_graph_available(context)
 
             if graph_exists:

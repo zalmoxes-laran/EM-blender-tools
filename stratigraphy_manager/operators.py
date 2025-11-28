@@ -186,7 +186,7 @@ class EM_strat_sync_visibility(Operator):
         proxy_collections = set()
         
         # First pass: identify which collections contain objects from em_list
-        all_em_list_names = {item.name for item in scene.em_list}
+        all_em_list_names = {item.name for item in strat.units}
         for collection in bpy.data.collections:
             for obj in collection.objects:
                 if get_base_name(obj.name) in all_em_list_names and obj.type == 'MESH':
@@ -565,9 +565,10 @@ class EM_strat_activate_collections(Operator):
     
     def execute(self, context):
         scene = context.scene
-        
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+
         # Create a set of names that are in the list
-        proxy_names = {item.name for item in scene.em_list}
+        proxy_names = {item.name for item in strat.units}
         activated_collections = []
         
         # Process all collections
@@ -777,7 +778,8 @@ class EM_not_in_matrix(Operator):
                         
                         # Verifica se l'oggetto è nella em_list
                         not_in_matrix = True
-                        for item in context.scene.em_list:
+                        strat = context.scene.em_tools.stratigraphy  # ✅ Nuovo
+                        for item in strat.units:
                             # ✅ AGGIUNTO: Converti il nome del nodo in proxy name
                             proxy_name = node_name_to_proxy_name(
                                 item.name, 
@@ -848,12 +850,13 @@ class SET_materials_using_em_list(Operator):
         consolidate_EM_material_presence(overwrite_mats)
         
         # Apply materials based on node types
-        em_list_lenght = len(context.scene.em_list)
+        strat = context.scene.em_tools.stratigraphy  # ✅ Nuovo
+        em_list_lenght = len(strat.units)
         applied_count = 0  # ✅ AGGIUNTO: Counter per il report
-        
+
         counter = 0
         while counter < em_list_lenght:
-            current_ob_em_list = context.scene.em_list[counter]
+            current_ob_em_list = strat.units[counter]
             if current_ob_em_list.icon == 'LINKED':
                 # ✅ MODIFICATO: Converti il nome con prefisso
                 proxy_name = node_name_to_proxy_name(
@@ -954,7 +957,8 @@ class SET_materials_using_epoch_list(Operator):
             em_setup_mat_cycles(matname, R, G, B)
             
             # Apply materials to objects in this epoch
-            for em_element in scene.em_list:
+            strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+            for em_element in strat.units:
                 if em_element.icon == "LINKED":
                     if em_element.epoch == epoch.name:
                         # ✅ MODIFICATO: Converti il nome con prefisso
@@ -1036,10 +1040,11 @@ class EM_debug_filters(Operator):
                 self.report({'INFO'}, "Full graph debug information printed to console")
             else:
                 # Debug current node
-                if scene.em_list_index >= 0 and len(scene.em_list) > 0:
-                    node_id = scene.em_list[scene.em_list_index].id_node
+                strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+                if strat.units_index >= 0 and len(strat.units) > 0:
+                    node_id = strat.units[strat.units_index].id_node
                     debug_graph_structure(graph, node_id, max_depth=self.max_depth)
-                    self.report({'INFO'}, f"Node debug information printed to console for {scene.em_list[scene.em_list_index].name}")
+                    self.report({'INFO'}, f"Node debug information printed to console for {strat.units[strat.units_index].name}")
                 else:
                     # Fallback to full graph if no node is selected
                     self.report({'WARNING'}, "No node selected, showing full graph information")

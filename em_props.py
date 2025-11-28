@@ -294,19 +294,31 @@ class EM_Tools(PropertyGroup):
     # ============================================
     # GLOBAL SETTINGS
     # ============================================
-    
+
+    mode_em_advanced: BoolProperty(
+        name="EM Advanced Mode",
+        description="Switch between 3D GIS mode and EM advanced mode",
+        default=True
+    )  # type: ignore
+
+    show_advanced_tools: BoolProperty(
+        name="Show Advanced Tools",
+        description="Display advanced tools for managing GraphML files and objects",
+        default=False
+    )  # type: ignore
+
     experimental_features: BoolProperty(
         name="Experimental Features",
         description="Enable experimental and debug features",
         default=False
     )  # type: ignore
-    
+
     landscape_mode: BoolProperty(
         name="Landscape Mode",
         description="Enable landscape mode for viewing multiple graphs",
         default=False
     )  # type: ignore
-    
+
     multigraph_mode: BoolProperty(
         name="Multigraph Mode",
         description="Enable multigraph mode for handling multiple graphs simultaneously",

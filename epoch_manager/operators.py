@@ -47,7 +47,8 @@ class EM_toggle_select(Operator):
         if self.group_em_idx < len(scene.epoch_list):
             current_e_manager = scene.epoch_list[self.group_em_idx]
             
-            for us in scene.em_list:
+            strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+            for us in strat.units:
                 if us.icon == "LINKED":
                     if current_e_manager.name == us.epoch:
                         # ✅ MODIFICATO: Converti il nome con prefisso
@@ -108,7 +109,8 @@ class EM_toggle_visibility(Operator):
             current_e_manager = scene.epoch_list[self.group_em_vis_idx]
             
             # Parsing the em list
-            for us in scene.em_list:
+            strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+            for us in strat.units:
                 # Selecting only in-scene em elements
                 if us.icon == "LINKED":
                     # Check if the us is in epoch
@@ -153,7 +155,8 @@ class EM_toggle_selectable(Operator):
         if self.group_em_idx < len(scene.epoch_list):
             current_e_manager = scene.epoch_list[self.group_em_idx]
             
-            for us in scene.em_list:
+            strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+            for us in strat.units:
                 if us.icon == "LINKED":
                     if current_e_manager.name == us.epoch:
                         # ✅ MODIFICATO: Converti il nome con prefisso

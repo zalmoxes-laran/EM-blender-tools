@@ -276,11 +276,12 @@ class ANASTYLOSIS_OT_link_to_sf(Operator):
             return {'CANCELLED'}
         
         # Get active stratigraphy item
-        if scene.em_list_index < 0 or scene.em_list_index >= len(scene.em_list):
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+        if strat.units_index < 0 or strat.units_index >= len(strat.units):
             self.report({'ERROR'}, "No active stratigraphy unit selected")
             return {'CANCELLED'}
-            
-        active_strat_item = scene.em_list[scene.em_list_index]
+
+        active_strat_item = strat.units[strat.units_index]
         
         # Get graph
         graph = None

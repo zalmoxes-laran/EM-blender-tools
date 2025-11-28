@@ -135,16 +135,16 @@ def find_node_id_from_proxy(proxy_obj, context, verbose=False):
     return None
 
 def get_em_list_items(context):
-    """Ottiene gli item della UIList filtrata"""
-    return context.scene.em_list
+    """Ottiene gli item della UIList filtrata - ✅ CLEAN VERSION"""
+    return context.scene.em_tools.stratigraphy.units
 
 def get_em_list_active_index(context):
-    """Ottiene l'indice attivo della UIList"""
-    return context.scene.em_list_index
+    """Ottiene l'indice attivo della UIList - ✅ CLEAN VERSION"""
+    return context.scene.em_tools.stratigraphy.units_index
 
 def set_em_list_active_index(context, index):
-    """Imposta l'indice attivo della UIList"""
-    context.scene.em_list_index = index
+    """Imposta l'indice attivo della UIList - ✅ CLEAN VERSION"""
+    context.scene.em_tools.stratigraphy.units_index = index
 
 def get_connection_rules():
     """

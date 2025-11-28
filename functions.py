@@ -24,11 +24,36 @@ from pathlib import Path
 
 # ✅ AGGIUNGERE questa import
 from .operators.addon_prefix_helpers import (
-    node_name_to_proxy_name, 
+    node_name_to_proxy_name,
     proxy_name_to_node_name,
     get_proxy_from_node,
     get_active_graph_code
 )
+
+def clean_value_for_ui(value):
+    """
+    Clean string values for UI display.
+    Removes newlines and extra whitespace that could break UI layouts.
+
+    Args:
+        value: String value to clean (or None)
+
+    Returns:
+        Cleaned string value
+    """
+    if value is None:
+        return ""
+
+    # Convert to string if not already
+    value_str = str(value)
+
+    # Replace newlines with spaces
+    value_str = value_str.replace('\n', ' ').replace('\r', ' ')
+
+    # Remove excessive whitespace
+    value_str = ' '.join(value_str.split())
+
+    return value_str
 
 def get_compatible_icon(icon_name):
     """Return the appropriate icon name based on Blender version"""
@@ -52,19 +77,22 @@ def get_compatible_icon(icon_name):
     else:
         return icon_name
 
-def ensure_valid_index(collection_property, index_property_name, context=None, show_popup=True):
+def ensure_valid_index(collection_property, index_property_name, context=None, show_popup=True, data_object=None):
     """
     Ensures that the index for a collection property is valid.
-    
+
     Args:
         collection_property: The collection property
         index_property_name: The name of the index property
         context: Blender context (optional)
         show_popup: Whether to show a popup when correcting the index
+        data_object: Optional PropertyGroup that contains the index property (for nested properties)
     """
     # Get the owner object that contains both properties
-    owner = collection_property.id_data
-    
+    # If data_object is provided, use it (for nested PropertyGroups)
+    # Otherwise, use id_data (for Scene-level properties)
+    owner = data_object if data_object is not None else collection_property.id_data
+
     # Get current index value
     current_index = getattr(owner, index_property_name)
     
@@ -1197,10 +1225,11 @@ def set_materials_using_EM_list(context):
     graph_exists, graph = is_graph_available(context)
     active_graph = graph if graph_exists else None
     
-    em_list_lenght = len(context.scene.em_list)
+    strat = context.scene.em_tools.stratigraphy  # ✅ Nuovo
+    em_list_lenght = len(strat.units)
     counter = 0
     while counter < em_list_lenght:
-        current_ob_em_list = context.scene.em_list[counter]
+        current_ob_em_list = strat.units[counter]
         overwrite_mats = True
         consolidate_EM_material_presence(overwrite_mats)
         
@@ -1309,7 +1338,8 @@ def set_materials_using_epoch_list(context):
         B = epoch.epoch_RGB_color[2]
         em_setup_mat_cycles(matname, R, G, B)
         
-        for em_element in scene.em_list:
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+        for em_element in strat.units:
             if em_element.icon == "LINKED":
                 if em_element.epoch == epoch.name:
                     # ✅ MODIFICATO: Converti il nome con prefisso
@@ -1765,8 +1795,9 @@ def update_em_list_with_visibility_info(context, graph=None):
     import bpy
     
     scene = context.scene
-    
-    for item in scene.em_list:
+    strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+
+    for item in strat.units:
         # Converti il nome del nodo nel nome del proxy
         proxy_name = node_name_to_proxy_name(item.name, context=context, graph=graph)
         obj = bpy.data.objects.get(proxy_name)

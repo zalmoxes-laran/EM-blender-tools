@@ -587,9 +587,11 @@ class EM_ParadataPanel:
         
         # Safely get the GraphML file information
         paradata_text = "Full list of paradata"
-        if scene.paradata_streaming_mode and scene.em_list_index >= 0 and len(scene.em_list) > 0:
+        # ✅ Usa nuovi paths centralizzati
+        strat = scene.em_tools.stratigraphy
+        if scene.paradata_streaming_mode and strat.units_index >= 0 and len(strat.units) > 0:
             # Se è attivo lo streaming, mostra il nome stratigrafico selezionato
-            paradata_text = str("Paradata related to: " + str(scene.em_list[scene.em_list_index].name))
+            paradata_text = str("Paradata related to: " + str(strat.units[strat.units_index].name))
         else:
             # Safe access to GraphML file information 
             try:
@@ -736,7 +738,9 @@ class EM_ParadataPanel:
             if op:
                 op.list_type = extractor_list_var
             
-            if scene.em_list_index >= 0 and len(scene.em_list) > 0 and scene.em_list[scene.em_list_index].icon == 'LINKED':
+            # ✅ Usa nuovi paths centralizzati
+            strat = scene.em_tools.stratigraphy
+            if strat.units_index >= 0 and len(strat.units) > 0 and strat.units[strat.units_index].icon == 'LINKED':
                 op = btn_row.operator("select.fromlistitem", text='', icon="MESH_CUBE")
                 if op:
                     op.list_type = extractor_list_var
@@ -807,7 +811,9 @@ class EM_ParadataPanel:
             if op:
                 op.list_type = source_list_var
             
-            if scene.em_list_index >= 0 and len(scene.em_list) > 0 and scene.em_list[scene.em_list_index].icon == 'LINKED':
+            # ✅ Usa nuovi paths centralizzati
+            strat = scene.em_tools.stratigraphy
+            if strat.units_index >= 0 and len(strat.units) > 0 and strat.units[strat.units_index].icon == 'LINKED':
                 op = btn_row.operator("select.fromlistitem", text='', icon="MESH_CUBE")
                 if op:
                     op.list_type = source_list_var
@@ -1048,9 +1054,11 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
                 return {'FINISHED'}  # Non è un errore, le liste rimarranno vuote
             
             # Determina il nodo di partenza (stratigrafico selezionato o tutti)
+            # ✅ Usa nuovi paths centralizzati
+            strat = scene.em_tools.stratigraphy
             strat_node_id = None
-            if scene.paradata_streaming_mode and scene.em_list_index >= 0 and len(scene.em_list) > 0:
-                strat_node_id = scene.em_list[scene.em_list_index].id_node
+            if scene.paradata_streaming_mode and strat.units_index >= 0 and len(strat.units) > 0:
+                strat_node_id = strat.units[strat.units_index].id_node
             
             # Aggiorna la lista delle proprietà con controlli di sicurezza
             self.update_property_list(scene, graph, strat_node_id)

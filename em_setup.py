@@ -473,17 +473,26 @@ class AUXILIARY_UL_files(bpy.types.UIList):
             icon_auto = 'CHECKBOX_HLT' if item.auto_reload_on_em_update else 'CHECKBOX_DEHLT'
             row.prop(item, "auto_reload_on_em_update", text="", icon=icon_auto, emboss=False)
 
-def get_emdb_mappings():
-    """Get available EMdb mapping files from registry"""
+def get_emdb_mappings(self=None, context=None):
+    """
+    Get available EMdb mapping files from registry.
+
+    Args:
+        self: PropertyGroup instance (passed by Blender)
+        context: Blender context (passed by Blender)
+
+    Returns:
+        List of (identifier, name, description) tuples for EnumProperty
+    """
     mappings = [("none", "No Mapping", "Select a mapping file")]
-    
+
     try:
         from s3dgraphy.mappings import mapping_registry
         available_mappings = mapping_registry.list_available_mappings('emdb')
         mappings.extend(available_mappings)
     except Exception as e:
         print(f"Error loading EMdb mappings: {str(e)}")
-    
+
     return mappings
 
 
@@ -590,15 +599,16 @@ def get_us_doc_previews_callback(self, context):
     scene = context.scene
     
     # Ottieni US selezionata
-    if not hasattr(scene, 'em_list') or scene.em_list_index < 0:
+    strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+    if strat.units_index < 0:
         # ✅ CORRETTO: Usa "NONE" invece di stringa vuota
         return [("NONE", "No US selected", "", 0, 0)]
-    
-    if scene.em_list_index >= len(scene.em_list):
+
+    if strat.units_index >= len(strat.units):
         # ✅ CORRETTO: Usa "NONE" invece di stringa vuota
         return [("NONE", "Invalid US index", "", 0, 0)]
-        
-    selected_us = scene.em_list[scene.em_list_index]
+
+    selected_us = strat.units[strat.units_index]
     
     # Carica thumbnails filtrate
     from .thumb_utils import reload_doc_previews_for_us
@@ -1022,8 +1032,18 @@ class EM_SetupPanel(bpy.types.Panel):
                 split = row.split()
                 col = split.column()
                 col.label(text="US/USV")
-                col.prop(scene, "em_list", text='')
-                
+                # ✅ Usa nuovo path centralizzato con data = strat PropertyGroup
+                strat = scene.em_tools.stratigraphy
+                col.template_list(
+                    "EM_UL_List",      # Nome corretto della UIList class
+                    "",                # ID univoco (vuoto = default)
+                    strat,             # data: StratigraphyManagerProps
+                    "units",           # collection property name
+                    strat,             # active_data
+                    "units_index",     # active property name
+                    rows=3
+                )
+
                 # Separatore verticale
                 col.separator()
                 

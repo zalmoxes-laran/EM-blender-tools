@@ -42,7 +42,8 @@ class PROXY_PROJECTION_OT_apply(Operator):
             return {'CANCELLED'}
         
         # Get proxy objects from filtered list
-        proxy_objects = get_filtered_proxy_objects(scene.em_list)
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+        proxy_objects = get_filtered_proxy_objects(strat.units)
         if not proxy_objects:
             self.report({'WARNING'}, "No proxy objects found in filtered stratigraphy list")
             return {'CANCELLED'}
@@ -383,7 +384,8 @@ class PROXY_PROJECTION_OT_diagnose(Operator):
             report_lines.append("Active Epoch: ✗ None selected")
         
         # Check proxy objects
-        proxy_objects = get_filtered_proxy_objects(scene.em_list)
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+        proxy_objects = get_filtered_proxy_objects(strat.units)
         report_lines.append(f"Filtered Proxies: {len(proxy_objects)} objects")
         
         # Check RM objects

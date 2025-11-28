@@ -165,7 +165,8 @@ class EMExportCSV(bpy.types.Operator, ExportHelper):
             volume, weight, measurement_type, total_surface, vertical_surface = calculate_object_metrics(obj, selected_material, materials)
             
             epoca = description = emnode = "none"
-            for i in bpy.context.scene.em_list:
+            strat = bpy.context.scene.em_tools.stratigraphy  # ✅ Nuovo
+            for i in strat.units:
                 if obj.name == i.name:
                     epoca = i.epoch
                     description = i.description

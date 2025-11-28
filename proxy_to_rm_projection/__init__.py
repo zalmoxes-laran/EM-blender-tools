@@ -324,7 +324,9 @@ def check_prerequisites():
         issues.append("No active epoch selected")
     
     # Check for proxy objects
-    if not hasattr(scene, 'em_list') or len(scene.em_list) == 0:
+    # ✅ Usa nuovo path centralizzato
+    strat = scene.em_tools.stratigraphy
+    if len(strat.units) == 0:
         issues.append("No proxy objects in stratigraphy list")
     
     # Check for RM objects

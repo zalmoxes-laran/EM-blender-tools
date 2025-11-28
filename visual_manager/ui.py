@@ -280,7 +280,8 @@ class VIEW3D_PT_visual_panel(Panel):
                     if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
                         warning_col.label(text="• No active epoch selected")
                     
-                    if not hasattr(scene, 'em_list') or len(scene.em_list) == 0:
+                    strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+                    if len(strat.units) == 0:
                         warning_col.label(text="• No proxy objects in list")
                     
                     if not hasattr(scene, 'rm_list') or len(scene.rm_list) == 0:
@@ -306,7 +307,8 @@ class VIEW3D_PT_visual_panel(Panel):
             return False
         
         # Check for proxy objects
-        if not hasattr(scene, 'em_list') or len(scene.em_list) == 0:
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+        if len(strat.units) == 0:
             return False
         
         # Check for RM objects

@@ -90,13 +90,11 @@ class EMToolsSelectListItem(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        """Determina se l'operatore può essere eseguito"""
-        return (
-            context.scene is not None and
-            hasattr(context.scene, 'em_tools') and
-            hasattr(context.scene, 'em_list') and
-            len(context.scene.em_list) > 0
-        )
+        """Determina se l'operatore può essere eseguito - ✅ CLEAN VERSION"""
+        if context.scene is None or not hasattr(context.scene, 'em_tools'):
+            return False
+        strat = context.scene.em_tools.stratigraphy
+        return len(strat.units) > 0
 
 class EMToolsReloadActiveGraphML(bpy.types.Operator):
     """Ricarica il file GraphML attualmente attivo"""

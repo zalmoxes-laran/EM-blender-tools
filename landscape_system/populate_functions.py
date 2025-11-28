@@ -101,8 +101,9 @@ def populate_stratigraphy_list_landscape(context, all_graphs):
             node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
         ]
         
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
         for node in stratigraphic_nodes:
-            item = scene.em_list.add()
+            item = strat.units.add()
             
             # Nome con prefisso grafo per Landscape
             item.name = f"[{graph_code}] {node.name}"

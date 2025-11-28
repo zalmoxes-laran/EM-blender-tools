@@ -562,8 +562,9 @@ class EM_export(bpy.types.Operator):
         return is_scalable
 
     def export_proxies(self, scene, export_folder):
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
         for proxy in bpy.data.objects:
-            for em in scene.em_list:
+            for em in strat.units:
                 if proxy.name == em.name:
                     proxy.select_set(True)
                     name = bpy.path.clean_name(em.name)
@@ -720,8 +721,9 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
     def extract_nodes_edges_for_emjson(self, scene, nodes, edges):
         # passo i nodi UUSS:
         index_nodes = 0
-        
-        for uuss in scene.em_list:
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+
+        for uuss in strat.units:
             uuss_node = {}
             uuss_data = {}
             uuss_layout = {}
@@ -838,7 +840,8 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
         return color
 
     def original_id_to_new_name(self, scene, id_node):
-        for UUSS in scene.em_list:
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+        for UUSS in strat.units:
             if UUSS.id_node == id_node:
                 return UUSS.name
         for property in scene.em_properties_list:
@@ -908,7 +911,8 @@ class ExportuussData(Operator, ExportHelper):
         if  context.window_manager.export_tables_vars.table_type == 'US/USV':
             if header:
                 f.write("Name; Description; Epoch; Type \n")
-            for US in context.scene.em_list:
+            strat = context.scene.em_tools.stratigraphy  # ✅ Nuovo
+            for US in strat.units:
                 if only_UUSS:
                     if US.icon == "RESTRICT_INSTANCED_ON":
                         f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape, US.border_style)[1]))

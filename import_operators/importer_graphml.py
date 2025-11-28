@@ -94,8 +94,9 @@ class EM_import_GraphML(bpy.types.Operator):
                 
                 print(f"Aggiornato ID nell'interfaccia a: {graphml.name}")
                 # Imposta esplicitamente gli indici a 0 prima di popolare
-                scene.em_list_index = 0
-                
+                strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+                strat.units_index = 0  # ✅ Nuovo path
+
                 scene.epoch_list_index = 0
                 
                 
@@ -118,7 +119,10 @@ class EM_import_GraphML(bpy.types.Operator):
                 
                 # Ora procedi con il popolamento delle liste (che avranno già URL aggiornati)
                 populate_blender_lists_from_graph(context, graph_instance)
-                ensure_valid_index(scene.em_list, "em_list_index", context)
+
+                # ✅ Usa nuovi paths centralizzati
+                strat = scene.em_tools.stratigraphy
+                ensure_valid_index(strat.units, "units_index", context, data_object=strat)
                 ensure_valid_index(scene.epoch_list, "epoch_list_index", context, show_popup=False)
                 ensure_valid_index(scene.em_sources_list, "em_sources_list_index", context)
                 ensure_valid_index(scene.em_properties_list, "em_properties_list_index", context)
@@ -127,14 +131,15 @@ class EM_import_GraphML(bpy.types.Operator):
 
                 # verifica post importazione
                 self.check_index_coherence(scene)
-                
+
                 #per aggiornare i nomi delle proprietà usando come prefisso in nome del nodo padre
                 #self.newnames_forproperties_from_fathernodes(scene)
                 # ho disabilitato questa funzione perchè non mi sembra utile. Se serve, si può riabilitare
-                
+
                 #crea liste derivate per lo streaming dei paradati
-                
-                create_derived_lists(scene.em_list[scene.em_list_index])
+                # ✅ Usa nuovo path
+                if strat.units_index >= 0 and strat.units_index < len(strat.units):
+                    create_derived_lists(strat.units[strat.units_index])
                 
                 #setup dei materiali di scena dopo l'importazione del graphml
                 self.post_import_material_setup(context)
@@ -208,11 +213,12 @@ class EM_import_GraphML(bpy.types.Operator):
         return EM_us_target, node_y_pos
 
     def check_index_coherence(self, scene):
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
         try:
-            node_send = scene.em_list[scene.em_list_index]
+            node_send = strat.units[strat.units_index]
         except IndexError as error:
-            scene.em_list_index = 0
-            node_send = scene.em_list[scene.em_list_index]
+            strat.units_index = 0
+            node_send = strat.units[strat.units_index]
 
     def post_import_material_setup(self, context):
         current_mode = context.scene.proxy_display_mode
@@ -231,12 +237,13 @@ class EM_import_GraphML(bpy.types.Operator):
 
     def newnames_forproperties_from_fathernodes(self, scene):
         poly_property_counter = 1
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
         for property in scene.em_properties_list:
             node_list = []
 
             for edge in scene.edges_list:
                 if edge.target == property.id_node:
-                    for node in scene.em_list:
+                    for node in strat.units:
                         if edge.source == node.id_node:
                             node_list.append(node.name)
                             break # Interrompe il ciclo una volta trovata la corrispondenza
@@ -249,7 +256,8 @@ class EM_import_GraphML(bpy.types.Operator):
 
     def find_node_us_by_id(self, id_node):
         us_node = ""
-        for us in bpy.context.scene.em_list:
+        strat = bpy.context.scene.em_tools.stratigraphy  # ✅ Nuovo
+        for us in strat.units:
             if id_node == us.id_node:
                 us_node = us.name
         return us_node
