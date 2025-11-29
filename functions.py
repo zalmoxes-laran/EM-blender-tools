@@ -1024,27 +1024,36 @@ def check_objs_in_scene_and_provide_icon_for_list_element(node_name, graph=None,
 def update_icons(context, list_type):
     """
     Aggiorna le icone di una lista in base alla presenza degli oggetti 3D in scena.
-    
-    ✅ MODIFICATO: Ora ottiene il graph attivo e lo passa a check_objs
+
+    ✅ CLEAN VERSION: Usa i nuovi path centralizzati
     """
-    
+
     #print(f"\n🔍 DEBUG update_icons - Starting for list_type: {list_type}")
-    
+
     scene = context.scene
-    list_path = "scene." + list_type
-    
+
+    # ✅ Map legacy list_type to new paths
+    if list_type == "em_list":
+        target_list = scene.em_tools.stratigraphy.units
+    elif list_type == "em_reused":
+        target_list = scene.em_tools.stratigraphy.reused
+    else:
+        # Per altre liste, usa il vecchio path
+        list_path = "scene." + list_type
+        target_list = eval(list_path)
+
     # ✅ Ottieni il grafo attivo
     graph_exists, graph = is_graph_available(context)
-    
+
     #print(f"🔍 DEBUG update_icons - graph_exists: {graph_exists}")
     #print(f"🔍 DEBUG update_icons - graph: {graph}")
-    
+
     # Se il grafo non esiste, usa None (funzionerà comunque per oggetti senza prefisso)
     active_graph = graph if graph_exists else None
-    
+
     # Aggiorna l'icona per ogni elemento
     element_count = 0
-    for element in eval(list_path):
+    for element in target_list:
         element_count += 1
         
         old_icon = element.icon

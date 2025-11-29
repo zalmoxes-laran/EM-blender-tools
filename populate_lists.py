@@ -222,17 +222,21 @@ def populate_blender_lists_from_graph(context, graph):
     
     # Get nodes by type
     stratigraphic_nodes = graph.get_nodes_by_type(['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs'])
+    print(f"DEBUG populate_lists: Found {len(stratigraphic_nodes)} stratigraphic nodes")
     document_nodes = graph.get_nodes_by_type('document')
     property_nodes = graph.get_nodes_by_type('property')
     extractor_nodes = graph.get_nodes_by_type('extractor')
     combiner_nodes = graph.get_nodes_by_type('combiner')
     epoch_nodes = graph.get_nodes_by_type('epoch')
-    
+
     # 1. Nodi stratigrafici
+    strat_count = 0
     for node in stratigraphic_nodes:
         if isinstance(node, StratigraphicNode):
             em_list_index_ema = populate_stratigraphic_node(scene, node, em_list_index_ema, graph)
             em_reused_index_ema = populate_reuse_US_table(scene, node, em_reused_index_ema, graph)
+            strat_count += 1
+    print(f"DEBUG populate_lists: Populated {strat_count} stratigraphic nodes (StratigraphicNode instances)")
     
     # 2. Nodi documento
     for node in document_nodes:
