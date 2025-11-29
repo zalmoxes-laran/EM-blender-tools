@@ -325,6 +325,31 @@ class EM_Tools(PropertyGroup):
         default=False
     )  # type: ignore
 
+    # ✅ XLSX/EMdb import properties
+    generic_xlsx_file: StringProperty(
+        name="Excel File",
+        description="Path to generic Excel file",
+        subtype='FILE_PATH'
+    )  # type: ignore
+
+    xlsx_sheet_name: StringProperty(
+        name="Sheet Name",
+        description="Name of the Excel sheet containing the data",
+        default="Sheet1"
+    )  # type: ignore
+
+    xlsx_id_column: StringProperty(
+        name="ID Column",
+        description="Name of the column containing unique IDs",
+        default="ID"
+    )  # type: ignore
+
+    emdb_xlsx_file: StringProperty(
+        name="EMdb Excel File",
+        description="Path to EMdb Excel file",
+        subtype='FILE_PATH'
+    )  # type: ignore
+
 
 # =====================================================
 # REGISTRATION

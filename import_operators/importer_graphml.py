@@ -118,10 +118,7 @@ class EM_import_GraphML(bpy.types.Operator):
 
 
                 # Ora procedi con il popolamento delle liste (che avranno già URL aggiornati)
-                print(f"DEBUG: Calling populate_blender_lists_from_graph with graph {graph_instance.graph_id}")
-                print(f"DEBUG: Graph has {len(graph_instance.nodes)} nodes")
                 populate_blender_lists_from_graph(context, graph_instance)
-                print(f"DEBUG: After populate, strat.units has {len(scene.em_tools.stratigraphy.units)} items")
 
                 # ✅ Usa nuovi paths centralizzati
                 strat = scene.em_tools.stratigraphy

@@ -221,8 +221,13 @@ def populate_blender_lists_from_graph(context, graph):
     em_epoch_list_ema = 0
     
     # Get nodes by type
-    stratigraphic_nodes = graph.get_nodes_by_type(['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs'])
-    print(f"DEBUG populate_lists: Found {len(stratigraphic_nodes)} stratigraphic nodes")
+    # ✅ MODIFICATO: Chiamare get_nodes_by_type per ogni tipo separatamente
+    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
+    stratigraphic_nodes = []
+    for node_type in stratigraphic_types:
+        nodes = graph.get_nodes_by_type(node_type)
+        stratigraphic_nodes.extend(nodes)
+
     document_nodes = graph.get_nodes_by_type('document')
     property_nodes = graph.get_nodes_by_type('property')
     extractor_nodes = graph.get_nodes_by_type('extractor')
@@ -230,13 +235,10 @@ def populate_blender_lists_from_graph(context, graph):
     epoch_nodes = graph.get_nodes_by_type('epoch')
 
     # 1. Nodi stratigrafici
-    strat_count = 0
     for node in stratigraphic_nodes:
         if isinstance(node, StratigraphicNode):
             em_list_index_ema = populate_stratigraphic_node(scene, node, em_list_index_ema, graph)
             em_reused_index_ema = populate_reuse_US_table(scene, node, em_reused_index_ema, graph)
-            strat_count += 1
-    print(f"DEBUG populate_lists: Populated {strat_count} stratigraphic nodes (StratigraphicNode instances)")
     
     # 2. Nodi documento
     for node in document_nodes:
