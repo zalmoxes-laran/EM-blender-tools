@@ -132,11 +132,11 @@ def check_selection_changed(context):
     
     # Check sources list
     if (hasattr(scene, "em_v_sources_list_index") and 
-        scene.em_v_sources_list_index >= 0 and 
-        scene.em_v_sources_list_index != scene.paradata_image.last_source_index):
+        scene.em_tools.em_v_sources_list_index >= 0 and 
+        scene.em_tools.em_v_sources_list_index != scene.paradata_image.last_source_index):
         
         # Update last seen index
-        scene.paradata_image.last_source_index = scene.em_v_sources_list_index
+        scene.paradata_image.last_source_index = scene.em_tools.em_v_sources_list_index
         
         # Try loading image
         if len(scene.em_v_sources_list) > 0:
@@ -144,11 +144,11 @@ def check_selection_changed(context):
             
     # Check extractors list
     if (hasattr(scene, "em_v_extractors_list_index") and 
-        scene.em_v_extractors_list_index >= 0 and 
-        scene.em_v_extractors_list_index != scene.paradata_image.last_extractor_index):
+        scene.em_tools.em_v_extractors_list_index >= 0 and 
+        scene.em_tools.em_v_extractors_list_index != scene.paradata_image.last_extractor_index):
         
         # Update last seen index
-        scene.paradata_image.last_extractor_index = scene.em_v_extractors_list_index
+        scene.paradata_image.last_extractor_index = scene.em_tools.em_v_extractors_list_index
         
         # Try loading image
         if len(scene.em_v_extractors_list) > 0:
@@ -168,10 +168,10 @@ def auto_load_paradata_image(context, node_type):
     
     # Check if the URL might be an image
     url = None
-    if node_type == "em_v_sources_list" and scene.em_v_sources_list_index >= 0 and len(scene.em_v_sources_list) > 0:
-        url = scene.em_v_sources_list[scene.em_v_sources_list_index].url
-    elif node_type == "em_v_extractors_list" and scene.em_v_extractors_list_index >= 0 and len(scene.em_v_extractors_list) > 0:
-        url = scene.em_v_extractors_list[scene.em_v_extractors_list_index].url
+    if node_type == "em_v_sources_list" and scene.em_tools.em_v_sources_list_index >= 0 and len(scene.em_v_sources_list) > 0:
+        url = scene.em_v_sources_list[scene.em_tools.em_v_sources_list_index].url
+    elif node_type == "em_v_extractors_list" and scene.em_tools.em_v_extractors_list_index >= 0 and len(scene.em_v_extractors_list) > 0:
+        url = scene.em_v_extractors_list[scene.em_tools.em_v_extractors_list_index].url
     
     if not url:
         return
@@ -432,10 +432,10 @@ def auto_load_paradata_image(context, node_type):
     
     # Check if the URL might be an image
     url = None
-    if node_type == "em_v_sources_list" and scene.em_v_sources_list_index >= 0 and len(scene.em_v_sources_list) > 0:
-        url = scene.em_v_sources_list[scene.em_v_sources_list_index].url
-    elif node_type == "em_v_extractors_list" and scene.em_v_extractors_list_index >= 0 and len(scene.em_v_extractors_list) > 0:
-        url = scene.em_v_extractors_list[scene.em_v_extractors_list_index].url
+    if node_type == "em_v_sources_list" and scene.em_tools.em_v_sources_list_index >= 0 and len(scene.em_v_sources_list) > 0:
+        url = scene.em_v_sources_list[scene.em_tools.em_v_sources_list_index].url
+    elif node_type == "em_v_extractors_list" and scene.em_tools.em_v_extractors_list_index >= 0 and len(scene.em_v_extractors_list) > 0:
+        url = scene.em_v_extractors_list[scene.em_tools.em_v_extractors_list_index].url
     
     if not url:
         return
@@ -470,10 +470,10 @@ def auto_load_paradata_image(context, node_type):
     
     # Check if the URL might be an image
     url = None
-    if node_type == "em_v_sources_list" and scene.em_v_sources_list_index >= 0 and len(scene.em_v_sources_list) > 0:
-        url = scene.em_v_sources_list[scene.em_v_sources_list_index].url
-    elif node_type == "em_v_extractors_list" and scene.em_v_extractors_list_index >= 0 and len(scene.em_v_extractors_list) > 0:
-        url = scene.em_v_extractors_list[scene.em_v_extractors_list_index].url
+    if node_type == "em_v_sources_list" and scene.em_tools.em_v_sources_list_index >= 0 and len(scene.em_v_sources_list) > 0:
+        url = scene.em_v_sources_list[scene.em_tools.em_v_sources_list_index].url
+    elif node_type == "em_v_extractors_list" and scene.em_tools.em_v_extractors_list_index >= 0 and len(scene.em_v_extractors_list) > 0:
+        url = scene.em_v_extractors_list[scene.em_tools.em_v_extractors_list_index].url
     
     if not url:
         return
@@ -532,47 +532,47 @@ class EM_ParadataPanel:
         row = layout.row()
 
         # Define variables 
-        if scene.paradata_streaming_mode:
+        if scene.em_tools.paradata_streaming_mode:
             property_list_var = "em_v_properties_list"
             property_list_index_var = "em_v_properties_list_index"
             property_list_cmd = "scene.em_v_properties_list"
-            property_list_index_cmd = "scene.em_v_properties_list_index"
+            property_list_index_cmd = "scene.em_tools.em_v_properties_list_index"
 
             combiner_list_var = "em_v_combiners_list"
             combiner_list_index_var = "em_v_combiners_list_index"
             combiner_list_cmd = "scene.em_v_combiners_list"
-            combiner_list_index_cmd = "scene.em_v_combiners_list_index"
+            combiner_list_index_cmd = "scene.em_tools.em_v_combiners_list_index"
 
             extractor_list_var = "em_v_extractors_list"
             extractor_list_index_var = "em_v_extractors_list_index"
             extractor_list_cmd = "scene.em_v_extractors_list"
-            extractor_list_index_cmd = "scene.em_v_extractors_list_index"
+            extractor_list_index_cmd = "scene.em_tools.em_v_extractors_list_index"
 
             source_list_var = "em_v_sources_list"
             source_list_index_var = "em_v_sources_list_index"
             source_list_cmd = "scene.em_v_sources_list"
-            source_list_index_cmd = "scene.em_v_sources_list_index"
+            source_list_index_cmd = "scene.em_tools.em_v_sources_list_index"
 
         else:
             property_list_var = "em_properties_list"
             property_list_index_var = "em_properties_list_index"
-            property_list_cmd = "scene.em_properties_list"
-            property_list_index_cmd = "scene.em_properties_list_index"
+            property_list_cmd = "scene.em_tools.em_properties_list"
+            property_list_index_cmd = "scene.em_tools.em_properties_list_index"
 
             combiner_list_var = "em_combiners_list"
             combiner_list_index_var = "em_combiners_list_index"
-            combiner_list_cmd = "scene.em_combiners_list"
-            combiner_list_index_cmd = "scene.em_combiners_list_index"
+            combiner_list_cmd = "scene.em_tools.em_combiners_list"
+            combiner_list_index_cmd = "scene.em_tools.em_combiners_list_index"
 
             extractor_list_var = "em_extractors_list"
             extractor_list_index_var = "em_extractors_list_index"
-            extractor_list_cmd = "scene.em_extractors_list"
-            extractor_list_index_cmd = "scene.em_extractors_list_index"  
+            extractor_list_cmd = "scene.em_tools.em_extractors_list"
+            extractor_list_index_cmd = "scene.em_tools.em_extractors_list_index"  
 
             source_list_var = "em_sources_list"
             source_list_index_var = "em_sources_list_index"
-            source_list_cmd = "scene.em_sources_list"
-            source_list_index_cmd = "scene.em_sources_list_index"           
+            source_list_cmd = "scene.em_tools.em_sources_list"
+            source_list_index_cmd = "scene.em_tools.em_sources_list_index"           
 
         ###############################################################################
         ##          Properties
@@ -589,7 +589,7 @@ class EM_ParadataPanel:
         paradata_text = "Full list of paradata"
         # ✅ Usa nuovi paths centralizzati
         strat = scene.em_tools.stratigraphy
-        if scene.paradata_streaming_mode and strat.units_index >= 0 and len(strat.units) > 0:
+        if scene.em_tools.paradata_streaming_mode and strat.units_index >= 0 and len(strat.units) > 0:
             # Se è attivo lo streaming, mostra il nome stratigrafico selezionato
             paradata_text = str("Paradata related to: " + str(strat.units[strat.units_index].name))
         else:
@@ -1057,7 +1057,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             # ✅ Usa nuovi paths centralizzati
             strat = scene.em_tools.stratigraphy
             strat_node_id = None
-            if scene.paradata_streaming_mode and strat.units_index >= 0 and len(strat.units) > 0:
+            if scene.em_tools.paradata_streaming_mode and strat.units_index >= 0 and len(strat.units) > 0:
                 strat_node_id = strat.units[strat.units_index].id_node
             
             # Aggiorna la lista delle proprietà con controlli di sicurezza
@@ -1065,36 +1065,36 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             
             # Assicurati che l'indice delle proprietà sia valido
             if len(scene.em_v_properties_list) > 0:
-                if scene.em_v_properties_list_index >= len(scene.em_v_properties_list):
-                    scene.em_v_properties_list_index = 0
+                if scene.em_tools.em_v_properties_list_index >= len(scene.em_v_properties_list):
+                    scene.em_tools.em_v_properties_list_index = 0
 
                 # Procedi solo se l'indice è valido
-                if (scene.em_v_properties_list_index >= 0 and 
-                    scene.em_v_properties_list_index < len(scene.em_v_properties_list) and
-                    hasattr(scene.em_v_properties_list[scene.em_v_properties_list_index], 'id_node')):
+                if (scene.em_tools.em_v_properties_list_index >= 0 and 
+                    scene.em_tools.em_v_properties_list_index < len(scene.em_v_properties_list) and
+                    hasattr(scene.em_v_properties_list[scene.em_tools.em_v_properties_list_index], 'id_node')):
                     
-                    prop_node_id = scene.em_v_properties_list[scene.em_v_properties_list_index].id_node
+                    prop_node_id = scene.em_v_properties_list[scene.em_tools.em_v_properties_list_index].id_node
                     self.update_combiner_list(scene, graph, prop_node_id)
                     self.update_extractor_list(scene, graph, prop_node_id)
                 
                 # Aggiorna estrattori e documenti solo se ci sono elementi validi
                 if len(scene.em_v_extractors_list) > 0:
-                    if scene.em_v_extractors_list_index >= len(scene.em_v_extractors_list):
-                        scene.em_v_extractors_list_index = 0
+                    if scene.em_tools.em_v_extractors_list_index >= len(scene.em_v_extractors_list):
+                        scene.em_tools.em_v_extractors_list_index = 0
                     
                     # Solo se abbiamo estrattori e l'indice è valido, aggiorna le liste dei documenti
-                    if scene.em_v_extractors_list_index >= 0:
-                        ext_node_id = scene.em_v_extractors_list[scene.em_v_extractors_list_index].id_node
+                    if scene.em_tools.em_v_extractors_list_index >= 0:
+                        ext_node_id = scene.em_v_extractors_list[scene.em_tools.em_v_extractors_list_index].id_node
                         self.update_document_list(scene, graph, ext_node_id)
             else:
                 # Se non ci sono proprietà, imposta l'indice a -1 e pulisci le altre liste
-                scene.em_v_properties_list_index = -1
+                scene.em_tools.em_v_properties_list_index = -1
                 scene.em_v_combiners_list.clear()
                 scene.em_v_extractors_list.clear()
                 scene.em_v_sources_list.clear()
-                scene.em_v_combiners_list_index = -1
-                scene.em_v_extractors_list_index = -1
-                scene.em_v_sources_list_index = -1
+                scene.em_tools.em_v_combiners_list_index = -1
+                scene.em_tools.em_v_extractors_list_index = -1
+                scene.em_tools.em_v_sources_list_index = -1
             
             # Aggiorna la UI
             try:
@@ -1172,7 +1172,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
         """Aggiorna la lista dei combiner in modo sicuro"""
         scene.em_v_combiners_list.clear()
         
-        if not scene.prop_paradata_streaming_mode:
+        if not scene.em_tools.prop_paradata_streaming_mode:
             combiners = [node for node in graph.nodes if hasattr(node, 'node_type') and node.node_type == "combiner"]
         else:
             try:
@@ -1207,10 +1207,10 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
         
         # Resetta l'indice a un valore valido o -1 se la lista è vuota
         if len(scene.em_v_combiners_list) > 0:
-            if scene.em_v_combiners_list_index >= len(scene.em_v_combiners_list):
-                scene.em_v_combiners_list_index = 0
+            if scene.em_tools.em_v_combiners_list_index >= len(scene.em_v_combiners_list):
+                scene.em_tools.em_v_combiners_list_index = 0
         else:
-            scene.em_v_combiners_list_index = -1
+            scene.em_tools.em_v_combiners_list_index = -1
 
     def update_extractor_list(self, scene, graph, node_id):
         """Aggiorna la lista degli estrattori in modo sicuro"""
@@ -1218,7 +1218,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
         
         extractors = []
         
-        if scene.prop_paradata_streaming_mode:
+        if scene.em_tools.prop_paradata_streaming_mode:
             # Se è attivo lo streaming, usa il nodo_id passato (proprietà)
             try:
                 property_extractors = graph.get_extractor_nodes_for_node(node_id)
@@ -1226,8 +1226,8 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
                 print(f"Estrattori dalla proprietà: {len(property_extractors)}")
             
                 # Se c'è un combiner selezionato, aggiungi anche i suoi estrattori
-                if scene.comb_paradata_streaming_mode and scene.em_v_combiners_list_index >= 0 and len(scene.em_v_combiners_list) > 0:
-                    comb_node_id = scene.em_v_combiners_list[scene.em_v_combiners_list_index].id_node
+                if scene.em_tools.comb_paradata_streaming_mode and scene.em_tools.em_v_combiners_list_index >= 0 and len(scene.em_v_combiners_list) > 0:
+                    comb_node_id = scene.em_v_combiners_list[scene.em_tools.em_v_combiners_list_index].id_node
                     combiner_extractors = graph.get_extractor_nodes_for_node(comb_node_id)
                     extractors.extend(combiner_extractors)
                     print(f"Estrattori dal combiner: {len(combiner_extractors)}")
@@ -1273,16 +1273,16 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
         
         # Resetta l'indice a un valore valido o -1 se la lista è vuota
         if len(scene.em_v_extractors_list) > 0:
-            if scene.em_v_extractors_list_index >= len(scene.em_v_extractors_list):
-                scene.em_v_extractors_list_index = 0
+            if scene.em_tools.em_v_extractors_list_index >= len(scene.em_v_extractors_list):
+                scene.em_tools.em_v_extractors_list_index = 0
         else:
-            scene.em_v_extractors_list_index = -1
+            scene.em_tools.em_v_extractors_list_index = -1
 
     def update_document_list(self, scene, graph, extractor_id):
         """Aggiorna la lista dei documenti in modo sicuro"""
         scene.em_v_sources_list.clear()
         
-        if scene.extr_paradata_streaming_mode:
+        if scene.em_tools.extr_paradata_streaming_mode:
             # Se è attivo lo streaming, filtra i documenti per l'estrattore
             try:
                 documents = graph.get_document_nodes_for_extractor(extractor_id)
@@ -1312,10 +1312,10 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
         
         # Resetta l'indice a un valore valido o -1 se la lista è vuota
         if len(scene.em_v_sources_list) > 0:
-            if scene.em_v_sources_list_index >= len(scene.em_v_sources_list):
-                scene.em_v_sources_list_index = 0
+            if scene.em_tools.em_v_sources_list_index >= len(scene.em_v_sources_list):
+                scene.em_tools.em_v_sources_list_index = 0
         else:
-            scene.em_v_sources_list_index = -1
+            scene.em_tools.em_v_sources_list_index = -1
 
 
 # Proprietà per il controllo degli aggiornamenti automatici dei paradati

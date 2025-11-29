@@ -492,7 +492,7 @@ class VISUAL_OT_set_property_materials(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
-        context.scene.proxy_display_mode = "Properties"
+        context.scene.em_tools.proxy_display_mode = "Properties"
         return {'FINISHED'}
 
 

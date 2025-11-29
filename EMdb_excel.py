@@ -44,7 +44,7 @@ class OBJECT_OT_load_EMdb_xlsx(Operator):
         #print(df)
         for index, row in df.iterrows():
             #print(row['c1'], row['c2'])
-            for source_item in scene.em_sources_list:
+            for source_item in scene.em_tools.em_sources_list:
                 if source_item.name == row['Name']:
                     source_item.description = row['Description']
             for source_v_item in scene.em_v_sources_list:

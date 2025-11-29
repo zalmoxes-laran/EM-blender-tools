@@ -633,7 +633,7 @@ class EM_listitem_OT_to3D(Operator):
 
         update_icons(context, self.list_type)
         if self.list_type == "em_list":
-            current_mode = scene.proxy_display_mode
+            current_mode = scene.em_tools.proxy_display_mode
             
             if current_mode == "EM":
                 bpy.ops.emset.emmaterial()
@@ -812,7 +812,7 @@ class EM_set_EM_materials(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
-        context.scene.proxy_display_mode = "EM"
+        context.scene.em_tools.proxy_display_mode = "EM"
         update_icons(context, "em_list")
         bpy.ops.set_materials.using_em_list()
         return {'FINISHED'}
@@ -824,7 +824,7 @@ class EM_set_epoch_materials(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
-        context.scene.proxy_display_mode = "Epochs"
+        context.scene.em_tools.proxy_display_mode = "Epochs"
         update_icons(context, "em_list")
         bpy.ops.set_materials.using_epoch_list()
         return {'FINISHED'}

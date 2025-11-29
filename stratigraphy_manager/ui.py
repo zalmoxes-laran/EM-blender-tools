@@ -69,7 +69,7 @@ class EM_ToolsPanel:
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        em_settings = scene.em_settings
+        em_settings = scene.em_tools.settings
         em_tools = scene.em_tools  # ✅ NEW: Access centralized properties
         strat = em_tools.stratigraphy  # ✅ NEW: Stratigraphy manager props
         obj = context.object
@@ -303,7 +303,7 @@ class EM_ToolsPanel:
             row.prop(item, "description", text="", slider=True, emboss=True)
 
             # Proxy sync feature
-            if scene.em_settings.em_proxy_sync is True:
+            if scene.em_tools.settings.em_proxy_sync is True:
                 if obj is not None:
                     from ..functions import check_if_current_obj_has_brother_inlist, select_list_element_from_obj_proxy
                     if check_if_current_obj_has_brother_inlist(obj.name, "em_list"):

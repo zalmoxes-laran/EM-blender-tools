@@ -131,102 +131,8 @@ class EMAddonSettings(PropertyGroup):
         default=False
     ) # type: ignore
 
-class EDGESListItem(PropertyGroup):
-    """Edge information for graph edges"""
-    id_node: StringProperty(
-        name="id",
-        description="Unique identifier for this edge",
-        default=""
-    ) # type: ignore
-    source: StringProperty(
-        name="source",
-        description="Source node ID",
-        default=""
-    ) # type: ignore
-    target: StringProperty(
-        name="target",
-        description="Target node ID",
-        default=""
-    ) # type: ignore
-    edge_type: StringProperty(
-        name="type",
-        description="Type of edge connection",
-        default=""
-    ) # type: ignore
-
-class EM_Other_Settings(PropertyGroup):
-    """General settings for EM Tools"""
-    select_all_layers: BoolProperty(name="Select Visible Layers", default=True) # type: ignore
-    unlock_obj: BoolProperty(name="Unlock Objects", default=False) # type: ignore
-    unhide_obj: BoolProperty(name="Unhide Objects", default=True) # type: ignore
-    em_proxy_sync: BoolProperty(name="Selecting a proxy you select the corresponding EM", default=False) # type: ignore
-    em_proxy_sync2: BoolProperty(name="Selecting an EM you select the corresponding proxy", default=False) # type: ignore
-    em_proxy_sync2_zoom: BoolProperty(name="Option to zoom to proxy", default=False) # type: ignore
-    soloing_mode: BoolProperty(name="Soloing mode", default=False) # type: ignore
-
-class EMviqListErrors(PropertyGroup):
-    """Error tracking for EMviq exports"""
-    name: StringProperty(
-        name="Object",
-        description="The object with an error",
-        default=""
-    ) # type: ignore
-    description: StringProperty(
-        name="Description",
-        description="Description of the error",
-        default=""
-    ) # type: ignore
-    material: StringProperty(
-        name="Material",
-        description="Associated material",
-        default=""
-    ) # type: ignore
-    texture_type: StringProperty(
-        name="Texture Type",
-        description="Type of texture with error",
-        default=""
-    ) # type: ignore
-
-class EMListParadata(PropertyGroup):
-    """ParaData node information"""
-    name: StringProperty(
-        name="Name",
-        description="Name of this paradata item",
-        default="Untitled"
-    ) # type: ignore
-    description: StringProperty(
-        name="Description",
-        description="Description of this paradata item",
-        default=""
-    ) # type: ignore
-    icon: StringProperty(
-        name="Icon",
-        description="Icon code for UI display",
-        default="RESTRICT_INSTANCED_ON"
-    ) # type: ignore
-    icon_url: StringProperty(
-        name="URL Icon",
-        description="Icon for URL status",
-        default="CHECKBOX_DEHLT"
-    ) # type: ignore
-    url: StringProperty(
-        name="URL",
-        description="URL associated with this paradata",
-        default=""
-    ) # type: ignore
-    id_node: StringProperty(
-        name="Node ID",
-        description="Unique node identifier",
-        default=""
-    ) # type: ignore
-
-class EM_epochs_belonging_ob(PropertyGroup):
-    """Association between objects and epochs"""
-    epoch: StringProperty(
-        name="Epoch",
-        description="Associated epoch",
-        default="Untitled"
-    ) # type: ignore
+# Note: EDGESListItem, EM_Other_Settings, EMviqListErrors, EMListParadata, EM_epochs_belonging_ob
+# are now defined in em_base_props.py and imported above (lines 394-400)
 
 class ExportVars(PropertyGroup):
     """Export settings for various formats"""
@@ -386,10 +292,19 @@ if DEPENDENCIES_LOADED:
             cronofilter,
             landscape_system,
             proxy_box_creator,
+            em_base_props,  # ← Base PropertyGroup classes
             em_props
         )
-        
-        
+
+        # Import base PropertyGroup classes into this namespace
+        from .em_base_props import (
+            EDGESListItem,
+            EMviqListErrors,
+            EMListParadata,
+            EM_epochs_belonging_ob,
+            EM_Other_Settings
+        )
+
         MODULE_IMPORT_SUCCESS = True
     except ImportError as e:
         logger.error(f"Error importing addon modules: {e}")
@@ -422,13 +337,10 @@ def validate_mappings_on_load(dummy):
 # ============================
 
 # Base class list for registration
+# Note: EDGESListItem, EM_Other_Settings, EMviqListErrors, EMListParadata, EM_epochs_belonging_ob
+# are registered by em_base_props.register() instead
 BASE_CLASSES = [
     EMAddonSettings,
-    EDGESListItem,
-    EM_Other_Settings,
-    EMviqListErrors,
-    EMListParadata,
-    EM_epochs_belonging_ob,
     ExportVars,
     ExportTablesVars
 ]
@@ -608,28 +520,29 @@ def setup_scene_properties():
 def setup_pointer_properties():
     """Setup pointer properties on various types"""
     # Scene properties
-    if hasattr(bpy.types.Scene, 'em_settings'):
-        delattr(bpy.types.Scene, 'em_settings')
-    bpy.types.Scene.em_settings = PointerProperty(type=EM_Other_Settings)
-    
+    # ⚠️ MIGRATION NOTE: em_settings is now scene.em_tools.settings
+    # if hasattr(bpy.types.Scene, 'em_settings'):
+    #     delattr(bpy.types.Scene, 'em_settings')
+    # bpy.types.Scene.em_settings = PointerProperty(type=EM_Other_Settings)
+
     # WindowManager properties
     if hasattr(bpy.types.WindowManager, 'em_addon_settings'):
         delattr(bpy.types.WindowManager, 'em_addon_settings')
     bpy.types.WindowManager.em_addon_settings = PointerProperty(type=EMAddonSettings)
-    
+
     if hasattr(bpy.types.WindowManager, 'export_vars'):
         delattr(bpy.types.WindowManager, 'export_vars')
     bpy.types.WindowManager.export_vars = PointerProperty(type=ExportVars)
-    
+
     if hasattr(bpy.types.WindowManager, 'export_tables_vars'):
         delattr(bpy.types.WindowManager, 'export_tables_vars')
     bpy.types.WindowManager.export_tables_vars = PointerProperty(type=ExportTablesVars)
-    
+
     # Object properties
     if hasattr(bpy.types.Object, 'EM_ep_belong_ob'):
         delattr(bpy.types.Object, 'EM_ep_belong_ob')
     bpy.types.Object.EM_ep_belong_ob = CollectionProperty(type=EM_epochs_belonging_ob)
-    
+
     if hasattr(bpy.types.Object, 'EM_ep_belong_ob_index'):
         delattr(bpy.types.Object, 'EM_ep_belong_ob_index')
     bpy.types.Object.EM_ep_belong_ob_index = IntProperty()
@@ -828,16 +741,27 @@ def unregister_modules():
 def register():
     """Main registration function"""
     logger.info(f"Registering EM Tools {VERSION}")
-    
-    # 1. Register base property classes first
+
+    # 0. Register base PropertyGroup classes FIRST (needed by em_props)
+    if MODULE_IMPORT_SUCCESS:
+        try:
+            em_base_props.register()
+            logger.info("✓ Registered em_base_props (base PropertyGroup classes)")
+        except Exception as e:
+            logger.error(f"✗ Error registering em_base_props: {e}")
+            import traceback
+            traceback.print_exc()
+
+    # 1. Register remaining base property classes
     register_base_classes()
-    
-    # 2. Setup all properties 
-    setup_scene_collections()
-    setup_scene_indices()
-    setup_scene_properties()
-    setup_pointer_properties()
-    
+
+    # 2. Setup all properties
+    # ⚠️ MIGRATION NOTE: Collections, indices, and most properties are now in em_tools
+    # setup_scene_collections()  # ← Migrated to em_tools
+    # setup_scene_indices()      # ← Migrated to em_tools
+    # setup_scene_properties()   # ← Migrated to em_tools
+    setup_pointer_properties()   # ← Still needed for Object and WindowManager properties
+
     # 3. Set graph reference
     bpy.types.Scene.em_graph = None
 
@@ -997,14 +921,15 @@ def unregister():
             logger.debug(f"Removed integer property: {prop_name}")
     
     # Remove pointer properties from Scene
-    scene_pointer_props = [
-        'em_settings',
-    ]
-    
-    for prop_name in scene_pointer_props:
-        if hasattr(bpy.types.Scene, prop_name):
-            delattr(bpy.types.Scene, prop_name)
-            logger.debug(f"Removed Scene pointer property: {prop_name}")
+    # ⚠️ MIGRATION NOTE: em_settings is now scene.em_tools.settings (removed with em_tools)
+    # scene_pointer_props = [
+    #     'em_settings',
+    # ]
+    #
+    # for prop_name in scene_pointer_props:
+    #     if hasattr(bpy.types.Scene, prop_name):
+    #         delattr(bpy.types.Scene, prop_name)
+    #         logger.debug(f"Removed Scene pointer property: {prop_name}")
     
     # Remove pointer properties from WindowManager
     wm_pointer_props = [
@@ -1036,7 +961,15 @@ def unregister():
             logger.debug(f"Unregistered base class: {cls.__name__}")
         except Exception as e:
             logger.warning(f"Could not unregister {cls.__name__}: {e}")
-    
+
+    # Unregister em_base_props LAST (after everything else)
+    if MODULE_IMPORT_SUCCESS:
+        try:
+            em_base_props.unregister()
+            logger.info("✓ Unregistered em_base_props")
+        except Exception as e:
+            logger.warning(f"✗ Error unregistering em_base_props: {e}")
+
     logger.info("EM Tools unregistration complete")
 
 if __name__ == "__main__":

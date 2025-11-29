@@ -30,6 +30,9 @@ from .visual_manager.data import ColorRampProperties, PropertyValueItem, CameraI
 # Import from em_setup
 from .em_setup import GraphMLFileItem, AuxiliaryFileProperties
 
+# Import base PropertyGroup classes
+from .em_base_props import EMviqListErrors, EDGESListItem, EMListParadata, EM_Other_Settings
+
 
 # =====================================================
 # UPDATE CALLBACKS
@@ -43,15 +46,94 @@ def update_stratigraphic_selection(self, context):
     try:
         # Import here to avoid circular imports
         from .functions import switch_paradata_lists
-        
+
         # Create dummy self object for compatibility with switch_paradata_lists signature
         class DummySelf:
             pass
         dummy = DummySelf()
-        
+
         switch_paradata_lists(dummy, context)
     except Exception as e:
         print(f"Warning: Could not update paradata lists: {e}")
+
+
+def update_paradata_streaming(self, context):
+    """Called when paradata streaming mode changes"""
+    try:
+        from .functions import switch_paradata_lists
+        class DummySelf:
+            pass
+        switch_paradata_lists(DummySelf(), context)
+    except Exception as e:
+        print(f"Warning: Could not update paradata lists: {e}")
+
+
+def update_stream_properties(self, context):
+    """Called when property streaming settings change"""
+    try:
+        from .functions import stream_properties
+        class DummySelf:
+            pass
+        stream_properties(DummySelf(), context)
+    except Exception as e:
+        print(f"Warning: Could not stream properties: {e}")
+
+
+def update_stream_extractors(self, context):
+    """Called when extractor streaming settings change"""
+    try:
+        from .functions import stream_extractors
+        class DummySelf:
+            pass
+        stream_extractors(DummySelf(), context)
+    except Exception as e:
+        print(f"Warning: Could not stream extractors: {e}")
+
+
+def update_stream_combiners(self, context):
+    """Called when combiner streaming settings change"""
+    try:
+        from .functions import stream_combiners
+        class DummySelf:
+            pass
+        stream_combiners(DummySelf(), context)
+    except Exception as e:
+        print(f"Warning: Could not stream combiners: {e}")
+
+
+def update_proxy_shader_mode(self, context):
+    """Called when proxy shader mode changes"""
+    try:
+        from .functions import proxy_shader_mode_function
+        class DummySelf:
+            pass
+        proxy_shader_mode_function(DummySelf(), context)
+    except Exception as e:
+        print(f"Warning: Could not update proxy shader mode: {e}")
+
+
+def update_proxy_display(self, context):
+    """Called when proxy display alpha changes"""
+    try:
+        from .functions import update_display_mode
+        class DummySelf:
+            pass
+        update_display_mode(DummySelf(), context)
+    except Exception as e:
+        print(f"Warning: Could not update proxy display: {e}")
+
+
+def update_epoch_index(self, context):
+    """Called when epoch list index changes"""
+    scene = context.scene
+    em_tools = scene.em_tools
+    if hasattr(em_tools.epochs, 'filter_by_epoch') and em_tools.epochs.filter_by_epoch:
+        try:
+            if hasattr(bpy.ops, 'em') and hasattr(bpy.ops.em, 'filter_lists'):
+                print(f"Epoch changed, re-filtering...")
+                bpy.ops.em.filter_lists()
+        except Exception as e:
+            print(f"Warning: Could not re-filter: {e}")
 
 
 # =====================================================
@@ -106,29 +188,43 @@ class StratigraphyManagerProps(PropertyGroup):
 
 class EpochManagerProps(PropertyGroup):
     """Aggregates all epoch-related properties"""
-    
+
     list: CollectionProperty(
         type=EPOCHListItem,
         name="Epochs"
     )  # type: ignore
-    
+
     list_index: IntProperty(
         name="Selected Epoch Index",
-        default=0
+        default=0,
+        update=update_epoch_index
     )  # type: ignore
-    
+
     selected_us_list: CollectionProperty(
         type=EMUSItem,
         name="Selected Epoch Units"
     )  # type: ignore
-    
+
     selected_us_index: IntProperty(
         name="Selected US Index",
         default=0
     )  # type: ignore
-    
+
     show_details: BoolProperty(
         name="Show Details",
+        default=False
+    )  # type: ignore
+
+    # Filtering options
+    filter_by_epoch: BoolProperty(
+        name="Filter by Epoch",
+        description="Filter lists by selected epoch",
+        default=False
+    )  # type: ignore
+
+    filter_by_activity: BoolProperty(
+        name="Filter by Activity",
+        description="Filter lists by activity type",
         default=False
     )  # type: ignore
 
@@ -350,6 +446,298 @@ class EM_Tools(PropertyGroup):
         subtype='FILE_PATH'
     )  # type: ignore
 
+    # ============================================
+    # PARADATA COLLECTIONS & INDICES
+    # ============================================
+
+    # Error list
+    emviq_error_list: CollectionProperty(
+        type=EMviqListErrors,
+        name="EMviq Errors",
+        description="List of errors during EMviq export"
+    )  # type: ignore
+
+    emviq_error_list_index: IntProperty(
+        name="Error List Index",
+        default=0,
+        update=update_paradata_streaming
+    )  # type: ignore
+
+    # Edges list
+    edges_list: CollectionProperty(
+        type=EDGESListItem,
+        name="Edges",
+        description="List of graph edges"
+    )  # type: ignore
+
+    edges_list_index: IntProperty(
+        name="Edges List Index",
+        default=0
+    )  # type: ignore
+
+    # Sources paradata (non-streaming)
+    em_sources_list: CollectionProperty(
+        type=EMListParadata,
+        name="Sources",
+        description="List of source paradata nodes"
+    )  # type: ignore
+
+    em_sources_list_index: IntProperty(
+        name="Sources Index",
+        default=0
+    )  # type: ignore
+
+    # Properties paradata (non-streaming)
+    em_properties_list: CollectionProperty(
+        type=EMListParadata,
+        name="Properties",
+        description="List of property paradata nodes"
+    )  # type: ignore
+
+    em_properties_list_index: IntProperty(
+        name="Properties Index",
+        default=0
+    )  # type: ignore
+
+    # Extractors paradata (non-streaming)
+    em_extractors_list: CollectionProperty(
+        type=EMListParadata,
+        name="Extractors",
+        description="List of extractor paradata nodes"
+    )  # type: ignore
+
+    em_extractors_list_index: IntProperty(
+        name="Extractors Index",
+        default=0
+    )  # type: ignore
+
+    # Combiners paradata (non-streaming)
+    em_combiners_list: CollectionProperty(
+        type=EMListParadata,
+        name="Combiners",
+        description="List of combiner paradata nodes"
+    )  # type: ignore
+
+    em_combiners_list_index: IntProperty(
+        name="Combiners Index",
+        default=0
+    )  # type: ignore
+
+    # Versioned/streaming sources
+    em_v_sources_list: CollectionProperty(
+        type=EMListParadata,
+        name="Versioned Sources",
+        description="List of source paradata for selected unit (streaming mode)"
+    )  # type: ignore
+
+    em_v_sources_list_index: IntProperty(
+        name="Versioned Sources Index",
+        default=0
+    )  # type: ignore
+
+    # Versioned/streaming properties
+    em_v_properties_list: CollectionProperty(
+        type=EMListParadata,
+        name="Versioned Properties",
+        description="List of property paradata for selected unit (streaming mode)"
+    )  # type: ignore
+
+    em_v_properties_list_index: IntProperty(
+        name="Versioned Properties Index",
+        default=0,
+        update=update_stream_properties
+    )  # type: ignore
+
+    # Versioned/streaming extractors
+    em_v_extractors_list: CollectionProperty(
+        type=EMListParadata,
+        name="Versioned Extractors",
+        description="List of extractor paradata for selected unit (streaming mode)"
+    )  # type: ignore
+
+    em_v_extractors_list_index: IntProperty(
+        name="Versioned Extractors Index",
+        default=0,
+        update=update_stream_extractors
+    )  # type: ignore
+
+    # Versioned/streaming combiners
+    em_v_combiners_list: CollectionProperty(
+        type=EMListParadata,
+        name="Versioned Combiners",
+        description="List of combiner paradata for selected unit (streaming mode)"
+    )  # type: ignore
+
+    em_v_combiners_list_index: IntProperty(
+        name="Versioned Combiners Index",
+        default=0,
+        update=update_stream_combiners
+    )  # type: ignore
+
+    # Legacy index (already migrated but kept for reference)
+    em_list_index: IntProperty(
+        name="Legacy EM List Index",
+        description="Legacy index property - should not be used",
+        default=0
+    )  # type: ignore
+
+    # Epoch US list for selection
+    selected_epoch_us_list_index: IntProperty(
+        name="Selected Epoch US Index",
+        default=0
+    )  # type: ignore
+
+    # ============================================
+    # PARADATA STREAMING MODE SETTINGS
+    # ============================================
+
+    paradata_streaming_mode: BoolProperty(
+        name="Paradata Streaming Mode",
+        description="Enable/disable tables streaming mode",
+        default=True,
+        update=update_paradata_streaming
+    )  # type: ignore
+
+    prop_paradata_streaming_mode: BoolProperty(
+        name="Properties Paradata Streaming Mode",
+        description="Enable/disable property table streaming mode",
+        default=True,
+        update=update_stream_properties
+    )  # type: ignore
+
+    comb_paradata_streaming_mode: BoolProperty(
+        name="Combiners Paradata Streaming Mode",
+        description="Enable/disable combiner table streaming mode",
+        default=True,
+        update=update_stream_combiners
+    )  # type: ignore
+
+    extr_paradata_streaming_mode: BoolProperty(
+        name="Extractors Paradata Streaming Mode",
+        description="Enable/disable extractor table streaming mode",
+        default=True,
+        update=update_stream_extractors
+    )  # type: ignore
+
+    # ============================================
+    # PROXY DISPLAY SETTINGS
+    # ============================================
+
+    proxy_shader_mode: BoolProperty(
+        name="Proxy Shader Mode",
+        description="Enable additive shader for proxies",
+        default=True,
+        update=update_proxy_shader_mode
+    )  # type: ignore
+
+    proxy_display_mode: StringProperty(
+        name="Proxy Display Mode",
+        description="Proxy display mode",
+        default="select"
+    )  # type: ignore
+
+    proxy_blend_mode: StringProperty(
+        name="Proxy Blend Mode",
+        description="Proxy blend mode",
+        default="BLEND"
+    )  # type: ignore
+
+    proxy_display_alpha: FloatProperty(
+        name="Proxy Alpha",
+        description="The alpha value for proxies",
+        min=0.0,
+        max=1.0,
+        default=0.5,
+        update=update_proxy_display
+    )  # type: ignore
+
+    # ============================================
+    # GRAPHML FILE & PROJECT SETTINGS
+    # ============================================
+
+    EM_file: StringProperty(
+        name="GraphML File",
+        description="Path to the EM GraphML file",
+        default=""
+    )  # type: ignore
+
+    # ============================================
+    # EMVIQ EXPORT SETTINGS
+    # ============================================
+
+    EMviq_folder: StringProperty(
+        name="EMviq Export Folder",
+        description="Path to export the EMviq collection",
+        default=""
+    )  # type: ignore
+
+    EMviq_scene_folder: StringProperty(
+        name="EMviq Scene Folder",
+        description="Path to export the EMviq scene",
+        default=""
+    )  # type: ignore
+
+    EMviq_project_name: StringProperty(
+        name="EMviq Project Name",
+        description="Name of the EMviq project",
+        default=""
+    )  # type: ignore
+
+    EMviq_user_name: StringProperty(
+        name="EMviq User Name",
+        description="Name of the EMviq user",
+        default=""
+    )  # type: ignore
+
+    EMviq_user_password: StringProperty(
+        name="EMviq User Password",
+        description="Password of the EMviq user",
+        default=""
+    )  # type: ignore
+
+    EMviq_model_author_name: StringProperty(
+        name="Model Author Name",
+        description="Name of the author(s) of the models",
+        default=""
+    )  # type: ignore
+
+    # ============================================
+    # ATON FRAMEWORK SETTINGS
+    # ============================================
+
+    ATON_path: StringProperty(
+        name="ATON Path",
+        description="Path to the ATON framework (root folder)",
+        default=""
+    )  # type: ignore
+
+    # ============================================
+    # EXPORT QUALITY SETTINGS
+    # ============================================
+
+    EM_gltf_export_quality: IntProperty(
+        name="Export Quality",
+        description="Quality of the output images",
+        default=100
+    )  # type: ignore
+
+    EM_gltf_export_maxres: IntProperty(
+        name="Export Max Resolution",
+        description="Maximum resolution of the output images",
+        default=4096
+    )  # type: ignore
+
+    # ============================================
+    # OTHER SETTINGS POINTER
+    # ============================================
+
+    # Other general settings
+    settings: PointerProperty(
+        type=EM_Other_Settings,
+        name="Other Settings",
+        description="General EM Tools settings"
+    )  # type: ignore
+
 
 # =====================================================
 # REGISTRATION
@@ -388,21 +776,21 @@ classes = (
 def register():
     """Register all PropertyGroup classes and attach EM_Tools to Scene"""
     print("[em_props] Starting registration...")
-    
+
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
             print(f"[em_props] ✓ Registered {cls.__name__}")
         except ValueError as e:
             print(f"[em_props] ⚠ Warning: Could not register {cls.__name__}: {e}")
-    
+
     # Attach to Scene
     bpy.types.Scene.em_tools = PointerProperty(
         type=EM_Tools,
         name="EM Tools",
         description="Extended Matrix Tools - Central property container"
     )
-    
+
     print("[em_props] ✓ Attached Scene.em_tools")
     print("[em_props] ✓ Registration complete")
 

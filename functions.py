@@ -479,10 +479,10 @@ def is_reconstruction_us(node):
 
 def sync_Switch_em(self, context):
     scene = context.scene
-    em_settings = scene.em_settings
-    if scene.em_settings.em_proxy_sync is True:
-        scene.em_settings.em_proxy_sync2 = False
-        scene.em_settings.em_proxy_sync2_zoom = False
+    em_settings = scene.em_tools.settings
+    if scene.em_tools.settings.em_proxy_sync is True:
+        scene.em_tools.settings.em_proxy_sync2 = False
+        scene.em_tools.settings.em_proxy_sync2_zoom = False
     return
 
 def sync_update_epoch_soloing(self, context):
@@ -500,9 +500,9 @@ def sync_update_epoch_soloing(self, context):
 
 def sync_Switch_proxy(self, context):
     scene = context.scene
-    em_settings = scene.em_settings
-    if scene.em_settings.em_proxy_sync2 is True:
-        scene.em_settings.em_proxy_sync = False
+    em_settings = scene.em_tools.settings
+    if scene.em_tools.settings.em_proxy_sync2 is True:
+        scene.em_tools.settings.em_proxy_sync = False
     return
 
 ## #### #### #### #### #### #### #### #### #### #### ####
@@ -731,12 +731,12 @@ def create_derived_lists(node, graph=None):
     # Aggiorniamo la lista delle proprietà - ✅ SENZA prefisso
     if property_nodes:
         for i, prop_node in enumerate(property_nodes):
-            scene.em_v_properties_list.add()
-            property_item = scene.em_v_properties_list[i]
-            
+            scene.em_tools.em_v_properties_list.add()
+            property_item = scene.em_tools.em_v_properties_list[i]
+
             # USA SEMPRE IL NOME PULITO
             property_item.name = prop_node.name
-            
+
             property_item.description = prop_node.description if hasattr(prop_node, 'description') else ""
             property_item.url = prop_node.value if hasattr(prop_node, 'value') else ""
             property_item.id_node = prop_node.node_id
@@ -745,10 +745,10 @@ def create_derived_lists(node, graph=None):
             prop_index += 1
 
     print(f"Trovate {prop_index} proprietà per il nodo {node.id_node}")
-    
+
     # Reset property index if needed
-    if scene.em_v_properties_list_index >= len(scene.em_v_properties_list):
-        scene.em_v_properties_list_index = 0 if len(scene.em_v_properties_list) > 0 else -1
+    if scene.em_tools.em_v_properties_list_index >= len(scene.em_tools.em_v_properties_list):
+        scene.em_tools.em_v_properties_list_index = 0 if len(scene.em_tools.em_v_properties_list) > 0 else -1
 
 def create_derived_combiners_list(passed_property_item):
     context = bpy.context
@@ -780,12 +780,12 @@ def create_derived_combiners_list(passed_property_item):
     # Aggiorniamo la lista dei combinatori - senza aggiungere prefissi
     if combiner_nodes:
         for i, comb_node in enumerate(combiner_nodes):
-            scene.em_v_combiners_list.add()
-            combiner_item = scene.em_v_combiners_list[i]
-            
+            scene.em_tools.em_v_combiners_list.add()
+            combiner_item = scene.em_tools.em_v_combiners_list[i]
+
             # Use the original name without prefixing
             combiner_item.name = comb_node.name
-            
+
             combiner_item.description = comb_node.description if hasattr(comb_node, 'description') else ""
             combiner_item.url = comb_node.sources[0] if hasattr(comb_node, 'sources') and comb_node.sources else ""
             combiner_item.id_node = comb_node.node_id
@@ -794,11 +794,11 @@ def create_derived_combiners_list(passed_property_item):
             comb_index += 1
 
     if is_combiner:
-        if scene.comb_paradata_streaming_mode:
-            selected_combiner_node = scene.em_v_combiners_list[scene.em_v_combiners_list_index]
+        if scene.em_tools.comb_paradata_streaming_mode:
+            selected_combiner_node = scene.em_tools.em_v_combiners_list[scene.em_tools.em_v_combiners_list_index]
             create_derived_sources_list(selected_combiner_node)
         else:
-            for v_list_combiner in scene.em_v_combiners_list:
+            for v_list_combiner in scene.em_tools.em_v_combiners_list:
                 create_derived_sources_list(v_list_combiner)
     else:
         EM_list_clear(context, "em_v_sources_list")
@@ -846,12 +846,12 @@ def create_derived_extractors_list(passed_property_item, graph=None):
     # ✅ MODIFICATO: usa sempre il nome pulito (senza prefisso)
     if extractor_nodes:
         for i, extr_node in enumerate(extractor_nodes):
-            scene.em_v_extractors_list.add()
-            extractor_item = scene.em_v_extractors_list[i]
-            
+            scene.em_tools.em_v_extractors_list.add()
+            extractor_item = scene.em_tools.em_v_extractors_list[i]
+
             # USA SEMPRE IL NOME PULITO
             extractor_item.name = extr_node.name
-            
+
             extractor_item.description = extr_node.description if hasattr(extr_node, 'description') else ""
             extractor_item.url = extr_node.source if hasattr(extr_node, 'source') else ""
             extractor_item.id_node = extr_node.node_id
@@ -900,12 +900,12 @@ def create_derived_sources_list(passed_extractor_item, graph=None):
     # ✅ MODIFICATO: usa sempre il nome pulito (senza prefisso)
     if source_nodes:
         for i, src_node in enumerate(source_nodes):
-            scene.em_v_sources_list.add()
-            source_item = scene.em_v_sources_list[i]
-            
+            scene.em_tools.em_v_sources_list.add()
+            source_item = scene.em_tools.em_v_sources_list[i]
+
             # USA SEMPRE IL NOME PULITO
             source_item.name = src_node.name
-            
+
             source_item.description = src_node.description if hasattr(src_node, 'description') else ""
             source_item.url = src_node.url if hasattr(src_node, 'url') else ""
             source_item.id_node = src_node.node_id
@@ -935,7 +935,7 @@ def switch_paradata_lists(self, context):
         EM_list_clear(context, "em_v_sources_list")
 
         # Verifica se c'è un grafo attivo prima di chiamare l'operatore
-        if scene.paradata_streaming_mode:
+        if scene.em_tools.paradata_streaming_mode:
             # Controlla se c'è un file GraphML attivo
             em_tools = scene.em_tools
             if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
@@ -1136,13 +1136,13 @@ def update_display_mode(self, context):
     scene = bpy.context.scene
     
     try:
-        if scene.proxy_display_mode == "EM":
+        if scene.em_tools.proxy_display_mode == "EM":
             bpy.ops.emset.emmaterial()
-        elif scene.proxy_display_mode == "Epochs":
+        elif scene.em_tools.proxy_display_mode == "Epochs":
             bpy.ops.emset.epochmaterial()
-        elif scene.proxy_display_mode == "Properties":
+        elif scene.em_tools.proxy_display_mode == "Properties":
             # Prima aggiorna l'alpha dei materiali esistenti
-            update_property_materials_alpha(scene.proxy_display_alpha)
+            update_property_materials_alpha(scene.em_tools.proxy_display_alpha)
             
             # Poi riapplica i colori se necessario
             if (hasattr(scene, 'selected_property') and scene.selected_property and
@@ -1210,7 +1210,7 @@ def em_setup_mat_cycles(matname, R, G, B, A=1.0):
     mat.use_backface_culling = False
     mat.use_nodes = True
     mat.node_tree.nodes.clear()
-    mat.blend_method = scene.proxy_blend_mode
+    mat.blend_method = scene.em_tools.proxy_blend_mode
     links = mat.node_tree.links
     nodes = mat.node_tree.nodes
     output = nodes.new('ShaderNodeOutputMaterial')
@@ -1219,7 +1219,7 @@ def em_setup_mat_cycles(matname, R, G, B, A=1.0):
     mainNode.inputs['Base Color'].default_value = (R, G, B, A)
     mainNode.location = (-800, 50)
     mainNode.name = "diffuse"
-    mainNode.inputs['Alpha'].default_value = scene.proxy_display_alpha
+    mainNode.inputs['Alpha'].default_value = scene.em_tools.proxy_display_alpha
     links.new(mainNode.outputs[0], output.inputs[0])
 
 
@@ -1293,10 +1293,10 @@ def set_materials_using_EM_list(context):
 
 def proxy_shader_mode_function(self, context):
     scene = context.scene
-    if scene.proxy_shader_mode is True:
-        scene.proxy_blend_mode = "OPAQUE"
+    if scene.em_tools.proxy_shader_mode is True:
+        scene.em_tools.proxy_blend_mode = "OPAQUE"
     else:
-        scene.proxy_blend_mode = "BLEND"
+        scene.em_tools.proxy_blend_mode = "BLEND"
     update_display_mode(self, context)
 
 def hex_to_rgb(value):
@@ -1417,12 +1417,12 @@ def extract_image_paths_from_mat(ob, mat):
 
 def emviq_error_record_creator(ob, description, mat, tex_type):
     scene = bpy.context.scene
-    scene.emviq_error_list.add()
-    ultimorecord = len(scene.emviq_error_list)-1
-    scene.emviq_error_list[ultimorecord].name = ob.name
-    scene.emviq_error_list[ultimorecord].description = description
-    scene.emviq_error_list[ultimorecord].material = mat.name
-    scene.emviq_error_list[ultimorecord].texture_type = tex_type
+    scene.em_tools.emviq_error_list.add()
+    ultimorecord = len(scene.em_tools.emviq_error_list)-1
+    scene.em_tools.emviq_error_list[ultimorecord].name = ob.name
+    scene.em_tools.emviq_error_list[ultimorecord].description = description
+    scene.em_tools.emviq_error_list[ultimorecord].material = mat.name
+    scene.em_tools.emviq_error_list[ultimorecord].texture_type = tex_type
 
 
 def copy_tex_ob(ob, destination_path):

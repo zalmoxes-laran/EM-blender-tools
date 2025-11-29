@@ -1964,7 +1964,7 @@ def export_gltf_with_animation_support(filepath, export_vars, scene, use_selecti
     export_params = {
         'filepath': str(filepath),
         'export_format': format_file.upper(),
-        'export_copyright': scene.EMviq_model_author_name if hasattr(scene, 'EMviq_model_author_name') else "",
+        'export_copyright': scene.em_tools.EMviq_model_author_name if hasattr(scene.em_tools, 'EMviq_model_author_name') else "",
         'export_texcoords': True,
         'export_normals': True,
         'export_draco_mesh_compression_enable': export_vars.heriverse_use_draco,

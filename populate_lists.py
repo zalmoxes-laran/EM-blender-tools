@@ -87,14 +87,14 @@ def populate_document_node(scene, node, index, graph=None):
     ✅ MODIFICATO: Ora usa SEMPRE il nome pulito del nodo, senza prefisso.
     """
     source_already_in_list = False
-    for source_item in scene.em_sources_list:
+    for source_item in scene.em_tools.em_sources_list:
         if source_item.id_node == node.node_id:
             source_already_in_list = True
             break
 
     if not source_already_in_list:
-        scene.em_sources_list.add()
-        em_item = scene.em_sources_list[-1]
+        scene.em_tools.em_sources_list.add()
+        em_item = scene.em_tools.em_sources_list[-1]
         
         # ✅ Nome pulito
         em_item.name = node.name
@@ -110,8 +110,8 @@ def populate_document_node(scene, node, index, graph=None):
 
 def populate_property_node(scene, node, index, graph=None):
     """Popola la lista delle proprietà"""
-    scene.em_properties_list.add()
-    em_item = scene.em_properties_list[-1]
+    scene.em_tools.em_properties_list.add()
+    em_item = scene.em_tools.em_properties_list[-1]
     
     if hasattr(node, 'attributes') and 'original_name' in node.attributes:
         em_item.name = node.attributes['original_name']
@@ -128,8 +128,8 @@ def populate_property_node(scene, node, index, graph=None):
 
 def populate_extractor_node(scene, node, index, graph=None):
     """Popola la lista degli estrattori"""
-    scene.em_extractors_list.add()
-    em_item = scene.em_extractors_list[-1]
+    scene.em_tools.em_extractors_list.add()
+    em_item = scene.em_tools.em_extractors_list[-1]
     em_item.name = node.name
     em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
     em_item.id_node = node.node_id
@@ -141,8 +141,8 @@ def populate_extractor_node(scene, node, index, graph=None):
 
 def populate_combiner_node(scene, node, index, graph=None):
     """Popola la lista dei combinatori"""
-    scene.em_combiners_list.add()
-    em_item = scene.em_combiners_list[-1]
+    scene.em_tools.em_combiners_list.add()
+    em_item = scene.em_tools.em_combiners_list[-1]
     em_item.name = node.name
     em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
     em_item.id_node = node.node_id
@@ -173,8 +173,8 @@ def populate_epoch_node(scene, node, index, graph=None):
 
 def populate_edges(scene, edge, index):
     """Popola la lista degli archi"""
-    scene.edges_list.add()
-    edge_item = scene.edges_list[index]
+    scene.em_tools.edges_list.add()
+    edge_item = scene.em_tools.edges_list[index]
     edge_item.id_node = edge.edge_id
     edge_item.source = edge.edge_source
     edge_item.target = edge.edge_target

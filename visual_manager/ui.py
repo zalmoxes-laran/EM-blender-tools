@@ -94,7 +94,7 @@ class VIEW3D_PT_visual_panel(Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        current_proxy_display_mode = context.scene.proxy_display_mode
+        current_proxy_display_mode = context.scene.em_tools.proxy_display_mode
         layout.alignment = 'LEFT'
 
         # Display Mode Selection

@@ -240,9 +240,9 @@ class EM_ExportPanel:
             row.operator("open.emviq", text="Open on EMviq", emboss=True, icon='SHADING_TEXTURE')
             #row.operator("run.aton", text="Run Aton", emboss=True, icon='SHADING_TEXTURE')
         
-        if scene.emviq_error_list_index >= 0 and len(scene.emviq_error_list) > 0:
+        if scene.em_tools.emviq_error_list_index >= 0 and len(scene.em_tools.emviq_error_list) > 0:
             row.template_list("ER_UL_List", "EM nodes", scene, "emviq_error_list", scene, "emviq_error_list_index")
-            item = scene.emviq_error_list[scene.emviq_error_list_index]
+            item = scene.em_tools.emviq_error_list[scene.em_tools.emviq_error_list_index]
             box = layout.box()
             row = box.row(align=True)
 
@@ -287,8 +287,8 @@ class EM_runaton(bpy.types.Operator):
 
     def execute(self, context):
         scene = context.scene
-        utente_aton = scene.EMviq_user_name
-        path_aton = scene.ATON_path 
+        utente_aton = scene.em_tools.EMviq_user_name
+        path_aton = scene.em_tools.ATON_path 
         aton_exe = path_aton+"quickstart.sh"
         
         import subprocess
@@ -312,8 +312,8 @@ class EM_export(bpy.types.Operator):
     def execute(self, context):
         #init general variables
         scene = context.scene
-        utente_aton = scene.EMviq_user_name
-        progetto_aton = scene.EMviq_project_name
+        utente_aton = scene.em_tools.EMviq_user_name
+        progetto_aton = scene.em_tools.EMviq_project_name
 
         # deselect everything in the scene
         bpy.ops.object.select_all(action='DESELECT')
@@ -322,7 +322,7 @@ class EM_export(bpy.types.Operator):
         self.salva_stato_collezioni()
 
         # prepare folder paths
-        fix_if_relative_folder = bpy.path.abspath(scene.ATON_path)
+        fix_if_relative_folder = bpy.path.abspath(scene.em_tools.ATON_path)
         base_dir = os.path.dirname(fix_if_relative_folder)
         
         if os.path.exists(os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)):
@@ -447,7 +447,7 @@ class EM_export(bpy.types.Operator):
                             copy_tex_ob(ob, export_sub_folder)
 
                         if format_file == "gltf":
-                            bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', ui_tab='GENERAL', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_morph_normal=False, export_morph_tangent=False, export_lights=False,  will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
+                            bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', ui_tab='GENERAL', export_copyright=scene.em_tools.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_morph_normal=False, export_morph_tangent=False, export_lights=False,  will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
                         if format_file == "fbx":
                             bpy.ops.export_scene.fbx(filepath = export_file + ".fbx", check_existing=True, filter_glob="*.fbx", use_selection=True, use_active_collection=False, global_scale=1.0, apply_unit_scale=True, apply_scale_options='FBX_SCALE_NONE', bake_space_transform=False, object_types={'MESH'}, use_mesh_modifiers=True, use_mesh_modifiers_render=True, mesh_smooth_type='OFF', use_mesh_edges=False, use_tspace=False, use_custom_props=False, add_leaf_bones=True, primary_bone_axis='Y', secondary_bone_axis='X', use_armature_deform_only=False, armature_nodetype='NULL', bake_anim=False, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=True, bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True, bake_anim_step=1.0, bake_anim_simplify_factor=1.0, path_mode='AUTO', embed_textures=False, batch_mode='OFF', use_batch_own_dir=True, use_metadata=True, axis_forward='-Z', axis_up='Y')
                         if EMviq:
@@ -490,7 +490,7 @@ class EM_export(bpy.types.Operator):
                                 bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
                                 copy_tex_ob(ob, export_sub_folder)
                             if format_file == "gltf":
-                                bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
+                                bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.em_tools.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
                             if format_file == "fbx":
                                 bpy.ops.export_scene.fbx(filepath = export_file + ".fbx", check_existing=True, filter_glob="*.fbx", use_selection=True, use_active_collection=False, global_scale=1.0, apply_unit_scale=True, apply_scale_options='FBX_SCALE_NONE', bake_space_transform=False, object_types={'MESH'}, use_mesh_modifiers=True, use_mesh_modifiers_render=True, mesh_smooth_type='OFF', use_mesh_edges=False, use_tspace=False, use_custom_props=False, add_leaf_bones=True, primary_bone_axis='Y', secondary_bone_axis='X', use_armature_deform_only=False, armature_nodetype='NULL', bake_anim=False, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=True, bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True, bake_anim_step=1.0, bake_anim_simplify_factor=1.0, path_mode='AUTO', embed_textures=False, batch_mode='OFF', use_batch_own_dir=True, use_metadata=True, axis_forward='-Z', axis_up='Y')
 
@@ -532,7 +532,7 @@ class EM_export(bpy.types.Operator):
         temp_image_format = scene.render.image_settings.file_format
         temp_image_quality = scene.render.image_settings.quality
         scene.render.image_settings.file_format = 'JPEG'
-        scene.render.image_settings.quality = scene.EM_gltf_export_quality
+        scene.render.image_settings.quality = scene.em_tools.EM_gltf_export_quality
         print(f'Cerco nella directory {dir_path}')
         for entry in os.listdir(dir_path):
             if os.path.isfile(os.path.join(dir_path, entry)):
@@ -542,7 +542,7 @@ class EM_export(bpy.types.Operator):
                     image_dblock = bpy.data.images.load(image_file_path)
                     print(f"l'immagine importata ha lato {str(image_dblock.size[0])}")
                     if self.check_if_scalable(image_dblock):
-                        image_dblock.scale(scene.EM_gltf_export_maxres,scene.EM_gltf_export_maxres)
+                        image_dblock.scale(scene.em_tools.EM_gltf_export_maxres,scene.em_tools.EM_gltf_export_maxres)
                         print(f"l'immagine importata ha ora lato {str(image_dblock.size[0])}")
                         print(f"ho compresso {image_dblock.name} con path {image_dblock.filepath}")
                         #image_dblock.filepath = image_file_path
@@ -555,9 +555,9 @@ class EM_export(bpy.types.Operator):
 
     def check_if_scalable(self, image_block):
         is_scalable = False
-        if image_block.size[0] > bpy.context.scene.EM_gltf_export_maxres and image_block.size[1] > bpy.context.scene.EM_gltf_export_maxres:
+        if image_block.size[0] > bpy.context.scene.em_tools.EM_gltf_export_maxres and image_block.size[1] > bpy.context.scene.em_tools.EM_gltf_export_maxres:
             is_scalable =True
-        if bpy.context.scene.EM_gltf_export_quality < 100:
+        if bpy.context.scene.em_tools.EM_gltf_export_quality < 100:
             is_scalable =True
         return is_scalable
 
@@ -569,7 +569,7 @@ class EM_export(bpy.types.Operator):
                     proxy.select_set(True)
                     name = bpy.path.clean_name(em.name)
                     export_file = os.path.join(export_folder, name)
-                    bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=False, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='NONE', export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False,  will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
+                    bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.em_tools.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=False, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='NONE', export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False,  will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
                     proxy.select_set(False)
 
     def createfolder(self, base_dir, foldername):
@@ -595,8 +595,8 @@ class EM_openemviq(bpy.types.Operator):
     
     def execute(self, context):
         scene = context.scene
-        utente_aton = scene.EMviq_user_name
-        progetto_aton = scene.EMviq_project_name 
+        utente_aton = scene.em_tools.EMviq_user_name
+        progetto_aton = scene.em_tools.EMviq_project_name 
         
         import webbrowser
         url_emviq = "http://localhost:8080/a/emviq/?s="+utente_aton+"/"+progetto_aton
@@ -632,11 +632,11 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
         
         if not file_path or self.use_file_dialog:
             scene = context.scene
-            utente_aton = scene.EMviq_user_name
-            progetto_aton = scene.EMviq_project_name 
+            utente_aton = scene.em_tools.EMviq_user_name
+            progetto_aton = scene.em_tools.EMviq_project_name 
             
             # prepare folder paths
-            fix_if_relative_folder = bpy.path.abspath(scene.ATON_path)
+            fix_if_relative_folder = bpy.path.abspath(scene.em_tools.ATON_path)
             base_dir = os.path.dirname(fix_if_relative_folder)
             
             if os.path.exists(os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)):
@@ -742,7 +742,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
 
             nodes[uuss.name] = uuss_node
 
-        for property in scene.em_properties_list:
+        for property in scene.em_tools.em_properties_list:
             property_node = {}
             property_data = {}
             property_layout = {}
@@ -757,7 +757,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
 
             nodes[property.id_node] = property_node
 
-        for combiner in scene.em_combiners_list:
+        for combiner in scene.em_tools.em_combiners_list:
             combiner_node = {}
             combiner_data = {}
             combiner_layout = {}
@@ -770,7 +770,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
 
             nodes[combiner.id_node] = combiner_node
 
-        for extractor in scene.em_extractors_list:
+        for extractor in scene.em_tools.em_extractors_list:
             extractor_node = {}
             extractor_data = {}
             extractor_layout = {}
@@ -785,7 +785,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
 
             nodes[extractor.id_node] = extractor_node
 
-        for source in scene.em_sources_list:
+        for source in scene.em_tools.em_sources_list:
             source_node = {}
             source_data = {}
             source_layout = {}
@@ -844,16 +844,16 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
         for UUSS in strat.units:
             if UUSS.id_node == id_node:
                 return UUSS.name
-        for property in scene.em_properties_list:
+        for property in scene.em_tools.em_properties_list:
             if property.id_node == id_node:
                 return property.id_node
-        for combiner in scene.em_combiners_list:
+        for combiner in scene.em_tools.em_combiners_list:
             if combiner.id_node == id_node:
                 return combiner.id_node
-        for extractor in scene.em_extractors_list:
+        for extractor in scene.em_tools.em_extractors_list:
             if extractor.id_node == id_node:
                 return extractor.id_node
-        for source in scene.em_sources_list:
+        for source in scene.em_tools.em_sources_list:
             if source.id_node == id_node:
                 return source.id_node
         return id_node
@@ -924,7 +924,7 @@ class ExportuussData(Operator, ExportHelper):
         if  context.window_manager.export_tables_vars.table_type == 'Sources':
             if header:
                 f.write("Name; Description \n")
-            for source in context.scene.em_sources_list:
+            for source in context.scene.em_tools.em_sources_list:
                 if only_UUSS:
                     if source.icon == "RESTRICT_INSTANCED_ON":
                         f.write("%s\t %s\n" % (source.name, source.description))
@@ -934,7 +934,7 @@ class ExportuussData(Operator, ExportHelper):
         if  context.window_manager.export_tables_vars.table_type == 'Extractors':
             if header:
                 f.write("Name\t Description \n")
-            for extractor in context.scene.em_extractors_list:
+            for extractor in context.scene.em_tools.em_extractors_list:
                 if only_UUSS:
                     if extractor.icon == "RESTRICT_INSTANCED_ON":
                         f.write("%s\t %s\n" % (extractor.name, extractor.description))

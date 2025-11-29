@@ -143,7 +143,7 @@ def populate_properties_list_landscape(context, all_graphs):
         ]
         
         for node in property_nodes:
-            item = scene.em_properties_list.add()
+            item = scene.em_tools.em_properties_list.add()
             
             # Nome con prefisso grafo
             item.name = f"[{graph_code}] {node.name}"
@@ -175,7 +175,7 @@ def populate_documents_list_landscape(context, all_graphs):
         ]
         
         for node in document_nodes:
-            item = scene.em_sources_list.add()
+            item = scene.em_tools.em_sources_list.add()
             
             # Nome con prefisso grafo
             item.name = f"[{graph_code}] {node.name}"
@@ -207,7 +207,7 @@ def populate_extractors_list_landscape(context, all_graphs):
         ]
         
         for node in extractor_nodes:
-            item = scene.em_extractors_list.add()
+            item = scene.em_tools.em_extractors_list.add()
             
             # Nome con prefisso grafo
             item.name = f"[{graph_code}] {node.name}"
@@ -239,7 +239,7 @@ def populate_combiners_list_landscape(context, all_graphs):
         ]
         
         for node in combiner_nodes:
-            item = scene.em_combiners_list.add()
+            item = scene.em_tools.em_combiners_list.add()
             
             # Nome con prefisso grafo
             item.name = f"[{graph_code}] {node.name}"

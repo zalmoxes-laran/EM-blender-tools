@@ -102,13 +102,13 @@ class EM_import_GraphML(bpy.types.Operator):
                 
                 
                 if hasattr(scene, "em_sources_list_index"):
-                    scene.em_sources_list_index = 0
+                    scene.em_tools.em_sources_list_index = 0
                 if hasattr(scene, "em_properties_list_index"):
-                    scene.em_properties_list_index = 0
+                    scene.em_tools.em_properties_list_index = 0
                 if hasattr(scene, "em_extractors_list_index"):
-                    scene.em_extractors_list_index = 0
+                    scene.em_tools.em_extractors_list_index = 0
                 if hasattr(scene, "em_combiners_list_index"):
-                    scene.em_combiners_list_index = 0
+                    scene.em_tools.em_combiners_list_index = 0
 
                 
                 # Integrazione di dati esterni PRIMA di popolare le liste
@@ -124,10 +124,10 @@ class EM_import_GraphML(bpy.types.Operator):
                 strat = scene.em_tools.stratigraphy
                 ensure_valid_index(strat.units, "units_index", context, data_object=strat)
                 ensure_valid_index(scene.epoch_list, "epoch_list_index", context, show_popup=False)
-                ensure_valid_index(scene.em_sources_list, "em_sources_list_index", context)
-                ensure_valid_index(scene.em_properties_list, "em_properties_list_index", context)
-                ensure_valid_index(scene.em_extractors_list, "em_extractors_list_index", context)
-                ensure_valid_index(scene.em_combiners_list, "em_combiners_list_index", context)
+                ensure_valid_index(scene.em_tools.em_sources_list, "em_sources_list_index", context)
+                ensure_valid_index(scene.em_tools.em_properties_list, "em_properties_list_index", context)
+                ensure_valid_index(scene.em_tools.em_extractors_list, "em_extractors_list_index", context)
+                ensure_valid_index(scene.em_tools.em_combiners_list, "em_combiners_list_index", context)
 
                 # verifica post importazione
                 self.check_index_coherence(scene)
@@ -187,7 +187,7 @@ class EM_import_GraphML(bpy.types.Operator):
 
 
     def find_node_element_by_id(self, context, node_id):
-        tree = ET.parse(bpy.path.abspath(context.scene.EM_file))
+        tree = ET.parse(bpy.path.abspath(context.scene.em_tools.EM_file))
         allnodes = tree.findall('.//{http://graphml.graphdrawing.org/xmlns}node')
         
         for node_element in allnodes:
@@ -226,7 +226,7 @@ class EM_import_GraphML(bpy.types.Operator):
             node_send = strat.units[strat.units_index]
 
     def post_import_material_setup(self, context):
-        current_mode = context.scene.proxy_display_mode
+        current_mode = context.scene.em_tools.proxy_display_mode
         
         if current_mode == "EM":
             bpy.ops.emset.emmaterial()
@@ -243,10 +243,10 @@ class EM_import_GraphML(bpy.types.Operator):
     def newnames_forproperties_from_fathernodes(self, scene):
         poly_property_counter = 1
         strat = scene.em_tools.stratigraphy  # ✅ Nuovo
-        for property in scene.em_properties_list:
+        for property in scene.em_tools.em_properties_list:
             node_list = []
 
-            for edge in scene.edges_list:
+            for edge in scene.em_tools.edges_list:
                 if edge.target == property.id_node:
                     for node in strat.units:
                         if edge.source == node.id_node:
