@@ -645,15 +645,35 @@ def EM_list_clear(context, list_type):
         # ✅ SOLO nuova lista centralizzata
         scene.em_tools.stratigraphy.reused.clear()
 
+    # Paradata lists (non-streaming)
+    elif list_type == "em_sources_list":
+        scene.em_tools.em_sources_list.clear()
+    elif list_type == "em_properties_list":
+        scene.em_tools.em_properties_list.clear()
+    elif list_type == "em_extractors_list":
+        scene.em_tools.em_extractors_list.clear()
+    elif list_type == "em_combiners_list":
+        scene.em_tools.em_combiners_list.clear()
+
+    # Paradata lists (streaming/versioned)
+    elif list_type == "em_v_sources_list":
+        scene.em_tools.em_v_sources_list.clear()
+    elif list_type == "em_v_properties_list":
+        scene.em_tools.em_v_properties_list.clear()
+    elif list_type == "em_v_extractors_list":
+        scene.em_tools.em_v_extractors_list.clear()
+    elif list_type == "em_v_combiners_list":
+        scene.em_tools.em_v_combiners_list.clear()
+
+    # Other lists
+    elif list_type == "edges_list":
+        scene.em_tools.edges_list.clear()
+    elif list_type == "emviq_error_list":
+        scene.em_tools.emviq_error_list.clear()
+
     else:
-        # Legacy behavior per altre liste (non stratigrafiche)
-        list_cmd1 = f"scene.{list_type}.update()"
-        list_cmd2 = f"len(scene.{list_type})"
-        list_cmd3 = f"scene.{list_type}.remove(0)"
-        eval(list_cmd1)
-        list_length = eval(list_cmd2)
-        for x in range(list_length):
-            eval(list_cmd3)
+        # Legacy fallback - should not be reached
+        print(f"⚠️ WARNING: EM_list_clear called with unknown list_type: {list_type}")
 
     return
 

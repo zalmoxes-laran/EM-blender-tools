@@ -651,6 +651,40 @@ class EM_Tools(PropertyGroup):
         update=update_proxy_display
     )  # type: ignore
 
+    # Proxy inflate settings
+    proxy_inflate_thickness: FloatProperty(
+        name="Thickness",
+        description="Thickness value for the Solidify modifier",
+        default=0.01,
+        min=0.0001,
+        soft_max=0.1,
+        unit='LENGTH'
+    )  # type: ignore
+
+    proxy_inflate_offset: FloatProperty(
+        name="Offset",
+        description="Offset value for the Solidify modifier",
+        default=0.0,
+        min=-1.0,
+        max=1.0
+    )  # type: ignore
+
+    proxy_auto_inflate_on_export: BoolProperty(
+        name="Auto-Inflate on Export",
+        description="Automatically add inflation to proxies without it during export",
+        default=False
+    )  # type: ignore
+
+    # ============================================
+    # PARADATA AUTO-UPDATE SETTING
+    # ============================================
+
+    paradata_auto_update: BoolProperty(
+        name="Auto Update Paradata",
+        description="Automatically update paradata lists when selection changes",
+        default=True
+    )  # type: ignore
+
     # ============================================
     # GRAPHML FILE & PROJECT SETTINGS
     # ============================================

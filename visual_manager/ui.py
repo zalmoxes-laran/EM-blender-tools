@@ -182,7 +182,7 @@ class VIEW3D_PT_visual_panel(Panel):
         scene = context.scene
         
         row = layout.row()
-        row.prop(scene, "proxy_display_alpha")
+        row.prop(scene.em_tools, "proxy_display_alpha")
 
         # Shading mode buttons - with safety checks
         try:

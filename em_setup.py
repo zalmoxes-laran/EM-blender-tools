@@ -1053,11 +1053,11 @@ class EM_SetupPanel(bpy.types.Panel):
             
                 col = split.column()
                 col.label(text="Properties")
-                col.prop(scene, "em_properties_list", text='')
-                
+                col.prop(scene.em_tools, "em_properties_list", text='')
+
                 col = split.column()
                 col.label(text="Sources")
-                col.prop(scene, "em_sources_list", text='')
+                col.prop(scene.em_tools, "em_sources_list", text='')
 
                 ####################################################
 

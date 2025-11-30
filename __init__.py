@@ -492,14 +492,15 @@ def setup_scene_properties():
         logger.debug(f"Setup string property: {prop_name}")
     
     # Float properties
-    if hasattr(bpy.types.Scene, 'proxy_display_alpha'):
-        delattr(bpy.types.Scene, 'proxy_display_alpha')
-        
-    bpy.types.Scene.proxy_display_alpha = FloatProperty(
-        name="alpha", description="The alpha value for proxies",
-        min=0, max=1, default=0.5, 
-        update=functions.update_display_mode if MODULE_IMPORT_SUCCESS else None
-    )
+    # NOTE: proxy_display_alpha is now in scene.em_tools (em_props.py)
+    # if hasattr(bpy.types.Scene, 'proxy_display_alpha'):
+    #     delattr(bpy.types.Scene, 'proxy_display_alpha')
+    #
+    # bpy.types.Scene.proxy_display_alpha = FloatProperty(
+    #     name="alpha", description="The alpha value for proxies",
+    #     min=0, max=1, default=0.5,
+    #     update=functions.update_display_mode if MODULE_IMPORT_SUCCESS else None
+    # )
     
     # Integer properties
     int_props = [

@@ -124,10 +124,10 @@ class EM_import_GraphML(bpy.types.Operator):
                 strat = scene.em_tools.stratigraphy
                 ensure_valid_index(strat.units, "units_index", context, data_object=strat)
                 ensure_valid_index(scene.epoch_list, "epoch_list_index", context, show_popup=False)
-                ensure_valid_index(scene.em_tools.em_sources_list, "em_sources_list_index", context)
-                ensure_valid_index(scene.em_tools.em_properties_list, "em_properties_list_index", context)
-                ensure_valid_index(scene.em_tools.em_extractors_list, "em_extractors_list_index", context)
-                ensure_valid_index(scene.em_tools.em_combiners_list, "em_combiners_list_index", context)
+                ensure_valid_index(scene.em_tools.em_sources_list, "em_sources_list_index", context, data_object=em_tools)
+                ensure_valid_index(scene.em_tools.em_properties_list, "em_properties_list_index", context, data_object=em_tools)
+                ensure_valid_index(scene.em_tools.em_extractors_list, "em_extractors_list_index", context, data_object=em_tools)
+                ensure_valid_index(scene.em_tools.em_combiners_list, "em_combiners_list_index", context, data_object=em_tools)
 
                 # verifica post importazione
                 self.check_index_coherence(scene)

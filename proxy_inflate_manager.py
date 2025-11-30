@@ -30,13 +30,13 @@ class VIEW3D_PT_ProxyInflatePanel(Panel):
         row.label(text="Inflation Settings:")
         
         # Check if properties exist before trying to access them
-        if hasattr(scene, "proxy_inflate_thickness"):
+        if hasattr(scene.em_tools, "proxy_inflate_thickness"):
             # Default parameters
             row = box.row()
-            row.prop(scene, "proxy_inflate_thickness", text="Thickness")
-            
+            row.prop(scene.em_tools, "proxy_inflate_thickness", text="Thickness")
+
             row = box.row()
-            row.prop(scene, "proxy_inflate_offset", text="Offset")
+            row.prop(scene.em_tools, "proxy_inflate_offset", text="Offset")
             
         else:
             row = box.row()
@@ -62,9 +62,9 @@ class VIEW3D_PT_ProxyInflatePanel(Panel):
         row.operator("em.proxy_inflate_all", text="Inflate All Proxies", icon='MOD_SOLIDIFY')
         
         # Export related
-        if hasattr(scene, "proxy_auto_inflate_on_export"):
+        if hasattr(scene.em_tools, "proxy_auto_inflate_on_export"):
             row = box.row()
-            row.prop(scene, "proxy_auto_inflate_on_export", text="Auto-Inflate on Export")
+            row.prop(scene.em_tools, "proxy_auto_inflate_on_export", text="Auto-Inflate on Export")
         
         # Status counter
         if hasattr(scene, "proxy_inflate_stats") and scene.proxy_inflate_stats:
@@ -93,8 +93,8 @@ class EM_OT_ProxyAddInflate(Operator):
                 if get_inflate_name(obj.name) not in obj.modifiers:
                     mod = obj.modifiers.new(name=get_inflate_name(obj.name), type='SOLIDIFY')
                     # Set properties from scene settings
-                    mod.thickness = context.scene.proxy_inflate_thickness
-                    mod.offset = context.scene.proxy_inflate_offset
+                    mod.thickness = context.scene.em_tools.proxy_inflate_thickness
+                    mod.offset = context.scene.em_tools.proxy_inflate_offset
                     mod.use_even_offset = True
                     mod.use_quality_normals = True
                     mod.use_rim = True
@@ -228,8 +228,8 @@ class EM_OT_ProxyInflateAll(Operator):
                         mod = obj.modifiers.new(name=get_inflate_name(obj.name), type='SOLIDIFY')
                         # Set properties from scene settings
                         if hasattr(context.scene, "proxy_inflate_thickness"):
-                            mod.thickness = context.scene.proxy_inflate_thickness
-                            mod.offset = context.scene.proxy_inflate_offset
+                            mod.thickness = context.scene.em_tools.proxy_inflate_thickness
+                            mod.offset = context.scene.em_tools.proxy_inflate_offset
                         else:
                             mod.thickness = 0.01
                             mod.offset = 0.0
@@ -252,8 +252,8 @@ class EM_OT_ProxyInflateAll(Operator):
                         mod = obj.modifiers.new(name=get_inflate_name(obj.name), type='SOLIDIFY')
                         # Set properties from scene settings
                         if hasattr(context.scene, "proxy_inflate_thickness"):
-                            mod.thickness = context.scene.proxy_inflate_thickness
-                            mod.offset = context.scene.proxy_inflate_offset
+                            mod.thickness = context.scene.em_tools.proxy_inflate_thickness
+                            mod.offset = context.scene.em_tools.proxy_inflate_offset
                         else:
                             mod.thickness = 0.01
                             mod.offset = 0.0
@@ -296,7 +296,7 @@ def auto_inflate_for_export(context, objects_to_export):
     """
     # Check if auto-inflate is enabled and the property exists
     if not (hasattr(context.scene, "proxy_auto_inflate_on_export") and 
-            context.scene.proxy_auto_inflate_on_export):
+            context.scene.em_tools.proxy_auto_inflate_on_export):
         return []
     
     modified_objects = []
@@ -316,8 +316,8 @@ def auto_inflate_for_export(context, objects_to_export):
                 
                 # Set properties from scene settings if they exist
                 if hasattr(context.scene, "proxy_inflate_thickness"):
-                    mod.thickness = context.scene.proxy_inflate_thickness
-                    mod.offset = context.scene.proxy_inflate_offset
+                    mod.thickness = context.scene.em_tools.proxy_inflate_thickness
+                    mod.offset = context.scene.em_tools.proxy_inflate_offset
                 else:
                     # Default values if properties don't exist
                     mod.thickness = 0.01
@@ -357,29 +357,11 @@ classes = (
 )
 
 def register():
-    # First register the properties
-    bpy.types.Scene.proxy_inflate_thickness = FloatProperty(
-        name="Thickness",
-        description="Thickness value for the Solidify modifier",
-        default=0.01,
-        min=0.0001,
-        soft_max=0.1,
-        unit='LENGTH'
-    )
-    
-    bpy.types.Scene.proxy_inflate_offset = FloatProperty(
-        name="Offset",
-        description="Offset value for the Solidify modifier",
-        default=0.0,
-        min=-1.0,
-        max=1.0
-    )
-       
-    bpy.types.Scene.proxy_auto_inflate_on_export = BoolProperty(
-        name="Auto-Inflate on Export",
-        description="Automatically add inflation to proxies without it during export",
-        default=False
-    )
+    # NOTE: Properties moved to scene.em_tools (em_props.py):
+    # - proxy_inflate_thickness
+    # - proxy_inflate_offset
+    # - proxy_auto_inflate_on_export
+    pass
     
     bpy.types.Scene.proxy_inflate_stats = bpy.props.IntProperty(
         name="Inflated Proxy Count",

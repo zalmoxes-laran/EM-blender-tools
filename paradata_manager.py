@@ -521,9 +521,9 @@ class EM_ParadataPanel:
         # Box per i controlli di aggiornamento
         control_box = layout.box()
         row = control_box.row(align=True)
-        
+
         # Checkbox per l'aggiornamento automatico
-        row.prop(scene, "paradata_auto_update", text="Auto Update")
+        row.prop(scene.em_tools, "paradata_auto_update", text="Auto Update")
         
         # Pulsante di aggiornamento manuale
         op = row.operator("em.update_paradata_lists", text="Refresh", icon="FILE_REFRESH")
@@ -535,22 +535,22 @@ class EM_ParadataPanel:
         if scene.em_tools.paradata_streaming_mode:
             property_list_var = "em_v_properties_list"
             property_list_index_var = "em_v_properties_list_index"
-            property_list_cmd = "scene.em_v_properties_list"
+            property_list_cmd = "scene.em_tools.em_v_properties_list"
             property_list_index_cmd = "scene.em_tools.em_v_properties_list_index"
 
             combiner_list_var = "em_v_combiners_list"
             combiner_list_index_var = "em_v_combiners_list_index"
-            combiner_list_cmd = "scene.em_v_combiners_list"
+            combiner_list_cmd = "scene.em_tools.em_v_combiners_list"
             combiner_list_index_cmd = "scene.em_tools.em_v_combiners_list_index"
 
             extractor_list_var = "em_v_extractors_list"
             extractor_list_index_var = "em_v_extractors_list_index"
-            extractor_list_cmd = "scene.em_v_extractors_list"
+            extractor_list_cmd = "scene.em_tools.em_v_extractors_list"
             extractor_list_index_cmd = "scene.em_tools.em_v_extractors_list_index"
 
             source_list_var = "em_v_sources_list"
             source_list_index_var = "em_v_sources_list_index"
-            source_list_cmd = "scene.em_v_sources_list"
+            source_list_cmd = "scene.em_tools.em_v_sources_list"
             source_list_index_cmd = "scene.em_tools.em_v_sources_list_index"
 
         else:
@@ -620,13 +620,13 @@ class EM_ParadataPanel:
         col1.label(text=paradata_text)
 
         col2 = split.column()
-        col2.prop(scene, "paradata_streaming_mode", text='Filter Paradata', icon="SHORTDISPLAY")
+        col2.prop(scene.em_tools, "paradata_streaming_mode", text='Filter Paradata', icon="SHORTDISPLAY")
 
         row = layout.row()
         row.label(icon_value=icons_manager.get_icon_value("property"), text="Properties: (" + str(property_list_length) + ")")
         #row.prop(scene, "prop_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
         row = layout.row()
-        row.template_list("EM_UL_properties_managers", "", scene, property_list_var, scene, property_list_index_var, rows=2)
+        row.template_list("EM_UL_properties_managers", "", scene.em_tools, property_list_var, scene.em_tools, property_list_index_var, rows=2)
                 
         # Mostra sempre il box, anche se non ci sono elementi
         box = layout.box()
@@ -716,7 +716,7 @@ class EM_ParadataPanel:
         row.label(icon_value=icons_manager.get_icon_value("extractor"), text="Extractors: (" + str(extractor_list_length) + ")")
         #row.prop(scene, "extr_paradata_streaming_mode", text='', icon="SHORTDISPLAY")
         row = layout.row()
-        row.template_list("EM_UL_extractors_managers", "", scene, extractor_list_var, scene, extractor_list_index_var, rows=2)
+        row.template_list("EM_UL_extractors_managers", "", scene.em_tools, extractor_list_var, scene.em_tools, extractor_list_index_var, rows=2)
         
         # Mostra sempre il box, anche se non ci sono elementi
         box = layout.box()
@@ -789,7 +789,7 @@ class EM_ParadataPanel:
         row = layout.row()
         row.label(icon_value=icons_manager.get_icon_value("document"), text="Docs: (" + str(source_list_length) + ")")
         row = layout.row()
-        row.template_list("EM_UL_sources_managers", "", scene, source_list_var, scene, source_list_index_var, rows=2)
+        row.template_list("EM_UL_sources_managers", "", scene.em_tools, source_list_var, scene.em_tools, source_list_index_var, rows=2)
         
         # Mostra sempre il box, anche se non ci sono elementi
         box = layout.box()
@@ -1117,7 +1117,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             set_paradata_update_state(False)
             
             # Invece di usare un timer complesso, segna semplicemente la necessità di aggiornare
-            if _paradata_refresh_needed and scene.paradata_auto_update:
+            if _paradata_refresh_needed and scene.em_tools.paradata_auto_update:
                 _paradata_refresh_needed = False
                 
                 # Semplice messaggio di debug
@@ -1131,7 +1131,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
     def delayed_update(self, context):
         """Funzione per aggiornamenti ritardati, chiamata dal timer"""
         try:
-            if context.scene.paradata_auto_update:
+            if context.scene.em_tools.paradata_auto_update:
                 bpy.ops.em.update_paradata_lists()
         except Exception as e:
             print(f"Error in delayed paradata update: {e}")
@@ -1318,15 +1318,16 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             scene.em_tools.em_v_sources_list_index = -1
 
 
+# NOTE: paradata_auto_update moved to scene.em_tools (em_props.py)
 # Proprietà per il controllo degli aggiornamenti automatici dei paradati
-def register_auto_update_property():
-    """Registra la proprietà di controllo per gli aggiornamenti automatici"""
-    if not hasattr(bpy.types.Scene, "paradata_auto_update"):
-        bpy.types.Scene.paradata_auto_update = bpy.props.BoolProperty(
-            name="Auto Update Paradata",
-            description="Automatically update paradata lists when selection changes",
-            default=True  # Abilitato di default per compatibilità con il comportamento esistente
-        )
+# def register_auto_update_property():
+#     """Registra la proprietà di controllo per gli aggiornamenti automatici"""
+#     if not hasattr(bpy.types.Scene, "paradata_auto_update"):
+#         bpy.types.Scene.paradata_auto_update = bpy.props.BoolProperty(
+#             name="Auto Update Paradata",
+#             description="Automatically update paradata lists when selection changes",
+#             default=True  # Abilitato di default per compatibilità con il comportamento esistente
+#         )
 
 classes = [
     VIEW3D_PT_ParadataPanel,
@@ -1351,12 +1352,12 @@ def register():
     # Register image handling properties
     bpy.types.Scene.paradata_image = bpy.props.PointerProperty(type=ParadataImageProps)
 
-    # AGGIUNGI QUESTA RIGA
-    bpy.types.Scene.paradata_auto_update = bpy.props.BoolProperty(
-        name="Auto Update Paradata",
-        description="Automatically update paradata lists when selection changes",
-        default=True
-    )
+    # NOTE: paradata_auto_update moved to scene.em_tools (em_props.py)
+    # bpy.types.Scene.paradata_auto_update = bpy.props.BoolProperty(
+    #     name="Auto Update Paradata",
+    #     description="Automatically update paradata lists when selection changes",
+    #     default=True
+    # )
 
 def unregister():
     # Clean up images before unregistering
