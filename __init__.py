@@ -164,7 +164,8 @@ class ExportVars(PropertyGroup):
     heriverse_export_path: StringProperty(
         name="Export Path",
         description="Path where to export Heriverse project",
-        subtype='DIR_PATH'
+        subtype='DIR_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
     ) # type: ignore
 
     heriverse_overwrite_json: BoolProperty(
@@ -520,6 +521,10 @@ def setup_scene_properties():
 
 def setup_pointer_properties():
     """Setup pointer properties on various types"""
+    if not MODULE_IMPORT_SUCCESS:
+        logger.warning("Cannot setup pointer properties: modules not loaded")
+        return
+
     # Scene properties
     # ⚠️ MIGRATION NOTE: em_settings is now scene.em_tools.settings
     # if hasattr(bpy.types.Scene, 'em_settings'):
@@ -539,7 +544,7 @@ def setup_pointer_properties():
         delattr(bpy.types.WindowManager, 'export_tables_vars')
     bpy.types.WindowManager.export_tables_vars = PointerProperty(type=ExportTablesVars)
 
-    # Object properties
+    # Object properties (need EM_epochs_belonging_ob from em_base_props)
     if hasattr(bpy.types.Object, 'EM_ep_belong_ob'):
         delattr(bpy.types.Object, 'EM_ep_belong_ob')
     bpy.types.Object.EM_ep_belong_ob = CollectionProperty(type=EM_epochs_belonging_ob)

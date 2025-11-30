@@ -1,0 +1,312 @@
+# em_setup/properties.py
+
+import bpy
+from bpy.props import (
+    BoolProperty,
+    StringProperty,
+    EnumProperty,
+    CollectionProperty,
+    IntProperty,
+    PointerProperty
+)
+
+
+def get_pyarchinit_mappings(self, context):
+    """Get available pyArchInit mapping files from registry"""
+    mappings = [("none", "No Mapping", "Select a mapping file")]
+
+    try:
+        from s3dgraphy.mappings import mapping_registry
+        available_mappings = mapping_registry.list_available_mappings('pyarchinit')
+        mappings.extend(available_mappings)
+    except Exception as e:
+        print(f"Error loading pyArchInit mappings: {str(e)}")
+
+    return mappings
+
+
+def get_emdb_mappings():
+    """Get available EMdb mapping files from registry"""
+    try:
+        from s3dgraphy.mappings import mapping_registry
+        return mapping_registry.list_available_mappings('emdb')
+    except Exception as e:
+        print(f"Error loading EMdb mappings: {str(e)}")
+        return [("none", "No Mapping", "Select a mapping file")]
+
+
+class AuxiliaryFileProperties(bpy.types.PropertyGroup):
+    """Properties for auxiliary files (EMdb, pyArchInit, etc.)"""
+
+    name: StringProperty(name="File Name")  # type: ignore
+
+    filepath: StringProperty(
+        name="File Path",
+        subtype='FILE_PATH',
+        description="Path to the auxiliary file",
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    file_type: EnumProperty(
+        name="File Type",
+        items=[
+            ("emdb_xlsx", "EMdb Excel", "Import from EMdb Excel format"),
+            ("pyarchinit", "pyArchInit", "Import from pyArchInit SQLite DB")
+        ],
+        default="emdb_xlsx"
+    )  # type: ignore
+
+    emdb_mapping: EnumProperty(
+        name="EMdb Format",
+        items=lambda self, context: get_emdb_mappings(),
+        description="Select EMdb format"
+    )  # type: ignore
+
+    pyarchinit_mapping: EnumProperty(
+        name="pyArchInit Mapping",
+        items=get_pyarchinit_mappings,
+        description="Select pyArchInit table mapping"
+    )  # type: ignore
+
+    resource_folder: StringProperty(
+        name="Resource Folder",
+        description="Parent folder to search for resources. Use relative path (// prefix) for cross-PC compatibility",
+        subtype='DIR_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    expanded: BoolProperty(
+        name="Show Details",
+        default=False
+    )  # type: ignore
+
+    auto_reload_on_em_update: BoolProperty(
+        name="Auto-reload on EM Update",
+        description="Automatically import this auxiliary file when the parent GraphML is loaded/reloaded",
+        default=False
+    )  # type: ignore
+
+    custom_thumbs_path: StringProperty(
+        name="Thumbnails Path",
+        description="Custom path for thumbnails folder (leave empty for automatic)",
+        subtype='DIR_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    show_resources_section: BoolProperty(
+        name="Show Document Resources",
+        description="Expand/collapse document resources section",
+        default=False
+    )  # type: ignore
+
+    show_thumbs_path_section: BoolProperty(
+        name="Show Thumbnails Path",
+        description="Expand/collapse thumbnails path settings",
+        default=False
+    )  # type: ignore
+
+
+class EMToolsProperties(bpy.types.PropertyGroup):
+    """Legacy PropertyGroup - kept for backward compatibility"""
+
+    name: StringProperty(name="GraphML File")  # type: ignore
+    expanded: BoolProperty(name="Auxiliary files", default=False)  # type: ignore
+
+    graphml_path: StringProperty(
+        name="GraphML Path",
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    dosco_dir: StringProperty(
+        name="DosCo Directory",
+        subtype='DIR_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    xlsx_filepath: StringProperty(
+        name="Source File (xlsx)",
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    xlsx_3DGIS_database_file: StringProperty(
+        name="3D GIS Database File",
+        description="Path to the 3D GIS database Excel file",
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    emdb_filepath: StringProperty(
+        name="EMdb File (sqlite)",
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    is_graph: BoolProperty(name="Graph Exists", default=False)  # type: ignore
+
+    graph_code: StringProperty(
+        name="Graph Code",
+        description="Human-readable code for the graph (e.g. VDL16)",
+        default=""
+    )  # type: ignore
+
+    auxiliary_files: CollectionProperty(type=AuxiliaryFileProperties)  # type: ignore
+    active_auxiliary_index: IntProperty()  # type: ignore
+
+    is_publishable: BoolProperty(
+        name="Publishable",
+        description="Include this graph in multigrafo exports",
+        default=True
+    )  # type: ignore
+
+
+class EMToolsSettings(bpy.types.PropertyGroup):
+    """Settings for import panel (Excel, pyArchInit, etc.)"""
+
+    # Generic Excel import
+    generic_xlsx_file: StringProperty(
+        name="Excel File",
+        description="Path to generic Excel file",
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    generic_xlsx_sheet: StringProperty(
+        name="Sheet Name",
+        description="Name of the Excel sheet to import",
+        default="Sheet1"
+    )  # type: ignore
+
+    # pyArchInit import
+    pyarchinit_db_path: StringProperty(
+        name="pyArchInit DB",
+        description="Path to pyArchInit SQLite database",
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    pyarchinit_table: EnumProperty(
+        name="Table",
+        items=[
+            ('US', 'US', 'Unità Stratigrafiche'),
+            ('SITE', 'Site', 'Siti'),
+            ('PERIODIZATION', 'Periodization', 'Periodizzazione')
+        ],
+        default='US'
+    )  # type: ignore
+
+    pyarchinit_mapping: EnumProperty(
+        name="Mapping",
+        items=get_pyarchinit_mappings,
+        description="Select mapping configuration"
+    )  # type: ignore
+
+    # EMdb Excel import
+    emdb_xlsx_file: StringProperty(
+        name="EMdb File",
+        description="Path to EMdb Excel file",
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    emdb_mapping: EnumProperty(
+        name="EMdb Format",
+        items=lambda self, context: get_emdb_mappings(),
+        description="Select EMdb format"
+    )  # type: ignore
+
+
+class GraphMLFileItem(bpy.types.PropertyGroup):
+    """Represents a GraphML file in the multi-graph manager"""
+
+    name: StringProperty(
+        name="Name",
+        description="Display name for this GraphML file",
+        default="New Graph"
+    )  # type: ignore
+
+    is_active: BoolProperty(
+        name="Active",
+        description="Whether this graph is currently active",
+        default=False
+    )  # type: ignore
+
+    is_loaded: BoolProperty(
+        name="Loaded",
+        description="Whether this graph has been loaded",
+        default=False
+    )  # type: ignore
+
+    graphml_path: StringProperty(
+        name="GraphML Path",
+        description="Full path to the GraphML file",
+        subtype='FILE_PATH',
+        default="",
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    expanded: BoolProperty(
+        name="Show Details",
+        description="Show/hide file details",
+        default=False
+    )  # type: ignore
+
+    dosco_dir: StringProperty(
+        name="DosCo Directory",
+        description="Path to DosCo documentation folder",
+        subtype='DIR_PATH',
+        default="",
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    xlsx_filepath: StringProperty(
+        name="XLSX File",
+        description="Path to Excel source file",
+        subtype='FILE_PATH',
+        default="",
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    emdb_filepath: StringProperty(
+        name="EMdb File",
+        description="Path to EMdb SQLite database",
+        subtype='FILE_PATH',
+        default="",
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    graph_code: StringProperty(
+        name="Graph Code",
+        description="Human-readable code for the graph (e.g., BAS_IUL)",
+        default=""
+    )  # type: ignore
+
+    auxiliary_files: CollectionProperty(type=AuxiliaryFileProperties)  # type: ignore
+    active_auxiliary_index: IntProperty()  # type: ignore
+
+    is_publishable: BoolProperty(
+        name="Publishable",
+        description="Include this graph in multigrafo exports",
+        default=True
+    )  # type: ignore
+
+
+# Registration
+# NOTE: AuxiliaryFileProperties and GraphMLFileItem are registered by em_props.py
+# to avoid double registration
+classes = (
+    EMToolsProperties,
+    EMToolsSettings,
+)
+
+
+def register():
+    """Register PropertyGroups (AuxiliaryFileProperties and GraphMLFileItem registered in em_props.py)"""
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+
+def unregister():
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)

@@ -102,7 +102,8 @@ def register():
         name="Path to xlsx file",
         default="",
         description="Path to xlsx file",
-        subtype='FILE_PATH'
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
     )
 
 def unregister():

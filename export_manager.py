@@ -981,7 +981,8 @@ def register():
         name="Heriverse Export Path",
         description="Path where to export Heriverse project",
         subtype='DIR_PATH',
-        default=""
+        default="",
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
     )
     
     bpy.types.Scene.heriverse_project_name = bpy.props.StringProperty(

@@ -425,7 +425,8 @@ class EM_Tools(PropertyGroup):
     generic_xlsx_file: StringProperty(
         name="Excel File",
         description="Path to generic Excel file",
-        subtype='FILE_PATH'
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
     )  # type: ignore
 
     xlsx_sheet_name: StringProperty(
@@ -443,7 +444,8 @@ class EM_Tools(PropertyGroup):
     emdb_xlsx_file: StringProperty(
         name="EMdb Excel File",
         description="Path to EMdb Excel file",
-        subtype='FILE_PATH'
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
     )  # type: ignore
 
     # ============================================

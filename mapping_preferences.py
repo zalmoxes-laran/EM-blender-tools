@@ -138,14 +138,16 @@ class EMToolsMappingPreferences(AddonPreferences):
         description="Leave empty to use default user_mappings folder (recommended for portability)",
         subtype='DIR_PATH',
         default="",
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set(),
         update=lambda self, context: update_mapping_path(self, context, 'emdb')
     )
-    
+
     custom_pyarchinit_path: StringProperty(
         name="pyArchInit Mappings Path",
         description="Leave empty to use default user_mappings folder (recommended for portability)",
         subtype='DIR_PATH',
         default="",
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set(),
         update=lambda self, context: update_mapping_path(self, context, 'pyarchinit')
     )
     

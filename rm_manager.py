@@ -79,7 +79,8 @@ class RM_OT_add_tileset(Operator):
         name="Tileset Path",
         description="Path to the Cesium tileset zip file (relative or absolute)",
         default="",
-        subtype='FILE_PATH'
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
     ) # type: ignore
     
     def invoke(self, context, event):

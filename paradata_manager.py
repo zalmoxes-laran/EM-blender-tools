@@ -362,8 +362,11 @@ class EM_OT_save_paradata_image(bpy.types.Operator):
     bl_idname = "em.save_paradata_image"
     bl_label = "Save Paradata Image"
     bl_description = "Save the displayed image to disk"
-    
-    filepath: StringProperty(subtype="FILE_PATH")
+
+    filepath: StringProperty(
+        subtype="FILE_PATH",
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )
     
     def execute(self, context):
         scene = context.scene
