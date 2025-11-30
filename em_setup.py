@@ -1029,35 +1029,24 @@ class EM_SetupPanel(bpy.types.Panel):
                 ############# box con le statistiche del file ##################
                 box = layout.box()
                 row = box.row(align=True)
-                split = row.split()
-                col = split.column()
-                col.label(text="US/USV")
-                # ✅ Usa nuovo path centralizzato con data = strat PropertyGroup
+
+                # ✅ Usa nuovo path centralizzato
                 strat = scene.em_tools.stratigraphy
-                col.template_list(
-                    "EM_UL_List",      # Nome corretto della UIList class
-                    "",                # ID univoco (vuoto = default)
-                    strat,             # data: StratigraphyManagerProps
-                    "units",           # collection property name
-                    strat,             # active_data
-                    "units_index",     # active property name
-                    rows=3
-                )
 
-                # Separatore verticale
-                col.separator()
-                
-                col = split.column()
-                col.label(text="Epochs")
-                col.prop(scene, "epoch_list", text='')
-            
-                col = split.column()
-                col.label(text="Properties")
-                col.prop(scene.em_tools, "em_properties_list", text='')
+                # Calcola i conteggi
+                us_count = len(strat.units) if strat and hasattr(strat, 'units') else 0
+                epoch_count = len(scene.epoch_list) if hasattr(scene, 'epoch_list') else 0
+                properties_count = len(scene.em_tools.em_properties_list) if hasattr(scene.em_tools, 'em_properties_list') else 0
+                sources_count = len(scene.em_tools.em_sources_list) if hasattr(scene.em_tools, 'em_sources_list') else 0
 
-                col = split.column()
-                col.label(text="Sources")
-                col.prop(scene.em_tools, "em_sources_list", text='')
+                # Mostra le statistiche in formato compatto
+                row.label(text=f"US/USV: {us_count}", icon='OUTLINER_OB_MESH')
+                row.separator()
+                row.label(text=f"Epochs: {epoch_count}", icon='TIME')
+                row.separator()
+                row.label(text=f"Properties: {properties_count}", icon='PROPERTIES')
+                row.separator()
+                row.label(text=f"Sources: {sources_count}", icon='FILE_TEXT')
 
                 ####################################################
 
