@@ -29,6 +29,7 @@ from .visual_manager.data import ColorRampProperties, PropertyValueItem, CameraI
 
 # Import from em_setup
 from .em_setup import GraphMLFileItem, AuxiliaryFileProperties
+from .em_setup.properties import get_emdb_mappings, get_pyarchinit_mappings
 
 # Import base PropertyGroup classes
 from .em_base_props import EMviqListErrors, EDGESListItem, EMListParadata, EM_Other_Settings
@@ -403,10 +404,27 @@ class EM_Tools(PropertyGroup):
         default=False
     )  # type: ignore
 
+    show_collection_manager: BoolProperty(
+        name="Show Collection Manager",
+        description="Toggle the Collection Manager section in the setup panel",
+        default=False,
+    )  # type: ignore
+
     experimental_features: BoolProperty(
         name="Experimental Features",
         description="Enable experimental and debug features",
         default=False
+    )  # type: ignore
+
+    mode_3dgis_import_type: EnumProperty(
+        name="Import Type",
+        description="Select the 3D GIS import format",
+        items=[
+            ("generic_xlsx", "Generic Excel", "Import from a generic Excel file"),
+            ("pyarchinit", "pyArchInit", "Import from a pyArchInit SQLite database"),
+            ("emdb_xlsx", "EMdb Excel", "Import from EMdb Excel format"),
+        ],
+        default="generic_xlsx",
     )  # type: ignore
 
     landscape_mode: BoolProperty(
@@ -446,6 +464,35 @@ class EM_Tools(PropertyGroup):
         description="Path to EMdb Excel file",
         subtype='FILE_PATH',
         options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    emdb_mapping: EnumProperty(
+        name="EMdb Format",
+        description="Select EMdb format",
+        items=lambda self, context: get_emdb_mappings(),
+    )  # type: ignore
+
+    pyarchinit_db_path: StringProperty(
+        name="pyArchInit DB",
+        description="Path to pyArchInit SQLite database",
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set(),
+    )  # type: ignore
+
+    pyarchinit_table: EnumProperty(
+        name="Table",
+        items=[
+            ('US', 'US', 'Unità Stratigrafiche'),
+            ('SITE', 'Site', 'Siti'),
+            ('PERIODIZATION', 'Periodization', 'Periodizzazione'),
+        ],
+        default='US',
+    )  # type: ignore
+
+    pyarchinit_mapping: EnumProperty(
+        name="pyArchInit Mapping",
+        description="Select pyArchInit table mapping",
+        items=get_pyarchinit_mappings,
     )  # type: ignore
 
     # ============================================
