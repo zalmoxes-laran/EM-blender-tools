@@ -574,12 +574,12 @@ def register_modules():
         logger.warning(f"Error registering mapping preferences: {e}")
 
     # FASE 1: Moduli core indipendenti (nessuna dipendenza UI)
+    # NOTE: em_setup is registered separately BEFORE em_props in main register()
     core_independent_modules = [
         icons_manager,
-        em_setup,
         EMdb_excel,
         visual_manager,
-        activity_manager, 
+        activity_manager,
         stratigraphy_manager,
         graph_editor,
         epoch_manager,
@@ -771,6 +771,17 @@ def register():
     # 3. Set graph reference
     bpy.types.Scene.em_graph = None
 
+    # 4. Register em_setup FIRST (contains GraphMLFileItem needed by EM_Tools)
+    if MODULE_IMPORT_SUCCESS:
+        try:
+            em_setup.register()
+            logger.info("✓ Registered em_setup (AuxiliaryFileProperties, GraphMLFileItem, etc.)")
+        except Exception as e:
+            logger.error(f"✗ Error registering em_setup: {e}")
+            import traceback
+            traceback.print_exc()
+
+    # 5. Register em_props AFTER em_setup (EM_Tools depends on GraphMLFileItem)
     if MODULE_IMPORT_SUCCESS:
         try:
             em_props.register()
@@ -778,9 +789,9 @@ def register():
         except Exception as e:
             logger.error(f"✗ Error registering em_props: {e}")
             import traceback
-            traceback.print_exc() 
+            traceback.print_exc()
 
-    # 4. Register all modules in the correct order
+    # 6. Register all other modules in the correct order
     if MODULE_IMPORT_SUCCESS:
         register_modules()
 
@@ -810,7 +821,19 @@ def unregister():
         except Exception as e:
             logger.warning(f"Error removing menu function: {e}")
 
-    # 2. Unregister em_props FIRST (removes Scene.em_tools)
+    # 2. Unregister proxy_box_creator FIRST (before other modules)
+    if MODULE_IMPORT_SUCCESS:
+        try:
+            proxy_box_creator.unregister()
+            logger.info("Unregistered proxy_box_creator")
+        except Exception as e:
+            logger.warning(f"Error unregistering proxy_box_creator: {e}")
+
+    # 3. Unregister other modules
+    if MODULE_IMPORT_SUCCESS:
+        unregister_modules()
+
+    # 4. Unregister em_props (removes Scene.em_tools)
     if MODULE_IMPORT_SUCCESS:
         try:
             em_props.unregister()
@@ -818,18 +841,13 @@ def unregister():
         except Exception as e:
             logger.warning(f"✗ Error unregistering em_props: {e}")
 
-    # 3. Unregister proxy_box_creator FIRST (before other modules)
+    # 5. Unregister em_setup LAST (after em_props since EM_Tools depends on GraphMLFileItem)
     if MODULE_IMPORT_SUCCESS:
         try:
-            proxy_box_creator.unregister()
-            logger.info("Unregistered proxy_box_creator")
+            em_setup.unregister()
+            logger.info("✓ Unregistered em_setup")
         except Exception as e:
-            logger.warning(f"Error unregistering proxy_box_creator: {e}")
-    
-
-    # 4. Unregister modules using the new organized function
-    if MODULE_IMPORT_SUCCESS:
-        unregister_modules()  # Usa la nuova funzione organizzata
+            logger.warning(f"✗ Error unregistering em_setup: {e}")
     
     # 5. Remove properties (utilizza il codice che hai già implementato)
     # Remove graph reference

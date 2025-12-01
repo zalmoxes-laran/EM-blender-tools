@@ -670,6 +670,9 @@ def EM_list_clear(context, list_type):
         scene.em_tools.edges_list.clear()
     elif list_type == "emviq_error_list":
         scene.em_tools.emviq_error_list.clear()
+    elif list_type == "epoch_list":
+        # ✅ Epochs migrati a em_tools.epochs.list
+        scene.em_tools.epochs.list.clear()
 
     else:
         # Legacy fallback - should not be reached

@@ -293,16 +293,18 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
 
 
 # Registration
-# NOTE: AuxiliaryFileProperties and GraphMLFileItem are registered by em_props.py
-# to avoid double registration
+# NOTE: AuxiliaryFileProperties and GraphMLFileItem are registered HERE
+# and imported by em_props.py which uses them in EM_Tools
 classes = (
+    AuxiliaryFileProperties,
+    GraphMLFileItem,
     EMToolsProperties,
     EMToolsSettings,
 )
 
 
 def register():
-    """Register PropertyGroups (AuxiliaryFileProperties and GraphMLFileItem registered in em_props.py)"""
+    """Register all PropertyGroups including AuxiliaryFileProperties and GraphMLFileItem"""
     for cls in classes:
         bpy.utils.register_class(cls)
 

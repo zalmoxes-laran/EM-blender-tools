@@ -791,10 +791,10 @@ classes = (
     PropertyValueItem,
     CameraItem,
     LabelSettings,
-    AuxiliaryFileProperties,  # ← MUST be BEFORE GraphMLFileItem
-    GraphMLFileItem,
+    # NOTE: AuxiliaryFileProperties and GraphMLFileItem are registered by em_setup module
+    # to avoid circular imports (em_setup needs them, EM_Tools uses them)
     ProxyBoxSettings,
-    
+
     # Manager aggregators SECOND
     # These use the Sub-PropertyGroups above
     StratigraphyManagerProps,
@@ -802,9 +802,9 @@ classes = (
     VisualManagerProps,
     AnastylosisManagerProps,
     RMManagerProps,
-    
+
     # Main container LAST
-    # This uses ALL the classes above
+    # This uses ALL the classes above (including AuxiliaryFileProperties and GraphMLFileItem from em_setup)
     EM_Tools,
 )
 
