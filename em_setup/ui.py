@@ -448,7 +448,7 @@ class EM_SetupPanel(bpy.types.Panel):
                 col = split.column()
                 col.label(text="US/USV")
                 us_count = len(em_tools.stratigraphy.units) if hasattr(em_tools, 'stratigraphy') else 0
-                col.label(text=str(us_count))
+                col.label(text=str(us_count), icon='OUTLINER_OB_MESH')
 
                 # Separatore verticale
                 col.separator()
@@ -457,19 +457,20 @@ class EM_SetupPanel(bpy.types.Panel):
                 col = split.column()
                 col.label(text="Epochs")
                 epoch_count = len(em_tools.epochs.list) if hasattr(em_tools, 'epochs') else 0
-                col.label(text=str(epoch_count))
+                col.label(text=str(epoch_count), icon='TIME')
 
                 # Properties count
                 col = split.column()
                 col.label(text="Properties")
                 props_count = len(scene.em_properties_list) if hasattr(scene, 'em_properties_list') else 0
-                col.label(text=str(props_count))
+                col.label(text=str(props_count), icon='PROPERTIES')
 
                 # Sources count
                 col = split.column()
                 col.label(text="Sources")
                 sources_count = len(scene.em_sources_list) if hasattr(scene, 'em_sources_list') else 0
-                col.label(text=str(sources_count))
+                col.label(text=str(sources_count), icon='FILE_TEXT')
+
 
                 ####################################################
 
