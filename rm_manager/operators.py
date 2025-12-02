@@ -1,26 +1,38 @@
-import bpy # type: ignore
-from bpy.props import ( # type: ignore
-    StringProperty,
+import os as os
+import bpy  # type: ignore
+from bpy.props import (  # type: ignore
     BoolProperty,
-    CollectionProperty,
-    IntProperty,
     EnumProperty,
-    PointerProperty,
-    FloatVectorProperty,
+    IntProperty,
+    StringProperty,
 )
-from bpy.types import ( # type: ignore
-    Panel,
-    Operator,
-    PropertyGroup,
-    UIList,
-)
+from bpy.types import Operator  # type: ignore
+from bpy_extras.io_utils import ImportHelper  # type: ignore
 
 from s3dgraphy import get_graph
 from s3dgraphy.nodes.representation_node import RepresentationModelNode
 
-from bpy_extras.io_utils import ImportHelper, ExportHelper # type: ignore
+__all__ = [
+    'RM_OT_select_from_object',
+    'RM_OT_add_tileset',
+    'RM_OT_set_tileset_path',
+    'RM_OT_demote_from_rm_list',
+    'RM_OT_update_list',
+    'RM_OT_resolve_mismatches',
+    'RM_OT_show_mismatch_details',
+    'RM_OT_promote_to_rm',
+    'RM_OT_remove_epoch_from_rm_list',
+    'RM_OT_remove_epoch_from_selected',
+    'RM_OT_remove_epoch',
+    'RM_OT_remove_from_epoch',
+    'RM_OT_demote_from_rm',
+    'RM_OT_select_from_list',
+    'RM_OT_toggle_publishable',
+    'RM_OT_add_epoch',
+    'register_operators',
+    'unregister_operators',
+]
 
-import os as os
 
 class RM_OT_select_from_object(Operator):
     bl_idname = "rm.select_from_object"
@@ -188,53 +200,6 @@ class RM_OT_add_tileset(Operator):
         self.report({'INFO'}, f"Added tileset '{obj.name}' to epoch '{active_epoch.name}'")
         return {'FINISHED'}
 
-# Panel to display tileset properties
-class VIEW3D_PT_RM_Tileset_Properties(Panel):  # Nome corretto per la registrazione
-    bl_label = "Tileset Properties"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'EM Annotator'
-    bl_parent_id = "VIEW3D_PT_RM_Manager"
-    bl_options = {'DEFAULT_CLOSED'}
-    
-    @classmethod
-    def poll(cls, context):
-        # Show when a tileset is selected in the RM list
-        scene = context.scene
-        if scene.rm_list_index >= 0 and scene.rm_list_index < len(scene.rm_list):
-            rm_item = scene.rm_list[scene.rm_list_index]
-            obj = bpy.data.objects.get(rm_item.name)
-            # Check if it's a tileset
-            return obj and "tileset_path" in obj
-        return False
-    
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        
-        # Get the selected RM item and corresponding object
-        rm_item = scene.rm_list[scene.rm_list_index]
-        obj = bpy.data.objects.get(rm_item.name)
-        
-        # Display the tileset path
-        layout.label(text="Tileset Properties:")
-        
-        # Path field - identico al GraphML
-        row = layout.row(align=True)
-        row.prop(obj, '["tileset_path"]', text="Path")
-        
-        # Pulsante browse per file ZIP
-        op = row.operator("rm.set_tileset_path", text="", icon='FILEBROWSER')
-        op.object_name = obj.name
-        
-        # Show warning if path doesn't exist
-        path = obj.get("tileset_path", "")
-        if path and not os.path.exists(bpy.path.abspath(path)):
-            row = layout.row()
-            row.alert = True
-            row.label(text="Warning: File not found!", icon='ERROR')
-
-# Operator to set the tileset path
 class RM_OT_set_tileset_path(Operator, ImportHelper):
     bl_idname = "rm.set_tileset_path"
     bl_label = "Set Tileset Path"
@@ -284,131 +249,6 @@ class RM_OT_set_tileset_path(Operator, ImportHelper):
         self.report({'INFO'}, f"Updated tileset path: {tileset_path}")
         return {'FINISHED'}
 
-
-# Classe PropertyGroup per rappresentare un'epoca associata a un modello RM
-class RMEpochItem(PropertyGroup):
-    """Properties for an epoch associated with an RM model"""
-    name: StringProperty(
-        name="Epoch Name",
-        description="Name of the epoch",
-        default=""
-    ) # type: ignore
-    epoch_id: StringProperty(
-        name="Epoch ID",
-        description="ID of the epoch node in the graph",
-        default=""
-    ) # type: ignore
-    is_first_epoch: BoolProperty(
-        name="Is First Epoch",
-        description="Whether this is the first epoch for the RM",
-        default=False
-    ) # type: ignore
-
-# Classe PropertyGroup per rappresentare un modello RM nella lista
-class RMItem(PropertyGroup):
-    """Properties for RM models in the list"""
-    name: StringProperty(
-        name="Name",
-        description="Name of the RM model",
-        default="Unnamed"
-    ) # type: ignore
-    first_epoch: StringProperty(
-        name="First Epoch",
-        description="First epoch this RM belongs to",
-        default=""
-    ) # type: ignore
-    is_publishable: BoolProperty(
-        name="Publishable",
-        description="Whether this RM model is publishable",
-        default=True
-    ) # type: ignore
-    node_id: StringProperty(
-        name="Node ID",
-        description="ID of the RM node in the graph",
-        default=""
-    ) # type: ignore
-    object_exists: BoolProperty(
-        name="Object Exists",
-        description="Whether the object exists in the scene",
-        default=False
-    ) # type: ignore
-    epoch_mismatch: BoolProperty(
-        name="Epoch Mismatch",
-        description="Indicates if there's a mismatch between the graph and the object epochs",
-        default=False
-    ) # type: ignore
-    epochs: CollectionProperty(
-        type=RMEpochItem,
-        name="Associated Epochs"
-    ) # type: ignore
-    active_epoch_index: IntProperty(
-        name="Active Epoch Index",
-        default=0
-    ) # type: ignore
-
-# UI List per mostrare i modelli RM
-# UI List for showing the models RM with tileset indicator
-# Modify the RM_UL_List class's draw_item method
-class RM_UL_List(UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        try:
-            if self.layout_type in {'DEFAULT', 'COMPACT'}:
-                # Get the object to check if it's a tileset
-                obj = bpy.data.objects.get(item.name)
-                is_tileset = obj and "tileset_path" in obj
-                
-                # Determine the appropriate icon
-                if is_tileset:
-                    obj_icon = 'ORIENTATION_GLOBAL'  # Global icon for tileset
-                elif hasattr(item, 'object_exists') and item.object_exists:
-                    obj_icon = 'OBJECT_DATA'
-                else:
-                    obj_icon = 'ERROR'
-                
-                # Show warning icon if there's a mismatch
-                if hasattr(item, 'epoch_mismatch') and item.epoch_mismatch:
-                    obj_icon = 'ERROR'
-                
-                # Layout
-                row = layout.row(align=True)
-                
-                # Name of the RM model
-                row.prop(item, "name", text="", emboss=False, icon=obj_icon)
-                
-                # Epoch of belonging
-                if hasattr(item, 'first_epoch'):
-                    if item.first_epoch == "no_epoch":
-                        row.label(text="[No Epoch]", icon='QUESTION')
-                    else:
-                        row.label(text=item.first_epoch, icon='TIME')
-                else:
-                    row.label(text="[Unknown]", icon='QUESTION')
-
-                # Add list item to epoch
-                op = row.operator("rm.promote_to_rm", text="", icon='ADD', emboss=False)
-                op.mode = 'RM_LIST'
-
-                # Selection object (inline)
-                op = row.operator("rm.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
-                
-                # Flag pubblicabile
-                if hasattr(item, 'is_publishable'):
-                    row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
-                
-                # Add trash bin button for demote functionality
-                op = row.operator("rm.demote_from_rm_list", text="", icon='TRASH', emboss=False)
-                op.rm_index = index
-                
-            elif self.layout_type in {'GRID'}:
-                layout.alignment = 'CENTER'
-                layout.label(text="", icon=obj_icon)
-                
-        except Exception as e:
-            # In caso di errore, mostra un elemento base
-            row = layout.row()
-            row.label(text=f"Error: {str(e)}", icon='ERROR')
-
-# New operator for demoting directly from the list
 class RM_OT_demote_from_rm_list(Operator):
     bl_idname = "rm.demote_from_rm_list"
     bl_label = "Demote RM"
@@ -489,31 +329,6 @@ class RM_OT_demote_from_rm_list(Operator):
         self.report({'INFO'}, f"Removed {obj.name} from RM models")
         return {'FINISHED'}
 
-# UI List per mostrare le epoche associate a un RM
-class RM_UL_EpochList(UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            row = layout.row(align=True)
-            
-            # Icona per indic
-            # are la prima/altre epoche
-            if item.is_first_epoch:
-                row.label(text="", icon='KEYFRAME_HLT')  # Prima epoch
-            else:
-                row.label(text="", icon='KEYFRAME')  # Altre epoche
-            
-            # Nome dell'epoca
-            row.label(text=item.name)
-            
-            # Bottone per rimuovere l'associazione con l'epoca
-            # Mostra sempre il bottone per rimuovere, anche con una sola epoca
-            op = row.operator("rm.remove_epoch_from_rm_list", text="", icon='X', emboss=False)
-        
-        elif self.layout_type in {'GRID'}:
-            layout.alignment = 'CENTER'
-            layout.label(text=item.name)
-
-# Operatore per aggiornare la lista dei modelli RM
 class RM_OT_update_list(Operator):
     bl_idname = "rm.update_list"
     bl_label = "Update RM List"
@@ -745,7 +560,6 @@ class RM_OT_update_list(Operator):
             self.report({'ERROR'}, f"Error updating RM list: {str(e)}")
             return {'CANCELLED'}
 
-# Operatore per risolvere i mismatch di epoche
 class RM_OT_resolve_mismatches(Operator):
     bl_idname = "rm.resolve_mismatches"
     bl_label = "Resolve Epoch Mismatches"
@@ -844,7 +658,6 @@ class RM_OT_resolve_mismatches(Operator):
         self.report({'INFO'}, f"Resolved {resolved_count} mismatches using epochs from {action}")
         return {'FINISHED'}
 
-# Operatore per visualizzare i dettagli di mismatch
 class RM_OT_show_mismatch_details(Operator):
     bl_idname = "rm.show_mismatch_details"
     bl_label = "Show Mismatch Details"
@@ -1130,8 +943,6 @@ class RM_OT_remove_epoch_from_rm_list(Operator):
         self.report({'INFO'}, f"Removed epoch '{epoch_name}' from {rm_item.name}")
         return {'FINISHED'}
 
-
-
 class RM_OT_remove_epoch_from_selected(Operator):
     bl_idname = "rm.remove_epoch_from_selected"
     bl_label = "Remove Epoch from Selected"
@@ -1335,8 +1146,6 @@ class RM_OT_remove_epoch(Operator):
             self.report({'INFO'}, f"Removed epoch '{self.epoch_name}' from {rm_item.name}")
             return {'FINISHED'}
 
-
-# Operatore per rimuovere oggetti selezionati dall'epoca attiva
 class RM_OT_remove_from_epoch(Operator):
     bl_idname = "rm.remove_from_epoch"
     bl_label = "Remove from Active Epoch"
@@ -1439,7 +1248,6 @@ class RM_OT_remove_from_epoch(Operator):
             self.report({'WARNING'}, f"No epoch '{active_epoch.name}' found for {rm_item.name}")
             return {'FINISHED'}
 
-# Operatore per demote oggetti selezionati da RM
 class RM_OT_demote_from_rm(Operator):
     bl_idname = "rm.demote_from_rm"
     bl_label = "Demote from RM"
@@ -1510,7 +1318,6 @@ class RM_OT_demote_from_rm(Operator):
         self.report({'INFO'}, f"Demoted {removed_count} objects from RM models")
         return {'FINISHED'}
 
-# Operatore per selezionare l'oggetto RM dalla lista
 class RM_OT_select_from_list(Operator):
     bl_idname = "rm.select_from_list"
     bl_label = "Select RM Object"
@@ -1581,7 +1388,6 @@ class RM_OT_select_from_list(Operator):
             self.report({'ERROR'}, f"Error selecting object: {str(e)}")
             return {'CANCELLED'}
 
-# Operatore per aggiornare lo stato di pubblicazione
 class RM_OT_toggle_publishable(Operator):
     bl_idname = "rm.toggle_publishable"
     bl_label = "Toggle Publishable"
@@ -1621,7 +1427,6 @@ class RM_OT_toggle_publishable(Operator):
         self.report({'ERROR'}, "No item selected in the list")
         return {'CANCELLED'}
 
-# Operatore per aggiungere un'epoca a un RM
 class RM_OT_add_epoch(Operator):
     bl_idname = "rm.add_epoch"
     bl_label = "Add Epoch"
@@ -1718,237 +1523,45 @@ class RM_OT_add_epoch(Operator):
         self.report({'INFO'}, f"Added epoch '{active_epoch.name}' to {rm_item.name}")
         return {'FINISHED'}
 
-# Classe per le impostazioni del RM Manager
-class RMSettings(PropertyGroup):
-    zoom_to_selected: BoolProperty(
-        name="Zoom to Selected",
-        description="Zoom to the selected object when clicked in the list",
-        default=True
-    ) # type: ignore
-    
-    show_mismatches: BoolProperty(
-        name="Show Epoch Mismatches",
-        description="Highlight objects with mismatches between scene and graph epochs",
-        default=True
-    ) # type: ignore
-    
-    auto_update_on_load: BoolProperty(
-        name="Auto Update on Graph Load",
-        description="Automatically update RM list when a graph is loaded",
-        default=True
-    ) # type: ignore
-    
-    show_settings: BoolProperty(
-        name="Show Settings",
-        description="Show or hide the settings section",
-        default=False
-    ) # type: ignore
-
-# Il pannello principale RM Manager
-class VIEW3D_PT_RM_Manager(Panel):
-    bl_label = "RM Manager"
-    bl_idname = "VIEW3D_PT_RM_Manager"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'EM Annotator'
-    bl_options = {'DEFAULT_CLOSED'}
-        
-    @classmethod
-    def poll(cls, context):
-        em_tools = context.scene.em_tools
-        # Show only if we're in advanced EM mode
-        return em_tools.mode_em_advanced
-    
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        em_tools = scene.em_tools
-
-        from .functions import is_graph_available
-        
-        # Check if a graph is available
-        graph_available, graph = is_graph_available(context)
-
-        # Update controls
-        row = layout.row(align=True)
-        row.operator("rm.update_list", text="Update from Scene", icon='FILE_REFRESH').from_graph = False
-
-        # Check if a graph is available
-        if graph_available:
-            row.operator("rm.update_list", text="Update from Graph", icon='NODE_MATERIAL').from_graph = True
-
-        # Selection sync button
-        row = layout.row(align=True)
-        row.operator("rm.select_from_object", text="Select from Object", icon='RESTRICT_SELECT_OFF')
-
-        # Show active epoch
-        has_active_epoch = False
-        if hasattr(scene, 'epoch_list') and len(scene.epoch_list) > 0 and scene.epoch_list_index >= 0:
-            active_epoch = scene.epoch_list[scene.epoch_list_index]
-            has_active_epoch = True
-
-        # Main action buttons
-        if has_active_epoch:
-            row = layout.row(align=True)
-            active_object = context.active_object
-            if active_object:
-                box = layout.box()
-                box.label(text=f"Operations on selected objects:")
-                row = box.row(align=True)
-                row.operator("rm.promote_to_rm", text="Add Selected", icon='ADD').mode = 'SELECTED'
-                row.operator("rm.remove_epoch_from_selected", text="Remove Selected", icon='REMOVE')
-                row.operator("rm.demote_from_rm", icon='TRASH')
-                
-            # Add Tileset button (only when an epoch is selected)
-            box = layout.box()
-            box.label(text=f"Active Epoch: {active_epoch.name}", icon='TIME')
-            row = box.row()
-            # Modificato il testo per chiarire che si possono aggiungere più tilesets
-            row.operator("rm.add_tileset", text="Add New Cesium Tileset", icon='ORIENTATION_GLOBAL')
-            
-            # Aggiunto un hint per chiarire
-            row = box.row()
-            row.label(text="You can add multiple tilesets to the same epoch", icon='INFO')
-        else:
-            box = layout.box()
-            box.label(text="Select an epoch to manage RM objects", icon='INFO')
-
-        # List of RM models
-        row = layout.row()
-        row.template_list(
-            "RM_UL_List", "rm_list",
-            scene, "rm_list",
-            scene, "rm_list_index"
-        )
-        
-        # List of associated epochs only if an RM is selected
-        if scene.rm_list_index >= 0 and len(scene.rm_list) > 0:
-            item = scene.rm_list[scene.rm_list_index]
-            
-            # Show the list of associated epochs
-            box = layout.box()
-            row = box.row()
-            row.label(text=f"Epochs for {item.name}:")
-            
-            # Sublist of epochs
-            row = box.row()
-            row.template_list(
-                "RM_UL_EpochList", "rm_epochs",
-                item, "epochs",
-                item, "active_epoch_index",
-                rows=3  # Limit to 3 rows by default
-            )
-            
-            # If there's a mismatch, show a warning and buttons to resolve it
-            if item.epoch_mismatch:
-                row = box.row()
-                row.alert = True
-                row.label(text="Epoch Mismatch Detected!", icon='ERROR')
-                
-                row = box.row(align=True)
-                row.operator("rm.show_mismatch_details", icon='INFO')
-                
-                row = box.row(align=True)
-                if graph_available:
-                    row.operator("rm.resolve_mismatches", text="Use Graph Epochs", icon='NODE_MATERIAL').use_graph_epochs = True
-                row.operator("rm.resolve_mismatches", text="Use Scene Epochs", icon='OBJECT_DATA').use_graph_epochs = False
-        
-        if em_tools.experimental_features:
-            # Settings (collapsible)
-            box = layout.box()
-            row = box.row()
-            row.prop(scene.rm_settings, "show_settings", 
-                    icon="TRIA_DOWN" if scene.rm_settings.show_settings else "TRIA_RIGHT",
-                    text="Settings (experimental)", 
-                    emboss=False)
-                    
-            if scene.rm_settings.show_settings:
-                row = box.row()
-                row.prop(scene.rm_settings, "zoom_to_selected")
-                row = box.row()
-                row.prop(scene.rm_settings, "show_mismatches")
-                row = box.row()
-                row.prop(scene.rm_settings, "auto_update_on_load")
-
-# Handler per aggiornare automaticamente la lista RM quando viene caricato un grafo
-@bpy.app.handlers.persistent
-def update_rm_list_on_graph_load(dummy):
-    """Update RM list when a graph is loaded"""
-    
-    # Ensure we're in a context where we can access scene
-    if not bpy.context or not hasattr(bpy.context, 'scene'):
-        return
-        
-    scene = bpy.context.scene
-    
-    # Check if auto update is enabled
-    if not hasattr(scene, 'rm_settings') or not scene.rm_settings.auto_update_on_load:
-        return
-        
-    # Only call the operator if we have an active file
-    if (hasattr(scene, 'em_tools') and 
-        hasattr(scene.em_tools, 'graphml_files') and 
-        len(scene.em_tools.graphml_files) > 0 and 
-        scene.em_tools.active_file_index >= 0):
-        
-        try:
-            # ✅ BLENDER 4.5 COMPATIBLE: Timer callback must return None or float
-            def timer_callback():
-                bpy.ops.rm.update_list(from_graph=True)
-                return None  # Required for Blender 4.5+
-            
-            bpy.app.timers.register(timer_callback, first_interval=0.5)
-        except Exception as e:
-            print(f"Error updating RM list on graph load: {e}")
-
-# Registrazione delle classi
 classes = [
-    RMEpochItem,
-    RMItem,
-    RM_UL_List,
-    RM_UL_EpochList,
+    RM_OT_select_from_object,
+    RM_OT_add_tileset,
+    RM_OT_set_tileset_path,
+    RM_OT_demote_from_rm_list,
     RM_OT_update_list,
+    RM_OT_resolve_mismatches,
+    RM_OT_show_mismatch_details,
     RM_OT_promote_to_rm,
+    RM_OT_remove_epoch_from_rm_list,
+    RM_OT_remove_epoch_from_selected,
+    RM_OT_remove_epoch,
     RM_OT_remove_from_epoch,
     RM_OT_demote_from_rm,
     RM_OT_select_from_list,
     RM_OT_toggle_publishable,
-    RM_OT_remove_epoch,
     RM_OT_add_epoch,
-    RM_OT_resolve_mismatches,
-    RM_OT_show_mismatch_details,
-    RMSettings,
-    VIEW3D_PT_RM_Manager,
-    RM_OT_remove_epoch_from_rm_list,
-    RM_OT_remove_epoch_from_selected,
-    RM_OT_select_from_object,  # New operator to select list item from active object
-    RM_OT_add_tileset,         # New operator to add tileset object
-    RM_OT_set_tileset_path,    # New operator to set tileset path
-    VIEW3D_PT_RM_Tileset_Properties,  # New panel for tileset properties
-    RM_OT_demote_from_rm_list, # New operator to demote selected objects from RM list
 ]
 
-def register():
-    for cls in classes:
-        bpy.utils.register_class(cls)
-    
-    # Registra le proprietà per la lista RM
-    bpy.types.Scene.rm_list = bpy.props.CollectionProperty(type=RMItem)
-    bpy.types.Scene.rm_list_index = bpy.props.IntProperty(name="Index for RM list", default=0)
-    bpy.types.Scene.rm_settings = bpy.props.PointerProperty(type=RMSettings)
-    
-    # Registra l'handler per aggiornare la lista quando viene caricato un grafo
-    bpy.app.handlers.load_post.append(update_rm_list_on_graph_load)
 
-def unregister():
-    # Remove handler
-    if update_rm_list_on_graph_load in bpy.app.handlers.load_post:
-        bpy.app.handlers.load_post.remove(update_rm_list_on_graph_load)
-    
+def _register_class_once(cls):
+    try:
+        bpy.utils.register_class(cls)
+    except ValueError:
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception:
+            pass
+        bpy.utils.register_class(cls)
+
+
+def register_operators():
+    for cls in classes:
+        _register_class_once(cls)
+
+
+def unregister_operators():
     for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
-    
-    # Rimuovi le proprietà
-    del bpy.types.Scene.rm_list
-    del bpy.types.Scene.rm_list_index
-    del bpy.types.Scene.rm_settings
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception:
+            pass
