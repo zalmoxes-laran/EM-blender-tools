@@ -372,20 +372,38 @@ class EM_ToolsPanel:
                 docs_box.label(text="No documents found for this unit", icon='INFO')
                 return
             
-            # Get thumbnails directory
+            # Get thumbnails directory (use shared EM_thumbs cache)
             em_tools = scene.em_tools
             if em_tools.active_file_index < 0 or not em_tools.graphml_files:
                 docs_box.label(text="No active GraphML file", icon='ERROR')
                 return
             
             active_graphml = em_tools.graphml_files[em_tools.active_file_index]
-            graphml_path = Path(bpy.path.abspath(active_graphml.filepath))
-            
-            if not graphml_path.exists():
-                docs_box.label(text="GraphML file not found", icon='ERROR')
+            aux_files = active_graphml.auxiliary_files
+            aux_idx = active_graphml.active_auxiliary_index if aux_files and active_graphml.active_auxiliary_index >= 0 else 0
+            if not aux_files or aux_idx >= len(aux_files):
+                docs_box.label(text="No auxiliary files configured", icon='ERROR')
                 return
-            
-            thumbs_root = graphml_path.parent / ".emtools_cache" / "thumbs"
+
+            aux_file = aux_files[aux_idx]
+            resource_folder = aux_file.resource_folder
+            if not resource_folder:
+                docs_box.label(text="No resource folder set", icon='ERROR')
+                return
+
+            from ..thumb_utils import em_thumbs_root, resolve_resource_folder
+            resolved_folder = resolve_resource_folder(resource_folder)
+            if not resolved_folder:
+                docs_box.label(text="Invalid resource folder", icon='ERROR')
+                return
+
+            # Usa la stessa logica del generatore di thumbnails:
+            # - se esiste custom_thumbs_path, usa quello (assoluto)
+            # - altrimenti usa em_thumbs_root con il path risolto (assoluto)
+            if getattr(aux_file, "custom_thumbs_path", None):
+                thumbs_root = Path(bpy.path.abspath(aux_file.custom_thumbs_path))
+            else:
+                thumbs_root = em_thumbs_root(resolved_folder)
             index_file = thumbs_root / "index.json"
             
             # Load thumbnails index
@@ -415,7 +433,10 @@ class EM_ToolsPanel:
                         file_url = target_node.data.get("url", "") if hasattr(target_node, 'data') else ""
                         
                         if file_url:
-                            file_path = os.path.abspath(bpy.path.abspath(file_url))
+                            if os.path.isabs(file_url):
+                                file_path = os.path.abspath(file_url)
+                            else:
+                                file_path = os.path.normpath(os.path.join(resolved_folder, file_url))
                             
                             if os.path.exists(file_path):
                                 file_hash = get_file_hash(file_path)

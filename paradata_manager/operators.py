@@ -442,7 +442,9 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             item = em_tools.em_v_properties_list.add()
             item.name = prop_node.name
             item.description = prop_node.description if hasattr(prop_node, "description") else ""
-            item.url = prop_node.value if hasattr(prop_node, "value") else ""
+            raw_value = prop_node.value if hasattr(prop_node, "value") else ""
+            # Ensure string to avoid type errors on numbers
+            item.url = "" if raw_value is None else str(raw_value)
             try:
                 item.icon = check_objs_in_scene_and_provide_icon_for_list_element(prop_node.name)
             except Exception:

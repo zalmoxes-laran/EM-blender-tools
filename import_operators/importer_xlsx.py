@@ -159,7 +159,7 @@ class GenericXLSXImporter(BaseImporter):
                     engine='openpyxl'
                 )
                 print(f"Successfully read DataFrame with shape: {df.shape}")
-                print(f"Columns found: {list(df.columns)}")
+            # Verbose column dump removed to keep import output clean
                 
             except Exception as e:
                 print(f"Error during pandas read_excel: {str(e)}")

@@ -2,6 +2,8 @@
 
 import bpy # type: ignore
 from bpy.props import BoolProperty, StringProperty, IntProperty # type: ignore
+import io
+import contextlib
 from ..populate_lists import populate_blender_lists_from_graph, clear_lists
 from .importer_xlsx import GenericXLSXImporter
 from s3dgraphy import get_graph, Graph
@@ -144,8 +146,23 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
                 return {'CANCELLED'}
             
             # 6. IMPORT
-            graph = importer.parse()
-            importer.display_warnings()
+            captured_output = io.StringIO()
+            with contextlib.redirect_stdout(captured_output), contextlib.redirect_stderr(captured_output):
+                graph = importer.parse()
+                importer.display_warnings()
+
+            # Filtra log troppo verbosi (es. nodi mancanti in grafo esistente)
+            noisy_tokens = [
+                "not found in existing graph - SKIPPED",
+                "Processing pyArchInit row",
+                "Node name from DB:",
+                "Enriching existing graph:",
+            ]
+            for line in captured_output.getvalue().splitlines():
+                if any(tok in line for tok in noisy_tokens):
+                    continue
+                if line.strip():
+                    print(line)
             
             # 7. REGISTRAZIONE GRAFO (solo per 3DGIS, dopo l'import)
             if settings['mode'] == '3DGIS':
