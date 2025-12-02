@@ -1546,13 +1546,25 @@ class RM_OT_select_from_list(Operator):
                     # Zoom to object if the option is enabled
                     if hasattr(scene, 'rm_settings') and scene.rm_settings.zoom_to_selected:
                         # Find a 3D view area
-                        for area in bpy.context.screen.areas:
-                            if area.type == 'VIEW_3D':
-                                # Create a new context override that doesn't cause ValueError
-                                override = {'area': area}
-                                # Use this override to call view_selected
-                                bpy.ops.view3d.view_selected(override)
-                                break
+                        win = context.window
+                        scr = win.screen if win else None
+                        if scr:
+                            for area in scr.areas:
+                                if area.type == 'VIEW_3D':
+                                    region = next((r for r in area.regions if r.type == 'WINDOW'), None)
+                                    space = area.spaces.active if hasattr(area, "spaces") else None
+                                    if region:
+                                        override = {
+                                            'window': win,
+                                            'screen': scr,
+                                            'area': area,
+                                            'region': region,
+                                            'space_data': space,
+                                            'scene': scene,
+                                            'view_layer': context.view_layer,
+                                        }
+                                        bpy.ops.view3d.view_selected(override)
+                                    break
                     
                     self.report({'INFO'}, f"Selected object: {item.name}")
                     return {'FINISHED'}
