@@ -432,6 +432,43 @@ def is_graph_available(context):
         print(f"Error accessing graph: {str(e)}")
         return False, None
 
+def get_us_document_nodes(graph, us_node_id):
+    """
+    Return all Document nodes connected to a given stratigraphic unit.
+    Supports legacy and current edge types that link an US to its documents.
+    """
+    if not graph or not us_node_id:
+        return []
+
+    document_edge_types = {
+        "generic_connection",      # current link created by EM setup
+        "has_documentation",       # legacy EM edge
+        "is_documented_by",        # possible reversed semantics
+    }
+
+    doc_ids = set()
+    doc_nodes = []
+
+    for edge in getattr(graph, "edges", []):
+        if edge.edge_type not in document_edge_types:
+            continue
+
+        candidate_id = None
+        if edge.edge_source == us_node_id:
+            candidate_id = edge.edge_target
+        elif edge.edge_target == us_node_id:
+            candidate_id = edge.edge_source
+
+        if not candidate_id or candidate_id in doc_ids:
+            continue
+
+        node = graph.find_node_by_id(candidate_id)
+        if node and hasattr(node, "node_type") and str(node.node_type).lower() == "document":
+            doc_ids.add(candidate_id)
+            doc_nodes.append(node)
+
+    return doc_nodes
+
 def is_valid_url(url_string):
     parsed_url = urlparse(url_string)
     return bool(parsed_url.scheme) or bool(parsed_url.netloc)
@@ -564,20 +601,43 @@ def select_list_element_from_obj_proxy(obj, list_type, context=None, graph=None)
     # Ottieni il nome del nodo dal nome del proxy (rimuove prefisso)
     node_name = proxy_name_to_node_name(obj.name, context=context, graph=graph)
     
-    index_list = 0
-    list_cmd = ("scene." + list_type)
-    list_index_cmd = ("scene." + list_type + "_index = index_list")
-    
-    # ✅ NUOVO: Flag per verificare se troviamo una corrispondenza
+    # Mappa delle liste supportate -> (getter lista, oggetto che contiene l'indice, nome attributo indice)
+    list_registry = {
+        "em_list": (lambda sc: sc.em_tools.stratigraphy.units, lambda sc: sc.em_tools.stratigraphy, "units_index"),
+        "em_reused": (lambda sc: sc.em_tools.stratigraphy.reused, lambda sc: sc.em_tools.stratigraphy, "reused_index"),
+        "em_sources_list": (lambda sc: sc.em_tools.em_sources_list, lambda sc: sc.em_tools, "em_sources_list_index"),
+        "em_properties_list": (lambda sc: sc.em_tools.em_properties_list, lambda sc: sc.em_tools, "em_properties_list_index"),
+        "em_extractors_list": (lambda sc: sc.em_tools.em_extractors_list, lambda sc: sc.em_tools, "em_extractors_list_index"),
+        "em_combiners_list": (lambda sc: sc.em_tools.em_combiners_list, lambda sc: sc.em_tools, "em_combiners_list_index"),
+        "em_v_sources_list": (lambda sc: sc.em_tools.em_v_sources_list, lambda sc: sc.em_tools, "em_v_sources_list_index"),
+        "em_v_properties_list": (lambda sc: sc.em_tools.em_v_properties_list, lambda sc: sc.em_tools, "em_v_properties_list_index"),
+        "em_v_extractors_list": (lambda sc: sc.em_tools.em_v_extractors_list, lambda sc: sc.em_tools, "em_v_extractors_list_index"),
+        "em_v_combiners_list": (lambda sc: sc.em_tools.em_v_combiners_list, lambda sc: sc.em_tools, "em_v_combiners_list_index"),
+        # Legacy epoch list (still on scene)
+        "epoch_list": (lambda sc: getattr(sc, "epoch_list", []), lambda sc: sc, "epoch_list_index"),
+    }
+
+    list_getter, index_owner_getter, index_attr = list_registry.get(
+        list_type,
+        (None, None, None),
+    )
+
+    if not list_getter:
+        print(f"Warning: list_type '{list_type}' not recognized in select_list_element_from_obj_proxy")
+        return
+
+    collection = list_getter(scene)
+    index_owner = index_owner_getter(scene)
+
     found = False
-    
-    for i in eval(list_cmd):
-        # Compara il nome pulito del nodo con il nome pulito nella lista
-        if node_name == i.name:
-            exec(list_index_cmd)
+    for idx, item in enumerate(collection):
+        if node_name == item.name:
+            try:
+                setattr(index_owner, index_attr, idx)
+            except Exception as e:
+                print(f"Warning: could not set index for {list_type}: {e}")
             found = True
             break
-        index_list += 1
     
     # ✅ NUOVO: Se non troviamo una corrispondenza, mostra popup
     if not found:

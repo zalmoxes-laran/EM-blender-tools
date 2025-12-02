@@ -32,32 +32,34 @@ def set_paradata_update_state(state):
 def check_selection_changed(context):
     """Check if selection has changed and load images if needed."""
     scene = context.scene
+    em_tools = scene.em_tools
 
     if not hasattr(scene, "paradata_image") or not scene.paradata_image.auto_load:
         return
 
     if (
-        hasattr(scene, "em_v_sources_list_index")
-        and scene.em_tools.em_v_sources_list_index >= 0
-        and scene.em_tools.em_v_sources_list_index != scene.paradata_image.last_source_index
+        hasattr(em_tools, "em_v_sources_list_index")
+        and em_tools.em_v_sources_list_index >= 0
+        and em_tools.em_v_sources_list_index != scene.paradata_image.last_source_index
     ):
-        scene.paradata_image.last_source_index = scene.em_tools.em_v_sources_list_index
-        if len(scene.em_v_sources_list) > 0:
+        scene.paradata_image.last_source_index = em_tools.em_v_sources_list_index
+        if len(em_tools.em_v_sources_list) > 0:
             auto_load_paradata_image(context, "em_v_sources_list")
 
     if (
-        hasattr(scene, "em_v_extractors_list_index")
-        and scene.em_tools.em_v_extractors_list_index >= 0
-        and scene.em_tools.em_v_extractors_list_index != scene.paradata_image.last_extractor_index
+        hasattr(em_tools, "em_v_extractors_list_index")
+        and em_tools.em_v_extractors_list_index >= 0
+        and em_tools.em_v_extractors_list_index != scene.paradata_image.last_extractor_index
     ):
-        scene.paradata_image.last_extractor_index = scene.em_tools.em_v_extractors_list_index
-        if len(scene.em_v_extractors_list) > 0:
+        scene.paradata_image.last_extractor_index = em_tools.em_v_extractors_list_index
+        if len(em_tools.em_v_extractors_list) > 0:
             auto_load_paradata_image(context, "em_v_extractors_list")
 
 
 def auto_load_paradata_image(context, node_type):
     """Helper function for auto-loading images when selection changes."""
     scene = context.scene
+    em_tools = scene.em_tools
 
     if not hasattr(scene, "paradata_image") or not scene.paradata_image.auto_load:
         return
@@ -68,16 +70,16 @@ def auto_load_paradata_image(context, node_type):
     url = None
     if (
         node_type == "em_v_sources_list"
-        and scene.em_tools.em_v_sources_list_index >= 0
-        and len(scene.em_v_sources_list) > 0
+        and em_tools.em_v_sources_list_index >= 0
+        and len(em_tools.em_v_sources_list) > 0
     ):
-        url = scene.em_v_sources_list[scene.em_tools.em_v_sources_list_index].url
+        url = em_tools.em_v_sources_list[em_tools.em_v_sources_list_index].url
     elif (
         node_type == "em_v_extractors_list"
-        and scene.em_tools.em_v_extractors_list_index >= 0
-        and len(scene.em_v_extractors_list) > 0
+        and em_tools.em_v_extractors_list_index >= 0
+        and len(em_tools.em_v_extractors_list) > 0
     ):
-        url = scene.em_v_extractors_list[scene.em_tools.em_v_extractors_list_index].url
+        url = em_tools.em_v_extractors_list[em_tools.em_v_extractors_list_index].url
 
     if not url:
         return
@@ -150,7 +152,14 @@ class EM_OT_load_paradata_image(bpy.types.Operator):
 
     def execute(self, context):
         scene = context.scene
-        path = eval("scene." + self.node_type + "[scene." + self.node_type + "_index].url")
+        em_tools = scene.em_tools
+        target_list = getattr(em_tools, self.node_type, None)
+        target_index = getattr(em_tools, f"{self.node_type}_index", -1)
+
+        if target_list is None or target_index < 0 or target_index >= len(target_list):
+            return {"CANCELLED"}
+
+        path = target_list[target_index].url
 
         if scene.paradata_image.is_loading or not path:
             return {"CANCELLED"}
@@ -343,10 +352,10 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
         _paradata_update_in_progress = True
 
         try:
-            scene.em_v_properties_list.clear()
-            scene.em_v_combiners_list.clear()
-            scene.em_v_extractors_list.clear()
-            scene.em_v_sources_list.clear()
+            em_tools.em_v_properties_list.clear()
+            em_tools.em_v_combiners_list.clear()
+            em_tools.em_v_extractors_list.clear()
+            em_tools.em_v_sources_list.clear()
 
             if em_tools.active_file_index < 0 or not em_tools.graphml_files:
                 set_paradata_update_state(False)
@@ -367,34 +376,34 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
 
             self.update_property_list(scene, graph, strat_node_id)
 
-            if len(scene.em_v_properties_list) > 0:
-                if scene.em_tools.em_v_properties_list_index >= len(scene.em_v_properties_list):
-                    scene.em_tools.em_v_properties_list_index = 0
+            if len(em_tools.em_v_properties_list) > 0:
+                if em_tools.em_v_properties_list_index >= len(em_tools.em_v_properties_list):
+                    em_tools.em_v_properties_list_index = 0
 
                 if (
-                    scene.em_tools.em_v_properties_list_index >= 0
-                    and scene.em_tools.em_v_properties_list_index < len(scene.em_v_properties_list)
-                    and hasattr(scene.em_v_properties_list[scene.em_tools.em_v_properties_list_index], "id_node")
+                    em_tools.em_v_properties_list_index >= 0
+                    and em_tools.em_v_properties_list_index < len(em_tools.em_v_properties_list)
+                    and hasattr(em_tools.em_v_properties_list[em_tools.em_v_properties_list_index], "id_node")
                 ):
-                    prop_node_id = scene.em_v_properties_list[scene.em_tools.em_v_properties_list_index].id_node
+                    prop_node_id = em_tools.em_v_properties_list[em_tools.em_v_properties_list_index].id_node
                     self.update_combiner_list(scene, graph, prop_node_id)
                     self.update_extractor_list(scene, graph, prop_node_id)
 
-                if len(scene.em_v_extractors_list) > 0:
-                    if scene.em_tools.em_v_extractors_list_index >= len(scene.em_v_extractors_list):
-                        scene.em_tools.em_v_extractors_list_index = 0
+                if len(em_tools.em_v_extractors_list) > 0:
+                    if em_tools.em_v_extractors_list_index >= len(em_tools.em_v_extractors_list):
+                        em_tools.em_v_extractors_list_index = 0
 
-                    if scene.em_tools.em_v_extractors_list_index >= 0:
-                        ext_node_id = scene.em_v_extractors_list[scene.em_tools.em_v_extractors_list_index].id_node
+                    if em_tools.em_v_extractors_list_index >= 0:
+                        ext_node_id = em_tools.em_v_extractors_list[em_tools.em_v_extractors_list_index].id_node
                         self.update_document_list(scene, graph, ext_node_id)
             else:
-                scene.em_tools.em_v_properties_list_index = -1
-                scene.em_v_combiners_list.clear()
-                scene.em_v_extractors_list.clear()
-                scene.em_v_sources_list.clear()
-                scene.em_tools.em_v_combiners_list_index = -1
-                scene.em_tools.em_v_extractors_list_index = -1
-                scene.em_tools.em_v_sources_list_index = -1
+                em_tools.em_v_properties_list_index = -1
+                em_tools.em_v_combiners_list.clear()
+                em_tools.em_v_extractors_list.clear()
+                em_tools.em_v_sources_list.clear()
+                em_tools.em_v_combiners_list_index = -1
+                em_tools.em_v_extractors_list_index = -1
+                em_tools.em_v_sources_list_index = -1
 
             try:
                 if hasattr(context, "area") and context.area:
@@ -421,7 +430,8 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
 
     def update_property_list(self, scene, graph, strat_node_id=None):
         """Aggiorna la lista delle proprietà con controlli di sicurezza."""
-        scene.em_v_properties_list.clear()
+        em_tools = scene.em_tools
+        em_tools.em_v_properties_list.clear()
 
         if strat_node_id:
             prop_nodes = graph.get_property_nodes_for_node(strat_node_id)
@@ -429,7 +439,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             prop_nodes = [node for node in graph.nodes if hasattr(node, "node_type") and node.node_type == "property"]
 
         for prop_node in prop_nodes:
-            item = scene.em_v_properties_list.add()
+            item = em_tools.em_v_properties_list.add()
             item.name = prop_node.name
             item.description = prop_node.description if hasattr(prop_node, "description") else ""
             item.url = prop_node.value if hasattr(prop_node, "value") else ""
@@ -443,7 +453,8 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
 
     def update_combiner_list(self, scene, graph, prop_node_id):
         """Aggiorna la lista dei combiner in modo sicuro."""
-        scene.em_v_combiners_list.clear()
+        em_tools = scene.em_tools
+        em_tools.em_v_combiners_list.clear()
 
         if not scene.em_tools.prop_paradata_streaming_mode:
             combiners = [node for node in graph.nodes if hasattr(node, "node_type") and node.node_type == "combiner"]
@@ -454,7 +465,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
                 combiners = []
 
         for combiner in combiners:
-            item = scene.em_v_combiners_list.add()
+            item = em_tools.em_v_combiners_list.add()
             item.name = combiner.name if hasattr(combiner, "name") and combiner.name is not None else ""
             item.description = (
                 combiner.description if hasattr(combiner, "description") and combiner.description is not None else ""
@@ -474,28 +485,29 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             item.icon_url = "CHECKBOX_HLT" if item.url else "CHECKBOX_DEHLT"
             item.id_node = combiner.node_id
 
-        if len(scene.em_v_combiners_list) > 0:
-            if scene.em_tools.em_v_combiners_list_index >= len(scene.em_v_combiners_list):
-                scene.em_tools.em_v_combiners_list_index = 0
+        if len(em_tools.em_v_combiners_list) > 0:
+            if em_tools.em_v_combiners_list_index >= len(em_tools.em_v_combiners_list):
+                em_tools.em_v_combiners_list_index = 0
         else:
-            scene.em_tools.em_v_combiners_list_index = -1
+            em_tools.em_v_combiners_list_index = -1
 
     def update_extractor_list(self, scene, graph, node_id):
         """Aggiorna la lista degli estrattori in modo sicuro."""
-        scene.em_v_extractors_list.clear()
+        em_tools = scene.em_tools
+        em_tools.em_v_extractors_list.clear()
         extractors = []
 
-        if scene.em_tools.prop_paradata_streaming_mode:
+        if em_tools.prop_paradata_streaming_mode:
             try:
                 property_extractors = graph.get_extractor_nodes_for_node(node_id)
                 extractors.extend(property_extractors)
 
                 if (
-                    scene.em_tools.comb_paradata_streaming_mode
-                    and scene.em_tools.em_v_combiners_list_index >= 0
-                    and len(scene.em_v_combiners_list) > 0
+                    em_tools.comb_paradata_streaming_mode
+                    and em_tools.em_v_combiners_list_index >= 0
+                    and len(em_tools.em_v_combiners_list) > 0
                 ):
-                    comb_node_id = scene.em_v_combiners_list[scene.em_tools.em_v_combiners_list_index].id_node
+                    comb_node_id = em_tools.em_v_combiners_list[em_tools.em_v_combiners_list_index].id_node
                     combiner_extractors = graph.get_extractor_nodes_for_node(comb_node_id)
                     extractors.extend(combiner_extractors)
             except Exception:
@@ -511,7 +523,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
                 unique_extractors.append(node)
 
         for extractor in unique_extractors:
-            item = scene.em_v_extractors_list.add()
+            item = em_tools.em_v_extractors_list.add()
             item.name = extractor.name if hasattr(extractor, "name") and extractor.name is not None else ""
             item.description = (
                 extractor.description if hasattr(extractor, "description") and extractor.description is not None else ""
@@ -531,17 +543,18 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             item.icon_url = "CHECKBOX_HLT" if item.url else "CHECKBOX_DEHLT"
             item.id_node = extractor.node_id
 
-        if len(scene.em_v_extractors_list) > 0:
-            if scene.em_tools.em_v_extractors_list_index >= len(scene.em_v_extractors_list):
-                scene.em_tools.em_v_extractors_list_index = 0
+        if len(em_tools.em_v_extractors_list) > 0:
+            if em_tools.em_v_extractors_list_index >= len(em_tools.em_v_extractors_list):
+                em_tools.em_v_extractors_list_index = 0
         else:
-            scene.em_tools.em_v_extractors_list_index = -1
+            em_tools.em_v_extractors_list_index = -1
 
     def update_document_list(self, scene, graph, extractor_id):
         """Aggiorna la lista dei documenti in modo sicuro."""
-        scene.em_v_sources_list.clear()
+        em_tools = scene.em_tools
+        em_tools.em_v_sources_list.clear()
 
-        if scene.em_tools.extr_paradata_streaming_mode:
+        if em_tools.extr_paradata_streaming_mode:
             try:
                 documents = graph.get_document_nodes_for_extractor(extractor_id)
             except Exception:
@@ -550,7 +563,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             documents = [node for node in graph.nodes if hasattr(node, "node_type") and node.node_type == "document"]
 
         for doc in documents:
-            item = scene.em_v_sources_list.add()
+            item = em_tools.em_v_sources_list.add()
             item.name = doc.name if hasattr(doc, "name") and doc.name is not None else ""
             item.description = doc.description if hasattr(doc, "description") and doc.description is not None else ""
             item.url = doc.url if hasattr(doc, "url") and doc.url is not None else ""
@@ -563,11 +576,11 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             item.icon_url = "CHECKBOX_HLT" if item.url else "CHECKBOX_DEHLT"
             item.id_node = doc.node_id
 
-        if len(scene.em_v_sources_list) > 0:
-            if scene.em_tools.em_v_sources_list_index >= len(scene.em_v_sources_list):
-                scene.em_tools.em_v_sources_list_index = 0
+        if len(em_tools.em_v_sources_list) > 0:
+            if em_tools.em_v_sources_list_index >= len(em_tools.em_v_sources_list):
+                em_tools.em_v_sources_list_index = 0
         else:
-            scene.em_tools.em_v_sources_list_index = -1
+            em_tools.em_v_sources_list_index = -1
 
 
 classes = (
