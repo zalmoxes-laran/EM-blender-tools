@@ -8,7 +8,7 @@ from bpy.types import Operator
 from bpy.props import EnumProperty, BoolProperty, IntProperty
 from s3dgraphy import get_graph
 from .utils import (
-    find_proxy_by_node_id, 
+    find_proxy_by_node_id,
     find_node_id_from_proxy,
     get_em_list_items,
     get_em_list_active_index,
@@ -17,6 +17,7 @@ from .utils import (
     get_paradata_edge_types,
     get_model_edge_types
 )
+from .layout import calculate_hierarchical_layout, apply_layout_to_nodes
 
 class GRAPHEDIT_OT_draw_graph(Operator):
     """Disegna il grafo attivo nell'editor EMGraph"""
@@ -383,24 +384,16 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         print(f"\n📊 Creating {len(filtered_nodes)} nodes...")
         for i, s3d_node in enumerate(filtered_nodes):
             node_type_id = node_type_map.get(s3d_node.node_type, 'EMGraphUSNodeType')
-            
+
             try:
                 bl_node = tree.nodes.new(node_type_id)
                 bl_node.node_id = s3d_node.node_id
                 bl_node.original_name = s3d_node.name
                 bl_node.label = s3d_node.name[:30] if len(s3d_node.name) > 30 else s3d_node.name
-                
-                # Posizionamento
-                if hasattr(s3d_node, 'attributes') and 'y_pos' in s3d_node.attributes:
-                    try:
-                        y_pos = float(s3d_node.attributes.get('y_pos', 0))
-                        x_pos = (i % 10) * 350
-                        bl_node.location = (x_pos, -y_pos * 2)
-                    except:
-                        bl_node.location = ((i % 10) * 350, -(i // 10) * 200)
-                else:
-                    bl_node.location = ((i % 10) * 350, -(i // 10) * 200)
-                
+
+                # Posizionamento temporaneo (verrà aggiornato dal layout algorithm)
+                bl_node.location = (0, 0)
+
                 # Colore
                 if hasattr(s3d_node, 'attributes') and 'fill_color' in s3d_node.attributes:
                     fill_color_hex = s3d_node.attributes.get('fill_color')
@@ -409,12 +402,12 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                         if rgb:
                             bl_node.custom_node_color = rgb
                             bl_node.use_custom_node_color = True
-                
+
                 node_map[s3d_node.node_id] = bl_node
-                
+
             except Exception as e:
                 print(f"❌ Error creating node {s3d_node.node_id}: {e}")
-        
+
         print(f"✅ Created {len(node_map)} nodes")
         
         # Crea edges
@@ -427,9 +420,15 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                             edge_count += 1
             except:
                 pass
-        
-        print(f"✅ Created {edge_count} edges\n")
-        
+
+        print(f"✅ Created {edge_count} edges")
+
+        # ✅ Calcola e applica layout gerarchico
+        print(f"\n📐 Calculating hierarchical layout...")
+        positions = calculate_hierarchical_layout(node_map, graph, filtered_node_ids)
+        apply_layout_to_nodes(node_map, positions)
+        print(f"✅ Layout applied\n")
+
         return len(node_map), edge_count
     
     def create_link(self, tree, node_map, source_id, target_id, edge_type):
