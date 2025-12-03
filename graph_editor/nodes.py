@@ -134,15 +134,16 @@ class EMGraphStratigraphicNode(EMGraphNodeBase):
         self.inputs.new('EMGraphSocketType', "is_contemporary")
         self.inputs.new('EMGraphSocketType', "is_filled_by")
         self.inputs.new('EMGraphSocketType', "is_cut_by")
-        
+
         # Output per relazioni stratigrafiche
         self.outputs.new('EMGraphSocketType', "is_before")
         self.outputs.new('EMGraphSocketType', "fills")
         self.outputs.new('EMGraphSocketType', "cuts")
         self.outputs.new('EMGraphSocketType', "covers")
-        
+
         # Socket per epoche
-        self.inputs.new('EMGraphSocketType', "EpochNode")
+        self.inputs.new('EMGraphSocketType', "has_first_epoch")
+        self.outputs.new('EMGraphSocketType', "survive_in_epoch")
 
 class EMGraphUSNode(EMGraphStratigraphicNode):
     """Wrapper per US"""
@@ -219,9 +220,14 @@ class EMGraphEpochNode(EMGraphNodeBase):
     end_time: FloatProperty(name="End Time", default=0.0)
     
     def init(self, context):
-        self.outputs.new('EMGraphSocketType', "contains")
-        self.inputs.new('EMGraphSocketType', "previous")
+        # Outputs per epoca
+        self.outputs.new('EMGraphSocketType', "has_first_epoch")
         self.outputs.new('EMGraphSocketType', "next")
+
+        # Inputs per epoca
+        self.inputs.new('EMGraphSocketType', "survive_in_epoch")
+        self.inputs.new('EMGraphSocketType', "previous")
+
         self.use_custom_color = True
         self.color = (0.3, 0.5, 0.7)
     

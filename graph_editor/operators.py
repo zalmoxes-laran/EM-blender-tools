@@ -91,13 +91,27 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         
         # Popola il grafo
         node_count, edge_count = self.populate_tree(tree, graph, filtered_nodes, context)
-        
+
         tree.node_count = node_count
         tree.edge_count = edge_count
-        
+
         # Apri l'editor
         self.open_graph_editor(context, tree)
-        
+
+        # Se siamo in modalità NEIGHBORHOOD, seleziona solo il nodo centrale
+        if self.filter_mode == 'NEIGHBORHOOD':
+            selected_node_id = self.get_selected_node_id(context)
+            if selected_node_id:
+                # Deseleziona tutto
+                for node in tree.nodes:
+                    node.select = False
+                # Seleziona solo il nodo centrale
+                for node in tree.nodes:
+                    if node.node_id == selected_node_id:
+                        node.select = True
+                        tree.nodes.active = node
+                        break
+
         self.report({'INFO'}, f"Loaded: {node_count} nodes, {edge_count} edges")
         return {'FINISHED'}
     
