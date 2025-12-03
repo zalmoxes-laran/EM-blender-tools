@@ -154,11 +154,12 @@ def populate_combiner_node(scene, node, index, graph=None):
 
 
 def populate_epoch_node(scene, node, index, graph=None):
-    """Popola la lista delle epoche"""
+    """Popola la lista delle epoche usando il container centralizzato."""
     from .functions import hex_to_rgb
     
-    scene.epoch_list.add()
-    epoch_item = scene.epoch_list[-1]
+    epochs = scene.em_tools.epochs.list
+    epochs.add()
+    epoch_item = epochs[-1]
     epoch_item.name = node.name
     epoch_item.id = node.node_id
     epoch_item.min_y = node.min_y

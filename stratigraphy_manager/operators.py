@@ -257,13 +257,14 @@ class EM_strat_sync_visibility(Operator):
     def sync_rm_visibility(self, context):
         """Synchronize RM object visibility based on active epoch"""
         scene = context.scene
+        epochs = scene.em_tools.epochs
         
         # Check if we have an active epoch
-        if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
+        if epochs.list_index < 0 or epochs.list_index >= len(epochs.list):
             self.report({'WARNING'}, "No active epoch selected")
             return
             
-        active_epoch = scene.epoch_list[scene.epoch_list_index]
+        active_epoch = epochs.list[epochs.list_index]
         active_epoch_name = active_epoch.name
         
         # Get RM objects from the RM list
@@ -944,11 +945,12 @@ class SET_materials_using_epoch_list(Operator):
         active_graph = graph if graph_exists else None
         
         scene = context.scene 
+        epochs = scene.em_tools.epochs.list
         mat_prefix = "ep_"
         applied_count = 0  # ✅ AGGIUNTO: Counter per il report
         
         # Create/update epoch materials
-        for epoch in scene.epoch_list:
+        for epoch in epochs:
             matname = mat_prefix + epoch.name
             mat = consolidate_epoch_material_presence(matname)
             R = epoch.epoch_RGB_color[0]

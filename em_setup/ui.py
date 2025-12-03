@@ -120,7 +120,7 @@ def validate_all_mapping_enums(context):
     Valida tutti gli EnumProperty che usano mappings dinamici.
     Cerca in tutte le posizioni dove possono essere salvati i mapping.
     """
-    from .property_groups import get_emdb_mappings, get_pyarchinit_mappings
+    from .properties import get_emdb_mappings, get_pyarchinit_mappings
 
     modified_count = 0
 
@@ -486,8 +486,8 @@ class EM_SetupPanel(bpy.types.Panel):
                         graph_code_warning = True
 
                 # Controllo per date delle epoche non valide
-                if len(scene.epoch_list) > 0:
-                    for epoch in scene.epoch_list:
+                if hasattr(em_tools, "epochs") and len(em_tools.epochs.list) > 0:
+                    for epoch in em_tools.epochs.list:
                         if epoch.start_time == 10000 or epoch.end_time == 10000:
                             epochs_date_warning = True
                             break

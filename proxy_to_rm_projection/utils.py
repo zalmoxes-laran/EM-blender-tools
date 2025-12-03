@@ -52,10 +52,11 @@ def get_rm_objects_for_epoch(scene):
     Returns:
         List of RM objects for the current epoch
     """
-    if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
+    epochs = scene.em_tools.epochs
+    if epochs.list_index < 0 or epochs.list_index >= len(epochs.list):
         return []
         
-    active_epoch = scene.epoch_list[scene.epoch_list_index]
+    active_epoch = epochs.list[epochs.list_index]
     rm_objects = []
     
     # Check if RM sync is active

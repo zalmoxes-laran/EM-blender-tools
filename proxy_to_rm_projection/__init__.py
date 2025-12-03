@@ -320,7 +320,8 @@ def check_prerequisites():
         issues.append("RM temporal sync not active")
     
     # Check active epoch
-    if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
+    epochs = scene.em_tools.epochs
+    if epochs.list_index < 0 or epochs.list_index >= len(epochs.list):
         issues.append("No active epoch selected")
     
     # Check for proxy objects

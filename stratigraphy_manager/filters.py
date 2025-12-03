@@ -45,10 +45,11 @@ class EM_filter_lists(Operator):
 
         # Filter by epoch
         if scene.filter_by_epoch:
-            if scene.epoch_list and len(scene.epoch_list) > 0:
-                active_epoch_index = scene.epoch_list_index
-                if active_epoch_index >= 0 and active_epoch_index < len(scene.epoch_list):
-                    active_epoch = scene.epoch_list[active_epoch_index]
+            epochs = scene.em_tools.epochs
+            if epochs.list and len(epochs.list) > 0:
+                active_epoch_index = epochs.list_index
+                if active_epoch_index >= 0 and active_epoch_index < len(epochs.list):
+                    active_epoch = epochs.list[active_epoch_index]
 
                     # Filter nodes
                     epoch_filtered = []

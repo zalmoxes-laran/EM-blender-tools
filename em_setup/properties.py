@@ -25,8 +25,11 @@ def get_pyarchinit_mappings(self, context):
     return mappings
 
 
-def get_emdb_mappings():
-    """Get available EMdb mapping files from registry"""
+def get_emdb_mappings(self=None, context=None):
+    """
+    Get available EMdb mapping files from registry.
+    Accepts optional parameters for compatibility with EnumProperty callbacks.
+    """
     try:
         from s3dgraphy.mappings import mapping_registry
         return mapping_registry.list_available_mappings('emdb')

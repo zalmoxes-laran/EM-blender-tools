@@ -106,13 +106,14 @@ class RM_OT_add_tileset(Operator):
     
     def execute(self, context):
         scene = context.scene
+        epochs = scene.em_tools.epochs
         
         # Check if an epoch is selected
-        if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
+        if epochs.list_index < 0 or epochs.list_index >= len(epochs.list):
             self.report({'ERROR'}, "No active epoch selected")
             return {'CANCELLED'}
         
-        active_epoch = scene.epoch_list[scene.epoch_list_index]
+        active_epoch = epochs.list[epochs.list_index]
         
         # Create an empty object
         bpy.ops.object.empty_add(type='PLAIN_AXES', location=(0, 0, 0))
@@ -377,7 +378,7 @@ class RM_OT_update_list(Operator):
                         epoch_start_times[node.name] = getattr(node, 'start_time', float('inf'))
             else:
                 # Se non abbiamo il grafo, usa le epoche dalla scena
-                for epoch in scene.epoch_list:
+                for epoch in scene.em_tools.epochs.list:
                     epoch_start_times[epoch.name] = epoch.start_time
             
             # Se non stiamo usando il grafo o non è disponibile, usiamo gli oggetti di scena
@@ -762,12 +763,13 @@ class RM_OT_promote_to_rm(Operator):
                 self.report({'ERROR'}, "No mesh objects or valid collections selected")
                 return {'CANCELLED'}
 
+        epochs = scene.em_tools.epochs
         # Verifica che ci sia un'epoca attiva
-        if scene.epoch_list_index < 0 or not scene.epoch_list:
+        if epochs.list_index < 0 or not epochs.list:
             self.report({'ERROR'}, "No active epoch")
             return {'CANCELLED'}
         
-        active_epoch = scene.epoch_list[scene.epoch_list_index]
+        active_epoch = epochs.list[epochs.list_index]
         
         # Ottieni il grafo attivo (opzionale)
         graph = None
@@ -950,13 +952,14 @@ class RM_OT_remove_epoch_from_selected(Operator):
     
     def execute(self, context):
         scene = context.scene
+        epochs = scene.em_tools.epochs
         
         # Verifica che ci sia un'epoch attiva
-        if scene.epoch_list_index < 0 or not scene.epoch_list:
+        if epochs.list_index < 0 or not epochs.list:
             self.report({'ERROR'}, "No active epoch")
             return {'CANCELLED'}
         
-        active_epoch = scene.epoch_list[scene.epoch_list_index]
+        active_epoch = epochs.list[epochs.list_index]
         
         # Ottieni gli oggetti selezionati
         selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
@@ -1159,6 +1162,7 @@ class RM_OT_remove_from_epoch(Operator):
     
     def execute(self, context):
         scene = context.scene
+        epochs = scene.em_tools.epochs
         
         # Usa l'indice fornito se valido, altrimenti l'indice selezionato nella lista
         index = self.rm_index if self.rm_index >= 0 else scene.rm_list_index
@@ -1169,13 +1173,13 @@ class RM_OT_remove_from_epoch(Operator):
             return {'CANCELLED'}
         
         # Verifica che ci sia un'epoca attiva
-        if scene.epoch_list_index < 0 or not scene.epoch_list:
+        if epochs.list_index < 0 or not epochs.list:
             self.report({'ERROR'}, "No active epoch")
             return {'CANCELLED'}
         
         # Ottiene l'elemento RM e l'epoca attiva
         rm_item = scene.rm_list[index]
-        active_epoch = scene.epoch_list[scene.epoch_list_index]
+        active_epoch = epochs.list[epochs.list_index]
         
         # Ottieni il grafo attivo
         graph = None
@@ -1401,6 +1405,7 @@ class RM_OT_toggle_publishable(Operator):
     
     def execute(self, context):
         scene = context.scene
+        epochs = scene.em_tools.epochs
         
         # Usa l'indice fornito se valido, altrimenti l'indice selezionato nella lista
         index = self.rm_index if self.rm_index >= 0 else scene.rm_list_index
@@ -1450,12 +1455,12 @@ class RM_OT_add_epoch(Operator):
             return {'CANCELLED'}
         
         # Verifica che ci sia un'epoca attiva
-        if scene.epoch_list_index < 0 or not scene.epoch_list:
+        if epochs.list_index < 0 or not epochs.list:
             self.report({'ERROR'}, "No active epoch")
             return {'CANCELLED'}
         
         rm_item = scene.rm_list[index]
-        active_epoch = scene.epoch_list[scene.epoch_list_index]
+        active_epoch = epochs.list[epochs.list_index]
         
         # Ottieni il grafo attivo
         graph = None

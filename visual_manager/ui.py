@@ -277,7 +277,8 @@ class VIEW3D_PT_visual_panel(Panel):
                     if not getattr(scene, 'sync_rm_visibility', False):
                         warning_col.label(text="• RM temporal sync not active")
                     
-                    if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
+                    epochs = scene.em_tools.epochs
+                    if epochs.list_index < 0 or epochs.list_index >= len(epochs.list):
                         warning_col.label(text="• No active epoch selected")
                     
                     strat = scene.em_tools.stratigraphy  # ✅ Nuovo
@@ -303,7 +304,8 @@ class VIEW3D_PT_visual_panel(Panel):
             return False
         
         # Check active epoch
-        if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
+        epochs = scene.em_tools.epochs
+        if epochs.list_index < 0 or epochs.list_index >= len(epochs.list):
             return False
         
         # Check for proxy objects

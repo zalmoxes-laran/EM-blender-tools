@@ -18,9 +18,10 @@ class EPOCH_OT_reset_index(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
-        scene = context.scene
-        # Set epoch_list_index to -1 if list is empty, or 0 if it has items
-        scene.epoch_list_index = 0 if len(scene.epoch_list) > 0 else -1
+        em_tools = context.scene.em_tools
+        epochs = em_tools.epochs.list
+        # Set list_index to -1 if list is empty, or 0 if it has items
+        em_tools.epochs.list_index = 0 if len(epochs) > 0 else -1
         self.report({'INFO'}, "Reset epoch list index")
         return {'FINISHED'}
 
@@ -37,17 +38,18 @@ class EM_toggle_select(Operator):
         from ..operators.addon_prefix_helpers import node_name_to_proxy_name
         from ..functions import is_graph_available
         
-        scene = context.scene
+        em_tools = context.scene.em_tools
+        epochs = em_tools.epochs.list
         missing_objects = []
         
         # Ottieni il grafo attivo
         graph_exists, graph = is_graph_available(context)
         active_graph = graph if graph_exists else None
         
-        if self.group_em_idx < len(scene.epoch_list):
-            current_e_manager = scene.epoch_list[self.group_em_idx]
+        if self.group_em_idx < len(epochs):
+            current_e_manager = epochs[self.group_em_idx]
             
-            strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+            strat = em_tools.stratigraphy  # ✅ Nuovo
             for us in strat.units:
                 if us.icon == "LINKED":
                     if current_e_manager.name == us.epoch:
@@ -99,17 +101,18 @@ class EM_toggle_visibility(Operator):
         from ..operators.addon_prefix_helpers import node_name_to_proxy_name
         from ..functions import is_graph_available
         
-        scene = context.scene
+        em_tools = context.scene.em_tools
+        epochs = em_tools.epochs.list
         
         # Ottieni il grafo attivo
         graph_exists, graph = is_graph_available(context)
         active_graph = graph if graph_exists else None
         
-        if self.group_em_vis_idx < len(scene.epoch_list):
-            current_e_manager = scene.epoch_list[self.group_em_vis_idx]
+        if self.group_em_vis_idx < len(epochs):
+            current_e_manager = epochs[self.group_em_vis_idx]
             
             # Parsing the em list
-            strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+            strat = em_tools.stratigraphy  # ✅ Nuovo
             for us in strat.units:
                 # Selecting only in-scene em elements
                 if us.icon == "LINKED":
@@ -146,16 +149,17 @@ class EM_toggle_selectable(Operator):
         from ..operators.addon_prefix_helpers import node_name_to_proxy_name
         from ..functions import is_graph_available
         
-        scene = context.scene
+        em_tools = context.scene.em_tools
+        epochs = em_tools.epochs.list
         
         # Ottieni il grafo attivo
         graph_exists, graph = is_graph_available(context)
         active_graph = graph if graph_exists else None
         
-        if self.group_em_idx < len(scene.epoch_list):
-            current_e_manager = scene.epoch_list[self.group_em_idx]
+        if self.group_em_idx < len(epochs):
+            current_e_manager = epochs[self.group_em_idx]
             
-            strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+            strat = em_tools.stratigraphy  # ✅ Nuovo
             for us in strat.units:
                 if us.icon == "LINKED":
                     if current_e_manager.name == us.epoch:
@@ -265,13 +269,14 @@ class EM_UpdateUSListOperator(Operator):
     bl_label = "Update US List"
 
     def execute(self, context):
-        scene = context.scene
+        em_tools = context.scene.em_tools
+        epochs = em_tools.epochs
 
         # Clear existing US list
-        scene.selected_epoch_us_list.clear()
+        epochs.selected_us_list.clear()
 
         # Verify that there is a selected epoch
-        if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
+        if epochs.list_index < 0 or epochs.list_index >= len(epochs.list):
             self.report({'WARNING'}, "No epoch selected or invalid index")
             return {'CANCELLED'}
 
@@ -283,7 +288,7 @@ class EM_UpdateUSListOperator(Operator):
             return {'CANCELLED'}
 
         # Get the selected epoch
-        selected_epoch = scene.epoch_list[scene.epoch_list_index]
+        selected_epoch = epochs.list[epochs.list_index]
 
         # Find the epoch node in the graph
         epoch_node = graph_instance.find_node_by_name(selected_epoch.name)
@@ -312,11 +317,13 @@ class EM_UpdateUSListOperator(Operator):
                             continue  # Skip other edge types
 
                         # Add US element to the list
-                        item = scene.selected_epoch_us_list.add()
+                        item = epochs.selected_us_list.add()
                         item.name = other_node.name
                         item.description = other_node.description
                         item.status = status
                         item.y_pos = str(other_node.attributes.get('y_pos', 0))
+            # Ensure index is in range
+            epochs.selected_us_index = 0 if len(epochs.selected_us_list) > 0 else -1
         else:
             self.report({'WARNING'}, f"Epoch node '{selected_epoch.name}' not found in the graph.")
 
@@ -330,13 +337,13 @@ class EPOCH_OT_reset_visibility_ui(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
-        scene = context.scene
+        em_tools = context.scene.em_tools
         
         # Imposta tutti gli use_toggle a True
-        for epoch in scene.epoch_list:
+        for epoch in em_tools.epochs.list:
             epoch.use_toggle = True
         
-        self.report({'INFO'}, f"Reset {len(scene.epoch_list)} epoch visibility toggles")
+        self.report({'INFO'}, f"Reset {len(em_tools.epochs.list)} epoch visibility toggles")
         return {'FINISHED'}
 
 def register_operators():

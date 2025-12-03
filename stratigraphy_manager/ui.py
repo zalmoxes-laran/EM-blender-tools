@@ -154,8 +154,9 @@ class EM_ToolsPanel:
             filter_controls_row.enabled = graph_available
 
             # Epoch filter toggle
-            if len(scene.epoch_list) > 0 and scene.epoch_list_index < len(scene.epoch_list):
-                current_epoch = scene.epoch_list[scene.epoch_list_index].name
+            epochs = scene.em_tools.epochs
+            if len(epochs.list) > 0 and epochs.list_index < len(epochs.list):
+                current_epoch = epochs.list[epochs.list_index].name
                 filter_controls_row.prop(
                     scene, "filter_by_epoch",
                     text=current_epoch, 

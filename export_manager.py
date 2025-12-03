@@ -425,6 +425,7 @@ class EM_export(bpy.types.Operator):
     def export_rm(self, scene, export_folder, EMviq, nodes, format_file, edges, utente_aton, progetto_aton):
         EM_list_clear(bpy.context, "emviq_error_list")
         edges["."] = []
+        epochs = scene.em_tools.epochs.list
         for ob in bpy.data.objects:
             if len(ob.EM_ep_belong_ob) == 0:
                 # in case the object does not have an epoch it belogs to, do nothing (=0)
@@ -432,7 +433,7 @@ class EM_export(bpy.types.Operator):
             # in case the object belogs to ONE epoch, I manage it accordingly
             if len(ob.EM_ep_belong_ob) == 1:
                 ob_tagged = ob.EM_ep_belong_ob[0]
-                for epoch in scene.epoch_list:
+                for epoch in epochs:
                     if ob_tagged.epoch == epoch.name:
                         epochname1_var = epoch.name.replace(" ", "_")
                         epochname_var = epochname1_var.replace(".", "")
@@ -476,7 +477,7 @@ class EM_export(bpy.types.Operator):
             # in case the object is in different epochs, I set up a "shared" folder instead of a folder for each epoch
             if len(ob.EM_ep_belong_ob) >= 2:
                 for ob_tagged in ob.EM_ep_belong_ob:
-                    for epoch in scene.epoch_list:
+                    for epoch in epochs:
                         if ob_tagged.epoch == epoch.name:
                             epochname1_var = epoch.name.replace(" ", "_")
                             epochname_var = epochname1_var.replace(".", "")
@@ -820,7 +821,7 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
         return nodes, edges
 
     def extract_epochs_from_epoch_list(self, scene, epochs):
-        for epoch in scene.epoch_list:
+        for epoch in scene.em_tools.epochs.list:
             epoch_node = {}
             epoch_node['min'] = epoch.min_y
             epoch_node['max'] = epoch.max_y

@@ -132,7 +132,8 @@ class PROXY_PROJECTION_OT_apply(Operator):
             return False
         
         # Check if there's an active epoch
-        if scene.epoch_list_index < 0 or scene.epoch_list_index >= len(scene.epoch_list):
+        epochs = scene.em_tools.epochs
+        if epochs.list_index < 0 or epochs.list_index >= len(epochs.list):
             self.report({'ERROR'}, "No active epoch selected")
             return False
         
@@ -376,9 +377,10 @@ class PROXY_PROJECTION_OT_diagnose(Operator):
         report_lines.append(f"RM Temporal Sync: {'✓ Active' if rm_sync else '✗ Inactive'}")
         
         # Check active epoch
-        has_epoch = scene.epoch_list_index >= 0 and scene.epoch_list_index < len(scene.epoch_list)
+        epochs = scene.em_tools.epochs
+        has_epoch = epochs.list_index >= 0 and epochs.list_index < len(epochs.list)
         if has_epoch:
-            epoch_name = scene.epoch_list[scene.epoch_list_index].name
+            epoch_name = epochs.list[epochs.list_index].name
             report_lines.append(f"Active Epoch: ✓ {epoch_name}")
         else:
             report_lines.append("Active Epoch: ✗ None selected")

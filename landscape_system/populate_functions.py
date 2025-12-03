@@ -80,7 +80,6 @@ def clear_all_lists(context):
         'em_sources_list',
         'em_extractors_list',
         'em_combiners_list',
-        'epoch_list',
         'em_reused'
     ]
     
@@ -88,6 +87,9 @@ def clear_all_lists(context):
         if hasattr(scene, list_name):
             list_obj = getattr(scene, list_name)
             list_obj.clear()
+
+    # Clear epochs from the centralized container
+    scene.em_tools.epochs.list.clear()
 
 def populate_stratigraphy_list_landscape(context, all_graphs):
     """Popola la lista unità stratigrafiche con elementi da tutti i grafi"""
@@ -271,7 +273,7 @@ def populate_epochs_list_landscape(context, all_graphs):
         ]
         
         for node in epoch_nodes:
-            item = scene.epoch_list.add()
+            item = scene.em_tools.epochs.list.add()
             
             # Nome con prefisso grafo
             item.name = f"[{graph_code}] {node.name}"

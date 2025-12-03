@@ -525,12 +525,13 @@ def sync_Switch_em(self, context):
 def sync_update_epoch_soloing(self, context):
     scene = context.scene
     soling = False
-    for epoch in scene.epoch_list:
+    epochs = scene.em_tools.epochs.list
+    for epoch in epochs:
         if epoch.epoch_soloing is True:
             soloing_epoch = epoch
             soloing = True
     if soloing is True:
-        for epoch in scene.epoch_list:
+        for epoch in epochs:
             if epoch is not soloing_epoch:
                 pass
     return
@@ -613,8 +614,8 @@ def select_list_element_from_obj_proxy(obj, list_type, context=None, graph=None)
         "em_v_properties_list": (lambda sc: sc.em_tools.em_v_properties_list, lambda sc: sc.em_tools, "em_v_properties_list_index"),
         "em_v_extractors_list": (lambda sc: sc.em_tools.em_v_extractors_list, lambda sc: sc.em_tools, "em_v_extractors_list_index"),
         "em_v_combiners_list": (lambda sc: sc.em_tools.em_v_combiners_list, lambda sc: sc.em_tools, "em_v_combiners_list_index"),
-        # Legacy epoch list (still on scene)
-        "epoch_list": (lambda sc: getattr(sc, "epoch_list", []), lambda sc: sc, "epoch_list_index"),
+        # Epoch list now stored under em_tools
+        "epoch_list": (lambda sc: sc.em_tools.epochs.list, lambda sc: sc.em_tools.epochs, "list_index"),
     }
 
     list_getter, index_owner_getter, index_attr = list_registry.get(
@@ -673,17 +674,17 @@ def add_sceneobj_to_epochs():
 
     bpy.ops.object.select_all(action='DESELECT')
 
+    epochs = scene.em_tools.epochs.list
+
     for obj in bpy.data.objects:
         if obj.type == 'MESH':
             for USS in strat.units:  # ✅ Nuovo path
                 if obj.name == USS.name:
-                    idx = 0
-                    for i in scene.epoch_list:
-                        if i.name == USS.epoch:
+                    for idx, epoch in enumerate(epochs):
+                        if epoch.name == USS.epoch:
                             obj.select_set(True)
                             bpy.ops.epoch_manager.add_to_group(group_em_idx=idx)
                             obj.select_set(False)
-                        idx += 1
                                                 
 ### #### #### #### #### #### #### #### #### #### ####
 #### Functions to extract data from GraphML file ####
@@ -731,8 +732,10 @@ def EM_list_clear(context, list_type):
     elif list_type == "emviq_error_list":
         scene.em_tools.emviq_error_list.clear()
     elif list_type == "epoch_list":
-        # ✅ Epochs migrati a em_tools.epochs.list
+        # ✅ Epochs migrati a em_tools.epochs.list, ma alcune parti della UI usano ancora scene.epoch_list
         scene.em_tools.epochs.list.clear()
+        if hasattr(scene, "epoch_list"):
+            scene.epoch_list.clear()
 
     else:
         # Legacy fallback - should not be reached
@@ -1120,6 +1123,8 @@ def update_icons(context, list_type):
         target_list = scene.em_tools.stratigraphy.units
     elif list_type == "em_reused":
         target_list = scene.em_tools.stratigraphy.reused
+    elif list_type == "epoch_list":
+        target_list = scene.em_tools.epochs.list
     else:
         # Per altre liste, usa il vecchio path
         list_path = "scene." + list_type
@@ -1422,7 +1427,8 @@ def set_materials_using_epoch_list(context):
     scene = context.scene 
     mat_prefix = "ep_"
     
-    for epoch in scene.epoch_list:
+    epochs = scene.em_tools.epochs.list
+    for epoch in epochs:
         matname = mat_prefix + epoch.name
         mat = consolidate_epoch_material_presence(matname)
         R = epoch.epoch_RGB_color[0]

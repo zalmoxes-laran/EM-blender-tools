@@ -177,8 +177,9 @@ class VIEW3D_PT_RM_Manager(Panel):
 
         # Show active epoch
         has_active_epoch = False
-        if hasattr(scene, 'epoch_list') and len(scene.epoch_list) > 0 and scene.epoch_list_index >= 0:
-            active_epoch = scene.epoch_list[scene.epoch_list_index]
+        epochs = em_tools.epochs
+        if len(epochs.list) > 0 and epochs.list_index >= 0:
+            active_epoch = epochs.list[epochs.list_index]
             has_active_epoch = True
 
         # Main action buttons

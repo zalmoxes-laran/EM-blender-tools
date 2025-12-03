@@ -78,16 +78,18 @@ class EM_BasePanel:
     def draw(self, context):
         layout = self.layout
         scene = context.scene
+        em_tools = scene.em_tools
+        epochs = em_tools.epochs
         row = layout.row()
         ob = context.object
 
         row.template_list(
-            "EM_UL_named_epoch_managers", "", scene, "epoch_list", scene, "epoch_list_index")
+            "EM_UL_named_epoch_managers", "", em_tools.epochs, "list", em_tools.epochs, "list_index")
 
-        if len(scene.epoch_list) > 0:
+        if len(epochs.list) > 0:
             # Add the subpanel with epoch details
-            if scene.epoch_list_index >= 0 and len(scene.epoch_list) > 0:
-                epoch = scene.epoch_list[scene.epoch_list_index]
+            if epochs.list_index >= 0 and len(epochs.list) > 0:
+                epoch = epochs.list[epochs.list_index]
                 
                 # Collapsible box for epoch details
                 box = layout.box()

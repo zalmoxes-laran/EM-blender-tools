@@ -97,7 +97,7 @@ class EM_import_GraphML(bpy.types.Operator):
                 strat = scene.em_tools.stratigraphy  # ✅ Nuovo
                 strat.units_index = 0  # ✅ Nuovo path
 
-                scene.epoch_list_index = 0
+                em_tools.epochs.list_index = 0
                 
                 
                 
@@ -123,7 +123,7 @@ class EM_import_GraphML(bpy.types.Operator):
                 # ✅ Usa nuovi paths centralizzati
                 strat = scene.em_tools.stratigraphy
                 ensure_valid_index(strat.units, "units_index", context, data_object=strat)
-                ensure_valid_index(scene.epoch_list, "epoch_list_index", context, show_popup=False)
+                ensure_valid_index(em_tools.epochs.list, "list_index", context, show_popup=False, data_object=em_tools.epochs)
                 ensure_valid_index(scene.em_tools.em_sources_list, "em_sources_list_index", context, data_object=em_tools)
                 ensure_valid_index(scene.em_tools.em_properties_list, "em_properties_list_index", context, data_object=em_tools)
                 ensure_valid_index(scene.em_tools.em_extractors_list, "em_extractors_list_index", context, data_object=em_tools)

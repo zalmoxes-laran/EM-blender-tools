@@ -117,34 +117,21 @@ def register_data():
     Register Epoch Manager data structures.
     
     REFACTORED: PropertyGroup classes are registered by em_props.py
-    This function now ONLY handles Scene property attachment.
+    Legacy Scene-level epoch collections are removed in favor of em_tools.epochs.*
     """
-    # ❌ PropertyGroup registration rimosso (gestito da em_props.py)
-    
-    # ✅ SOLO Scene properties NON gestite da em_props
-    # Setup collection properties if not yet existing
-    if not hasattr(bpy.types.Scene, "epoch_list"):
-        bpy.types.Scene.epoch_list = CollectionProperty(type=EPOCHListItem)
-    
-    # IMPORTANTE: Registra il callback direttamente
-    if hasattr(bpy.types.Scene, "epoch_list_index"):
-        del bpy.types.Scene.epoch_list_index
-        
-    # Ricrea la proprietà con il callback collegato direttamente
-    bpy.types.Scene.epoch_list_index = IntProperty(
-        name="Index for epoch_list",
-        default=0,
-        update=update_epoch_selection
-    )
-        
-    if not hasattr(bpy.types.Scene, "selected_epoch_us_list"):
-        bpy.types.Scene.selected_epoch_us_list = CollectionProperty(type=EMUSItem)
-        
-    if not hasattr(bpy.types.Scene, "selected_epoch_us_list_index"):
-        bpy.types.Scene.selected_epoch_us_list_index = IntProperty(
-            name="Index for selected_epoch_us_list",
-            default=0
-        )
+    legacy_props = [
+        "epoch_list",
+        "epoch_list_index",
+        "selected_epoch_us_list",
+        "selected_epoch_us_list_index",
+    ]
+
+    for prop in legacy_props:
+        if hasattr(bpy.types.Scene, prop):
+            try:
+                delattr(bpy.types.Scene, prop)
+            except Exception:
+                pass
 
 
 def unregister_data():
@@ -152,19 +139,18 @@ def unregister_data():
     Unregister Epoch Manager data structures.
     
     REFACTORED: PropertyGroup classes are unregistered by em_props.py
-    This function now ONLY handles Scene property removal.
+    This function now ONLY handles Scene property cleanup.
     """
-    # ✅ SOLO rimozione Scene properties
-    if hasattr(bpy.types.Scene, "epoch_list"):
-        del bpy.types.Scene.epoch_list
-    
-    if hasattr(bpy.types.Scene, "epoch_list_index"):
-        del bpy.types.Scene.epoch_list_index
-    
-    if hasattr(bpy.types.Scene, "selected_epoch_us_list"):
-        del bpy.types.Scene.selected_epoch_us_list
-        
-    if hasattr(bpy.types.Scene, "selected_epoch_us_list_index"):
-        del bpy.types.Scene.selected_epoch_us_list_index
-    
-    # ❌ PropertyGroup unregistration rimosso (gestito da em_props.py)
+    legacy_props = [
+        "epoch_list",
+        "epoch_list_index",
+        "selected_epoch_us_list",
+        "selected_epoch_us_list_index",
+    ]
+
+    for prop in legacy_props:
+        if hasattr(bpy.types.Scene, prop):
+            try:
+                delattr(bpy.types.Scene, prop)
+            except Exception:
+                pass
