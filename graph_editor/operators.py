@@ -329,7 +329,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             'SF': 'EMGraphSFNodeType',
             'VSF': 'EMGraphVSFNodeType',
             'USD': 'EMGraphUSDNodeType',
-            'epoch': 'EMGraphEpochNodeType',
+            'EpochNode': 'EMGraphEpochNodeType',
             'property': 'EMGraphParadataNodeType',
             'extractor': 'EMGraphParadataNodeType',
             'combiner': 'EMGraphParadataNodeType',

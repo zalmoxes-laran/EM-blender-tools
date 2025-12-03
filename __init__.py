@@ -294,7 +294,8 @@ if DEPENDENCIES_LOADED:
             landscape_system,
             proxy_box_creator,
             em_base_props,  # ← Base PropertyGroup classes
-            em_props
+            em_props,
+            debug_graph_connections  # Debug operator
         )
 
         # Import base PropertyGroup classes into this namespace
@@ -594,7 +595,8 @@ def register_modules():
         graphml_converter,
         operators,
         cronofilter,
-        thumb_operators
+        thumb_operators,
+        debug_graph_connections  # Debug operator
     ]
     
     for module in core_independent_modules:
@@ -706,6 +708,7 @@ def unregister_modules():
     
     # FASE 4: Moduli core in ordine inverso
     core_modules = [
+        debug_graph_connections,  # Debug operator
         thumb_operators,
         cronofilter,
         operators,

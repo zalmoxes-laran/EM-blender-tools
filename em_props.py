@@ -131,7 +131,6 @@ def update_epoch_index(self, context):
     if getattr(scene, "filter_by_epoch", False):
         try:
             if hasattr(bpy.ops, 'em') and hasattr(bpy.ops.em, 'filter_lists'):
-                print("Epoch changed, re-filtering stratigraphy list...")
                 bpy.ops.em.filter_lists()
         except Exception as e:
             print(f"Warning: Could not re-filter after epoch change: {e}")

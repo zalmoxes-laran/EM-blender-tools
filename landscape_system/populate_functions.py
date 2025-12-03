@@ -269,7 +269,7 @@ def populate_epochs_list_landscape(context, all_graphs):
         # Trova tutti i nodi epoca
         epoch_nodes = [
             node for node in graph.nodes 
-            if hasattr(node, 'node_type') and node.node_type == 'epoch'
+            if hasattr(node, 'node_type') and node.node_type == 'EpochNode'
         ]
         
         for node in epoch_nodes:

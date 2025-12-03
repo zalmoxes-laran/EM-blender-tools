@@ -177,7 +177,7 @@ class RM_OT_add_tileset(Operator):
                 # Find the epoch node
                 epoch_node = None
                 for node in graph.nodes:
-                    if node.node_type == "epoch" and node.name == active_epoch.name:
+                    if node.node_type == "EpochNode" and node.name == active_epoch.name:
                         epoch_node = node
                         break
                 
@@ -374,7 +374,7 @@ class RM_OT_update_list(Operator):
             epoch_start_times = {}
             if graph:
                 for node in graph.nodes:
-                    if node.node_type == "epoch":
+                    if node.node_type == "EpochNode":
                         epoch_start_times[node.name] = getattr(node, 'start_time', float('inf'))
             else:
                 # Se non abbiamo il grafo, usa le epoche dalla scena
@@ -521,7 +521,7 @@ class RM_OT_update_list(Operator):
                         for edge in graph.edges:
                             if edge.edge_source == node.node_id and edge.edge_type in ["has_first_epoch", "has_representation_model", "survive_in_epoch"]:
                                 epoch_node = graph.find_node_by_id(edge.edge_target)
-                                if epoch_node and epoch_node.node_type == "epoch":
+                                if epoch_node and epoch_node.node_type == "EpochNode":
                                     associated_epochs.append({
                                         "name": epoch_node.name,
                                         "node": epoch_node,
@@ -632,7 +632,7 @@ class RM_OT_resolve_mismatches(Operator):
                         for epoch_name in obj_epochs:
                             epoch_node = None
                             for node in graph.nodes:
-                                if node.node_type == "epoch" and node.name == epoch_name:
+                                if node.node_type == "EpochNode" and node.name == epoch_name:
                                     epoch_node = node
                                     break
                             
@@ -824,7 +824,7 @@ class RM_OT_promote_to_rm(Operator):
                     for i, epoch_name in enumerate(sorted_epochs):
                         epoch_node = None
                         for node in graph.nodes:
-                            if node.node_type == "epoch" and node.name == epoch_name:
+                            if node.node_type == "EpochNode" and node.name == epoch_name:
                                 epoch_node = node
                                 break
                         
@@ -1492,7 +1492,7 @@ class RM_OT_add_epoch(Operator):
         
         epoch_node = None
         for node in graph.nodes:
-            if node.node_type == "epoch" and node.name == active_epoch.name:
+            if node.node_type == "EpochNode" and node.name == active_epoch.name:
                 epoch_node = node
                 break
         

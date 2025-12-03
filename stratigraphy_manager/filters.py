@@ -69,8 +69,21 @@ class EM_filter_lists(Operator):
 
         # Filter by activity
         if scene.filter_by_activity:
-            # Activity filter logic here (if exists)
-            pass
+            activity_manager = scene.activity_manager
+            if activity_manager.activities and len(activity_manager.activities) > 0:
+                active_activity_index = activity_manager.active_index
+                if active_activity_index >= 0 and active_activity_index < len(activity_manager.activities):
+                    active_activity = activity_manager.activities[active_activity_index]
+
+                    # Filter nodes that belong to this activity
+                    activity_filtered = []
+                    for node in filtered_items:
+                        # Check if node is connected to this activity via "is_in_activity" edge
+                        connected_activities = graph.get_connected_nodes_by_edge_type(node.node_id, "is_in_activity")
+                        if any(activity.name == active_activity.name for activity in connected_activities):
+                            activity_filtered.append(node)
+
+                    filtered_items = activity_filtered
 
         # Filter reconstruction units
         if not scene.show_reconstruction_units:

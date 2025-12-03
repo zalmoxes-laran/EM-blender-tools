@@ -142,7 +142,7 @@ class EMGraphStratigraphicNode(EMGraphNodeBase):
         self.outputs.new('EMGraphSocketType', "covers")
         
         # Socket per epoche
-        self.inputs.new('EMGraphSocketType', "epoch")
+        self.inputs.new('EMGraphSocketType', "EpochNode")
 
 class EMGraphUSNode(EMGraphStratigraphicNode):
     """Wrapper per US"""

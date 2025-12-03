@@ -233,7 +233,7 @@ def populate_blender_lists_from_graph(context, graph):
     property_nodes = graph.get_nodes_by_type('property')
     extractor_nodes = graph.get_nodes_by_type('extractor')
     combiner_nodes = graph.get_nodes_by_type('combiner')
-    epoch_nodes = graph.get_nodes_by_type('epoch')
+    epoch_nodes = graph.get_nodes_by_type('EpochNode')
 
     # 1. Nodi stratigrafici
     for node in stratigraphic_nodes:

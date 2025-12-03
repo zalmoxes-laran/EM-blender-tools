@@ -181,7 +181,7 @@ def update_representation_models(graph):
                 # Cerca manualmente il nodo dell'epoch nel grafo
                 epoch_node = None
                 for node in graph.nodes:
-                    if node.node_type == "epoch" and node.name == ep.epoch:
+                    if node.node_type == "EpochNode" and node.name == ep.epoch:
                         epoch_node = node
                         break
                 

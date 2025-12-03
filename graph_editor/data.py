@@ -45,7 +45,7 @@ class EMGraphSocket(NodeSocket):
         
         if "stratigraphic" in socket_name or "before" in socket_name or "after" in socket_name:
             return (0.8, 0.4, 0.2, 1.0)  # Arancione per relazioni stratigrafiche
-        elif "epoch" in socket_name or "survive" in socket_name:
+        elif "EpochNode" in socket_name or "survive" in socket_name:
             return (0.3, 0.6, 0.9, 1.0)  # Blu per epoche
         elif "paradata" in socket_name or "property" in socket_name:
             return (0.6, 0.3, 0.8, 1.0)  # Viola per paradata
