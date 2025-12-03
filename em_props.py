@@ -127,14 +127,14 @@ def update_proxy_display(self, context):
 def update_epoch_index(self, context):
     """Called when epoch list index changes"""
     scene = context.scene
-    em_tools = scene.em_tools
-    if hasattr(em_tools.epochs, 'filter_by_epoch') and em_tools.epochs.filter_by_epoch:
+    # Usa il toggle di filtro presente sulla scena
+    if getattr(scene, "filter_by_epoch", False):
         try:
             if hasattr(bpy.ops, 'em') and hasattr(bpy.ops.em, 'filter_lists'):
-                print(f"Epoch changed, re-filtering...")
+                print("Epoch changed, re-filtering stratigraphy list...")
                 bpy.ops.em.filter_lists()
         except Exception as e:
-            print(f"Warning: Could not re-filter: {e}")
+            print(f"Warning: Could not re-filter after epoch change: {e}")
 
 
 # =====================================================
