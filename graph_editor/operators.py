@@ -176,23 +176,35 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         return filtered
     
     def get_neighborhood_nodes(self, graph, context):
-        """Ottiene i nodi nel vicinato del nodo selezionato"""
-        selected_node_id = self.get_selected_node_id(context)
-        
+        """Ottiene i nodi nel vicinato del nodo selezionato (qualsiasi tipo di nodo)"""
+
+        # ✅ PRIMA: Controlla se c'è un node_id temporaneo salvato dall'operatore neighborhood
+        selected_node_id = None
+        if '_temp_neighborhood_node_id' in context.scene:
+            selected_node_id = context.scene['_temp_neighborhood_node_id']
+            print(f"   ✅ Using saved node_id from neighborhood operator: {selected_node_id}")
+            # Rimuovi dopo l'uso
+            del context.scene['_temp_neighborhood_node_id']
+        else:
+            # Altrimenti usa il metodo normale
+            selected_node_id = self.get_selected_node_id(context)
+
         if not selected_node_id:
-            if context.space_data.type == 'NODE_EDITOR' and context.active_node:
-                selected_node_id = context.active_node.node_id
-            
-            if not selected_node_id:
-                print("   ⚠️  No node selected for neighborhood filter")
-                return []
-        
-        print(f"   Building neighborhood for: {selected_node_id}")
-        
+            print("   ⚠️  No node selected for neighborhood filter")
+            print("   Please select a node in the Graph Editor, 3D view, or UIList")
+            return []
+
+        print(f"   Building neighborhood for node: {selected_node_id}")
+
         center_node = graph.find_node_by_id(selected_node_id)
         if not center_node:
             print(f"   ⚠️  Node not found: {selected_node_id}")
             return []
+
+        # Mostra info sul nodo centrale
+        node_type = getattr(center_node, 'node_type', 'unknown')
+        node_name = getattr(center_node, 'name', 'unnamed')
+        print(f"   Center node: {node_name} (type: {node_type})")
         
         # Usa get_connected_nodes di s3dgraphy
         neighborhood = {center_node.node_id: center_node}
@@ -301,31 +313,41 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         return filtered
     
     def get_selected_node_id(self, context):
-        """Ottiene l'ID del nodo selezionato (da 3D, UIList o Graph Editor)"""
-        
+        """Ottiene l'ID del nodo selezionato, con priorità al Graph Editor se siamo lì"""
+
+        # ✅ Se siamo nel Graph Editor, dai priorità al nodo selezionato lì
+        if context.space_data and context.space_data.type == 'NODE_EDITOR':
+            if context.active_node and hasattr(context.active_node, 'node_id'):
+                node_id = context.active_node.node_id
+                if node_id:
+                    print(f"   Selected from Graph Editor: {node_id}")
+                    return node_id
+
+        # Altrimenti, ordine normale: 3D → UIList → Graph Editor
+
         # 1. Prova da oggetto 3D selezionato
         if context.active_object:
             node_id = find_node_id_from_proxy(context.active_object, context)
             if node_id:
                 print(f"   Selected from 3D: {node_id}")
                 return node_id
-        
+
         # 2. Prova da UIList
         em_list = get_em_list_items(context)
         em_list_index = get_em_list_active_index(context)
-        
+
         if em_list and 0 <= em_list_index < len(em_list):
             item = em_list[em_list_index]
             if hasattr(item, 'node_id') and item.node_id:
                 print(f"   Selected from UIList: {item.node_id}")
                 return item.node_id
-        
-        # 3. Prova da Graph Editor
-        if context.space_data.type == 'NODE_EDITOR' and context.active_node:
-            if hasattr(context.active_node, 'node_id'):
-                print(f"   Selected from Graph Editor: {context.active_node.node_id}")
+
+        # 3. Fallback a Graph Editor (se non trovato sopra)
+        if context.space_data and context.space_data.type == 'NODE_EDITOR':
+            if context.active_node and hasattr(context.active_node, 'node_id'):
+                print(f"   Selected from Graph Editor (fallback): {context.active_node.node_id}")
                 return context.active_node.node_id
-        
+
         return None
     
     def populate_tree(self, tree, graph, filtered_nodes, context):
@@ -626,26 +648,69 @@ class GRAPHEDIT_OT_sync_selection(Operator):
     
 
 class GRAPHEDIT_OT_draw_neighborhood(Operator):
-    """Disegna vicinato del nodo selezionato"""
+    """Disegna vicinato del nodo selezionato (context-aware: Graph Editor o 3D)"""
     bl_idname = "graphedit.draw_neighborhood"
     bl_label = "Draw Neighborhood"
-    bl_description = "Draw neighborhood of selected node"
+    bl_description = "Draw neighborhood of selected node from current context"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     depth: IntProperty(
         name="Depth",
         default=1,
         min=1,
         max=5
     )
-    
+
     def execute(self, context):
+        # ✅ PRIMA cattura il nodo selezionato dal contesto corrente
+        selected_node_id = self._get_selected_node_from_context(context)
+
+        if not selected_node_id:
+            self.report({'WARNING'}, "No node selected. Select a node in Graph Editor, 3D view, or UIList")
+            return {'CANCELLED'}
+
+        print(f"\n🎯 Neighborhood request for node: {selected_node_id}")
+
+        # Salva temporaneamente il node_id in una proprietà di scena
+        context.scene['_temp_neighborhood_node_id'] = selected_node_id
+
         bpy.ops.graphedit.draw_graph(
             'INVOKE_DEFAULT',
             filter_mode='NEIGHBORHOOD',
             neighborhood_depth=self.depth
         )
         return {'FINISHED'}
+
+    def _get_selected_node_from_context(self, context):
+        """Ottiene il nodo selezionato dando priorità al contesto corrente"""
+
+        # ✅ PRIORITÀ 1: Se siamo nel Graph Editor (NODE_EDITOR)
+        if context.area and context.area.type == 'NODE_EDITOR':
+            if context.active_node and hasattr(context.active_node, 'node_id'):
+                node_id = context.active_node.node_id
+                if node_id:
+                    print(f"   📍 Selected from Graph Editor: {node_id}")
+                    return node_id
+
+        # ✅ PRIORITÀ 2: Se siamo nella 3D View
+        if context.area and context.area.type == 'VIEW_3D':
+            if context.active_object:
+                node_id = find_node_id_from_proxy(context.active_object, context)
+                if node_id:
+                    print(f"   📍 Selected from 3D View: {node_id}")
+                    return node_id
+
+        # ✅ PRIORITÀ 3: UIList (sempre disponibile)
+        em_list = get_em_list_items(context)
+        em_list_index = get_em_list_active_index(context)
+
+        if em_list and 0 <= em_list_index < len(em_list):
+            item = em_list[em_list_index]
+            if hasattr(item, 'node_id') and item.node_id:
+                print(f"   📍 Selected from UIList: {item.node_id}")
+                return item.node_id
+
+        return None
 
 
 class GRAPHEDIT_OT_initialize_edge_filters(Operator):

@@ -141,8 +141,8 @@ class EMGraphStratigraphicNode(EMGraphNodeBase):
         self.outputs.new('EMGraphSocketType', "cuts")
         self.outputs.new('EMGraphSocketType', "covers")
 
-        # Socket per epoche
-        self.inputs.new('EMGraphSocketType', "has_first_epoch")
+        # Socket per epoche (US → Epoca)
+        self.outputs.new('EMGraphSocketType', "has_first_epoch")
         self.outputs.new('EMGraphSocketType', "survive_in_epoch")
 
 class EMGraphUSNode(EMGraphStratigraphicNode):
@@ -220,13 +220,13 @@ class EMGraphEpochNode(EMGraphNodeBase):
     end_time: FloatProperty(name="End Time", default=0.0)
     
     def init(self, context):
-        # Outputs per epoca
-        self.outputs.new('EMGraphSocketType', "has_first_epoch")
-        self.outputs.new('EMGraphSocketType', "next")
-
-        # Inputs per epoca
+        # Inputs per epoca (US/VSF → Epoca)
+        self.inputs.new('EMGraphSocketType', "has_first_epoch")
         self.inputs.new('EMGraphSocketType', "survive_in_epoch")
         self.inputs.new('EMGraphSocketType', "previous")
+
+        # Outputs per epoca (Epoca → Epoca)
+        self.outputs.new('EMGraphSocketType', "next")
 
         self.use_custom_color = True
         self.color = (0.3, 0.5, 0.7)
