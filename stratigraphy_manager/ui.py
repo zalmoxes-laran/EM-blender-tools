@@ -353,149 +353,73 @@ class EM_ToolsPanel:
         )
         help_op.url = "EMtools_manual/docs/user_guide/Documents.html"
         
-        # ✅ PORTED: Use strat.show_documents
+        # ✅ FIXED: Use reload_doc_previews_for_us() instead of inline code
         if strat.show_documents:
-            from ..functions import is_graph_available, get_us_document_nodes
-            from pathlib import Path
-            import hashlib
-            import json
-            
+            print("🔍 STRATIGRAPHY MANAGER: show_documents is True")
+            from ..functions import is_graph_available
+            from ..thumb_utils import reload_doc_previews_for_us, has_doc_thumbs
+
             graph_available, graph = is_graph_available(context)
-            
+            print(f"🔍 STRATIGRAPHY MANAGER: graph_available={graph_available}")
+
             if not graph_available:
                 docs_box.label(text="No graph loaded", icon='ERROR')
                 return
-            
-            # Get document nodes for this US
-            doc_nodes = get_us_document_nodes(graph, selected_us.node_id)
-            
-            if not doc_nodes:
-                docs_box.label(text="No documents found for this unit", icon='INFO')
-                return
-            
-            # Get thumbnails directory (use shared EM_thumbs cache)
-            em_tools = scene.em_tools
-            if em_tools.active_file_index < 0 or not em_tools.graphml_files:
-                docs_box.label(text="No active GraphML file", icon='ERROR')
-                return
-            
-            active_graphml = em_tools.graphml_files[em_tools.active_file_index]
-            aux_files = active_graphml.auxiliary_files
-            aux_idx = active_graphml.active_auxiliary_index if aux_files and active_graphml.active_auxiliary_index >= 0 else 0
-            if not aux_files or aux_idx >= len(aux_files):
-                docs_box.label(text="No auxiliary files configured", icon='ERROR')
+
+            # Check if thumbnails are available
+            thumbs_available = has_doc_thumbs()
+            print(f"🔍 STRATIGRAPHY MANAGER: has_doc_thumbs()={thumbs_available}")
+
+            if not thumbs_available:
+                info_box = docs_box.box()
+                info_box.label(text="No thumbnails generated yet", icon='INFO')
+                info_box.label(text="Go to EM Setup → Auxiliary Files")
+                info_box.label(text="and click '(Re)generate thumbnails'")
                 return
 
-            aux_file = aux_files[aux_idx]
-            resource_folder = aux_file.resource_folder
-            if not resource_folder:
-                docs_box.label(text="No resource folder set", icon='ERROR')
-                return
+            # Add refresh button for cache
+            refresh_row = docs_box.row()
+            refresh_row.operator("emtools.refresh_us_thumbs", text="Refresh Documents", icon='FILE_REFRESH')
 
-            from ..thumb_utils import em_thumbs_root, resolve_resource_folder
-            resolved_folder = resolve_resource_folder(resource_folder)
-            if not resolved_folder:
-                docs_box.label(text="Invalid resource folder", icon='ERROR')
-                return
+            # Load thumbnails for this US using the centralized function
+            print(f"🔍 STRATIGRAPHY MANAGER: Calling reload_doc_previews_for_us({selected_us.id_node})")
+            try:
+                enum_items = reload_doc_previews_for_us(selected_us.id_node)
+                print(f"🔍 STRATIGRAPHY MANAGER: Got {len(enum_items) if enum_items else 0} thumbnails")
 
-            # Usa la stessa logica del generatore di thumbnails:
-            # - se esiste custom_thumbs_path, usa quello (assoluto)
-            # - altrimenti usa em_thumbs_root con il path risolto (assoluto)
-            if getattr(aux_file, "custom_thumbs_path", None):
-                thumbs_root = Path(bpy.path.abspath(aux_file.custom_thumbs_path))
-            else:
-                thumbs_root = em_thumbs_root(resolved_folder)
-            index_file = thumbs_root / "index.json"
-            
-            # Load thumbnails index
-            index_data = {}
-            if index_file.exists():
-                try:
-                    with open(index_file, 'r', encoding='utf-8') as f:
-                        index_data = json.load(f)
-                except Exception as e:
-                    print(f"Error loading thumbnail index: {e}")
-            
-            # Helper function for file hash
-            def get_file_hash(filepath):
-                with open(filepath, 'rb') as f:
-                    return hashlib.sha256(f.read()).hexdigest()[:16]
-            
-            # Collect US thumbnails
-            us_thumbnails = []
-            
-            for doc_node in doc_nodes:
-                # Get LinkNode that connects to this document
-                for pred in graph.predecessors(doc_node.name):
-                    pred_node = graph.nodes[pred]
-                    target_node = pred_node
-                    
-                    if hasattr(target_node, 'node_type') and target_node.node_type == 'LinkNode':
-                        file_url = target_node.data.get("url", "") if hasattr(target_node, 'data') else ""
-                        
-                        if file_url:
-                            if os.path.isabs(file_url):
-                                file_path = os.path.abspath(file_url)
-                            else:
-                                file_path = os.path.normpath(os.path.join(resolved_folder, file_url))
-                            
-                            if os.path.exists(file_path):
-                                file_hash = get_file_hash(file_path)
-                                doc_key = f"doc_{file_hash}"
-                                
-                                if doc_key in index_data.get("items", {}):
-                                    item_data = index_data["items"][doc_key]
-                                    thumb_rel_path = item_data.get("thumb", "")
-                                    
-                                    if thumb_rel_path:
-                                        thumb_abs_path = thumbs_root / thumb_rel_path
-                                        
-                                        if thumb_abs_path.exists():
-                                            us_thumbnails.append((
-                                                doc_key,
-                                                str(thumb_abs_path),
-                                                doc_node.name,
-                                                item_data.get("src_path", "")
-                                            ))
-            
-            if not us_thumbnails:
-                docs_box.label(text="No thumbnails available", icon='INFO')
-                return
-            
-            # Display thumbnails in grid
-            content_box = docs_box.box()
-            
-            for doc_key, thumb_path, doc_name, src_path in us_thumbnails:
-                row = content_box.row(align=True)
-                
-                # Thumbnail preview
-                try:
-                    # ✅ PORTED: Use strat.preview_image
-                    if strat.preview_image and strat.preview_image.filepath == thumb_path:
-                        row.template_preview(strat.preview_image, show_buttons=False)
-                    else:
-                        # Load image
-                        img = bpy.data.images.load(thumb_path, check_existing=True)
-                        strat.preview_image = img
-                        row.template_preview(img, show_buttons=False)
-                except Exception as e:
-                    row.label(text=f"Preview error: {doc_name}", icon='ERROR')
-                
-                # Action buttons
-                col = row.column(align=True)
-                
-                # Open folder button
-                op = col.operator("strat.open_document_folder", text="", icon='FILE_FOLDER')
-                op.document_path = src_path
-                
-                # Open file button
-                op = col.operator("strat.open_document_file", text="", icon='FILE')
-                op.document_path = src_path
-                
-                # Preview button
-                op = col.operator("strat.preview_document", text="", icon='ZOOM_IN')
-                op.document_path = src_path
-                op.document_name = doc_name
+                if not enum_items:
+                    docs_box.label(text="No documents found for this unit", icon='INFO')
+                    docs_box.label(text="Try clicking 'Refresh Documents' after importing", icon='INFO')
+                    return
+
+                # Display thumbnails using icon_value from preview collection
+                # enum_items format: (doc_key, doc_name, src_path, icon_id, i)
+                content_box = docs_box.box()
+
+                for doc_key, doc_name, src_path, icon_id, idx in enum_items:
+                    row = content_box.row(align=True)
+
+                    # Thumbnail using icon_id from preview collection
+                    row.label(text="", icon_value=icon_id)
+                    row.label(text=doc_name)
+
+                    # Action buttons
+                    col = row.column(align=True)
+
+                    # Open folder button
+                    if src_path:
+                        folder_path = os.path.dirname(bpy.path.abspath(src_path))
+                        op = col.operator("wm.path_open", text="", icon='FILE_FOLDER')
+                        op.filepath = folder_path
+
+                        # Open file button
+                        op = col.operator("wm.path_open", text="", icon='FILE')
+                        op.filepath = bpy.path.abspath(src_path)
+
+            except Exception as e:
+                docs_box.label(text=f"Error loading thumbnails: {str(e)}", icon='ERROR')
+                import traceback
+                traceback.print_exc()
 
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     """Panel in the 3D View for the Stratigraphy Manager"""

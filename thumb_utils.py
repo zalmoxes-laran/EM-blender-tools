@@ -126,9 +126,13 @@ def em_thumbs_root(resource_folder_path: str = None) -> Path:
     # ✅ CHIAVE: Usa il path RELATIVO ORIGINALE per l'hash (non quello assoluto)
     # Questo garantisce che lo stesso path relativo generi lo stesso hash su PC diversi
     path_for_hash = resource_folder_path.strip()
-    
+
     # Normalizza solo i separatori per consistenza cross-platform
     path_for_hash = path_for_hash.replace('\\', '/')
+
+    # ✅ CRITICAL FIX: Rimuovi slash finale per consistenza
+    # "/path/to/folder/" e "/path/to/folder" devono generare lo stesso hash!
+    path_for_hash = path_for_hash.rstrip('/')
     
     # Genera hash dal path relativo
     path_hash = hashlib.md5(path_for_hash.encode('utf-8')).hexdigest()[:8]
@@ -350,25 +354,37 @@ def has_doc_thumbs() -> bool:
         
         # Controlla se la resource_folder è configurata
         if not aux_file.resource_folder:
+            print(f"⚠️ has_doc_thumbs: No resource_folder configured")
             return False
-        
-        # ✅ USA resolve_resource_folder
-        resource_folder = resolve_resource_folder(aux_file.resource_folder)
-        
-        if not resource_folder or not os.path.exists(resource_folder):
-            print(f"⚠️ Resource folder non trovata: {aux_file.resource_folder} → {resource_folder}")
+
+        # ✅ FIXED: Passa il path RAW a em_thumbs_root (non quello risolto)
+        # perché em_thumbs_root fa l'hash basandosi sul path originale
+        resource_folder_raw = aux_file.resource_folder
+
+        # Verifica che il path risolto esista (ma usa il RAW per calcolare thumbs_root)
+        resource_folder_resolved = resolve_resource_folder(resource_folder_raw)
+
+        if not resource_folder_resolved or not os.path.exists(resource_folder_resolved):
+            print(f"⚠️ has_doc_thumbs: Resource folder non trovata: {resource_folder_raw} → {resource_folder_resolved}")
             return False
-        
-        # Calcola thumbs_root per questa resource_folder
-        thumbs_root = em_thumbs_root(resource_folder)
-        
+
+        # Calcola thumbs_root usando il path RAW (come fa il generatore)
+        thumbs_root = em_thumbs_root(resource_folder_raw)
+        print(f"🔍 has_doc_thumbs: resource_folder_raw = '{resource_folder_raw}'")
+        print(f"🔍 has_doc_thumbs: thumbs_root = {thumbs_root}")
+        print(f"🔍 has_doc_thumbs: thumbs_root exists = {thumbs_root.exists()}")
+
         # Carica l'indice
         index_data = load_index_json(thumbs_root)
-        
+        index_path = thumbs_root / "index.json"
+        print(f"🔍 has_doc_thumbs: index.json exists = {index_path.exists()}")
+
         # Controlla se ci sono items nell'indice
         items = index_data.get("items", {})
-        
+        print(f"🔍 has_doc_thumbs: items in index = {len(items)}")
+
         if not items:
+            print(f"⚠️ has_doc_thumbs: No items in index - returning False")
             return False
         
         # Verifica che almeno una thumbnail esista fisicamente
@@ -404,65 +420,116 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
     ✅ CON CACHE per evitare loop infiniti
     """
     global preview_collections, _cached_us_thumbs, _last_us_id, _last_resource_folder
-    
+
+    print(f"\n{'='*80}")
+    print(f"🔍 DEBUG reload_doc_previews_for_us() - START")
+    print(f"{'='*80}")
+    print(f"📌 Input us_node_id: {us_node_id}")
+
     if not us_node_id:
+        print(f"❌ RETURN: us_node_id is empty")
         return []
-    
+
     try:
         scene = bpy.context.scene
         em_tools = scene.em_tools
-        
+
         # Verifica che ci sia un GraphML attivo
         if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            print(f"❌ RETURN: No active GraphML file (index={em_tools.active_file_index}, files={len(em_tools.graphml_files) if em_tools.graphml_files else 0})")
             return []
-        
+
         graphml = em_tools.graphml_files[em_tools.active_file_index]
-        
+        print(f"📊 GraphML: {graphml.name}")
+
         # Verifica che ci sia un file ausiliario attivo con resource_folder
         if not graphml.auxiliary_files or graphml.active_auxiliary_index < 0:
+            print(f"❌ RETURN: No auxiliary files (aux_files={len(graphml.auxiliary_files) if graphml.auxiliary_files else 0}, index={graphml.active_auxiliary_index})")
             return []
-        
+
         aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
-        
+
         if not aux_file.resource_folder:
+            print(f"❌ RETURN: No resource_folder in auxiliary file")
             return []
-                
+
+        # ✅ FIXED: Mantieni il path RAW per consistenza hash
+        resource_folder_raw = aux_file.resource_folder
+        print(f"📂 Resource folder (raw): {resource_folder_raw}")
+
         # ✅ Usa verbose=True solo se stiamo caricando per la prima volta (non in cache)
-        cache_key_temp = f"{us_node_id}_{aux_file.resource_folder}"
+        cache_key_temp = f"{us_node_id}_{resource_folder_raw}"
         is_first_load = cache_key_temp not in _cached_us_thumbs
-        resource_folder = resolve_resource_folder(aux_file.resource_folder, verbose=is_first_load)  
-              
-        if not resource_folder or not os.path.exists(resource_folder):
-            print(f"⚠️ Resource folder non valida: {aux_file.resource_folder}")
+        print(f"🔑 Cache key: {cache_key_temp}")
+        print(f"🆕 Is first load: {is_first_load}")
+        print(f"💾 Current cache has {len(_cached_us_thumbs)} entries:")
+        for idx, (k, v) in enumerate(_cached_us_thumbs.items()):
+            if idx < 5:  # Show first 5 cache entries
+                print(f"   - {k}: {len(v)} items")
+        if len(_cached_us_thumbs) > 5:
+            print(f"   ... and {len(_cached_us_thumbs) - 5} more")
+
+        resource_folder_resolved = resolve_resource_folder(resource_folder_raw, verbose=is_first_load)
+        print(f"📂 Resource folder (resolved): {resource_folder_resolved}")
+
+        if not resource_folder_resolved or not os.path.exists(resource_folder_resolved):
+            print(f"❌ RETURN: Resource folder invalid or doesn't exist")
+            print(f"   - Resolved: {resource_folder_resolved}")
+            print(f"   - Exists: {os.path.exists(resource_folder_resolved) if resource_folder_resolved else 'N/A'}")
             return []
-        
+
         # ✅ CACHE CHECK: Se US e resource_folder non sono cambiati, restituisci cache
-        cache_key = f"{us_node_id}_{resource_folder}"
+        cache_key = f"{us_node_id}_{resource_folder_raw}"
         if cache_key in _cached_us_thumbs:
-            # print(f"✓ Usando cache per US {us_node_id[:8]}... ({len(_cached_us_thumbs[cache_key])} thumbs)")
-            return _cached_us_thumbs[cache_key]
-        
+            cached_items = _cached_us_thumbs[cache_key]
+            print(f"✓ CACHE HIT! Returning {len(cached_items)} cached thumbnails")
+            print(f"{'='*80}\n")
+            return cached_items
+
         # Se siamo qui, dobbiamo ricaricare (US cambiato o primo caricamento)
-        print(f"🔄 Caricamento thumbnails per US {us_node_id[:8]}...")
-        
-        thumbs_root = em_thumbs_root(resource_folder)
-        
+        print(f"🔄 CACHE MISS - Loading thumbnails for US {us_node_id[:8]}...")
+
+        # ✅ FIXED: Usa il path RAW per calcolare thumbs_root (per consistenza hash)
+        thumbs_root = em_thumbs_root(resource_folder_raw)
+        resource_folder = resource_folder_resolved  # Usa il risolto per operazioni file
+        print(f"📁 Thumbs root: {thumbs_root}")
+
         # Ottieni il grafo
         from s3dgraphy import get_graph
         graph = get_graph(graphml.name)
-        
+
         if not graph:
+            print(f"❌ RETURN: No graph found for '{graphml.name}'")
             return []
-        
+
+        print(f"📊 Graph loaded: {len(graph.nodes)} nodes, {len(graph.edges)} edges")
+
         # Trova DocumentNode collegati a questa US
         us_document_ids = set()
-        for edge in graph.edges:
+
+        # Debug: Sample some edges to see their structure
+        print(f"🔎 Searching for edges with source={us_node_id} and type='generic_connection'")
+        print(f"🔎 Sampling first 10 edges in graph:")
+        for idx, edge in enumerate(graph.edges):
+            if idx < 10:
+                print(f"   Edge {idx}: {edge.edge_source[:20]}... → {edge.edge_target[:20]}... ({edge.edge_type})")
             if edge.edge_source == us_node_id and edge.edge_type == "generic_connection":
                 us_document_ids.add(edge.edge_target)
-        
+                print(f"   ✓ MATCH! Found DocumentNode: {edge.edge_target}")
+
+        # Continue searching remaining edges (without printing each one)
+        for edge in list(graph.edges)[10:]:
+            if edge.edge_source == us_node_id and edge.edge_type == "generic_connection":
+                us_document_ids.add(edge.edge_target)
+                print(f"   ✓ MATCH! Found DocumentNode: {edge.edge_target}")
+
+        print(f"📊 Total DocumentNodes found connected to US: {len(us_document_ids)}")
+
         if not us_document_ids:
             # Nessun documento, salva lista vuota in cache
+            print(f"❌ No DocumentNodes connected to this US - caching empty list")
             _cached_us_thumbs[cache_key] = []
+            print(f"{'='*80}\n")
             return []
         
         # Inizializza preview collection se necessario
@@ -479,73 +546,95 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
         i = 0
         
         # Per ogni DocumentNode dell'US, cerca la sua thumbnail
+        print(f"  Found {len(us_document_ids)} DocumentNode(s) connected to US")
+
         for doc_id in us_document_ids:
             doc_node = graph.find_node_by_id(doc_id)
             if not doc_node:
+                print(f"  ⚠️ DocumentNode {doc_id} not found")
                 continue
-            
+
+            print(f"  Processing DocumentNode: {doc_node.name}")
+
             # Trova LinkNode collegati a questo DocumentNode
-            for edge in graph.edges:
-                if edge.edge_source == doc_id and edge.edge_type == "has_linked_resource":
-                    link_node = graph.find_node_by_id(edge.edge_target)
-                    
-                    if link_node and hasattr(link_node, 'node_type') and link_node.node_type.lower() == 'link':
-                        file_url = ''
-                        if hasattr(link_node, 'data') and isinstance(link_node.data, dict):
-                            file_url = link_node.data.get('url', '')
-                        
-                        if not file_url:
-                            continue
-                        
-                        # Risoluzione path
-                        if os.path.isabs(file_url):
-                            file_path = file_url
-                        else:
-                            file_path = os.path.join(resource_folder, file_url)
-                            file_path = os.path.normpath(file_path)
-                        
-                        if not os.path.exists(file_path):
-                            continue
-                        
-                        # Calcola hash
-                        file_hash = get_file_hash(file_path)
-                        doc_key = f"doc_{file_hash}"
-                        
-                        # Cerca nell'indice
-                        if doc_key not in index_data.get("items", {}):
-                            continue
-                        
-                        item_data = index_data["items"][doc_key]
-                        thumb_rel_path = item_data.get("thumb", "")
-                        
-                        if not thumb_rel_path:
-                            continue
-                        
-                        thumb_abs_path = thumbs_root / thumb_rel_path
-                        
-                        if thumb_abs_path.exists():
-                            try:
-                                if doc_key not in pcoll:
-                                    thumb = pcoll.load(doc_key, str(thumb_abs_path), 'IMAGE')
-                                    icon_id = thumb.icon_id
-                                else:
-                                    icon_id = pcoll[doc_key].icon_id
-                                
-                                src_path = item_data.get("src_path", "")
-                                doc_name = os.path.basename(src_path) if src_path else item_data.get("filename", doc_key)
-                                
-                                enum_items.append((
-                                    doc_key,        # identifier
-                                    doc_name,       # name
-                                    src_path,       # description
-                                    icon_id,        # icon
-                                    i               # number
-                                ))
-                                i += 1
-                                print(f"  ✓ Caricata thumbnail per {doc_name}")
-                                
-                            except Exception as e:
-                                print(f"  Errore caricando preview per {doc_key}: {e}")
+            link_edges = [e for e in graph.edges if e.edge_source == doc_id and e.edge_type == "has_linked_resource"]
+            print(f"    Found {len(link_edges)} has_linked_resource edge(s)")
+
+            for edge in link_edges:
+                link_node = graph.find_node_by_id(edge.edge_target)
+
+                if link_node and hasattr(link_node, 'node_type') and link_node.node_type.lower() == 'link':
+                    file_url = ''
+                    if hasattr(link_node, 'data') and isinstance(link_node.data, dict):
+                        file_url = link_node.data.get('url', '')
+
+                    print(f"    LinkNode: {link_node.name}, URL: {file_url if file_url else 'EMPTY'}")
+
+                    if not file_url:
+                        print(f"    ⚠️ Skipping - no URL in LinkNode")
+                        continue
+
+                    # Risoluzione path
+                    if os.path.isabs(file_url):
+                        file_path = file_url
+                    else:
+                        file_path = os.path.join(resource_folder, file_url)
+                        file_path = os.path.normpath(file_path)
+
+                    print(f"    Resolved file path: {file_path}")
+
+                    if not os.path.exists(file_path):
+                        print(f"    ⚠️ File not found: {file_path}")
+                        continue
+
+                    # Calcola hash
+                    file_hash = get_file_hash(file_path)
+                    doc_key = f"doc_{file_hash}"
+
+                    print(f"    File hash: {file_hash}")
+
+                    # Cerca nell'indice
+                    if doc_key not in index_data.get("items", {}):
+                        print(f"    ⚠️ doc_key '{doc_key}' not found in thumbnails index")
+                        print(f"    Available keys: {list(index_data.get('items', {}).keys())[:5]}")
+                        continue
+
+                    item_data = index_data["items"][doc_key]
+                    thumb_rel_path = item_data.get("thumb", "")
+
+                    if not thumb_rel_path:
+                        print(f"    ⚠️ No thumbnail path in index for {doc_key}")
+                        continue
+
+                    thumb_abs_path = thumbs_root / thumb_rel_path
+
+                    print(f"    Thumbnail path: {thumb_abs_path}")
+
+                    if thumb_abs_path.exists():
+                        try:
+                            if doc_key not in pcoll:
+                                thumb = pcoll.load(doc_key, str(thumb_abs_path), 'IMAGE')
+                                icon_id = thumb.icon_id
+                            else:
+                                icon_id = pcoll[doc_key].icon_id
+
+                            src_path = item_data.get("src_path", "")
+                            doc_name = os.path.basename(src_path) if src_path else item_data.get("filename", doc_key)
+
+                            enum_items.append((
+                                doc_key,        # identifier
+                                doc_name,       # name
+                                src_path,       # description
+                                icon_id,        # icon
+                                i               # number
+                            ))
+                            i += 1
+                            print(f"    ✅ Loaded thumbnail for {doc_name}")
+
+                        except Exception as e:
+                            print(f"    ❌ Error loading preview for {doc_key}: {e}")
+                    else:
+                        print(f"    ⚠️ Thumbnail file does not exist: {thumb_abs_path}")
         
         print(f"✅ Caricate {len(enum_items)} thumbnails per l'US")
         
@@ -581,6 +670,37 @@ def clear_all_thumbs_caches():
     clear_resolved_paths_cache()
     print("🧹 Tutte le cache thumbnails pulite")
 
+
+def force_reload_thumbs_cache():
+    """
+    Forza il ricaricamento della cache thumbnails per l'US attualmente selezionata.
+    Da usare quando i DocumentNode sono stati modificati o aggiunti.
+    """
+    try:
+        import bpy
+        scene = bpy.context.scene
+        em_tools = scene.em_tools
+        strat = scene.em_stratigraphy_manager
+
+        if not strat.stratigraphic_units or strat.active_us_index < 0:
+            print("⚠️ Nessuna US selezionata")
+            return False
+
+        selected_us = strat.stratigraphic_units[strat.active_us_index]
+
+        # Pulisci la cache per questa US
+        global _cached_us_thumbs
+        keys_to_remove = [k for k in _cached_us_thumbs.keys() if k.startswith(selected_us.id_node)]
+        for key in keys_to_remove:
+            del _cached_us_thumbs[key]
+
+        print(f"✅ Cache pulita per US: {selected_us.name} (id_node: {selected_us.id_node})")
+        return True
+
+    except Exception as e:
+        print(f"❌ Errore durante pulizia cache: {e}")
+        return False
+
 def reload_doc_previews_from_cache() -> List[Tuple[str, str, str, int, int]]:
     """Carica preview dalla cache per EnumProperty"""
     global preview_collections
@@ -597,12 +717,13 @@ def reload_doc_previews_from_cache() -> List[Tuple[str, str, str, int, int]]:
         return {'CANCELLED'}
         
     aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
-    
+
     if not aux_file.resource_folder:
         return {'CANCELLED'}
-    
-    resource_folder = os.path.abspath(bpy.path.abspath(aux_file.resource_folder))
-    thumbs_root = em_thumbs_root(resource_folder)
+
+    # ✅ FIXED: Usa il path RAW per calcolare thumbs_root (per consistenza hash)
+    resource_folder_raw = aux_file.resource_folder
+    thumbs_root = em_thumbs_root(resource_folder_raw)
     
     # Inizializza preview collection se necessario
     if "doc_previews" not in preview_collections:
@@ -684,16 +805,19 @@ def get_src_path_from_doc_key(doc_key: str) -> Optional[str]:
         if not aux_file.resource_folder:
             print(f"get_src_path_from_doc_key: Resource folder non configurata")
             return None
-        
-        # ✅ USA resolve_resource_folder
-        resource_folder = resolve_resource_folder(aux_file.resource_folder)
-        
+
+        # ✅ FIXED: Mantieni il path RAW per consistenza hash
+        resource_folder_raw = aux_file.resource_folder
+
+        # ✅ USA resolve_resource_folder per verifiche
+        resource_folder = resolve_resource_folder(resource_folder_raw)
+
         if not resource_folder:
             print(f"get_src_path_from_doc_key: Impossibile risolvere resource_folder")
             return None
-        
-        # Carica indice
-        thumbs_root = em_thumbs_root(resource_folder)
+
+        # ✅ FIXED: Usa il path RAW per calcolare thumbs_root (per consistenza hash)
+        thumbs_root = em_thumbs_root(resource_folder_raw)
         index_data = load_index_json(thumbs_root)
         
         # Ottieni src_path dall'indice

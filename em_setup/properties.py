@@ -25,6 +25,29 @@ def get_pyarchinit_mappings(self, context):
     return mappings
 
 
+def update_resource_folder(self, context):
+    """
+    Callback chiamato quando resource_folder viene modificato.
+    Rimuove lo slash finale per garantire hash consistenti.
+    """
+    if self.resource_folder:
+        # Normalizza i separatori
+        path = self.resource_folder.replace('\\', '/')
+        # Rimuovi slash finale (ma mantieni // se è un path relativo Blender)
+        if path.endswith('/') and not path == '//':
+            # Se è un path tipo "//folder/", rimuovi solo l'ultimo slash
+            if path.startswith('//'):
+                path = path.rstrip('/')
+            # Se è un path tipo "/absolute/path/", rimuovi solo l'ultimo slash
+            elif len(path) > 1:
+                path = path.rstrip('/')
+
+            # Aggiorna solo se è cambiato
+            if path != self.resource_folder:
+                self.resource_folder = path
+                print(f"✅ Resource folder normalized: removed trailing slash")
+
+
 def get_emdb_mappings(self=None, context=None):
     """
     Get available EMdb mapping files from registry.
@@ -77,7 +100,8 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         name="Resource Folder",
         description="Parent folder to search for resources. Use relative path (// prefix) for cross-PC compatibility",
         subtype='DIR_PATH',
-        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set(),
+        update=update_resource_folder  # ✅ Rimuove automaticamente lo slash finale
     )  # type: ignore
 
     expanded: BoolProperty(

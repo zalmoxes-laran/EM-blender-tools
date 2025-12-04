@@ -44,15 +44,19 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
         
         if not aux_file.custom_thumbs_path:
 
-            # Converti in path assoluto usando os.path
-            resource_folder = os.path.abspath(bpy.path.abspath(aux_file.resource_folder))
-            
-            if not os.path.exists(resource_folder):
-                self.report({'ERROR'}, f"Resource folder not found: {resource_folder}")
+            # ✅ FIXED: Usa il path RAW per calcolare thumbs_root (per consistenza hash)
+            resource_folder_raw = aux_file.resource_folder
+
+            # Ma verifica che il path RISOLTO esista
+            resource_folder_resolved = os.path.abspath(bpy.path.abspath(resource_folder_raw))
+
+            if not os.path.exists(resource_folder_resolved):
+                self.report({'ERROR'}, f"Resource folder not found: {resource_folder_resolved}")
                 return {'CANCELLED'}
-            
-            # Setup cartella thumbs univoca per questa resource_folder
-            thumbs_root = em_thumbs_root(resource_folder)
+
+            # Setup cartella thumbs univoca - USA IL PATH RAW per hash consistente!
+            thumbs_root = em_thumbs_root(resource_folder_raw)
+            resource_folder = resource_folder_resolved  # Usa il risolto per operazioni file
 
             #aux_file.custom_thumbs_path = str(os.path.relpath(thumbs_root, bpy.path.abspath("//")))  # Salva il path custom nell'aux_file
 
@@ -243,9 +247,10 @@ class EMTOOLS_OT_open_doc_thumbs_folder(Operator):
         if not aux_file.resource_folder:
             self.report({'ERROR'}, "Resource folder not configured")
             return {'CANCELLED'}
-        
-        resource_folder = os.path.abspath(bpy.path.abspath(aux_file.resource_folder))
-        thumbs_root = em_thumbs_root(resource_folder)
+
+        # ✅ FIXED: Usa il path RAW per calcolare thumbs_root (per consistenza hash)
+        resource_folder_raw = aux_file.resource_folder
+        thumbs_root = em_thumbs_root(resource_folder_raw)
         
         thumbs_path = str(thumbs_root)
         

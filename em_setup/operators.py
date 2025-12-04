@@ -420,7 +420,7 @@ class AUXILIARY_OT_import_now(Operator):
         return {'FINISHED'}
 
     def _process_resource_folder(self, context, graphml, aux_file):
-        """Processa cartella risorse con ricerca ricorsiva"""
+        """Processa cartella risorse con ricerca ricorsiva o da JSON thumbnails"""
         # ✅ RISOLVI il path della resource_folder PRIMA di usarlo
         resource_folder_raw = aux_file.resource_folder
 
@@ -446,6 +446,23 @@ class AUXILIARY_OT_import_now(Operator):
         if not graph:
             raise Exception(f"Graph {graphml.name} not found")
 
+        # ✅ CHECK: Se esiste il JSON delle thumbnails, usa quello (VELOCE)
+        from ..thumb_utils import em_thumbs_root, load_index_json
+
+        try:
+            thumbs_root = em_thumbs_root(resource_folder_raw)
+            index_data = load_index_json(thumbs_root)
+
+            if index_data.get("items") and len(index_data["items"]) > 0:
+                print(f"✅ Found thumbnails JSON with {len(index_data['items'])} items - using fast import")
+                self._process_from_thumbnails_json(graph, base_resource_folder, index_data, aux_file)
+                return
+            else:
+                print(f"⚠️ Thumbnails JSON exists but is empty - falling back to folder scan")
+        except Exception as e:
+            print(f"⚠️ Could not load thumbnails JSON: {e} - falling back to folder scan")
+
+        # ✅ FALLBACK: Scansione fisica delle cartelle (LENTA)
         allowed_formats = self._get_allowed_formats_from_mapping(aux_file)
 
         print(f"Processing resource folder: {base_resource_folder}")
@@ -467,6 +484,92 @@ class AUXILIARY_OT_import_now(Operator):
                     self._process_node_resource_folder(graph, node_id, folder_path, allowed_formats, base_resource_folder)
             else:
                 print(f"No folder found for ID {node_id}")
+
+    def _process_from_thumbnails_json(self, graph, base_resource_folder, index_data, aux_file):
+        """
+        Crea DocumentNode e LinkNode leggendo dal JSON delle thumbnails (VELOCE).
+        Invece di scansionare fisicamente le cartelle, usa le informazioni già presenti nel JSON.
+        """
+        from ..thumb_utils import get_file_hash
+
+        allowed_formats = self._get_allowed_formats_from_mapping(aux_file)
+        created_docs = 0
+        skipped_docs = 0
+
+        # Per ogni file nel JSON
+        for doc_key, item_data in index_data["items"].items():
+            src_path = item_data.get("src_path", "")
+            filename = item_data.get("filename", "")
+
+            if not src_path or not filename:
+                continue
+
+            # Controlla formato se necessario
+            if allowed_formats:
+                ext = filename.lower().split('.')[-1]
+                if ext not in [fmt.lower() for fmt in allowed_formats]:
+                    skipped_docs += 1
+                    continue
+
+            # Ricostruisci il path assoluto del file
+            # src_path nel JSON è relativo al .blend, quindi ricostruiamo
+            blend_path = bpy.data.filepath
+            if blend_path:
+                blend_dir = os.path.dirname(blend_path)
+                file_path = os.path.join(blend_dir, src_path)
+                file_path = os.path.normpath(file_path)
+            else:
+                # Se il .blend non è salvato, assumiamo che src_path sia già relativo a base_resource_folder
+                file_path = os.path.join(base_resource_folder, src_path)
+                file_path = os.path.normpath(file_path)
+
+            if not os.path.exists(file_path):
+                print(f"⚠️ File not found: {file_path} - skipping")
+                skipped_docs += 1
+                continue
+
+            # Calcola path relativo alla resource_folder per URL
+            try:
+                relative_path = os.path.relpath(file_path, base_resource_folder)
+                relative_path = relative_path.replace("\\", "/")
+            except ValueError:
+                print(f"⚠️ Cannot calculate relative path for {filename}")
+                skipped_docs += 1
+                continue
+
+            # Identifica il nodo target (US, Property, etc.) dal path
+            # Es: "US02/01.jpg" → target_node_name = "US02"
+            path_parts = relative_path.split('/')
+            if len(path_parts) < 2:
+                print(f"⚠️ Cannot identify target node from path: {relative_path}")
+                skipped_docs += 1
+                continue
+
+            target_node_name = path_parts[0]  # Prima parte del path (es. "US02")
+
+            # Trova il nodo target nel grafo
+            target_node = self._find_node_by_name(graph, target_node_name)
+            if not target_node:
+                print(f"⚠️ Target node not found: {target_node_name} for file {filename}")
+                skipped_docs += 1
+                continue
+
+            # Determina folder_suffix per naming (se ci sono sottocartelle)
+            folder_suffix = "_".join(path_parts[:-1]) if len(path_parts) > 2 else path_parts[0]
+
+            # Crea DocumentNode e LinkNode
+            try:
+                self._create_document_for_resource(
+                    graph, target_node, file_path, filename, folder_suffix, base_resource_folder
+                )
+                created_docs += 1
+            except Exception as e:
+                print(f"❌ Error creating document for {filename}: {e}")
+                skipped_docs += 1
+
+        print(f"✅ Created {created_docs} DocumentNodes from thumbnails JSON")
+        if skipped_docs > 0:
+            print(f"⏭️ Skipped {skipped_docs} files")
 
     def _get_allowed_formats_from_mapping(self, aux_file):
         """Ottieni allowed_formats dal mapping JSON specifico"""
@@ -645,7 +748,11 @@ class AUXILIARY_OT_import_now(Operator):
             name=link_id,
             url=relative_path
         )
-        link_node.data = {'url': relative_path, 'filename': filename}
+        # ✅ FIXED: Non sovrascrivere data, aggiungi solo filename
+        link_node.data['filename'] = filename
+
+        print(f"  LinkNode created: {link_id}")
+        print(f"  → URL set to: {link_node.data.get('url', 'NO URL')}")
 
         graph.add_node(link_node)
 
