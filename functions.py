@@ -1196,17 +1196,21 @@ def update_property_materials_alpha(alpha_value):
     Updated to work with new material naming convention from visual_manager.
     """
     scene = bpy.context.scene
-    
+
     # Trova tutti i materiali che iniziano con i prefissi delle Properties
     property_materials = []
     for mat in bpy.data.materials:
         # Nuovi prefissi basati sulla convenzione visual_manager
         # I materiali delle Properties ora hanno nomi come: "prop_property_name_value"
-        if (mat.name.startswith('prop_') or 
-            mat.name.startswith('property_') or 
+        if (mat.name.startswith('prop_') or
+            mat.name.startswith('property_') or
             mat.name.startswith('no_property')):
             property_materials.append(mat)
-    
+
+    print(f"Found {len(property_materials)} property materials to update alpha to {alpha_value}")
+    if len(property_materials) > 0:
+        print(f"  Material names: {[mat.name for mat in property_materials[:5]]}")  # Show first 5
+
     # Aggiorna l'alpha di tutti i materiali delle Properties
     updated_count = 0
     for mat in property_materials:
@@ -1767,27 +1771,35 @@ def find_file_in_dosco(dosco_dir, node_name):
     """
     Searches for a file in the DosCo directory that matches the node identifier.
     Makes a distinction between node IDs like "D.01" and "D.01.01".
-    
+
     Args:
         dosco_dir (str): Path to the DosCo directory
         node_name (str): Name of the node to search for (like "D.01" or "C.05")
-        
+
     Returns:
         str or None: Full path to the found file, or None if not found
     """
     matches = []
-    
+
     # Define a more precise pattern matching to distinguish between node IDs
-    # For example, D.01 should match "D.01_desc.jpg" but not "D.01.01_desc.jpg"
+    # For example, D.01 should match "D.01 mia fonte.jpg" but NOT "D.01.01 estrattore.jpg"
+    # The key is to NOT accept '.' as a delimiter since it's used for sub-levels
     for root, _, files in os.walk(dosco_dir):
         for file in files:
             # Check if file starts with the exact node name followed by:
-            # - end of string, or
-            # - a delimiter like "_", ".", " ", or "-"
-            if (file.startswith(node_name) and 
-                (len(file) == len(node_name) or 
-                 file[len(node_name)] in ['_', '.', ' ', '-'])):
-                matches.append(os.path.join(root, file))
+            # - a space, underscore, or hyphen (NOT a dot!)
+            # This ensures D.01 matches "D.01 file.jpg" but not "D.01.01 file.jpg"
+            if file.startswith(node_name):
+                # Get the character immediately after the node name
+                if len(file) > len(node_name):
+                    next_char = file[len(node_name)]
+                    # Accept only space, underscore, or hyphen as delimiters
+                    # Do NOT accept '.' to avoid matching sub-nodes like D.01.01
+                    if next_char in [' ', '_', '-']:
+                        matches.append(os.path.join(root, file))
+                # If filename is exactly the node name (edge case)
+                elif len(file) == len(node_name):
+                    matches.append(os.path.join(root, file))
     
     # If we found multiple matches, prioritize by common file types
     if matches:

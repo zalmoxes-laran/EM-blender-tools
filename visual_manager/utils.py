@@ -189,7 +189,8 @@ def create_property_materials_for_scene_values(context):
         dict: mapping from property values to Blender material objects
     """
     scene = context.scene
-    alpha_value = getattr(scene, 'proxy_display_alpha', 1.0)
+    # Get alpha from em_tools, not directly from scene
+    alpha_value = getattr(scene.em_tools, 'proxy_display_alpha', 1.0)
     selected_property = getattr(scene, 'selected_property', 'unknown')
     
     materials_by_value = {}

@@ -656,7 +656,6 @@ class EM_SetupPanel(bpy.types.Panel):
                             # Info box with examples
                             info_box = dosco_box.box()
                             info_box.label(text="When enabled, node paths will be linked to files in DosCo")
-                            info_box.label(text="")
                             info_box.label(text="Examples:")
                             info_box.label(text="Node GT16.D.01 → Searches for GT16.D.01 and D.01 in DosCo")
 
