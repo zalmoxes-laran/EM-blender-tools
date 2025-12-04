@@ -392,6 +392,10 @@ class AUXILIARY_OT_import_now(Operator):
         if aux_file.file_type == "dosco":
             return self._process_dosco(context, graphml, aux_file)
 
+        # Handle Source List type - updates source descriptions
+        if aux_file.file_type == "source_list":
+            return self._process_source_list(context, graphml, aux_file)
+
         # ✅ 1. Importa file xlsx (aggiunge proprietà ai nodi esistenti)
         result = bpy.ops.em.import_3dgis_database(
             auxiliary_mode=True,
@@ -724,6 +728,71 @@ class AUXILIARY_OT_import_now(Operator):
             # Restore original settings
             em_settings.overwrite_url_with_dosco_filepath = old_overwrite
             em_settings.preserve_web_url = old_preserve
+
+    def _process_source_list(self, context, graphml, aux_file):
+        """Process Source List Excel file to update source descriptions"""
+        import os
+
+        # Validate filepath
+        if not aux_file.filepath:
+            self.report({'ERROR'}, "Source List file path not specified")
+            return {'CANCELLED'}
+
+        # Resolve filepath
+        filepath_raw = aux_file.filepath
+        if os.path.isabs(filepath_raw) and not filepath_raw.startswith("//"):
+            filepath = os.path.normpath(filepath_raw)
+        elif filepath_raw.startswith("//"):
+            filepath = os.path.normpath(bpy.path.abspath(filepath_raw))
+        else:
+            blend_path = bpy.data.filepath
+            if blend_path:
+                blend_dir = os.path.dirname(blend_path)
+                filepath = os.path.normpath(os.path.join(blend_dir, filepath_raw))
+            else:
+                self.report({'ERROR'}, "Blend file not saved, cannot use relative paths without //")
+                return {'CANCELLED'}
+
+        # Check file exists
+        if not os.path.exists(filepath):
+            self.report({'ERROR'}, f"Source List file not found: {filepath}")
+            return {'CANCELLED'}
+
+        try:
+            import pandas
+            import openpyxl
+
+            # Read Excel file - sheet name 'sources'
+            data = pandas.read_excel(filepath, sheet_name='sources')
+            df = pandas.DataFrame(data, columns=['Name', 'Description'])
+
+            updated_count = 0
+            em_tools = context.scene.em_tools
+
+            # Update em_sources_list
+            for index, row in df.iterrows():
+                for source_item in em_tools.em_sources_list:
+                    if source_item.name == row['Name']:
+                        source_item.description = row['Description']
+                        updated_count += 1
+
+                # Update em_v_sources_list (virtual sources)
+                for source_v_item in em_tools.em_v_sources_list:
+                    if source_v_item.name == row['Name']:
+                        source_v_item.description = row['Description']
+                        updated_count += 1
+
+            self.report({'INFO'}, f"Source List imported: {updated_count} descriptions updated")
+            return {'FINISHED'}
+
+        except ImportError:
+            self.report({'ERROR'}, "pandas and openpyxl required. Install dependencies first.")
+            return {'CANCELLED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to import Source List: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {'CANCELLED'}
 
 
 # Registration

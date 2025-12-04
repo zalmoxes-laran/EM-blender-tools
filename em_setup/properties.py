@@ -55,7 +55,8 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         items=[
             ("emdb_xlsx", "EMdb Excel", "Import from EMdb Excel format"),
             ("pyarchinit", "pyArchInit", "Import from pyArchInit SQLite DB"),
-            ("dosco", "DosCo", "DosCo documentation folder for harvesting document files")
+            ("dosco", "DosCo", "DosCo documentation folder for harvesting document files"),
+            ("source_list", "Source List", "Excel file with sources descriptions for document/extractor/combiner nodes")
         ],
         default="emdb_xlsx"
     )  # type: ignore

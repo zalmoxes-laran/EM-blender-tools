@@ -13,6 +13,7 @@ from bpy.props import StringProperty  # type: ignore
 from ..functions import (
     check_objs_in_scene_and_provide_icon_for_list_element,
     is_valid_url,
+    get_em_list_path,
 )
 
 # Variabili globali per tracciare lo stato degli aggiornamenti
@@ -302,7 +303,9 @@ class EM_files_opener(bpy.types.Operator):
 
     def execute(self, context):
         scene = context.scene
-        file_res_path = eval("scene." + self.node_type + "[scene." + self.node_type + "_index].url")
+        list_path = get_em_list_path(scene, self.node_type)
+        index_path = get_em_list_path(scene, self.node_type + "_index")
+        file_res_path = eval(f"{list_path}[{index_path}].url")
 
         if is_valid_url(file_res_path):
             bpy.ops.wm.url_open(url=file_res_path)

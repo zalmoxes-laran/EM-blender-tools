@@ -198,6 +198,9 @@ class AUXILIARY_UL_files(bpy.types.UIList):
             elif item.file_type == "dosco":
                 row.label(text="", icon_value=icons_manager.get_icon_value("em_logo"))
 
+            elif item.file_type == "source_list":
+                row.label(text="", icon='TEXT')
+
             elif item.file_type == "generic_xlsx":
                 row.label(text="", icon='SPREADSHEET')
 
@@ -656,6 +659,17 @@ class EM_SetupPanel(bpy.types.Panel):
                             info_box.label(text="")
                             info_box.label(text="Examples:")
                             info_box.label(text="Node GT16.D.01 → Searches for GT16.D.01 and D.01 in DosCo")
+
+                        elif aux_file.file_type == "source_list":
+                            # Source List - simple filepath
+                            source_box = box.box()
+                            source_box.label(text="Source List updates descriptions for:")
+                            source_box.label(text="• Document nodes (em_sources_list)")
+                            source_box.label(text="• Virtual sources (em_v_sources_list)")
+                            source_box.label(text="")
+                            source_box.label(text="Excel file must contain a 'sources' sheet with:")
+                            source_box.label(text="• Column 'Name': node name to match")
+                            source_box.label(text="• Column 'Description': description to set")
 
             # Advanced Tools section
             box = layout.box()

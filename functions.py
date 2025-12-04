@@ -547,16 +547,29 @@ def sync_Switch_proxy(self, context):
 ##### Functions to check properties of scene objects ####
 ## #### #### #### #### #### #### #### #### #### #### ####
 
-def check_if_current_obj_has_brother_inlist(obj_name, list_type):
-    scene = bpy.context.scene
-    # Update: lists are now under scene.em_tools, not directly on scene
+def get_em_list_path(scene, list_name):
+    """
+    Get the correct path to an EM list, handling both legacy and current architecture.
+
+    Args:
+        scene: Blender scene
+        list_name: Name of the list (e.g., 'em_extractors_list')
+
+    Returns:
+        str: Path to use with eval() (e.g., 'scene.em_tools.em_extractors_list')
+    """
     # Handle both old and new paths for compatibility
-    if hasattr(scene, list_type):
+    if hasattr(scene, list_name):
         # Legacy path: scene.em_extractors_list
-        list_cmd = ("scene." + list_type)
+        return "scene." + list_name
     else:
         # New path: scene.em_tools.em_extractors_list
-        list_cmd = ("scene.em_tools." + list_type)
+        return "scene.em_tools." + list_name
+
+
+def check_if_current_obj_has_brother_inlist(obj_name, list_type):
+    scene = bpy.context.scene
+    list_cmd = get_em_list_path(scene, list_type)
 
     is_brother = False
     for element_list in eval(list_cmd):
