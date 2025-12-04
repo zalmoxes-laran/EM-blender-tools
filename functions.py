@@ -549,7 +549,15 @@ def sync_Switch_proxy(self, context):
 
 def check_if_current_obj_has_brother_inlist(obj_name, list_type):
     scene = bpy.context.scene
-    list_cmd = ("scene."+ list_type)
+    # Update: lists are now under scene.em_tools, not directly on scene
+    # Handle both old and new paths for compatibility
+    if hasattr(scene, list_type):
+        # Legacy path: scene.em_extractors_list
+        list_cmd = ("scene." + list_type)
+    else:
+        # New path: scene.em_tools.em_extractors_list
+        list_cmd = ("scene.em_tools." + list_type)
+
     is_brother = False
     for element_list in eval(list_cmd):
         # Check if element_list has a 'name' attribute before comparing
