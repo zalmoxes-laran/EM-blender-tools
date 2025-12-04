@@ -52,35 +52,6 @@ class OBJECT_OT_load_EMdb_xlsx(Operator):
                     source_v_item.description = row['Description']
         return {'FINISHED'}
 
-'''
-class ToolsPanelEMdbsources:
-    bl_label = "EMdb sources list"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        obj = context.active_object
-        #resolution_pano = scene.RES_pano
-
-        #row = layout.row()
-        #row.label(text="Google Spreadsheet setup")
-        row = layout.row()
-        row.label(text="Load Source list xlsx file")
-        row.operator("load.emdb_xlsx", icon="STICKY_UVS_DISABLE", text='')
-        row.operator("open_prefs_panel.em_tools", icon="SETTINGS", text="")
-        row = layout.row()
-        layout.prop(scene, "EMdb_xlsx_filepath", text="xlsx path")
-
-
-class VIEW3D_PT_EMDB_panel(Panel, ToolsPanelEMdbsources):
-    bl_category = "EM"
-    bl_idname = "VIEW3D_PT_EMDB_panel"
-    #bl_context = "objectmode"
-'''
-
 classes = [
     OBJECT_OT_EM_open_prefs,
     OBJECT_OT_load_EMdb_xlsx,

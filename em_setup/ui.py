@@ -663,10 +663,7 @@ class EM_SetupPanel(bpy.types.Panel):
                         elif aux_file.file_type == "source_list":
                             # Source List - simple filepath
                             source_box = box.box()
-                            source_box.label(text="Source List updates descriptions for:")
-                            source_box.label(text="• Document nodes (em_sources_list)")
-                            source_box.label(text="• Virtual sources (em_v_sources_list)")
-                            source_box.label(text="")
+                            source_box.label(text="Source List updates descriptions for Document nodes")
                             source_box.label(text="Excel file must contain a 'sources' sheet with:")
                             source_box.label(text="• Column 'Name': node name to match")
                             source_box.label(text="• Column 'Description': description to set")
