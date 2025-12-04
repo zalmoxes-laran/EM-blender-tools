@@ -267,6 +267,11 @@ class EMTOOLS_UL_files(bpy.types.UIList):
 
             # Disabilita il pulsante se l'icona è rossa (grafo non esistente)
             if is_graph_present:
+                # Pulsante per aprire nel Graph Editor (accanto a import.em_graphml)
+                row = layout.row(align=True)
+                op = row.operator("graphedit.draw_graph", text="", icon='NODETREE', emboss=False)
+                op.graphml_index = index  # Passa l'indice del graphml
+
                 # Pulsante per aggiornare le liste (con icona FILE_REFRESH)
                 row = layout.row(align=True)
                 op = row.operator("em_tools.populate_lists", text="", icon="SEQ_SEQUENCER", emboss=False)
@@ -281,6 +286,9 @@ class EMTOOLS_UL_files(bpy.types.UIList):
                     # Se la proprietà non esiste ancora, mostra un pulsante disabilitato
                     row.label(text="", icon='QUESTION')
             else:
+                row = layout.row()
+                row.enabled = False  # Disabilita il layout (grigio)
+                row.label(text="", icon='NODETREE')  # Draw graph disabilitato
                 row = layout.row()
                 row.enabled = False  # Disabilita il layout (grigio)
                 row.label(text="", icon="SEQ_SEQUENCER")  # Usa un'icona per mostrare un pulsante disabilitato
@@ -427,11 +435,6 @@ class EM_SetupPanel(bpy.types.Panel):
             if em_tools.active_file_index >= 0 and em_tools.graphml_files:
 
                 layout.separator()
-
-                row = layout.row()
-                row.operator("graphedit.draw_graph",
-                            text="Open in Graph Editor",
-                            icon='NODETREE')
 
                 active_file = em_tools.graphml_files[em_tools.active_file_index]
 

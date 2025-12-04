@@ -293,12 +293,17 @@ class EM_InvokePopulateLists(Operator):
         scene = context.scene
         em_tools = scene.em_tools
 
-        if self.graphml_index >= 0 and em_tools.graphml_files[self.graphml_index]:
+        if self.graphml_index >= 0 and self.graphml_index < len(em_tools.graphml_files):
             # Ottieni il file GraphML selezionato
             graphml_file = em_tools.graphml_files[self.graphml_index]
 
             # Recupero il grafo
             graph_instance = get_graph(graphml_file.name)
+
+            # Verifica che il grafo sia caricato (luce verde)
+            if not graph_instance or not hasattr(graph_instance, 'nodes') or len(graph_instance.nodes) == 0:
+                self.report({'ERROR'}, "Graph not loaded. Please import the GraphML file first.")
+                return {'CANCELLED'}
 
             # Clear Blender Lists
             clear_lists(context)

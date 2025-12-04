@@ -25,7 +25,14 @@ class GRAPHEDIT_OT_draw_graph(Operator):
     bl_label = "Draw Graph"
     bl_description = "Load and draw the active graph from EM Setup into the EMGraph editor"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
+    # Proprietà per specificare quale graphml usare
+    graphml_index: IntProperty(
+        name="GraphML Index",
+        description="Index of the GraphML file to load",
+        default=-1
+    )
+
     # Proprietà per filtraggio
     filter_mode: EnumProperty(
         name="Filter Mode",
@@ -40,7 +47,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         ],
         default='ALL'
     )
-    
+
     neighborhood_depth: IntProperty(
         name="Depth",
         description="Number of connection levels to show",
@@ -48,14 +55,21 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         min=1,
         max=5
     )
-    
+
     def execute(self, context):
         em_tools = context.scene.em_tools
-        
+
+        # Se è stato specificato un graphml_index, aggiorna l'active_file_index
+        if self.graphml_index >= 0:
+            em_tools.active_file_index = self.graphml_index
+            # Chiama populate_lists per aggiornare le liste
+            print(f"✓ Setting active GraphML index to {self.graphml_index}")
+            bpy.ops.em_tools.populate_lists(graphml_index=self.graphml_index)
+
         if em_tools.active_file_index < 0 or not em_tools.graphml_files:
             self.report({'ERROR'}, "No active GraphML file in EM Setup")
             return {'CANCELLED'}
-        
+
         graphml = em_tools.graphml_files[em_tools.active_file_index]
         graph_id = graphml.name
         graph = get_graph(graph_id)
@@ -566,13 +580,33 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         return None
     
     def open_graph_editor(self, context, tree):
-        """Apri l'editor EMGraph"""
-        for area in context.screen.areas:
-            if area.type == 'NODE_EDITOR':
-                space = area.spaces[0]
-                space.tree_type = 'EMGraphNodeTreeType'
-                space.node_tree = tree
-                return
+        """Apri l'editor EMGraph in una nuova finestra se non esiste già"""
+        # Prima controlla se esiste già una finestra con EMGraph editor aperto
+        for window in context.window_manager.windows:
+            for area in window.screen.areas:
+                if area.type == 'NODE_EDITOR':
+                    space = area.spaces[0]
+                    if hasattr(space, 'tree_type') and space.tree_type == 'EMGraphNodeTreeType':
+                        # Finestra già esistente, aggiorna il tree
+                        space.node_tree = tree
+                        print("✓ Updated existing EMGraph editor window")
+                        return
+
+        # Nessuna finestra EMGraph trovata, creane una nuova
+        print("✓ Creating new EMGraph editor window")
+        bpy.ops.wm.window_new()
+
+        # Ottieni la nuova finestra (è l'ultima creata)
+        new_window = context.window_manager.windows[-1]
+
+        # Trova la prima area disponibile e convertila in NODE_EDITOR
+        for area in new_window.screen.areas:
+            area.type = 'NODE_EDITOR'
+            space = area.spaces[0]
+            space.tree_type = 'EMGraphNodeTreeType'
+            space.node_tree = tree
+            print(f"✓ New window created with EMGraph: {tree.name}")
+            break
 
 
 class GRAPHEDIT_OT_sync_selection(Operator):
