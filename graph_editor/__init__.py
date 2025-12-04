@@ -11,28 +11,32 @@ from . import properties
 from . import operators
 from . import ui
 from . import keymap
+from . import socket_generator
 
 __all__ = ['register', 'unregister']
 
 def register():
     """Register all Graph Editor classes and properties"""
     print("=== REGISTERING GRAPH EDITOR ===")
-    
+
+    # ✅ Initialize dynamic socket system FIRST
+    socket_generator.initialize_socket_system()
+
     # Register in proper order
     data.register_data()           # Socket, NodeTree
     nodes.register_nodes()          # Node types
-    properties.register_properties() # ✅ NUOVO - Scene properties
+    properties.register_properties() # Scene properties
     operators.register_operators()   # Operators
     ui.register_ui()                # UI panels
     keymap.register_keymaps()       # Keyboard shortcuts
-    
+
     # Initialize edge filters on startup
     try:
         from .properties import initialize_edge_filters
         # Will be called when first accessed
     except:
         pass
-    
+
     print("=== GRAPH EDITOR REGISTRATION COMPLETE ===")
 
 def unregister():

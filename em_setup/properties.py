@@ -250,7 +250,7 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
     )  # type: ignore
 
     expanded: BoolProperty(
-        name="Show Details",
+        name="Auxiliary Resources",
         description="Show/hide file details",
         default=False
     )  # type: ignore

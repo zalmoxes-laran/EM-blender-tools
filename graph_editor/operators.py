@@ -358,27 +358,64 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         
         filtered_node_ids = {node.node_id for node in filtered_nodes}
         
-        # Mappa tipi
+        # ✅ Mappa completa dei tipi di nodi
         node_type_map = {
+            # Stratigraphic nodes - Base types
             'US': 'EMGraphUSNodeType',
             'USVs': 'EMGraphUSVsNodeType',
             'USVn': 'EMGraphUSVnNodeType',
             'SF': 'EMGraphSFNodeType',
             'VSF': 'EMGraphVSFNodeType',
             'USD': 'EMGraphUSDNodeType',
+
+            # Stratigraphic nodes - Series and special types
+            'serSU': 'EMGraphSerSUNodeType',
+            'serUSVs': 'EMGraphSerUSVsNodeType',
+            'serUSVn': 'EMGraphSerUSVnNodeType',
+            'TSU': 'EMGraphTSUNodeType',
+            'BR': 'EMGraphBRNodeType',
+            'SE': 'EMGraphSENodeType',
+
+            # Temporal nodes
             'EpochNode': 'EMGraphEpochNodeType',
-            'property': 'EMGraphParadataNodeType',
-            'extractor': 'EMGraphParadataNodeType',
-            'combiner': 'EMGraphParadataNodeType',
-            'document': 'EMGraphDocumentNodeType',
-            'activity_group': 'EMGraphGroupNodeType',
-            'paradata_group': 'EMGraphGroupNodeType',
-            'time_branch_group': 'EMGraphGroupNodeType',
-            'representation_model': 'EMGraphRepresentationNodeType',
-            'representation_model_doc': 'EMGraphRepresentationNodeType',
-            'representation_model_sf': 'EMGraphRepresentationNodeType',
-            'semantic_shape': 'EMGraphRepresentationNodeType',
-            'link': 'EMGraphLinkNodeType',
+
+            # Paradata nodes (usando class names dal JSON)
+            'PropertyNode': 'EMGraphPropertyNodeType',
+            'property': 'EMGraphPropertyNodeType',  # Alias
+            'ExtractorNode': 'EMGraphExtractorNodeType',
+            'extractor': 'EMGraphExtractorNodeType',  # Alias
+            'CombinerNode': 'EMGraphCombinerNodeType',
+            'combiner': 'EMGraphCombinerNodeType',  # Alias
+            'DocumentNode': 'EMGraphDocumentNodeType',
+            'document': 'EMGraphDocumentNodeType',  # Alias
+
+            # Group nodes
+            'ActivityNodeGroup': 'EMGraphActivityNodeType',
+            'activity_group': 'EMGraphActivityNodeType',  # Alias
+            'ParadataNodeGroup': 'EMGraphParadataGroupNodeType',
+            'paradata_group': 'EMGraphParadataGroupNodeType',  # Alias
+            'TimeBranchNodeGroup': 'EMGraphTimeBranchNodeType',
+            'time_branch_group': 'EMGraphTimeBranchNodeType',  # Alias
+
+            # Visualization nodes
+            'RepresentationModelNode': 'EMGraphRepresentationNodeType',
+            'representation_model': 'EMGraphRepresentationNodeType',  # Alias
+            'RepresentationModelDocNode': 'EMGraphRepresentationDocNodeType',
+            'representation_model_doc': 'EMGraphRepresentationDocNodeType',  # Alias
+            'RepresentationModelSpecialFindNode': 'EMGraphRepresentationSFNodeType',
+            'representation_model_sf': 'EMGraphRepresentationSFNodeType',  # Alias
+            'SemanticShapeNode': 'EMGraphSemanticShapeNodeType',
+            'semantic_shape': 'EMGraphSemanticShapeNodeType',  # Alias
+
+            # Reference nodes
+            'GeoPositionNode': 'EMGraphGeoPositionNodeType',
+            'geo_position': 'EMGraphGeoPositionNodeType',  # Alias
+            'LinkNode': 'EMGraphLinkNodeType',
+            'link': 'EMGraphLinkNodeType',  # Alias
+
+            # Rights nodes
+            'AuthorNode': 'EMGraphAuthorNodeType',
+            'author': 'EMGraphAuthorNodeType',  # Alias
         }
         
         print(f"\n📊 Creating {len(filtered_nodes)} nodes...")
@@ -432,55 +469,87 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         return len(node_map), edge_count
     
     def create_link(self, tree, node_map, source_id, target_id, edge_type):
-        """Crea un collegamento tra nodi"""
+        """
+        Crea un collegamento tra nodi con matching migliorato dei socket.
+
+        Priorità di matching:
+        1. Match esatto (edge_type == socket.name)
+        2. Match case-insensitive
+        3. Match parziale con keywords
+        4. Fallback al primo socket disponibile
+        """
         source_node = node_map[source_id]
         target_node = node_map[target_id]
-        
-        edge_type_lower = edge_type.lower() if edge_type else 'connection'
-        
+
         source_socket = None
         target_socket = None
-        
-        # Match esatto
+
+        # ✅ 1. Match ESATTO (priorità massima)
         for output in source_node.outputs:
-            if edge_type_lower in output.name.lower():
+            if output.name == edge_type:
                 source_socket = output
                 break
-        
+
         for input_socket in target_node.inputs:
-            if edge_type_lower in input_socket.name.lower():
+            if input_socket.name == edge_type:
                 target_socket = input_socket
                 break
-        
-        # Match parziale
+
+        # ✅ 2. Match case-insensitive
         if not source_socket:
-            keywords = edge_type_lower.replace('_', ' ').split()
+            edge_type_lower = edge_type.lower() if edge_type else 'connection'
             for output in source_node.outputs:
-                if any(kw in output.name.lower() for kw in keywords):
+                if output.name.lower() == edge_type_lower:
                     source_socket = output
                     break
-        
+
         if not target_socket:
-            keywords = edge_type_lower.replace('_', ' ').split()
+            edge_type_lower = edge_type.lower() if edge_type else 'connection'
             for input_socket in target_node.inputs:
-                if any(kw in input_socket.name.lower() for kw in keywords):
+                if input_socket.name.lower() == edge_type_lower:
                     target_socket = input_socket
                     break
-        
-        # Fallback
+
+        # ✅ 3. Match parziale (keywords)
+        if not source_socket:
+            edge_type_lower = edge_type.lower() if edge_type else 'connection'
+            keywords = edge_type_lower.replace('_', ' ').split()
+            for output in source_node.outputs:
+                if all(kw in output.name.lower() for kw in keywords):
+                    source_socket = output
+                    break
+
+        if not target_socket:
+            edge_type_lower = edge_type.lower() if edge_type else 'connection'
+            keywords = edge_type_lower.replace('_', ' ').split()
+            for input_socket in target_node.inputs:
+                if all(kw in input_socket.name.lower() for kw in keywords):
+                    target_socket = input_socket
+                    break
+
+        # ✅ 4. Fallback (ultimo resort)
         if not source_socket and len(source_node.outputs) > 0:
+            # Debug: stampa warning se dobbiamo usare fallback
+            if edge_type:
+                print(f"   ⚠️  No matching output socket for '{edge_type}' on {source_node.bl_label}")
+                print(f"       Available outputs: {[s.name for s in source_node.outputs]}")
             source_socket = source_node.outputs[0]
-        
+
         if not target_socket and len(target_node.inputs) > 0:
+            if edge_type:
+                print(f"   ⚠️  No matching input socket for '{edge_type}' on {target_node.bl_label}")
+                print(f"       Available inputs: {[s.name for s in target_node.inputs]}")
             target_socket = target_node.inputs[0]
-        
+
+        # Crea il link
         if source_socket and target_socket:
             try:
                 tree.links.new(source_socket, target_socket)
                 return True
-            except:
+            except Exception as e:
+                print(f"   ❌ Failed to create link: {e}")
                 return False
-        
+
         return False
     
     def hex_to_rgb(self, hex_color):
