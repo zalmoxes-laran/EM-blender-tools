@@ -318,17 +318,21 @@ else:
 # ============================
 @bpy.app.handlers.persistent
 def validate_mappings_on_load(dummy):
-    """Valida i mapping quando si carica un file .blend"""
+    """Valida i mapping e migra DosCo legacy quando si carica un file .blend"""
     try:
         # Usa un timer per essere sicuri che tutto sia caricato
         def do_validation():
             try:
                 from . import em_setup
                 em_setup.validate_all_mapping_enums(bpy.context)
+
+                # Migrate legacy DosCo to Auxiliary Resources
+                from .em_setup.utils import migrate_legacy_dosco_to_auxiliary
+                migrate_legacy_dosco_to_auxiliary(bpy.context)
             except Exception as e:
                 print(f"Error validating mappings on load: {e}")
             return None  # Stop timer
-        
+
         bpy.app.timers.register(do_validation, first_interval=0.5)
     except Exception as e:
         print(f"Error scheduling mapping validation: {e}")

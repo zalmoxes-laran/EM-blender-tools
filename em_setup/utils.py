@@ -1,6 +1,7 @@
 # em_setup/utils.py
 
 import bpy
+import os
 
 
 def auto_import_auxiliary_files(context, graphml_index):
@@ -33,21 +34,25 @@ def auto_import_auxiliary_files(context, graphml_index):
         if not aux_file.auto_reload_on_em_update:
             continue
 
-        # Verifica che il file sia configurato
-        if not aux_file.filepath:
-            print(f"⚠️ Skipping '{aux_file.name}': no filepath configured")
-            error_count += 1
-            continue
+        # Verifica che il file/folder sia configurato
+        # Per DosCo verifichiamo dosco_folder, per altri tipi filepath
+        if aux_file.file_type == "dosco":
+            if not aux_file.dosco_folder:
+                print(f"⚠️ Skipping '{aux_file.name}': no DosCo folder configured")
+                error_count += 1
+                continue
+        else:
+            if not aux_file.filepath:
+                print(f"⚠️ Skipping '{aux_file.name}': no filepath configured")
+                error_count += 1
+                continue
 
         print(f"📥 Auto-importing '{aux_file.name}' ({aux_file.file_type})...")
 
         try:
-            # Chiama l'operatore di import
-            result = bpy.ops.em.import_3dgis_database(
-                auxiliary_mode=True,
-                graphml_index=graphml_index,
-                auxiliary_index=i
-            )
+            # Set active auxiliary index and call unified import operator
+            graphml.active_auxiliary_index = i
+            result = bpy.ops.auxiliary.import_now()
 
             if result == {'FINISHED'}:
                 imported_count += 1
@@ -68,3 +73,57 @@ def auto_import_auxiliary_files(context, graphml_index):
         print(f"\nℹ️ No auxiliary files marked for auto-import")
 
     return imported_count, error_count
+
+
+def migrate_legacy_dosco_to_auxiliary(context):
+    """
+    Migrates legacy DosCo configuration (dosco_dir on GraphMLFileItem)
+    to the new Auxiliary Resource system.
+
+    This function should be called on addon load/scene load to ensure
+    backward compatibility with older .blend files.
+
+    Args:
+        context: Blender context
+
+    Returns:
+        int: Number of GraphML files migrated
+    """
+    em_tools = context.scene.em_tools
+    migrated_count = 0
+
+    for graphml in em_tools.graphml_files:
+        # Check if legacy dosco_dir is set
+        if not hasattr(graphml, 'dosco_dir') or not graphml.dosco_dir:
+            continue
+
+        # Check if DosCo auxiliary already exists
+        has_dosco_aux = any(aux.file_type == "dosco" for aux in graphml.auxiliary_files)
+
+        if has_dosco_aux:
+            # Already migrated, just clear legacy property
+            print(f"ℹ️ DosCo already migrated for '{graphml.name}', clearing legacy property")
+            graphml.dosco_dir = ""
+            continue
+
+        # Migrate: create new DosCo auxiliary resource
+        print(f"🔄 Migrating legacy DosCo for '{graphml.name}'...")
+
+        aux_file = graphml.auxiliary_files.add()
+        aux_file.name = "DosCo (migrated)"
+        aux_file.file_type = "dosco"
+        aux_file.dosco_folder = graphml.dosco_dir
+        aux_file.dosco_overwrite_paths = True  # Default from legacy behavior
+        aux_file.dosco_preserve_web_urls = True  # Default from legacy behavior
+        aux_file.auto_reload_on_em_update = True  # Enable auto-reload by default
+
+        # Clear legacy property
+        graphml.dosco_dir = ""
+
+        migrated_count += 1
+        print(f"✅ Migrated DosCo configuration to Auxiliary Resources")
+
+    if migrated_count > 0:
+        print(f"\n✅ DosCo migration completed: {migrated_count} GraphML file(s) migrated")
+
+    return migrated_count

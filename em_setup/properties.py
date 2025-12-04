@@ -54,7 +54,8 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         name="File Type",
         items=[
             ("emdb_xlsx", "EMdb Excel", "Import from EMdb Excel format"),
-            ("pyarchinit", "pyArchInit", "Import from pyArchInit SQLite DB")
+            ("pyarchinit", "pyArchInit", "Import from pyArchInit SQLite DB"),
+            ("dosco", "DosCo", "DosCo documentation folder for harvesting document files")
         ],
         default="emdb_xlsx"
     )  # type: ignore
@@ -106,6 +107,26 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         name="Show Thumbnails Path",
         description="Expand/collapse thumbnails path settings",
         default=False
+    )  # type: ignore
+
+    # DosCo-specific properties
+    dosco_folder: StringProperty(
+        name="DosCo Folder",
+        description="Path to DosCo documentation folder for harvesting files",
+        subtype='DIR_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    dosco_overwrite_paths: BoolProperty(
+        name="Overwrite paths with DosCo files",
+        description="Overwrite node paths with files found in DosCo folder",
+        default=True
+    )  # type: ignore
+
+    dosco_preserve_web_urls: BoolProperty(
+        name="Preserve web URLs",
+        description="Don't overwrite http/https URLs when harvesting from DosCo",
+        default=True
     )  # type: ignore
 
 

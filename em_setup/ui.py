@@ -188,31 +188,24 @@ class AUXILIARY_UL_files(bpy.types.UIList):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             row = layout.row(align=True)
 
-            # Menu contestuale
-            #op = row.operator("auxiliary.context_menu",
-            #                text="",
-            #                icon='DOWNARROW_HLT',
-            #                emboss=False)
-
-            # Tipo file icon
-
-
-
 
             if item.file_type == "emdb_xlsx":
                 row.label(text="", icon_value=icons_manager.get_icon_value("EMdb_logo"))
 
-            if item.file_type == "pyarchinit":
+            elif item.file_type == "pyarchinit":
                 row.label(text="", icon_value=icons_manager.get_icon_value("pyarchinit"))
 
-            if item.file_type == "generic_xlsx":
+            elif item.file_type == "dosco":
+                row.label(text="", icon_value=icons_manager.get_icon_value("em_logo"))
+
+            elif item.file_type == "generic_xlsx":
                 row.label(text="", icon='SPREADSHEET')
 
             # Nome file
             row.prop(item, "name", text="", emboss=False)
 
             # Stato del file
-            if item.filepath:
+            if item.filepath or item.dosco_folder:
                 row.label(text="", icon='CHECKMARK')
             else:
                 row.label(text="", icon='ERROR')
@@ -509,31 +502,10 @@ class EM_SetupPanel(bpy.types.Panel):
                     op = warning_box.operator("wm.url_open", text="Quick guide", icon="HELP")
                     op.url = "https://docs.extendedmatrix.org/en/1.5.0dev/data_funnel.html#important-considerations"
 
-                box = layout.box()
-                em_settings = bpy.context.window_manager.em_addon_settings
-
-                box.prop(em_settings, "dosco_options", text="DosCo Folder", icon="TRIA_DOWN" if em_settings.dosco_options else "TRIA_RIGHT", emboss=False)
-
-                if em_settings.dosco_options:
-                    # Path to DosCo folder
-                    box.prop(active_file, "dosco_dir", text="Set Path")
-
-                    if em_tools.experimental_features:
-                        box.prop(em_settings, "dosco_advanced_options", text="More options", icon="TRIA_DOWN" if em_settings.dosco_advanced_options else "TRIA_RIGHT", emboss=False)
-
-                        if em_settings.dosco_advanced_options:
-                            box.label(text="Populate extractors, documents and combiners using DosCo files:")
-                            row = box.row()
-                            row.prop(em_settings, 'overwrite_url_with_dosco_filepath', text="Overwrite paths with DosCo files")
-
-                            # Add a more informative tooltip
-                            subbox = box.box()
-                            subbox.label(text="When enabled, node paths will be linked to files in DosCo")
-                            subbox.label(text="Examples:")
-                            subbox.label(text="Node GT16.D.01 → Searches for GT16.D.01 and D.01 in DosCo")
-
-                            row = box.row()
-                            row.prop(em_settings, 'preserve_web_url', text="Preserve web URLs (don't overwrite http/https)")
+                # DEPRECATED: DosCo is now integrated as an Auxiliary Resource type
+                # The legacy DosCo section has been removed. DosCo is now managed
+                # through the Auxiliary Resources UIList with file_type="dosco"
+                # Legacy properties (dosco_dir on GraphMLFileItem) are kept for backward compatibility
 
                 # Expanded settings
                 box = layout.box()
@@ -554,11 +526,14 @@ class EM_SetupPanel(bpy.types.Panel):
                     if active_file.active_auxiliary_index >= 0 and active_file.auxiliary_files:
                         aux_file = active_file.auxiliary_files[active_file.active_auxiliary_index]
 
-                        # File path e tipo
+                        # Tipo (sempre visibile)
                         row = box.row()
-                        row.prop(aux_file, "filepath", text="Path")
                         row.prop(aux_file, "file_type", text="Type")
 
+                        # Path: mostra filepath solo per tipi non-DosCo
+                        if aux_file.file_type != "dosco":
+                            row = box.row()
+                            row.prop(aux_file, "filepath", text="Path")
 
                         # EMdb mapping se necessario
                         if aux_file.file_type == "emdb_xlsx":
@@ -655,6 +630,32 @@ class EM_SetupPanel(bpy.types.Panel):
                                         desc_box.label(text=mapping_data["description"])
                                     if "table_settings" in mapping_data:
                                         desc_box.label(text=f"Table: {mapping_data['table_settings']['table_name']}")
+
+                        elif aux_file.file_type == "dosco":
+                            # DosCo folder path
+                            row = box.row()
+                            row.prop(aux_file, "dosco_folder", text="Set Path")
+
+                            # Help button
+                            op = row.operator("wm.url_open", text="", icon="HELP")
+                            op.url = "https://docs.extendedmatrix.org/projects/EM-tools/en/1.5.0/EMstructure.html#em-setup"
+
+                            # DosCo options
+                            dosco_box = box.box()
+                            dosco_box.label(text="Populate extractors, documents and combiners using DosCo files:")
+
+                            row = dosco_box.row()
+                            row.prop(aux_file, "dosco_overwrite_paths", text="Overwrite paths with DosCo files")
+
+                            row = dosco_box.row()
+                            row.prop(aux_file, "dosco_preserve_web_urls", text="Preserve web URLs (don't overwrite http/https)")
+
+                            # Info box with examples
+                            info_box = dosco_box.box()
+                            info_box.label(text="When enabled, node paths will be linked to files in DosCo")
+                            info_box.label(text="")
+                            info_box.label(text="Examples:")
+                            info_box.label(text="Node GT16.D.01 → Searches for GT16.D.01 and D.01 in DosCo")
 
             # Advanced Tools section
             box = layout.box()

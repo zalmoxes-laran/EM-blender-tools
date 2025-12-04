@@ -388,6 +388,10 @@ class AUXILIARY_OT_import_now(Operator):
         graphml = em_tools.graphml_files[em_tools.active_file_index]
         aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
 
+        # Handle DosCo type differently - no database import, just harvesting
+        if aux_file.file_type == "dosco":
+            return self._process_dosco(context, graphml, aux_file)
+
         # ✅ 1. Importa file xlsx (aggiunge proprietà ai nodi esistenti)
         result = bpy.ops.em.import_3dgis_database(
             auxiliary_mode=True,
@@ -652,6 +656,74 @@ class AUXILIARY_OT_import_now(Operator):
 
         print(f"✅ Created DocumentNode and LinkNode for: {filename}")
         return doc_node
+
+    def _process_dosco(self, context, graphml, aux_file):
+        """Process DosCo folder harvesting"""
+        from ..functions import inspect_load_dosco_files_on_graph
+        from s3dgraphy import get_graph
+        import os
+
+        # Validate DosCo folder path
+        if not aux_file.dosco_folder:
+            self.report({'ERROR'}, "DosCo folder path not specified")
+            return {'CANCELLED'}
+
+        # Resolve DosCo folder path
+        dosco_folder_raw = aux_file.dosco_folder
+        if os.path.isabs(dosco_folder_raw) and not dosco_folder_raw.startswith("//"):
+            dosco_folder = os.path.normpath(dosco_folder_raw)
+        elif dosco_folder_raw.startswith("//"):
+            dosco_folder = os.path.normpath(bpy.path.abspath(dosco_folder_raw))
+        else:
+            blend_path = bpy.data.filepath
+            if blend_path:
+                blend_dir = os.path.dirname(blend_path)
+                dosco_folder = os.path.normpath(os.path.join(blend_dir, dosco_folder_raw))
+            else:
+                self.report({'ERROR'}, "Blend file not saved, cannot use relative paths without //")
+                return {'CANCELLED'}
+
+        # Check folder exists
+        if not os.path.exists(dosco_folder):
+            self.report({'ERROR'}, f"DosCo folder not found: {dosco_folder}")
+            return {'CANCELLED'}
+
+        # Get graph instance
+        graph = get_graph(graphml.name)
+        if not graph:
+            self.report({'ERROR'}, f"Graph {graphml.name} not found. Load the GraphML first.")
+            return {'CANCELLED'}
+
+        # Temporarily set global settings for DosCo harvesting
+        em_settings = context.window_manager.em_addon_settings
+        old_overwrite = em_settings.overwrite_url_with_dosco_filepath
+        old_preserve = em_settings.preserve_web_url
+
+        try:
+            # Apply DosCo-specific settings from auxiliary file
+            em_settings.overwrite_url_with_dosco_filepath = aux_file.dosco_overwrite_paths
+            em_settings.preserve_web_url = aux_file.dosco_preserve_web_urls
+
+            # Execute DosCo harvesting
+            inspect_load_dosco_files_on_graph(graph, dosco_folder)
+
+            # Update Blender lists to reflect changes
+            from ..populate_lists import populate_blender_lists_from_graph
+            populate_blender_lists_from_graph(context, graph)
+
+            self.report({'INFO'}, f"DosCo harvesting completed from {os.path.basename(dosco_folder)}")
+            return {'FINISHED'}
+
+        except Exception as e:
+            self.report({'ERROR'}, f"DosCo harvesting failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {'CANCELLED'}
+
+        finally:
+            # Restore original settings
+            em_settings.overwrite_url_with_dosco_filepath = old_overwrite
+            em_settings.preserve_web_url = old_preserve
 
 
 # Registration
