@@ -156,7 +156,7 @@ def populate_combiner_node(scene, node, index, graph=None):
 def populate_epoch_node(scene, node, index, graph=None):
     """Popola la lista delle epoche usando il container centralizzato."""
     from .functions import hex_to_rgb
-    
+
     epochs = scene.em_tools.epochs.list
     epochs.add()
     epoch_item = epochs[-1]
@@ -186,11 +186,11 @@ def populate_edges(scene, edge, index):
 def clear_lists(context):
     """
     Pulisce tutte le liste in Blender.
-    
+
     ✅ CLEAN VERSION: Usa EM_list_clear per gestire le liste centralizzate
     """
     from .functions import EM_list_clear
-    
+
     EM_list_clear(context, "em_list")  # ✅ Pulisce scene.em_tools.stratigraphy.units
     EM_list_clear(context, "em_reused")  # ✅ Pulisce scene.em_tools.stratigraphy.reused
     EM_list_clear(context, "em_sources_list")
@@ -206,11 +206,11 @@ def clear_lists(context):
 def populate_blender_lists_from_graph(context, graph):
     """
     Popola tutte le liste Blender da un grafo s3dgraphy.
-    
+
     ✅ CLEAN VERSION: Usa solo paths centralizzati
     """
     scene = context.scene
-    
+
     # Counters
     em_list_index_ema = 0
     em_reused_index_ema = 0
@@ -260,7 +260,7 @@ def populate_blender_lists_from_graph(context, graph):
     # 6. Nodi epoca
     for node in epoch_nodes:
         em_epoch_list_ema = populate_epoch_node(scene, node, em_epoch_list_ema, graph)
-    
+
     # 7. Archi
     for edge in graph.edges:
         populate_edges(scene, edge, em_edges_index_ema)

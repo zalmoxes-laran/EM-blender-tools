@@ -826,9 +826,9 @@ class AUXILIARY_OT_import_now(Operator):
             # Execute DosCo harvesting
             inspect_load_dosco_files_on_graph(graph, dosco_folder)
 
-            # Update Blender lists to reflect changes
-            from ..populate_lists import populate_blender_lists_from_graph
-            populate_blender_lists_from_graph(context, graph)
+            # ✅ NON ripopolare le liste qui!
+            # Le liste verranno popolate automaticamente dopo l'auto-import
+            # dalla funzione chiamante (import.em_graphml) per evitare duplicazioni
 
             self.report({'INFO'}, f"DosCo harvesting completed from {os.path.basename(dosco_folder)}")
             return {'FINISHED'}

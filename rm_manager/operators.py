@@ -13,6 +13,11 @@ from s3dgraphy import get_graph
 from s3dgraphy.nodes.representation_node import RepresentationModelNode
 
 __all__ = [
+    'RM_OT_detect_orphaned_epochs',
+    'RM_OT_fix_orphaned_epoch',
+    'RM_OT_select_orphaned_objects',
+    'RM_OT_set_active_epoch',
+    'RM_OT_select_all_from_active_epoch',
     'RM_OT_select_from_object',
     'RM_OT_add_tileset',
     'RM_OT_set_tileset_path',
@@ -33,6 +38,348 @@ __all__ = [
     'unregister_operators',
 ]
 
+
+class RM_OT_detect_orphaned_epochs(Operator):
+    bl_idname = "rm.detect_orphaned_epochs"
+    bl_label = "Detect Orphaned Epochs"
+    bl_description = "Detect and manage epochs that exist in objects but not in the current graph"
+
+    def execute(self, context):
+        scene = context.scene
+
+        # Get all valid epochs from the scene
+        valid_epochs = set()
+        if hasattr(scene.em_tools, 'epochs') and len(scene.em_tools.epochs.list) > 0:
+            for epoch in scene.em_tools.epochs.list:
+                valid_epochs.add(epoch.name)
+
+        # Find orphaned epochs
+        orphaned_epochs = {}  # epoch_name -> list of object names
+
+        for obj in bpy.data.objects:
+            if hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0:
+                for ep in obj.EM_ep_belong_ob:
+                    if ep.epoch != "no_epoch" and ep.epoch not in valid_epochs:
+                        if ep.epoch not in orphaned_epochs:
+                            orphaned_epochs[ep.epoch] = []
+                        orphaned_epochs[ep.epoch].append(obj.name)
+
+        if not orphaned_epochs:
+            self.report({'INFO'}, "No orphaned epochs found. All epochs are valid!")
+            return {'FINISHED'}
+
+        # Show dialog with orphaned epochs
+        def draw(self, context):
+            layout = self.layout
+            layout.label(text=f"Found {len(orphaned_epochs)} orphaned epoch(s):", icon='ERROR')
+
+            box = layout.box()
+            for epoch_name, obj_names in orphaned_epochs.items():
+                col = box.column(align=True)
+                col.label(text=f"Epoch: '{epoch_name}' ({len(obj_names)} objects)", icon='TIME')
+
+                # Show first 5 objects
+                for i, obj_name in enumerate(obj_names[:5]):
+                    col.label(text=f"  - {obj_name}", icon='OBJECT_DATA')
+                if len(obj_names) > 5:
+                    col.label(text=f"  ... and {len(obj_names) - 5} more", icon='THREE_DOTS')
+
+                # Buttons for this epoch
+                row = col.row(align=True)
+                op = row.operator("rm.fix_orphaned_epoch", text="Fix", icon='CHECKMARK')
+                op.orphaned_epoch_name = epoch_name
+
+                op = row.operator("rm.select_orphaned_objects", text="Select", icon='RESTRICT_SELECT_OFF')
+                op.orphaned_epoch_name = epoch_name
+
+                col.separator()
+
+        context.window_manager.popup_menu(draw, title="Orphaned Epochs Detected", icon='ERROR')
+
+        return {'FINISHED'}
+
+
+class RM_OT_fix_orphaned_epoch(Operator):
+    bl_idname = "rm.fix_orphaned_epoch"
+    bl_label = "Fix Orphaned Epoch"
+    bl_description = "Replace or remove an orphaned epoch from all objects"
+
+    orphaned_epoch_name: StringProperty(
+        name="Orphaned Epoch",
+        description="Name of the orphaned epoch to fix",
+        default=""
+    )  # type: ignore
+
+    action: EnumProperty(
+        name="Action",
+        description="Action to perform on the orphaned epoch",
+        items=[
+            ('REPLACE', 'Replace with Valid Epoch', 'Replace with a valid epoch from the list'),
+            ('REMOVE', 'Remove Epoch', 'Remove the orphaned epoch from all objects'),
+        ],
+        default='REPLACE'
+    )  # type: ignore
+
+    def get_epoch_items(self, context):
+        """Generate enum items dynamically from available epochs"""
+        items = []
+        scene = context.scene
+        if hasattr(scene.em_tools, 'epochs') and len(scene.em_tools.epochs.list) > 0:
+            for i, epoch in enumerate(scene.em_tools.epochs.list):
+                epoch_label = f"{epoch.name}"
+                if hasattr(epoch, 'start_time') and hasattr(epoch, 'end_time'):
+                    epoch_label += f" [{int(epoch.start_time)}-{int(epoch.end_time)}]"
+                items.append((epoch.name, epoch_label, f"Replace with {epoch.name}"))
+
+        if not items:
+            items.append(('NONE', 'No Epochs Available', 'No valid epochs found'))
+
+        return items
+
+    replacement_epoch: EnumProperty(
+        name="Replacement Epoch",
+        description="Select the epoch to replace with",
+        items=get_epoch_items
+    )  # type: ignore
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=450)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text=f"Fix orphaned epoch: '{self.orphaned_epoch_name}'", icon='ERROR')
+
+        layout.separator()
+        layout.prop(self, "action", expand=True)
+
+        if self.action == 'REPLACE':
+            layout.separator()
+            layout.label(text="Select replacement epoch:")
+            layout.prop(self, "replacement_epoch", text="")
+
+    def execute(self, context):
+        if self.action == 'REPLACE' and (not self.replacement_epoch or self.replacement_epoch == 'NONE'):
+            self.report({'ERROR'}, "Please select a valid replacement epoch")
+            return {'CANCELLED'}
+
+        # Find all objects with the orphaned epoch
+        affected_objects = []
+        for obj in bpy.data.objects:
+            if hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0:
+                for ep in obj.EM_ep_belong_ob:
+                    if ep.epoch == self.orphaned_epoch_name:
+                        affected_objects.append(obj)
+                        break
+
+        if not affected_objects:
+            self.report({'WARNING'}, f"No objects found with epoch '{self.orphaned_epoch_name}'")
+            return {'FINISHED'}
+
+        # Get graph if available
+        graph = None
+        try:
+            if context.scene.em_tools.active_file_index >= 0:
+                graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+                graph = get_graph(graphml.name)
+        except Exception as e:
+            print(f"Warning: Could not retrieve graph: {e}")
+
+        # Perform action
+        for obj in affected_objects:
+            if self.action == 'REPLACE':
+                # Replace orphaned epoch with valid one
+                for ep in obj.EM_ep_belong_ob:
+                    if ep.epoch == self.orphaned_epoch_name:
+                        ep.epoch = self.replacement_epoch
+
+                # Update graph if available
+                if graph:
+                    try:
+                        model_node_id = f"{obj.name}_model"
+
+                        # Find the replacement epoch node
+                        replacement_epoch_node = None
+                        for node in graph.nodes:
+                            if node.node_type == "EpochNode" and node.name == self.replacement_epoch:
+                                replacement_epoch_node = node
+                                break
+
+                        if replacement_epoch_node:
+                            # Remove old edges with orphaned epoch (if any exist)
+                            edges_to_remove = []
+                            for edge in graph.edges:
+                                if edge.edge_source == model_node_id and edge.edge_type in ["has_first_epoch", "survive_in_epoch"]:
+                                    edges_to_remove.append(edge.edge_id)
+
+                            for edge_id in edges_to_remove:
+                                try:
+                                    graph.remove_edge(edge_id)
+                                except:
+                                    pass
+
+                            # Add new edge
+                            edge_id = f"{model_node_id}_has_first_epoch_{replacement_epoch_node.node_id}"
+                            if not graph.find_edge_by_id(edge_id):
+                                graph.add_edge(
+                                    edge_id=edge_id,
+                                    edge_source=model_node_id,
+                                    edge_target=replacement_epoch_node.node_id,
+                                    edge_type="has_first_epoch"
+                                )
+                    except Exception as e:
+                        print(f"Warning: Could not update graph for {obj.name}: {e}")
+
+            elif self.action == 'REMOVE':
+                # Remove the orphaned epoch
+                indices_to_remove = []
+                for i, ep in enumerate(obj.EM_ep_belong_ob):
+                    if ep.epoch == self.orphaned_epoch_name:
+                        indices_to_remove.append(i)
+
+                # Remove in reverse order
+                for i in reversed(indices_to_remove):
+                    obj.EM_ep_belong_ob.remove(i)
+
+                # If no epochs left, add "no_epoch"
+                if len(obj.EM_ep_belong_ob) == 0:
+                    ep_item = obj.EM_ep_belong_ob.add()
+                    ep_item.epoch = "no_epoch"
+
+                # Update graph if available
+                if graph:
+                    try:
+                        model_node_id = f"{obj.name}_model"
+
+                        # Remove all edges (since we're removing the only epoch)
+                        edges_to_remove = []
+                        for edge in graph.edges:
+                            if edge.edge_source == model_node_id and edge.edge_type in ["has_first_epoch", "survive_in_epoch"]:
+                                edges_to_remove.append(edge.edge_id)
+
+                        for edge_id in edges_to_remove:
+                            try:
+                                graph.remove_edge(edge_id)
+                            except:
+                                pass
+                    except Exception as e:
+                        print(f"Warning: Could not update graph for {obj.name}: {e}")
+
+        # Update RM list
+        bpy.ops.rm.update_list(from_graph=False)
+
+        action_text = "replaced" if self.action == 'REPLACE' else "removed"
+        self.report({'INFO'}, f"Orphaned epoch '{self.orphaned_epoch_name}' {action_text} from {len(affected_objects)} object(s)")
+        return {'FINISHED'}
+
+
+class RM_OT_select_orphaned_objects(Operator):
+    bl_idname = "rm.select_orphaned_objects"
+    bl_label = "Select Objects with Orphaned Epoch"
+    bl_description = "Select all objects that have this orphaned epoch"
+
+    orphaned_epoch_name: StringProperty(
+        name="Orphaned Epoch",
+        description="Name of the orphaned epoch",
+        default=""
+    )  # type: ignore
+
+    def execute(self, context):
+        # Deselect all
+        bpy.ops.object.select_all(action='DESELECT')
+
+        # Select objects with the orphaned epoch
+        selected_count = 0
+        for obj in bpy.data.objects:
+            if hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0:
+                for ep in obj.EM_ep_belong_ob:
+                    if ep.epoch == self.orphaned_epoch_name:
+                        obj.select_set(True)
+                        selected_count += 1
+                        break
+
+        # Set first as active
+        if selected_count > 0:
+            for obj in context.selected_objects:
+                context.view_layer.objects.active = obj
+                break
+
+        self.report({'INFO'}, f"Selected {selected_count} object(s) with orphaned epoch '{self.orphaned_epoch_name}'")
+        return {'FINISHED'}
+
+
+class RM_OT_set_active_epoch(Operator):
+    bl_idname = "rm.set_active_epoch"
+    bl_label = "Set Active Epoch"
+    bl_description = "Set the active epoch for RM management"
+
+    epoch_index: IntProperty(
+        name="Epoch Index",
+        description="Index of the epoch to set as active",
+        default=0
+    )  # type: ignore
+
+    def execute(self, context):
+        scene = context.scene
+        epochs = scene.em_tools.epochs
+
+        # Validate index
+        if self.epoch_index < 0 or self.epoch_index >= len(epochs.list):
+            self.report({'ERROR'}, "Invalid epoch index")
+            return {'CANCELLED'}
+
+        # Set the active epoch
+        epochs.list_index = self.epoch_index
+        epoch = epochs.list[self.epoch_index]
+
+        self.report({'INFO'}, f"Active epoch set to: {epoch.name}")
+        return {'FINISHED'}
+
+
+class RM_OT_select_all_from_active_epoch(Operator):
+    bl_idname = "rm.select_all_from_active_epoch"
+    bl_label = "Select All from Active Epoch"
+    bl_description = "Select all RM objects in the 3D view that belong to the currently active epoch"
+
+    def execute(self, context):
+        scene = context.scene
+        epochs = scene.em_tools.epochs
+
+        # Check if there's an active epoch
+        if epochs.list_index < 0 or epochs.list_index >= len(epochs.list):
+            self.report({'ERROR'}, "No active epoch selected")
+            return {'CANCELLED'}
+
+        active_epoch = epochs.list[epochs.list_index]
+
+        # Deselect all objects first
+        bpy.ops.object.select_all(action='DESELECT')
+
+        # Count selected objects
+        selected_count = 0
+
+        # Iterate through all objects in the scene
+        for obj in bpy.data.objects:
+            # Check if object has epoch properties
+            if hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0:
+                # Check if the active epoch is in this object's epochs
+                for ep in obj.EM_ep_belong_ob:
+                    if ep.epoch == active_epoch.name:
+                        # Select this object
+                        obj.select_set(True)
+                        selected_count += 1
+                        break
+
+        # Set the first selected object as active if any were selected
+        if selected_count > 0:
+            for obj in context.selected_objects:
+                context.view_layer.objects.active = obj
+                break
+
+            self.report({'INFO'}, f"Selected {selected_count} object(s) from epoch '{active_epoch.name}'")
+            return {'FINISHED'}
+        else:
+            self.report({'WARNING'}, f"No objects found for epoch '{active_epoch.name}'")
+            return {'FINISHED'}
 
 class RM_OT_select_from_object(Operator):
     bl_idname = "rm.select_from_object"
@@ -161,10 +508,11 @@ class RM_OT_add_tileset(Operator):
                 model_node = RepresentationModelNode(
                     node_id=model_node_id,
                     name=f"Model for {obj.name}",
-                    type="RM",
-                    url=f"tilesets/{tileset_name}/tileset.json"  # Percorso al tileset.json interno
+                    type="RM"
                 )
 
+                # Set url after initialization
+                model_node.url = f"tilesets/{tileset_name}/tileset.json"
 
                 # Add tileset marker attribute
                 model_node.attributes['is_tileset'] = True
@@ -333,7 +681,7 @@ class RM_OT_demote_from_rm_list(Operator):
 class RM_OT_update_list(Operator):
     bl_idname = "rm.update_list"
     bl_label = "Update RM List"
-    bl_description = "Update the list of RM models from the current graph and scene objects"
+    bl_description = "Synchronize the RM list. Use 'from Scene' if you manually changed object properties, or 'from Graph' after importing/modifying the GraphML file."
     
     from_graph: BoolProperty(
         name="Update from Graph",
@@ -720,7 +1068,7 @@ class RM_OT_show_mismatch_details(Operator):
 class RM_OT_promote_to_rm(Operator):
     bl_idname = "rm.promote_to_rm"
     bl_label = "Add to Active Epoch"
-    bl_description = "Add objects to the active epoch"
+    bl_description = "Add selected objects to the currently active epoch. Objects can belong to multiple epochs."
     
     mode: EnumProperty(
         name="Mode",
@@ -947,8 +1295,8 @@ class RM_OT_remove_epoch_from_rm_list(Operator):
 
 class RM_OT_remove_epoch_from_selected(Operator):
     bl_idname = "rm.remove_epoch_from_selected"
-    bl_label = "Remove Epoch from Selected"
-    bl_description = "Remove the active epoch from selected objects"
+    bl_label = "Remove from Active Epoch"
+    bl_description = "Remove the currently active epoch from selected objects. Objects remain in other epochs."
     
     def execute(self, context):
         scene = context.scene
@@ -1254,8 +1602,8 @@ class RM_OT_remove_from_epoch(Operator):
 
 class RM_OT_demote_from_rm(Operator):
     bl_idname = "rm.demote_from_rm"
-    bl_label = "Demote from RM"
-    bl_description = "Remove selected objects completely from all epochs and the graph"
+    bl_label = "Remove from ALL Epochs"
+    bl_description = "DANGER: Remove selected objects completely from ALL epochs and the graph. This cannot be undone easily."
     
     def execute(self, context):
         scene = context.scene
@@ -1365,16 +1713,17 @@ class RM_OT_select_from_list(Operator):
                                     region = next((r for r in area.regions if r.type == 'WINDOW'), None)
                                     space = area.spaces.active if hasattr(area, "spaces") else None
                                     if region:
-                                        override = {
-                                            'window': win,
-                                            'screen': scr,
-                                            'area': area,
-                                            'region': region,
-                                            'space_data': space,
-                                            'scene': scene,
-                                            'view_layer': context.view_layer,
-                                        }
-                                        bpy.ops.view3d.view_selected(override)
+                                        # ✅ Blender 4.5+ context override syntax
+                                        with context.temp_override(
+                                            window=win,
+                                            screen=scr,
+                                            area=area,
+                                            region=region,
+                                            space_data=space,
+                                            scene=scene,
+                                            view_layer=context.view_layer
+                                        ):
+                                            bpy.ops.view3d.view_selected()
                                     break
                     
                     self.report({'INFO'}, f"Selected object: {item.name}")
@@ -1529,6 +1878,11 @@ class RM_OT_add_epoch(Operator):
         return {'FINISHED'}
 
 classes = [
+    RM_OT_detect_orphaned_epochs,
+    RM_OT_fix_orphaned_epoch,
+    RM_OT_select_orphaned_objects,
+    RM_OT_set_active_epoch,
+    RM_OT_select_all_from_active_epoch,
     RM_OT_select_from_object,
     RM_OT_add_tileset,
     RM_OT_set_tileset_path,

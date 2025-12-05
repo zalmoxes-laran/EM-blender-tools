@@ -1,6 +1,6 @@
 import os as os
 import bpy  # type: ignore
-from bpy.types import Panel, UIList  # type: ignore
+from bpy.types import Panel, UIList, Menu  # type: ignore
 
 from ..functions import is_graph_available
 
@@ -8,6 +8,7 @@ __all__ = [
     'VIEW3D_PT_RM_Tileset_Properties',
     'RM_UL_List',
     'RM_UL_EpochList',
+    'RM_MT_epoch_selector',
     'VIEW3D_PT_RM_Manager',
     'register_ui',
     'unregister_ui',
@@ -122,24 +123,51 @@ class RM_UL_EpochList(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             row = layout.row(align=True)
-            
+
             # Icona per indic
             # are la prima/altre epoche
             if item.is_first_epoch:
                 row.label(text="", icon='KEYFRAME_HLT')  # Prima epoch
             else:
                 row.label(text="", icon='KEYFRAME')  # Altre epoche
-            
+
             # Nome dell'epoca
             row.label(text=item.name)
-            
+
             # Bottone per rimuovere l'associazione con l'epoca
             # Mostra sempre il bottone per rimuovere, anche con una sola epoca
             op = row.operator("rm.remove_epoch_from_rm_list", text="", icon='X', emboss=False)
-        
+
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
             layout.label(text=item.name)
+
+
+class RM_MT_epoch_selector(Menu):
+    bl_label = "Select Active Epoch"
+    bl_idname = "RM_MT_epoch_selector"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        epochs = scene.em_tools.epochs
+
+        if len(epochs.list) == 0:
+            layout.label(text="No epochs available", icon='ERROR')
+            return
+
+        # Draw each epoch as a menu item
+        for i, epoch in enumerate(epochs.list):
+            # Format: "Epoch Name"
+            epoch_label = epoch.name
+
+            # Create operator to set this epoch as active
+            op = layout.operator("rm.set_active_epoch", text=epoch_label, icon='TIME')
+            op.epoch_index = i
+
+            # Highlight current active epoch
+            if i == epochs.list_index:
+                layout.separator()
 
 class VIEW3D_PT_RM_Manager(Panel):
     bl_label = "RM Manager"
@@ -171,6 +199,10 @@ class VIEW3D_PT_RM_Manager(Panel):
         if graph_available:
             row.operator("rm.update_list", text="Update from Graph", icon='NODE_MATERIAL').from_graph = True
 
+        # Orphaned epochs detector
+        row = layout.row(align=True)
+        row.operator("rm.detect_orphaned_epochs", text="Detect Orphaned Epochs", icon='ERROR')
+
         # Selection sync button
         row = layout.row(align=True)
         row.operator("rm.select_from_object", text="Select from Object", icon='RESTRICT_SELECT_OFF')
@@ -182,28 +214,49 @@ class VIEW3D_PT_RM_Manager(Panel):
             active_epoch = epochs.list[epochs.list_index]
             has_active_epoch = True
 
+        # Active Epoch Selector Box
+        box = layout.box()
+        if has_active_epoch:
+            # Dropdown to change active epoch using menu
+            row = box.row(align=True)
+            row.label(text="Active Epoch:", icon='TIME')
+
+            # Create a menu-based dropdown using operator
+            row.menu("RM_MT_epoch_selector", text=active_epoch.name)
+
+            # Button to select all RMs from active epoch
+            row = box.row()
+            row.operator("rm.select_all_from_active_epoch", text="Select All from this Epoch", icon='RESTRICT_SELECT_OFF')
+
+            # Add Tileset button
+            row = box.row()
+            row.operator("rm.add_tileset", text="Add New Cesium Tileset", icon='ORIENTATION_GLOBAL')
+
+            # Hint
+            row = box.row()
+            row.scale_y = 0.8
+            row.label(text="You can add multiple tilesets to the same epoch", icon='INFO')
+        else:
+            box.label(text="No active epoch selected", icon='INFO')
+
         # Main action buttons
         if has_active_epoch:
-            row = layout.row(align=True)
             active_object = context.active_object
             if active_object:
                 box = layout.box()
-                box.label(text=f"Operations on selected objects:")
+                box.label(text="Operations on selected objects in 3D scene:", icon='OBJECT_DATA')
                 row = box.row(align=True)
-                row.operator("rm.promote_to_rm", text="Add Selected", icon='ADD').mode = 'SELECTED'
-                row.operator("rm.remove_epoch_from_selected", text="Remove Selected", icon='REMOVE')
-                row.operator("rm.demote_from_rm", icon='TRASH')
-                
-            # Add Tileset button (only when an epoch is selected)
-            box = layout.box()
-            box.label(text=f"Active Epoch: {active_epoch.name}", icon='TIME')
-            row = box.row()
-            # Modificato il testo per chiarire che si possono aggiungere più tilesets
-            row.operator("rm.add_tileset", text="Add New Cesium Tileset", icon='ORIENTATION_GLOBAL')
-            
-            # Aggiunto un hint per chiarire
-            row = box.row()
-            row.label(text="You can add multiple tilesets to the same epoch", icon='INFO')
+
+                # Clarified button labels
+                op = row.operator("rm.promote_to_rm", text="Add to Active Epoch", icon='ADD')
+                op.mode = 'SELECTED'
+
+                row.operator("rm.remove_epoch_from_selected", text="Remove from Active Epoch", icon='REMOVE')
+
+                # Demote with warning color
+                row = box.row(align=True)
+                row.alert = True
+                row.operator("rm.demote_from_rm", text="Remove from ALL Epochs", icon='TRASH')
         else:
             box = layout.box()
             box.label(text="Select an epoch to manage RM objects", icon='INFO')
@@ -270,6 +323,7 @@ classes = [
     VIEW3D_PT_RM_Tileset_Properties,
     RM_UL_List,
     RM_UL_EpochList,
+    RM_MT_epoch_selector,
 ]
 
 

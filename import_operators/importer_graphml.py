@@ -116,8 +116,13 @@ class EM_import_GraphML(bpy.types.Operator):
                 if em_settings.overwrite_url_with_dosco_filepath:
                     inspect_load_dosco_files_on_graph(graph_instance, dosco_dir)  # ← Nuova funzione
 
+                # ✅ IMPORTANTE: Auto-import dei file ausiliari PRIMA di popolare le liste
+                # In questo modo il grafo viene completamente popolato (incluso DosCo)
+                # e poi le liste vengono popolate una volta sola con tutti i dati
+                from ..em_setup import auto_import_auxiliary_files
+                imported, errors = auto_import_auxiliary_files(context, self.graphml_index)
 
-                # Ora procedi con il popolamento delle liste (che avranno già URL aggiornati)
+                # ✅ ORA procedi con il popolamento delle liste (grafo completamente popolato)
                 populate_blender_lists_from_graph(context, graph_instance)
 
                 # ✅ Usa nuovi paths centralizzati
@@ -140,17 +145,13 @@ class EM_import_GraphML(bpy.types.Operator):
                 # ✅ Usa nuovo path
                 if strat.units_index >= 0 and strat.units_index < len(strat.units):
                     create_derived_lists(strat.units[strat.units_index])
-                
+
                 #setup dei materiali di scena dopo l'importazione del graphml
                 self.post_import_material_setup(context)
 
                 bpy.ops.epoch_manager.update_us_list
 
                 bpy.ops.activity.refresh_list(graphml_index=self.graphml_index)
-
-                 
-                from ..em_setup import auto_import_auxiliary_files
-                imported, errors = auto_import_auxiliary_files(context, self.graphml_index)
                 
                 if imported > 0:
                     self.report({'INFO'}, f"GraphML loaded + {imported} auxiliary file(s) auto-imported")
