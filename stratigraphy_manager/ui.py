@@ -411,18 +411,20 @@ class EM_ToolsPanel:
                         row.label(text="", icon_value=icon_id)
                         row.label(text=doc_name)
 
-                        # Action buttons
-                        col = row.column(align=True)
+                        # Action buttons on the same row
+                        ops = row.row(align=True)
 
-                        # Open folder button
                         if src_path:
                             folder_path = os.path.dirname(src_path)
-                            op = col.operator("wm.path_open", text="", icon='FILE_FOLDER')
+
+                            # Open folder button
+                            op = ops.operator("wm.path_open", text="", icon='FILE_FOLDER')
                             op.filepath = folder_path
 
                             # Open file button
-                            op = col.operator("wm.path_open", text="", icon='FILE')
+                            op = ops.operator("wm.path_open", text="", icon='FILE')
                             op.filepath = src_path
+
 
                 elif strat.documents_view_mode == 'GALLERY':
                     # ===============================
