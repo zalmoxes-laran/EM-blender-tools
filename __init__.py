@@ -131,6 +131,32 @@ class EMAddonSettings(PropertyGroup):
         default=False
     ) # type: ignore
 
+    def get_verbose_logging(self):
+        """Getter for verbose logging - reads from addon preferences"""
+        try:
+            prefs = bpy.context.preferences.addons.get(__package__)
+            if prefs and hasattr(prefs.preferences, 'verbose_logging'):
+                return prefs.preferences.verbose_logging
+        except:
+            pass
+        return False
+
+    def set_verbose_logging(self, value):
+        """Setter for verbose logging - writes to addon preferences"""
+        try:
+            prefs = bpy.context.preferences.addons.get(__package__)
+            if prefs and hasattr(prefs.preferences, 'verbose_logging'):
+                prefs.preferences.verbose_logging = value
+        except:
+            pass
+
+    verbose_logging: BoolProperty(
+        name="Verbose Logging",
+        description="Enable detailed console logging (mirrors the setting in addon preferences)",
+        get=get_verbose_logging,
+        set=set_verbose_logging
+    ) # type: ignore
+
 # Note: EDGESListItem, EM_Other_Settings, EMviqListErrors, EMListParadata, EM_epochs_belonging_ob
 # are now defined in em_base_props.py and imported above (lines 394-400)
 

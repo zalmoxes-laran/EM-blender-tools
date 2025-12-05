@@ -156,7 +156,14 @@ class EMToolsMappingPreferences(AddonPreferences):
         name="Mappings Initialized",
         default=False
     )
-    
+
+    # ✅ Verbose Logging
+    verbose_logging: BoolProperty(
+        name="Verbose Logging",
+        description="Enable detailed console logging for debugging operations (warnings and errors are always shown)",
+        default=False
+    )
+
     def draw(self, context):
         layout = self.layout
         
@@ -262,12 +269,26 @@ class EMToolsMappingPreferences(AddonPreferences):
                 )
         
         layout.separator()
-        
+
+        # ===== DEVELOPER SETTINGS =====
+        box = layout.box()
+        box.label(text="🔧 Developer Settings", icon='PREFERENCES')
+        row = box.row()
+        row.prop(self, "verbose_logging", text="Enable Verbose Console Logging")
+        if self.verbose_logging:
+            info_box = box.box()
+            info_box.label(text="ℹ Verbose logging active: detailed operations will be printed to console", icon='INFO')
+        else:
+            info_box = box.box()
+            info_box.label(text="ℹ Quiet mode: only warnings, errors, and essential messages", icon='INFO')
+
+        layout.separator()
+
         # ===== AZIONI =====
         row = layout.row(align=True)
         row.scale_y = 1.5
-        row.operator("emtools.reload_custom_mappings", 
-                     text="Reload All Mappings", 
+        row.operator("emtools.reload_custom_mappings",
+                     text="Reload All Mappings",
                      icon='FILE_REFRESH')
 
 

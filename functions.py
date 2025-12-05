@@ -30,6 +30,45 @@ from .operators.addon_prefix_helpers import (
     get_active_graph_code
 )
 
+# ============================
+# LOGGING UTILITIES
+# ============================
+
+def em_log(message, level="INFO"):
+    """
+    Conditional logging based on addon preferences.
+
+    Args:
+        message: The message to log
+        level: "DEBUG", "INFO", "WARNING", "ERROR"
+
+    Behavior:
+        - WARNING and ERROR: Always printed
+        - INFO and DEBUG: Only if verbose_logging is enabled in preferences
+
+    Usage:
+        em_log("Processing 10 nodes", "DEBUG")
+        em_log("Import completed successfully", "INFO")
+        em_log("Missing file", "WARNING")
+        em_log("Critical failure", "ERROR")
+    """
+    # Sempre mostra WARNING ed ERROR
+    if level in ["WARNING", "ERROR"]:
+        prefix = f"[EM {level}]"
+        print(f"{prefix} {message}")
+        return
+
+    # INFO e DEBUG solo se verbose è attivo
+    try:
+        prefs = bpy.context.preferences.addons.get(__package__.split('.')[0])
+        if prefs and hasattr(prefs.preferences, 'verbose_logging') and prefs.preferences.verbose_logging:
+            prefix = f"[EM {level}]"
+            print(f"{prefix} {message}")
+    except:
+        # Fallback silenzioso se non riusciamo ad accedere alle preferences
+        # (es. durante l'inizializzazione dell'addon)
+        pass
+
 def clean_value_for_ui(value):
     """
     Clean string values for UI display.
