@@ -355,12 +355,10 @@ class EM_ToolsPanel:
         
         # ✅ FIXED: Use reload_doc_previews_for_us() instead of inline code
         if strat.show_documents:
-            print("🔍 STRATIGRAPHY MANAGER: show_documents is True")
             from ..functions import is_graph_available
             from ..thumb_utils import reload_doc_previews_for_us, has_doc_thumbs
 
             graph_available, graph = is_graph_available(context)
-            print(f"🔍 STRATIGRAPHY MANAGER: graph_available={graph_available}")
 
             if not graph_available:
                 docs_box.label(text="No graph loaded", icon='ERROR')
@@ -368,7 +366,6 @@ class EM_ToolsPanel:
 
             # Check if thumbnails are available
             thumbs_available = has_doc_thumbs()
-            print(f"🔍 STRATIGRAPHY MANAGER: has_doc_thumbs()={thumbs_available}")
 
             if not thumbs_available:
                 info_box = docs_box.box()
@@ -377,44 +374,96 @@ class EM_ToolsPanel:
                 info_box.label(text="and click '(Re)generate thumbnails'")
                 return
 
-            # Add refresh button for cache
-            refresh_row = docs_box.row()
-            refresh_row.operator("emtools.refresh_us_thumbs", text="Refresh Documents", icon='FILE_REFRESH')
+            # Toolbar: View mode selector + Refresh button
+            toolbar_row = docs_box.row(align=True)
+            toolbar_row.prop(strat, "documents_view_mode", text="", expand=True)
+            toolbar_row.separator()
+            toolbar_row.operator("emtools.refresh_us_thumbs", text="", icon='FILE_REFRESH')
+
+            # Only proceed if view mode is not OFF
+            if strat.documents_view_mode == 'OFF':
+                info_box = docs_box.box()
+                info_box.label(text="Preview disabled", icon='CANCEL')
+                info_box.label(text="Select 'List' or 'Gallery' to view documents")
+                return
 
             # Load thumbnails for this US using the centralized function
-            print(f"🔍 STRATIGRAPHY MANAGER: Calling reload_doc_previews_for_us({selected_us.id_node})")
             try:
                 enum_items = reload_doc_previews_for_us(selected_us.id_node)
-                print(f"🔍 STRATIGRAPHY MANAGER: Got {len(enum_items) if enum_items else 0} thumbnails")
 
                 if not enum_items:
                     docs_box.label(text="No documents found for this unit", icon='INFO')
                     docs_box.label(text="Try clicking 'Refresh Documents' after importing", icon='INFO')
                     return
 
-                # Display thumbnails using icon_value from preview collection
+                # Display based on view mode
                 # enum_items format: (doc_key, doc_name, src_path, icon_id, i)
                 content_box = docs_box.box()
 
-                for doc_key, doc_name, src_path, icon_id, idx in enum_items:
-                    row = content_box.row(align=True)
+                if strat.documents_view_mode == 'LIST':
+                    # ===============================
+                    # LIST MODE: Rows with thumbnails
+                    # ===============================
+                    for doc_key, doc_name, src_path, icon_id, idx in enum_items:
+                        row = content_box.row(align=True)
 
-                    # Thumbnail using icon_id from preview collection
-                    row.label(text="", icon_value=icon_id)
-                    row.label(text=doc_name)
+                        # Thumbnail using icon_id from preview collection
+                        row.label(text="", icon_value=icon_id)
+                        row.label(text=doc_name)
 
-                    # Action buttons
-                    col = row.column(align=True)
+                        # Action buttons
+                        col = row.column(align=True)
 
-                    # Open folder button
-                    if src_path:
-                        folder_path = os.path.dirname(bpy.path.abspath(src_path))
-                        op = col.operator("wm.path_open", text="", icon='FILE_FOLDER')
-                        op.filepath = folder_path
+                        # Open folder button
+                        if src_path:
+                            folder_path = os.path.dirname(src_path)
+                            op = col.operator("wm.path_open", text="", icon='FILE_FOLDER')
+                            op.filepath = folder_path
 
-                        # Open file button
-                        op = col.operator("wm.path_open", text="", icon='FILE')
-                        op.filepath = bpy.path.abspath(src_path)
+                            # Open file button
+                            op = col.operator("wm.path_open", text="", icon='FILE')
+                            op.filepath = src_path
+
+                elif strat.documents_view_mode == 'GALLERY':
+                    # ===============================
+                    # GALLERY MODE: Native Blender icon view
+                    # ===============================
+                    # Use template_icon_view for native gallery display
+                    thumb_row = content_box.row()
+                    thumb_row.template_icon_view(
+                        strat,
+                        "selected_document",
+                        show_labels=True,
+                        scale=5.0,
+                        scale_popup=5.0
+                    )
+
+                    # Action buttons for selected document
+                    if strat.selected_document:
+                        # Find the selected document data from enum_items
+                        selected_data = None
+                        for doc_key, doc_name, src_path, icon_id, idx in enum_items:
+                            if doc_key == strat.selected_document:
+                                selected_data = (doc_key, doc_name, src_path, icon_id, idx)
+                                break
+
+                        if selected_data:
+                            doc_key, doc_name, src_path, icon_id, idx = selected_data
+
+                            # Action buttons row
+                            actions_box = content_box.box()
+                            actions_row = actions_box.row(align=True)
+                            actions_row.label(text=f"Selected: {doc_name}", icon='FILE_IMAGE')
+
+                            # Open file button
+                            if src_path:
+                                op = actions_row.operator("wm.path_open", text="Open Original", icon='FILE')
+                                op.filepath = src_path
+
+                                # Open folder button
+                                folder_path = os.path.dirname(src_path)
+                                op = actions_row.operator("wm.path_open", text="Open Folder", icon='FILE_FOLDER')
+                                op.filepath = folder_path
 
             except Exception as e:
                 docs_box.label(text=f"Error loading thumbnails: {str(e)}", icon='ERROR')

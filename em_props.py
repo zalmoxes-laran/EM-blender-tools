@@ -137,6 +137,43 @@ def update_epoch_index(self, context):
 
 
 # =====================================================
+# ENUM CALLBACKS FOR DYNAMIC PROPERTIES
+# =====================================================
+
+def get_doc_previews_enum_items(self, context):
+    """
+    Callback for EnumProperty that returns document previews for selected US.
+    Used by template_icon_view() in Gallery mode.
+
+    Returns:
+        List of tuples: (identifier, name, description, icon_id, index)
+    """
+    try:
+        # Import here to avoid circular dependency
+        from .thumb_utils import reload_doc_previews_for_us
+
+        scene = context.scene
+        strat = scene.em_tools.stratigraphy
+
+        # If no US selected, return empty list
+        if not strat.units or strat.units_index < 0:
+            return []
+
+        selected_us = strat.units[strat.units_index]
+
+        # Get thumbnails using existing function
+        enum_items = reload_doc_previews_for_us(selected_us.id_node)
+
+        return enum_items if enum_items else []
+
+    except Exception as e:
+        print(f"Error in get_doc_previews_enum_items: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
+# =====================================================
 # MANAGER AGGREGATOR CLASSES
 # =====================================================
 
@@ -178,7 +215,24 @@ class StratigraphyManagerProps(PropertyGroup):
         description="Show/hide the documents section",
         default=False
     )  # type: ignore
-    
+
+    documents_view_mode: EnumProperty(
+        name="Documents View Mode",
+        description="How to display document thumbnails",
+        items=[
+            ('OFF', "Preview OFF", "Don't show document previews", 'CANCEL', 0),
+            ('LIST', "List", "Show documents as a list with small thumbnails", 'LINENUMBERS_ON', 1),
+            ('GALLERY', "Gallery", "Show documents as a large gallery grid", 'IMAGE_DATA', 2),
+        ],
+        default='LIST'
+    )  # type: ignore
+
+    selected_document: EnumProperty(
+        name="Selected Document",
+        description="Currently selected document in gallery view",
+        items=get_doc_previews_enum_items
+    )  # type: ignore
+
     preview_image: PointerProperty(
         type=bpy.types.Image,
         name="Preview Image",
