@@ -1698,6 +1698,21 @@ class RM_OT_select_from_list(Operator):
                 # If the object exists, select it
                 obj = bpy.data.objects.get(item.name)
                 if obj:
+                    # ✅ Make object visible
+                    if obj.hide_viewport:
+                        obj.hide_viewport = False
+                    if obj.hide_get():
+                        obj.hide_set(False)
+
+                    # ✅ Make object selectable
+                    if obj.hide_select:
+                        obj.hide_select = False
+
+                    # ✅ Activate all parent collections
+                    from ..stratigraphy_manager.operators import activate_collection_fully
+                    for collection in obj.users_collection:
+                        activate_collection_fully(context, collection)
+
                     obj.select_set(True)
                     # Set as active object
                     context.view_layer.objects.active = obj
