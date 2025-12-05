@@ -581,6 +581,14 @@ class AUXILIARY_OT_import_now(Operator):
             except Exception as e:
                 print(f"Error loading mapping: {e}")
                 return None
+        elif aux_file.file_type == "pyarchinit" and aux_file.pyarchinit_mapping != "none":
+            try:
+                from s3dgraphy.mappings import mapping_registry
+                mapping_data = mapping_registry.load_mapping(aux_file.pyarchinit_mapping, "pyarchinit")
+                return mapping_data.get('allowed_formats', None)
+            except Exception as e:
+                print(f"Error loading mapping: {e}")
+                return None
         return None  # No restrictions = tutti i formati
 
     def _get_imported_node_ids(self, graph):

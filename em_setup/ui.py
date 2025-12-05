@@ -643,6 +643,75 @@ class EM_SetupPanel(bpy.types.Panel):
                                         if "table_settings" in mapping_data:
                                             desc_box.label(text=f"Table: {mapping_data['table_settings']['table_name']}")
 
+                            # SEZIONE COLLASSABILE DOCUMENT RESOURCES (come per EMdb)
+                            resources_box = box.box()
+
+                            # Header con triangolino
+                            header_row = resources_box.row(align=True)
+                            icon = 'TRIA_DOWN' if aux_file.show_resources_section else 'TRIA_RIGHT'
+                            header_row.prop(aux_file, "show_resources_section",
+                                        text=f"Document Resources for {aux_file.name}",
+                                        icon=icon,
+                                        emboss=False)
+
+                            # Mostra contenuto solo se espanso
+                            if aux_file.show_resources_section:
+                                # Cartella risorse
+                                col = resources_box.column()
+                                row = col.row()
+                                row.prop(aux_file, "resource_folder", text="Resources Folder")
+
+                                # Warning se path assoluto
+                                if aux_file.resource_folder:
+                                    if os.path.isabs(aux_file.resource_folder) and not aux_file.resource_folder.startswith('//'):
+                                        warn_box = col.box()
+                                        warn_box.alert = True
+                                        warn_row = warn_box.row()
+                                        warn_row.label(text="Use relative path (// prefix) for cross-PC compatibility",
+                                                    icon='ERROR')
+                                        warn_row = warn_box.row()
+                                        warn_row.label(text="Example: //Resources or //../../SharedFolder/Resources")
+
+                                # Sezione thumbnails
+                                col.separator()
+                                col.label(text="Thumbnails Generation:")
+
+                                thumb_row = col.row(align=True)
+
+                                # Indicatore esistenza thumbs (ICONE ORIGINALI!)
+                                if has_doc_thumbs():
+                                    thumb_row.label(text="", icon='KEYTYPE_JITTER_VEC')  # Verde
+                                else:
+                                    thumb_row.label(text="", icon='KEYTYPE_KEYFRAME_VEC')  # Rosso
+
+                                # Pulsanti thumbnails
+                                thumb_row.operator("emtools.build_doc_thumbs", text="(Re)generate")
+                                thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
+                                op = thumb_row.operator("wm.url_open", text="", icon="HELP")
+                                op.url = "https://docs.extendedmatrix.org/projects/EM-tools/en/1.5.0/EMstructure.html#setting-up-resource-folders"
+
+                                # THUMBNAILS PATH - Sotto triangolino collassabile
+                                path_box = col.box()
+                                path_row = path_box.row(align=True)
+
+                                # Triangolino per espandere/collassare
+                                path_icon = 'TRIA_DOWN' if aux_file.show_thumbs_path_section else 'TRIA_RIGHT'
+                                path_row.prop(aux_file, "show_thumbs_path_section",
+                                            text="Thumbnails Path",
+                                            icon=path_icon,
+                                            emboss=False)
+
+                                # Mostra il campo path solo se espanso
+                                if aux_file.show_thumbs_path_section:
+                                    path_col = path_box.column()
+                                    path_row = path_col.row()
+                                    path_row.prop(aux_file, "custom_thumbs_path", text="")
+
+                                    # Se non c'è path custom, mostra info
+                                    if not aux_file.custom_thumbs_path:
+                                        info_row = path_col.row()
+                                        info_row.label(text="Path will be auto-generated on first use", icon='INFO')
+
                         elif aux_file.file_type == "dosco":
                             # DosCo folder path
                             row = box.row()
