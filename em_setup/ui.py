@@ -621,18 +621,27 @@ class EM_SetupPanel(bpy.types.Panel):
                                         text="",
                                         icon='PREFERENCES')
 
-                            # Mostra info sul mapping selezionato
+                            # Mapping details (collapsible to reduce clutter)
                             if aux_file.pyarchinit_mapping != "none":
-                                desc_box = box.box()
-                                desc_box.label(text="Mapping Info:")
-                                mapping_data = get_mapping_description(aux_file.pyarchinit_mapping, "pyarchinit")
-                                if mapping_data:
-                                    row = desc_box.row()
-                                    row.label(text=f"Name: {mapping_data['name']}")
-                                    if "description" in mapping_data:
-                                        desc_box.label(text=mapping_data["description"])
-                                    if "table_settings" in mapping_data:
-                                        desc_box.label(text=f"Table: {mapping_data['table_settings']['table_name']}")
+                                toggle_row = box.row(align=True)
+                                icon = 'TRIA_DOWN' if aux_file.show_pyarchinit_mapping_info else 'TRIA_RIGHT'
+                                toggle_row.prop(
+                                    aux_file,
+                                    "show_pyarchinit_mapping_info",
+                                    text="Mapping Info",
+                                    icon=icon,
+                                    emboss=False
+                                )
+
+                                if aux_file.show_pyarchinit_mapping_info:
+                                    desc_box = box.box()
+                                    mapping_data = get_mapping_description(aux_file.pyarchinit_mapping, "pyarchinit")
+                                    if mapping_data:
+                                        desc_box.label(text=f"Name: {mapping_data['name']}")
+                                        if "description" in mapping_data:
+                                            desc_box.label(text=mapping_data["description"])
+                                        if "table_settings" in mapping_data:
+                                            desc_box.label(text=f"Table: {mapping_data['table_settings']['table_name']}")
 
                         elif aux_file.file_type == "dosco":
                             # DosCo folder path

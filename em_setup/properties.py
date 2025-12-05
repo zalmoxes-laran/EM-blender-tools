@@ -134,6 +134,12 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         default=False
     )  # type: ignore
 
+    show_pyarchinit_mapping_info: BoolProperty(
+        name="Show Mapping Info",
+        description="Expand to see details for the selected pyArchInit mapping",
+        default=False
+    )  # type: ignore
+
     # DosCo-specific properties
     dosco_folder: StringProperty(
         name="DosCo Folder",
