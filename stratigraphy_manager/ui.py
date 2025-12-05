@@ -387,8 +387,11 @@ class EM_ToolsPanel:
                 info_box.label(text="Select 'List' or 'Gallery' to view documents")
                 return
 
-            # Load thumbnails for this US using the centralized function
+            # Get thumbnails from cache (already loaded by update_stratigraphic_selection)
+            # This avoids reloading on every UI redraw
             try:
+                # This will ALWAYS return from cache because update_stratigraphic_selection
+                # already loaded them when the US was selected
                 enum_items = reload_doc_previews_for_us(selected_us.id_node)
 
                 if not enum_items:

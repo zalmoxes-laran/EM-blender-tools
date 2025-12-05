@@ -43,8 +43,21 @@ def update_stratigraphic_selection(self, context):
     """
     Called when the user changes the selection in the stratigraphic list.
     Updates paradata lists if streaming mode is enabled.
+    Pre-loads thumbnails for the selected US to avoid UI lag.
     """
     try:
+        # Pre-load thumbnails for the selected US (only if needed)
+        scene = context.scene
+        strat = scene.em_tools.stratigraphy
+
+        if strat.units and strat.units_index >= 0:
+            selected_us = strat.units[strat.units_index]
+            if selected_us.id_node:
+                # Import here to avoid circular imports
+                from .thumb_utils import reload_doc_previews_for_us
+                # This will use cache if available, otherwise load once
+                reload_doc_previews_for_us(selected_us.id_node)
+
         # Import here to avoid circular imports
         from .functions import switch_paradata_lists
 
