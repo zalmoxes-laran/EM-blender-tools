@@ -305,7 +305,7 @@ class EMTOOLS_UL_files(bpy.types.UIList):
 
 class EM_SetupPanel(bpy.types.Panel):
 
-    bl_label = f"EM Data Ingestion {get_em_tools_version()}"
+    bl_label = f"EM Data Tree {get_em_tools_version()}"
     bl_idname = "VIEW3D_PT_EM_Tools_Setup"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -669,69 +669,141 @@ class EM_SetupPanel(bpy.types.Panel):
 
             # Advanced Tools section
             box = layout.box()
-            box.prop(em_tools, "show_advanced_tools",
-                    text="Utilities & Settings",
-                    icon="TRIA_DOWN" if em_tools.show_advanced_tools else "TRIA_RIGHT",
-                    emboss=False)
+            header = box.row(align=True)
+            header.prop(
+                em_tools,
+                "show_advanced_tools",
+                text="Utilities & Settings",
+                icon="TRIA_DOWN" if em_tools.show_advanced_tools else "TRIA_RIGHT",
+                emboss=False
+            )
 
             if em_tools.show_advanced_tools:
-                # Convert Legacy GraphML
-                row = box.row()
-                row.operator(GRAPHML_OT_convert_borders.bl_idname,
-                            text="Convert legacy GraphML (1.x->1.5)",
-                            icon='FILE_REFRESH')
+                tools_col = box.column(align=True)
 
-                # Collection Manager
-                collection_box = box.box()
-                collection_box.prop(em_tools, "show_collection_manager",
-                                text="Collection Manager",
-                                icon="TRIA_DOWN" if em_tools.show_collection_manager else "TRIA_RIGHT",
-                                emboss=False)
+                # Convert Legacy GraphML
+                row = tools_col.row(align=True)
+                row.scale_y = 0.9
+                row.operator(
+                    GRAPHML_OT_convert_borders.bl_idname,
+                    text="Convert 1.x->1.5",
+                    icon='FILE_REFRESH'
+                )
+                help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                help_op.title = "Convert legacy GraphML"
+                help_op.text = (
+                    "Upgrades GraphML 1.x files to the EM 1.5 schema\n"
+                    "and fixes border nodes. A backup is kept next to\n"
+                    "the original file."
+                )
+                help_op.url = "EMstructure.html#em-setup"
+
+                # Collection Manager (compact)
+                collection_box = tools_col.box()
+                collection_header = collection_box.row(align=True)
+                collection_header.prop(
+                    em_tools,
+                    "show_collection_manager",
+                    text="",
+                    icon="TRIA_DOWN" if em_tools.show_collection_manager else "TRIA_RIGHT",
+                    emboss=False
+                )
+                collection_header.label(text="Collections")
+
+                create_row = collection_header.row(align=True)
+                create_row.scale_y = 0.9
+                create_row.operator(
+                    "create.collection",
+                    text="Create",
+                    icon="COLLECTION_NEW"
+                )
+                help_op = collection_header.operator("em.help_popup", text="", icon='QUESTION')
+                help_op.title = "Standard Collections"
+                help_op.text = (
+                    "Creates the base Proxy, RM and CAMS collections\n"
+                    "used by EM tools. Safe to re-run: missing ones\n"
+                    "are added, existing collections are preserved."
+                )
+                help_op.url = "EMstructure.html#em-setup"
 
                 if em_tools.show_collection_manager:
-                    col = collection_box.column(align=True)
-                    col.operator("create.collection",
-                                text="Create Standard Collections",
-                                icon="COLLECTION_NEW")
-
-                    # Info box sulle collezioni
                     info_box = collection_box.box()
-                    info_box.label(text="Standard Collections:")
-                    info_col = info_box.column(align=True)
-                    #info_col.label(text="• EM - Extended Matrix nodes/proxies")
-                    info_col.label(text="• Proxy - 3D proxy models")
-                    info_col.label(text="• RM - Representation models")
-                    info_col.label(text="• CAMS - Cameras and related labels")
+                    info_row = info_box.row(align=True)
+                    info_row.label(text="Proxy / RM / CAMS", icon='INFO')
+                    info_box.label(text="Creates the expected structure for EM pipelines.")
 
                 # Manage Object Prefixes
-                row = box.row()
-                row.operator("em.manage_object_prefixes",
-                            text="Manage Proxies' Prefixes",
-                            icon='SYNTAX_ON')
+                row = tools_col.row(align=True)
+                row.scale_y = 0.9
+                row.operator(
+                    "em.manage_object_prefixes",
+                    text="Proxy Prefixes",
+                    icon='SYNTAX_ON'
+                )
+                help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                help_op.title = "Manage Proxies' Prefixes"
+                help_op.text = (
+                    "Edit and apply naming prefixes to Proxy objects\n"
+                    "so imported assets stay consistent across scenes."
+                )
+                help_op.url = "EMstructure.html#em-setup"
 
-                # Experimental features section
+                # Experimental features toggle and tools
+                exp_toggle = tools_col.row(align=True)
+                exp_toggle.scale_y = 0.9
+                exp_toggle.prop(
+                    em_tools,
+                    "experimental_features",
+                    text="Experimental",
+                    toggle=True,
+                    icon="EXPERIMENTAL"
+                )
+                help_op = exp_toggle.operator("em.help_popup", text="", icon='QUESTION')
+                help_op.title = "Experimental Features"
+                help_op.text = (
+                    "Enables beta tools for testing. Use on disposable\n"
+                    "copies; behavior and performance may change."
+                )
+                help_op.url = "EMstructure.html#em-setup"
+
                 if em_tools.experimental_features:
-                    exp_box = box.box()
-                    exp_box.label(text="Experimental Tools:", icon="EXPERIMENTAL")
+                    exp_box = tools_col.box()
+                    exp_box.label(text="Experimental tools", icon="EXPERIMENTAL")
 
-                    row = exp_box.row()
-                    row.operator("em.rebuild_graph_indices",
-                                text="Rebuild Graph Indices",
-                                icon="FILE_REFRESH")
+                    row = exp_box.row(align=True)
+                    row.scale_y = 0.9
+                    row.operator(
+                        "em.rebuild_graph_indices",
+                        text="Rebuild Indices",
+                        icon='FILE_REFRESH'
+                    )
+                    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                    help_op.title = "Rebuild Graph Indices"
+                    help_op.text = (
+                        "Regenerates cached indices for faster lookups.\n"
+                        "Useful after large edits to the GraphML."
+                    )
+                    help_op.url = "EMstructure.html#em-setup"
 
-                    row = exp_box.row()
-                    row.operator("em.benchmark_property_functions",
-                                text="Benchmark Property Functions",
-                                icon="TIME")
+                    row = exp_box.row(align=True)
+                    row.scale_y = 0.9
+                    row.operator(
+                        "em.benchmark_property_functions",
+                        text="Benchmark Props",
+                        icon="TIME"
+                    )
+                    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                    help_op.title = "Benchmark Property Functions"
+                    help_op.text = (
+                        "Runs internal performance checks for property\n"
+                        "handlers. Expect temporary UI stalls during run."
+                    )
+                    help_op.url = "EMstructure.html#em-setup"
 
-                row = box.row()
-                row.prop(em_tools, "experimental_features", text="Enable Experimental Features", icon="EXPERIMENTAL")
-
-                if em_tools.experimental_features:
-                    warning_box = box.box()
+                    warning_box = exp_box.box()
                     warning_box.alert = True
-                    warning_box.label(text="Warning: these features are experimental.", icon='ERROR')
-                    warning_box.label(text="They should not be used in a production environment.")
+                    warning_box.label(text="Warning: experimental tools are not for production.", icon='ERROR')
+                    warning_box.label(text="Work on copies or staging files only.")
 
         ################################################################################
         # 3D GIS MODE SECTION
