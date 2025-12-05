@@ -203,6 +203,47 @@ class VIEW3D_PT_RM_Manager(Panel):
         row = layout.row(align=True)
         row.operator("rm.detect_orphaned_epochs", text="Detect Orphaned Epochs", icon='ERROR')
 
+        # Orphaned epochs mapping panel (only shown when orphaned epochs are detected)
+        rm_settings = scene.rm_settings
+        if rm_settings.has_orphaned_epochs and len(rm_settings.orphaned_epochs) > 0:
+            box = layout.box()
+            box.alert = True
+
+            # Header
+            header_row = box.row()
+            header_row.label(text=f"Orphaned Epochs Detected: {len(rm_settings.orphaned_epochs)}", icon='ERROR')
+
+            # Refresh button
+            refresh_row = box.row(align=True)
+            refresh_row.operator("rm.refresh_orphaned_epochs", text="Refresh", icon='FILE_REFRESH')
+            refresh_row.operator("rm.clear_orphaned_epochs", text="Clear", icon='X')
+
+            box.separator()
+
+            # Mapping table
+            for orphaned_item in rm_settings.orphaned_epochs:
+                item_box = box.box()
+
+                # Row 1: Orphaned epoch info
+                info_row = item_box.row()
+                info_row.label(text=f"Epoch: '{orphaned_item.orphaned_epoch_name}' ({orphaned_item.object_count} objects)", icon='TIME')
+
+                # Row 2: Replacement dropdown and select button
+                mapping_row = item_box.row(align=True)
+                mapping_row.label(text="Replace with:", icon='FORWARD')
+                mapping_row.prop(orphaned_item, "replacement_epoch", text="")
+
+                # Select objects button
+                select_op = mapping_row.operator("rm.select_orphaned_objects", text="", icon='RESTRICT_SELECT_OFF')
+                select_op.orphaned_epoch_name = orphaned_item.orphaned_epoch_name
+
+            box.separator()
+
+            # Apply mapping button
+            apply_row = box.row()
+            apply_row.scale_y = 1.5
+            apply_row.operator("rm.apply_epoch_mapping", text="Apply Mapping", icon='CHECKMARK')
+
         # Selection sync button
         row = layout.row(align=True)
         row.operator("rm.select_from_object", text="Select from Object", icon='RESTRICT_SELECT_OFF')

@@ -46,6 +46,7 @@ class RM_OT_detect_orphaned_epochs(Operator):
 
     def execute(self, context):
         scene = context.scene
+        rm_settings = scene.rm_settings
 
         # Get all valid epochs from the scene
         valid_epochs = set()
@@ -65,36 +66,25 @@ class RM_OT_detect_orphaned_epochs(Operator):
                         orphaned_epochs[ep.epoch].append(obj.name)
 
         if not orphaned_epochs:
+            # Clear any existing orphaned epochs data
+            rm_settings.orphaned_epochs.clear()
+            rm_settings.has_orphaned_epochs = False
             self.report({'INFO'}, "No orphaned epochs found. All epochs are valid!")
             return {'FINISHED'}
 
-        # Show dialog with orphaned epochs
-        def draw(self, context):
-            layout = self.layout
-            layout.label(text=f"Found {len(orphaned_epochs)} orphaned epoch(s):", icon='ERROR')
+        # Populate the orphaned epochs data structure
+        rm_settings.orphaned_epochs.clear()
+        for epoch_name, obj_names in orphaned_epochs.items():
+            item = rm_settings.orphaned_epochs.add()
+            item.orphaned_epoch_name = epoch_name
+            item.object_count = len(obj_names)
+            # Set default replacement to the first valid epoch if available
+            if valid_epochs:
+                item.replacement_epoch = sorted(valid_epochs)[0]
 
-            box = layout.box()
-            for epoch_name, obj_names in orphaned_epochs.items():
-                col = box.column(align=True)
-                col.label(text=f"Epoch: '{epoch_name}' ({len(obj_names)} objects)", icon='TIME')
+        rm_settings.has_orphaned_epochs = True
 
-                # Show first 5 objects
-                for i, obj_name in enumerate(obj_names[:5]):
-                    col.label(text=f"  - {obj_name}", icon='OBJECT_DATA')
-                if len(obj_names) > 5:
-                    col.label(text=f"  ... and {len(obj_names) - 5} more", icon='THREE_DOTS')
-
-                # Buttons for this epoch
-                row = col.row(align=True)
-                op = row.operator("rm.fix_orphaned_epoch", text="Fix", icon='CHECKMARK')
-                op.orphaned_epoch_name = epoch_name
-
-                op = row.operator("rm.select_orphaned_objects", text="Select", icon='RESTRICT_SELECT_OFF')
-                op.orphaned_epoch_name = epoch_name
-
-                col.separator()
-
-        context.window_manager.popup_menu(draw, title="Orphaned Epochs Detected", icon='ERROR')
+        self.report({'WARNING'}, f"Found {len(orphaned_epochs)} orphaned epoch(s). Review the mapping panel below.")
 
         return {'FINISHED'}
 
@@ -1888,12 +1878,135 @@ class RM_OT_add_epoch(Operator):
         
         # Aggiorna la lista
         bpy.ops.rm.update_list()
-        
+
         self.report({'INFO'}, f"Added epoch '{active_epoch.name}' to {rm_item.name}")
         return {'FINISHED'}
 
+
+class RM_OT_refresh_orphaned_epochs(Operator):
+    bl_idname = "rm.refresh_orphaned_epochs"
+    bl_label = "Refresh Orphaned Epochs"
+    bl_description = "Re-detect orphaned epochs"
+
+    def execute(self, context):
+        # Simply call the detect operator
+        bpy.ops.rm.detect_orphaned_epochs()
+        return {'FINISHED'}
+
+
+class RM_OT_clear_orphaned_epochs(Operator):
+    bl_idname = "rm.clear_orphaned_epochs"
+    bl_label = "Clear Orphaned Epochs"
+    bl_description = "Clear the orphaned epochs panel"
+
+    def execute(self, context):
+        scene = context.scene
+        rm_settings = scene.rm_settings
+
+        rm_settings.orphaned_epochs.clear()
+        rm_settings.has_orphaned_epochs = False
+
+        self.report({'INFO'}, "Orphaned epochs panel cleared")
+        return {'FINISHED'}
+
+
+class RM_OT_apply_epoch_mapping(Operator):
+    bl_idname = "rm.apply_epoch_mapping"
+    bl_label = "Apply Epoch Mapping"
+    bl_description = "Apply the selected epoch mappings to all affected objects"
+
+    def execute(self, context):
+        scene = context.scene
+        rm_settings = scene.rm_settings
+
+        if not rm_settings.has_orphaned_epochs or len(rm_settings.orphaned_epochs) == 0:
+            self.report({'ERROR'}, "No orphaned epochs to map")
+            return {'CANCELLED'}
+
+        # Check if graph is available
+        graph = None
+        if hasattr(scene, 'EMGraphData') and scene.EMGraphData.graph_loaded:
+            graph = scene.EMGraphData
+
+        # Build mapping dictionary
+        mapping = {}  # orphaned_epoch_name -> replacement_epoch_name
+        for orphaned_item in rm_settings.orphaned_epochs:
+            if orphaned_item.replacement_epoch and orphaned_item.replacement_epoch != 'NONE':
+                mapping[orphaned_item.orphaned_epoch_name] = orphaned_item.replacement_epoch
+
+        if not mapping:
+            self.report({'ERROR'}, "No valid mappings selected")
+            return {'CANCELLED'}
+
+        # Apply mappings to all objects
+        total_objects_updated = 0
+        edges_to_remove = []
+
+        for obj in bpy.data.objects:
+            if hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0:
+                for ep in obj.EM_ep_belong_ob:
+                    if ep.epoch in mapping:
+                        old_epoch = ep.epoch
+                        new_epoch = mapping[old_epoch]
+                        ep.epoch = new_epoch
+                        total_objects_updated += 1
+
+                        # Update graph edges if graph is available
+                        if graph:
+                            model_node_id = f"{obj.name}_model"
+
+                            # Find replacement epoch node
+                            replacement_epoch_node = None
+                            for node in graph.nodes:
+                                if node.node_type == "EpochNode" and node.name == new_epoch:
+                                    replacement_epoch_node = node
+                                    break
+
+                            if replacement_epoch_node:
+                                # Remove old edges
+                                for edge in graph.edges:
+                                    if edge.edge_source == model_node_id and edge.edge_type in ["has_first_epoch", "survive_in_epoch"]:
+                                        if edge.edge_id not in edges_to_remove:
+                                            edges_to_remove.append(edge.edge_id)
+
+                                # Add new edge
+                                edge_id = f"{model_node_id}_has_first_epoch_{replacement_epoch_node.node_id}"
+                                # Check if edge already exists
+                                edge_exists = False
+                                for edge in graph.edges:
+                                    if edge.edge_id == edge_id:
+                                        edge_exists = True
+                                        break
+
+                                if not edge_exists:
+                                    graph.add_edge(
+                                        edge_id=edge_id,
+                                        edge_source=model_node_id,
+                                        edge_target=replacement_epoch_node.node_id,
+                                        edge_type="has_first_epoch"
+                                    )
+
+        # Remove old edges from graph
+        if graph:
+            for edge_id in edges_to_remove:
+                graph.remove_edge(edge_id)
+
+        # Clear orphaned epochs data
+        rm_settings.orphaned_epochs.clear()
+        rm_settings.has_orphaned_epochs = False
+
+        # Update RM list
+        bpy.ops.rm.update_list(from_graph=False)
+
+        self.report({'INFO'}, f"Applied mapping to {total_objects_updated} object(s)")
+        return {'FINISHED'}
+
+
 classes = [
     RM_OT_detect_orphaned_epochs,
+    RM_OT_refresh_orphaned_epochs,
+    RM_OT_clear_orphaned_epochs,
+    RM_OT_apply_epoch_mapping,
     RM_OT_fix_orphaned_epoch,
     RM_OT_select_orphaned_objects,
     RM_OT_set_active_epoch,

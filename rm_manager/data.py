@@ -2,6 +2,7 @@ import bpy  # type: ignore
 from bpy.props import (  # type: ignore
     BoolProperty,
     CollectionProperty,
+    EnumProperty,
     IntProperty,
     PointerProperty,
     StringProperty,
@@ -12,6 +13,7 @@ __all__ = [
     "RMEpochItem",
     "RMItem",
     "RMSettings",
+    "OrphanedEpochItem",
     "register_data",
     "unregister_data",
 ]
@@ -80,6 +82,39 @@ class RMItem(PropertyGroup):
     )  # type: ignore
 
 
+class OrphanedEpochItem(PropertyGroup):
+    """Properties for an orphaned epoch with mapping selection"""
+
+    orphaned_epoch_name: StringProperty(
+        name="Orphaned Epoch",
+        description="Name of the orphaned epoch",
+        default="",
+    )  # type: ignore
+
+    object_count: IntProperty(
+        name="Object Count",
+        description="Number of objects using this orphaned epoch",
+        default=0,
+    )  # type: ignore
+
+    def get_replacement_epoch_items(self, context):
+        """Dynamic enum callback to get valid epochs for replacement"""
+        items = []
+        scene = context.scene
+        if hasattr(scene.em_tools, 'epochs') and len(scene.em_tools.epochs.list) > 0:
+            for idx, epoch in enumerate(scene.em_tools.epochs.list):
+                items.append((epoch.name, epoch.name, f"Replace with epoch: {epoch.name}", 'TIME', idx))
+        if not items:
+            items.append(('NONE', 'No Valid Epochs', 'No valid epochs available', 'ERROR', 0))
+        return items
+
+    replacement_epoch: EnumProperty(
+        name="Replacement Epoch",
+        description="Select the valid epoch to replace this orphaned epoch",
+        items=get_replacement_epoch_items,
+    )  # type: ignore
+
+
 class RMSettings(PropertyGroup):
     zoom_to_selected: BoolProperty(
         name="Zoom to Selected",
@@ -105,6 +140,17 @@ class RMSettings(PropertyGroup):
         default=False,
     )  # type: ignore
 
+    has_orphaned_epochs: BoolProperty(
+        name="Has Orphaned Epochs",
+        description="Whether orphaned epochs have been detected",
+        default=False,
+    )  # type: ignore
+
+    orphaned_epochs: CollectionProperty(
+        type=OrphanedEpochItem,
+        name="Orphaned Epochs",
+    )  # type: ignore
+
 
 def _register_class_once(cls):
     try:
@@ -119,7 +165,7 @@ def _register_class_once(cls):
 
 
 def register_data():
-    for cls in (RMEpochItem, RMItem, RMSettings):
+    for cls in (RMEpochItem, RMItem, OrphanedEpochItem, RMSettings):
         _register_class_once(cls)
 
     if not hasattr(bpy.types.Scene, "rm_list"):
@@ -138,7 +184,7 @@ def unregister_data():
     if hasattr(bpy.types.Scene, "rm_list"):
         del bpy.types.Scene.rm_list
 
-    for cls in reversed((RMSettings, RMItem, RMEpochItem)):
+    for cls in reversed((RMSettings, OrphanedEpochItem, RMItem, RMEpochItem)):
         try:
             bpy.utils.unregister_class(cls)
         except Exception:
