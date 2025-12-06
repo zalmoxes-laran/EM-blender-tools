@@ -641,14 +641,15 @@ class EM_listitem_OT_to3D(Operator):
         update_icons(context, self.list_type)
         if self.list_type == "em_list":
             current_mode = scene.em_tools.proxy_display_mode
-            
+
             if current_mode == "EM":
                 bpy.ops.emset.emmaterial()
             elif current_mode == "Epochs":
                 bpy.ops.emset.epochmaterial()
             elif current_mode == "Properties":
-                # Mantieni Properties attivo - non cambiarlo!
-                pass
+                # ✅ Aggiorna i colori dei proxy dopo il rename
+                if scene.selected_property and hasattr(scene, 'property_values') and len(scene.property_values) > 0:
+                    bpy.ops.visual.apply_colors()
             # Future modalità qui
         return {'FINISHED'}
 
