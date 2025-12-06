@@ -214,6 +214,11 @@ class EM_PT_ExportPanel(bpy.types.Panel):
     bl_category = 'EM Bridge'
     bl_options = {'DEFAULT_CLOSED'}
 
+    @classmethod
+    def poll(cls, context):
+        # ✅ Show only if experimental features are enabled
+        return hasattr(context.scene, 'em_tools') and context.scene.em_tools.experimental_features
+
     def draw(self, context):
         layout = self.layout
         scene_props = context.scene.em_properties

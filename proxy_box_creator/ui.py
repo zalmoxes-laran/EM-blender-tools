@@ -122,18 +122,20 @@ class PROXYBOX_PT_settings_panel(Panel):
     def draw(self, context):
         layout = self.layout
         settings = context.scene.em_tools.proxy_box
-        
-        # Mode toggle
-        box = layout.box()
-        box.label(text="Mode:", icon='SETTINGS')
-        box.prop(settings, "create_extractors", text="Activate paradata enrichment")
-        
-        layout.separator()
-        
+        em_tools = context.scene.em_tools
+
+        # ✅ Paradata Mode toggle - Only in Experimental AND not in 3D GIS mode
+        if em_tools.experimental_features and em_tools.mode_em_advanced:
+            box = layout.box()
+            box.label(text="Mode:", icon='SETTINGS')
+            box.prop(settings, "create_extractors", text="Activate paradata enrichment")
+
+            layout.separator()
+
         # Proxy configuration
         box = layout.box()
         box.label(text="Proxy Configuration:", icon='OBJECT_DATA')
-        
+
         col = box.column(align=True)
         col.prop(settings, "proxy_name", text="Name")
         col.prop(settings, "pivot_location", text="Pivot")
