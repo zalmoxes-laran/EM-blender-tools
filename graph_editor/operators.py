@@ -102,7 +102,15 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             return {'CANCELLED'}
         
         print(f"   Filtered to {len(filtered_nodes)} nodes")
-        
+
+        # ✅ Validate edges before populating
+        from .dynamic_nodes import validate_graph_edges
+        from .socket_generator import load_datamodels
+
+        nodes_dm, connections_dm = load_datamodels()
+        if nodes_dm and connections_dm:
+            validate_graph_edges(graph, connections_dm, nodes_dm)
+
         # Popola il grafo
         node_count, edge_count = self.populate_tree(tree, graph, filtered_nodes, context)
 
@@ -366,74 +374,29 @@ class GRAPHEDIT_OT_draw_graph(Operator):
     
     def populate_tree(self, tree, graph, filtered_nodes, context):
         """Popola il node tree con wrapper dei nodi s3dgraphy"""
+        from .dynamic_nodes import _NODE_TYPE_MAP
+
         node_map = {}
         edge_count = 0
-        
+
         filtered_node_ids = {node.node_id for node in filtered_nodes}
-        
-        # ✅ Mappa completa dei tipi di nodi
-        node_type_map = {
-            # Stratigraphic nodes - Base types
-            'US': 'EMGraphUSNodeType',
-            'USVs': 'EMGraphUSVsNodeType',
-            'USVn': 'EMGraphUSVnNodeType',
-            'SF': 'EMGraphSFNodeType',
-            'VSF': 'EMGraphVSFNodeType',
-            'USD': 'EMGraphUSDNodeType',
 
-            # Stratigraphic nodes - Series and special types
-            'serSU': 'EMGraphSerSUNodeType',
-            'serUSVs': 'EMGraphSerUSVsNodeType',
-            'serUSVn': 'EMGraphSerUSVnNodeType',
-            'TSU': 'EMGraphTSUNodeType',
-            'BR': 'EMGraphBRNodeType',
-            'SE': 'EMGraphSENodeType',
+        # ✅ Build dynamic node type map from registered classes
+        node_type_map = {}
+        for node_type, node_class in _NODE_TYPE_MAP.items():
+            bl_idname = node_class.bl_idname
+            node_type_map[node_type] = bl_idname
 
-            # Temporal nodes
-            'EpochNode': 'EMGraphEpochNodeType',
-
-            # Paradata nodes (usando class names dal JSON)
-            'PropertyNode': 'EMGraphPropertyNodeType',
-            'property': 'EMGraphPropertyNodeType',  # Alias
-            'ExtractorNode': 'EMGraphExtractorNodeType',
-            'extractor': 'EMGraphExtractorNodeType',  # Alias
-            'CombinerNode': 'EMGraphCombinerNodeType',
-            'combiner': 'EMGraphCombinerNodeType',  # Alias
-            'DocumentNode': 'EMGraphDocumentNodeType',
-            'document': 'EMGraphDocumentNodeType',  # Alias
-
-            # Group nodes
-            'ActivityNodeGroup': 'EMGraphActivityNodeType',
-            'activity_group': 'EMGraphActivityNodeType',  # Alias
-            'ParadataNodeGroup': 'EMGraphParadataGroupNodeType',
-            'paradata_group': 'EMGraphParadataGroupNodeType',  # Alias
-            'TimeBranchNodeGroup': 'EMGraphTimeBranchNodeType',
-            'time_branch_group': 'EMGraphTimeBranchNodeType',  # Alias
-
-            # Visualization nodes
-            'RepresentationModelNode': 'EMGraphRepresentationNodeType',
-            'representation_model': 'EMGraphRepresentationNodeType',  # Alias
-            'RepresentationModelDocNode': 'EMGraphRepresentationDocNodeType',
-            'representation_model_doc': 'EMGraphRepresentationDocNodeType',  # Alias
-            'RepresentationModelSpecialFindNode': 'EMGraphRepresentationSFNodeType',
-            'representation_model_sf': 'EMGraphRepresentationSFNodeType',  # Alias
-            'SemanticShapeNode': 'EMGraphSemanticShapeNodeType',
-            'semantic_shape': 'EMGraphSemanticShapeNodeType',  # Alias
-
-            # Reference nodes
-            'GeoPositionNode': 'EMGraphGeoPositionNodeType',
-            'geo_position': 'EMGraphGeoPositionNodeType',  # Alias
-            'LinkNode': 'EMGraphLinkNodeType',
-            'link': 'EMGraphLinkNodeType',  # Alias
-
-            # Rights nodes
-            'AuthorNode': 'EMGraphAuthorNodeType',
-            'author': 'EMGraphAuthorNodeType',  # Alias
-        }
-        
         print(f"\n📊 Creating {len(filtered_nodes)} nodes...")
+        print(f"   Available node types: {len(node_type_map)}")
+
         for i, s3d_node in enumerate(filtered_nodes):
-            node_type_id = node_type_map.get(s3d_node.node_type, 'EMGraphUSNodeType')
+            # ✅ Use dynamic mapping with fallback to generic node
+            node_type_id = node_type_map.get(s3d_node.node_type)
+
+            if not node_type_id:
+                print(f"⚠️  Unknown node type '{s3d_node.node_type}' for node {s3d_node.name}, skipping")
+                continue
 
             try:
                 bl_node = tree.nodes.new(node_type_id)
