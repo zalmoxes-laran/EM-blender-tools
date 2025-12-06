@@ -33,9 +33,52 @@ def sync_ui_list(context, human_name):
     print(f"   ✗ Item not found in UIList with name: '{human_name}'")
     return False
 
-def get_active_graph_code(context):
-    """Ottiene il graph_code del grafo attivo"""
+def get_active_graph(context):
+    """
+    Ottiene il grafo attivo basato sulla modalità.
+
+    Returns:
+        tuple: (graph, graph_name) o (None, None) se non trovato
+
+    Comportamento:
+    - 3D GIS mode: restituisce il grafo hardcodato "3dgis_graph"
+    - EM Advanced mode: restituisce il grafo selezionato dall'utente
+    """
+    from s3dgraphy.multigraph import get_graph
+
     em_tools = context.scene.em_tools
+
+    # ✅ Modalità 3D GIS: usa grafo hardcodato
+    if not em_tools.mode_em_advanced:
+        graph_name = "3dgis_graph"
+        graph = get_graph(graph_name)
+        if graph:
+            return graph, graph_name
+        else:
+            print(f"⚠️  3D GIS graph '{graph_name}' not found")
+            return None, None
+
+    # ✅ Modalità EM Advanced: usa grafo attivo
+    if em_tools.active_file_index >= 0 and em_tools.graphml_files:
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+        graph = get_graph(graphml.name)
+        if graph:
+            return graph, graphml.name
+        else:
+            print(f"⚠️  Graph '{graphml.name}' not found")
+            return None, None
+
+    return None, None
+
+def get_active_graph_code(context):
+    """Ottiene il graph_code del grafo attivo (per i prefissi)"""
+    em_tools = context.scene.em_tools
+
+    # ✅ In modalità 3D GIS non usiamo prefissi
+    if not em_tools.mode_em_advanced:
+        return None
+
+    # ✅ In modalità EM Advanced usa il grafo attivo
     if em_tools.active_file_index >= 0 and em_tools.graphml_files:
         graphml = em_tools.graphml_files[em_tools.active_file_index]
         return graphml.graph_code
@@ -87,37 +130,29 @@ def find_node_id_from_proxy(proxy_obj, context, verbose=False):
     Ottiene il node_id (UUID) da un oggetto proxy (con cache).
     """
     global _node_cache, _cached_graph_id
-    
-    from s3dgraphy import get_graph
-    
+
     # Rimuovi prefisso dal nome
     human_name = remove_graph_prefix(proxy_obj.name, context)
-    
-    # Carica grafo
-    em_tools = context.scene.em_tools
-    if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+
+    # ✅ Carica grafo usando la funzione centralizzata
+    graph, graph_id = get_active_graph(context)
+    if not graph:
         return None
-    
-    graphml = em_tools.graphml_files[em_tools.active_file_index]
-    graph_id = graphml.name
-    
+
     # ✅ Svuota cache se cambia grafo
     if _cached_graph_id != graph_id:
         _node_cache.clear()
         _cached_graph_id = graph_id
         if verbose:
             print(f"   Cache cleared for new graph: {graph_id}")
-    
+
     # ✅ Controlla cache
     if human_name in _node_cache:
         if verbose:
             print(f"   ✓ Found in cache: '{human_name}' → '{_node_cache[human_name]}'")
         return _node_cache[human_name]
-    
-    # Cerca nel grafo
-    graph = get_graph(graph_id)
-    if not graph:
-        return None
+
+    # Cerca nel grafo (graph già caricato sopra)
     
     for node in graph.nodes:
         if node.name == human_name:

@@ -315,25 +315,48 @@ class GRAPHEDIT_PT_node_info(Panel):
 
 
 class VIEW3D_PT_graphedit_sync(Panel):
-    """Pannello nella 3D View per sincronizzazione veloce"""
-    bl_label = "Graph Sync"
+    """Pannello nella 3D View per EMGraph"""
+    bl_label = "EMGraph"
     bl_idname = "VIEW3D_PT_graphedit_sync"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM"
-    
+    bl_options = {'DEFAULT_CLOSED'}
+
     def draw(self, context):
         layout = self.layout
-        
+        em_tools = context.scene.em_tools
+
+        # ✅ Button to open Graph Editor
         box = layout.box()
-        box.label(text="Graph Editor", icon='LINKED')
-        
+        box.label(text="Graph Editor", icon='NODETREE')
+
+        col = box.column(align=True)
+
+        # ✅ In 3D GIS mode, show simple "Open Graph" button
+        if not em_tools.mode_em_advanced:
+            op = col.operator("graphedit.draw_graph", text="Open Graph", icon='WINDOW')
+            op.filter_mode = 'ALL'
+        else:
+            # ✅ In EM Advanced mode, show filter options
+            row = col.row(align=True)
+            op = row.operator("graphedit.draw_graph", text="All", icon='MESH_GRID')
+            op.filter_mode = 'ALL'
+            op = row.operator("graphedit.draw_graph", text="Strat", icon='MESH_CUBE')
+            op.filter_mode = 'STRATIGRAPHIC'
+
+        layout.separator()
+
+        # Sync section
+        box = layout.box()
+        box.label(text="Sync Selection", icon='UV_SYNC_SELECT')
+
         col = box.column(align=True)
         col.operator("graphedit.sync_selection", icon='UV_SYNC_SELECT', text="Sync to Graph")
         col.label(text="Shortcut: Shift+Alt+F", icon='KEYINGSET')
-        
+
         layout.separator()
-        
+
         # Neighborhood from 3D
         neighbor_box = layout.box()
         neighbor_box.label(text="Show in Graph", icon='SNAP_FACE')
@@ -366,17 +389,20 @@ class VIEW3D_PT_graphedit_sync(Panel):
             col.label(text=f"Name: {obj.name[:20]}")
             
             # ✅ Controlla solo se ha il prefisso del grafo
+            from .utils import get_active_graph_code
+
             em_tools = context.scene.em_tools
-            if em_tools.active_file_index >= 0 and em_tools.graphml_files:
-                graphml = em_tools.graphml_files[em_tools.active_file_index]
-                graph_code = graphml.graph_code if hasattr(graphml, 'graph_code') else None
-                
-                if graph_code and obj.name.startswith(f"{graph_code}."):
-                    # ✅ Estrai human name SENZA chiamare funzioni pesanti
-                    human_name = obj.name[len(graph_code) + 1:]
-                    col.label(text=f"Node: {human_name[:16]}")
-                else:
-                    col.label(text="Not a graph node", icon='INFO')
+            graph_code = get_active_graph_code(context)
+
+            if graph_code and obj.name.startswith(f"{graph_code}."):
+                # ✅ Estrai human name SENZA chiamare funzioni pesanti
+                human_name = obj.name[len(graph_code) + 1:]
+                col.label(text=f"Node: {human_name[:16]}")
+            elif not graph_code:
+                # ✅ 3D GIS mode: il nome è già human-readable
+                col.label(text=f"Node: {obj.name[:16]}")
+            else:
+                col.label(text="Not a graph node", icon='INFO')
             
         else:
             layout.separator()
@@ -498,9 +524,10 @@ classes = (
     GRAPHEDIT_PT_edge_filters,
     GRAPHEDIT_PT_appearance,
     GRAPHEDIT_PT_node_info,
-    VIEW3D_PT_graphedit_sync,
     GRAPHEDIT_OT_toggle_edge_category,
     GRAPHEDIT_OT_apply_color_scheme,
+    # ✅ VIEW3D panel registered last to appear at the bottom in 3D View sidebar
+    VIEW3D_PT_graphedit_sync,
 )
 
 def register_ui():

@@ -57,41 +57,40 @@ class GRAPHEDIT_OT_draw_graph(Operator):
     )
 
     def execute(self, context):
+        from .utils import get_active_graph, get_active_graph_code
+
         em_tools = context.scene.em_tools
 
-        # Se è stato specificato un graphml_index, aggiorna l'active_file_index
-        if self.graphml_index >= 0:
+        # Se è stato specificato un graphml_index, aggiorna l'active_file_index (solo EM Advanced)
+        if self.graphml_index >= 0 and em_tools.mode_em_advanced:
             em_tools.active_file_index = self.graphml_index
             # Chiama populate_lists per aggiornare le liste
             print(f"✓ Setting active GraphML index to {self.graphml_index}")
             bpy.ops.em_tools.populate_lists(graphml_index=self.graphml_index)
 
-        if em_tools.active_file_index < 0 or not em_tools.graphml_files:
-            self.report({'ERROR'}, "No active GraphML file in EM Setup")
-            return {'CANCELLED'}
+        # ✅ Usa la funzione centralizzata per ottenere il grafo
+        graph, graph_id = get_active_graph(context)
 
-        graphml = em_tools.graphml_files[em_tools.active_file_index]
-        graph_id = graphml.name
-        graph = get_graph(graph_id)
-        
         if not graph:
-            self.report({'ERROR'}, f"Graph '{graph_id}' not found in s3dgraphy")
+            mode = "3D GIS" if not em_tools.mode_em_advanced else "EM Advanced"
+            self.report({'ERROR'}, f"No active graph found in {mode} mode")
             return {'CANCELLED'}
         
         print(f"\n✅ Found graph: {graph_id}")
         print(f"   Total nodes: {len(graph.nodes)}")
         print(f"   Total edges: {len(graph.edges)}")
         print(f"   Filter mode: {self.filter_mode}")
-        
-        # Trova o crea il node tree
-        tree_name = f"EMGraph_{graphml.graph_code if hasattr(graphml, 'graph_code') else graphml.name}"
-        
+
+        # ✅ Trova o crea il node tree con nome appropriato
+        graph_code = get_active_graph_code(context)
+        tree_name = f"EMGraph_{graph_code}" if graph_code else graph_id
+
         if tree_name in bpy.data.node_groups:
             tree = bpy.data.node_groups[tree_name]
             tree.nodes.clear()
         else:
             tree = bpy.data.node_groups.new(tree_name, 'EMGraphNodeTreeType')
-        
+
         tree.graph_id = graph_id
         tree.graph_name = tree_name
         
@@ -686,15 +685,23 @@ class GRAPHEDIT_OT_sync_selection(Operator):
         
         # ✅ Sincronizza Graph Editor - cerca per LABEL
         graph_synced = False
-        
+
+        # ✅ Determina quale tree usare in base alla modalità
+        em_tools = context.scene.em_tools
+        expected_tree_name = "3dgis_graph" if not em_tools.mode_em_advanced else None
+
         for window in bpy.data.window_managers[0].windows:
             for area in window.screen.areas:
                 if area.type == 'NODE_EDITOR':
                     space = area.spaces[0]
-                    
+
                     if space.tree_type == 'EMGraphNodeTreeType' and space.node_tree:
                         tree = space.node_tree
-                        
+
+                        # ✅ In 3D GIS mode, cerca solo nel tree "3dgis_graph"
+                        if expected_tree_name and tree.name != expected_tree_name:
+                            continue
+
                         print(f"   Searching in tree: {tree.name}")
                         
                         # Deseleziona tutto
