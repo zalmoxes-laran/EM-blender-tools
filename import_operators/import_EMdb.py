@@ -282,15 +282,16 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
     def _handle_import_results(self, context, settings, graph):
         """Handle post-import processing"""
         if self.auxiliary_mode:
-            # Auxiliary mode: refresh lists
-            clear_lists(context)
-            populate_blender_lists_from_graph(context, graph)
+            # ✅ FIXED: In auxiliary mode NON fare populate_lists qui!
+            # Il populate verrà fatto UNA SOLA VOLTA alla fine dell'import del GraphML
+            # in importer_graphml.py:126 dopo che tutti i file ausiliari sono stati importati.
+            # Questo evita duplicazione delle epoche e altri elementi nelle liste.
             self.report({'INFO'}, "Successfully imported auxiliary data to existing graph")
         else:
             # Normal mode: populate lists
             populate_blender_lists_from_graph(context, graph)
             self.report({'INFO'}, f"Successfully imported {len(graph.nodes)} nodes from {settings['import_type']}")
-        
+
         return {'FINISHED'}
 
 
