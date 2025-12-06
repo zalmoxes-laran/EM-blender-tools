@@ -621,8 +621,14 @@ class EM_listitem_OT_to3D(Operator):
         from ..operators.addon_prefix_helpers import node_name_to_proxy_name
 
         scene = context.scene
-        item_name_picker_cmd = "scene."+self.list_type+"[scene."+self.list_type+"_index]"
-        item = eval(item_name_picker_cmd)
+
+        # ✅ Map legacy list_type to new em_tools paths
+        if self.list_type == "em_list":
+            item = scene.em_tools.stratigraphy.units[scene.em_tools.stratigraphy.units_index]
+        else:
+            # Fallback for other list types (if any)
+            item_name_picker_cmd = "scene."+self.list_type+"[scene."+self.list_type+"_index]"
+            item = eval(item_name_picker_cmd)
 
         # ✅ Ottieni il grafo attivo
         graph_exists, graph = check_graph(context)
