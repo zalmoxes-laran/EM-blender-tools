@@ -452,7 +452,12 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         1. Match esatto (edge_type == socket.name)
         2. Match case-insensitive
         3. Match parziale con keywords
-        4. Fallback al primo socket disponibile
+        4. Fallback al socket 'generic_connection' (se disponibile)
+        5. Ultimo resort: primo socket disponibile (con warning)
+
+        Il socket 'generic_connection' è definito in s3dgraphy come connessione
+        universale (Node → Node) e viene usato quando il tipo di edge specifico
+        non è supportato dal nodo secondo le regole del datamodel.
         """
         source_node = node_map[source_id]
         target_node = node_map[target_id]
@@ -503,19 +508,44 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                     target_socket = input_socket
                     break
 
-        # ✅ 4. Fallback (ultimo resort)
-        if not source_socket and len(source_node.outputs) > 0:
-            # Debug: stampa warning se dobbiamo usare fallback
-            if edge_type:
-                print(f"   ⚠️  No matching output socket for '{edge_type}' on {source_node.bl_label}")
-                print(f"       Available outputs: {[s.name for s in source_node.outputs]}")
-            source_socket = source_node.outputs[0]
+        # ✅ 4. Fallback to 'generic_connection' socket
+        if not source_socket:
+            # Try to find 'generic_connection' socket
+            for output in source_node.outputs:
+                if output.name == 'generic_connection':
+                    source_socket = output
+                    if edge_type:
+                        print(f"   ⚠️  No matching output socket for '{edge_type}' on {source_node.bl_label}")
+                        print(f"       Using 'generic_connection' fallback socket")
+                        print(f"       Available outputs: {[s.name for s in source_node.outputs]}")
+                    break
 
-        if not target_socket and len(target_node.inputs) > 0:
-            if edge_type:
-                print(f"   ⚠️  No matching input socket for '{edge_type}' on {target_node.bl_label}")
-                print(f"       Available inputs: {[s.name for s in target_node.inputs]}")
-            target_socket = target_node.inputs[0]
+            # If no generic_connection socket, use first available (last resort)
+            if not source_socket and len(source_node.outputs) > 0:
+                if edge_type:
+                    print(f"   ⚠️  No matching output socket for '{edge_type}' on {source_node.bl_label}")
+                    print(f"       No 'generic_connection' socket found, using first available")
+                    print(f"       Available outputs: {[s.name for s in source_node.outputs]}")
+                source_socket = source_node.outputs[0]
+
+        if not target_socket:
+            # Try to find 'generic_connection' socket
+            for input_socket in target_node.inputs:
+                if input_socket.name == 'generic_connection':
+                    target_socket = input_socket
+                    if edge_type:
+                        print(f"   ⚠️  No matching input socket for '{edge_type}' on {target_node.bl_label}")
+                        print(f"       Using 'generic_connection' fallback socket")
+                        print(f"       Available inputs: {[s.name for s in target_node.inputs]}")
+                    break
+
+            # If no generic_connection socket, use first available (last resort)
+            if not target_socket and len(target_node.inputs) > 0:
+                if edge_type:
+                    print(f"   ⚠️  No matching input socket for '{edge_type}' on {target_node.bl_label}")
+                    print(f"       No 'generic_connection' socket found, using first available")
+                    print(f"       Available inputs: {[s.name for s in target_node.inputs]}")
+                target_socket = target_node.inputs[0]
 
         # Crea il link
         if source_socket and target_socket:

@@ -303,35 +303,69 @@ class EMTOOLS_OT_open_original_doc(Operator):
     bl_label = "Open original"
     bl_description = "Opens the original document using the path stored in the index"
     bl_options = {'REGISTER'}
-    
+
     doc_key: bpy.props.StringProperty() # type: ignore
 
     def execute(self, context):
         if not self.doc_key:
             return {'CANCELLED'}
-        
+
         # Ottieni percorso originale dall'indice
         from .thumb_utils import get_src_path_from_doc_key
         src_path = get_src_path_from_doc_key(self.doc_key)
-        
+
         if not src_path or not os.path.exists(src_path):
             self.report({'ERROR'}, "Original file not found")
             return {'CANCELLED'}
-        
+
         try:
             # Apri con applicazione predefinita del sistema
             if os.name == 'nt':  # Windows
                 os.startfile(src_path)
             elif os.name == 'posix':  # macOS e Linux
-                subprocess.call(['open', src_path] if os.uname().sysname == 'Darwin' 
+                subprocess.call(['open', src_path] if os.uname().sysname == 'Darwin'
                               else ['xdg-open', src_path])
-            
+
             self.report({'INFO'}, f"Aperto: {os.path.basename(src_path)}")
-            
+
         except Exception as e:
             self.report({'ERROR'}, f"Errore aprendo file: {e}")
             return {'CANCELLED'}
-        
+
+        return {'FINISHED'}
+
+
+class EMTOOLS_OT_debug_thumbs_check(Operator):
+    """Run detailed diagnostic check for thumbnails detection"""
+    bl_idname = "emtools.debug_thumbs_check"
+    bl_label = "Debug Thumbnails Check"
+    bl_description = "Runs a detailed diagnostic to understand why thumbnails are not detected"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        from .thumb_utils import has_doc_thumbs
+
+        print("\n" + "="*60)
+        print("THUMBNAILS DIAGNOSTIC CHECK")
+        print("="*60)
+
+        # Esegui il check con verbose=True per stampare tutti i dettagli
+        result = has_doc_thumbs(verbose=True)
+
+        print("="*60)
+        if result:
+            print("✓ Thumbnails detected successfully")
+            self.report({'INFO'}, "Thumbnails detected! Check console for details.")
+        else:
+            print("✗ Thumbnails NOT detected - see details above")
+            self.report({'WARNING'}, "Thumbnails not detected. Check console for detailed diagnostics.")
+        print("="*60 + "\n")
+
+        # Forza refresh della UI
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                area.tag_redraw()
+
         return {'FINISHED'}
 
 
@@ -341,6 +375,7 @@ classes = [
     EMTOOLS_OT_open_doc_thumbs_folder,
     EMTOOLS_OT_select_doc_from_thumb,
     EMTOOLS_OT_open_original_doc,
+    EMTOOLS_OT_debug_thumbs_check,
 ]
 
 def register():

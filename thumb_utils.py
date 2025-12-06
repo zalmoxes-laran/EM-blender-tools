@@ -325,74 +325,118 @@ def create_placeholder_thumb(thumb_path: Path, text: str, size: Tuple[int, int] 
         return False
 
 
-def has_doc_thumbs() -> bool:
+def has_doc_thumbs(verbose: bool = False) -> bool:
     """
-    Verifica se esistono thumbnails disponibili per la resource_folder corrente.
+    Verifica se esistono thumbnails disponibili per QUALSIASI file ausiliario del GraphML attivo.
     Controlla:
-    1. Se c'è un file ausiliario attivo con resource_folder configurata
-    2. Se esiste la cartella thumbs per quella resource_folder
-    3. Se l'indice contiene almeno una thumbnail
-    
+    1. Se c'è un GraphML caricato
+    2. Se esiste almeno un file ausiliario con resource_folder configurata
+    3. Se esiste la cartella thumbs per quella resource_folder
+    4. Se l'indice contiene almeno una thumbnail
+
+    ✅ MIGLIORAMENTO: Cerca in TUTTI i file ausiliari, non solo quello "attivo" in EM Setup
+
+    Args:
+        verbose: Se True, stampa messaggi di debug dettagliati (default: False)
+
     Returns:
         bool: True se ci sono thumbs disponibili, False altrimenti
     """
     try:
         scene = bpy.context.scene
         em_tools = scene.em_tools
-        
+
         # Controlla se c'è un GraphML caricato
         if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            if verbose:
+                print(f"⚠️ has_doc_thumbs: No GraphML loaded")
             return False
-        
+
         graphml = em_tools.graphml_files[em_tools.active_file_index]
-        
-        # Controlla se c'è un file ausiliario attivo
-        if not graphml.auxiliary_files or graphml.active_auxiliary_index < 0:
-            return False
-        
-        aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
-        
-        # Controlla se la resource_folder è configurata
-        if not aux_file.resource_folder:
-            print(f"⚠️ has_doc_thumbs: No resource_folder configured")
+
+        # Controlla se ci sono file ausiliari
+        if not graphml.auxiliary_files or len(graphml.auxiliary_files) == 0:
+            if verbose:
+                print(f"⚠️ has_doc_thumbs: No auxiliary files configured")
             return False
 
-        # ✅ FIXED: Passa il path RAW a em_thumbs_root (non quello risolto)
-        # perché em_thumbs_root fa l'hash basandosi sul path originale
-        resource_folder_raw = aux_file.resource_folder
+        # ✅ NUOVO: Cerca in TUTTI i file ausiliari, non solo quello attivo
+        # Questo permette di rilevare thumbs anche se l'utente non ha selezionato
+        # esplicitamente un file ausiliario in EM Setup
+        if verbose:
+            print(f"🔍 has_doc_thumbs: Checking {len(graphml.auxiliary_files)} auxiliary files...")
 
-        # Verifica che il path risolto esista (ma usa il RAW per calcolare thumbs_root)
-        resource_folder_resolved = resolve_resource_folder(resource_folder_raw)
+        for aux_index, aux_file in enumerate(graphml.auxiliary_files):
+            # Salta se questo aux non ha resource_folder
+            if not aux_file.resource_folder:
+                if verbose:
+                    print(f"  [{aux_index}] {aux_file.name}: No resource_folder - skipping")
+                continue
 
-        if not resource_folder_resolved or not os.path.exists(resource_folder_resolved):
-            return False
+            # ✅ FIXED: Passa il path RAW a em_thumbs_root (non quello risolto)
+            # perché em_thumbs_root fa l'hash basandosi sul path originale
+            resource_folder_raw = aux_file.resource_folder
 
-        # Calcola thumbs_root usando il path RAW (come fa il generatore)
-        thumbs_root = em_thumbs_root(resource_folder_raw)
+            # Verifica che il path risolto esista (ma usa il RAW per calcolare thumbs_root)
+            resource_folder_resolved = resolve_resource_folder(resource_folder_raw, verbose=False)  # Non verbose qui per non spammare
 
-        # Carica l'indice
-        index_data = load_index_json(thumbs_root)
+            if not resource_folder_resolved or not os.path.exists(resource_folder_resolved):
+                if verbose:
+                    print(f"  [{aux_index}] {aux_file.name}: Cannot resolve path '{resource_folder_raw}' - skipping")
+                continue
 
-        # Controlla se ci sono items nell'indice
-        items = index_data.get("items", {})
+            # Calcola thumbs_root usando il path RAW (come fa il generatore)
+            thumbs_root = em_thumbs_root(resource_folder_raw)
 
-        if not items:
-            return False
-        
-        # Verifica che almeno una thumbnail esista fisicamente
-        for doc_key, item_data in items.items():
-            thumb_rel_path = item_data.get("thumb", "")
-            if thumb_rel_path:
-                thumb_abs_path = thumbs_root / thumb_rel_path
-                if thumb_abs_path.exists():
-                    return True
-        
+            if verbose:
+                print(f"  [{aux_index}] {aux_file.name}: Checking thumbs in {thumbs_root}")
+
+            # Verifica che la cartella thumbs esista
+            if not thumbs_root.exists():
+                if verbose:
+                    print(f"  [{aux_index}] {aux_file.name}: Thumbs folder does not exist - skipping")
+                continue
+
+            # Carica l'indice
+            index_data = load_index_json(thumbs_root)
+
+            # Controlla se ci sono items nell'indice
+            items = index_data.get("items", {})
+
+            if not items:
+                if verbose:
+                    print(f"  [{aux_index}] {aux_file.name}: Index is empty - skipping")
+                continue
+
+            # Verifica che almeno una thumbnail esista fisicamente
+            valid_thumbs_count = 0
+            for doc_key, item_data in items.items():
+                thumb_rel_path = item_data.get("thumb", "")
+                if thumb_rel_path:
+                    thumb_abs_path = thumbs_root / thumb_rel_path
+                    if thumb_abs_path.exists():
+                        valid_thumbs_count += 1
+
+            if valid_thumbs_count == 0:
+                if verbose:
+                    print(f"  [{aux_index}] {aux_file.name}: No valid thumbnails (index has {len(items)} items but none exist on disk) - skipping")
+                continue
+
+            # ✅ TROVATO! Almeno un aux file ha thumbs valide
+            if verbose:
+                print(f"  ✓ [{aux_index}] {aux_file.name}: Found {valid_thumbs_count} valid thumbnails!")
+            return True
+
+        # Nessun file ausiliario ha thumbs valide
+        if verbose:
+            print(f"⚠️ has_doc_thumbs: No valid thumbnails found in any auxiliary file")
         return False
-        
+
     except Exception as e:
-        print(f"Errore in has_doc_thumbs(): {e}")
-        import traceback
-        traceback.print_exc()
+        if verbose:
+            print(f"❌ Error in has_doc_thumbs(): {e}")
+            import traceback
+            traceback.print_exc()
         return False
 
 
@@ -407,9 +451,10 @@ _last_resource_folder = None
 
 def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int, int]]:
     """
-    Carica preview filtrate per una specifica US.
+    Carica preview filtrate per una specifica US cercando in TUTTI i file ausiliari.
     IMPORTANTE: Usa il thumbs_root corretto basato sulla resource_folder.
     ✅ CON CACHE per evitare loop infiniti
+    ✅ MIGLIORAMENTO: Cerca in TUTTI i file ausiliari, non solo quello "attivo"
     """
     global preview_collections, _cached_us_thumbs, _last_us_id, _last_resource_folder
 
@@ -426,141 +471,179 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
 
         graphml = em_tools.graphml_files[em_tools.active_file_index]
 
-        # Verifica che ci sia un file ausiliario attivo con resource_folder
-        if not graphml.auxiliary_files or graphml.active_auxiliary_index < 0:
+        # Verifica che ci siano file ausiliari
+        if not graphml.auxiliary_files or len(graphml.auxiliary_files) == 0:
             return []
 
-        aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
-
-        if not aux_file.resource_folder:
-            return []
-
-        # ✅ FIXED: Mantieni il path RAW per consistenza hash
-        resource_folder_raw = aux_file.resource_folder
-
-        # ✅ Usa verbose=True solo se stiamo caricando per la prima volta (non in cache)
-        cache_key_temp = f"{us_node_id}_{resource_folder_raw}"
-        is_first_load = cache_key_temp not in _cached_us_thumbs
-        resource_folder_resolved = resolve_resource_folder(resource_folder_raw, verbose=is_first_load)
-
-        if not resource_folder_resolved or not os.path.exists(resource_folder_resolved):
-            return []
-
-        # ✅ CACHE CHECK: Se US e resource_folder non sono cambiati, restituisci cache
-        cache_key = f"{us_node_id}_{resource_folder_raw}"
-        if cache_key in _cached_us_thumbs:
-            return _cached_us_thumbs[cache_key]
-
-        # ✅ FIXED: Usa il path RAW per calcolare thumbs_root (per consistenza hash)
-        thumbs_root = em_thumbs_root(resource_folder_raw)
-        resource_folder = resource_folder_resolved  # Usa il risolto per operazioni file
-
-        # Ottieni il grafo
-        from s3dgraphy import get_graph
-        graph = get_graph(graphml.name)
-
-        if not graph:
-            return []
-
-        # Trova DocumentNode collegati a questa US
-        us_document_ids = set()
-        for edge in graph.edges:
-            if edge.edge_source == us_node_id and edge.edge_type == "generic_connection":
-                us_document_ids.add(edge.edge_target)
-
-        if not us_document_ids:
-            # Nessun documento, salva lista vuota in cache
-            _cached_us_thumbs[cache_key] = []
-            return []
-        
-        # Inizializza preview collection se necessario
-        if "doc_previews" not in preview_collections:
-            pcoll = bpy.utils.previews.new()
-            preview_collections["doc_previews"] = pcoll
-        else:
-            pcoll = preview_collections["doc_previews"]
-        
-        # Carica indice
-        index_data = load_index_json(thumbs_root)
-        
-        enum_items = []
-        i = 0
-
-        # Per ogni DocumentNode dell'US, cerca la sua thumbnail
-        for doc_id in us_document_ids:
-            doc_node = graph.find_node_by_id(doc_id)
-            if not doc_node:
+        # ✅ NUOVO: Cerca in TUTTI i file ausiliari finché non trovi thumbs valide
+        # Questo permette di vedere thumbs indipendentemente da quale aux file è "attivo" in EM Setup
+        for aux_file in graphml.auxiliary_files:
+            # Salta se questo aux non ha resource_folder
+            if not aux_file.resource_folder:
                 continue
 
-            # Trova LinkNode collegati a questo DocumentNode
-            link_edges = [e for e in graph.edges if e.edge_source == doc_id and e.edge_type == "has_linked_resource"]
+            # ✅ FIXED: Mantieni il path RAW per consistenza hash
+            resource_folder_raw = aux_file.resource_folder
 
-            for edge in link_edges:
-                link_node = graph.find_node_by_id(edge.edge_target)
+            # ✅ CACHE CHECK: Se US e resource_folder non sono cambiati, restituisci cache
+            cache_key = f"{us_node_id}_{resource_folder_raw}"
+            if cache_key in _cached_us_thumbs:
+                cached_result = _cached_us_thumbs[cache_key]
+                # Ritorna solo se la cache contiene effettivamente thumbs
+                if cached_result:
+                    return cached_result
+                else:
+                    # Cache vuota, prova il prossimo aux file
+                    continue
 
-                if link_node and hasattr(link_node, 'node_type') and link_node.node_type.lower() == 'link':
-                    file_url = ''
-                    if hasattr(link_node, 'data') and isinstance(link_node.data, dict):
-                        file_url = link_node.data.get('url', '')
+            # Risolvi il path
+            resource_folder_resolved = resolve_resource_folder(resource_folder_raw, verbose=False)
 
-                    if not file_url:
-                        continue
+            if not resource_folder_resolved or not os.path.exists(resource_folder_resolved):
+                # Path non valido, salva cache vuota e prova il prossimo
+                _cached_us_thumbs[cache_key] = []
+                continue
 
-                    # Risoluzione path
-                    if os.path.isabs(file_url):
-                        file_path = file_url
-                    else:
-                        file_path = os.path.join(resource_folder, file_url)
-                        file_path = os.path.normpath(file_path)
+            # ✅ FIXED: Usa il path RAW per calcolare thumbs_root (per consistenza hash)
+            thumbs_root = em_thumbs_root(resource_folder_raw)
+            resource_folder = resource_folder_resolved  # Usa il risolto per operazioni file
 
-                    if not os.path.exists(file_path):
-                        continue
+            # Verifica che la cartella thumbs esista
+            if not thumbs_root.exists():
+                _cached_us_thumbs[cache_key] = []
+                continue
 
-                    # Calcola hash
-                    file_hash = get_file_hash(file_path)
-                    doc_key = f"doc_{file_hash}"
+            # ✅ Ottieni il grafo (solo una volta, fuori dal loop aux)
+            from s3dgraphy import get_graph
+            graph = get_graph(graphml.name)
 
-                    # Cerca nell'indice
-                    if doc_key not in index_data.get("items", {}):
-                        continue
+            if not graph:
+                _cached_us_thumbs[cache_key] = []
+                continue
 
-                    item_data = index_data["items"][doc_key]
-                    thumb_rel_path = item_data.get("thumb", "")
+            # Trova DocumentNode collegati a questa US
+            # ✅ FIXED: Usa has_documentation (corretto) invece di generic_connection
+            # Supporta entrambe le direzioni per retrocompatibilità:
+            # - CORRETTO:  US → DocumentNode (has_documentation)
+            # - LEGACY:    DocumentNode → US (direzione sbagliata, usata in vecchi import)
+            us_document_ids = set()
+            for edge in graph.edges:
+                # ✅ Direzione CORRETTA secondo s3dgraphy datamodel
+                if edge.edge_source == us_node_id and edge.edge_type == "has_documentation":
+                    us_document_ids.add(edge.edge_target)
+                # ⚠️  Fallback per direzione INVERSA (retrocompatibilità)
+                elif edge.edge_target == us_node_id and edge.edge_type == "has_documentation":
+                    us_document_ids.add(edge.edge_source)
+                # ⚠️  Fallback per generic_connection (vecchio sistema)
+                elif edge.edge_source == us_node_id and edge.edge_type == "generic_connection":
+                    # Verifica che il target sia effettivamente un DocumentNode
+                    target_node = graph.find_node_by_id(edge.edge_target)
+                    if target_node and hasattr(target_node, 'node_type') and 'document' in target_node.node_type.lower():
+                        us_document_ids.add(edge.edge_target)
+                elif edge.edge_target == us_node_id and edge.edge_type == "generic_connection":
+                    # Verifica che il source sia effettivamente un DocumentNode
+                    source_node = graph.find_node_by_id(edge.edge_source)
+                    if source_node and hasattr(source_node, 'node_type') and 'document' in source_node.node_type.lower():
+                        us_document_ids.add(edge.edge_source)
 
-                    if not thumb_rel_path:
-                        continue
+            if not us_document_ids:
+                # Nessun documento per questa US, salva cache vuota e prova il prossimo aux
+                _cached_us_thumbs[cache_key] = []
+                continue
 
-                    thumb_abs_path = thumbs_root / thumb_rel_path
+            # Inizializza preview collection se necessario
+            if "doc_previews" not in preview_collections:
+                pcoll = bpy.utils.previews.new()
+                preview_collections["doc_previews"] = pcoll
+            else:
+                pcoll = preview_collections["doc_previews"]
 
-                    if thumb_abs_path.exists():
-                        try:
-                            if doc_key not in pcoll:
-                                thumb = pcoll.load(doc_key, str(thumb_abs_path), 'IMAGE')
-                                icon_id = thumb.icon_id
-                            else:
-                                icon_id = pcoll[doc_key].icon_id
+            # Carica indice
+            index_data = load_index_json(thumbs_root)
 
-                            # ✅ FIX: Usa il path assoluto calcolato invece del relativo dall'index
-                            # file_path è già il path assoluto calcolato alle linee 578-582
-                            src_path_abs = file_path
-                            doc_name = os.path.basename(file_path)
+            enum_items = []
+            i = 0
 
-                            enum_items.append((
-                                doc_key,        # identifier
-                                doc_name,       # name
-                                src_path_abs,   # description (absolute path)
-                                icon_id,        # icon
-                                i               # number
-                            ))
-                            i += 1
+            # Per ogni DocumentNode dell'US, cerca la sua thumbnail
+            for doc_id in us_document_ids:
+                doc_node = graph.find_node_by_id(doc_id)
+                if not doc_node:
+                    continue
 
-                        except Exception as e:
-                            print(f"❌ Error loading thumbnail: {e}")
-        
-        # ✅ SALVA IN CACHE
-        _cached_us_thumbs[cache_key] = enum_items
-        
-        return enum_items
+                # Trova LinkNode collegati a questo DocumentNode
+                link_edges = [e for e in graph.edges if e.edge_source == doc_id and e.edge_type == "has_linked_resource"]
+
+                for edge in link_edges:
+                    link_node = graph.find_node_by_id(edge.edge_target)
+
+                    if link_node and hasattr(link_node, 'node_type') and link_node.node_type.lower() == 'link':
+                        file_url = ''
+                        if hasattr(link_node, 'data') and isinstance(link_node.data, dict):
+                            file_url = link_node.data.get('url', '')
+
+                        if not file_url:
+                            continue
+
+                        # Risoluzione path
+                        if os.path.isabs(file_url):
+                            file_path = file_url
+                        else:
+                            file_path = os.path.join(resource_folder, file_url)
+                            file_path = os.path.normpath(file_path)
+
+                        if not os.path.exists(file_path):
+                            continue
+
+                        # Calcola hash
+                        file_hash = get_file_hash(file_path)
+                        doc_key = f"doc_{file_hash}"
+
+                        # Cerca nell'indice
+                        if doc_key not in index_data.get("items", {}):
+                            continue
+
+                        item_data = index_data["items"][doc_key]
+                        thumb_rel_path = item_data.get("thumb", "")
+
+                        if not thumb_rel_path:
+                            continue
+
+                        thumb_abs_path = thumbs_root / thumb_rel_path
+
+                        if thumb_abs_path.exists():
+                            try:
+                                if doc_key not in pcoll:
+                                    thumb = pcoll.load(doc_key, str(thumb_abs_path), 'IMAGE')
+                                    icon_id = thumb.icon_id
+                                else:
+                                    icon_id = pcoll[doc_key].icon_id
+
+                                # ✅ FIX: Usa il path assoluto calcolato invece del relativo dall'index
+                                src_path_abs = file_path
+                                doc_name = os.path.basename(file_path)
+
+                                enum_items.append((
+                                    doc_key,        # identifier
+                                    doc_name,       # name
+                                    src_path_abs,   # description (absolute path)
+                                    icon_id,        # icon
+                                    i               # number
+                                ))
+                                i += 1
+
+                            except Exception as e:
+                                print(f"❌ Error loading thumbnail: {e}")
+
+            # ✅ SALVA IN CACHE
+            _cached_us_thumbs[cache_key] = enum_items
+
+            # ✅ Se abbiamo trovato thumbs, ritorna subito
+            # Altrimenti continua a cercare negli altri aux files
+            if enum_items:
+                return enum_items
+
+        # ✅ Nessun aux file ha prodotto thumbs valide
+        return []
         
     except Exception as e:
         print(f"Errore in reload_doc_previews_for_us: {e}")
@@ -594,18 +677,19 @@ def force_reload_thumbs_cache():
     """
     Forza il ricaricamento della cache thumbnails per l'US attualmente selezionata.
     Da usare quando i DocumentNode sono stati modificati o aggiunti.
+    ✅ PORTED: Usa scene.em_tools.stratigraphy invece di scene.em_stratigraphy_manager
     """
     try:
         import bpy
         scene = bpy.context.scene
         em_tools = scene.em_tools
-        strat = scene.em_stratigraphy_manager
+        strat = em_tools.stratigraphy  # ✅ NEW: Usa il path centralizzato
 
-        if not strat.stratigraphic_units or strat.active_us_index < 0:
+        if not strat.units or strat.units_index < 0:
             print("⚠️ Nessuna US selezionata")
             return False
 
-        selected_us = strat.stratigraphic_units[strat.active_us_index]
+        selected_us = strat.units[strat.units_index]
 
         # Pulisci la cache per questa US
         global _cached_us_thumbs
@@ -618,6 +702,8 @@ def force_reload_thumbs_cache():
 
     except Exception as e:
         print(f"❌ Errore durante pulizia cache: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 

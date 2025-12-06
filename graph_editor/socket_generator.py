@@ -146,6 +146,17 @@ def build_node_type_family_map(nodes_datamodel: Dict) -> Dict[str, str]:
         'RepresentationModelSpecialFindNode': 'RepresentationModelSpecialFindNode',
         'SemanticShapeNode': 'SemanticShapeNode',
         'UnknownNode': 'StratigraphicNode',  # Fallback
+
+        # ✅ FIXED: Mappature lowercase → PascalCase (s3dgraphy usa lowercase nei node_type)
+        'document': 'DocumentNode',
+        'property': 'PropertyNode',
+        'extractor': 'ExtractorNode',
+        'combiner': 'CombinerNode',
+        'link': 'LinkNode',
+        'geo_position': 'GeoPositionNode',
+        'geoposition': 'GeoPositionNode',
+        'author': 'AuthorNode',
+        'epoch': 'EpochNode',
     }
 
     type_family_map.update(special_mappings)
@@ -199,6 +210,15 @@ def build_socket_map(connections_datamodel: Dict, type_family_map: Dict[str, str
         return {}
 
     socket_map = {}
+
+    # ✅ FIXED: Pre-popola con 'generic_connection' per tutti i tipi possibili
+    # Questo garantisce che TUTTI i nodi abbiano almeno generic_connection come fallback
+    all_node_families = set(type_family_map.values())
+    for family in all_node_families:
+        socket_map[family] = {
+            'inputs': ['generic_connection'],
+            'outputs': ['generic_connection']
+        }
 
     edge_types = connections_datamodel['edge_types']
 

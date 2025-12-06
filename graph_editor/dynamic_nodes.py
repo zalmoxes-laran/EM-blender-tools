@@ -102,7 +102,25 @@ def get_all_node_types_from_datamodel(nodes_datamodel: Dict) -> List[Dict]:
                         }
                         all_types.append(subnode_info)
 
-    print(f"\n✅ Extracted {len(all_types)} node types from datamodel")
+    # ✅ FIXED: Aggiungi versioni lowercase per i paradata nodes
+    # s3dgraphy usa node_type='document' (lowercase) nei grafi
+    lowercase_mappings = [
+        {'type': 'document', 'parent': 'ParadataNode', 'label': 'Document',
+         'description': 'Document node (lowercase variant)', 'class_name': 'DocumentNode', 'icon': 'FILE_TEXT'},
+        {'type': 'property', 'parent': 'ParadataNode', 'label': 'Property',
+         'description': 'Property node (lowercase variant)', 'class_name': 'PropertyNode', 'icon': 'PROPERTIES'},
+        {'type': 'extractor', 'parent': 'ParadataNode', 'label': 'Extractor',
+         'description': 'Extractor node (lowercase variant)', 'class_name': 'ExtractorNode', 'icon': 'TRACKING'},
+        {'type': 'combiner', 'parent': 'ParadataNode', 'label': 'Combiner',
+         'description': 'Combiner node (lowercase variant)', 'class_name': 'CombinerNode', 'icon': 'LINK_BLEND'},
+        {'type': 'link', 'parent': 'ReferenceNode', 'label': 'Link',
+         'description': 'Link node (lowercase variant)', 'class_name': 'LinkNode', 'icon': 'LINKED'},
+        {'type': 'geo_position', 'parent': 'ReferenceNode', 'label': 'Geo Position',
+         'description': 'Geo position node (lowercase variant)', 'class_name': 'GeoPositionNode', 'icon': 'WORLD'},
+    ]
+    all_types.extend(lowercase_mappings)
+
+    print(f"\n✅ Extracted {len(all_types)} node types from datamodel (including lowercase variants)")
     return all_types
 
 
@@ -140,9 +158,10 @@ def create_node_class(node_info: Dict, base_class: Type = EMGraphNodeBase) -> Ty
 
     def init(self, context):
         """Initialize node with sockets from datamodel"""
-        # Generate sockets based on parent type
-        parent = node_info['parent']
-        generate_sockets(self, parent)
+        # ✅ FIXED: Generate sockets based on node_type, not parent
+        # This ensures EpochNode gets 'has_first_epoch' input socket
+        node_type = node_info['type']
+        generate_sockets(self, node_type)
 
         # Set custom color if available
         if color:
@@ -322,8 +341,9 @@ def validate_graph_edges(graph, connections_datamodel: Dict, nodes_datamodel: Di
         total_edges += 1
 
         # Get node types
-        source_node = graph.find_node_by_id(edge.source)
-        target_node = graph.find_node_by_id(edge.target)
+        # ✅ FIXED: Edge objects use edge_source/edge_target, not source/target
+        source_node = graph.find_node_by_id(edge.edge_source)
+        target_node = graph.find_node_by_id(edge.edge_target)
 
         if not source_node or not target_node:
             continue
