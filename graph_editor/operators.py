@@ -449,8 +449,13 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         """
         Crea un collegamento tra nodi con matching migliorato dei socket.
 
+        v1.5.3: Socket naming convention:
+        - Output sockets use CANONICAL edge names (e.g., "is_after", "cuts")
+        - Input sockets use REVERSE edge names (e.g., "is_before", "is_cut_by")
+        - Symmetric edges use the same name for both (e.g., "has_same_time")
+
         Priorità di matching:
-        1. Match esatto (edge_type == socket.name)
+        1. Match esatto con canonical/reverse awareness (v1.5.3)
         2. Match case-insensitive
         3. Match parziale con keywords
         4. Fallback al socket 'generic_connection' (se disponibile)
@@ -460,50 +465,82 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         universale (Node → Node) e viene usato quando il tipo di edge specifico
         non è supportato dal nodo secondo le regole del datamodel.
         """
+        from s3dgraphy.edges import get_connections_datamodel
+
         source_node = node_map[source_id]
         target_node = node_map[target_id]
 
         source_socket = None
         target_socket = None
 
-        # ✅ 1. Match ESATTO (priorità massima)
+        # ✅ Get datamodel to resolve canonical/reverse names
+        dm = get_connections_datamodel()
+
+        # ✅ Determine the correct socket names for v1.5.3
+        # Output socket should use canonical name
+        # Input socket should use reverse name (if directional)
+
+        output_socket_name = edge_type  # Default
+        input_socket_name = edge_type   # Default
+
+        if dm.edge_exists(edge_type):
+            # Check if symmetric
+            if dm.is_symmetric(edge_type):
+                # Symmetric: use same name for both
+                output_socket_name = edge_type
+                input_socket_name = edge_type
+            else:
+                # Directional: output uses canonical, input uses reverse
+                if dm.is_canonical(edge_type):
+                    # edge_type is canonical
+                    output_socket_name = edge_type
+                    reverse_name = dm.get_reverse_name(edge_type)
+                    input_socket_name = reverse_name if reverse_name else edge_type
+                else:
+                    # edge_type is reverse, need to get canonical for output
+                    edge_def = dm.get_edge_definition(edge_type)
+                    canonical_name = edge_def.get('canonical_name') if edge_def else edge_type
+                    output_socket_name = canonical_name
+                    input_socket_name = edge_type
+
+        # ✅ 1. Match ESATTO con v1.5.3 canonical/reverse awareness
         for output in source_node.outputs:
-            if output.name == edge_type:
+            if output.name == output_socket_name:
                 source_socket = output
                 break
 
         for input_socket in target_node.inputs:
-            if input_socket.name == edge_type:
+            if input_socket.name == input_socket_name:
                 target_socket = input_socket
                 break
 
-        # ✅ 2. Match case-insensitive
+        # ✅ 2. Match case-insensitive (with v1.5.3 socket names)
         if not source_socket:
-            edge_type_lower = edge_type.lower() if edge_type else 'connection'
+            socket_name_lower = output_socket_name.lower() if output_socket_name else 'connection'
             for output in source_node.outputs:
-                if output.name.lower() == edge_type_lower:
+                if output.name.lower() == socket_name_lower:
                     source_socket = output
                     break
 
         if not target_socket:
-            edge_type_lower = edge_type.lower() if edge_type else 'connection'
+            socket_name_lower = input_socket_name.lower() if input_socket_name else 'connection'
             for input_socket in target_node.inputs:
-                if input_socket.name.lower() == edge_type_lower:
+                if input_socket.name.lower() == socket_name_lower:
                     target_socket = input_socket
                     break
 
-        # ✅ 3. Match parziale (keywords)
+        # ✅ 3. Match parziale (keywords) - with v1.5.3 socket names
         if not source_socket:
-            edge_type_lower = edge_type.lower() if edge_type else 'connection'
-            keywords = edge_type_lower.replace('_', ' ').split()
+            socket_name_lower = output_socket_name.lower() if output_socket_name else 'connection'
+            keywords = socket_name_lower.replace('_', ' ').split()
             for output in source_node.outputs:
                 if all(kw in output.name.lower() for kw in keywords):
                     source_socket = output
                     break
 
         if not target_socket:
-            edge_type_lower = edge_type.lower() if edge_type else 'connection'
-            keywords = edge_type_lower.replace('_', ' ').split()
+            socket_name_lower = input_socket_name.lower() if input_socket_name else 'connection'
+            keywords = socket_name_lower.replace('_', ' ').split()
             for input_socket in target_node.inputs:
                 if all(kw in input_socket.name.lower() for kw in keywords):
                     target_socket = input_socket
@@ -516,7 +553,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                 if output.name == 'generic_connection':
                     source_socket = output
                     if edge_type:
-                        print(f"   ⚠️  No matching output socket for '{edge_type}' on {source_node.bl_label}")
+                        print(f"   ⚠️  No matching output socket for '{output_socket_name}' (edge: '{edge_type}') on {source_node.bl_label}")
                         print(f"       Using 'generic_connection' fallback socket")
                         print(f"       Available outputs: {[s.name for s in source_node.outputs]}")
                     break
@@ -524,7 +561,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             # If no generic_connection socket, use first available (last resort)
             if not source_socket and len(source_node.outputs) > 0:
                 if edge_type:
-                    print(f"   ⚠️  No matching output socket for '{edge_type}' on {source_node.bl_label}")
+                    print(f"   ⚠️  No matching output socket for '{output_socket_name}' (edge: '{edge_type}') on {source_node.bl_label}")
                     print(f"       No 'generic_connection' socket found, using first available")
                     print(f"       Available outputs: {[s.name for s in source_node.outputs]}")
                 source_socket = source_node.outputs[0]
@@ -535,7 +572,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                 if input_socket.name == 'generic_connection':
                     target_socket = input_socket
                     if edge_type:
-                        print(f"   ⚠️  No matching input socket for '{edge_type}' on {target_node.bl_label}")
+                        print(f"   ⚠️  No matching input socket for '{input_socket_name}' (edge: '{edge_type}') on {target_node.bl_label}")
                         print(f"       Using 'generic_connection' fallback socket")
                         print(f"       Available inputs: {[s.name for s in target_node.inputs]}")
                     break
@@ -543,7 +580,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             # If no generic_connection socket, use first available (last resort)
             if not target_socket and len(target_node.inputs) > 0:
                 if edge_type:
-                    print(f"   ⚠️  No matching input socket for '{edge_type}' on {target_node.bl_label}")
+                    print(f"   ⚠️  No matching input socket for '{input_socket_name}' (edge: '{edge_type}') on {target_node.bl_label}")
                     print(f"       No 'generic_connection' socket found, using first available")
                     print(f"       Available inputs: {[s.name for s in target_node.inputs]}")
                 target_socket = target_node.inputs[0]

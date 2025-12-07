@@ -1,7 +1,21 @@
 """
 Socket Generator for Graph Viewer
 Dynamically generates input/output sockets based on s3Dgraphy JSON configuration files.
+
+v1.5.3 UPDATE (2024):
+- Socket labels now use the canonical/reverse pattern from s3dgraphy v1.5.3
+- Output sockets display canonical edge labels (e.g., "Is after", "Cuts")
+- Input sockets display reverse edge labels (e.g., "Is before", "Is cut by")
+- Symmetric edges use the same label for both directions (e.g., "Has same time")
+- This provides clearer semantics in the node editor UI
+
+Migration Notes:
+- Socket names (edge_name) remain unchanged for compatibility
+- Socket labels are now tuple (edge_name, label) instead of just edge_name
+- Backward compatible with existing Blender graphs
 """
+
+__version__ = "1.5.3"  # Aligned with s3dgraphy connections datamodel version
 
 import json
 import os
@@ -251,19 +265,21 @@ def _expand_node_type_recursively(node_type: str, node_hierarchy: Dict[str, Set[
     return result
 
 
-def build_socket_map(connections_datamodel: Dict, type_family_map: Dict[str, str]) -> Dict[str, Dict[str, List[str]]]:
+def build_socket_map(connections_datamodel: Dict, type_family_map: Dict[str, str]) -> Dict[str, Dict[str, List[Tuple[str, str]]]]:
     """
     Costruisce una mappa dei socket richiesti per ogni node_type_family.
+
+    v1.5.3 UPDATE: Ora ritorna tuple (edge_name, label) per supportare canonical/reverse labels.
 
     Struttura ritornata:
     {
         "StratigraphicNode": {
-            "inputs": ["is_after", "is_cut_by", "is_filled_by", ...],
-            "outputs": ["is_before", "cuts", "fills", "has_property", ...]
+            "inputs": [("is_before", "Is before"), ("is_cut_by", "Is cut by"), ...],
+            "outputs": [("is_after", "Is after"), ("cuts", "Cuts"), ...]
         },
         "PropertyNode": {
-            "inputs": ["has_property"],
-            "outputs": ["has_data_provenance", ...]
+            "inputs": [("is_property_of", "Is property of")],
+            "outputs": [("has_data_provenance", "Has data provenance"), ...]
         },
         ...
     }
@@ -274,6 +290,7 @@ def build_socket_map(connections_datamodel: Dict, type_family_map: Dict[str, str
 
     Returns:
         Dict con inputs/outputs per ogni node_type_family
+        Ogni socket è una tuple (edge_name, label)
     """
     if not connections_datamodel or 'edge_types' not in connections_datamodel:
         return {}
@@ -285,8 +302,8 @@ def build_socket_map(connections_datamodel: Dict, type_family_map: Dict[str, str
     all_node_families = set(type_family_map.values())
     for family in all_node_families:
         socket_map[family] = {
-            'inputs': ['generic_connection'],
-            'outputs': ['generic_connection']
+            'inputs': [('generic_connection', 'Generic connection')],
+            'outputs': [('generic_connection', 'Generic connection')]
         }
 
     # ✅ FIXED: Costruisci la gerarchia per espandere i parent ai loro children
@@ -294,9 +311,35 @@ def build_socket_map(connections_datamodel: Dict, type_family_map: Dict[str, str
 
     edge_types = connections_datamodel['edge_types']
 
+    # v1.5.3: Itera solo sui CANONICAL edges (skip reverse edges)
     for edge_type_name, edge_data in edge_types.items():
         if 'allowed_connections' not in edge_data:
             continue
+
+        # Ottieni la label canonica
+        canonical_label = edge_data.get('label', edge_type_name)
+
+        # Determina se l'edge è simmetrico o ha un reverse
+        reverse_data = edge_data.get('reverse')
+        is_symmetric = reverse_data is None
+
+        # Per edge simmetrici, usa la stessa label per input e output
+        # Per edge direzionali, usa canonical per output e reverse per input
+        if is_symmetric:
+            output_label = canonical_label
+            input_label = canonical_label
+            output_edge_name = edge_type_name
+            input_edge_name = edge_type_name
+        else:
+            # Edge direzionale: canonical = output, reverse = input
+            output_label = canonical_label
+            output_edge_name = edge_type_name
+
+            # Reverse label e name
+            reverse_name = reverse_data.get('name', edge_type_name) if reverse_data else edge_type_name
+            reverse_label = reverse_data.get('label', canonical_label) if reverse_data else canonical_label
+            input_label = reverse_label
+            input_edge_name = reverse_name
 
         allowed = edge_data['allowed_connections']
         source_types = allowed.get('source', [])
@@ -311,12 +354,14 @@ def build_socket_map(connections_datamodel: Dict, type_family_map: Dict[str, str
         for source_type in expanded_sources:
             if source_type not in socket_map:
                 socket_map[source_type] = {
-                    'inputs': ['generic_connection'],
-                    'outputs': ['generic_connection']
+                    'inputs': [('generic_connection', 'Generic connection')],
+                    'outputs': [('generic_connection', 'Generic connection')]
                 }
 
-            if edge_type_name not in socket_map[source_type]['outputs']:
-                socket_map[source_type]['outputs'].append(edge_type_name)
+            # Aggiungi output socket con canonical label
+            output_socket = (output_edge_name, output_label)
+            if output_socket not in socket_map[source_type]['outputs']:
+                socket_map[source_type]['outputs'].append(output_socket)
 
         # ✅ FIXED: Espandi RICORSIVAMENTE i target types per includere tutti i sottotipi
         expanded_targets = set()
@@ -327,12 +372,14 @@ def build_socket_map(connections_datamodel: Dict, type_family_map: Dict[str, str
         for target_type in expanded_targets:
             if target_type not in socket_map:
                 socket_map[target_type] = {
-                    'inputs': ['generic_connection'],
-                    'outputs': ['generic_connection']
+                    'inputs': [('generic_connection', 'Generic connection')],
+                    'outputs': [('generic_connection', 'Generic connection')]
                 }
 
-            if edge_type_name not in socket_map[target_type]['inputs']:
-                socket_map[target_type]['inputs'].append(edge_type_name)
+            # Aggiungi input socket con reverse label (se direzionale) o canonical (se simmetrico)
+            input_socket = (input_edge_name, input_label)
+            if input_socket not in socket_map[target_type]['inputs']:
+                socket_map[target_type]['inputs'].append(input_socket)
 
     return socket_map
 
@@ -345,19 +392,22 @@ def generate_sockets_for_node(bl_node, node_type: str, socket_map: Dict, type_fa
     """
     Genera dinamicamente i socket per un nodo Blender basandosi sul suo node_type.
 
+    v1.5.3 UPDATE: Supporta le label canonical/reverse per una migliore UX.
+
     IMPORTANTE: I socket vengono ereditati dalla gerarchia. Se PropertyNode è figlio di
     ParadataNode, eredita TUTTI i socket di ParadataNode E i socket specifici di PropertyNode.
 
     Args:
         bl_node: L'istanza del nodo Blender
         node_type: Il tipo del nodo s3dgraphy (es. "US", "PropertyNode", "EpochNode")
-        socket_map: La mappa costruita da build_socket_map()
+        socket_map: La mappa costruita da build_socket_map() - ora con tuple (edge_name, label)
         type_family_map: La mappa costruita da build_node_type_family_map()
     """
     # Trova la famiglia del nodo
     node_family = get_node_type_family(node_type, type_family_map)
 
     # ✅ Raccogli socket dalla famiglia e dal tipo specifico (se diverso)
+    # v1.5.3: Ora sono tuple (edge_name, label)
     all_inputs = set()
     all_outputs = set()
 
@@ -372,16 +422,22 @@ def generate_sockets_for_node(bl_node, node_type: str, socket_map: Dict, type_fa
         all_outputs.update(socket_map[node_type]['outputs'])
 
     # Crea INPUT sockets
-    for input_socket_name in all_inputs:
-        # Verifica che non esista già
-        if input_socket_name not in [s.name for s in bl_node.inputs]:
-            bl_node.inputs.new('EMGraphSocketType', input_socket_name)
+    # v1.5.3: Ogni socket è una tuple (edge_name, label)
+    for edge_name, label in all_inputs:
+        # Verifica che non esista già (usa edge_name come identificatore unico)
+        if edge_name not in [s.name for s in bl_node.inputs]:
+            socket = bl_node.inputs.new('EMGraphSocketType', edge_name)
+            # Salva l'edge_name nella proprietà edge_type per riferimento futuro
+            socket.edge_type = edge_name
 
     # Crea OUTPUT sockets
-    for output_socket_name in all_outputs:
-        # Verifica che non esista già
-        if output_socket_name not in [s.name for s in bl_node.outputs]:
-            bl_node.outputs.new('EMGraphSocketType', output_socket_name)
+    # v1.5.3: Ogni socket è una tuple (edge_name, label)
+    for edge_name, label in all_outputs:
+        # Verifica che non esista già (usa edge_name come identificatore unico)
+        if edge_name not in [s.name for s in bl_node.outputs]:
+            socket = bl_node.outputs.new('EMGraphSocketType', edge_name)
+            # Salva l'edge_name nella proprietà edge_type per riferimento futuro
+            socket.edge_type = edge_name
 
 
 # ============================================================================
@@ -421,14 +477,22 @@ def initialize_socket_system():
     print(f"   - {len(_TYPE_FAMILY_MAP)} node type mappings")
     print(f"   - {len(_SOCKET_MAP)} node families with sockets")
 
-    # Debug: mostra alcuni esempi
+    # Debug: mostra alcuni esempi con le label v1.5.3
     if _SOCKET_MAP:
-        print("\n📊 Socket map examples:")
+        print("\n📊 Socket map examples (v1.5.3 canonical/reverse pattern):")
         for family in ['StratigraphicNode', 'PropertyNode', 'EpochNode']:
             if family in _SOCKET_MAP:
                 inputs_count = len(_SOCKET_MAP[family]['inputs'])
                 outputs_count = len(_SOCKET_MAP[family]['outputs'])
                 print(f"   - {family}: {inputs_count} inputs, {outputs_count} outputs")
+
+                # Mostra qualche esempio di socket con le loro label
+                if inputs_count > 0:
+                    example_input = _SOCKET_MAP[family]['inputs'][0]
+                    print(f"     Example input: {example_input[0]} → \"{example_input[1]}\"")
+                if outputs_count > 0:
+                    example_output = _SOCKET_MAP[family]['outputs'][0]
+                    print(f"     Example output: {example_output[0]} → \"{example_output[1]}\"")
 
 
 def get_socket_map() -> Dict:
