@@ -1,5 +1,5 @@
 """
-Operators for Graph Editor
+Operators for Graph Viewer
 Handles loading, clearing, and manipulating graphs in the node editor.
 """
 
@@ -213,7 +213,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
 
         if not selected_node_id:
             print("   ⚠️  No node selected for neighborhood filter")
-            print("   Please select a node in the Graph Editor, 3D view, or UIList")
+            print("   Please select a node in the Graph Viewer, 3D view, or UIList")
             return []
 
         print(f"   Building neighborhood for node: {selected_node_id}")
@@ -335,17 +335,17 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         return filtered
     
     def get_selected_node_id(self, context):
-        """Ottiene l'ID del nodo selezionato, con priorità al Graph Editor se siamo lì"""
+        """Ottiene l'ID del nodo selezionato, con priorità al Graph Viewer se siamo lì"""
 
-        # ✅ Se siamo nel Graph Editor, dai priorità al nodo selezionato lì
+        # ✅ Se siamo nel Graph Viewer, dai priorità al nodo selezionato lì
         if context.space_data and context.space_data.type == 'NODE_EDITOR':
             if context.active_node and hasattr(context.active_node, 'node_id'):
                 node_id = context.active_node.node_id
                 if node_id:
-                    print(f"   Selected from Graph Editor: {node_id}")
+                    print(f"   Selected from Graph Viewer: {node_id}")
                     return node_id
 
-        # Altrimenti, ordine normale: 3D → UIList → Graph Editor
+        # Altrimenti, ordine normale: 3D → UIList → Graph Viewer
 
         # 1. Prova da oggetto 3D selezionato
         if context.active_object:
@@ -364,10 +364,10 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                 print(f"   Selected from UIList: {item.node_id}")
                 return item.node_id
 
-        # 3. Fallback a Graph Editor (se non trovato sopra)
+        # 3. Fallback a Graph Viewer (se non trovato sopra)
         if context.space_data and context.space_data.type == 'NODE_EDITOR':
             if context.active_node and hasattr(context.active_node, 'node_id'):
-                print(f"   Selected from Graph Editor (fallback): {context.active_node.node_id}")
+                print(f"   Selected from Graph Viewer (fallback): {context.active_node.node_id}")
                 return context.active_node.node_id
 
         return None
@@ -602,7 +602,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
 
 
 class GRAPHEDIT_OT_sync_selection(Operator):
-    """Sincronizza selezione tra 3D, UIList e Graph Editor (Shift+Alt+F)"""
+    """Sincronizza selezione tra 3D, UIList e Graph Viewer (Shift+Alt+F)"""
     bl_idname = "graphedit.sync_selection"
     bl_label = "Sync Selection"
     bl_description = "Synchronize selection between 3D viewport, UI lists, and graph editor"
@@ -622,7 +622,7 @@ class GRAPHEDIT_OT_sync_selection(Operator):
             return {'CANCELLED'}
         
     def sync_from_graph_editor(self, context):
-        """Sincronizza dal Graph Editor verso 3D + UIList"""
+        """Sincronizza dal Graph Viewer verso 3D + UIList"""
         if not context.active_node:
             self.report({'WARNING'}, "No node selected")
             return {'CANCELLED'}
@@ -663,7 +663,7 @@ class GRAPHEDIT_OT_sync_selection(Operator):
         return {'FINISHED'}
         
     def sync_from_3d(self, context):
-        """Sincronizza dal 3D verso Graph Editor + UIList"""
+        """Sincronizza dal 3D verso Graph Viewer + UIList"""
         if not context.active_object:
             self.report({'WARNING'}, "No object selected")
             return {'CANCELLED'}
@@ -676,7 +676,7 @@ class GRAPHEDIT_OT_sync_selection(Operator):
         
         print(f"🔗 Syncing from 3D: '{obj.name}' → human name: '{human_name}'")
         
-        # ✅ Sincronizza Graph Editor - cerca per LABEL
+        # ✅ Sincronizza Graph Viewer - cerca per LABEL
         graph_synced = False
 
         # ✅ Determina quale tree usare in base alla modalità
@@ -717,7 +717,7 @@ class GRAPHEDIT_OT_sync_selection(Operator):
                 break
         
         if not graph_synced:
-            print(f"   ⚠️  Node '{human_name}' not found in Graph Editor")
+            print(f"   ⚠️  Node '{human_name}' not found in Graph Viewer")
             print(f"      (may be filtered out or not loaded)")
         
         # ✅ Sincronizza UIList usando human name
@@ -750,7 +750,7 @@ class GRAPHEDIT_OT_sync_selection(Operator):
     
 
 class GRAPHEDIT_OT_draw_neighborhood(Operator):
-    """Disegna vicinato del nodo selezionato (context-aware: Graph Editor o 3D)"""
+    """Disegna vicinato del nodo selezionato (context-aware: Graph Viewer o 3D)"""
     bl_idname = "graphedit.draw_neighborhood"
     bl_label = "Draw Neighborhood"
     bl_description = "Draw neighborhood of selected node from current context"
@@ -768,7 +768,7 @@ class GRAPHEDIT_OT_draw_neighborhood(Operator):
         selected_node_id = self._get_selected_node_from_context(context)
 
         if not selected_node_id:
-            self.report({'WARNING'}, "No node selected. Select a node in Graph Editor, 3D view, or UIList")
+            self.report({'WARNING'}, "No node selected. Select a node in Graph Viewer, 3D view, or UIList")
             return {'CANCELLED'}
 
         print(f"\n🎯 Neighborhood request for node: {selected_node_id}")
@@ -786,12 +786,12 @@ class GRAPHEDIT_OT_draw_neighborhood(Operator):
     def _get_selected_node_from_context(self, context):
         """Ottiene il nodo selezionato dando priorità al contesto corrente"""
 
-        # ✅ PRIORITÀ 1: Se siamo nel Graph Editor (NODE_EDITOR)
+        # ✅ PRIORITÀ 1: Se siamo nel Graph Viewer (NODE_EDITOR)
         if context.area and context.area.type == 'NODE_EDITOR':
             if context.active_node and hasattr(context.active_node, 'node_id'):
                 node_id = context.active_node.node_id
                 if node_id:
-                    print(f"   📍 Selected from Graph Editor: {node_id}")
+                    print(f"   📍 Selected from Graph Viewer: {node_id}")
                     return node_id
 
         # ✅ PRIORITÀ 2: Se siamo nella 3D View

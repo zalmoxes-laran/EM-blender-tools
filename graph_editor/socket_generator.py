@@ -1,5 +1,5 @@
 """
-Socket Generator for Graph Editor
+Socket Generator for Graph Viewer
 Dynamically generates input/output sockets based on s3Dgraphy JSON configuration files.
 """
 

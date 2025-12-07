@@ -1,5 +1,5 @@
 """
-Scene properties for Graph Editor filtering and configuration
+Scene properties for Graph Viewer filtering and configuration
 """
 
 import bpy
@@ -38,7 +38,7 @@ class EdgeTypeFilter(PropertyGroup):
 
 
 class GraphEditorSettings(PropertyGroup):
-    """Settings per Graph Editor"""
+    """Settings per Graph Viewer"""
     
     # Filter mode
     active_filter_mode: EnumProperty(
@@ -155,7 +155,7 @@ def register_properties():
     # Add to Scene
     bpy.types.Scene.graph_editor_settings = bpy.props.PointerProperty(type=GraphEditorSettings)
     
-    print("✓ Graph Editor properties registered")
+    print("✓ Graph Viewer properties registered")
 
 def unregister_properties():
     """Unregister property classes"""

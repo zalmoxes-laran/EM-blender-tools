@@ -1,5 +1,5 @@
 """
-Graph Editor - Visual node editor for s3dgraphy graphs
+Graph Viewer - Visual node editor for s3dgraphy graphs
 Dynamic node generation from s3dgraphy JSON datamodel
 """
 
@@ -17,7 +17,7 @@ from . import socket_generator
 __all__ = ['register', 'unregister']
 
 def register():
-    """Register all Graph Editor classes and properties"""
+    """Register all Graph Viewer classes and properties"""
     print("=== REGISTERING GRAPH EDITOR ===")
 
     # ✅ Initialize dynamic socket system FIRST
@@ -41,7 +41,7 @@ def register():
     print("=== GRAPH EDITOR REGISTRATION COMPLETE ===")
 
 def unregister():
-    """Unregister all Graph Editor classes and properties"""
+    """Unregister all Graph Viewer classes and properties"""
     print("=== UNREGISTERING GRAPH EDITOR ===")
 
     # Unregister in reverse order

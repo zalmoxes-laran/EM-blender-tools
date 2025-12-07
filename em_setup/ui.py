@@ -263,7 +263,7 @@ class EMTOOLS_UL_files(bpy.types.UIList):
 
             # Disabilita il pulsante se l'icona è rossa (grafo non esistente)
             if is_graph_present:
-                # Pulsante per aprire nel Graph Editor (accanto a import.em_graphml)
+                # Pulsante per aprire nel Graph Viewer (accanto a import.em_graphml)
                 row = layout.row(align=True)
                 op = row.operator("graphedit.draw_graph", text="", icon='NODETREE', emboss=False)
                 op.graphml_index = index  # Passa l'indice del graphml

@@ -1,5 +1,5 @@
 """
-UI components for Graph Editor
+UI components for Graph Viewer
 Contains panels and UI elements for the node editor interface.
 """
 
@@ -327,9 +327,9 @@ class VIEW3D_PT_graphedit_sync(Panel):
         layout = self.layout
         em_tools = context.scene.em_tools
 
-        # ✅ Button to open Graph Editor
+        # ✅ Button to open Graph Viewer
         box = layout.box()
-        box.label(text="Graph Editor", icon='NODETREE')
+        box.label(text="Graph Viewer", icon='NODETREE')
 
         col = box.column(align=True)
 

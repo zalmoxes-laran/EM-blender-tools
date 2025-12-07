@@ -1,6 +1,6 @@
 """
-Keymap management for Graph Editor
-Handles keyboard shortcuts for synchronization between 3D, UI, and Graph Editor.
+Keymap management for Graph Viewer
+Handles keyboard shortcuts for synchronization between 3D, UI, and Graph Viewer.
 """
 
 import bpy
@@ -9,7 +9,7 @@ import bpy
 addon_keymaps = []
 
 def register_keymaps():
-    """Registra le keymap per Graph Editor"""
+    """Registra le keymap per Graph Viewer"""
     wm = bpy.context.window_manager
     kc = wm.keyconfigs.addon
     
@@ -31,7 +31,7 @@ def register_keymaps():
     )
     
     addon_keymaps.append((km, kmi))
-    print("✓ Registrata keymap: Shift+Alt+F in 3D View → Graph Editor Sync")
+    print("✓ Registrata keymap: Shift+Alt+F in 3D View → Graph Viewer Sync")
     
     # ========================================================================
     # KEYMAP 2: Shift+Alt+F nel Node Editor
@@ -76,4 +76,4 @@ def unregister_keymaps():
             pass
     
     addon_keymaps.clear()
-    print("✓ Tutte le keymap di Graph Editor rimosse")
+    print("✓ Tutte le keymap di Graph Viewer rimosse")

@@ -1,5 +1,5 @@
 """
-Data structures for Graph Editor
+Data structures for Graph Viewer
 Contains Node Tree, Socket types, and property groups.
 """
 

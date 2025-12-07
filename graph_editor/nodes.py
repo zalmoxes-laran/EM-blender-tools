@@ -1,5 +1,5 @@
 """
-Node types for Graph Editor
+Node types for Graph Viewer
 Lightweight wrappers around s3dgraphy nodes for visualization.
 """
 

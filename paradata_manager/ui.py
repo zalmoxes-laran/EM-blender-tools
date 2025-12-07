@@ -194,9 +194,9 @@ class EM_ParadataPanel:
             row.template_list(
                 "EM_UL_combiners_managers",
                 "",
-                scene,
+                scene.em_tools,
                 combiner_list_var,
-                scene,
+                scene.em_tools,
                 combiner_list_index_var,
                 rows=1,
             )

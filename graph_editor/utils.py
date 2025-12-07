@@ -1,5 +1,5 @@
 """
-Utility functions for Graph Editor
+Utility functions for Graph Viewer
 Handles prefix management and data access helpers
 """
 
