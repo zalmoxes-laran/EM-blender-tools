@@ -22,12 +22,50 @@ class EMGraphNodeBase(Node):
     # Custom properties
     node_id: bpy.props.StringProperty(name="Node ID")  # type: ignore
     node_type: bpy.props.StringProperty(name="Node Type")  # type: ignore
+    original_name: bpy.props.StringProperty(name="Original Name")  # type: ignore
+    description: bpy.props.StringProperty(name="Description")  # type: ignore
 
     def draw_label(self):
         """Custom label showing the node's label property if available"""
         if hasattr(self, 'label') and self.label:
             return self.label
         return self.bl_label
+
+    def draw_buttons(self, context, layout):
+        """Draw node information in the node body"""
+        # Show node type (more compact, in a subtle color)
+        row = layout.row(align=True)
+        row.scale_y = 0.7
+        row.label(text=f"[{self.bl_label}]", icon=self.bl_icon)
+
+        # Show description if available
+        if hasattr(self, 'description') and self.description:
+            box = layout.box()
+            col = box.column(align=True)
+            col.scale_y = 0.8
+
+            # Split description into lines if too long (max ~30 chars per line)
+            desc = self.description
+            if len(desc) > 30:
+                words = desc.split()
+                lines = []
+                current_line = ""
+                for word in words:
+                    if len(current_line) + len(word) + 1 <= 30:
+                        current_line += (" " if current_line else "") + word
+                    else:
+                        if current_line:
+                            lines.append(current_line)
+                        current_line = word
+                if current_line:
+                    lines.append(current_line)
+
+                for line in lines[:3]:  # Max 3 lines
+                    col.label(text=line)
+                if len(lines) > 3:
+                    col.label(text="...")
+            else:
+                col.label(text=desc)
 
 
 # ============================================================================

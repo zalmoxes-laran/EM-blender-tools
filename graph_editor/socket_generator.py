@@ -363,6 +363,10 @@ def build_socket_map(connections_datamodel: Dict, type_family_map: Dict[str, str
             if output_socket not in socket_map[source_type]['outputs']:
                 socket_map[source_type]['outputs'].append(output_socket)
 
+                # DEBUG: Log socket additions for specific nodes
+                if source_type in ['StratigraphicNode', 'US', 'DocumentNode', 'document']:
+                    print(f"  🔍 Added OUTPUT socket '{output_edge_name}' to {source_type} (from edge '{edge_type_name}')")
+
         # ✅ FIXED: Espandi RICORSIVAMENTE i target types per includere tutti i sottotipi
         expanded_targets = set()
         for target_type in target_types:
@@ -380,6 +384,10 @@ def build_socket_map(connections_datamodel: Dict, type_family_map: Dict[str, str
             input_socket = (input_edge_name, input_label)
             if input_socket not in socket_map[target_type]['inputs']:
                 socket_map[target_type]['inputs'].append(input_socket)
+
+                # DEBUG: Log socket additions for specific nodes
+                if target_type in ['EpochNode', 'Epoch', 'DocumentNode', 'document']:
+                    print(f"  🔍 Added INPUT socket '{input_edge_name}' to {target_type} (from edge '{edge_type_name}')")
 
     return socket_map
 

@@ -402,8 +402,13 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             try:
                 bl_node = tree.nodes.new(node_type_id)
                 bl_node.node_id = s3d_node.node_id
+                bl_node.node_type = s3d_node.node_type
                 bl_node.original_name = s3d_node.name
                 bl_node.label = s3d_node.name[:30] if len(s3d_node.name) > 30 else s3d_node.name
+
+                # Set description if available
+                if hasattr(s3d_node, 'description') and s3d_node.description:
+                    bl_node.description = s3d_node.description
 
                 # Posizionamento temporaneo (verrà aggiornato dal layout algorithm)
                 bl_node.location = (0, 0)
@@ -437,6 +442,11 @@ class GRAPHEDIT_OT_draw_graph(Operator):
 
         print(f"✅ Created {edge_count} edges")
 
+        # ✅ Hide unused sockets (default behavior)
+        print(f"\n🔌 Hiding unused sockets...")
+        self.hide_unused_sockets(node_map)
+        print(f"✅ Unused sockets hidden\n")
+
         # ✅ Calcola e applica layout gerarchico
         print(f"\n📐 Calculating hierarchical layout...")
         positions = calculate_hierarchical_layout(node_map, graph, filtered_node_ids)
@@ -444,6 +454,28 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         print(f"✅ Layout applied\n")
 
         return len(node_map), edge_count
+
+    def hide_unused_sockets(self, node_map):
+        """
+        Nasconde i socket che non hanno connessioni.
+        Questo rende il grafo più pulito e leggibile.
+        """
+        for node_id, bl_node in node_map.items():
+            # Hide unused input sockets
+            for input_socket in bl_node.inputs:
+                # Check if this socket has any connections
+                if not input_socket.is_linked:
+                    input_socket.hide = True
+                else:
+                    input_socket.hide = False
+
+            # Hide unused output sockets
+            for output_socket in bl_node.outputs:
+                # Check if this socket has any connections
+                if not output_socket.is_linked:
+                    output_socket.hide = True
+                else:
+                    output_socket.hide = False
     
     def create_link(self, tree, node_map, source_id, target_id, edge_type):
         """
