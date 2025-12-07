@@ -182,6 +182,75 @@ def get_node_type_family(node_type: str, type_family_map: Dict[str, str]) -> str
 # SOCKET MAP BUILDING
 # ============================================================================
 
+def build_node_hierarchy_from_family_map(type_family_map: Dict[str, str]) -> Dict[str, Set[str]]:
+    """
+    Inverte la type_family_map per costruire una gerarchia parent → children.
+
+    Args:
+        type_family_map: Mappa node_type → parent_family
+
+    Returns:
+        Dict mapping parent → set of all children (including the parent itself)
+
+    Example:
+        Input: {'US': 'StratigraphicNode', 'USVs': 'StratigraphicNode', 'PropertyNode': 'ParadataNode'}
+        Output: {
+            'StratigraphicNode': {'StratigraphicNode', 'US', 'USVs'},
+            'ParadataNode': {'ParadataNode', 'PropertyNode'}
+        }
+    """
+    hierarchy = {}
+
+    for child, parent in type_family_map.items():
+        if parent not in hierarchy:
+            hierarchy[parent] = set()
+        hierarchy[parent].add(child)
+        # Aggiungi anche il parent a se stesso
+        hierarchy[parent].add(parent)
+
+        # Aggiungi anche il child a se stesso (per auto-riferimento)
+        if child not in hierarchy:
+            hierarchy[child] = set()
+        hierarchy[child].add(child)
+
+    return hierarchy
+
+
+def _expand_node_type_recursively(node_type: str, node_hierarchy: Dict[str, Set[str]],
+                                   visited: Optional[Set[str]] = None) -> Set[str]:
+    """
+    Espande ricorsivamente un node type per includere tutti i suoi sottotipi.
+
+    Args:
+        node_type: Il tipo da espandere (es. "ParadataNode")
+        node_hierarchy: La gerarchia completa
+        visited: Set di nodi già visitati (per evitare loop infiniti)
+
+    Returns:
+        Set di tutti i tipi discendenti (incluso il tipo stesso)
+
+    Example:
+        ParadataNode → {ParadataNode, PropertyNode, property, DocumentNode, document, ...}
+    """
+    if visited is None:
+        visited = set()
+
+    if node_type in visited:
+        return set()
+
+    visited.add(node_type)
+    result = {node_type}
+
+    # Aggiungi i figli diretti
+    if node_type in node_hierarchy:
+        for child in node_hierarchy[node_type]:
+            if child != node_type:  # Evita auto-loop
+                # Espandi ricorsivamente ogni figlio
+                result.update(_expand_node_type_recursively(child, node_hierarchy, visited))
+
+    return result
+
+
 def build_socket_map(connections_datamodel: Dict, type_family_map: Dict[str, str]) -> Dict[str, Dict[str, List[str]]]:
     """
     Costruisce una mappa dei socket richiesti per ogni node_type_family.
@@ -220,6 +289,9 @@ def build_socket_map(connections_datamodel: Dict, type_family_map: Dict[str, str
             'outputs': ['generic_connection']
         }
 
+    # ✅ FIXED: Costruisci la gerarchia per espandere i parent ai loro children
+    node_hierarchy = build_node_hierarchy_from_family_map(type_family_map)
+
     edge_types = connections_datamodel['edge_types']
 
     for edge_type_name, edge_data in edge_types.items():
@@ -230,27 +302,37 @@ def build_socket_map(connections_datamodel: Dict, type_family_map: Dict[str, str
         source_types = allowed.get('source', [])
         target_types = allowed.get('target', [])
 
-        # Per ogni source type, aggiungi questo edge come OUTPUT
+        # ✅ FIXED: Espandi RICORSIVAMENTE i source types per includere tutti i sottotipi
+        expanded_sources = set()
         for source_type in source_types:
-            # Normalizza il source_type al suo parent family
-            # (ma usa il source_type direttamente se è già un parent)
-            family = source_type  # Di solito nel JSON sono già i parent
+            expanded_sources.update(_expand_node_type_recursively(source_type, node_hierarchy))
 
-            if family not in socket_map:
-                socket_map[family] = {'inputs': [], 'outputs': []}
+        # Per ogni source type (espanso), aggiungi questo edge come OUTPUT
+        for source_type in expanded_sources:
+            if source_type not in socket_map:
+                socket_map[source_type] = {
+                    'inputs': ['generic_connection'],
+                    'outputs': ['generic_connection']
+                }
 
-            if edge_type_name not in socket_map[family]['outputs']:
-                socket_map[family]['outputs'].append(edge_type_name)
+            if edge_type_name not in socket_map[source_type]['outputs']:
+                socket_map[source_type]['outputs'].append(edge_type_name)
 
-        # Per ogni target type, aggiungi questo edge come INPUT
+        # ✅ FIXED: Espandi RICORSIVAMENTE i target types per includere tutti i sottotipi
+        expanded_targets = set()
         for target_type in target_types:
-            family = target_type
+            expanded_targets.update(_expand_node_type_recursively(target_type, node_hierarchy))
 
-            if family not in socket_map:
-                socket_map[family] = {'inputs': [], 'outputs': []}
+        # Per ogni target type (espanso), aggiungi questo edge come INPUT
+        for target_type in expanded_targets:
+            if target_type not in socket_map:
+                socket_map[target_type] = {
+                    'inputs': ['generic_connection'],
+                    'outputs': ['generic_connection']
+                }
 
-            if edge_type_name not in socket_map[family]['inputs']:
-                socket_map[family]['inputs'].append(edge_type_name)
+            if edge_type_name not in socket_map[target_type]['inputs']:
+                socket_map[target_type]['inputs'].append(edge_type_name)
 
     return socket_map
 

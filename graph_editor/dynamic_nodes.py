@@ -104,18 +104,19 @@ def get_all_node_types_from_datamodel(nodes_datamodel: Dict) -> List[Dict]:
 
     # ✅ FIXED: Aggiungi versioni lowercase per i paradata nodes
     # s3dgraphy usa node_type='document' (lowercase) nei grafi
+    # IMPORTANTE: il parent deve essere il tipo specifico (PropertyNode), non il parent generale (ParadataNode)
     lowercase_mappings = [
-        {'type': 'document', 'parent': 'ParadataNode', 'label': 'Document',
+        {'type': 'document', 'parent': 'DocumentNode', 'label': 'Document',
          'description': 'Document node (lowercase variant)', 'class_name': 'DocumentNode', 'icon': 'FILE_TEXT'},
-        {'type': 'property', 'parent': 'ParadataNode', 'label': 'Property',
+        {'type': 'property', 'parent': 'PropertyNode', 'label': 'Property',
          'description': 'Property node (lowercase variant)', 'class_name': 'PropertyNode', 'icon': 'PROPERTIES'},
-        {'type': 'extractor', 'parent': 'ParadataNode', 'label': 'Extractor',
+        {'type': 'extractor', 'parent': 'ExtractorNode', 'label': 'Extractor',
          'description': 'Extractor node (lowercase variant)', 'class_name': 'ExtractorNode', 'icon': 'TRACKING'},
-        {'type': 'combiner', 'parent': 'ParadataNode', 'label': 'Combiner',
+        {'type': 'combiner', 'parent': 'CombinerNode', 'label': 'Combiner',
          'description': 'Combiner node (lowercase variant)', 'class_name': 'CombinerNode', 'icon': 'LINK_BLEND'},
-        {'type': 'link', 'parent': 'ReferenceNode', 'label': 'Link',
+        {'type': 'link', 'parent': 'LinkNode', 'label': 'Link',
          'description': 'Link node (lowercase variant)', 'class_name': 'LinkNode', 'icon': 'LINKED'},
-        {'type': 'geo_position', 'parent': 'ReferenceNode', 'label': 'Geo Position',
+        {'type': 'geo_position', 'parent': 'GeoPositionNode', 'label': 'Geo Position',
          'description': 'Geo position node (lowercase variant)', 'class_name': 'GeoPositionNode', 'icon': 'WORLD'},
     ]
     all_types.extend(lowercase_mappings)
@@ -236,18 +237,26 @@ def generate_all_node_classes() -> List[Type]:
 
 def build_node_hierarchy(nodes_datamodel: Dict) -> Dict[str, Set[str]]:
     """
-    Builds a hierarchy map: parent_type → set of all subtypes
+    Builds a hierarchy map: parent_type → set of all subtypes (recursively)
 
     Example:
         {
             'StratigraphicNode': {'US', 'USVs', 'USVn', 'SF', ...},
-            'ParadataNode': {'PropertyNode', 'ExtractorNode', ...}
+            'ParadataNode': {'PropertyNode', 'DocumentNode', 'ExtractorNode', ...},
+            'PropertyNode': {'property'},  # lowercase variants
+            'DocumentNode': {'document'},
         }
+
+    IMPORTANT: This includes multi-level hierarchies. For example:
+    - ParadataNode includes its direct subtypes (PropertyNode, DocumentNode, etc.)
+    - PropertyNode includes its lowercase variant (property)
+    - When expanding ParadataNode, you get BOTH PropertyNode AND property (recursively)
     """
     hierarchy = {}
 
     all_types = get_all_node_types_from_datamodel(nodes_datamodel)
 
+    # First pass: build direct parent → children relationships
     for node_info in all_types:
         parent = node_info['parent']
         node_type = node_info['type']
@@ -257,7 +266,46 @@ def build_node_hierarchy(nodes_datamodel: Dict) -> Dict[str, Set[str]]:
 
         hierarchy[parent].add(node_type)
 
+        # Also ensure each node type can reference itself
+        if node_type not in hierarchy:
+            hierarchy[node_type] = set()
+        hierarchy[node_type].add(node_type)
+
     return hierarchy
+
+
+def _expand_node_type_recursively(node_type: str, node_hierarchy: Dict[str, Set[str]],
+                                   visited: Optional[Set[str]] = None) -> Set[str]:
+    """
+    Espande ricorsivamente un node type per includere tutti i suoi sottotipi.
+
+    Args:
+        node_type: Il tipo da espandere (es. "ParadataNode")
+        node_hierarchy: La gerarchia completa
+        visited: Set di nodi già visitati (per evitare loop infiniti)
+
+    Returns:
+        Set di tutti i tipi discendenti (incluso il tipo stesso)
+
+    Example:
+        ParadataNode → {ParadataNode, PropertyNode, property, DocumentNode, document, ...}
+    """
+    if visited is None:
+        visited = set()
+
+    if node_type in visited:
+        return set()
+
+    visited.add(node_type)
+    result = {node_type}
+
+    # Aggiungi i figli diretti
+    if node_type in node_hierarchy:
+        for child in node_hierarchy[node_type]:
+            # Espandi ricorsivamente ogni figlio
+            result.update(_expand_node_type_recursively(child, node_hierarchy, visited))
+
+    return result
 
 
 def is_edge_allowed(source_type: str, target_type: str, edge_type: str,
@@ -265,14 +313,15 @@ def is_edge_allowed(source_type: str, target_type: str, edge_type: str,
     """
     Verifica se un edge è permesso tra due tipi di nodi.
 
-    Implementa la logica di ereditarietà:
-    - Se l'edge permette StratigraphicNode → StratigraphicNode
-    - Allora permette anche US → USVs (sottotipi)
+    Implementa la logica di ereditarietà RICORSIVA:
+    - Se l'edge permette ParadataNode → Target
+    - Allora permette anche PropertyNode → Target (figlio diretto)
+    - E anche property → Target (figlio indiretto tramite PropertyNode)
 
     Args:
-        source_type: Tipo del nodo sorgente (es. "US")
-        target_type: Tipo del nodo target (es. "USVs")
-        edge_type: Tipo di edge (es. "is_before")
+        source_type: Tipo del nodo sorgente (es. "property")
+        target_type: Tipo del nodo target (es. "extractor")
+        edge_type: Tipo di edge (es. "has_data_provenance")
         connections_datamodel: JSON delle connessioni
         node_hierarchy: Mappa parent → subtypes
 
@@ -296,20 +345,14 @@ def is_edge_allowed(source_type: str, target_type: str, edge_type: str,
     allowed_sources = set(allowed.get('source', []))
     allowed_targets = set(allowed.get('target', []))
 
-    # ✅ Espandi i tipi permessi per includere tutti i sottotipi
+    # ✅ FIXED: Espandi RICORSIVAMENTE i tipi permessi per includere tutti i sottotipi
     expanded_sources = set()
     for allowed_source in allowed_sources:
-        expanded_sources.add(allowed_source)
-        # Aggiungi tutti i sottotipi
-        if allowed_source in node_hierarchy:
-            expanded_sources.update(node_hierarchy[allowed_source])
+        expanded_sources.update(_expand_node_type_recursively(allowed_source, node_hierarchy))
 
     expanded_targets = set()
     for allowed_target in allowed_targets:
-        expanded_targets.add(allowed_target)
-        # Aggiungi tutti i sottotipi
-        if allowed_target in node_hierarchy:
-            expanded_targets.update(node_hierarchy[allowed_target])
+        expanded_targets.update(_expand_node_type_recursively(allowed_target, node_hierarchy))
 
     # Verifica se la connessione è permessa
     source_ok = source_type in expanded_sources
