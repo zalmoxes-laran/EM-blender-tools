@@ -228,20 +228,21 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         node_name = getattr(center_node, 'name', 'unnamed')
         print(f"   Center node: {node_name} (type: {node_type})")
         
-        # Usa get_connected_nodes di s3dgraphy
+        # Usa get_connected_nodes per ottenere sia nodi in entrata che in uscita
         neighborhood = {center_node.node_id: center_node}
         current_level = {center_node}
-        
+
         for depth in range(self.neighborhood_depth):
             next_level = set()
-            
+
             for node in current_level:
+                # Ottieni tutti i nodi connessi (sia in entrata che in uscita)
                 connected = graph.get_connected_nodes(node.node_id)
                 for connected_node in connected:
                     if connected_node.node_id not in neighborhood:
                         neighborhood[connected_node.node_id] = connected_node
                         next_level.add(connected_node)
-            
+
             current_level = next_level
             if not next_level:
                 break
