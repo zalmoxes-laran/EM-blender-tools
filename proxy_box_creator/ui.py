@@ -105,7 +105,7 @@ class PROXYBOX_PT_main_panel(Panel):
                 row.operator("proxybox.create_proxy_enhanced", text="Calculate Extractors First", icon='ERROR')
         
         # Clear all button
-        layout.separator()
+        #layout.separator()
         layout.operator("proxybox.clear_all_points", text="Clear All Points", icon='X')
 
 
@@ -144,7 +144,7 @@ class PROXYBOX_PT_settings_panel(Panel):
 
 class PROXYBOX_PT_workflow_panel(Panel):
     """Workflow instructions - Collapsible"""
-    bl_label = "Workflow"
+    bl_label = "Instructions"
     bl_idname = "PROXYBOX_PT_workflow_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
