@@ -554,13 +554,26 @@ class ANASTYLOSIS_OT_select_from_list(Operator):
         
         # Zoom to object if settings allow
         if hasattr(scene, 'anastylosis_settings') and scene.anastylosis_settings.zoom_to_selected:
-            for area in context.screen.areas:
-                if area.type == 'VIEW_3D':
-                    # Create proper override
-                    override = context.copy()
-                    override['area'] = area
-                    bpy.ops.view3d.view_selected(override)
-                    break
+            win = context.window
+            scr = win.screen if win else None
+            if scr:
+                for area in scr.areas:
+                    if area.type == 'VIEW_3D':
+                        region = next((r for r in area.regions if r.type == 'WINDOW'), None)
+                        space = area.spaces.active if hasattr(area, "spaces") else None
+                        if region:
+                            # Blender 4.5+ context override syntax requires window/screen/area/region
+                            with context.temp_override(
+                                window=win,
+                                screen=scr,
+                                area=area,
+                                region=region,
+                                space_data=space,
+                                scene=scene,
+                                view_layer=context.view_layer
+                            ):
+                                bpy.ops.view3d.view_selected()
+                        break
         
         self.report({'INFO'}, f"Selected object: {item.name}")
         return {'FINISHED'}
