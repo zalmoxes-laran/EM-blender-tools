@@ -15,7 +15,11 @@ class EMGraphSocket(NodeSocket):
     """Socket personalizzato per connessioni tra nodi del grafo"""
     bl_idname = 'EMGraphSocketType'
     bl_label = 'EMGraph Socket'
-    
+
+    # ✅ Enable multi-input for graph sockets (Blender 4.0+)
+    # This allows multiple edges to connect to the same input socket
+    is_multi_input = True
+
     # Colore personalizzabile per il socket
     socket_color: FloatVectorProperty(
         name="Socket Color",
@@ -25,7 +29,7 @@ class EMGraphSocket(NodeSocket):
         min=0.0,
         max=1.0
     )
-    
+
     # Tipo di edge rappresentato
     edge_type: StringProperty(
         name="Edge Type",
