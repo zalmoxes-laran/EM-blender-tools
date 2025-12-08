@@ -3,22 +3,22 @@ Data structures for Graph Viewer
 Contains Node Tree, Socket types, and property groups.
 """
 
-import bpy
-from bpy.types import NodeTree, NodeSocket
-from bpy.props import StringProperty, FloatProperty, FloatVectorProperty, IntProperty
+import bpy # type: ignore
+from bpy.types import NodeTree, NodeSocket # type: ignore
+from bpy.props import StringProperty, FloatProperty, FloatVectorProperty, IntProperty # type: ignore
 
 # ============================================================================
 # SOCKET TYPES
 # ============================================================================
 
 class EMGraphSocket(NodeSocket):
-    """Socket personalizzato per connessioni tra nodi del grafo"""
+    """Socket personalizzato per connessioni tra nodi del grafo
+
+    NOTE: Supports multi-input connections in Blender 4.0+
+    Each input socket can receive multiple edges from different source nodes.
+    """
     bl_idname = 'EMGraphSocketType'
     bl_label = 'EMGraph Socket'
-
-    # ✅ Enable multi-input for graph sockets (Blender 4.0+)
-    # This allows multiple edges to connect to the same input socket
-    is_multi_input = True
 
     # Colore personalizzabile per il socket
     socket_color: FloatVectorProperty(
@@ -28,13 +28,13 @@ class EMGraphSocket(NodeSocket):
         size=4,
         min=0.0,
         max=1.0
-    )
+    ) # type: ignore
 
     # Tipo di edge rappresentato
     edge_type: StringProperty(
         name="Edge Type",
         default=""
-    )
+    ) # type: ignore
     
     def draw(self, context, layout, node, text):
         layout.label(text=text)
@@ -77,31 +77,31 @@ class EMGraphNodeTree(NodeTree):
         name="Graph ID",
         description="ID del grafo s3dgraphy rappresentato",
         default=""
-    )
+    ) # type: ignore
     
     graph_name: StringProperty(
         name="Graph Name",
         description="Nome del grafo",
         default=""
-    )
+    ) # type: ignore
     
     last_update: FloatProperty(
         name="Last Update",
         description="Timestamp dell'ultimo aggiornamento",
         default=0.0
-    )
+    ) # type: ignore
     
     node_count: IntProperty(
         name="Node Count",
         description="Numero di nodi nel grafo",
         default=0
-    )
+    ) # type: ignore
     
     edge_count: IntProperty(
         name="Edge Count",
         description="Numero di collegamenti nel grafo",
         default=0
-    )
+    ) # type: ignore
     
     # Colori globali personalizzabili
     default_us_color: FloatVectorProperty(
@@ -110,7 +110,7 @@ class EMGraphNodeTree(NodeTree):
         default=(0.608, 0.608, 0.608),
         min=0.0,
         max=1.0
-    )
+    ) # type: ignore
     
     default_usvs_color: FloatVectorProperty(
         name="USVs Color",
@@ -118,7 +118,7 @@ class EMGraphNodeTree(NodeTree):
         default=(0.4, 0.6, 0.8),
         min=0.0,
         max=1.0
-    )
+    ) # type: ignore
     
     default_usvn_color: FloatVectorProperty(
         name="USVn Color",
@@ -126,7 +126,7 @@ class EMGraphNodeTree(NodeTree):
         default=(0.8, 0.6, 0.4),
         min=0.0,
         max=1.0
-    )
+    ) # type: ignore
     
     default_epoch_color: FloatVectorProperty(
         name="Epoch Color",
@@ -134,7 +134,7 @@ class EMGraphNodeTree(NodeTree):
         default=(0.3, 0.5, 0.7),
         min=0.0,
         max=1.0
-    )
+    ) # type: ignore
     
     default_document_color: FloatVectorProperty(
         name="Document Color",
@@ -142,7 +142,7 @@ class EMGraphNodeTree(NodeTree):
         default=(0.8, 0.8, 0.4),
         min=0.0,
         max=1.0
-    )
+    ) # type: ignore
     
     default_paradata_color: FloatVectorProperty(
         name="Paradata Color",
@@ -150,7 +150,7 @@ class EMGraphNodeTree(NodeTree):
         default=(0.6, 0.3, 0.8),
         min=0.0,
         max=1.0
-    )
+    ) # type: ignore
 
 # ============================================================================
 # REGISTRATION

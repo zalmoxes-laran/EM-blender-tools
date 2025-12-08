@@ -437,6 +437,12 @@ def generate_sockets_for_node(bl_node, node_type: str, socket_map: Dict, type_fa
             socket = bl_node.inputs.new('EMGraphSocketType', edge_name)
             # Salva l'edge_name nella proprietà edge_type per riferimento futuro
             socket.edge_type = edge_name
+            # Consenti più connessioni in ingresso (multi-input di default, Blender 5+)
+            try:
+                socket.link_limit = 0  # 0 = illimitato
+            except Exception:
+                # In Blender < 5 questa proprietà potrebbe non essere disponibile
+                pass
 
     # Crea OUTPUT sockets
     # v1.5.3: Ogni socket è una tuple (edge_name, label)
