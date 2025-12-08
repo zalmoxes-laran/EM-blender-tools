@@ -1442,7 +1442,7 @@ class EXPORT_OT_heriverse(Operator):
             bpy.ops.object.select_all(action='DESELECT')
             
             # Get publishable anastylosis models
-            publishable_models = [item for item in scene.anastylosis_list if item.is_publishable]
+            publishable_models = [item for item in scene.em_tools.anastylosis.list if item.is_publishable]
             
             if not publishable_models:
                 self.report({'INFO'}, "No publishable anastylosis models found")
@@ -2027,4 +2027,3 @@ def unregister():
     bpy.utils.unregister_class(EXPORT_OT_heriverse)
     bpy.utils.unregister_class(JSON_OT_exportEMformat)  
     bpy.utils.unregister_class(HERIVERSE_OT_make_collections_visible) 
-

@@ -125,10 +125,11 @@ class ANASTYLOSIS_OT_update_list(Operator):
     def execute(self, context):
         try:
             scene = context.scene
-            anastylosis_list = scene.anastylosis_list
+            anastylosis = scene.em_tools.anastylosis
+            anastylosis_list = anastylosis.list
             
             # Save current index to restore after update
-            current_index = scene.anastylosis_list_index
+            current_index = anastylosis.list_index
             
             # Track objects already in the list
             existing_objects = {}
@@ -228,7 +229,7 @@ class ANASTYLOSIS_OT_update_list(Operator):
                     item.node_id = f"{obj.name}_rmsf"
             
             # Restore index if possible
-            scene.anastylosis_list_index = min(current_index, len(anastylosis_list)-1) if anastylosis_list else 0
+            anastylosis.list_index = min(current_index, len(anastylosis_list)-1) if anastylosis_list else 0
             
             # Report
             if self.from_graph:
@@ -258,16 +259,17 @@ class ANASTYLOSIS_OT_link_to_sf(Operator):
     
     def execute(self, context):
         scene = context.scene
+        anastylosis = scene.em_tools.anastylosis
         
         # Get item from anastylosis list
         if self.anastylosis_index < 0:
-            self.anastylosis_index = scene.anastylosis_list_index
+            self.anastylosis_index = anastylosis.list_index
             
-        if self.anastylosis_index < 0 or self.anastylosis_index >= len(scene.anastylosis_list):
+        if self.anastylosis_index < 0 or self.anastylosis_index >= len(anastylosis.list):
             self.report({'ERROR'}, "No anastylosis model selected")
             return {'CANCELLED'}
             
-        item = scene.anastylosis_list[self.anastylosis_index]
+        item = anastylosis.list[self.anastylosis_index]
         
         # Get object
         obj = bpy.data.objects.get(item.name)
@@ -336,6 +338,16 @@ class ANASTYLOSIS_OT_link_to_sf(Operator):
             # Add node to graph
             graph.add_node(rmsf_node)
         
+        # Remove previous has_representation_model edges for this RMSF so relinking updates cleanly
+        stale_edges = [
+            edge.edge_id
+            for edge in list(graph.edges)
+            if edge.edge_type == "has_representation_model"
+            and (edge.edge_source == rmsf_id or edge.edge_target == rmsf_id)
+        ]
+        for edge_id in stale_edges:
+            graph.remove_edge(edge_id)
+
         # Create or update edge
         edge_id = f"{sf_node.node_id}_has_representation_model_{rmsf_id}"
         existing_edge = graph.find_edge_by_id(edge_id)
@@ -399,18 +411,19 @@ class ANASTYLOSIS_OT_confirm_link(Operator):
     
     def execute(self, context):
         scene = context.scene
+        anastylosis = scene.em_tools.anastylosis
         
         # Check if we have valid selection
-        if self.sf_node_index < 0 or self.sf_node_index >= len(scene.anastylosis_sf_nodes):
+        if self.sf_node_index < 0 or self.sf_node_index >= len(anastylosis.sf_nodes):
             self.report({'ERROR'}, "Invalid SpecialFind node selection")
             return {'CANCELLED'}
         
         # Get the selected SF node
-        sf_item = scene.anastylosis_sf_nodes[self.sf_node_index]
+        sf_item = anastylosis.sf_nodes[self.sf_node_index]
         
         # Get object name and RMSF ID from temp properties
-        obj_name = scene.anastylosis_temp_obj_name
-        rmsf_id = scene.anastylosis_temp_rmsf_id
+        obj_name = anastylosis.temp_obj_name
+        rmsf_id = anastylosis.temp_rmsf_id
         
         # Get object
         obj = bpy.data.objects.get(obj_name)
@@ -463,6 +476,16 @@ class ANASTYLOSIS_OT_confirm_link(Operator):
             self.report({'ERROR'}, f"SpecialFind node {sf_item.node_id} not found in graph")
             return {'CANCELLED'}
         
+        # Remove previous has_representation_model edges for this RMSF so relinking updates cleanly
+        stale_edges = [
+            edge.edge_id
+            for edge in list(graph.edges)
+            if edge.edge_type == "has_representation_model"
+            and (edge.edge_source == rmsf_id or edge.edge_target == rmsf_id)
+        ]
+        for edge_id in stale_edges:
+            graph.remove_edge(edge_id)
+
         # Create or update edge
         edge_id = f"{sf_item.node_id}_has_representation_model_{rmsf_id}"
         existing_edge = graph.find_edge_by_id(edge_id)
@@ -501,7 +524,7 @@ class ANASTYLOSIS_OT_confirm_link(Operator):
             )
         
         # Update the anastylosis list
-        for item in scene.anastylosis_list:
+        for item in anastylosis.list:
             if item.name == obj_name:
                 item.sf_node_id = sf_item.node_id
                 item.sf_node_name = sf_item.name
@@ -528,16 +551,17 @@ class ANASTYLOSIS_OT_select_from_list(Operator):
     
     def execute(self, context):
         scene = context.scene
+        anastylosis = scene.em_tools.anastylosis
         
         # Get item from list
         if self.anastylosis_index < 0:
-            self.anastylosis_index = scene.anastylosis_list_index
+            self.anastylosis_index = anastylosis.list_index
             
-        if self.anastylosis_index < 0 or self.anastylosis_index >= len(scene.anastylosis_list):
+        if self.anastylosis_index < 0 or self.anastylosis_index >= len(anastylosis.list):
             self.report({'ERROR'}, "No anastylosis model selected")
             return {'CANCELLED'}
             
-        item = scene.anastylosis_list[self.anastylosis_index]
+        item = anastylosis.list[self.anastylosis_index]
         
         # Get object
         obj = bpy.data.objects.get(item.name)
@@ -553,7 +577,7 @@ class ANASTYLOSIS_OT_select_from_list(Operator):
         context.view_layer.objects.active = obj
         
         # Zoom to object if settings allow
-        if hasattr(scene, 'anastylosis_settings') and scene.anastylosis_settings.zoom_to_selected:
+        if hasattr(anastylosis, 'settings') and anastylosis.settings and anastylosis.settings.zoom_to_selected:
             win = context.window
             scr = win.screen if win else None
             if scr:
@@ -592,16 +616,17 @@ class ANASTYLOSIS_OT_remove_from_list(Operator):
     
     def execute(self, context):
         scene = context.scene
+        anastylosis = scene.em_tools.anastylosis
         
         # Get item from list
         if self.anastylosis_index < 0:
-            self.anastylosis_index = scene.anastylosis_list_index
+            self.anastylosis_index = anastylosis.list_index
             
-        if self.anastylosis_index < 0 or self.anastylosis_index >= len(scene.anastylosis_list):
+        if self.anastylosis_index < 0 or self.anastylosis_index >= len(anastylosis.list):
             self.report({'ERROR'}, "No anastylosis model selected")
             return {'CANCELLED'}
             
-        item = scene.anastylosis_list[self.anastylosis_index]
+        item = anastylosis.list[self.anastylosis_index]
         
         # Get graph
         graph = None
@@ -640,11 +665,11 @@ class ANASTYLOSIS_OT_remove_from_list(Operator):
                     graph.remove_node(link_node_id)
         
         # Remove from list
-        scene.anastylosis_list.remove(self.anastylosis_index)
+        anastylosis.list.remove(self.anastylosis_index)
         
         # Update index if needed
-        if scene.anastylosis_list_index >= len(scene.anastylosis_list):
-            scene.anastylosis_list_index = max(0, len(scene.anastylosis_list) - 1)
+        if anastylosis.list_index >= len(anastylosis.list):
+            anastylosis.list_index = max(0, len(anastylosis.list) - 1)
         
         self.report({'INFO'}, f"Removed {item.name} from anastylosis list")
         return {'FINISHED'}
@@ -657,6 +682,7 @@ class ANASTYLOSIS_OT_add_selected(Operator):
     
     def execute(self, context):
         scene = context.scene
+        anastylosis = scene.em_tools.anastylosis
         
         # Get all selected mesh objects
         selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
@@ -675,7 +701,7 @@ class ANASTYLOSIS_OT_add_selected(Operator):
             graph = get_graph(graphml.name)
         
         # Find existing objects in the list
-        existing_objects = {item.name for item in scene.anastylosis_list}
+        existing_objects = {item.name for item in anastylosis.list}
         
         for obj in selected_objects:
             # Skip if already in list
@@ -683,7 +709,7 @@ class ANASTYLOSIS_OT_add_selected(Operator):
                 continue
                 
             # Create new item
-            item = scene.anastylosis_list.add()
+            item = anastylosis.list.add()
             item.name = obj.name
             item.object_exists = True
             item.is_publishable = True
@@ -789,15 +815,16 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
         
         # List of anastylosis models
         row = layout.row()
+        anastylosis = scene.em_tools.anastylosis
         row.template_list(
             "ANASTYLOSIS_UL_List", "anastylosis_list",
-            scene, "anastylosis_list",
-            scene, "anastylosis_list_index"
+            anastylosis, "list",
+            anastylosis, "list_index"
         )
         
         # Show connection info if an item is selected
-        if scene.anastylosis_list_index >= 0 and len(scene.anastylosis_list) > 0:
-            item = scene.anastylosis_list[scene.anastylosis_list_index]
+        if anastylosis.list_index >= 0 and len(anastylosis.list) > 0:
+            item = anastylosis.list[anastylosis.list_index]
             
             if item.sf_node_id:
                 box = layout.box()
@@ -822,14 +849,14 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
         # Settings (collapsible)
         box = layout.box()
         row = box.row()
-        row.prop(scene.anastylosis_settings, "show_settings", 
-                icon="TRIA_DOWN" if scene.anastylosis_settings.show_settings else "TRIA_RIGHT",
+        row.prop(anastylosis.settings, "show_settings", 
+                icon="TRIA_DOWN" if anastylosis.settings.show_settings else "TRIA_RIGHT",
                 text="Settings", 
                 emboss=False)
                 
-        if scene.anastylosis_settings.show_settings:
+        if anastylosis.settings.show_settings:
             row = box.row()
-            row.prop(scene.anastylosis_settings, "zoom_to_selected")
+            row.prop(anastylosis.settings, "zoom_to_selected")
 
 
 # Handler to update list when a graph is loaded
@@ -861,15 +888,12 @@ def update_anastylosis_list_on_graph_load(dummy):
 
 # Registration classes
 classes = [
-    AnastylisisItem,
     ANASTYLOSIS_UL_List,
     ANASTYLOSIS_OT_update_list,
     ANASTYLOSIS_OT_link_to_sf,
     ANASTYLOSIS_OT_select_from_list,
     ANASTYLOSIS_OT_remove_from_list,
     ANASTYLOSIS_OT_add_selected,
-    AnastylisisSettings,
-    AnastylosisSFNodeItem,
     ANASTYLOSIS_OT_confirm_link,
     VIEW3D_PT_Anastylosis_Manager,
 ]
@@ -878,18 +902,9 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     
-    # Register properties
-    bpy.types.Scene.anastylosis_list = bpy.props.CollectionProperty(type=AnastylisisItem)
-    bpy.types.Scene.anastylosis_list_index = bpy.props.IntProperty(name="Index for anastylosis list", default=0)
-    bpy.types.Scene.anastylosis_settings = bpy.props.PointerProperty(type=AnastylisisSettings)
-    
-    # Temporary properties for SF node selection
-    bpy.types.Scene.anastylosis_sf_nodes = bpy.props.CollectionProperty(type=AnastylosisSFNodeItem)
-    bpy.types.Scene.anastylosis_temp_obj_name = bpy.props.StringProperty()
-    bpy.types.Scene.anastylosis_temp_rmsf_id = bpy.props.StringProperty()
-    
     # Register handler
-    bpy.app.handlers.load_post.append(update_anastylosis_list_on_graph_load)
+    if update_anastylosis_list_on_graph_load not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(update_anastylosis_list_on_graph_load)
 
 def unregister():
     # Remove handler
@@ -898,11 +913,3 @@ def unregister():
     
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
-    
-    # Remove properties
-    del bpy.types.Scene.anastylosis_list
-    del bpy.types.Scene.anastylosis_list_index
-    del bpy.types.Scene.anastylosis_settings
-    del bpy.types.Scene.anastylosis_sf_nodes
-    del bpy.types.Scene.anastylosis_temp_obj_name
-    del bpy.types.Scene.anastylosis_temp_rmsf_id

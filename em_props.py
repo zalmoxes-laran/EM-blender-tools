@@ -23,6 +23,7 @@ from bpy.types import PropertyGroup
 
 # Import from submodules
 from .proxy_box_creator.data import ProxyBoxSettings, ProxyBoxPointSettings
+from .anastylosis_manager import AnastylisisItem, AnastylisisSettings, AnastylosisSFNodeItem
 from .stratigraphy_manager.data import EMListItem, EMreusedUS
 from .epoch_manager.data import EPOCHListItem, EMUSItem
 from .visual_manager.data import ColorRampProperties, PropertyValueItem, CameraItem, LabelSettings
@@ -348,11 +349,45 @@ class VisualManagerProps(PropertyGroup):
 class AnastylosisManagerProps(PropertyGroup):
     """Aggregates all anastylosis-related properties"""
     
-    # Placeholder for anastylosis properties
-    # Will be expanded as needed
     show_options: BoolProperty(
         name="Show Anastylosis Options",
         default=False
+    )  # type: ignore
+
+    list: CollectionProperty(
+        type=AnastylisisItem,
+        name="Anastylosis List",
+        description="All RMSF objects tracked for anastylosis"
+    )  # type: ignore
+
+    list_index: IntProperty(
+        name="Anastylosis Index",
+        description="Active index for the anastylosis list",
+        default=0
+    )  # type: ignore
+
+    settings: PointerProperty(
+        type=AnastylisisSettings,
+        name="Anastylosis Settings",
+        description="Display and interaction settings for anastylosis"
+    )  # type: ignore
+
+    sf_nodes: CollectionProperty(
+        type=AnastylosisSFNodeItem,
+        name="Available SpecialFind Nodes",
+        description="Temporary list of SpecialFind/VirtualSpecialFind nodes used during linking"
+    )  # type: ignore
+
+    temp_obj_name: StringProperty(
+        name="Temp Object Name",
+        description="Temporary object name used during SpecialFind linking",
+        default=""
+    )  # type: ignore
+
+    temp_rmsf_id: StringProperty(
+        name="Temp RMSF ID",
+        description="Temporary RMSF node id used during SpecialFind linking",
+        default=""
     )  # type: ignore
 
 
@@ -904,6 +939,9 @@ classes = (
     PropertyValueItem,
     CameraItem,
     LabelSettings,
+    AnastylisisItem,
+    AnastylisisSettings,
+    AnastylosisSFNodeItem,
     # NOTE: AuxiliaryFileProperties and GraphMLFileItem are registered by em_setup module
     # to avoid circular imports (em_setup needs them, EM_Tools uses them)
     ProxyBoxSettings,
