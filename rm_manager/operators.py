@@ -1089,7 +1089,7 @@ class RM_OT_promote_to_rm(Operator):
             selected_objects = []
 
             for obj in context.selected_objects:
-                if obj.type == 'MESH':
+                if obj.type == 'MESH' or obj.type == 'CURVE':
                     selected_objects.append(obj)
                 elif obj.type == 'EMPTY' and obj.instance_type == 'COLLECTION' and obj.instance_collection:
                     # Aggiungi tutti gli oggetti mesh della collezione istanziata
