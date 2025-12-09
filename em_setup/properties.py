@@ -346,6 +346,31 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
         default=True
     )  # type: ignore
 
+    # Graph statistics (cached counts)
+    stratigraphic_count: IntProperty(
+        name="Stratigraphic Nodes Count",
+        description="Number of stratigraphic nodes in the graph",
+        default=0
+    )  # type: ignore
+
+    epoch_count: IntProperty(
+        name="Epochs Count",
+        description="Number of epoch nodes in the graph",
+        default=0
+    )  # type: ignore
+
+    property_count: IntProperty(
+        name="Properties Count",
+        description="Number of property nodes in the graph",
+        default=0
+    )  # type: ignore
+
+    document_count: IntProperty(
+        name="Documents Count",
+        description="Number of document nodes in the graph",
+        default=0
+    )  # type: ignore
+
 
 # Registration
 # NOTE: AuxiliaryFileProperties and GraphMLFileItem are registered HERE

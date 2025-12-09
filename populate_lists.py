@@ -203,6 +203,39 @@ def clear_lists(context):
     return None
 
 
+def update_graph_statistics(context, graph, graphml_file_item):
+    """
+    Aggiorna le statistiche dei nodi nel grafo (conteggi cached).
+    Chiamata durante l'import per aggiornare i counter nella UI.
+
+    Args:
+        context: Blender context
+        graph: Istanza del grafo s3dgraphy
+        graphml_file_item: GraphMLFileItem dove salvare i conteggi
+    """
+    if not graph or not graphml_file_item:
+        return
+
+    # Conta nodi stratigrafici
+    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
+    stratigraphic_count = 0
+    for node_type in stratigraphic_types:
+        stratigraphic_count += len(graph.get_nodes_by_type(node_type))
+
+    # Conta altri tipi di nodi
+    epoch_count = len(graph.get_nodes_by_type('EpochNode'))
+    property_count = len(graph.get_nodes_by_type('property'))
+    document_count = len(graph.get_nodes_by_type('document'))
+
+    # Salva i conteggi nelle proprietà
+    graphml_file_item.stratigraphic_count = stratigraphic_count
+    graphml_file_item.epoch_count = epoch_count
+    graphml_file_item.property_count = property_count
+    graphml_file_item.document_count = document_count
+
+    print(f"✅ Graph statistics updated: {stratigraphic_count} stratigraphic, {epoch_count} epochs, {property_count} properties, {document_count} documents")
+
+
 def populate_blender_lists_from_graph(context, graph):
     """
     Popola tutte le liste Blender da un grafo s3dgraphy.
@@ -220,7 +253,7 @@ def populate_blender_lists_from_graph(context, graph):
     em_combiners_index_ema = 0
     em_edges_index_ema = 0
     em_epoch_list_ema = 0
-    
+
     # Get nodes by type
     # ✅ MODIFICATO: Chiamare get_nodes_by_type per ogni tipo separatamente
     stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
@@ -240,23 +273,23 @@ def populate_blender_lists_from_graph(context, graph):
         if isinstance(node, StratigraphicNode):
             em_list_index_ema = populate_stratigraphic_node(scene, node, em_list_index_ema, graph)
             em_reused_index_ema = populate_reuse_US_table(scene, node, em_reused_index_ema, graph)
-    
+
     # 2. Nodi documento
     for node in document_nodes:
         em_sources_index_ema = populate_document_node(scene, node, em_sources_index_ema, graph)
-    
+
     # 3. Nodi proprietà
     for node in property_nodes:
         em_properties_index_ema = populate_property_node(scene, node, em_properties_index_ema, graph)
-    
+
     # 4. Nodi estrattore
     for node in extractor_nodes:
         em_extractors_index_ema = populate_extractor_node(scene, node, em_extractors_index_ema, graph)
-    
+
     # 5. Nodi combinatore
     for node in combiner_nodes:
         em_combiners_index_ema = populate_combiner_node(scene, node, em_combiners_index_ema, graph)
-    
+
     # 6. Nodi epoca
     for node in epoch_nodes:
         em_epoch_list_ema = populate_epoch_node(scene, node, em_epoch_list_ema, graph)

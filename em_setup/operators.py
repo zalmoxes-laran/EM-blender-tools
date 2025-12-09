@@ -311,6 +311,10 @@ class EM_InvokePopulateLists(Operator):
             # Istanzia l'operatore `EM_import_GraphML`
             populate_blender_lists_from_graph(context, graph_instance)
 
+            # ✅ Aggiorna le statistiche del grafo
+            from ..populate_lists import update_graph_statistics
+            update_graph_statistics(context, graph_instance, graphml_file)
+
             self.report({'INFO'}, "Populated Blender lists from GraphML")
             return {'FINISHED'}
         else:

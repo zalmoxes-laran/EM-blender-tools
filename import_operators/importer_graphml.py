@@ -125,6 +125,10 @@ class EM_import_GraphML(bpy.types.Operator):
                 # ✅ ORA procedi con il popolamento delle liste (grafo completamente popolato)
                 populate_blender_lists_from_graph(context, graph_instance)
 
+                # ✅ Aggiorna le statistiche del grafo (conteggi nodi per UI)
+                from ..populate_lists import update_graph_statistics
+                update_graph_statistics(context, graph_instance, graphml)
+
                 # ✅ Usa nuovi paths centralizzati
                 strat = scene.em_tools.stratigraphy
                 ensure_valid_index(strat.units, "units_index", context, data_object=strat)
