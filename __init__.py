@@ -319,6 +319,7 @@ if DEPENDENCIES_LOADED:
             cronofilter,
             landscape_system,
             proxy_box_creator,
+            viewport_overlay,
             em_base_props,  # ← Base PropertyGroup classes
             em_props,
             debug_graph_connections  # Debug operator
@@ -626,6 +627,7 @@ def register_modules():
         operators,
         cronofilter,
         thumb_operators,
+        viewport_overlay,  # Viewport overlay for epoch/US display
         debug_graph_connections  # Debug operator
     ]
     
@@ -735,6 +737,13 @@ def unregister_modules():
         logger.debug(f"Unregistered visual manager")
     except Exception as e:
         logger.warning(f"Error unregistering visual manager: {e}")
+
+    # Overlay in 3D View
+    try:
+        viewport_overlay.unregister()
+        logger.debug(f"Unregistered viewport overlay")
+    except Exception as e:
+        logger.warning(f"Error unregistering viewport overlay: {e}")
     
     # FASE 4: Moduli core in ordine inverso
     core_modules = [

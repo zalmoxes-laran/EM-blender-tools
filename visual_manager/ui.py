@@ -209,11 +209,16 @@ class VIEW3D_PT_visual_panel(Panel):
         except:
             row.label(text="", icon='SPHERE')
 
-        row = layout.row()
+        row = layout.row(align=True)
+        row.prop(scene.em_tools.visual, "overlay_epoch_us", text="EM header info")
+
+        # Settings button (gear icon)
+        row.operator("visual.open_overlay_preferences", text="", icon="PREFERENCES")
+
         try:
             row.operator("notinthematrix.material", icon="MOD_MASK", text='')
         except:
-            row.label(text="Material", icon="MOD_MASK")
+            row.label(text="", icon="MOD_MASK")
 
     def draw_rm_coloring(self, layout, context):
         """Draw RM coloring controls (renamed from proxy projection)"""

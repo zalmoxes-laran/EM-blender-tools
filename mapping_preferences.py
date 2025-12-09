@@ -7,7 +7,7 @@ Avanzato: permette di puntare altrove (non portabile)
 
 import bpy
 from bpy.types import AddonPreferences, Operator
-from bpy.props import StringProperty, BoolProperty, EnumProperty
+from bpy.props import StringProperty, BoolProperty, EnumProperty, FloatVectorProperty, IntProperty
 import os
 
 import logging
@@ -157,6 +157,76 @@ class EMToolsMappingPreferences(AddonPreferences):
         default=False
     )
 
+    # ===== VIEWPORT OVERLAY SETTINGS =====
+    overlay_epoch_color: FloatVectorProperty(
+        name="Epoch Color",
+        description="Color for the epoch name in the viewport overlay",
+        subtype='COLOR',
+        default=(0.3, 0.5, 1.0),  # Blue
+        min=0.0, max=1.0,
+        size=3
+    )
+
+    overlay_us_color: FloatVectorProperty(
+        name="US Color",
+        description="Color for the US name in the viewport overlay",
+        subtype='COLOR',
+        default=(1.0, 0.7, 0.2),  # Ochre/Yellow
+        min=0.0, max=1.0,
+        size=3
+    )
+
+    overlay_font_size: IntProperty(
+        name="Font Size",
+        description="Size of the overlay text",
+        default=22,  # Changed from 16
+        min=10,
+        max=48
+    )
+
+    overlay_position_mode: EnumProperty(
+        name="Position Mode",
+        description="How to position the overlay text",
+        items=[
+            ('TOP_CENTER', "Top Center", "Center at the top of the viewport"),
+            ('TOP_LEFT', "Top Left", "Top left corner of the viewport"),
+            ('CUSTOM', "Custom", "Use custom X/Y offset values"),
+        ],
+        default='TOP_LEFT'  # Changed from TOP_CENTER
+    )
+
+    overlay_offset_x: IntProperty(
+        name="X Offset",
+        description="Horizontal offset from the base position (pixels)",
+        default=300,  # Changed from 0
+        min=-1000,
+        max=1000
+    )
+
+    overlay_offset_y: IntProperty(
+        name="Y Offset",
+        description="Vertical offset from the top (negative moves down)",
+        default=-144,  # Changed from -80
+        min=-500,
+        max=0
+    )
+
+    overlay_custom_x: IntProperty(
+        name="Custom X",
+        description="Custom X position (only used in Custom mode)",
+        default=130,
+        min=0,
+        max=4000
+    )
+
+    overlay_custom_y_offset: IntProperty(
+        name="Custom Y Offset",
+        description="Custom Y offset from top (only used in Custom mode)",
+        default=-220,
+        min=-2000,
+        max=0
+    )
+
     # ✅ Verbose Logging
     verbose_logging: BoolProperty(
         name="Verbose Logging",
@@ -268,6 +338,37 @@ class EMToolsMappingPreferences(AddonPreferences):
                     icon='CHECKMARK' if is_default else 'ERROR'
                 )
         
+        layout.separator()
+
+        # ===== VIEWPORT OVERLAY SETTINGS =====
+        box = layout.box()
+        box.label(text="📺 Viewport Overlay Settings", icon='VIEW3D')
+
+        # Position mode
+        row = box.row()
+        row.prop(self, "overlay_position_mode", text="Position")
+
+        # Show appropriate offset controls based on mode
+        if self.overlay_position_mode in ['TOP_CENTER', 'TOP_LEFT']:
+            row = box.row(align=True)
+            row.prop(self, "overlay_offset_x", text="X Offset")
+            row.prop(self, "overlay_offset_y", text="Y Offset")
+        else:  # CUSTOM
+            row = box.row(align=True)
+            row.prop(self, "overlay_custom_x", text="X Position")
+            row.prop(self, "overlay_custom_y_offset", text="Y Offset")
+
+        # Font size
+        row = box.row()
+        row.prop(self, "overlay_font_size", text="Font Size")
+
+        # Colors
+        split = box.split(factor=0.5)
+        col = split.column()
+        col.prop(self, "overlay_epoch_color", text="Epoch Color")
+        col = split.column()
+        col.prop(self, "overlay_us_color", text="US Color")
+
         layout.separator()
 
         # ===== DEVELOPER SETTINGS =====

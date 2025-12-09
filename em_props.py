@@ -68,6 +68,10 @@ def update_stratigraphic_selection(self, context):
         dummy = DummySelf()
 
         switch_paradata_lists(dummy, context)
+
+        # Update viewport overlay text if enabled
+        from . import viewport_overlay
+        viewport_overlay.refresh_text()
     except Exception as e:
         print(f"Warning: Could not update paradata lists: {e}")
 
@@ -138,6 +142,17 @@ def update_proxy_display(self, context):
         print(f"Warning: Could not update proxy display: {e}")
 
 
+def update_epoch_us_overlay(self, context):
+    """Toggle viewport overlay that shows active epoch and US."""
+    try:
+        from . import viewport_overlay
+        # Just refresh the text, the overlay is always registered
+        # and checks the property internally
+        viewport_overlay.refresh_text()
+    except Exception as e:
+        print(f"Warning: Could not toggle epoch/US overlay: {e}")
+
+
 def update_epoch_index(self, context):
     """Called when epoch list index changes"""
     scene = context.scene
@@ -148,6 +163,13 @@ def update_epoch_index(self, context):
                 bpy.ops.em.filter_lists()
         except Exception as e:
             print(f"Warning: Could not re-filter after epoch change: {e}")
+
+    # Update viewport overlay text if enabled
+    try:
+        from . import viewport_overlay
+        viewport_overlay.refresh_text()
+    except Exception as e:
+        print(f"Warning: Could not refresh viewport overlay: {e}")
 
 
 # =====================================================
@@ -327,6 +349,13 @@ class VisualManagerProps(PropertyGroup):
         name="Selected Camera Index",
         default=0
     )  # type: ignore
+
+    overlay_epoch_us: BoolProperty(
+        name="Show Epoch/US Overlay",
+        description="Show active epoch and stratigraphic unit in the 3D Viewport header",
+        default=False,
+        update=update_epoch_us_overlay
+    )  # type: ignore
     
     # Label settings
     labels: PointerProperty(
@@ -472,7 +501,7 @@ class EM_Tools(PropertyGroup):
         name="Proxy Box Creator",
         description="Proxy box creation settings"
     )  # type: ignore
-    
+
     # ============================================
     # GRAPHML FILE MANAGEMENT
     # ============================================

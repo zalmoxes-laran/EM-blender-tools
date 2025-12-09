@@ -19,6 +19,8 @@ from s3dgraphy import get_graph
 from s3dgraphy.nodes.representation_node import RepresentationModelSpecialFindNode
 from s3dgraphy.nodes.stratigraphic_node import SpecialFindUnit, VirtualSpecialFindUnit
 from s3dgraphy.nodes.link_node import LinkNode
+from . import icons_manager  
+
 
 # PropertyGroup for representing a SpecialFind association
 class AnastylisisItem(PropertyGroup):
@@ -69,20 +71,27 @@ class ANASTYLOSIS_UL_List(UIList):
                 
                 # Determine appropriate icon
                 if hasattr(item, 'object_exists') and item.object_exists:
-                    obj_icon = 'OBJECT_DATA'
+                    icon_value=icons_manager.get_icon_value("show_all_RMs")
+                    # Layout
+                    row = layout.row(align=True)
+                    # Name of the model
+                    row.prop(item, "name", text="", emboss=False, icon_value=icon_value)
                 else:
                     obj_icon = 'ERROR'
-                
-                # Layout
-                row = layout.row(align=True)
-                
-                # Name of the model
-                row.prop(item, "name", text="", emboss=False, icon=obj_icon)
-                
+                    row.prop(item, "name", text="", emboss=False, icon=obj_icon)
+
                 # Associated SF/VSF node
                 if hasattr(item, 'sf_node_name') and item.sf_node_name:
-                    sf_icon = 'OUTLINER_OB_EMPTY' if item.is_virtual else 'MESH_ICOSPHERE'
-                    row.label(text=item.sf_node_name, icon=sf_icon)
+                    
+                    if item.is_virtual:
+                        #sf_icon = 'OUTLINER_OB_EMPTY'
+                        #row.label(text=item.sf_node_name, icon=sf_icon)
+                        icon_value=icons_manager.get_icon_value("show_all_proxies")
+                        row.label(text=item.sf_node_name, icon_value=icon_value)
+                    else:
+                        icon_value=icons_manager.get_icon_value("show_all_proxies")
+                        row.label(text=item.sf_node_name, icon_value=icon_value)
+
                 else:
                     row.label(text="[Not Connected]", icon='QUESTION')
                 

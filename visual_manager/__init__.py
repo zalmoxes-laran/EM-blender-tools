@@ -9,6 +9,7 @@ import bpy # type: ignore
 from .data import register_data, unregister_data
 from .ui import register_ui, unregister_ui
 from .operators import register_operators, unregister_operators
+from .operators_overlay import register as register_overlay_operators, unregister as unregister_overlay_operators
 from .label_tools import register_label_tools, unregister_label_tools
 
 
@@ -27,7 +28,11 @@ def register():
         # 2. Register operators (property management, color schemes, etc.)
         print("Registering visual manager operators...")
         register_operators()
-        
+
+        # 2b. Register overlay operators
+        print("Registering visual manager overlay operators...")
+        register_overlay_operators()
+
         # 3. Register label tools (safe version)
         print("Registering visual manager label tools (safe)...")
         register_label_tools()
@@ -57,6 +62,7 @@ def unregister():
         # Unregister in reverse order
         unregister_ui()
         unregister_label_tools()
+        unregister_overlay_operators()
         unregister_operators()
         unregister_data()
         
