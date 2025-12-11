@@ -480,9 +480,10 @@ def get_us_document_nodes(graph, us_node_id):
         return []
 
     document_edge_types = {
-        "generic_connection",      # current link created by EM setup
-        "has_documentation",       # legacy EM edge
+        "has_documentation",       # ✅ v1.5.3: semantic edge type (created directly by EM Setup)
+        "generic_connection",      # fallback for unknown node types (refined before export)
         "is_documented_by",        # possible reversed semantics
+        "extracted_from",          # ExtractorNode → DocumentNode
     }
 
     doc_ids = set()

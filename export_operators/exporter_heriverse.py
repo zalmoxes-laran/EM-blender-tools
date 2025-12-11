@@ -70,16 +70,32 @@ class JSON_OT_exportEMformat(Operator, ExportHelper):
             # Crea l'esportatore con il percorso file specificato
             from s3dgraphy.exporter.json_exporter import JSONExporter
             exporter = JSONExporter(self.filepath)
-            
+
             print(f"Created JSONExporter for path: {self.filepath}")
 
-            # Esporta tutti i grafi
-            exporter.export_graphs()
+            # Get only publishable graph IDs from em_tools
+            em_tools = context.scene.em_tools
+            publishable_graph_ids = []
+
+            for graphml_item in em_tools.graphml_files:
+                # Check if the graph is publishable
+                is_publishable = getattr(graphml_item, 'is_publishable', True)
+                if is_publishable:
+                    publishable_graph_ids.append(graphml_item.name)
+
+            print(f"Exporting {len(publishable_graph_ids)} publishable graphs: {publishable_graph_ids}")
+
+            if not publishable_graph_ids:
+                self.report({'WARNING'}, "No publishable graphs found to export")
+                return {'CANCELLED'}
+
+            # Export only publishable graphs (not all graphs in memory)
+            exporter.export_graphs(graph_ids=publishable_graph_ids)
             print("Graphs exported successfully")
-            
+
             self.report({'INFO'}, f"Heriverse data successfully exported to {self.filepath}")
             return {'FINISHED'}
-            
+
         except Exception as e:
             print(f"Error during JSON export: {str(e)}")
             import traceback
@@ -176,7 +192,14 @@ class EXPORT_OT_heriverse(Operator):
         """Export proxy models"""
         scene = context.scene
         export_vars = context.window_manager.export_vars
-        
+
+        # Get the active graph
+        graph = None
+        em_tools = context.scene.em_tools
+        if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
+            graphml = em_tools.graphml_files[em_tools.active_file_index]
+            graph = get_graph(graphml.name)
+
         # Store original collection states
         collection_states = {}
         for collection in bpy.data.collections:
@@ -186,7 +209,7 @@ class EXPORT_OT_heriverse(Operator):
                     'exclude': layer_collection.exclude,
                     'hide_viewport': collection.hide_viewport
                 }
-        
+
         # Store original object states
         object_states = {}
         for ob in bpy.data.objects:
@@ -195,7 +218,7 @@ class EXPORT_OT_heriverse(Operator):
                     'hide_viewport': ob.hide_viewport,
                     'hide_select': ob.hide_select
                 }
-        
+
         try:
             # Make all collections visible
             for collection in bpy.data.collections:
@@ -203,49 +226,148 @@ class EXPORT_OT_heriverse(Operator):
                 if layer_collection:
                     layer_collection.exclude = False
                 collection.hide_viewport = False
-            
+
             # Make all objects visible and selectable
             for ob in bpy.data.objects:
                 if ob.type == 'MESH':
                     ob.hide_viewport = False
                     ob.hide_select = False
-            
+
             # Deseleziona tutto prima di iniziare
             bpy.ops.object.select_all(action='DESELECT')
-            
+
             # ⭐ MODIFICA PRINCIPALE: Usa i nomi dai grafi invece di em_list
-            em_tools = context.scene.em_tools
             has_multiple_graphs = len(em_tools.graphml_files) > 1
 
             stratigraphic_names = self.get_stratigraphic_names_from_graphs(
-                context, 
+                context,
                 has_multiple_graphs  # True se multigrafo, False se singolo grafo
             )
-            
+
             print(f"Found {len(stratigraphic_names)} stratigraphic nodes across graphs")
             
             exported_count = 0
+            skipped_count = 0
+
+            # Debug: Lista tutti gli oggetti mesh disponibili
+            all_mesh_objects = [obj.name for obj in bpy.data.objects if obj.type == 'MESH']
+            print(f"Available mesh objects in scene: {len(all_mesh_objects)}")
+
             for name in stratigraphic_names:
+                # Try exact match first
                 proxy = bpy.data.objects.get(name)
-                if proxy and proxy.type == 'MESH':
-                    proxy.select_set(True)
-                    clean_name = clean_filename(name)
-                    export_file = os.path.join(export_folder, clean_name)
-                    
-                    try:
-                        export_gltf_with_animation_support(
-                            filepath=export_file,
-                            export_vars=export_vars,
-                            scene=scene,
-                            use_selection=True,
-                            format_file='GLB'
-                        )
-                        exported_count += 1
-                        print(f"Exported proxy: {clean_name}")
-                    except Exception as e:
-                        self.report({'WARNING'}, f"Failed to export proxy {name}: {str(e)}")
-                    
-                    proxy.select_set(False)
+
+                # If not found, try finding object with name ending with ".{stratigraphic_name}"
+                # This handles cases where proxy has graph prefix (e.g., "DEMO25.US02")
+                if not proxy:
+                    suffix = f".{name}"
+                    matching_objects = [obj for obj in bpy.data.objects
+                                       if obj.type == 'MESH' and obj.name.endswith(suffix)]
+
+                    if matching_objects:
+                        # If multiple matches, take the first one
+                        proxy = matching_objects[0]
+                        if len(matching_objects) > 1:
+                            print(f"  Warning: Multiple proxies found for '{name}': {[o.name for o in matching_objects]}")
+                            print(f"           Using: {proxy.name}")
+
+                # Debug dettagliato
+                if not proxy:
+                    print(f"  Proxy '{name}': NOT FOUND in scene (tried exact match and '*.{name}')")
+                    skipped_count += 1
+                    continue
+
+                if proxy.type != 'MESH':
+                    print(f"  Proxy '{proxy.name}': Found but not a MESH (type: {proxy.type})")
+                    skipped_count += 1
+                    continue
+
+                # Verifica se il proxy è pubblicabile (usa il nome reale dell'oggetto)
+                is_publishable = True
+                if hasattr(context.scene, 'rm_list'):
+                    for rm_item in context.scene.rm_list:
+                        if rm_item.name == proxy.name:  # Use actual object name, not stratigraphic name
+                            is_publishable = rm_item.is_publishable
+                            break
+
+                if not is_publishable:
+                    print(f"  Proxy '{proxy.name}': Not publishable, skipping")
+                    skipped_count += 1
+                    continue
+
+                print(f"  Proxy '{proxy.name}': Found and ready to export (strat node: '{name}')")
+
+                proxy.select_set(True)
+                # Use stratigraphic name for export filename (without graph prefix)
+                clean_name = clean_filename(name)
+                export_file = os.path.join(export_folder, clean_name)
+
+                try:
+                    export_gltf_with_animation_support(
+                        filepath=export_file,
+                        export_vars=export_vars,
+                        scene=scene,
+                        use_selection=True,
+                        format_file='GLB'
+                    )
+                    exported_count += 1
+                    print(f"  Successfully exported proxy: {clean_name}.glb")
+
+                    # Update SemanticShapeNode URL and create LinkNode in the graph
+                    # (SemanticShapeNode should already exist from update_graph_with_scene_data)
+                    if graph:
+                        from s3dgraphy.nodes.semantic_shape_node import SemanticShapeNode
+
+                        # Find the existing SemanticShapeNode
+                        shape_node_id = f"{name}_shape"
+                        shape_node = graph.find_node_by_id(shape_node_id)
+
+                        if shape_node:
+                            # Update URL (should already be set, but update to be sure)
+                            shape_node.set_url(f"proxies/{clean_name}.glb")
+                            print(f"    Updated SemanticShape URL: {shape_node_id}")
+
+                            # Create LinkNode for the proxy (this is created only at export)
+                            link_node_id = f"{shape_node_id}_link"
+                            link_node = graph.find_node_by_id(link_node_id)
+
+                            if not link_node:
+                                link_node = LinkNode(
+                                    node_id=link_node_id,
+                                    name=f"Proxy Link for {name}",
+                                    description=f"Link to exported proxy for {name}",
+                                    url=f"proxies/{clean_name}.glb",
+                                    url_type="3d_model"
+                                )
+                                graph.add_node(link_node)
+                                print(f"    Created Link node: {link_node_id}")
+                            else:
+                                link_node.url = f"proxies/{clean_name}.glb"
+                                print(f"    Updated Link node: {link_node_id}")
+
+                            # Create edge between semantic shape and link node
+                            edge_id = str(uuid.uuid4())
+                            if not graph.find_edge_by_id(edge_id):
+                                graph.add_edge(
+                                    edge_id=edge_id,
+                                    edge_source=shape_node_id,
+                                    edge_target=link_node_id,
+                                    edge_type="has_linked_resource"
+                                )
+                                print(f"    Created edge: {shape_node_id} -> {link_node_id}")
+                        else:
+                            print(f"    Warning: SemanticShape node '{shape_node_id}' not found (should have been created by update_graph_with_scene_data)")
+
+                except Exception as e:
+                    print(f"  Failed to export proxy {name}: {str(e)}")
+                    self.report({'WARNING'}, f"Failed to export proxy {name}: {str(e)}")
+
+                proxy.select_set(False)
+
+            print(f"\nProxy export summary:")
+            print(f"  - Total stratigraphic nodes: {len(stratigraphic_names)}")
+            print(f"  - Successfully exported: {exported_count}")
+            print(f"  - Skipped: {skipped_count}")
             
             self.report({'INFO'}, f"Exported {exported_count} proxies")
             return exported_count > 0
@@ -1677,23 +1799,25 @@ class EXPORT_OT_heriverse(Operator):
             try:
                 # Update the graph(s) before exporting
                 try:
-                    em_tools = scene.em_tools
-                    has_multiple_graphs = len(em_tools.graphml_files) > 1
+                    # Always update all publishable graphs with scene data
+                    # This ensures that SemanticShape, RM, RMSF nodes are created/updated
+                    # before we add LinkNodes during the export process
+                    print("Updating all publishable graphs with scene data...")
+                    update_graph_with_scene_data(update_all_graphs=True, context=context)
 
-                    if has_multiple_graphs:
-                        # Aggiorna tutti i grafi pubblicabili
-                        print("Updating all publishable graphs with scene data...")
-                        update_graph_with_scene_data(update_all_graphs=True, context=context)
-                    else:
-                        # Solo il grafo attivo
-                        em_tools = scene.em_tools
-                        if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
-                            graphml = em_tools.graphml_files[em_tools.active_file_index]
-                            print(f"Updating active graph '{graphml.name}' with scene data...")
-                            update_graph_with_scene_data(graphml.name, context=context)
-                        else:
-                            print("No active graph found, trying to update single available graph...")
-                            update_graph_with_scene_data(None, context=context)
+                    # Refine generic_connection edges to semantic types
+                    # This transforms placeholder edges into proper semantic edges
+                    # (e.g., generic_connection -> has_documentation for US -> DocumentNode)
+                    from s3dgraphy import get_graph
+                    em_tools = context.scene.em_tools
+                    for graphml_item in em_tools.graphml_files:
+                        is_publishable = getattr(graphml_item, 'is_publishable', True)
+                        if is_publishable:
+                            graph = get_graph(graphml_item.name)
+                            if graph:
+                                refined = graph.refine_generic_connections(verbose=True)
+                                if refined > 0:
+                                    print(f"  ✅ Graph '{graphml_item.name}': refined {refined} edges")
                 except Exception as e:
                     print(f"Warning: Could not update graph: {e}")
                 # STEP 1 Export Cesium tilesets if requested
@@ -1813,24 +1937,9 @@ class EXPORT_OT_heriverse(Operator):
 
                 # STEP 7: Export JSON
                 if export_vars.heriverse_overwrite_json:
-                    try:
-                        em_tools = scene.em_tools
-                        has_multiple_graphs = len(em_tools.graphml_files) > 1
+                    # NOTE: Do NOT call update_graph_with_scene_data() again here!
+                    # It was already called at the beginning and would erase LinkNodes created during export
 
-                        if has_multiple_graphs:
-                            # Assicurati che tutti i grafi pubblicabili siano aggiornati prima del JSON
-                            update_graph_with_scene_data(update_all_graphs=True, context=context)
-                        else:
-                            # Solo il grafo attivo
-                            em_tools = scene.em_tools
-                            if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
-                                graphml = em_tools.graphml_files[em_tools.active_file_index]
-                                update_graph_with_scene_data(graphml.name, context=context)
-                            else:
-                                update_graph_with_scene_data(None, context=context)
-                    except Exception as e:
-                        print(f"Warning: Could not update graph for JSON export: {e}")
-                    
                     # Esporta il JSON direttamente usando il nuovo JSONExporter
                     json_path = os.path.join(project_path, "project.json")
                     print(f"Exporting JSON to: {json_path}")

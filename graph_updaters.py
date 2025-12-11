@@ -91,26 +91,36 @@ def update_semantic_shapes(graph):
     edges_added = 0
     
     for strat_node in stratigraphic_nodes:
-        matching_proxy = next((obj for obj in mesh_objects 
+        # Try exact match first
+        matching_proxy = next((obj for obj in mesh_objects
                              if obj.name == strat_node.name), None)
-        
+
+        # If not found, try finding object with name ending with ".{stratigraphic_name}"
+        # This handles cases where proxy has graph prefix (e.g., "DEMO25.US02")
+        if not matching_proxy:
+            suffix = f".{strat_node.name}"
+            matching_proxy = next((obj for obj in mesh_objects
+                                 if obj.name.endswith(suffix)), None)
+
         if matching_proxy:
             shape_node_name = f"{strat_node.name}_shape"
             shape_node = graph.find_node_by_id(shape_node_name)
-            print(f'Try to create node semantic {shape_node_name}')
+            print(f'Try to create node semantic {shape_node_name} for proxy {matching_proxy.name}')
             if not shape_node:
+                # Use stratigraphic name (without prefix) for the GLB filename
                 shape_node = SemanticShapeNode(
-                    node_id= shape_node_name, #f"{strat_node.name}_shape",
-                    #node_id= str(uuid.uuid4()) ,# shape_node_name,
+                    node_id= shape_node_name,
                     name=f"Shape for {strat_node.name}",
                     type="proxy",
-                    url=f"proxies/{matching_proxy.name}.glb"
+                    url=f"proxies/{strat_node.name}.glb"  # Use strat name, not proxy name
                 )
                 print(f'Created node semantic {shape_node_name}')
                 graph.add_node(shape_node)
                 nodes_added += 1
             else:
-                shape_node.url = f"proxies/{matching_proxy.name}.glb"
+                # Update URL to use stratigraphic name (without prefix)
+                shape_node.url = f"proxies/{strat_node.name}.glb"
+                shape_node.set_url(f"proxies/{strat_node.name}.glb")
             
             #edge_id = str(uuid.uuid4())#f"{strat_node.node_id}_has_shape_{shape_node_name}"
             edge_id = f"{strat_node.node_id}_has_shape_{shape_node_name}"

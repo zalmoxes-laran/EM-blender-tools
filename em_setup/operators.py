@@ -669,6 +669,34 @@ class AUXILIARY_OT_import_now(Operator):
         ext = filename.lower().split('.')[-1]
         return ext in [fmt.lower() for fmt in allowed_formats]
 
+    def _determine_edge_type_for_document(self, target_node):
+        """
+        Determine the appropriate edge type for connecting a DocumentNode
+        based on the type of the target node.
+
+        This avoids using generic_connection placeholder when we already know
+        the node types at creation time.
+        """
+        # Stratigraphic node types
+        stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU',
+                              'serUSVn', 'serUSVs', 'TSU', 'SE', 'BR', 'unknown']
+
+        node_type = getattr(target_node, 'node_type', None)
+
+        if node_type in stratigraphic_types:
+            # ✅ StratigraphicNode → DocumentNode = has_documentation
+            return "has_documentation"
+        elif node_type == "property":
+            # PropertyNode documented by documents (rare but possible)
+            return "has_documentation"
+        elif node_type == "extractor":
+            # ExtractorNode → DocumentNode = extracted_from
+            return "extracted_from"
+        else:
+            # Fallback to generic_connection for unknown node types
+            # (will be refined later if needed)
+            return "generic_connection"
+
     def _create_document_for_resource(self, graph, target_node, file_path, filename, folder_suffix, base_resource_folder):
         """Crea DocumentNode → LinkNode per la risorsa (con controllo duplicati)"""
         # ✅ Calcola path relativo alla base_resource_folder
@@ -680,6 +708,9 @@ class AUXILIARY_OT_import_now(Operator):
             # Se file_path e base_resource_folder sono su drive diversi (Windows)
             print(f"⚠️ Impossibile calcolare path relativo per {filename}, uso assoluto")
             relative_path = file_path
+
+        # ✅ Determine edge type based on target node type
+        edge_type = self._determine_edge_type_for_document(target_node)
 
         # ✅ FIX DUPLICATI: Prima controlla se esiste già un documento per questo file
         existing_doc = None
@@ -694,24 +725,24 @@ class AUXILIARY_OT_import_now(Operator):
         if existing_doc:
             # ✅ Verifica che sia collegato al nodo target
             edge_exists = False
-            edge_id = f"{target_node.node_id}_generic_connection_{existing_doc.node_id}"
+            edge_id = f"{target_node.node_id}_{edge_type}_{existing_doc.node_id}"
 
             for edge in graph.edges:
                 if (edge.edge_source == target_node.node_id and
                     edge.edge_target == existing_doc.node_id and
-                    edge.edge_type == "generic_connection"):
+                    edge.edge_type == edge_type):
                     edge_exists = True
                     break
 
             if not edge_exists:
-                # Crea edge se non esiste
+                # Crea edge con tipo semantico appropriato
                 graph.add_edge(
                     edge_id=edge_id,
                     edge_source=target_node.node_id,
                     edge_target=existing_doc.node_id,
-                    edge_type="generic_connection"
+                    edge_type=edge_type
                 )
-                print(f"✅ Added edge to existing DocumentNode")
+                print(f"✅ Added {edge_type} edge to existing DocumentNode")
             else:
                 print(f"✅ Edge already exists to DocumentNode")
 
@@ -744,14 +775,15 @@ class AUXILIARY_OT_import_now(Operator):
 
         graph.add_node(doc_node)
 
-        # Crea edge verso il nodo target
-        edge_id = f"{target_node.node_id}_generic_connection_{doc_node.node_id}"
+        # Crea edge verso il nodo target con tipo semantico appropriato
+        edge_id = f"{target_node.node_id}_{edge_type}_{doc_node.node_id}"
         graph.add_edge(
             edge_id=edge_id,
             edge_source=target_node.node_id,
             edge_target=doc_node.node_id,
-            edge_type="generic_connection"
+            edge_type=edge_type
         )
+        print(f"  Created {edge_type} edge to DocumentNode")
 
         # Crea LinkNode per il file
         link_id = f"LINK.{doc_id}"
