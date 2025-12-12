@@ -19,6 +19,31 @@ from .utils import (
 )
 from .layout import calculate_hierarchical_layout, apply_layout_to_nodes
 
+
+def frame_selected_nodes(context):
+    """Zoom sui nodi selezionati nel Node Editor (Frame Selected)"""
+    if context.area and context.area.type == 'NODE_EDITOR':
+        # Salva il contesto corrente e override per l'operatore
+        override = context.copy()
+        override['area'] = context.area
+        override['region'] = context.region
+        with context.temp_override(**override):
+            bpy.ops.node.view_selected()
+            print("   ✓ Frame Selected applied")
+
+
+def frame_all_nodes(context):
+    """Zoom su tutti i nodi visibili nel Node Editor (Frame All)"""
+    if context.area and context.area.type == 'NODE_EDITOR':
+        # Salva il contesto corrente e override per l'operatore
+        override = context.copy()
+        override['area'] = context.area
+        override['region'] = context.region
+        with context.temp_override(**override):
+            bpy.ops.node.view_all()
+            print("   ✓ Frame All applied")
+
+
 class GRAPHEDIT_OT_draw_graph(Operator):
     """Disegna il grafo attivo nell'editor EMGraph"""
     bl_idname = "graphedit.draw_graph"
@@ -60,6 +85,12 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         from .utils import get_active_graph, get_active_graph_code
 
         em_tools = context.scene.em_tools
+        settings = context.scene.graph_editor_settings
+
+        # ✅ Disabilita neighborhood mode quando si attivano altri filtri
+        if self.filter_mode != 'NEIGHBORHOOD' and settings.neighborhood_mode_enabled:
+            settings.neighborhood_mode_enabled = False
+            print(f"   ✓ Neighborhood mode disabled (filter changed to {self.filter_mode})")
 
         # Se è stato specificato un graphml_index, aggiorna l'active_file_index (solo EM Advanced)
         if self.graphml_index >= 0 and em_tools.mode_em_advanced:
@@ -120,23 +151,128 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         # Apri l'editor
         self.open_graph_editor(context, tree)
 
-        # Se siamo in modalità NEIGHBORHOOD, seleziona solo il nodo centrale
+        # ✅ Gestione selezione e zoom in base al filter_mode
+        # Salva il node_id attivo prima di modificare la selezione
+        active_node_id = self.get_selected_node_id(context) if self.filter_mode == 'NEIGHBORHOOD' else None
+
+        # Deseleziona tutto prima di applicare la logica specifica
+        for node in tree.nodes:
+            node.select = False
+        tree.nodes.active = None
+
+        # Logica specifica per ogni filter_mode
         if self.filter_mode == 'NEIGHBORHOOD':
-            selected_node_id = self.get_selected_node_id(context)
-            if selected_node_id:
-                # Deseleziona tutto
+            # NEIGHBORHOOD: seleziona solo nodo centrale, poi Frame All
+            if active_node_id:
                 for node in tree.nodes:
-                    node.select = False
-                # Seleziona solo il nodo centrale
-                for node in tree.nodes:
-                    if node.node_id == selected_node_id:
+                    if node.node_id == active_node_id:
                         node.select = True
                         tree.nodes.active = node
+                        print(f"   ✓ Selected central node: {node.label}")
                         break
+            # Applica Frame All per vedere tutto il vicinato
+            self.apply_zoom_for_graph_editor(context, 'FRAME_ALL')
+
+        elif self.filter_mode in ['ALL', 'STRATIGRAPHIC', 'US_ONLY', 'FROM_UILIST', 'EDGE_FILTERED', 'NODE_CONTEXT']:
+            # Altri filtri: Frame All su tutti i nodi, nessuno selezionato
+            self.apply_zoom_for_graph_editor(context, 'FRAME_ALL')
+
+        # Se c'era un nodo attivo salvato, prova a ripristinarlo (se esiste ancora nel grafo)
+        if active_node_id and self.filter_mode != 'NEIGHBORHOOD':
+            for node in tree.nodes:
+                if node.node_id == active_node_id:
+                    tree.nodes.active = node
+                    # Non selezionare, solo imposta come active
+                    print(f"   ✓ Restored active node: {node.label}")
+                    break
 
         self.report({'INFO'}, f"Loaded: {node_count} nodes, {edge_count} edges")
         return {'FINISHED'}
-    
+
+    def apply_zoom_for_graph_editor(self, context, zoom_type='FRAME_ALL'):
+        """
+        Applica zoom nel Graph Editor dopo un breve delay.
+        zoom_type: 'FRAME_ALL' o 'FRAME_SELECTED'
+        """
+        # Usa un timer per aspettare che il grafo sia completamente caricato
+        def zoom_callback():
+            # Trova la finestra con il Node Editor
+            for window in context.window_manager.windows:
+                for area in window.screen.areas:
+                    if area.type == 'NODE_EDITOR':
+                        space = area.spaces[0]
+                        if hasattr(space, 'tree_type') and space.tree_type == 'EMGraphNodeTreeType':
+                            # Trova la region WINDOW (quella principale del node editor)
+                            region = None
+                            for r in area.regions:
+                                if r.type == 'WINDOW':
+                                    region = r
+                                    break
+
+                            if not region:
+                                print(f"   ⚠️  No WINDOW region found in Node Editor")
+                                return None
+
+                            # Forza un redraw dell'area prima dello zoom
+                            area.tag_redraw()
+
+                            # Crea un override context per l'area corretta
+                            override = {
+                                'window': window,
+                                'screen': window.screen,
+                                'area': area,
+                                'region': region,
+                                'space_data': space,
+                            }
+
+                            with context.temp_override(**override):
+                                try:
+                                    if zoom_type == 'FRAME_SELECTED':
+                                        result = bpy.ops.node.view_selected()
+                                        print(f"   ✓ Frame Selected applied: {result}")
+                                    else:
+                                        # FRAME_ALL: salva la selezione corrente, seleziona tutti, zoom, ripristina selezione
+                                        if space.node_tree and len(space.node_tree.nodes) > 0:
+                                            # Salva lo stato di selezione corrente
+                                            original_selection = {}
+                                            original_active = space.node_tree.nodes.active
+
+                                            for node in space.node_tree.nodes:
+                                                original_selection[node.name] = node.select
+
+                                            # Seleziona tutti i nodi
+                                            bpy.ops.node.select_all(action='SELECT')
+                                            print(f"   → Selected all {len(space.node_tree.nodes)} nodes for Frame All")
+
+                                            # Applica Frame Selected (che ora include tutti i nodi)
+                                            result = bpy.ops.node.view_selected()
+                                            print(f"   ✓ Frame All applied via view_selected: {result}")
+
+                                            # Ripristina la selezione originale
+                                            for node in space.node_tree.nodes:
+                                                if node.name in original_selection:
+                                                    node.select = original_selection[node.name]
+
+                                            # Ripristina il nodo attivo
+                                            if original_active:
+                                                space.node_tree.nodes.active = original_active
+
+                                            print(f"   ✓ Restored original selection state")
+
+                                            # Forza redraw
+                                            area.tag_redraw()
+                                        else:
+                                            print("   ⚠️  No nodes to frame")
+                                except Exception as e:
+                                    print(f"   ⚠️  Zoom failed: {e}")
+                                    import traceback
+                                    traceback.print_exc()
+                            return None  # Rimuovi il timer
+            return None
+
+        # Aumentiamo il delay a 0.3 secondi per dare più tempo al layout
+        bpy.app.timers.register(zoom_callback, first_interval=0.3)
+
     def filter_nodes_optimized(self, graph, context):
         """Filtra i nodi in base al filter_mode"""
         
@@ -696,27 +832,63 @@ class GRAPHEDIT_OT_sync_selection(Operator):
         if not context.active_node:
             self.report({'WARNING'}, "No node selected")
             return {'CANCELLED'}
-        
+
         node = context.active_node
-        
+
         # ✅ Usa il LABEL come human name
         if not hasattr(node, 'label') or not node.label:
             self.report({'WARNING'}, "Node has no label")
             return {'CANCELLED'}
-        
+
         human_name = node.label
         print(f"🔗 Syncing from graph editor: label='{human_name}'")
-        
+
+        # ✅ Controlla se la modalità neighborhood è attiva
+        settings = context.scene.graph_editor_settings
+        if settings.neighborhood_mode_enabled and hasattr(node, 'node_id'):
+            # Modalità neighborhood attiva: mostra il vicinato invece del singolo nodo
+            print(f"   🎯 Neighborhood mode active (depth {settings.neighborhood_depth})")
+            context.scene['_temp_neighborhood_node_id'] = node.node_id
+
+            # Sincronizza 3D e UIList prima
+            from .utils import add_graph_prefix, sync_ui_list
+            prefixed_name = add_graph_prefix(human_name, context)
+
+            proxy = None
+            for obj in bpy.data.objects:
+                if obj.name == prefixed_name:
+                    proxy = obj
+                    break
+
+            if proxy:
+                bpy.ops.object.select_all(action='DESELECT')
+                proxy.select_set(True)
+                context.view_layer.objects.active = proxy
+                print(f"   ✓ Selected 3D proxy: {proxy.name}")
+
+            sync_ui_list(context, human_name)
+
+            # Mostra il neighborhood
+            bpy.ops.graphedit.draw_graph(
+                'INVOKE_DEFAULT',
+                filter_mode='NEIGHBORHOOD',
+                neighborhood_depth=settings.neighborhood_depth
+            )
+
+            self.report({'INFO'}, f"Synced (Neighborhood depth {settings.neighborhood_depth}): {human_name}")
+            return {'FINISHED'}
+
+        # ✅ Modalità normale: sincronizza e seleziona il singolo nodo
         # ✅ Cerca proxy usando human name + prefisso
         from .utils import add_graph_prefix
         prefixed_name = add_graph_prefix(human_name, context)
-        
+
         proxy = None
         for obj in bpy.data.objects:
             if obj.name == prefixed_name:
                 proxy = obj
                 break
-        
+
         if proxy:
             bpy.ops.object.select_all(action='DESELECT')
             proxy.select_set(True)
@@ -724,11 +896,14 @@ class GRAPHEDIT_OT_sync_selection(Operator):
             print(f"   ✓ Selected 3D proxy: {proxy.name}")
         else:
             print(f"   ✗ Proxy not found: '{prefixed_name}'")
-        
+
         # ✅ Sincronizza UIList usando human name
         from .utils import sync_ui_list
         sync_ui_list(context, human_name)
-        
+
+        # ✅ Applica Frame Selected sul nodo selezionato nel Graph Viewer
+        self._apply_frame_selected_delayed(context)
+
         self.report({'INFO'}, f"Synced: {human_name}")
         return {'FINISHED'}
         
@@ -737,15 +912,41 @@ class GRAPHEDIT_OT_sync_selection(Operator):
         if not context.active_object:
             self.report({'WARNING'}, "No object selected")
             return {'CANCELLED'}
-        
+
         obj = context.active_object
-        
+
         # ✅ Estrai human name dal proxy
         from .utils import remove_graph_prefix
         human_name = remove_graph_prefix(obj.name, context)
-        
+
         print(f"🔗 Syncing from 3D: '{obj.name}' → human name: '{human_name}'")
-        
+
+        # ✅ Controlla se la modalità neighborhood è attiva
+        settings = context.scene.graph_editor_settings
+        if settings.neighborhood_mode_enabled:
+            # Modalità neighborhood attiva: mostra il vicinato invece del singolo nodo
+            from .utils import find_node_id_from_proxy
+            node_id = find_node_id_from_proxy(obj, context)
+
+            if node_id:
+                print(f"   🎯 Neighborhood mode active (depth {settings.neighborhood_depth})")
+                context.scene['_temp_neighborhood_node_id'] = node_id
+
+                # Sincronizza UIList prima
+                from .utils import sync_ui_list
+                sync_ui_list(context, human_name)
+
+                # Mostra il neighborhood
+                bpy.ops.graphedit.draw_graph(
+                    'INVOKE_DEFAULT',
+                    filter_mode='NEIGHBORHOOD',
+                    neighborhood_depth=settings.neighborhood_depth
+                )
+
+                self.report({'INFO'}, f"Synced (Neighborhood depth {settings.neighborhood_depth}): {human_name}")
+                return {'FINISHED'}
+
+        # ✅ Modalità normale: sincronizza e seleziona il singolo nodo
         # ✅ Sincronizza Graph Viewer - cerca per LABEL
         graph_synced = False
 
@@ -766,11 +967,11 @@ class GRAPHEDIT_OT_sync_selection(Operator):
                             continue
 
                         print(f"   Searching in tree: {tree.name}")
-                        
+
                         # Deseleziona tutto
                         for n in tree.nodes:
                             n.select = False
-                        
+
                         # ✅ CERCA PER LABEL (contiene human name)
                         for n in tree.nodes:
                             if hasattr(n, 'label') and n.label == human_name:
@@ -779,24 +980,66 @@ class GRAPHEDIT_OT_sync_selection(Operator):
                                 graph_synced = True
                                 print(f"   ✓ Selected graph node by label: '{n.label}'")
                                 break
-                        
+
                         if graph_synced:
                             break
-            
+
             if graph_synced:
                 break
-        
+
         if not graph_synced:
             print(f"   ⚠️  Node '{human_name}' not found in Graph Viewer")
             print(f"      (may be filtered out or not loaded)")
-        
+
         # ✅ Sincronizza UIList usando human name
         from .utils import sync_ui_list
         sync_ui_list(context, human_name)
-        
+
+        # ✅ Applica Frame Selected sul nodo selezionato nel Graph Viewer
+        if graph_synced:
+            self._apply_frame_selected_delayed(context)
+
         self.report({'INFO'}, f"Synced: {human_name}")
         return {'FINISHED'}
-    
+
+    def _apply_frame_selected_delayed(self, context):
+        """Applica Frame Selected con un delay per assicurarsi che la selezione sia aggiornata"""
+        def zoom_callback():
+            for window in context.window_manager.windows:
+                for area in window.screen.areas:
+                    if area.type == 'NODE_EDITOR':
+                        space = area.spaces[0]
+                        if hasattr(space, 'tree_type') and space.tree_type == 'EMGraphNodeTreeType':
+                            # Trova la region WINDOW (quella principale del node editor)
+                            region = None
+                            for r in area.regions:
+                                if r.type == 'WINDOW':
+                                    region = r
+                                    break
+
+                            if not region:
+                                print(f"   ⚠️  No WINDOW region found in Node Editor")
+                                return None
+
+                            override = {
+                                'window': window,
+                                'screen': window.screen,
+                                'area': area,
+                                'region': region,
+                                'space_data': space,
+                            }
+
+                            with context.temp_override(**override):
+                                try:
+                                    bpy.ops.node.view_selected()
+                                    print("   ✓ Frame Selected applied on sync")
+                                except Exception as e:
+                                    print(f"   ⚠️  Frame Selected failed: {e}")
+                            return None
+            return None
+
+        bpy.app.timers.register(zoom_callback, first_interval=0.05)
+
     def sync_graph_editor(self, context, node_id):
         """Seleziona nodo nel graph editor"""
         for area in context.screen.areas:

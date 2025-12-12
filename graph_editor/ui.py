@@ -68,16 +68,19 @@ class GRAPHEDIT_PT_main_panel(Panel):
         # Neighborhood Section
         neighbor_box = layout.box()
         neighbor_box.label(text="Neighborhood View", icon='SNAP_FACE')
-        
+
         col = neighbor_box.column(align=True)
         col.label(text="1. Select node (3D/UI/Graph)")
         col.label(text="2. Choose depth:")
-        
+
+        # ✅ Pulsanti toggle per depth
         row = col.row(align=True)
         for depth in [1, 2, 3]:
-            op = row.operator("graphedit.draw_neighborhood", text=f"Lvl {depth}")
+            # Usa depress per evidenziare il pulsante attivo
+            is_active = settings.neighborhood_mode_enabled and settings.neighborhood_depth == depth
+            op = row.operator("graphedit.toggle_neighborhood_mode", text=f"Lvl {depth}", depress=is_active)
             op.depth = depth
-        
+
         col.separator(factor=0.5)
         col.label(text="Shortcut: Shift+Alt+N", icon='KEYINGSET')
         
@@ -298,13 +301,15 @@ class GRAPHEDIT_PT_node_info(Panel):
         
         # Show neighborhood
         layout.separator()
-        
+
+        settings = context.scene.graph_editor_settings
         box = layout.box()
         box.label(text="Show Neighborhood", icon='SNAP_FACE')
-        
+
         row = box.row(align=True)
         for depth in [1, 2, 3]:
-            op = row.operator("graphedit.draw_neighborhood", text=str(depth))
+            is_active = settings.neighborhood_mode_enabled and settings.neighborhood_depth == depth
+            op = row.operator("graphedit.toggle_neighborhood_mode", text=str(depth), depress=is_active)
             op.depth = depth
         
         # Context view
@@ -377,11 +382,73 @@ class VIEW3D_PT_graphedit_sync(Panel):
         op.filter_mode = 'STRATIGRAPHIC'
 
         # Neighborhood depth
+        settings = context.scene.graph_editor_settings
         box.label(text="Depth:")
         row = box.row(align=True)
         for depth in [1, 2, 3]:
-            op = row.operator("graphedit.draw_neighborhood", text=str(depth))
+            is_active = settings.neighborhood_mode_enabled and settings.neighborhood_depth == depth
+            op = row.operator("graphedit.toggle_neighborhood_mode", text=str(depth), depress=is_active)
             op.depth = depth
+
+
+class GRAPHEDIT_OT_toggle_neighborhood_mode(bpy.types.Operator):
+    """Toggle modalità neighborhood con depth specificato"""
+    bl_idname = "graphedit.toggle_neighborhood_mode"
+    bl_label = "Toggle Neighborhood Mode"
+    bl_description = "Toggle neighborhood mode - when active, sync operations will show neighborhood of selected node"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    depth: bpy.props.IntProperty(
+        name="Depth",
+        default=1,
+        min=1,
+        max=5
+    )
+
+    def execute(self, context):
+        settings = context.scene.graph_editor_settings
+
+        # Se la modalità è già attiva con lo stesso depth, disattivala
+        if settings.neighborhood_mode_enabled and settings.neighborhood_depth == self.depth:
+            settings.neighborhood_mode_enabled = False
+            self.report({'INFO'}, "Neighborhood mode disabled")
+        else:
+            # Altrimenti, attivala e imposta il depth
+            settings.neighborhood_mode_enabled = True
+            settings.neighborhood_depth = self.depth
+            self.report({'INFO'}, f"Neighborhood mode enabled (depth {self.depth})")
+
+            # ✅ Se c'è un nodo selezionato, mostra subito il neighborhood
+            from .utils import get_em_list_items, get_em_list_active_index, find_node_id_from_proxy
+
+            selected_node_id = None
+
+            # Priorità: Graph Viewer → 3D → UIList
+            if context.area and context.area.type == 'NODE_EDITOR':
+                if context.active_node and hasattr(context.active_node, 'node_id'):
+                    selected_node_id = context.active_node.node_id
+            elif context.area and context.area.type == 'VIEW_3D':
+                if context.active_object:
+                    selected_node_id = find_node_id_from_proxy(context.active_object, context)
+
+            if not selected_node_id:
+                em_list = get_em_list_items(context)
+                em_list_index = get_em_list_active_index(context)
+                if em_list and 0 <= em_list_index < len(em_list):
+                    item = em_list[em_list_index]
+                    if hasattr(item, 'node_id') and item.node_id:
+                        selected_node_id = item.node_id
+
+            # Se c'è un nodo selezionato, mostra il neighborhood
+            if selected_node_id:
+                context.scene['_temp_neighborhood_node_id'] = selected_node_id
+                bpy.ops.graphedit.draw_graph(
+                    'INVOKE_DEFAULT',
+                    filter_mode='NEIGHBORHOOD',
+                    neighborhood_depth=self.depth
+                )
+
+        return {'FINISHED'}
 
 
 class GRAPHEDIT_OT_toggle_edge_category(bpy.types.Operator):
@@ -499,6 +566,7 @@ classes = (
     GRAPHEDIT_PT_edge_filters,
     GRAPHEDIT_PT_appearance,
     GRAPHEDIT_PT_node_info,
+    GRAPHEDIT_OT_toggle_neighborhood_mode,
     GRAPHEDIT_OT_toggle_edge_category,
     GRAPHEDIT_OT_apply_color_scheme,
     # ✅ VIEW3D panel registered last to appear at the bottom in 3D View sidebar

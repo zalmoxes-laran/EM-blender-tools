@@ -63,6 +63,13 @@ class GraphEditorSettings(PropertyGroup):
         min=1,
         max=5
     )
+
+    # ✅ Modalità neighborhood persistente (toggle mode)
+    neighborhood_mode_enabled: BoolProperty(
+        name="Neighborhood Mode",
+        description="When enabled, sync and selection operations will show neighborhood instead of single node",
+        default=False
+    )
     
     # Node + Context settings
     show_stratigraphic_context: BoolProperty(
