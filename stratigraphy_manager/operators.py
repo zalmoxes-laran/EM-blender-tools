@@ -747,8 +747,17 @@ class EM_listitem_OT_to3D(Operator):
         if self.list_type == "em_list":
             item = scene.em_tools.stratigraphy.units[scene.em_tools.stratigraphy.units_index]
         else:
-            # Fallback for other list types (if any)
-            item_name_picker_cmd = "scene."+self.list_type+"[scene."+self.list_type+"_index]"
+            # Handle both "em_list" and paradata list formats
+            if "." in self.list_type:
+                # Already has the full path (e.g., "em_tools.stratigraphy.units")
+                item_name_picker_cmd = "scene." + self.list_type + "[scene." + self.list_type + "_index]"
+            else:
+                # Simple name, need to add em_tools prefix for paradata lists
+                if self.list_type.startswith("em_v_") or self.list_type in ["em_extractors_list", "em_sources_list", "em_combiners_list", "em_properties_list"]:
+                    item_name_picker_cmd = "scene.em_tools." + self.list_type + "[scene.em_tools." + self.list_type + "_index]"
+                else:
+                    item_name_picker_cmd = "scene." + self.list_type + "[scene." + self.list_type + "_index]"
+
             item = eval(item_name_picker_cmd)
 
         # ✅ Ottieni il grafo attivo
@@ -853,11 +862,21 @@ class EM_select_from_list_item(Operator):
             )
         else:
             # Fallback to the old behavior using the active index
-            list_type_cmd = "scene." + self.list_type + "[scene." + self.list_type + "_index]"
+            # Handle both "em_list" and "em_extractors_list" formats
+            if "." in self.list_type:
+                # Already has the full path (e.g., "em_tools.stratigraphy.units")
+                list_type_cmd = "scene." + self.list_type + "[scene." + self.list_type + "_index]"
+            else:
+                # Simple name, need to add em_tools prefix for paradata lists
+                if self.list_type.startswith("em_v_") or self.list_type in ["em_extractors_list", "em_sources_list", "em_combiners_list", "em_properties_list"]:
+                    list_type_cmd = "scene.em_tools." + self.list_type + "[scene.em_tools." + self.list_type + "_index]"
+                else:
+                    list_type_cmd = "scene." + self.list_type + "[scene." + self.list_type + "_index]"
+
             list_item = eval(list_type_cmd)
             select_3D_obj(
                 list_item.name,
-                context=context, 
+                context=context,
                 graph=active_graph  # ✅ Passa il graph
             )
         

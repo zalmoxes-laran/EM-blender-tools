@@ -453,7 +453,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             except Exception:
                 item.icon = "RESTRICT_INSTANCED_ON"
 
-            item.icon_url = "CHECKBOX_HLT" if item.url else "CHECKBOX_DEHLT"
+            item.icon_url = "WORLD" if item.url else "WORLD_DATA"
             item.id_node = prop_node.node_id
 
     def update_combiner_list(self, scene, graph, prop_node_id):
@@ -487,7 +487,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             except Exception:
                 item.icon = "RESTRICT_INSTANCED_ON"
 
-            item.icon_url = "CHECKBOX_HLT" if item.url else "CHECKBOX_DEHLT"
+            item.icon_url = "WORLD" if item.url else "WORLD_DATA"
             item.id_node = combiner.node_id
 
         if len(em_tools.em_v_combiners_list) > 0:
@@ -545,7 +545,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             except Exception:
                 item.icon = "RESTRICT_INSTANCED_ON"
 
-            item.icon_url = "CHECKBOX_HLT" if item.url else "CHECKBOX_DEHLT"
+            item.icon_url = "WORLD" if item.url else "WORLD_DATA"
             item.id_node = extractor.node_id
 
         if len(em_tools.em_v_extractors_list) > 0:
@@ -578,7 +578,7 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             except Exception:
                 item.icon = "RESTRICT_INSTANCED_ON"
 
-            item.icon_url = "CHECKBOX_HLT" if item.url else "CHECKBOX_DEHLT"
+            item.icon_url = "WORLD" if item.url else "WORLD_DATA"
             item.id_node = doc.node_id
 
         if len(em_tools.em_v_sources_list) > 0:

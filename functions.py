@@ -888,7 +888,7 @@ def create_derived_lists(node, graph=None):
             property_item.url = prop_node.value if hasattr(prop_node, 'value') else ""
             property_item.id_node = prop_node.node_id
             property_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(prop_node.name, graph=graph)
-            property_item.icon_url = "CHECKBOX_HLT" if property_item.url else "CHECKBOX_DEHLT"
+            property_item.icon_url = "WORLD" if property_item.url else "WORLD_DATA"
             prop_index += 1
 
     print(f"Trovate {prop_index} proprietà per il nodo {node.id_node}")
@@ -936,7 +936,7 @@ def create_derived_combiners_list(passed_property_item):
             combiner_item.description = comb_node.description if hasattr(comb_node, 'description') else ""
             combiner_item.url = comb_node.sources[0] if hasattr(comb_node, 'sources') and comb_node.sources else ""
             combiner_item.id_node = comb_node.node_id
-            combiner_item.icon_url = "CHECKBOX_HLT" if combiner_item.url else "CHECKBOX_DEHLT"
+            combiner_item.icon_url = "WORLD" if combiner_item.url else "WORLD_DATA"
             combiner_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(combiner_item.name)
             comb_index += 1
 
@@ -1002,7 +1002,7 @@ def create_derived_extractors_list(passed_property_item, graph=None):
             extractor_item.description = extr_node.description if hasattr(extr_node, 'description') else ""
             extractor_item.url = extr_node.source if hasattr(extr_node, 'source') else ""
             extractor_item.id_node = extr_node.node_id
-            extractor_item.icon_url = "CHECKBOX_HLT" if extractor_item.url else "CHECKBOX_DEHLT"
+            extractor_item.icon_url = "WORLD" if extractor_item.url else "WORLD_DATA"
             extractor_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(extractor_item.name, graph=graph)
             extr_index += 1
 
@@ -1056,7 +1056,7 @@ def create_derived_sources_list(passed_extractor_item, graph=None):
             source_item.description = src_node.description if hasattr(src_node, 'description') else ""
             source_item.url = src_node.url if hasattr(src_node, 'url') else ""
             source_item.id_node = src_node.node_id
-            source_item.icon_url = "CHECKBOX_HLT" if source_item.url else "CHECKBOX_DEHLT"
+            source_item.icon_url = "WORLD" if source_item.url else "WORLD_DATA"
             source_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(source_item.name, graph=graph)
             sour_index += 1
 
@@ -1187,8 +1187,16 @@ def update_icons(context, list_type):
     elif list_type == "epoch_list":
         target_list = scene.em_tools.epochs.list
     else:
-        # Per altre liste, usa il vecchio path
-        list_path = "scene." + list_type
+        # Handle paradata lists with em_tools prefix
+        if "." in list_type:
+            # Already has the full path (e.g., "em_tools.stratigraphy.units")
+            list_path = "scene." + list_type
+        elif list_type.startswith("em_v_") or list_type in ["em_extractors_list", "em_sources_list", "em_combiners_list", "em_properties_list"]:
+            # Paradata lists need em_tools prefix
+            list_path = "scene.em_tools." + list_type
+        else:
+            # Legacy format
+            list_path = "scene." + list_type
         target_list = eval(list_path)
 
     # ✅ Ottieni il grafo attivo

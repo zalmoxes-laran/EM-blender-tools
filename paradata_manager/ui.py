@@ -155,32 +155,34 @@ class EM_ParadataPanel:
 
         row = layout.row()
         row.label(icon_value=icons_manager.get_icon_value("property"), text="Properties: (" + str(property_list_length) + ")")
-        row = layout.row()
-        row.template_list(
-            "EM_UL_properties_managers",
-            "",
-            scene.em_tools,
-            property_list_var,
-            scene.em_tools,
-            property_list_index_var,
-            rows=2,
-        )
 
-        box = layout.box()
-        if property_index_valid:
-            item_property = eval(property_list_cmd)[property_list_index]
-            row = box.row()
-            row.label(text="Name:", icon="FILE_TEXT")
-            row = box.row()
-            draw_multiline_text(row, item_property.name, max_chars=70)
+        if property_list_length > 0:
+            row = layout.row()
+            row.template_list(
+                "EM_UL_properties_managers",
+                "",
+                scene.em_tools,
+                property_list_var,
+                scene.em_tools,
+                property_list_index_var,
+                rows=2,
+            )
 
-            row = box.row()
-            row.label(text="Description:", icon="TEXT")
-            row = box.row()
-            draw_multiline_text(row, item_property.description, max_chars=70)
-        else:
-            row = box.row()
-            row.label(text="No properties available")
+            box = layout.box()
+            if property_index_valid:
+                item_property = eval(property_list_cmd)[property_list_index]
+                row = box.row()
+                row.label(text="Name:", icon="FILE_TEXT")
+                row = box.row()
+                draw_multiline_text(row, item_property.name, max_chars=70)
+
+                row = box.row()
+                row.label(text="Description:", icon="TEXT")
+                row = box.row()
+                draw_multiline_text(row, item_property.description, max_chars=70)
+            else:
+                row = box.row()
+                row.label(text="No properties available")
 
         combiner_list_length = len(eval(combiner_list_cmd))
         combiner_list_index = eval(combiner_list_index_cmd)
@@ -230,66 +232,69 @@ class EM_ParadataPanel:
 
         row = layout.row()
         row.label(icon_value=icons_manager.get_icon_value("extractor"), text="Extractors: (" + str(extractor_list_length) + ")")
-        row = layout.row()
-        row.template_list(
-            "EM_UL_extractors_managers",
-            "",
-            scene.em_tools,
-            extractor_list_var,
-            scene.em_tools,
-            extractor_list_index_var,
-            rows=2,
-        )
 
-        box = layout.box()
-        if extractor_index_valid:
-            item_source = eval(extractor_list_cmd)[extractor_list_index]
+        if extractor_list_length > 0:
+            row = layout.row()
+            row.template_list(
+                "EM_UL_extractors_managers",
+                "",
+                scene.em_tools,
+                extractor_list_var,
+                scene.em_tools,
+                extractor_list_index_var,
+                rows=2,
+            )
 
-            row = box.row()
-            row.label(text="Name:", icon="FILE_TEXT")
-            row = box.row()
-            split = row.split(factor=0.7)
-            col_name = split.column()
-            draw_multiline_text(col_name, item_source.name, max_chars=70)
+            box = layout.box()
+            if extractor_index_valid:
+                item_source = eval(extractor_list_cmd)[extractor_list_index]
 
-            col_btns = split.column(align=True)
-            btn_row = col_btns.row(align=True)
-            op = btn_row.operator("listitem.toobj", icon="PASTEDOWN", text="")
-            if op:
-                op.list_type = extractor_list_var
+                row = box.row()
+                split = row.split(factor=0.15)
+                split.label(text="Name:", icon="FILE_TEXT")
 
-            strat = scene.em_tools.stratigraphy
-            if strat.units_index >= 0 and len(strat.units) > 0 and strat.units[strat.units_index].icon == "LINKED":
-                op = btn_row.operator("select.fromlistitem", text="", icon="MESH_CUBE")
+                main_split = split.split(factor=0.82)
+                col_name = main_split.column()
+                draw_multiline_text(col_name, item_source.name, max_chars=70)
+
+                col_btns = main_split.column(align=True)
+                btn_row = col_btns.row(align=True)
+                op = btn_row.operator("listitem.toobj", icon="LINK_BLEND", text="")
                 if op:
                     op.list_type = extractor_list_var
-            else:
-                btn_row.label(text="", icon="MESH_CUBE")
 
-            if obj and check_if_current_obj_has_brother_inlist(obj.name, extractor_list_var):
-                op = btn_row.operator("select.listitem", text="", icon="LONGDISPLAY")
+                strat = scene.em_tools.stratigraphy
+                if strat.units_index >= 0 and len(strat.units) > 0 and strat.units[strat.units_index].icon == "LINKED":
+                    op = btn_row.operator("select.fromlistitem", text="", icon="MESH_CUBE")
+                    if op:
+                        op.list_type = extractor_list_var
+                else:
+                    btn_row.label(text="", icon="MESH_CUBE")
+
+                if obj and check_if_current_obj_has_brother_inlist(obj.name, extractor_list_var):
+                    op = btn_row.operator("select.listitem", text="", icon="LONGDISPLAY")
+                    if op:
+                        op.list_type = extractor_list_var
+                else:
+                    btn_row.label(text="", icon="LONGDISPLAY")
+
+                row = box.row()
+                row.label(text="Description:", icon="TEXT")
+                row = box.row()
+                draw_multiline_text(row, item_source.description, max_chars=70)
+
+                row = box.row()
+                row.label(text="URL:", icon="URL")
+                split = row.split(factor=0.85)
+                col_url = split.column()
+                draw_multiline_text(col_url, item_source.url, max_chars=70)
+                col_btn = split.column()
+                op = col_btn.operator("open.file", icon="EMPTY_SINGLE_ARROW", text="")
                 if op:
-                    op.list_type = extractor_list_var
+                    op.node_type = extractor_list_var
             else:
-                btn_row.label(text="", icon="LONGDISPLAY")
-
-            row = box.row()
-            row.label(text="Description:", icon="TEXT")
-            row = box.row()
-            draw_multiline_text(row, item_source.description, max_chars=70)
-
-            row = box.row()
-            row.label(text="URL:", icon="URL")
-            split = row.split(factor=0.85)
-            col_url = split.column()
-            draw_multiline_text(col_url, item_source.url, max_chars=70)
-            col_btn = split.column()
-            op = col_btn.operator("open.file", icon="EMPTY_SINGLE_ARROW", text="")
-            if op:
-                op.node_type = extractor_list_var
-        else:
-            row = box.row()
-            row.label(text="No extractor available")
+                row = box.row()
+                row.label(text="No extractor available")
 
         source_list_length = len(eval(source_list_cmd))
         source_list_index = eval(source_list_index_cmd)
@@ -297,66 +302,69 @@ class EM_ParadataPanel:
 
         row = layout.row()
         row.label(icon_value=icons_manager.get_icon_value("document"), text="Docs: (" + str(source_list_length) + ")")
-        row = layout.row()
-        row.template_list(
-            "EM_UL_sources_managers",
-            "",
-            scene.em_tools,
-            source_list_var,
-            scene.em_tools,
-            source_list_index_var,
-            rows=2,
-        )
 
-        box = layout.box()
-        if source_index_valid:
-            item_source = eval(source_list_cmd)[source_list_index]
+        if source_list_length > 0:
+            row = layout.row()
+            row.template_list(
+                "EM_UL_sources_managers",
+                "",
+                scene.em_tools,
+                source_list_var,
+                scene.em_tools,
+                source_list_index_var,
+                rows=2,
+            )
 
-            row = box.row()
-            row.label(text="Name:", icon="FILE_TEXT")
-            row = box.row()
-            split = row.split(factor=0.7)
-            col_name = split.column()
-            draw_multiline_text(col_name, item_source.name, max_chars=70)
+            box = layout.box()
+            if source_index_valid:
+                item_source = eval(source_list_cmd)[source_list_index]
 
-            col_btns = split.column(align=True)
-            btn_row = col_btns.row(align=True)
-            op = btn_row.operator("listitem.toobj", icon="PASTEDOWN", text="")
-            if op:
-                op.list_type = source_list_var
+                row = box.row()
+                split = row.split(factor=0.15)
+                split.label(text="Name:", icon="FILE_TEXT")
 
-            strat = scene.em_tools.stratigraphy
-            if strat.units_index >= 0 and len(strat.units) > 0 and strat.units[strat.units_index].icon == "LINKED":
-                op = btn_row.operator("select.fromlistitem", text="", icon="MESH_CUBE")
+                main_split = split.split(factor=0.82)
+                col_name = main_split.column()
+                draw_multiline_text(col_name, item_source.name, max_chars=70)
+
+                col_btns = main_split.column(align=True)
+                btn_row = col_btns.row(align=True)
+                op = btn_row.operator("listitem.toobj", icon="LINK_BLEND", text="")
                 if op:
                     op.list_type = source_list_var
-            else:
-                btn_row.label(text="", icon="MESH_CUBE")
 
-            if obj and check_if_current_obj_has_brother_inlist(obj.name, source_list_var):
-                op = btn_row.operator("select.listitem", text="", icon="LONGDISPLAY")
+                strat = scene.em_tools.stratigraphy
+                if strat.units_index >= 0 and len(strat.units) > 0 and strat.units[strat.units_index].icon == "LINKED":
+                    op = btn_row.operator("select.fromlistitem", text="", icon="MESH_CUBE")
+                    if op:
+                        op.list_type = source_list_var
+                else:
+                    btn_row.label(text="", icon="MESH_CUBE")
+
+                if obj and check_if_current_obj_has_brother_inlist(obj.name, source_list_var):
+                    op = btn_row.operator("select.listitem", text="", icon="LONGDISPLAY")
+                    if op:
+                        op.list_type = source_list_var
+                else:
+                    btn_row.label(text="", icon="LONGDISPLAY")
+
+                row = box.row()
+                row.label(text="Description:", icon="TEXT")
+                row = box.row()
+                draw_multiline_text(row, item_source.description, max_chars=70)
+
+                row = box.row()
+                row.label(text="URL:", icon="URL")
+                split = row.split(factor=0.85)
+                col_url = split.column()
+                draw_multiline_text(col_url, item_source.url, max_chars=70)
+                col_btn = split.column()
+                op = col_btn.operator("open.file", icon="EMPTY_SINGLE_ARROW", text="")
                 if op:
-                    op.list_type = source_list_var
+                    op.node_type = source_list_var
             else:
-                btn_row.label(text="", icon="LONGDISPLAY")
-
-            row = box.row()
-            row.label(text="Description:", icon="TEXT")
-            row = box.row()
-            draw_multiline_text(row, item_source.description, max_chars=70)
-
-            row = box.row()
-            row.label(text="URL:", icon="URL")
-            split = row.split(factor=0.85)
-            col_url = split.column()
-            draw_multiline_text(col_url, item_source.url, max_chars=70)
-            col_btn = split.column()
-            op = col_btn.operator("open.file", icon="EMPTY_SINGLE_ARROW", text="")
-            if op:
-                op.node_type = source_list_var
-        else:
-            row = box.row()
-            row.label(text="No documents available")
+                row = box.row()
+                row.label(text="No documents available")
 
         if scene.paradata_image.image_collection:
             box = layout.box()

@@ -79,7 +79,7 @@ class EMListParadata(PropertyGroup):
     icon_url: StringProperty(
         name="URL Icon",
         description="Icon for URL status",
-        default="CHECKBOX_DEHLT"
+        default="WORLD_DATA"
     )  # type: ignore
     url: StringProperty(
         name="URL",
