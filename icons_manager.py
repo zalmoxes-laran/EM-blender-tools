@@ -163,10 +163,15 @@ def draw_label_with_icon(layout, text, icon_name, fallback_icon='INFO'):
 def unload_icons():
     """Rimuovi tutte le icone dalla memoria"""
     global icon_collections
-    
+
     try:
-        for pcoll in icon_collections.values():
-            bpy.utils.previews.remove(pcoll)
+        for key, pcoll in list(icon_collections.items()):
+            try:
+                bpy.utils.previews.remove(pcoll)
+                log.debug(f"Removed preview collection: {key}")
+            except Exception as e:
+                log.warning(f"Error removing preview collection {key}: {e}")
+
         icon_collections.clear()
         log.info("Icone EMtools scaricate dalla memoria")
     except Exception as e:

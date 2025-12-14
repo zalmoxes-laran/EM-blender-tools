@@ -210,7 +210,7 @@ class VIEW3D_PT_visual_panel(Panel):
             row.label(text="", icon='SPHERE')
 
         row = layout.row(align=True)
-        row.prop(scene.em_tools.visual, "overlay_epoch_us", text="EM header info")
+        row.prop(scene.em_tools.visual, "overlay_epoch_us", text="info")
 
         # Settings button (gear icon) - spostato vicino al checkbox
         row.operator("visual.open_overlay_preferences", text="", icon="PREFERENCES")

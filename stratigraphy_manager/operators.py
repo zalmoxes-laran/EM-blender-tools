@@ -400,6 +400,7 @@ class EM_strat_show_all_proxies(Operator):
         Show all proxy objects.
 
         ✅ CLEAN VERSION: Uses only scene.em_tools.stratigraphy paths
+        ✅ USES get_base_name to handle graph prefixes correctly
         """
         strat = scene.em_tools.stratigraphy  # ✅ Nuovo
 
@@ -412,62 +413,70 @@ class EM_strat_show_all_proxies(Operator):
         proxy_collections = set()
 
         # First pass: identify which collections contain objects from em_list
-        # ✅ Usa SOLO nuovo path
+        # ✅ Usa SOLO nuovo path E get_base_name per gestire prefissi grafo
         all_em_list_names = {item.name for item in strat.units}
         for collection in bpy.data.collections:
             for obj in collection.objects:
-                if obj.name in all_em_list_names and obj.type == 'MESH':
+                if get_base_name(obj.name) in all_em_list_names and obj.type == 'MESH':
                     proxy_collections.add(collection)
                     break
-        
+
         # Add the original "Proxy" collection if it exists
         proxy_collection = bpy.data.collections.get('Proxy')
         if proxy_collection:
             proxy_collections.add(proxy_collection)
-        
+
         # Second pass: add ALL mesh objects from identified proxy collections
         for collection in proxy_collections:
             for obj in collection.objects:
                 if obj.type == 'MESH' and obj not in proxy_objects_set:
                     proxy_objects.append(obj)
                     proxy_objects_set.add(obj)
-            
+
             # ATTIVA COMPLETAMENTE le collezioni proxy (base + view layer)
             if activate_collection_fully(context, collection):
                 activated_collections.append(collection.name)
-        
+
         # Also add any objects with matching names that might not be in proxy collections
+        # ✅ Cerca oggetti iterando su TUTTI gli oggetti e confrontando il base_name
         for obj_name in all_em_list_names:
-            obj = bpy.data.objects.get(obj_name)
-            if obj and obj.type == 'MESH' and obj not in proxy_objects_set:
-                proxy_objects.append(obj)
-                proxy_objects_set.add(obj)
-                
-                # ATTIVA anche le collezioni di questi oggetti singoli
-                for collection in bpy.data.collections:
-                    if obj.name in collection.objects:
-                        if activate_collection_fully(context, collection):
-                            if collection.name not in activated_collections:
-                                activated_collections.append(collection.name)
-        
+            # Cerca tra TUTTI gli oggetti della scena
+            for obj in bpy.data.objects:
+                if obj.type == 'MESH' and get_base_name(obj.name) == obj_name and obj not in proxy_objects_set:
+                    proxy_objects.append(obj)
+                    proxy_objects_set.add(obj)
+
+                    # ATTIVA anche le collezioni di questi oggetti singoli
+                    for collection in bpy.data.collections:
+                        if obj.name in collection.objects:
+                            if activate_collection_fully(context, collection):
+                                if collection.name not in activated_collections:
+                                    activated_collections.append(collection.name)
+
         # Show ALL proxy objects and make them renderable
         shown_count = 0
         for obj in proxy_objects:
-            if obj.hide_viewport or obj.hide_render:
-                obj.hide_viewport = False
-                obj.hide_render = False
+            was_hidden = obj.hide_viewport or obj.hide_render
+            # Usa hide_set() per gestire correttamente la visibilità
+            obj.hide_set(False)
+            obj.hide_viewport = False
+            obj.hide_render = False
+            if was_hidden:
                 shown_count += 1
-        
+
         # ✅ Update icons SOLO nuova lista (no dual-sync!)
+        # ✅ Cerca oggetti iterando e confrontando il base_name
         for item in strat.units:
-            obj = bpy.data.objects.get(item.name)
-            if obj:
-                item.is_visible = not obj.hide_viewport
-        
+            # Cerca l'oggetto con base_name corrispondente
+            for obj in bpy.data.objects:
+                if get_base_name(obj.name) == item.name:
+                    item.is_visible = not obj.hide_viewport
+                    break
+
         # MOSTRA messaggio collezioni attivate (riusa la funzione esistente)
         if activated_collections:
             self.show_activation_message(", ".join(activated_collections))
-            
+
         return shown_count
     
     def show_activation_message(self, collection_names):
@@ -569,21 +578,28 @@ class EM_strat_hide_all_proxies(Operator):
         strat = scene.em_tools.stratigraphy
 
         # Hide all proxy objects
+        # ✅ Cerca oggetti iterando su TUTTI gli oggetti e confrontando il base_name
         hidden_count = 0
         all_em_list_names = {item.name for item in strat.units}
 
         for obj_name in all_em_list_names:
-            obj = bpy.data.objects.get(obj_name)
-            if obj and obj.type == 'MESH':
-                obj.hide_viewport = True
-                obj.hide_render = True
-                hidden_count += 1
+            # Cerca tra TUTTI gli oggetti della scena
+            for obj in bpy.data.objects:
+                if obj.type == 'MESH' and get_base_name(obj.name) == obj_name:
+                    # Usa hide_set() per gestire correttamente la visibilità
+                    obj.hide_set(True)
+                    obj.hide_viewport = True
+                    obj.hide_render = True
+                    hidden_count += 1
 
         # Update icon visibility
+        # ✅ Cerca oggetti iterando e confrontando il base_name
         for item in strat.units:
-            obj = bpy.data.objects.get(item.name)
-            if obj:
-                item.is_visible = not obj.hide_viewport
+            # Cerca l'oggetto con base_name corrispondente
+            for obj in bpy.data.objects:
+                if get_base_name(obj.name) == item.name:
+                    item.is_visible = not obj.hide_viewport
+                    break
 
         self.report({'INFO'}, f"All proxies hidden: {hidden_count} objects")
         return {'FINISHED'}
