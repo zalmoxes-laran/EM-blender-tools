@@ -71,7 +71,7 @@ class ANASTYLOSIS_UL_List(UIList):
                 
                 # Determine appropriate icon
                 if hasattr(item, 'object_exists') and item.object_exists:
-                    icon_value=icons_manager.get_icon_value("show_all_RMs")
+                    icon_value=icons_manager.get_icon_value("show_all_special_finds")
                     # Layout
                     row = layout.row(align=True)
                     # Name of the model
