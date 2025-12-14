@@ -1221,6 +1221,8 @@ def register_operators():
     """Register all operator classes."""
     operators = [
         EMTOOLS_OT_refresh_us_thumbs,
+        STRAT_OT_set_active_epoch,
+        STRAT_OT_set_active_activity,
         EM_strat_toggle_visibility,
         EM_strat_sync_visibility,
         EM_strat_show_all_proxies,
@@ -1270,10 +1272,72 @@ class EMTOOLS_OT_refresh_us_thumbs(Operator):
             return {'CANCELLED'}
 
 
+class STRAT_OT_set_active_epoch(Operator):
+    """Set the active epoch for filtering"""
+    bl_idname = "strat.set_active_epoch"
+    bl_label = "Set Active Epoch"
+    bl_description = "Set the active epoch for stratigraphy filtering"
+    bl_options = {'REGISTER'}
+
+    epoch_index: IntProperty(
+        name="Epoch Index",
+        description="Index of the epoch to set as active",
+        default=0
+    )
+
+    def execute(self, context):
+        scene = context.scene
+        epochs = scene.em_tools.epochs
+
+        # Validate index
+        if self.epoch_index < 0 or self.epoch_index >= len(epochs.list):
+            self.report({'ERROR'}, "Invalid epoch index")
+            return {'CANCELLED'}
+
+        # Set the active epoch
+        epochs.list_index = self.epoch_index
+        epoch = epochs.list[self.epoch_index]
+
+        self.report({'INFO'}, f"Active epoch set to: {epoch.name}")
+        return {'FINISHED'}
+
+
+class STRAT_OT_set_active_activity(Operator):
+    """Set the active activity for filtering"""
+    bl_idname = "strat.set_active_activity"
+    bl_label = "Set Active Activity"
+    bl_description = "Set the active activity for stratigraphy filtering"
+    bl_options = {'REGISTER'}
+
+    activity_index: IntProperty(
+        name="Activity Index",
+        description="Index of the activity to set as active",
+        default=0
+    )
+
+    def execute(self, context):
+        scene = context.scene
+        activities = scene.activity_manager.activities
+
+        # Validate index
+        if self.activity_index < 0 or self.activity_index >= len(activities):
+            self.report({'ERROR'}, "Invalid activity index")
+            return {'CANCELLED'}
+
+        # Set the active activity
+        scene.activity_manager.active_index = self.activity_index
+        activity = activities[self.activity_index]
+
+        self.report({'INFO'}, f"Active activity set to: {activity.name}")
+        return {'FINISHED'}
+
+
 def unregister_operators():
     """Unregister all operator classes."""
     operators = [
         EMTOOLS_OT_refresh_us_thumbs,
+        STRAT_OT_set_active_epoch,
+        STRAT_OT_set_active_activity,
         STRAT_OT_open_document_folder,
         STRAT_OT_open_document_file,
         STRAT_OT_preview_document,
@@ -1293,7 +1357,7 @@ def unregister_operators():
         EM_strat_sync_visibility,
         EM_strat_toggle_visibility,
     ]
-    
+
     for cls in reversed(operators):
         try:
             bpy.utils.unregister_class(cls)

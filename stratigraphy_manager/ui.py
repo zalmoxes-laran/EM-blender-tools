@@ -8,10 +8,10 @@ panels and list UI elements.
 """
 
 import bpy
-from bpy.types import Panel, UIList
+from bpy.types import Panel, UIList, Menu
 
 from .data import ensure_valid_index
-from .. import icons_manager  
+from .. import icons_manager
 import os
 
 class EM_STRAT_UL_List(UIList):
@@ -58,6 +58,61 @@ class EM_STRAT_UL_List(UIList):
             op = col4.operator("em.strat_toggle_visibility", text="", icon=vis_icon, emboss=False)
             if op:
                 op.index = index
+
+
+class STRAT_MT_epoch_selector(Menu):
+    """Menu dropdown for selecting active epoch in Stratigraphy Manager"""
+    bl_label = "Select Active Epoch"
+    bl_idname = "STRAT_MT_epoch_selector"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        epochs = scene.em_tools.epochs
+
+        if len(epochs.list) == 0:
+            layout.label(text="No epochs available", icon='ERROR')
+            return
+
+        # Draw each epoch as a menu item
+        for i, epoch in enumerate(epochs.list):
+            epoch_label = epoch.name
+
+            # Create operator to set this epoch as active
+            op = layout.operator("strat.set_active_epoch", text=epoch_label, icon='TIME')
+            op.epoch_index = i
+
+            # Highlight current active epoch
+            if i == epochs.list_index:
+                layout.separator()
+
+
+class STRAT_MT_activity_selector(Menu):
+    """Menu dropdown for selecting active activity in Stratigraphy Manager"""
+    bl_label = "Select Active Activity"
+    bl_idname = "STRAT_MT_activity_selector"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        activities = scene.activity_manager.activities
+
+        if len(activities) == 0:
+            layout.label(text="No activities available", icon='ERROR')
+            return
+
+        # Draw each activity as a menu item
+        for i, activity in enumerate(activities):
+            activity_label = activity.name
+
+            # Create operator to set this activity as active
+            op = layout.operator("strat.set_active_activity", text=activity_label, icon='NETWORK_DRIVE')
+            op.activity_index = i
+
+            # Highlight current active activity
+            if i == scene.activity_manager.active_index:
+                layout.separator()
+
 
 class EM_ToolsPanel:
     """Base panel for Stratigraphy Manager"""
@@ -182,6 +237,28 @@ class EM_ToolsPanel:
                 filter_controls_row.label(text="No activities", icon='ERROR')
 
             filter_controls_row.separator()
+
+            # Dropdown selectors for quick switching
+            dropdown_row = filter_box.row(align=True)
+            dropdown_controls = dropdown_row.row(align=True)
+            dropdown_controls.enabled = graph_available
+
+            # Epoch dropdown selector
+            if len(epochs.list) > 0 and epochs.list_index < len(epochs.list):
+                current_epoch = epochs.list[epochs.list_index]
+                dropdown_controls.menu("STRAT_MT_epoch_selector", text=current_epoch.name, icon='SORTTIME')
+            else:
+                dropdown_controls.label(text="No epoch", icon='SORTTIME')
+
+            dropdown_controls.separator()
+
+            # Activity dropdown selector
+            if (len(scene.activity_manager.activities) > 0
+                and scene.activity_manager.active_index < len(scene.activity_manager.activities)):
+                current_activity = scene.activity_manager.activities[scene.activity_manager.active_index]
+                dropdown_controls.menu("STRAT_MT_activity_selector", text=current_activity.name, icon='NETWORK_DRIVE')
+            else:
+                dropdown_controls.label(text="No activities", icon='ERROR')
 
             # Sync 3D scene (only when filters are active)
             if scene.filter_by_epoch or scene.filter_by_activity:
@@ -485,9 +562,11 @@ def register_ui():
     """Register UI classes."""
     classes = [
         EM_STRAT_UL_List,
+        STRAT_MT_epoch_selector,
+        STRAT_MT_activity_selector,
         VIEW3D_PT_ToolsPanel,
     ]
-    
+
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
@@ -499,9 +578,11 @@ def unregister_ui():
     """Unregister UI classes."""
     classes = [
         VIEW3D_PT_ToolsPanel,
+        STRAT_MT_activity_selector,
+        STRAT_MT_epoch_selector,
         EM_STRAT_UL_List,
     ]
-    
+
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
