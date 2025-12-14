@@ -168,97 +168,67 @@ class EM_ToolsPanel:
         )
         row.label(text="Available filters", icon='FILTER')
 
-        # PULSANTI SHOW ALL - Quick actions
-        quick_row = row.row(align=True)
-        quick_row.scale_x = 1.0
-        quick_row.enabled = graph_available
-        
-        quick_row.operator(
-            "em.strat_show_all_proxies", 
-            text="", 
-            icon_value=icons_manager.get_icon_value("show_all_proxies")
-        )
-        
-        quick_row.operator(
-            "em.strat_show_all_rms",
-            text="", 
-            icon_value=icons_manager.get_icon_value("show_all_RMs")
-        )
-
         help1 = row.operator("em.help_popup", text="", icon='QUESTION')
         help1.title = "Filter System Help"
         help1.text = (
             "- Once activated the filter,\n"
             "  try changing epochs and/or activities\n"
-            "  in their manager panel.\n"
+            "  using the dropdown menus below.\n"
             "- The filter will be applied in realtime\n"
             "  to the selected epoch and/or activity.\n"
             "- To reset the filter, click on the\n"
             "  X icon in the top right corner.\n"
-            "- Small icons: Show All Proxies / Show All RMs\n"
+            "- For visibility controls (show/hide all),\n"
+            "  see the Visual Manager panel above.\n"
         )
         help1.url = "EMtools_manual/docs/user_guide/Stratigraphy_manager.html"
 
         # 2) Filter contents (only when open)
         # ✅ PORTED: Use strat.show_filter_system
         if strat.show_filter_system:
-            
-            # Epoch / Activity toggles
-            row = filter_box.row(align=True)
-            filter_controls_row = row.row(align=True)
-            filter_controls_row.enabled = graph_available
 
-            # Epoch filter toggle
             epochs = scene.em_tools.epochs
+
+            # === EPOCH FILTER ROW ===
+            epoch_row = filter_box.row(align=True)
+            epoch_row.enabled = graph_available
+
+            # "By Epoch" toggle button with icon
             if len(epochs.list) > 0 and epochs.list_index < len(epochs.list):
-                current_epoch = epochs.list[epochs.list_index].name
-                filter_controls_row.prop(
+                epoch_row.prop(
                     scene, "filter_by_epoch",
-                    text=current_epoch, 
-                    toggle=True, 
+                    text="By Epoch",
+                    toggle=True,
                     icon='SORTTIME'
                 )
+
+                # Dropdown selector (without repeating the icon)
+                current_epoch = epochs.list[epochs.list_index]
+                epoch_row.menu("STRAT_MT_epoch_selector", text=current_epoch.name)
             else:
-                filter_controls_row.label(text="No epoch", icon='SORTTIME')
+                epoch_row.label(text="By Epoch", icon='SORTTIME')
+                epoch_row.label(text="No epochs available", icon='ERROR')
 
-            filter_controls_row.separator()
+            # === ACTIVITY FILTER ROW ===
+            activity_row = filter_box.row(align=True)
+            activity_row.enabled = graph_available
 
-            # Activity filter toggle
+            # "By Activity" toggle button with icon
             if (len(scene.activity_manager.activities) > 0
                 and scene.activity_manager.active_index < len(scene.activity_manager.activities)):
-                current_activity = scene.activity_manager.activities[scene.activity_manager.active_index].name
-                filter_controls_row.prop(
+                activity_row.prop(
                     scene, "filter_by_activity",
-                    text=current_activity, 
-                    toggle=True, 
+                    text="By Activity",
+                    toggle=True,
                     icon='NETWORK_DRIVE'
                 )
-            else:
-                filter_controls_row.label(text="No activities", icon='ERROR')
 
-            filter_controls_row.separator()
-
-            # Dropdown selectors for quick switching
-            dropdown_row = filter_box.row(align=True)
-            dropdown_controls = dropdown_row.row(align=True)
-            dropdown_controls.enabled = graph_available
-
-            # Epoch dropdown selector
-            if len(epochs.list) > 0 and epochs.list_index < len(epochs.list):
-                current_epoch = epochs.list[epochs.list_index]
-                dropdown_controls.menu("STRAT_MT_epoch_selector", text=current_epoch.name, icon='SORTTIME')
-            else:
-                dropdown_controls.label(text="No epoch", icon='SORTTIME')
-
-            dropdown_controls.separator()
-
-            # Activity dropdown selector
-            if (len(scene.activity_manager.activities) > 0
-                and scene.activity_manager.active_index < len(scene.activity_manager.activities)):
+                # Dropdown selector (without repeating the icon)
                 current_activity = scene.activity_manager.activities[scene.activity_manager.active_index]
-                dropdown_controls.menu("STRAT_MT_activity_selector", text=current_activity.name, icon='NETWORK_DRIVE')
+                activity_row.menu("STRAT_MT_activity_selector", text=current_activity.name)
             else:
-                dropdown_controls.label(text="No activities", icon='ERROR')
+                activity_row.label(text="By Activity", icon='NETWORK_DRIVE')
+                activity_row.label(text="No activities available", icon='ERROR')
 
             # Sync 3D scene (only when filters are active)
             if scene.filter_by_epoch or scene.filter_by_activity:

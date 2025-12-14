@@ -29,16 +29,20 @@ def load_icons():
     # Lista delle icone disponibili (aggiungi qui le nuove)
     icon_files = {
         "show_all_proxies": "show_all_proxies.png",
+        "show_all_proxies_off": "show_all_proxies_off.png",
         "show_all_RMs": "show_all_RMs.png",
+        "show_all_RMs_off": "show_all_RMs_off.png",
+        "show_all_special_finds": "show_all_special_finds.png",
+        "show_all_special_finds_off": "show_all_special_finds_off.png",
         "combiner": "combiner.png",
-        "extractor": "extractor.png",           
-        "document": "document.png",         
-        "property": "property.png",       
+        "extractor": "extractor.png",
+        "document": "document.png",
+        "property": "property.png",
         "pyarchinit": "pyarchinit.png",
         "em_no_publish": "em_no_publish.png",
         "em_publish": "em_publish.png",
         "em_logo": "em_logo_small.png",
-        "EMdb_logo": "EMdb_logo.png",  
+        "EMdb_logo": "EMdb_logo.png",
     }
     
     # Carica ogni icona che esiste

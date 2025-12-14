@@ -557,6 +557,111 @@ class EM_strat_show_all_rms(Operator):
         bpy.context.window_manager.popup_menu(draw, title="Collections Activated", icon='INFO')
 
 
+class EM_strat_hide_all_proxies(Operator):
+    """Hide all proxy objects"""
+    bl_idname = "em.strat_hide_all_proxies"
+    bl_label = "Hide All Proxies"
+    bl_description = "Hide all proxy objects in the viewport and disable rendering"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        scene = context.scene
+        strat = scene.em_tools.stratigraphy
+
+        # Hide all proxy objects
+        hidden_count = 0
+        all_em_list_names = {item.name for item in strat.units}
+
+        for obj_name in all_em_list_names:
+            obj = bpy.data.objects.get(obj_name)
+            if obj and obj.type == 'MESH':
+                obj.hide_viewport = True
+                obj.hide_render = True
+                hidden_count += 1
+
+        # Update icon visibility
+        for item in strat.units:
+            obj = bpy.data.objects.get(item.name)
+            if obj:
+                item.is_visible = not obj.hide_viewport
+
+        self.report({'INFO'}, f"All proxies hidden: {hidden_count} objects")
+        return {'FINISHED'}
+
+
+class EM_strat_hide_all_rms(Operator):
+    """Hide all RM objects"""
+    bl_idname = "em.strat_hide_all_rms"
+    bl_label = "Hide All RMs"
+    bl_description = "Hide all RM objects in the viewport and disable rendering"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        scene = context.scene
+
+        # Hide all RM objects
+        hidden_count = 0
+        for item in scene.rm_list:
+            obj = bpy.data.objects.get(item.name)
+            if obj and obj.type == 'MESH':
+                obj.hide_viewport = True
+                obj.hide_render = True
+                hidden_count += 1
+
+        self.report({'INFO'}, f"All RM objects hidden: {hidden_count} objects")
+        return {'FINISHED'}
+
+
+class EM_strat_show_all_special_finds(Operator):
+    """Show all Special Find objects"""
+    bl_idname = "em.strat_show_all_special_finds"
+    bl_label = "Show All Special Finds"
+    bl_description = "Show all Special Find objects in the viewport and enable rendering"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        # Find and show all Special Find objects
+        shown_count = 0
+        sf_collection = bpy.data.collections.get('SF')
+
+        if sf_collection:
+            # Activate collection
+            activate_collection_fully(context, sf_collection)
+
+            # Show all SF objects
+            for obj in sf_collection.objects:
+                if obj.type == 'MESH':
+                    obj.hide_viewport = False
+                    obj.hide_render = False
+                    shown_count += 1
+
+        self.report({'INFO'}, f"All Special Finds shown: {shown_count} objects")
+        return {'FINISHED'}
+
+
+class EM_strat_hide_all_special_finds(Operator):
+    """Hide all Special Find objects"""
+    bl_idname = "em.strat_hide_all_special_finds"
+    bl_label = "Hide All Special Finds"
+    bl_description = "Hide all Special Find objects in the viewport and disable rendering"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        # Find and hide all Special Find objects
+        hidden_count = 0
+        sf_collection = bpy.data.collections.get('SF')
+
+        if sf_collection:
+            # Hide all SF objects
+            for obj in sf_collection.objects:
+                if obj.type == 'MESH':
+                    obj.hide_viewport = True
+                    obj.hide_render = True
+                    hidden_count += 1
+
+        self.report({'INFO'}, f"All Special Finds hidden: {hidden_count} objects")
+        return {'FINISHED'}
+
 
 class EM_strat_activate_collections(Operator):
     bl_idname = "em.strat_activate_collections"
@@ -1226,7 +1331,11 @@ def register_operators():
         EM_strat_toggle_visibility,
         EM_strat_sync_visibility,
         EM_strat_show_all_proxies,
+        EM_strat_hide_all_proxies,
         EM_strat_show_all_rms,
+        EM_strat_hide_all_rms,
+        EM_strat_show_all_special_finds,
+        EM_strat_hide_all_special_finds,
         EM_strat_activate_collections,
         EM_listitem_OT_to3D,
         EM_update_icon_list,
@@ -1352,7 +1461,11 @@ def unregister_operators():
         EM_update_icon_list,
         EM_listitem_OT_to3D,
         EM_strat_activate_collections,
+        EM_strat_hide_all_special_finds,
+        EM_strat_show_all_special_finds,
+        EM_strat_hide_all_rms,
         EM_strat_show_all_rms,
+        EM_strat_hide_all_proxies,
         EM_strat_show_all_proxies,
         EM_strat_sync_visibility,
         EM_strat_toggle_visibility,

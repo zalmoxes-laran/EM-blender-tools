@@ -212,8 +212,95 @@ class VIEW3D_PT_visual_panel(Panel):
         row = layout.row(align=True)
         row.prop(scene.em_tools.visual, "overlay_epoch_us", text="EM header info")
 
-        # Settings button (gear icon)
+        # Settings button (gear icon) - spostato vicino al checkbox
         row.operator("visual.open_overlay_preferences", text="", icon="PREFERENCES")
+
+        # Spacer per spingere i pulsanti a destra
+        row.separator()
+        row.separator()
+
+        # Pulsanti show/hide all a destra
+        from .. import icons_manager
+
+        # Proxies show/hide
+        try:
+            row.operator(
+                "em.strat_show_all_proxies",
+                text="",
+                icon_value=icons_manager.get_icon_value("show_all_proxies")
+            )
+        except:
+            pass
+
+        try:
+            row.operator(
+                "em.strat_hide_all_proxies",
+                text="",
+                icon_value=icons_manager.get_icon_value("show_all_proxies_off")
+            )
+        except:
+            pass
+
+        row.separator()
+
+        # RMs show/hide
+        try:
+            row.operator(
+                "em.strat_show_all_rms",
+                text="",
+                icon_value=icons_manager.get_icon_value("show_all_RMs")
+            )
+        except:
+            pass
+
+        try:
+            row.operator(
+                "em.strat_hide_all_rms",
+                text="",
+                icon_value=icons_manager.get_icon_value("show_all_RMs_off")
+            )
+        except:
+            pass
+
+        row.separator()
+
+        # Special Finds show/hide
+        try:
+            row.operator(
+                "em.strat_show_all_special_finds",
+                text="",
+                icon_value=icons_manager.get_icon_value("show_all_special_finds")
+            )
+        except:
+            pass
+
+        try:
+            row.operator(
+                "em.strat_hide_all_special_finds",
+                text="",
+                icon_value=icons_manager.get_icon_value("show_all_special_finds_off")
+            )
+        except:
+            pass
+
+        row.separator()
+
+        # Help button
+        try:
+            op = row.operator("em.help_popup", text="", icon='QUESTION')
+            op.title = "Visibility Controls Help"
+            op.text = (
+                "Quick visibility controls:\n"
+                "- First pair: Show/Hide all Proxies\n"
+                "- Second pair: Show/Hide all Representation Models\n"
+                "- Third pair: Show/Hide all Special Finds\n\n"
+                "These buttons reset any active filters in the Stratigraphy Manager."
+            )
+            op.url = "EMtools_manual/docs/user_guide/Visual_Manager.html"
+        except:
+            pass
+
+        row.separator()
 
         try:
             row.operator("notinthematrix.material", icon="MOD_MASK", text='')
