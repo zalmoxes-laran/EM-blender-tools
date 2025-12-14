@@ -275,13 +275,7 @@ class EM_ToolsPanel:
                 sub_row.operator("em.toggle_include_surviving",
                                 text="Surviving Units", icon=icon1)
 
-                sub_row.separator()
-
-                icon2 = 'CHECKBOX_HLT' if scene.show_reconstruction_units else 'CHECKBOX_DEHLT'
-                sub_row.operator("em.toggle_show_reconstruction",
-                                text="Reconstructive Units", icon=icon2)
-
-                # Help buttons
+                # Help button for Surviving Units
                 help1 = sub_row.operator("em.help_popup", text="", icon='QUESTION')
                 help1.title = "Survival Filter Help"
                 help1.text = (
@@ -291,6 +285,13 @@ class EM_ToolsPanel:
                 )
                 help1.url = "https://docs.extendedmatrix.org/survival-filter"
 
+                sub_row.separator()
+
+                icon2 = 'CHECKBOX_HLT' if scene.show_reconstruction_units else 'CHECKBOX_DEHLT'
+                sub_row.operator("em.toggle_show_reconstruction",
+                                text="Reconstructive Units", icon=icon2)
+
+                # Help button for Reconstructive Units
                 help2 = sub_row.operator("em.help_popup", text="", icon='QUESTION')
                 help2.title = "Reconstruction Filter Help"
                 help2.text = (
