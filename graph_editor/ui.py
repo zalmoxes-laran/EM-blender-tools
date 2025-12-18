@@ -51,7 +51,7 @@ class GRAPHEDIT_PT_main_panel(Panel):
         
         # Stratigraphic filters
         row = col.row(align=True)
-        op = row.operator("graphedit.draw_graph", icon='MESH_CUBE', text="Stratigraphic")
+        op = row.operator("graphedit.draw_graph", icon='MESH_CUBE', text="US - USV")
         op.filter_mode = 'STRATIGRAPHIC'
         
         op = row.operator("graphedit.draw_graph", icon='CUBE', text="US Only")
@@ -60,7 +60,7 @@ class GRAPHEDIT_PT_main_panel(Panel):
         col.separator()
         
         # From UI List
-        op = col.operator("graphedit.draw_graph", icon='PRESET', text="From UI List")
+        op = col.operator("graphedit.draw_graph", icon='PRESET', text="Match Stratigraphy Manager")
         op.filter_mode = 'FROM_UILIST'
         
         layout.separator()
@@ -327,6 +327,7 @@ class VIEW3D_PT_graphedit_sync(Panel):
     bl_region_type = 'UI'
     bl_category = "EM"
     bl_options = {'DEFAULT_CLOSED'}
+    bl_order = 10
 
     def draw(self, context):
         layout = self.layout
