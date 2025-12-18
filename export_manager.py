@@ -17,6 +17,7 @@ import random
 
 from s3dgraphy.utils.utils import convert_shape2type
 from s3dgraphy.exporter.json_exporter import JSONExporter
+from . import icons_manager
 
 
 #####################################################################
@@ -191,7 +192,11 @@ class EM_ExportPanel:
                     row_tileset.prop(export_vars, "heriverse_skip_extracted_tilesets")
 
                 row = box.row()
-                row.operator("export.heriverse", text="Export Heriverse Project", icon='WORLD_DATA')
+                icon_id = icons_manager.get_icon_value("heriverse_logo_tight")
+                if icon_id:
+                    row.operator("export.heriverse", text="Export Heriverse Project", icon_value=icon_id)
+                else:
+                    row.operator("export.heriverse", text="Export Heriverse Project", icon='WORLD_DATA')
 
         '''
         # EMviq Export Section

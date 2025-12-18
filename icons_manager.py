@@ -34,6 +34,7 @@ def load_icons():
         "show_all_RMs_off": "show_all_RMs_off.png",
         "show_all_special_finds": "show_all_special_finds.png",
         "show_all_special_finds_off": "show_all_special_finds_off.png",
+        "heriverse_logo_tight": "Heriverse_LOGO_tight_BW_bold.png",
         "combiner": "combiner.png",
         "extractor": "extractor.png",
         "document": "document.png",
