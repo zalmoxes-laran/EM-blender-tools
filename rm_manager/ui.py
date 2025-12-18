@@ -3,6 +3,7 @@ import bpy  # type: ignore
 from bpy.types import Panel, UIList, Menu  # type: ignore
 
 from ..functions import is_graph_available
+from .. import icons_manager
 
 __all__ = [
     'VIEW3D_PT_RM_Tileset_Properties',
@@ -182,6 +183,14 @@ class VIEW3D_PT_RM_Manager(Panel):
         em_tools = context.scene.em_tools
         # Show only if we're in advanced EM mode
         return em_tools.mode_em_advanced
+    
+    def draw_header(self, context):
+        layout = self.layout
+        icon_id = icons_manager.get_icon_value("show_all_RMs")
+        if icon_id:
+            layout.label(text="", icon_value=icon_id)
+        else:
+            layout.label(text="", icon='OBJECT_DATA')
     
     def draw(self, context):
         layout = self.layout

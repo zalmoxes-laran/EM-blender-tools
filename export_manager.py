@@ -42,14 +42,20 @@ class EM_ExportPanel:
         scene = context.scene
         export_vars = context.window_manager.export_vars
  
-        row = layout.row()
         box = layout.box()
         row = box.row()
-        row.label(text="Export:")
-        row = box.row()
-        op = row.operator("export.uuss_export", text="EM (csv)", emboss=True, icon='LONGDISPLAY')
-        row = box.row()
-        row.prop(context.window_manager.export_tables_vars, 'table_type', expand=True)
+        row.prop(
+            export_vars,
+            "tabular_expanded",
+            text="Tabular Export",
+            icon='TRIA_DOWN' if export_vars.tabular_expanded else 'TRIA_RIGHT',
+            emboss=False
+        )
+        if export_vars.tabular_expanded:
+            row = box.row()
+            op = row.operator("export.uuss_export", text="EM (csv)", emboss=True, icon='LONGDISPLAY')
+            row = box.row()
+            row.prop(context.window_manager.export_tables_vars, 'table_type', expand=True)
 
         # Heriverse Export Section - ✅ Only in EM Advanced mode
         if context.scene.em_tools.mode_em_advanced:

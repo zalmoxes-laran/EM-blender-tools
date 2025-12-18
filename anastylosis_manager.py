@@ -799,6 +799,14 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
         # Show only if we're in advanced EM mode
         return em_tools.mode_em_advanced
     
+    def draw_header(self, context):
+        layout = self.layout
+        icon_id = icons_manager.get_icon_value("show_all_special_finds")
+        if icon_id:
+            layout.label(text="", icon_value=icon_id)
+        else:
+            layout.label(text="", icon='MESH_ICOSPHERE')
+    
     def draw(self, context):
         layout = self.layout
         scene = context.scene

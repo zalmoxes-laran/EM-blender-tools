@@ -171,6 +171,12 @@ class ExportVars(PropertyGroup):
         default='gltf'
     ) # type: ignore
 
+    tabular_expanded: BoolProperty(
+        name="Show tabular export options",
+        description="Expand/Collapse tabular export options",
+        default=True
+    ) # type: ignore
+
     heriverse_expanded: BoolProperty(
         name="Show Heriverse export options",
         description="Expand/Collapse Heriverse export options",

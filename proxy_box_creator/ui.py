@@ -6,6 +6,7 @@ Version 2.2 - Reorganized
 
 import bpy
 from bpy.types import Panel
+from .. import icons_manager
 
 # Point type labels
 POINT_TYPE_LABELS = {
@@ -34,7 +35,11 @@ class PROXYBOX_PT_main_panel(Panel):
     
     def draw_header(self, context):
         layout = self.layout
-        layout.label(text="", icon='MESH_CUBE')
+        icon_id = icons_manager.get_icon_value("show_all_proxies")
+        if icon_id:
+            layout.label(text="", icon_value=icon_id)
+        else:
+            layout.label(text="", icon='MESH_CUBE')
     
     def draw(self, context):
         layout = self.layout
