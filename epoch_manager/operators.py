@@ -96,21 +96,26 @@ class EM_toggle_visibility(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     group_em_vis_idx: IntProperty() # type: ignore
-    
+
     def execute(self, context):
         from ..operators.addon_prefix_helpers import node_name_to_proxy_name
         from ..functions import is_graph_available
-        
+        from ..stratigraphy_manager.operators import activate_collection_fully
+
         em_tools = context.scene.em_tools
         epochs = em_tools.epochs.list
-        
+
         # Ottieni il grafo attivo
         graph_exists, graph = is_graph_available(context)
         active_graph = graph if graph_exists else None
-        
+
         if self.group_em_vis_idx < len(epochs):
             current_e_manager = epochs[self.group_em_vis_idx]
-            
+
+            # Collect collections to activate
+            collections_to_activate = set()
+            activated_collections = []
+
             # Parsing the em list
             strat = em_tools.stratigraphy  # ✅ Nuovo
             for us in strat.units:
@@ -124,17 +129,49 @@ class EM_toggle_visibility(Operator):
                             context=context,
                             graph=active_graph
                         )
-                        
+
                         # ✅ MODIFICATO: Usa get() per gestire oggetti mancanti
                         object_to_set_visibility = bpy.data.objects.get(proxy_name)
-                        
+
                         if object_to_set_visibility:
+                            # ✅ UPDATED: Now uses all three visibility systems
+                            # 1. Restricted View Layer (hide_set)
+                            object_to_set_visibility.hide_set(current_e_manager.use_toggle)
+
+                            # 2. Viewport visibility
                             object_to_set_visibility.hide_viewport = current_e_manager.use_toggle
+
+                            # 3. Render visibility
+                            object_to_set_visibility.hide_render = current_e_manager.use_toggle
+
+                            # Collect collections if we're showing objects
+                            if not current_e_manager.use_toggle:  # If becoming visible
+                                for collection in bpy.data.collections:
+                                    if object_to_set_visibility.name in collection.objects:
+                                        collections_to_activate.add(collection)
                         else:
                             print(f"⚠️ Warning: Object '{proxy_name}' not found")
-                            
+
+            # Activate collections if showing objects
+            if not current_e_manager.use_toggle:  # If becoming visible
+                for collection in collections_to_activate:
+                    if activate_collection_fully(context, collection):
+                        activated_collections.append(collection.name)
+
+                # Show activation message if any collections were activated
+                if activated_collections:
+                    self.show_activation_message(", ".join(activated_collections))
+
         current_e_manager.use_toggle = not current_e_manager.use_toggle
         return {'FINISHED'}
+
+    def show_activation_message(self, collection_names):
+        """Show collections activation popup"""
+        def draw(self, context):
+            self.layout.label(text="The following collections have been activated:")
+            self.layout.label(text=collection_names)
+
+        bpy.context.window_manager.popup_menu(draw, title="Collections Activated", icon='INFO')
 
 class EM_toggle_selectable(Operator):
     """Toggle select"""

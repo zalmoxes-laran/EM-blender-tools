@@ -91,6 +91,7 @@ class EM_strat_toggle_visibility(Operator):
         Toggle visibility for a single stratigraphic unit.
 
         ✅ CLEAN VERSION: Uses only scene.em_tools.stratigraphy paths
+        ✅ UPDATED: Now uses all three visibility systems (viewport, render, restricted view layer)
         """
         scene = context.scene
         strat = scene.em_tools.stratigraphy  # ✅ Nuovo
@@ -102,10 +103,18 @@ class EM_strat_toggle_visibility(Operator):
             obj = bpy.data.objects.get(item.name)
 
             if obj:
-                # Toggle visibility AND render synchronously
+                # Toggle visibility using ALL THREE systems
                 new_visibility = not obj.hide_viewport
+
+                # 1. Restricted View Layer (hide_set)
+                obj.hide_set(not new_visibility)
+
+                # 2. Viewport visibility
                 obj.hide_viewport = not new_visibility
+
+                # 3. Render visibility
                 obj.hide_render = not new_visibility
+
                 item.is_visible = new_visibility
 
                 # If the object is shown, activate its collections
@@ -496,18 +505,21 @@ class EM_strat_show_all_rms(Operator):
 
     def execute(self, context):
         scene = context.scene
-        
+
+        # Reset epoch visibility toggles
+        bpy.ops.epoch_manager.reset_visibility_ui()
+
         # 1. First reset all filters using the existing operator
         if scene.filter_by_epoch or scene.filter_by_activity:
             bpy.ops.em.reset_filters()
-        
+
         # 2. Enable RM sync if available
         if hasattr(scene, 'sync_rm_visibility'):
             scene.sync_rm_visibility = True
-        
+
         # 3. Use the existing RM system but show all RMs
         shown_count = self.sync_all_rms(scene, context)
-        
+
         self.report({'INFO'}, f"All RM objects shown and made renderable: {shown_count} objects")
         return {'FINISHED'}
     
@@ -577,6 +589,9 @@ class EM_strat_hide_all_proxies(Operator):
         scene = context.scene
         strat = scene.em_tools.stratigraphy
 
+        # Reset epoch visibility toggles
+        bpy.ops.epoch_manager.reset_visibility_ui()
+
         # Hide all proxy objects
         # ✅ Cerca oggetti iterando su TUTTI gli oggetti e confrontando il base_name
         hidden_count = 0
@@ -615,6 +630,9 @@ class EM_strat_hide_all_rms(Operator):
     def execute(self, context):
         scene = context.scene
 
+        # Reset epoch visibility toggles
+        bpy.ops.epoch_manager.reset_visibility_ui()
+
         # Hide all RM objects
         hidden_count = 0
         for item in scene.rm_list:
@@ -636,6 +654,9 @@ class EM_strat_show_all_special_finds(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        # Reset epoch visibility toggles
+        bpy.ops.epoch_manager.reset_visibility_ui()
+
         # Find and show all Special Find objects
         shown_count = 0
         sf_collection = bpy.data.collections.get('SF')
@@ -663,6 +684,9 @@ class EM_strat_hide_all_special_finds(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        # Reset epoch visibility toggles
+        bpy.ops.epoch_manager.reset_visibility_ui()
+
         # Find and hide all Special Find objects
         hidden_count = 0
         sf_collection = bpy.data.collections.get('SF')

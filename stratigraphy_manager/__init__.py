@@ -16,11 +16,19 @@ __all__ = ['register', 'unregister']
 # Update functions che non ritornano valori
 def update_filter_by_epoch(self, context):
     """Update function per filter_by_epoch"""
+    # Reset epoch visibility toggles when activating filter
+    if context.scene.filter_by_epoch and hasattr(bpy.ops.epoch_manager, 'reset_visibility_ui'):
+        bpy.ops.epoch_manager.reset_visibility_ui()
+
     if hasattr(bpy.ops.em, 'filter_lists'):
         bpy.ops.em.filter_lists()
 
 def update_filter_by_activity(self, context):
     """Update function per filter_by_activity"""
+    # Reset epoch visibility toggles when activating filter
+    if context.scene.filter_by_activity and hasattr(bpy.ops.epoch_manager, 'reset_visibility_ui'):
+        bpy.ops.epoch_manager.reset_visibility_ui()
+
     if hasattr(bpy.ops.em, 'filter_lists'):
         bpy.ops.em.filter_lists()
 
