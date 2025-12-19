@@ -92,15 +92,33 @@ class EM_strat_toggle_visibility(Operator):
 
         ✅ CLEAN VERSION: Uses only scene.em_tools.stratigraphy paths
         ✅ UPDATED: Now uses all three visibility systems (viewport, render, restricted view layer)
+        ✅ FIXED: Now uses graph prefix to find objects correctly
+        ✅ FIXED: Disables active filters when toggling manually
         """
+        from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+        from ..functions import is_graph_available
+
         scene = context.scene
         strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+
+        # Disable active filters when manually toggling visibility
+        if scene.filter_by_epoch or scene.filter_by_activity:
+            scene.filter_by_epoch = False
+            scene.filter_by_activity = False
+            bpy.ops.em.reset_filters()
 
         index = self.index if self.index >= 0 else strat.units_index
 
         if index >= 0 and index < len(strat.units):
             item = strat.units[index]
-            obj = bpy.data.objects.get(item.name)
+
+            # ✅ FIXED: Get the graph and convert name with prefix
+            graph_exists, graph = is_graph_available(context)
+            active_graph = graph if graph_exists else None
+
+            # Convert node name to proxy name with graph prefix
+            proxy_name = node_name_to_proxy_name(item.name, context=context, graph=active_graph)
+            obj = bpy.data.objects.get(proxy_name)
 
             if obj:
                 # Toggle visibility using ALL THREE systems
@@ -123,7 +141,7 @@ class EM_strat_toggle_visibility(Operator):
 
                 return {'FINISHED'}
             else:
-                self.report({'WARNING'}, f"Object '{item.name}' not found in scene")
+                self.report({'WARNING'}, f"Object '{proxy_name}' not found in scene")
 
         return {'CANCELLED'}
     
@@ -232,21 +250,29 @@ class EM_strat_sync_visibility(Operator):
                 proxy_objects.append(obj)
                 proxy_objects_set.add(obj)
         
-        # Hide/Show proxy objects based on the list AND sync render state
+        # Hide/Show proxy objects based on the list using ALL THREE visibility systems
         hidden_count = 0
         shown_count = 0
-        
+
         for obj in proxy_objects:
             if get_base_name(obj.name) in visible_proxy_names:
-                # Object should be visible AND renderable
+                # Object should be visible AND renderable using ALL THREE systems
                 if obj.hide_viewport or obj.hide_render:
+                    # 1. Restricted View Layer (hide_set)
+                    obj.hide_set(False)
+                    # 2. Viewport visibility
                     obj.hide_viewport = False
+                    # 3. Render visibility
                     obj.hide_render = False
                     shown_count += 1
             else:
-                # Object should be hidden AND non-renderable
+                # Object should be hidden AND non-renderable using ALL THREE systems
                 if not obj.hide_viewport or not obj.hide_render:
+                    # 1. Restricted View Layer (hide_set)
+                    obj.hide_set(True)
+                    # 2. Viewport visibility
                     obj.hide_viewport = True
+                    # 3. Render visibility
                     obj.hide_render = True
                     hidden_count += 1
         
@@ -358,17 +384,25 @@ class EM_strat_sync_visibility(Operator):
                         belongs_to_active_epoch = True
                         break
             
-            # Handle visibility AND render synchronously
+            # Handle visibility using ALL THREE visibility systems
             if belongs_to_active_epoch:
-                # Object should be visible AND renderable
+                # Object should be visible AND renderable using ALL THREE systems
                 if obj.hide_viewport or obj.hide_render:
+                    # 1. Restricted View Layer (hide_set)
+                    obj.hide_set(False)
+                    # 2. Viewport visibility
                     obj.hide_viewport = False
+                    # 3. Render visibility
                     obj.hide_render = False
                     shown_count += 1
             else:
-                # Object should be hidden AND non-renderable
+                # Object should be hidden AND non-renderable using ALL THREE systems
                 if not obj.hide_viewport or not obj.hide_render:
+                    # 1. Restricted View Layer (hide_set)
+                    obj.hide_set(True)
+                    # 2. Viewport visibility
                     obj.hide_viewport = True
+                    # 3. Render visibility
                     obj.hide_render = True
                     hidden_count += 1
         

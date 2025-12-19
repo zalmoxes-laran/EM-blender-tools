@@ -102,8 +102,15 @@ class EM_toggle_visibility(Operator):
         from ..functions import is_graph_available
         from ..stratigraphy_manager.operators import activate_collection_fully
 
-        em_tools = context.scene.em_tools
+        scene = context.scene
+        em_tools = scene.em_tools
         epochs = em_tools.epochs.list
+
+        # Disable active filters when manually toggling epoch visibility
+        if scene.filter_by_epoch or scene.filter_by_activity:
+            scene.filter_by_epoch = False
+            scene.filter_by_activity = False
+            bpy.ops.em.reset_filters()
 
         # Ottieni il grafo attivo
         graph_exists, graph = is_graph_available(context)
