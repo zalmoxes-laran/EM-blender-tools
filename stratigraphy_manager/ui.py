@@ -51,13 +51,13 @@ class EM_STRAT_UL_List(UIList):
         col3.label(text=item.description)
         
         # Visibility toggle
-        col4 = desc_vis_split.column(align=True)
-        col4.enabled = is_in_scene
-        if hasattr(item, "is_visible"):
-            vis_icon = 'HIDE_OFF' if item.is_visible else 'HIDE_ON'
-            op = col4.operator("em.strat_toggle_visibility", text="", icon=vis_icon, emboss=False)
-            if op:
-                op.index = index
+        #col4 = desc_vis_split.column(align=True)
+        #col4.enabled = is_in_scene
+        #if hasattr(item, "is_visible"):
+        #    vis_icon = 'HIDE_OFF' if item.is_visible else 'HIDE_ON'
+        #    op = col4.operator("em.strat_toggle_visibility", text="", icon=vis_icon, emboss=False)
+        #    if op:
+        #        op.index = index
 
 
 class STRAT_MT_epoch_selector(Menu):

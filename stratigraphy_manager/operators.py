@@ -14,6 +14,76 @@ from ..functions import select_3D_obj, select_list_element_from_obj_proxy
 
 from s3dgraphy.utils.utils import manage_id_prefix, get_base_name, add_graph_prefix
 
+# Global flag to bypass filter update functions
+_em_bypass_filter_update = False
+
+def repopulate_list_without_sync(context):
+    """
+    Ripopola la lista stratigraphica senza fare sync della visibilità.
+    Usato quando si disabilitano i filtri ma non si vuole modificare la visibilità degli oggetti.
+    """
+    from ..functions import is_graph_available, EM_list_clear
+    from ..populate_lists import populate_stratigraphic_node
+
+    scene = context.scene
+    strat = scene.em_tools.stratigraphy
+
+    # Get graph
+    graph_exists, graph = is_graph_available(context)
+    if not graph_exists:
+        return
+
+    # Save current selection
+    current_selected = None
+    if strat.units_index >= 0 and strat.units_index < len(strat.units):
+        current_selected = strat.units[strat.units_index].name
+
+    # Clear list
+    EM_list_clear(context, "em_list")
+
+    # Get all stratigraphic nodes
+    strat_nodes = [node for node in graph.nodes
+                   if hasattr(node, 'node_type') and
+                   node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']]
+
+    # Repopulate list
+    for i, node in enumerate(strat_nodes):
+        populate_stratigraphic_node(scene, node, i, graph)
+
+    # Restore index
+    if len(strat.units) > 0:
+        strat.units_index = 0
+        # Try to restore previous selection
+        if current_selected:
+            for i, item in enumerate(strat.units):
+                if item.name == current_selected:
+                    strat.units_index = i
+                    break
+    else:
+        strat.units_index = -1
+
+def disable_filters_safely(context):
+    """
+    Disabilita i filtri E ripopola la lista senza fare sync.
+    Questo permette di resettare i filtri mantenendo lo stato di visibilità degli oggetti.
+    """
+    global _em_bypass_filter_update
+
+    scene = context.scene
+
+    # Set bypass flag to prevent update functions from running
+    _em_bypass_filter_update = True
+
+    # Disable filters (non triggera filter_lists grazie al bypass)
+    scene.filter_by_epoch = False
+    scene.filter_by_activity = False
+
+    # Remove bypass flag
+    _em_bypass_filter_update = False
+
+    # Ripopola la lista manualmente (senza sync)
+    repopulate_list_without_sync(context)
+
 def find_layer_collection(layer_collection, collection_name):
     """Trova ricorsivamente un layer_collection dato il nome della collection"""
     if layer_collection.name == collection_name:
@@ -84,7 +154,7 @@ class EM_strat_toggle_visibility(Operator):
     bl_description = "Toggle visibility of the selected proxy in the scene"
     bl_options = {"REGISTER", "UNDO"}
     
-    index: IntProperty(default=-1)  # -1 means use the active index
+    index: IntProperty(default=-1)  # type: ignore # -1 means use the active index
     
     def execute(self, context):
         """
@@ -414,27 +484,24 @@ class EM_strat_sync_visibility(Operator):
         self.report({'INFO'}, message)
 
 class EM_strat_show_all_proxies(Operator):
-    """Reset filters and show all proxy objects"""
+    """Show all proxy objects"""
     bl_idname = "em.strat_show_all_proxies"
     bl_label = "Show All Proxies"
-    bl_description = "Reset all filters and show all proxy objects with render enabled"
+    bl_description = "Show all proxy objects with render enabled"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         scene = context.scene
 
+        # Reset epoch visibility toggles
         bpy.ops.epoch_manager.reset_visibility_ui()
-        
-        # 1. First reset all filters using the existing operator
-        if scene.filter_by_epoch or scene.filter_by_activity:
-            bpy.ops.em.reset_filters()
-        
-        # 2. Enable sync to ensure the system is active
-        scene.sync_list_visibility = True
-        
-        # 3. Use the existing sync system but with all proxies visible
+
+        # Disable filters safely without triggering sync
+        disable_filters_safely(context)
+
+        # Show all proxies
         shown_count = self.sync_all_proxies(scene, context)
-        
+
         self.report({'INFO'}, f"All proxies shown and made renderable: {shown_count} objects")
         return {'FINISHED'}
     
@@ -531,27 +598,19 @@ class EM_strat_show_all_proxies(Operator):
         bpy.context.window_manager.popup_menu(draw, title="Collections Activated", icon='INFO')
 
 class EM_strat_show_all_rms(Operator):
-    """Reset filters and show all RM objects"""
+    """Show all RM objects"""
     bl_idname = "em.strat_show_all_rms"
-    bl_label = "Show All RMs"  
-    bl_description = "Reset all filters and show all RM objects with render enabled"
+    bl_label = "Show All RMs"
+    bl_description = "Show all RM objects with render enabled"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         scene = context.scene
 
-        # Reset epoch visibility toggles
-        bpy.ops.epoch_manager.reset_visibility_ui()
+        # Disable filters safely without triggering sync
+        disable_filters_safely(context)
 
-        # 1. First reset all filters using the existing operator
-        if scene.filter_by_epoch or scene.filter_by_activity:
-            bpy.ops.em.reset_filters()
-
-        # 2. Enable RM sync if available
-        if hasattr(scene, 'sync_rm_visibility'):
-            scene.sync_rm_visibility = True
-
-        # 3. Use the existing RM system but show all RMs
+        # Show all RMs without affecting proxies
         shown_count = self.sync_all_rms(scene, context)
 
         self.report({'INFO'}, f"All RM objects shown and made renderable: {shown_count} objects")
@@ -626,6 +685,9 @@ class EM_strat_hide_all_proxies(Operator):
         # Reset epoch visibility toggles
         bpy.ops.epoch_manager.reset_visibility_ui()
 
+        # Disable filters safely without triggering sync
+        disable_filters_safely(context)
+
         # Hide all proxy objects
         # ✅ Cerca oggetti iterando su TUTTI gli oggetti e confrontando il base_name
         hidden_count = 0
@@ -664,8 +726,8 @@ class EM_strat_hide_all_rms(Operator):
     def execute(self, context):
         scene = context.scene
 
-        # Reset epoch visibility toggles
-        bpy.ops.epoch_manager.reset_visibility_ui()
+        # Disable filters safely without triggering sync
+        disable_filters_safely(context)
 
         # Hide all RM objects
         hidden_count = 0
@@ -688,8 +750,10 @@ class EM_strat_show_all_special_finds(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        # Reset epoch visibility toggles
-        bpy.ops.epoch_manager.reset_visibility_ui()
+        scene = context.scene
+
+        # Disable filters safely without triggering sync
+        disable_filters_safely(context)
 
         # Find and show all Special Find objects
         shown_count = 0
@@ -718,8 +782,10 @@ class EM_strat_hide_all_special_finds(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        # Reset epoch visibility toggles
-        bpy.ops.epoch_manager.reset_visibility_ui()
+        scene = context.scene
+
+        # Disable filters safely without triggering sync
+        disable_filters_safely(context)
 
         # Find and hide all Special Find objects
         hidden_count = 0

@@ -16,6 +16,11 @@ __all__ = ['register', 'unregister']
 # Update functions che non ritornano valori
 def update_filter_by_epoch(self, context):
     """Update function per filter_by_epoch"""
+    # Skip update if we're manually disabling filters (to prevent unwanted sync)
+    from .operators import _em_bypass_filter_update
+    if _em_bypass_filter_update:
+        return
+
     # Reset epoch visibility toggles when activating filter
     if context.scene.filter_by_epoch and hasattr(bpy.ops.epoch_manager, 'reset_visibility_ui'):
         bpy.ops.epoch_manager.reset_visibility_ui()
@@ -25,6 +30,11 @@ def update_filter_by_epoch(self, context):
 
 def update_filter_by_activity(self, context):
     """Update function per filter_by_activity"""
+    # Skip update if we're manually disabling filters (to prevent unwanted sync)
+    from .operators import _em_bypass_filter_update
+    if _em_bypass_filter_update:
+        return
+
     # Reset epoch visibility toggles when activating filter
     if context.scene.filter_by_activity and hasattr(bpy.ops.epoch_manager, 'reset_visibility_ui'):
         bpy.ops.epoch_manager.reset_visibility_ui()
