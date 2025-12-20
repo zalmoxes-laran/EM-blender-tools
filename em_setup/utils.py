@@ -68,6 +68,17 @@ def auto_import_auxiliary_files(context, graphml_index):
 
     if imported_count > 0:
         em_log(f"Auto-import completed: {imported_count} file(s) imported, {error_count} error(s)", "INFO")
+
+        # ✅ OPTIMIZATION: Invalidate graph index after importing auxiliary files
+        # This ensures edge index is rebuilt with new edges from imported data
+        from s3dgraphy import get_graph
+        from ..graph_index import invalidate_graph_index
+
+        graph = get_graph(graphml.name)
+        if graph:
+            invalidate_graph_index(graph)
+            em_log("Graph edge index invalidated (will rebuild on next use)", "DEBUG")
+
     elif error_count > 0:
         em_log(f"Auto-import completed with {error_count} error(s)", "WARNING")
     else:

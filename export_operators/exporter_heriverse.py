@@ -253,7 +253,16 @@ class EXPORT_OT_heriverse(Operator):
             all_mesh_objects = [obj.name for obj in bpy.data.objects if obj.type == 'MESH']
             print(f"Available mesh objects in scene: {len(all_mesh_objects)}")
 
-            for name in stratigraphic_names:
+            # ✅ OPTIMIZATION: Add progress bar for long export operations
+            wm = context.window_manager
+            total_proxies = len(stratigraphic_names)
+            wm.progress_begin(0, total_proxies)
+            print(f"\n[EXPORT] Starting export of {total_proxies} proxies with progress bar...")
+
+            for idx, name in enumerate(stratigraphic_names):
+                # Update progress bar (shows current/total in status bar)
+                wm.progress_update(idx)
+                print(f"\n[{idx+1}/{total_proxies}] Processing: {name}")
                 # Try exact match first
                 proxy = bpy.data.objects.get(name)
 
@@ -364,11 +373,14 @@ class EXPORT_OT_heriverse(Operator):
 
                 proxy.select_set(False)
 
+            # ✅ End progress bar
+            wm.progress_end()
+
             print(f"\nProxy export summary:")
             print(f"  - Total stratigraphic nodes: {len(stratigraphic_names)}")
             print(f"  - Successfully exported: {exported_count}")
             print(f"  - Skipped: {skipped_count}")
-            
+
             self.report({'INFO'}, f"Exported {exported_count} proxies")
             return exported_count > 0
             

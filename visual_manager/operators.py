@@ -279,7 +279,11 @@ class VISUAL_OT_apply_colors(Operator):
             # STEP 2: Crea i materiali per tutti i valori presenti in scene.property_values
             materials_by_value = create_property_materials_for_scene_values(context)
             print(f"✓ STEP 2: Created {len(materials_by_value)} materials")
-            
+
+            # ✅ OPTIMIZATION: Invalidate material cache after creating new materials
+            from ..material_cache import invalidate_material_cache
+            invalidate_material_cache()
+
             # STEP 3: Applica i materiali agli oggetti
             colored_count = apply_materials_to_objects(context, property_mapping, materials_by_value)
             print(f"✓ STEP 3: Applied materials to objects")
