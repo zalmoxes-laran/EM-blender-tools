@@ -5,6 +5,9 @@ from bpy.types import Panel, UIList, Menu  # type: ignore
 from ..functions import is_graph_available
 from .. import icons_manager
 
+# ✅ OPTIMIZED: Import object cache for O(1) lookups
+from ..object_cache import get_object_cache
+
 __all__ = [
     'VIEW3D_PT_RM_Tileset_Properties',
     'RM_UL_List',
@@ -30,7 +33,7 @@ class VIEW3D_PT_RM_Tileset_Properties(Panel):  # Nome corretto per la registrazi
         scene = context.scene
         if scene.rm_list_index >= 0 and scene.rm_list_index < len(scene.rm_list):
             rm_item = scene.rm_list[scene.rm_list_index]
-            obj = bpy.data.objects.get(rm_item.name)
+            obj = get_object_cache().get_object(rm_item.name)
             # Check if it's a tileset
             return obj and "tileset_path" in obj
         return False
@@ -41,7 +44,7 @@ class VIEW3D_PT_RM_Tileset_Properties(Panel):  # Nome corretto per la registrazi
         
         # Get the selected RM item and corresponding object
         rm_item = scene.rm_list[scene.rm_list_index]
-        obj = bpy.data.objects.get(rm_item.name)
+        obj = get_object_cache().get_object(rm_item.name)
         
         # Display the tileset path
         layout.label(text="Tileset Properties:")
@@ -66,7 +69,7 @@ class RM_UL_List(UIList):
         try:
             if self.layout_type in {'DEFAULT', 'COMPACT'}:
                 # Get the object to check if it's a tileset
-                obj = bpy.data.objects.get(item.name)
+                obj = get_object_cache().get_object(item.name)
                 is_tileset = obj and "tileset_path" in obj
                 
                 # Determine the appropriate icon

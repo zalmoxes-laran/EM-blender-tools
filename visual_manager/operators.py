@@ -279,7 +279,11 @@ class VISUAL_OT_apply_colors(Operator):
             # STEP 2: Crea i materiali per tutti i valori presenti in scene.property_values
             materials_by_value = create_property_materials_for_scene_values(context)
             print(f"✓ STEP 2: Created {len(materials_by_value)} materials")
-            
+
+            # ✅ OPTIMIZATION: Invalidate material cache after creating new materials
+            from ..material_cache import invalidate_material_cache
+            invalidate_material_cache()
+
             # STEP 3: Applica i materiali agli oggetti
             colored_count = apply_materials_to_objects(context, property_mapping, materials_by_value)
             print(f"✓ STEP 3: Applied materials to objects")
@@ -357,7 +361,11 @@ class VISUAL_OT_select_proxies(Operator):
             # USA LA STESSA FUNZIONE PER COERENZA
             property_mapping = create_property_value_mapping(graph, scene.selected_property)
             print(f"Created property mapping with {len(property_mapping)} entries")
-            
+
+            # ✅ OPTIMIZED: Use object cache for batch lookups
+            from ..object_cache import get_object_cache
+            cache = get_object_cache()
+
             # Seleziona gli oggetti che hanno questo valore
             selected_count = 0
             for node_name, prop_value in property_mapping.items():
@@ -369,9 +377,9 @@ class VISUAL_OT_select_proxies(Operator):
                     else:
                         # Basic 3DGIS: usa il nome diretto senza prefisso
                         proxy_name = node_name
-                    
-                    # Cerca l'oggetto con il nome appropriato
-                    proxy = bpy.data.objects.get(proxy_name)
+
+                    # ✅ OPTIMIZED: Use cached object lookup
+                    proxy = cache.get_object(proxy_name)
                     if proxy and proxy.type == 'MESH':
                         proxy.select_set(True)
                         selected_count += 1

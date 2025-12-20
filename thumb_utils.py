@@ -2,6 +2,8 @@
 """
 Sistema di gestione thumbnails per EM-Tools
 Gestisce cache locale, generazione thumbnails e preview collections
+
+✅ OPTIMIZED: Integrated with async thumbnail loading system
 """
 
 import os
@@ -12,6 +14,9 @@ from typing import Dict, List, Tuple, Optional
 import bpy
 import bpy.utils.previews
 from PIL import Image, ImageOps
+
+# ✅ OPTIMIZED: Import async thumbnail loader
+from .thumb_async import load_thumbnails_async, get_cached_thumbnails
 
 # Collezione globale per le preview
 preview_collections = {}
@@ -446,6 +451,53 @@ def has_doc_thumbs(verbose: bool = False) -> bool:
 _cached_us_thumbs = {}  # {us_node_id: [(doc_key, name, desc, icon_id, i), ...]}
 _last_us_id = None
 _last_resource_folder = None
+
+# ✅ OPTIMIZED: Async-aware wrapper for thumbnail loading
+def reload_doc_previews_for_us_async(us_node_id: str, on_ready_callback=None) -> List[Tuple[str, str, str, int, int]]:
+    """
+    ✅ OPTIMIZED: Async version of reload_doc_previews_for_us
+
+    Loads thumbnails asynchronously in background thread.
+    Returns cached thumbnails immediately if available, otherwise starts background load.
+
+    Args:
+        us_node_id: US node ID to load thumbnails for
+        on_ready_callback: Optional callback when thumbnails are ready
+
+    Returns:
+        List of cached thumbnails (may be empty if still loading)
+    """
+    if not us_node_id:
+        return []
+
+    try:
+        scene = bpy.context.scene
+        em_tools = scene.em_tools
+
+        # Check if we have an active GraphML
+        if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            return []
+
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+
+        # Check if we have auxiliary files
+        if not graphml.auxiliary_files or len(graphml.auxiliary_files) == 0:
+            return []
+
+        # Use async thumbnail loader - returns cached or starts background load
+        thumbnails = load_thumbnails_async(us_node_id, graphml.auxiliary_files, on_ready_callback)
+
+        # Convert to the format expected by UI (if we have results)
+        if thumbnails:
+            return thumbnails
+        else:
+            # No cached thumbnails yet, background loading started
+            return []
+
+    except Exception as e:
+        print(f"Error in async thumbnail loading: {e}")
+        return []
+
 
 # ... resto del codice ...
 

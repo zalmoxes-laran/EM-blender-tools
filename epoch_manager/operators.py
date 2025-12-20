@@ -45,10 +45,14 @@ class EM_toggle_select(Operator):
         # Ottieni il grafo attivo
         graph_exists, graph = is_graph_available(context)
         active_graph = graph if graph_exists else None
-        
+
+        # ✅ OPTIMIZED: Use object cache for batch lookups
+        from ..object_cache import get_object_cache
+        cache = get_object_cache()
+
         if self.group_em_idx < len(epochs):
             current_e_manager = epochs[self.group_em_idx]
-            
+
             strat = em_tools.stratigraphy  # ✅ Nuovo
             for us in strat.units:
                 if us.icon == "LINKED":
@@ -59,9 +63,9 @@ class EM_toggle_select(Operator):
                             context=context,
                             graph=active_graph
                         )
-                        
-                        # ✅ MODIFICATO: Usa get() per gestire oggetti mancanti
-                        object_to_select = bpy.data.objects.get(proxy_name)
+
+                        # ✅ OPTIMIZED: Use cached object lookup
+                        object_to_select = cache.get_object(proxy_name)
                         
                         if object_to_select:
                             try:
@@ -116,6 +120,10 @@ class EM_toggle_visibility(Operator):
         graph_exists, graph = is_graph_available(context)
         active_graph = graph if graph_exists else None
 
+        # ✅ OPTIMIZED: Use object cache for batch lookups
+        from ..object_cache import get_object_cache
+        cache = get_object_cache()
+
         if self.group_em_vis_idx < len(epochs):
             current_e_manager = epochs[self.group_em_vis_idx]
 
@@ -137,8 +145,8 @@ class EM_toggle_visibility(Operator):
                             graph=active_graph
                         )
 
-                        # ✅ MODIFICATO: Usa get() per gestire oggetti mancanti
-                        object_to_set_visibility = bpy.data.objects.get(proxy_name)
+                        # ✅ OPTIMIZED: Use cached object lookup
+                        object_to_set_visibility = cache.get_object(proxy_name)
 
                         if object_to_set_visibility:
                             # ✅ UPDATED: Now uses all three visibility systems
@@ -199,10 +207,14 @@ class EM_toggle_selectable(Operator):
         # Ottieni il grafo attivo
         graph_exists, graph = is_graph_available(context)
         active_graph = graph if graph_exists else None
-        
+
+        # ✅ OPTIMIZED: Use object cache for batch lookups
+        from ..object_cache import get_object_cache
+        cache = get_object_cache()
+
         if self.group_em_idx < len(epochs):
             current_e_manager = epochs[self.group_em_idx]
-            
+
             strat = em_tools.stratigraphy  # ✅ Nuovo
             for us in strat.units:
                 if us.icon == "LINKED":
@@ -213,9 +225,9 @@ class EM_toggle_selectable(Operator):
                             context=context,
                             graph=active_graph
                         )
-                        
-                        # ✅ MODIFICATO: Usa get() per gestire oggetti mancanti
-                        object_to_set_visibility = bpy.data.objects.get(proxy_name)
+
+                        # ✅ OPTIMIZED: Use cached object lookup
+                        object_to_set_visibility = cache.get_object(proxy_name)
                         
                         if object_to_set_visibility:
                             object_to_set_visibility.hide_select = current_e_manager.is_locked

@@ -186,9 +186,12 @@ class EM_strat_toggle_visibility(Operator):
             graph_exists, graph = is_graph_available(context)
             active_graph = graph if graph_exists else None
 
+            # ✅ OPTIMIZED: Use object cache for O(1) lookup
+            from ..object_cache import get_object_cache
+
             # Convert node name to proxy name with graph prefix
             proxy_name = node_name_to_proxy_name(item.name, context=context, graph=active_graph)
-            obj = bpy.data.objects.get(proxy_name)
+            obj = get_object_cache().get_object(proxy_name)
 
             if obj:
                 # Toggle visibility using ALL THREE systems
@@ -313,9 +316,13 @@ class EM_strat_sync_visibility(Operator):
                 if activate_collection_fully(context, collection):
                     activated_collections.append(collection.name)
         
+        # ✅ OPTIMIZED: Use object cache for batch lookups
+        from ..object_cache import get_object_cache
+        cache = get_object_cache()
+
         # Also add any objects with matching names that might not be in proxy collections
         for obj_name in all_em_list_names:
-            obj = bpy.data.objects.get(get_base_name(obj_name))
+            obj = cache.get_object(get_base_name(obj_name))
             if obj and obj.type == 'MESH' and obj not in proxy_objects_set:
                 proxy_objects.append(obj)
                 proxy_objects_set.add(obj)
@@ -347,8 +354,9 @@ class EM_strat_sync_visibility(Operator):
                     hidden_count += 1
         
         # ✅ Update icons SOLO nuova lista (no dual-sync!)
+        # ✅ OPTIMIZED: Reuse cache from above
         for item in strat.units:
-            obj = bpy.data.objects.get(get_base_name(item.name))
+            obj = cache.get_object(get_base_name(item.name))
             if obj:
                 item.is_visible = not obj.hide_viewport
         
@@ -372,13 +380,17 @@ class EM_strat_sync_visibility(Operator):
         active_epoch = epochs.list[epochs.list_index]
         active_epoch_name = active_epoch.name
         
+        # ✅ OPTIMIZED: Use object cache for batch lookups
+        from ..object_cache import get_object_cache
+        cache = get_object_cache()
+
         # Get RM objects from the RM list
         rm_objects = []
         activated_collections = []
-        
+
         # Find objects in the scene that are registered as RM in the rm_list
         for item in scene.rm_list:
-            obj = bpy.data.objects.get(item.name)
+            obj = cache.get_object(item.name)
             if obj and obj.type == 'MESH':
                 rm_objects.append((obj, item))
         
@@ -511,7 +523,10 @@ class EM_strat_show_all_proxies(Operator):
 
         ✅ CLEAN VERSION: Uses only scene.em_tools.stratigraphy paths
         ✅ USES get_base_name to handle graph prefixes correctly
+        ✅ OPTIMIZED: O(n) instead of O(n⁴) using object cache and lookup dicts
         """
+        from ..object_cache import get_object_cache
+
         strat = scene.em_tools.stratigraphy  # ✅ Nuovo
 
         # Use the same logic as sync_proxy_visibility but without filtering
@@ -522,46 +537,58 @@ class EM_strat_show_all_proxies(Operator):
         # Strategy: Look for collections that contain objects matching our em_list names
         proxy_collections = set()
 
+        # ✅ OPTIMIZED: Get all mesh objects once from cache - O(1)
+        cache = get_object_cache()
+        all_mesh_objects = cache.get_mesh_objects()
+
+        # ✅ OPTIMIZED: Build lookup dict by base name - O(n)
+        mesh_by_base_name = {}
+        for obj in all_mesh_objects:
+            base_name = get_base_name(obj.name)
+            if base_name not in mesh_by_base_name:
+                mesh_by_base_name[base_name] = []
+            mesh_by_base_name[base_name].append(obj)
+
+        # ✅ OPTIMIZED: Build collection membership dict - O(n)
+        obj_to_collections = {}
+        for collection in bpy.data.collections:
+            for obj in collection.objects:
+                if obj not in obj_to_collections:
+                    obj_to_collections[obj] = []
+                obj_to_collections[obj].append(collection)
+
         # First pass: identify which collections contain objects from em_list
         # ✅ Usa SOLO nuovo path E get_base_name per gestire prefissi grafo
         all_em_list_names = {item.name for item in strat.units}
-        for collection in bpy.data.collections:
-            for obj in collection.objects:
-                if get_base_name(obj.name) in all_em_list_names and obj.type == 'MESH':
+
+        # ✅ OPTIMIZED: Direct lookup instead of nested loops - O(n)
+        for item_name in all_em_list_names:
+            matching_objs = mesh_by_base_name.get(item_name, [])
+            for obj in matching_objs:
+                # Add object to proxy list
+                if obj not in proxy_objects_set:
+                    proxy_objects.append(obj)
+                    proxy_objects_set.add(obj)
+
+                # Get collections for this object
+                obj_collections = obj_to_collections.get(obj, [])
+                for collection in obj_collections:
                     proxy_collections.add(collection)
-                    break
 
         # Add the original "Proxy" collection if it exists
         proxy_collection = bpy.data.collections.get('Proxy')
         if proxy_collection:
             proxy_collections.add(proxy_collection)
-
-        # Second pass: add ALL mesh objects from identified proxy collections
-        for collection in proxy_collections:
-            for obj in collection.objects:
+            # Add all mesh objects from Proxy collection
+            for obj in proxy_collection.objects:
                 if obj.type == 'MESH' and obj not in proxy_objects_set:
                     proxy_objects.append(obj)
                     proxy_objects_set.add(obj)
 
-            # ATTIVA COMPLETAMENTE le collezioni proxy (base + view layer)
+        # Activate all proxy collections
+        for collection in proxy_collections:
             if activate_collection_fully(context, collection):
                 activated_collections.append(collection.name)
-
-        # Also add any objects with matching names that might not be in proxy collections
-        # ✅ Cerca oggetti iterando su TUTTI gli oggetti e confrontando il base_name
-        for obj_name in all_em_list_names:
-            # Cerca tra TUTTI gli oggetti della scena
-            for obj in bpy.data.objects:
-                if obj.type == 'MESH' and get_base_name(obj.name) == obj_name and obj not in proxy_objects_set:
-                    proxy_objects.append(obj)
-                    proxy_objects_set.add(obj)
-
-                    # ATTIVA anche le collezioni di questi oggetti singoli
-                    for collection in bpy.data.collections:
-                        if obj.name in collection.objects:
-                            if activate_collection_fully(context, collection):
-                                if collection.name not in activated_collections:
-                                    activated_collections.append(collection.name)
 
         # Show ALL proxy objects and make them renderable
         shown_count = 0
@@ -621,12 +648,16 @@ class EM_strat_show_all_rms(Operator):
         shown_count = 0
         activated_collections = []
         
+        # ✅ OPTIMIZED: Use object cache for batch lookups
+        from ..object_cache import get_object_cache
+        cache = get_object_cache()
+
         # Use the SAME logic as sync_rm_visibility but without epoch filtering
         rm_objects = []
-        
+
         # Find objects in the scene that are registered as RM in the rm_list
         for item in scene.rm_list:
-            obj = bpy.data.objects.get(item.name)
+            obj = cache.get_object(item.name)
             if obj and obj.type == 'MESH':
                 rm_objects.append(obj)
         
@@ -729,10 +760,14 @@ class EM_strat_hide_all_rms(Operator):
         # Disable filters safely without triggering sync
         disable_filters_safely(context)
 
+        # ✅ OPTIMIZED: Use object cache for batch lookups
+        from ..object_cache import get_object_cache
+        cache = get_object_cache()
+
         # Hide all RM objects
         hidden_count = 0
         for item in scene.rm_list:
-            obj = bpy.data.objects.get(item.name)
+            obj = cache.get_object(item.name)
             if obj and obj.type == 'MESH':
                 obj.hide_viewport = True
                 obj.hide_render = True
@@ -1229,6 +1264,10 @@ class SET_materials_using_epoch_list(Operator):
             B = epoch.epoch_RGB_color[2]
             em_setup_mat_cycles(matname, R, G, B)
             
+            # ✅ OPTIMIZED: Use object cache for batch lookups
+            from ..object_cache import get_object_cache
+            cache = get_object_cache()
+
             # Apply materials to objects in this epoch
             strat = scene.em_tools.stratigraphy  # ✅ Nuovo
             for em_element in strat.units:
@@ -1236,13 +1275,13 @@ class SET_materials_using_epoch_list(Operator):
                     if em_element.epoch == epoch.name:
                         # ✅ MODIFICATO: Converti il nome con prefisso
                         proxy_name = node_name_to_proxy_name(
-                            em_element.name, 
-                            context=context, 
+                            em_element.name,
+                            context=context,
                             graph=active_graph
                         )
-                        
-                        # ✅ MODIFICATO: Usa get() invece di [] per evitare KeyError
-                        obj = bpy.data.objects.get(proxy_name)
+
+                        # ✅ OPTIMIZED: Use cached object lookup
+                        obj = cache.get_object(proxy_name)
                         
                         if obj:
                             obj.data.materials.clear()

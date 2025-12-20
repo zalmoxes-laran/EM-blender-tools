@@ -54,15 +54,22 @@ class EM_import_GraphML(bpy.types.Operator):
             clear_lists(context)
             
             try:
-                # Carica il grafo e ottieni l'ID finale
+                # ✅ OPTIMIZATION: Add progress bar for better UX during long operations
+                wm = context.window_manager
+                wm.progress_begin(0, 100)
+
+                # Step 1: Load graph from file (0-30%)
+                wm.progress_update(0)
                 final_graph_id = load_graph_from_file(graphml_file, overwrite=True)
                 print(f"Graph loaded with final ID: {final_graph_id}")
-                
+                wm.progress_update(30)
+
                 # Ottieni l'istanza del grafo
                 graph_instance = get_graph(final_graph_id)
-                
+
                 if graph_instance:
 
+                    # Step 2: Connect paradata groups (30-40%)
                     # Nuova funzionalità per collegare PropertyNode dai ParadataNodeGroup
                     # Questa chiamata crea collegamenti diretti tra unità stratigrafiche e PropertyNode
                     # quando sono collegati attraverso un ParadataNodeGroup
@@ -76,6 +83,7 @@ class EM_import_GraphML(bpy.types.Operator):
                     except Exception as e:
                         print(f"AVVISO: Errore durante il collegamento PropertyNode: {str(e)}")
                         # Non interrompiamo l'esecuzione per questo errore
+                    wm.progress_update(40)
 
                     # Aggiorna UI e continua con il popolamento
                     graphml.name = final_graph_id
@@ -110,24 +118,32 @@ class EM_import_GraphML(bpy.types.Operator):
                 if hasattr(scene, "em_combiners_list_index"):
                     scene.em_tools.em_combiners_list_index = 0
 
-                
+
+                # Step 3: Integrate external data (40-50%)
                 # Integrazione di dati esterni PRIMA di popolare le liste
                 em_settings = bpy.context.window_manager.em_addon_settings
                 if em_settings.overwrite_url_with_dosco_filepath:
                     inspect_load_dosco_files_on_graph(graph_instance, dosco_dir)  # ← Nuova funzione
+                wm.progress_update(50)
 
+                # Step 4: Auto-import auxiliary files (50-70%)
                 # ✅ IMPORTANTE: Auto-import dei file ausiliari PRIMA di popolare le liste
                 # In questo modo il grafo viene completamente popolato (incluso DosCo)
                 # e poi le liste vengono popolate una volta sola con tutti i dati
                 from ..em_setup import auto_import_auxiliary_files
                 imported, errors = auto_import_auxiliary_files(context, self.graphml_index)
+                wm.progress_update(70)
 
+                # Step 5: Populate Blender lists (70-85%)
                 # ✅ ORA procedi con il popolamento delle liste (grafo completamente popolato)
                 populate_blender_lists_from_graph(context, graph_instance)
+                wm.progress_update(85)
 
+                # Step 6: Update graph statistics (85-90%)
                 # ✅ Aggiorna le statistiche del grafo (conteggi nodi per UI)
                 from ..populate_lists import update_graph_statistics
                 update_graph_statistics(context, graph_instance, graphml)
+                wm.progress_update(90)
 
                 # ✅ Usa nuovi paths centralizzati
                 strat = scene.em_tools.stratigraphy
@@ -145,25 +161,36 @@ class EM_import_GraphML(bpy.types.Operator):
                 #self.newnames_forproperties_from_fathernodes(scene)
                 # ho disabilitato questa funzione perchè non mi sembra utile. Se serve, si può riabilitare
 
+                # Step 7: Create derived lists (90-95%)
                 #crea liste derivate per lo streaming dei paradati
                 # ✅ Usa nuovo path
                 if strat.units_index >= 0 and strat.units_index < len(strat.units):
                     create_derived_lists(strat.units[strat.units_index])
+                wm.progress_update(95)
 
+                # Step 8: Material setup and final operations (95-100%)
                 #setup dei materiali di scena dopo l'importazione del graphml
                 self.post_import_material_setup(context)
 
                 bpy.ops.epoch_manager.update_us_list
 
                 bpy.ops.activity.refresh_list(graphml_index=self.graphml_index)
-                
+                wm.progress_update(100)
+
+                # ✅ End progress bar
+                wm.progress_end()
+
                 if imported > 0:
                     self.report({'INFO'}, f"GraphML loaded + {imported} auxiliary file(s) auto-imported")
                 elif errors > 0:
                     self.report({'WARNING'}, f"GraphML loaded but {errors} auxiliary import(s) failed")
-                
+
 
             except Exception as e:
+                # ✅ Ensure progress bar is closed on error
+                wm = context.window_manager
+                wm.progress_end()
+
                 error_msg = f"Error loading graph: {e}"
                 print(error_msg)
                 self.report({'ERROR'}, str(e))
