@@ -361,7 +361,11 @@ class VISUAL_OT_select_proxies(Operator):
             # USA LA STESSA FUNZIONE PER COERENZA
             property_mapping = create_property_value_mapping(graph, scene.selected_property)
             print(f"Created property mapping with {len(property_mapping)} entries")
-            
+
+            # ✅ OPTIMIZED: Use object cache for batch lookups
+            from ..object_cache import get_object_cache
+            cache = get_object_cache()
+
             # Seleziona gli oggetti che hanno questo valore
             selected_count = 0
             for node_name, prop_value in property_mapping.items():
@@ -373,9 +377,9 @@ class VISUAL_OT_select_proxies(Operator):
                     else:
                         # Basic 3DGIS: usa il nome diretto senza prefisso
                         proxy_name = node_name
-                    
-                    # Cerca l'oggetto con il nome appropriato
-                    proxy = bpy.data.objects.get(proxy_name)
+
+                    # ✅ OPTIMIZED: Use cached object lookup
+                    proxy = cache.get_object(proxy_name)
                     if proxy and proxy.type == 'MESH':
                         proxy.select_set(True)
                         selected_count += 1

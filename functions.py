@@ -636,7 +636,9 @@ def select_3D_obj(node_name, context=None, graph=None):
     
     # Seleziona l'oggetto
     bpy.ops.object.select_all(action="DESELECT")
-    obj = bpy.data.objects.get(proxy_name)
+    # ✅ OPTIMIZED: Use object cache
+    from .object_cache import get_object_cache
+    obj = get_object_cache().get_object(proxy_name)
     
     if obj:
         obj.select_set(True)
@@ -1198,8 +1200,10 @@ def check_objs_in_scene_and_provide_icon_for_list_element(node_name, graph=None,
     
     #print(f"🔍 DEBUG check_objs - proxy_name result: '{proxy_name}'")
     
-    # Cerca l'oggetto 3D usando il nome con prefisso
-    obj = bpy.data.objects.get(proxy_name)
+    # ✅ OPTIMIZED: Use object cache instead of bpy.data.objects.get()
+    from .object_cache import get_object_cache
+    cache = get_object_cache()
+    obj = cache.get_object(proxy_name)
     
     #print(f"🔍 DEBUG check_objs - obj found: {obj is not None}")
     
@@ -1575,8 +1579,9 @@ def set_materials_using_epoch_list(context):
                         graph=active_graph
                     )
                     
-                    # ✅ MODIFICATO: Usa get() per gestire oggetti mancanti
-                    obj = bpy.data.objects.get(proxy_name)
+                    # ✅ OPTIMIZED: Use object cache
+                    from .object_cache import get_object_cache
+                    obj = get_object_cache().get_object(proxy_name)
                     
                     if obj:
                         obj.data.materials.clear()
@@ -1977,8 +1982,12 @@ def update_visibility_icons(context, list_type="em_list"):
     if not list_items:
         return
         
+    # ✅ OPTIMIZED: Use object cache for batch lookups
+    from .object_cache import get_object_cache
+    cache = get_object_cache()
+
     for item in list_items:
-        obj = bpy.data.objects.get(item.name)
+        obj = cache.get_object(item.name)
         if obj:
             item.is_visible = not obj.hide_viewport
 
@@ -2003,7 +2012,9 @@ def check_and_activate_collection(node_name, context=None, graph=None):
     proxy_name = node_name_to_proxy_name(node_name, context=context, graph=graph)
     
     activated_collections = []
-    obj = bpy.data.objects.get(proxy_name)
+    # ✅ OPTIMIZED: Use object cache
+    from .object_cache import get_object_cache
+    obj = get_object_cache().get_object(proxy_name)
     
     if not obj:
         return False, []
@@ -2031,11 +2042,15 @@ def update_em_list_with_visibility_info(context, graph=None):
     scene = context.scene
     strat = scene.em_tools.stratigraphy  # ✅ Nuovo
 
+    # ✅ OPTIMIZED: Use object cache for batch lookups
+    from .object_cache import get_object_cache
+    cache = get_object_cache()
+
     for item in strat.units:
         # Converti il nome del nodo nel nome del proxy
         proxy_name = node_name_to_proxy_name(item.name, context=context, graph=graph)
-        obj = bpy.data.objects.get(proxy_name)
-        
+        obj = cache.get_object(proxy_name)
+
         if obj:
             item.is_visible = not obj.hide_viewport
 
@@ -2070,18 +2085,20 @@ def generate_blender_object_name(node, context=None):
 def get_proxy_from_list_item(item, context=None, graph=None):
     """
     Ottiene l'oggetto 3D proxy corrispondente a un elemento di lista.
-    
+
     ✅ NUOVA FUNZIONE
-    
+    ✅ OPTIMIZED: Uses object cache for O(1) lookup
+
     Args:
         item: L'elemento della lista (con .name attribute)
         context: Contesto Blender (opzionale)
         graph: Istanza del grafo (opzionale)
-        
+
     Returns:
         bpy.types.Object or None: L'oggetto proxy se trovato, None altrimenti
     """
-    
+    from .object_cache import get_object_cache
+
     # Converti il nome del nodo nel nome del proxy
     proxy_name = node_name_to_proxy_name(item.name, context=context, graph=graph)
-    return bpy.data.objects.get(proxy_name)
+    return get_object_cache().get_object(proxy_name)

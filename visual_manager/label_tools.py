@@ -162,12 +162,16 @@ class VISUAL_OT_label_creation_safe(Operator):
         
         print(f"Creating labels for {len(selection)} objects")
         
+        # ✅ OPTIMIZED: Use object cache for lookups
+        from ..object_cache import get_object_cache
+        cache = get_object_cache()
+
         # Remove old labels for selected objects
         labels_removed = 0
         for obj in selection:
             obj_generated = f'_generated.{cam.name}.{obj.name}'
-            if obj_generated in bpy.data.objects:
-                old_label = bpy.data.objects[obj_generated]
+            old_label = cache.get_object(obj_generated)
+            if old_label:
                 bpy.data.objects.remove(old_label, do_unlink=True)
                 labels_removed += 1
         
@@ -316,7 +320,7 @@ class VISUAL_OT_set_active_camera_safe(Operator):
     bl_label = "Set Active Camera"
     bl_description = "Set the specified camera as the active scene camera"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     camera_name: StringProperty(
         name="Camera Name",
         description="Name of the camera to set as active"
@@ -326,8 +330,11 @@ class VISUAL_OT_set_active_camera_safe(Operator):
         if not self.camera_name:
             self.report({'ERROR'}, "No camera name specified")
             return {'CANCELLED'}
-        
-        camera = bpy.data.objects.get(self.camera_name)
+
+        # ✅ OPTIMIZED: Use object cache
+        from ..object_cache import get_object_cache
+        camera = get_object_cache().get_object(self.camera_name)
+
         if not camera or camera.type != 'CAMERA':
             self.report({'ERROR'}, f"Camera '{self.camera_name}' not found")
             return {'CANCELLED'}
@@ -345,7 +352,7 @@ class VISUAL_OT_move_camera_to_cams_safe(Operator):
     bl_label = "Move to CAMS"
     bl_description = "Move the selected camera to CAMS collection"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     camera_name: StringProperty(
         name="Camera Name",
         description="Name of the camera to move"
@@ -355,8 +362,11 @@ class VISUAL_OT_move_camera_to_cams_safe(Operator):
         if not self.camera_name:
             self.report({'ERROR'}, "No camera name specified")
             return {'CANCELLED'}
-        
-        camera = bpy.data.objects.get(self.camera_name)
+
+        # ✅ OPTIMIZED: Use object cache
+        from ..object_cache import get_object_cache
+        camera = get_object_cache().get_object(self.camera_name)
+
         if not camera or camera.type != 'CAMERA':
             self.report({'ERROR'}, f"Camera '{self.camera_name}' not found")
             return {'CANCELLED'}

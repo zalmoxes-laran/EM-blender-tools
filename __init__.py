@@ -854,7 +854,23 @@ def register():
     # 7. Add menu items
     if MODULE_IMPORT_SUCCESS:
         bpy.types.VIEW3D_MT_mesh_add.append(functions.menu_func)
-    
+
+    # 8. ✅ OPTIMIZATION: Start performance optimization services
+    if MODULE_IMPORT_SUCCESS:
+        try:
+            from . import thumb_async
+            thumb_async.start_thumbnail_loader()
+            logger.info("✓ Started async thumbnail loader")
+        except Exception as e:
+            logger.warning(f"✗ Could not start thumbnail loader: {e}")
+
+        try:
+            # Pre-warm caches for faster first access
+            from . import graph_index, material_cache, object_cache
+            logger.info("✓ Loaded optimization modules (graph_index, material_cache, object_cache)")
+        except Exception as e:
+            logger.warning(f"✗ Could not load optimization modules: {e}")
+
     logger.info("EM Tools registration complete")
 
 def unregister():
@@ -888,7 +904,27 @@ def unregister():
         except Exception as e:
             logger.warning(f"✗ Error unregistering em_props: {e}")
 
-    # 5. Unregister em_setup LAST (after em_props since EM_Tools depends on GraphMLFileItem)
+    # 5. ✅ OPTIMIZATION: Stop performance optimization services
+    if MODULE_IMPORT_SUCCESS:
+        try:
+            from . import thumb_async
+            thumb_async.stop_thumbnail_loader()
+            logger.info("✓ Stopped async thumbnail loader")
+        except Exception as e:
+            logger.warning(f"✗ Could not stop thumbnail loader: {e}")
+
+        try:
+            # Clear all caches
+            from . import graph_index, material_cache, object_cache, debounce
+            graph_index.clear_all_graph_indices()
+            material_cache.clear_material_cache()
+            object_cache.clear_object_cache()
+            debounce.clear_debouncers()
+            logger.info("✓ Cleared all optimization caches")
+        except Exception as e:
+            logger.warning(f"✗ Could not clear optimization caches: {e}")
+
+    # 6. Unregister em_setup LAST (after em_props since EM_Tools depends on GraphMLFileItem)
     if MODULE_IMPORT_SUCCESS:
         try:
             em_setup.unregister()

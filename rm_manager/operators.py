@@ -12,6 +12,9 @@ from bpy_extras.io_utils import ImportHelper  # type: ignore
 from s3dgraphy import get_graph
 from s3dgraphy.nodes.representation_node import RepresentationModelNode
 
+# ✅ OPTIMIZED: Import object cache for O(1) lookups
+from ..object_cache import get_object_cache
+
 __all__ = [
     'RM_OT_detect_orphaned_epochs',
     'RM_OT_fix_orphaned_epoch',
@@ -556,7 +559,7 @@ class RM_OT_set_tileset_path(Operator, ImportHelper):
     ) # type: ignore
     
     def execute(self, context):
-        obj = bpy.data.objects.get(self.object_name)
+        obj = get_object_cache().get_object(self.object_name)
         if not obj:
             self.report({'ERROR'}, f"Object {self.object_name} not found")
             return {'CANCELLED'}
@@ -609,7 +612,7 @@ class RM_OT_demote_from_rm_list(Operator):
             
         # Get the RM item and the corresponding object
         rm_item = scene.rm_list[self.rm_index]
-        obj = bpy.data.objects.get(rm_item.name)
+        obj = get_object_cache().get_object(rm_item.name)
         
         if not obj:
             self.report({'ERROR'}, f"Object {rm_item.name} not found in scene")
@@ -929,7 +932,7 @@ class RM_OT_resolve_mismatches(Operator):
         # Itera su tutti gli elementi della lista
         for i, item in enumerate(rm_list):
             if item.epoch_mismatch:
-                obj = bpy.data.objects.get(item.name)
+                obj = get_object_cache().get_object(item.name)
                 if not obj:
                     continue
                 
@@ -1015,7 +1018,7 @@ class RM_OT_show_mismatch_details(Operator):
             self.report({'INFO'}, "No mismatch detected for this object")
             return {'FINISHED'}
         
-        obj = bpy.data.objects.get(item.name)
+        obj = get_object_cache().get_object(item.name)
         if not obj:
             self.report({'ERROR'}, "Object not found in scene")
             return {'CANCELLED'}
@@ -1080,7 +1083,7 @@ class RM_OT_promote_to_rm(Operator):
                 self.report({'ERROR'}, "No RM model selected")
                 return {'CANCELLED'}
             rm_item = scene.rm_list[scene.rm_list_index]
-            obj = bpy.data.objects.get(rm_item.name)
+            obj = get_object_cache().get_object(rm_item.name)
             if not obj:
                 self.report({'ERROR'}, f"Object not found in scene: {rm_item.name}")
                 return {'CANCELLED'}
@@ -1223,7 +1226,7 @@ class RM_OT_remove_epoch_from_rm_list(Operator):
             graph = None
         
         # Trova l'oggetto Blender
-        obj = bpy.data.objects.get(rm_item.name)
+        obj = get_object_cache().get_object(rm_item.name)
         if not obj:
             self.report({'ERROR'}, f"Object not found in scene: {rm_item.name}")
             return {'CANCELLED'}
@@ -1442,7 +1445,7 @@ class RM_OT_remove_epoch(Operator):
                 graph = None
             
             # Trova l'oggetto Blender
-            obj = bpy.data.objects.get(rm_item.name)
+            obj = get_object_cache().get_object(rm_item.name)
             if not obj:
                 self.report({'ERROR'}, f"Object not found in scene: {rm_item.name}")
                 return {'CANCELLED'}
@@ -1526,7 +1529,7 @@ class RM_OT_remove_from_epoch(Operator):
             graph = get_graph(graphml.name)
         
         # Trova l'oggetto Blender
-        obj = bpy.data.objects.get(rm_item.name)
+        obj = get_object_cache().get_object(rm_item.name)
         if not obj:
             self.report({'ERROR'}, f"Object not found in scene: {rm_item.name}")
             return {'CANCELLED'}
@@ -1686,7 +1689,7 @@ class RM_OT_select_from_list(Operator):
                 bpy.ops.object.select_all(action='DESELECT')
                 
                 # If the object exists, select it
-                obj = bpy.data.objects.get(item.name)
+                obj = get_object_cache().get_object(item.name)
                 if obj:
                     # ✅ Make object visible
                     if obj.hide_viewport:
@@ -1827,7 +1830,7 @@ class RM_OT_add_epoch(Operator):
             return {'CANCELLED'}
         
         # Trova l'oggetto Blender
-        obj = bpy.data.objects.get(rm_item.name)
+        obj = get_object_cache().get_object(rm_item.name)
         if not obj:
             self.report({'ERROR'}, f"Object not found in scene: {rm_item.name}")
             return {'CANCELLED'}
