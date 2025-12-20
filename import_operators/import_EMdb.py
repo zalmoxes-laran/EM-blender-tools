@@ -78,8 +78,9 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
                 return {
                     'import_type': import_type,
                     'filepath': em_tools.generic_xlsx_file,
-                    'sheet_name': em_tools.xlsx_sheet_name,
+                    'sheet_name': em_tools.generic_xlsx_sheet,
                     'id_column': em_tools.xlsx_id_column,
+                    'desc_column': em_tools.generic_xlsx_desc_column if em_tools.generic_xlsx_desc_column != "none" else None,
                     'mode': '3DGIS'
                 }
             elif import_type == "emdb_xlsx":
@@ -240,6 +241,7 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
                 filepath=settings['filepath'],
                 sheet_name=settings['sheet_name'],
                 id_column=settings['id_column'],
+                desc_column=settings.get('desc_column'),
                 mode=settings['mode']
             )
         

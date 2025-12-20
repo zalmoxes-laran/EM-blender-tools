@@ -15,22 +15,24 @@ class GenericXLSXImporter(BaseImporter):
     about the file structure.
     """
         
-    def __init__(self, filepath: str, sheet_name: str = "Sheet1", id_column: str = "ID", 
-                overwrite: bool = False, mode: str = "3DGIS"):
+    def __init__(self, filepath: str, sheet_name: str = "Sheet1", id_column: str = "ID",
+                desc_column: str = None, overwrite: bool = False, mode: str = "3DGIS"):
         """
         Initialize the generic XLSX importer.
-        
+
         Args:
             filepath: Path to the XLSX file
             sheet_name: Name of the sheet to import
             id_column: Name of the column containing unique identifiers
+            desc_column: Optional column name for descriptions
             overwrite: If True, overwrites existing nodes
             mode: Either "3DGIS" or "EM_ADVANCED"
         """
-        
+
         super().__init__(filepath=filepath, id_column=id_column, overwrite=overwrite)
-        
+
         self.sheet_name = sheet_name
+        self.desc_column = desc_column
         self.mode = mode
 
         # Inizializzazione del grafo con nome specifico per modalità
@@ -225,7 +227,7 @@ class GenericXLSXImporter(BaseImporter):
     def parse(self) -> Graph:
         """
         Parse the XLSX file and create nodes/edges in the graph.
-        
+
         Returns:
             Graph: The populated graph object
         """
@@ -235,14 +237,21 @@ class GenericXLSXImporter(BaseImporter):
             if self.graph is None:
                 print("Graph is None, creating new graph")
                 self.graph = Graph(graph_id=self.graph_id)
-            
+
             print(f"\nStarting parse with graph ID: {self.graph_id}")
 
 
             df = self._read_excel_file()
+
+            # ✅ RINOMINA colonna descrizione se specificata dall'utente
+            if self.desc_column and self.desc_column in df.columns:
+                # Rinomina la colonna scelta in "Description" (standard BaseImporter)
+                df = df.rename(columns={self.desc_column: 'Description'})
+                print(f"✓ Renamed column '{self.desc_column}' to 'Description' for import")
+
             total_rows = 0
             successful_rows = 0
-            
+
             for idx, row in df.iterrows():
                 total_rows += 1
                 try:

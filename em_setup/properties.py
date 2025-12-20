@@ -10,6 +10,53 @@ from bpy.props import (
     PointerProperty
 )
 
+from .excel_helpers import get_excel_sheets, get_excel_columns
+
+# ============================================================================
+# CACHE SYSTEM FOR EXCEL DROPDOWNS
+# ============================================================================
+
+_excel_cache = {
+    'filepath': None,
+    'sheets': [],
+    'sheet_name': None,
+    'columns': []
+}
+
+def _get_cached_sheets(filepath):
+    """Ottieni fogli con cache per evitare letture ripetute"""
+    global _excel_cache
+
+    if filepath != _excel_cache['filepath']:
+        # File cambiato, aggiorna cache
+        _excel_cache['filepath'] = filepath
+        _excel_cache['sheets'] = get_excel_sheets(filepath) if filepath else []
+        # Reset cache colonne quando cambia file
+        _excel_cache['sheet_name'] = None
+        _excel_cache['columns'] = []
+
+    return _excel_cache['sheets']
+
+def _get_cached_columns(filepath, sheet_name):
+    """Ottieni colonne con cache per evitare letture ripetute"""
+    global _excel_cache
+
+    if filepath != _excel_cache['filepath'] or sheet_name != _excel_cache['sheet_name']:
+        # File o foglio cambiato, aggiorna cache
+        _excel_cache['filepath'] = filepath
+        _excel_cache['sheet_name'] = sheet_name
+        _excel_cache['columns'] = get_excel_columns(filepath, sheet_name) if (filepath and sheet_name) else []
+
+    return _excel_cache['columns']
+
+def _clear_excel_cache():
+    """Pulisce la cache (chiamata quando si cambia file)"""
+    global _excel_cache
+    _excel_cache['filepath'] = None
+    _excel_cache['sheets'] = []
+    _excel_cache['sheet_name'] = None
+    _excel_cache['columns'] = []
+
 
 def get_pyarchinit_mappings(self, context):
     """Get available pyArchInit mapping files from registry"""
@@ -23,6 +70,113 @@ def get_pyarchinit_mappings(self, context):
         print(f"Error loading pyArchInit mappings: {str(e)}")
 
     return mappings
+
+
+def get_excel_sheet_items(self, context):
+    """Callback per EnumProperty: ritorna lista fogli disponibili nel file Excel (con cache)"""
+    items = [("none", "Select Sheet", "Select an Excel sheet")]
+
+    try:
+        # Ottieni filepath dal contesto appropriato
+        filepath = self.generic_xlsx_file
+
+        if filepath:
+            # ✅ USA CACHE invece di lettura diretta
+            sheets = _get_cached_sheets(filepath)
+            if sheets:
+                items = [(sheet, sheet, f"Sheet: {sheet}") for sheet in sheets]
+            else:
+                items = [("error", "No sheets found", "Cannot read Excel file")]
+    except Exception as e:
+        print(f"Error getting Excel sheets: {e}")
+        items = [("error", "Error reading file", str(e))]
+
+    return items
+
+
+def get_excel_id_column_items(self, context):
+    """Callback per EnumProperty: ritorna lista colonne disponibili per ID (con cache)"""
+    items = [("none", "Select ID Column", "Select the column containing unique IDs")]
+
+    try:
+        filepath = self.generic_xlsx_file
+        sheet_name = self.generic_xlsx_sheet
+
+        if filepath and sheet_name and sheet_name != "none":
+            # ✅ USA CACHE invece di lettura diretta
+            columns = _get_cached_columns(filepath, sheet_name)
+            if columns:
+                items = [(col, col, f"Column: {col}") for col in columns]
+            else:
+                items = [("error", "No columns found", "Cannot read sheet columns")]
+    except Exception as e:
+        print(f"Error getting Excel columns: {e}")
+        items = [("error", "Error reading columns", str(e))]
+
+    return items
+
+
+def get_excel_desc_column_items(self, context):
+    """Callback per EnumProperty: ritorna lista colonne disponibili per descrizione (con cache)"""
+    items = [("none", "No Description", "Don't import description column")]
+
+    try:
+        filepath = self.generic_xlsx_file
+        sheet_name = self.generic_xlsx_sheet
+
+        if filepath and sheet_name and sheet_name != "none":
+            # ✅ USA CACHE invece di lettura diretta
+            columns = _get_cached_columns(filepath, sheet_name)
+            if columns:
+                # Aggiungi "none" come prima opzione, poi le colonne
+                items.extend([(col, col, f"Column: {col}") for col in columns])
+    except Exception as e:
+        print(f"Error getting Excel columns for description: {e}")
+
+    return items
+
+
+def update_generic_xlsx_file(self, context):
+    """
+    Callback chiamato quando il filepath del Generic Excel cambia.
+    Resetta i campi dipendenti e valida il file.
+    """
+    from .excel_helpers import validate_excel_file
+
+    # ✅ PULISCI CACHE quando cambia file (importante per performance!)
+    _clear_excel_cache()
+
+    # Reset dei campi dipendenti
+    self.generic_xlsx_sheet = "none"
+    self.xlsx_id_column = "none"
+    self.generic_xlsx_desc_column = "none"
+
+    # Valida il file
+    if self.generic_xlsx_file:
+        is_valid, error_msg = validate_excel_file(self.generic_xlsx_file)
+        if not is_valid:
+            # Mostra popup di errore
+            def draw_popup(popup_self, popup_context):
+                popup_self.layout.label(text="Errore apertura Excel:", icon='ERROR')
+                # Splitta il messaggio su più righe
+                for line in error_msg.split('\n'):
+                    popup_self.layout.label(text=line)
+
+            context.window_manager.popup_menu(draw_popup, title="File Excel non accessibile", icon='ERROR')
+        else:
+            # ✅ PRE-CARICA i fogli in cache alla prima selezione del file
+            # Questo avviene UNA SOLA VOLTA quando l'utente seleziona il file
+            _get_cached_sheets(self.generic_xlsx_file)
+
+
+def update_generic_xlsx_sheet(self, context):
+    """
+    Callback chiamato quando il foglio Excel selezionato cambia.
+    Resetta le colonne dipendenti.
+    """
+    # Reset delle colonne quando cambia il foglio
+    self.xlsx_id_column = "none"
+    self.generic_xlsx_desc_column = "none"
 
 
 def update_resource_folder(self, context):
@@ -224,13 +378,27 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         name="Excel File",
         description="Path to generic Excel file",
         subtype='FILE_PATH',
-        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set(),
+        update=update_generic_xlsx_file
     )  # type: ignore
 
-    generic_xlsx_sheet: StringProperty(
+    generic_xlsx_sheet: EnumProperty(
         name="Sheet Name",
-        description="Name of the Excel sheet to import",
-        default="Sheet1"
+        description="Select the Excel sheet to import",
+        items=get_excel_sheet_items,
+        update=update_generic_xlsx_sheet
+    )  # type: ignore
+
+    xlsx_id_column: EnumProperty(
+        name="ID Column",
+        description="Select the column containing unique identifiers",
+        items=get_excel_id_column_items
+    )  # type: ignore
+
+    generic_xlsx_desc_column: EnumProperty(
+        name="Description Column",
+        description="Optional: Select a column for descriptions",
+        items=get_excel_desc_column_items
     )  # type: ignore
 
     # pyArchInit import

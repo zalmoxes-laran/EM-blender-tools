@@ -238,7 +238,7 @@ class EMToolsSwitchModeOperator(Operator):
 
         # Messaggio per informare l'utente
         if em_tools.mode_em_advanced:
-            self.report({'INFO'}, "Switched to Advanced EM Mode")
+            self.report({'INFO'}, "Switched to EM Mode")
         else:
             self.report({'INFO'}, "Switched to 3D GIS Mode")
 

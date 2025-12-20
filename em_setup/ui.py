@@ -336,11 +336,11 @@ class EM_SetupPanel(bpy.types.Panel):
         active_label = ""
         # Cambia l'etichetta del pulsante in base alla modalità attiva
         if em_tools.mode_em_advanced:
-            activemode_label = "Switch to Basic 3D GIS"
-            active_label = "Active Mode: Advanced EM"
+            activemode_label = "Switch to 3D GIS"
+            active_label = "Active Mode: EM"
         else:
-            activemode_label = "Switch to Advanced EM"
-            active_label = "Active Mode: Basic 3D GIS"
+            activemode_label = "Switch to EM"
+            active_label = "Active Mode: 3D GIS"
 
         # Disegna il pulsante
         col.label(text=active_label)
@@ -898,9 +898,27 @@ class EM_SetupPanel(bpy.types.Panel):
 
             if em_tools.mode_3dgis_import_type == "generic_xlsx":
                 options_box.label(text="Generic Excel Import Settings:")
+
+                # File Excel
                 options_box.prop(em_tools, "generic_xlsx_file", text="Excel File")
-                options_box.prop(em_tools, "xlsx_sheet_name", text="Sheet Name")
-                options_box.prop(em_tools, "xlsx_id_column", text="ID Column")
+
+                # Sheet dropdown (solo se file è selezionato e proprietà esiste)
+                if em_tools.generic_xlsx_file and hasattr(em_tools, 'generic_xlsx_sheet'):
+                    options_box.prop(em_tools, "generic_xlsx_sheet", text="Sheet Name")
+
+                    # Colonna ID (solo se sheet è selezionato)
+                    if (hasattr(em_tools, 'generic_xlsx_sheet') and
+                        em_tools.generic_xlsx_sheet and
+                        em_tools.generic_xlsx_sheet != "none" and
+                        hasattr(em_tools, 'xlsx_id_column')):
+                        options_box.prop(em_tools, "xlsx_id_column", text="ID Column")
+
+                        # Colonna descrizione opzionale (solo se ID è selezionato)
+                        if (hasattr(em_tools, 'xlsx_id_column') and
+                            em_tools.xlsx_id_column and
+                            em_tools.xlsx_id_column != "none" and
+                            hasattr(em_tools, 'generic_xlsx_desc_column')):
+                            options_box.prop(em_tools, "generic_xlsx_desc_column", text="Description Column (Optional)")
 
             elif em_tools.mode_3dgis_import_type == "pyarchinit":
                 options_box.label(text="pyArchInit Import Settings:")
@@ -955,6 +973,35 @@ class EM_SetupPanel(bpy.types.Panel):
             # Tasto Import con operatore unificato
             row = box.row(align=True)
             row.scale_y = 1.5  # Bottone più grande
+
+            # Validazione campi obbligatori per abilitare il pulsante Import
+            can_import = False
+
+            if em_tools.mode_3dgis_import_type == "generic_xlsx":
+                # Richiede: file, sheet, ID column
+                can_import = bool(
+                    em_tools.generic_xlsx_file and
+                    hasattr(em_tools, 'generic_xlsx_sheet') and
+                    em_tools.generic_xlsx_sheet and
+                    em_tools.generic_xlsx_sheet != "none" and
+                    hasattr(em_tools, 'xlsx_id_column') and
+                    em_tools.xlsx_id_column and
+                    em_tools.xlsx_id_column != "none"
+                )
+            elif em_tools.mode_3dgis_import_type == "pyarchinit":
+                # Richiede: db path, mapping
+                can_import = bool(
+                    em_tools.pyarchinit_db_path and
+                    em_tools.pyarchinit_mapping != "none"
+                )
+            elif em_tools.mode_3dgis_import_type == "emdb_xlsx":
+                # Richiede: file, mapping
+                can_import = bool(
+                    em_tools.emdb_xlsx_file and
+                    em_tools.emdb_mapping != "none"
+                )
+
+            row.enabled = can_import
             op = row.operator("em.import_3dgis_database",
                             text="Import Database",
                             icon='IMPORT')

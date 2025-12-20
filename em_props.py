@@ -30,7 +30,15 @@ from .visual_manager.data import ColorRampProperties, PropertyValueItem, CameraI
 
 # Import from em_setup
 from .em_setup import GraphMLFileItem, AuxiliaryFileProperties
-from .em_setup.properties import get_emdb_mappings, get_pyarchinit_mappings
+from .em_setup.properties import (
+    get_emdb_mappings,
+    get_pyarchinit_mappings,
+    get_excel_sheet_items,
+    get_excel_id_column_items,
+    get_excel_desc_column_items,
+    update_generic_xlsx_file,
+    update_generic_xlsx_sheet
+)
 
 # Import base PropertyGroup classes
 from .em_base_props import EMviqListErrors, EDGESListItem, EMListParadata, EM_Other_Settings
@@ -574,19 +582,34 @@ class EM_Tools(PropertyGroup):
         name="Excel File",
         description="Path to generic Excel file",
         subtype='FILE_PATH',
-        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set(),
+        update=update_generic_xlsx_file
     )  # type: ignore
 
-    xlsx_sheet_name: StringProperty(
+    generic_xlsx_sheet: EnumProperty(
         name="Sheet Name",
-        description="Name of the Excel sheet containing the data",
-        default="Sheet1"
+        description="Select the Excel sheet to import",
+        items=get_excel_sheet_items,
+        update=update_generic_xlsx_sheet
     )  # type: ignore
 
-    xlsx_id_column: StringProperty(
+    xlsx_id_column: EnumProperty(
         name="ID Column",
-        description="Name of the column containing unique IDs",
-        default="ID"
+        description="Select the column containing unique identifiers",
+        items=get_excel_id_column_items
+    )  # type: ignore
+
+    generic_xlsx_desc_column: EnumProperty(
+        name="Description Column",
+        description="Optional: Select a column for descriptions",
+        items=get_excel_desc_column_items
+    )  # type: ignore
+
+    # Legacy property kept for backward compatibility with old code
+    xlsx_sheet_name: StringProperty(
+        name="Sheet Name (Legacy)",
+        description="Name of the Excel sheet containing the data (legacy - use generic_xlsx_sheet instead)",
+        default="Sheet1"
     )  # type: ignore
 
     emdb_xlsx_file: StringProperty(
