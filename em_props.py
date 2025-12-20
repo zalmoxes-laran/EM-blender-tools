@@ -21,9 +21,6 @@ from bpy.props import (
 )
 from bpy.types import PropertyGroup
 
-# ✅ OPTIMIZED: Import debouncing for update callbacks
-from .debounce import debounce_call
-
 # Import from submodules
 from .proxy_box_creator.data import ProxyBoxSettings, ProxyBoxPointSettings
 from .anastylosis_manager import AnastylisisItem, AnastylisisSettings, AnastylosisSFNodeItem
@@ -51,14 +48,11 @@ from .em_base_props import EMviqListErrors, EDGESListItem, EMListParadata, EM_Ot
 # UPDATE CALLBACKS
 # =====================================================
 
-@debounce_call(delay=0.1)
 def update_stratigraphic_selection(self, context):
     """
     Called when the user changes the selection in the stratigraphic list.
     Updates paradata lists if streaming mode is enabled.
     Pre-loads thumbnails for the selected US to avoid UI lag.
-
-    ✅ OPTIMIZED: Debounced to prevent cascading updates during rapid selection changes
     """
     try:
         # Pre-load thumbnails for the selected US (only if needed)
@@ -90,10 +84,8 @@ def update_stratigraphic_selection(self, context):
         print(f"Warning: Could not update paradata lists: {e}")
 
 
-@debounce_call(delay=0.1)
 def update_paradata_streaming(self, context):
-    """Called when paradata streaming mode changes
-    ✅ OPTIMIZED: Debounced"""
+    """Called when paradata streaming mode changes"""
     try:
         from .functions import switch_paradata_lists
         class DummySelf:
@@ -103,10 +95,8 @@ def update_paradata_streaming(self, context):
         print(f"Warning: Could not update paradata lists: {e}")
 
 
-@debounce_call(delay=0.15)
 def update_stream_properties(self, context):
-    """Called when property streaming settings change
-    ✅ OPTIMIZED: Debounced (longer delay for heavier operation)"""
+    """Called when property streaming settings change"""
     try:
         from .functions import stream_properties
         class DummySelf:
@@ -116,10 +106,8 @@ def update_stream_properties(self, context):
         print(f"Warning: Could not stream properties: {e}")
 
 
-@debounce_call(delay=0.15)
 def update_stream_extractors(self, context):
-    """Called when extractor streaming settings change
-    ✅ OPTIMIZED: Debounced (longer delay for heavier operation)"""
+    """Called when extractor streaming settings change"""
     try:
         from .functions import stream_extractors
         class DummySelf:
@@ -129,10 +117,8 @@ def update_stream_extractors(self, context):
         print(f"Warning: Could not stream extractors: {e}")
 
 
-@debounce_call(delay=0.15)
 def update_stream_combiners(self, context):
-    """Called when combiner streaming settings change
-    ✅ OPTIMIZED: Debounced (longer delay for heavier operation)"""
+    """Called when combiner streaming settings change"""
     try:
         from .functions import stream_combiners
         class DummySelf:
@@ -142,10 +128,8 @@ def update_stream_combiners(self, context):
         print(f"Warning: Could not stream combiners: {e}")
 
 
-@debounce_call(delay=0.1)
 def update_proxy_shader_mode(self, context):
-    """Called when proxy shader mode changes
-    ✅ OPTIMIZED: Debounced"""
+    """Called when proxy shader mode changes"""
     try:
         from .functions import proxy_shader_mode_function
         class DummySelf:
@@ -155,10 +139,8 @@ def update_proxy_shader_mode(self, context):
         print(f"Warning: Could not update proxy shader mode: {e}")
 
 
-@debounce_call(delay=0.05)
 def update_proxy_display(self, context):
-    """Called when proxy display alpha changes
-    ✅ OPTIMIZED: Debounced with short delay for responsive slider feedback"""
+    """Called when proxy display alpha changes"""
     try:
         from .functions import update_display_mode
         class DummySelf:
@@ -168,10 +150,8 @@ def update_proxy_display(self, context):
         print(f"Warning: Could not update proxy display: {e}")
 
 
-@debounce_call(delay=0.05)
 def update_epoch_us_overlay(self, context):
-    """Toggle viewport overlay that shows active epoch and US.
-    ✅ OPTIMIZED: Debounced for responsive feedback"""
+    """Toggle viewport overlay that shows active epoch and US."""
     try:
         from . import viewport_overlay
         # Just refresh the text, the overlay is always registered
@@ -181,10 +161,8 @@ def update_epoch_us_overlay(self, context):
         print(f"Warning: Could not toggle epoch/US overlay: {e}")
 
 
-@debounce_call(delay=0.1)
 def update_epoch_index(self, context):
-    """Called when epoch list index changes
-    ✅ OPTIMIZED: Debounced to prevent cascading filter updates"""
+    """Called when epoch list index changes"""
     scene = context.scene
     # Usa il toggle di filtro presente sulla scena
     if getattr(scene, "filter_by_epoch", False):
