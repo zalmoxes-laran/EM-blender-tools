@@ -254,19 +254,36 @@ def populate_blender_lists_from_graph(context, graph):
     em_edges_index_ema = 0
     em_epoch_list_ema = 0
 
-    # Get nodes by type
-    # ✅ MODIFICATO: Chiamare get_nodes_by_type per ogni tipo separatamente
-    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
-    stratigraphic_nodes = []
-    for node_type in stratigraphic_types:
-        nodes = graph.get_nodes_by_type(node_type)
-        stratigraphic_nodes.extend(nodes)
+    # ✅ OPTIMIZED: Batch node filtering - 1 iteration instead of 14 queries
+    # Get all nodes once and filter by type in a single pass - O(n) instead of O(14×n)
+    stratigraphic_types = {'US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs'}
 
-    document_nodes = graph.get_nodes_by_type('document')
-    property_nodes = graph.get_nodes_by_type('property')
-    extractor_nodes = graph.get_nodes_by_type('extractor')
-    combiner_nodes = graph.get_nodes_by_type('combiner')
-    epoch_nodes = graph.get_nodes_by_type('EpochNode')
+    stratigraphic_nodes = []
+    document_nodes = []
+    property_nodes = []
+    extractor_nodes = []
+    combiner_nodes = []
+    epoch_nodes = []
+
+    # Single pass through all nodes - O(n)
+    for node in graph.nodes:
+        if not hasattr(node, 'node_type'):
+            continue
+
+        node_type = node.node_type
+
+        if node_type in stratigraphic_types:
+            stratigraphic_nodes.append(node)
+        elif node_type == 'document':
+            document_nodes.append(node)
+        elif node_type == 'property':
+            property_nodes.append(node)
+        elif node_type == 'extractor':
+            extractor_nodes.append(node)
+        elif node_type == 'combiner':
+            combiner_nodes.append(node)
+        elif node_type == 'EpochNode':
+            epoch_nodes.append(node)
 
     # 1. Nodi stratigrafici
     for node in stratigraphic_nodes:
