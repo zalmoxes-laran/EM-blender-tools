@@ -48,43 +48,40 @@ def create_property_value_mapping_direct(graph, property_name):
     """
     Direct implementation that matches the operator logic exactly.
     This ensures consistency between update_property_values and apply_colors.
+    ✅ OPTIMIZATION: Uses graph.indices for O(1) lookups instead of O(n) and O(E) iterations.
     """
     print(f"Using direct mapping method for '{property_name}'")
-    
+
     mapping = {}
-    
-    # 1. Find ALL property nodes with this name
-    property_nodes = [node for node in graph.nodes 
-                    if hasattr(node, 'node_type') and node.node_type == "property" 
-                    and hasattr(node, 'name') and node.name == property_name]
-    
+
+    # ✅ OPTIMIZATION: O(1) lookup using indices instead of O(n) iteration
+    property_nodes = [node for node in graph.indices.nodes_by_type.get('property', [])
+                    if hasattr(node, 'name') and node.name == property_name]
+
     print(f"Found {len(property_nodes)} property nodes for '{property_name}'")
-    
+
     # 2. Track stratigraphic nodes that have this property
     connected_strat_nodes = set()
-    
+
     # 3. Process each property node and find connected US
     for prop_node in property_nodes:
         value = getattr(prop_node, 'description', '')
         is_empty = not (value and value.strip())
-        
+
         print(f"Processing property node {prop_node.node_id}: empty={is_empty}, value='{value}'")
-        
-        # Find all US connected to this property node
+
+        # ✅ OPTIMIZATION: O(1) lookup using composite index instead of O(E) edge iteration
+        # Use edges_by_target_type to find all edges where this property is the target
         connected_us = []
-        for edge in graph.edges:
-            if (hasattr(edge, 'edge_type') and 
-                edge.edge_type == "has_property" and 
-                hasattr(edge, 'edge_target') and
-                edge.edge_target == prop_node.node_id):
-                
-                strat_node = graph.find_node_by_id(edge.edge_source)
-                if strat_node and hasattr(strat_node, 'name'):
-                    connected_us.append(strat_node)
-                    connected_strat_nodes.add(strat_node.node_id)
-        
+        target_key = (prop_node.node_id, "has_property")
+        for edge in graph.indices.edges_by_target_type.get(target_key, []):
+            strat_node = graph.find_node_by_id(edge.edge_source)
+            if strat_node and hasattr(strat_node, 'name'):
+                connected_us.append(strat_node)
+                connected_strat_nodes.add(strat_node.node_id)
+
         print(f"  Connected to {len(connected_us)} US: {[us.name for us in connected_us]}")
-        
+
         # Assign appropriate value
         for us_node in connected_us:
             if is_empty:
@@ -93,87 +90,77 @@ def create_property_value_mapping_direct(graph, property_name):
             else:
                 mapping[us_node.name] = value
                 print(f"  -> {us_node.name}: '{value}'")
-    
-    # 4. Find all US that DON'T have this property
+
+    # ✅ OPTIMIZATION: Iterate only stratigraphic node types instead of all graph.nodes
+    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
     no_property_count = 0
-    for node in graph.nodes:
-        if (hasattr(node, 'node_type') and 
-            isinstance(node, StratigraphicNode) and 
-            hasattr(node, 'node_id') and
-            node.node_id not in connected_strat_nodes):
-            
-            if hasattr(node, 'name'):
+    for node_type in stratigraphic_types:
+        for node in graph.indices.nodes_by_type.get(node_type, []):
+            if (hasattr(node, 'node_id') and
+                node.node_id not in connected_strat_nodes and
+                hasattr(node, 'name')):
                 mapping[node.name] = f"no property {property_name} node"
                 no_property_count += 1
-    
+
     print(f"Direct mapping created with {len(mapping)} entries")
-    print(f"  - With property: {len(connected_strat_nodes)}")  
+    print(f"  - With property: {len(connected_strat_nodes)}")
     print(f"  - Without property: {no_property_count}")
-    
+
     return mapping
 
 
 def create_property_value_mapping_legacy(graph, property_name):
     """
     Legacy fallback function for when direct method fails.
+    ✅ OPTIMIZATION: Uses graph.indices for O(1) lookups instead of O(n) and O(E) iterations.
     """
     print(f"Using legacy mapping method for '{property_name}'")
-    
+
     mapping = {}
-    
-    # Find all property nodes with the given name
-    property_nodes = []
-    for node in graph.nodes:
-        if (hasattr(node, 'node_type') and 
-            node.node_type == "property" and 
-            hasattr(node, 'name') and 
-            node.name == property_name):
-            property_nodes.append(node)
-    
+
+    # ✅ OPTIMIZATION: O(1) lookup using indices instead of O(n) iteration
+    property_nodes = [node for node in graph.indices.nodes_by_type.get('property', [])
+                    if hasattr(node, 'name') and node.name == property_name]
+
     print(f"Found {len(property_nodes)} property nodes with name '{property_name}'")
-    
+
     # Track stratigraphic nodes that have this property
     connected_strat_nodes = set()
-    
+
     # Process normal property values
     for prop_node in property_nodes:
         # Get the property value (description)
         value = getattr(prop_node, 'description', '')
-        
-        # Find all stratigraphic nodes connected to this property
-        for edge in graph.edges:
-            if (hasattr(edge, 'edge_type') and 
-                edge.edge_type == "has_property" and 
-                hasattr(edge, 'edge_target') and
-                edge.edge_target == prop_node.node_id):
-                
-                strat_node_id = edge.edge_source
-                connected_strat_nodes.add(strat_node_id)
-                strat_node = graph.find_node_by_id(strat_node_id)
-                
-                if strat_node and hasattr(strat_node, 'name'):
-                    # Use actual value or special tag for empty values
-                    if value and value.strip():
-                        mapping[strat_node.name] = value
-                    else:
-                        mapping[strat_node.name] = f"empty property {property_name} node"
-    
-    # Handle "no property" case
+
+        # ✅ OPTIMIZATION: O(1) lookup using composite index instead of O(E) edge iteration
+        target_key = (prop_node.node_id, "has_property")
+        for edge in graph.indices.edges_by_target_type.get(target_key, []):
+            strat_node_id = edge.edge_source
+            connected_strat_nodes.add(strat_node_id)
+            strat_node = graph.find_node_by_id(strat_node_id)
+
+            if strat_node and hasattr(strat_node, 'name'):
+                # Use actual value or special tag for empty values
+                if value and value.strip():
+                    mapping[strat_node.name] = value
+                else:
+                    mapping[strat_node.name] = f"empty property {property_name} node"
+
+    # ✅ OPTIMIZATION: Iterate only stratigraphic node types instead of all graph.nodes
+    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
     no_property_count = 0
-    for node in graph.nodes:
-        if (hasattr(node, 'node_type') and 
-            isinstance(node, StratigraphicNode) and 
-            hasattr(node, 'node_id') and
-            node.node_id not in connected_strat_nodes):
-            
-            if hasattr(node, 'name'):
+    for node_type in stratigraphic_types:
+        for node in graph.indices.nodes_by_type.get(node_type, []):
+            if (hasattr(node, 'node_id') and
+                node.node_id not in connected_strat_nodes and
+                hasattr(node, 'name')):
                 mapping[node.name] = f"no property {property_name} node"
                 no_property_count += 1
-    
+
     print(f"Legacy mapping created with {len(mapping)} entries")
-    print(f"  - With property: {len(connected_strat_nodes)}")  
+    print(f"  - With property: {len(connected_strat_nodes)}")
     print(f"  - Without property: {no_property_count}")
-    
+
     return mapping
 
 

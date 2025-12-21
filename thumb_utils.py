@@ -194,9 +194,27 @@ def get_thumbs_path_display(resource_folder_path: str = None) -> str:
     except Exception as e:
         return f"[Error: {str(e)}]"
 
-def get_file_hash(file_path: str) -> str:
-    """Genera hash SHA1 per il file (per naming cache)"""
+def get_file_hash(file_path: str, content_based: bool = True) -> str:
+    """
+    Genera hash SHA1 per il file (per naming cache).
+
+    Args:
+        file_path: Path del file
+        content_based: Se True, hash basato sul contenuto del file (apre il file, può triggerare OneDrive).
+                      Se False, hash basato solo sul path normalizzato (NON apre il file).
+
+    ✅ OPTIMIZATION: Usa content_based=False quando cerchi thumbnails esistenti per evitare
+    di triggerare download OneDrive dei file originali.
+    """
     hash_sha1 = hashlib.sha1()
+
+    if not content_based:
+        # ✅ FIX: Hash basato solo sul path normalizzato - NON tocca il file originale
+        normalized_path = os.path.normpath(file_path)
+        hash_sha1.update(normalized_path.encode('utf-8'))
+        return hash_sha1.hexdigest()
+
+    # Hash basato sul contenuto (comportamento originale)
     try:
         with open(file_path, "rb") as f:
             # Leggi in chunks per file grandi
@@ -573,30 +591,37 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
                 _cached_us_thumbs[cache_key] = []
                 continue
 
+            # ✅ OPTIMIZATION: Use graph.indices for O(1) edge lookups instead of O(E) iteration
             # Trova DocumentNode collegati a questa US
-            # ✅ FIXED: Usa has_documentation (corretto) invece di generic_connection
             # Supporta entrambe le direzioni per retrocompatibilità:
             # - CORRETTO:  US → DocumentNode (has_documentation)
             # - LEGACY:    DocumentNode → US (direzione sbagliata, usata in vecchi import)
             us_document_ids = set()
-            for edge in graph.edges:
-                # ✅ Direzione CORRETTA secondo s3dgraphy datamodel
-                if edge.edge_source == us_node_id and edge.edge_type == "has_documentation":
+
+            # ✅ OPTIMIZATION: O(1) lookup using composite index for outgoing edges
+            source_key_doc = (us_node_id, "has_documentation")
+            for edge in graph.indices.edges_by_source_type.get(source_key_doc, []):
+                us_document_ids.add(edge.edge_target)
+
+            # ✅ OPTIMIZATION: O(1) lookup using composite index for incoming edges (legacy)
+            target_key_doc = (us_node_id, "has_documentation")
+            for edge in graph.indices.edges_by_target_type.get(target_key_doc, []):
+                us_document_ids.add(edge.edge_source)
+
+            # ⚠️  Fallback per generic_connection (vecchio sistema)
+            source_key_gen = (us_node_id, "generic_connection")
+            for edge in graph.indices.edges_by_source_type.get(source_key_gen, []):
+                # Verifica che il target sia effettivamente un DocumentNode
+                target_node = graph.find_node_by_id(edge.edge_target)
+                if target_node and hasattr(target_node, 'node_type') and 'document' in target_node.node_type.lower():
                     us_document_ids.add(edge.edge_target)
-                # ⚠️  Fallback per direzione INVERSA (retrocompatibilità)
-                elif edge.edge_target == us_node_id and edge.edge_type == "has_documentation":
+
+            target_key_gen = (us_node_id, "generic_connection")
+            for edge in graph.indices.edges_by_target_type.get(target_key_gen, []):
+                # Verifica che il source sia effettivamente un DocumentNode
+                source_node = graph.find_node_by_id(edge.edge_source)
+                if source_node and hasattr(source_node, 'node_type') and 'document' in source_node.node_type.lower():
                     us_document_ids.add(edge.edge_source)
-                # ⚠️  Fallback per generic_connection (vecchio sistema)
-                elif edge.edge_source == us_node_id and edge.edge_type == "generic_connection":
-                    # Verifica che il target sia effettivamente un DocumentNode
-                    target_node = graph.find_node_by_id(edge.edge_target)
-                    if target_node and hasattr(target_node, 'node_type') and 'document' in target_node.node_type.lower():
-                        us_document_ids.add(edge.edge_target)
-                elif edge.edge_target == us_node_id and edge.edge_type == "generic_connection":
-                    # Verifica che il source sia effettivamente un DocumentNode
-                    source_node = graph.find_node_by_id(edge.edge_source)
-                    if source_node and hasattr(source_node, 'node_type') and 'document' in source_node.node_type.lower():
-                        us_document_ids.add(edge.edge_source)
 
             if not us_document_ids:
                 # Nessun documento per questa US, salva cache vuota e prova il prossimo aux
@@ -622,8 +647,10 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
                 if not doc_node:
                     continue
 
+                # ✅ OPTIMIZATION: O(1) lookup using composite index instead of O(E) iteration
                 # Trova LinkNode collegati a questo DocumentNode
-                link_edges = [e for e in graph.edges if e.edge_source == doc_id and e.edge_type == "has_linked_resource"]
+                source_key_link = (doc_id, "has_linked_resource")
+                link_edges = graph.indices.edges_by_source_type.get(source_key_link, [])
 
                 for edge in link_edges:
                     link_node = graph.find_node_by_id(edge.edge_target)
@@ -643,12 +670,36 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
                             file_path = os.path.join(resource_folder, file_url)
                             file_path = os.path.normpath(file_path)
 
+                        # ✅ FIX: Usa solo os.path.exists() per controllo (NON triggera OneDrive)
+                        # NON usare os.path.getsize() o aprire il file prima di cercare nell'indice
                         if not os.path.exists(file_path):
                             continue
 
-                        # Calcola hash
-                        file_hash = get_file_hash(file_path)
-                        doc_key = f"doc_{file_hash}"
+                        # ✅ OPTIMIZATION: Cerca nell'indice usando src_path invece di ricalcolare hash
+                        # Questo evita di aprire il file originale (che trigghererebbe OneDrive download)
+                        normalized_file_path = os.path.normpath(file_path)
+                        doc_key = None
+
+                        # Cerca nell'indice un item con src_path matching
+                        for key, item_data in index_data.get("items", {}).items():
+                            if "src_path" in item_data:
+                                # Confronta path normalizzati
+                                indexed_path = item_data["src_path"]
+                                # Se il path nell'indice è relativo, fallo diventare assoluto
+                                if not os.path.isabs(indexed_path):
+                                    # Assumi che sia relativo a resource_folder
+                                    indexed_path_abs = os.path.normpath(os.path.join(resource_folder, indexed_path))
+                                else:
+                                    indexed_path_abs = os.path.normpath(indexed_path)
+
+                                if indexed_path_abs == normalized_file_path:
+                                    doc_key = key
+                                    break
+
+                        # Se non trovato nell'indice, calcola hash (fallback - può triggerare download)
+                        if doc_key is None:
+                            file_hash = get_file_hash(file_path, content_based=False)
+                            doc_key = f"doc_{file_hash}"
 
                         # Cerca nell'indice
                         if doc_key not in index_data.get("items", {}):
