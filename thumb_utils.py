@@ -670,38 +670,40 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
                             file_path = os.path.join(resource_folder, file_url)
                             file_path = os.path.normpath(file_path)
 
-                        # ✅ FIX: Usa solo os.path.exists() per controllo (NON triggera OneDrive)
-                        # NON usare os.path.getsize() o aprire il file prima di cercare nell'indice
-                        if not os.path.exists(file_path):
-                            continue
-
                         # ✅ OPTIMIZATION: Cerca nell'indice usando src_path invece di ricalcolare hash
                         # Questo evita di aprire il file originale (che trigghererebbe OneDrive download)
-                        normalized_file_path = os.path.normpath(file_path)
-                        doc_key = None
 
-                        # Cerca nell'indice un item con src_path matching
+                        # Calcola path relativo rispetto a resource_folder (come salvato nell'index)
+                        try:
+                            # Normalizza entrambi i path
+                            file_path_abs = os.path.abspath(file_path)
+                            resource_folder_abs = os.path.abspath(resource_folder)
+
+                            # Calcola path relativo
+                            file_path_rel = os.path.relpath(file_path_abs, resource_folder_abs)
+                            # Normalizza separatori per cross-platform (usa sempre /)
+                            file_path_rel = file_path_rel.replace("\\", "/")
+                        except ValueError:
+                            # Path su drive diversi (Windows), usa path assoluto
+                            file_path_rel = file_path
+
+                        # Cerca nell'indice usando src_path
+                        doc_key = None
                         for key, item_data in index_data.get("items", {}).items():
                             if "src_path" in item_data:
-                                # Confronta path normalizzati
-                                indexed_path = item_data["src_path"]
-                                # Se il path nell'indice è relativo, fallo diventare assoluto
-                                if not os.path.isabs(indexed_path):
-                                    # Assumi che sia relativo a resource_folder
-                                    indexed_path_abs = os.path.normpath(os.path.join(resource_folder, indexed_path))
-                                else:
-                                    indexed_path_abs = os.path.normpath(indexed_path)
+                                indexed_path = item_data["src_path"].replace("\\", "/")
 
-                                if indexed_path_abs == normalized_file_path:
+                                # Confronta path relativi normalizzati
+                                if indexed_path == file_path_rel:
                                     doc_key = key
                                     break
 
-                        # Se non trovato nell'indice, calcola hash (fallback - può triggerare download)
+                        # Se non trovato, calcola hash (triggera download OneDrive se file non locale)
                         if doc_key is None:
-                            file_hash = get_file_hash(file_path, content_based=False)
+                            file_hash = get_file_hash(file_path)
                             doc_key = f"doc_{file_hash}"
 
-                        # Cerca nell'indice
+                        # Verifica che il doc_key esista nell'indice
                         if doc_key not in index_data.get("items", {}):
                             continue
 
