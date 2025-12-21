@@ -145,7 +145,7 @@ class EM_toggle_visibility(Operator):
                             graph=active_graph
                         )
 
-                        # ✅ OPTIMIZED: Use cached object lookup
+                        # ✅ OPTIMIZED: Use cached object lookup (auto-validates object exists)
                         object_to_set_visibility = cache.get_object(proxy_name)
 
                         if object_to_set_visibility:

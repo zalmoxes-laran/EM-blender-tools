@@ -274,58 +274,45 @@ class EM_strat_sync_visibility(Operator):
 
         # ✅ Usa SOLO nuovo path
         visible_proxy_names = {item.name for item in strat.units}
-        
-        # Find all proxy objects - need to include ALL mesh objects from proxy collections
-        # plus any objects with matching names
-        proxy_objects = []
-        proxy_objects_set = set()  # To avoid duplicates
-        activated_collections = []
-        
-        # Strategy: Look for collections that contain objects matching our em_list names
-        # and treat those entire collections as "proxy collections"
-        proxy_collections = set()
-        
-        # First pass: identify which collections contain objects from em_list
-        all_em_list_names = {item.name for item in strat.units}
-        for collection in bpy.data.collections:
-            for obj in collection.objects:
-                if get_base_name(obj.name) in all_em_list_names and obj.type == 'MESH':
-                    proxy_collections.add(collection)
-                    break
-        
-        # Add the original "Proxy" collection if it exists (for backward compatibility)
-        proxy_collection = bpy.data.collections.get('Proxy')
-        if proxy_collection:
-            proxy_collections.add(proxy_collection)
-        
-        # Second pass: add ALL mesh objects from identified proxy collections
-        for collection in proxy_collections:
-            contains_visible_proxy = False
-            
-            for obj in collection.objects:
-                if obj.type == 'MESH' and obj not in proxy_objects_set:
-                    proxy_objects.append(obj)
-                    proxy_objects_set.add(obj)
-                    
-                    # Check if this collection should be activated
-                    if get_base_name(obj.name) in visible_proxy_names:
-                        contains_visible_proxy = True
-            
-            # Activate collection COMPLETELY (base + view layer + parent) if it contains visible proxies
-            if contains_visible_proxy:
-                if activate_collection_fully(context, collection):
-                    activated_collections.append(collection.name)
-        
-        # ✅ OPTIMIZED: Use object cache for batch lookups
+
+        # ✅ FIX: Get ALL mesh objects in scene using cache (works regardless of organization)
         from ..object_cache import get_object_cache
+        from ..functions import is_graph_available
+
         cache = get_object_cache()
 
-        # Also add any objects with matching names that might not be in proxy collections
-        for obj_name in all_em_list_names:
-            obj = cache.get_object(get_base_name(obj_name))
-            if obj and obj.type == 'MESH' and obj not in proxy_objects_set:
+        # Get graph for prefix checking
+        graph_exists, graph = is_graph_available(context)
+        active_graph = graph if graph_exists else None
+
+        # Get ALL mesh objects from cache - this includes objects in ANY collection
+        all_mesh_objects = cache.get_mesh_objects()
+
+        # Identify proxy objects by checking if they have graph prefix pattern
+        proxy_objects = []
+        collections_with_visible = set()
+
+        for obj in all_mesh_objects:
+            base_name = get_base_name(obj.name)
+
+            # Check if object has graph prefix (pattern: "PREFIX.NODENAME")
+            # This identifies it as a proxy regardless of which collection it's in
+            is_proxy = '.' in obj.name and base_name != obj.name
+
+            if is_proxy:
                 proxy_objects.append(obj)
-                proxy_objects_set.add(obj)
+
+                # Track collections that contain visible proxies (for activation)
+                if base_name in visible_proxy_names:
+                    for collection in bpy.data.collections:
+                        if obj.name in collection.objects:
+                            collections_with_visible.add(collection)
+
+        # Activate collections that contain visible proxies
+        activated_collections = []
+        for collection in collections_with_visible:
+            if activate_collection_fully(context, collection):
+                activated_collections.append(collection.name)
         
         # Hide/Show proxy objects based on the list using ALL THREE visibility systems
         hidden_count = 0

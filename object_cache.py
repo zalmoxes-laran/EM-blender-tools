@@ -101,14 +101,29 @@ class ObjectCache:
             name: Object name
 
         Returns:
-            Object or None if not found
+            Object or None if not found (or if object was deleted)
 
         Complexity: O(1) after first build
+
+        Note: Returns None if cached object reference is stale (object was deleted)
         """
         if self._needs_rebuild():
             self._rebuild()
 
-        return self._object_by_name.get(name)
+        obj = self._object_by_name.get(name)
+
+        # ✅ FIX: Validate object reference is still valid
+        if obj:
+            try:
+                # Test if object still exists (accessing name will raise ReferenceError if deleted)
+                _ = obj.name
+                return obj
+            except ReferenceError:
+                # Object was deleted, remove from cache and return None
+                del self._object_by_name[name]
+                return None
+
+        return None
 
     def get_mesh_objects(self) -> List[bpy.types.Object]:
         """
