@@ -46,16 +46,16 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             aux_file = graphml.auxiliary_files[self.auxiliary_index]
 
             if aux_file.file_type == "emdb_xlsx":
-                mapping = aux_file.emdb_mapping
+                mapping_name = aux_file.emdb_mapping
             elif aux_file.file_type == "pyarchinit":
-                mapping = aux_file.pyarchinit_mapping
+                mapping_name = aux_file.pyarchinit_mapping
             else:
-                mapping = None
+                mapping_name = None
 
             return {
                 'import_type': aux_file.file_type,
                 'filepath': aux_file.filepath,
-                'mapping': mapping,
+                'mapping_name': mapping_name,
                 'sheet_name': em_tools.xlsx_sheet_name,
                 'id_column': em_tools.xlsx_id_column,
                 'parent_graphml': graphml,
@@ -70,7 +70,7 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
                 return {
                     'import_type': import_type,
                     'filepath': em_tools.pyarchinit_db_path,
-                    'mapping': em_tools.pyarchinit_mapping,
+                    'mapping_name': em_tools.pyarchinit_mapping,
                     'table_name': em_tools.pyarchinit_table,
                     'mode': '3DGIS'
                 }
@@ -87,7 +87,7 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
                 return {
                     'import_type': import_type,
                     'filepath': em_tools.emdb_xlsx_file,
-                    'mapping': em_tools.emdb_mapping,
+                    'mapping_name': em_tools.emdb_mapping,
                     'mode': '3DGIS'
                 }
 
@@ -122,7 +122,7 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
 
             # ✅ VALIDAZIONE: pyArchInit richiede sempre un mapping valido
             if settings['import_type'] == "pyarchinit":
-                if not settings.get('mapping') or settings['mapping'] == 'none':
+                if not settings.get('mapping_name') or settings['mapping_name'] == 'none':
                     self.report({'ERROR'}, "pyArchInit import requires a valid mapping. Please select a mapping from the dropdown.")
                     return {'CANCELLED'}
 
@@ -185,11 +185,22 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             return {'CANCELLED'}
     
     def _validate_settings(self, settings):
-        """Validate import settings"""
-        if settings['import_type'] in ["pyarchinit", "emdb_xlsx"]:
-            if not settings.get('mapping') or settings['mapping'] == 'none':
-                self.report({'ERROR'}, f"{settings['import_type']} import requires a valid mapping. Please select a mapping from the dropdown.")
-                return False
+        """
+        Validate import settings using centralized validator.
+
+        Uses the ImportValidator class for consistent, comprehensive validation.
+        """
+        from .import_validator import ImportValidator
+
+        is_valid, error_msg = ImportValidator.validate(
+            settings['import_type'],
+            settings
+        )
+
+        if not is_valid:
+            self.report({'ERROR'}, error_msg)
+            return False
+
         return True
     
     def _clean_3dgis_state(self, context):
@@ -227,48 +238,29 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
     
     def _create_importer(self, settings, graph_to_use):
         """
-        Create appropriate importer.
-        
+        Create appropriate importer using registry pattern.
+
+        This method uses the centralized importer registry, which provides
+        automatic parameter validation and importer instantiation.
+
         Args:
             graph_to_use: Existing graph for EM_ADVANCED, None for 3DGIS
+
+        Returns:
+            Configured importer instance, or None on error
         """
-        import_type = settings['import_type']
-        
-        if import_type == "generic_xlsx":
-            # ⚠️ GenericXLSXImporter va refactorato in futuro
-            # Per ora manteniamo comportamento attuale
-            return GenericXLSXImporter(
-                filepath=settings['filepath'],
-                sheet_name=settings['sheet_name'],
-                id_column=settings['id_column'],
-                desc_column=settings.get('desc_column'),
-                mode=settings['mode']
+        from .importer_registry import create_importer
+
+        try:
+            # ✅ ARCHITECTURE: Registry pattern handles all importer creation
+            # No need for if/elif chains - registry is self-documenting
+            return create_importer(
+                import_type=settings['import_type'],
+                settings=settings,
+                existing_graph=graph_to_use
             )
-        
-        elif import_type == "emdb_xlsx":
-            mapping_name = settings['mapping'] if settings['mapping'] != 'none' else None
-            
-            # ✅ Passa graph_to_use: None per 3DGIS, grafo esistente per EM_ADVANCED
-            return MappedXLSXImporter(
-                filepath=settings['filepath'],
-                mapping_name=mapping_name,
-                existing_graph=graph_to_use,  # None per 3DGIS, grafo per EM_ADVANCED
-                overwrite=True
-            )
-        
-        elif import_type == "pyarchinit":
-            mapping_name = settings['mapping'] if settings['mapping'] != 'none' else None
-            
-            # ✅ Passa graph_to_use: None per 3DGIS, grafo esistente per EM_ADVANCED
-            return PyArchInitImporter(
-                filepath=settings['filepath'],
-                mapping_name=mapping_name,
-                existing_graph=graph_to_use,  # None per 3DGIS, grafo per EM_ADVANCED
-                overwrite=True
-            )
-        
-        else:
-            self.report({'ERROR'}, f"Unknown import type: {import_type}")
+        except ValueError as e:
+            self.report({'ERROR'}, str(e))
             return None
     
     def _set_graph_metadata(self, settings, graph):
