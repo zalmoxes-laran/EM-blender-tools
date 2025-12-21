@@ -216,16 +216,18 @@ def update_graph_statistics(context, graph, graphml_file_item):
     if not graph or not graphml_file_item:
         return
 
-    # Conta nodi stratigrafici
+    # ✅ OPTIMIZATION: Use s3dgraphy indices directly for faster counting
+    # Access indices.nodes_by_type which is already built by s3dgraphy
     stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
-    stratigraphic_count = 0
-    for node_type in stratigraphic_types:
-        stratigraphic_count += len(graph.get_nodes_by_type(node_type))
+    stratigraphic_count = sum(
+        len(graph.indices.nodes_by_type.get(node_type, []))
+        for node_type in stratigraphic_types
+    )
 
-    # Conta altri tipi di nodi
-    epoch_count = len(graph.get_nodes_by_type('EpochNode'))
-    property_count = len(graph.get_nodes_by_type('property'))
-    document_count = len(graph.get_nodes_by_type('document'))
+    # Count other node types using indices (triggers index build if not already done)
+    epoch_count = len(graph.indices.nodes_by_type.get('EpochNode', []))
+    property_count = len(graph.indices.nodes_by_type.get('property', []))
+    document_count = len(graph.indices.nodes_by_type.get('document', []))
 
     # Salva i conteggi nelle proprietà
     graphml_file_item.stratigraphic_count = stratigraphic_count

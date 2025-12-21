@@ -88,9 +88,10 @@ class ObjectCache:
         self._dirty = False
         self._last_object_count = len(bpy.data.objects)
 
-        print(f"[ObjectCache] Rebuilt cache:")
-        print(f"  - Total objects: {object_count}")
-        print(f"  - Mesh objects: {mesh_count}")
+        # Disabled verbose logging for performance
+        # print(f"[ObjectCache] Rebuilt cache:")
+        # print(f"  - Total objects: {object_count}")
+        # print(f"  - Mesh objects: {mesh_count}")
 
     def get_object(self, name: str) -> Optional[bpy.types.Object]:
         """

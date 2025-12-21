@@ -1036,9 +1036,11 @@ class EXPORT_OT_heriverse(Operator):
             
             # Lista di nodi paradata da controllare
             paradata_nodes = []
-            paradata_nodes.extend([node for node in graph.nodes if node.node_type == "document"])
-            paradata_nodes.extend([node for node in graph.nodes if node.node_type == "extractor"])
-            paradata_nodes.extend([node for node in graph.nodes if node.node_type == "combiner"])
+            # ✅ OPTIMIZATION: Use s3dgraphy indices instead of iterating graph.nodes 3 times
+            # Single lookup for each type using indices (O(1) per type)
+            paradata_nodes.extend(graph.indices.nodes_by_type.get('document', []))
+            paradata_nodes.extend(graph.indices.nodes_by_type.get('extractor', []))
+            paradata_nodes.extend(graph.indices.nodes_by_type.get('combiner', []))
             
             # Memorizza oggetto attivo originale
             original_active = context.view_layer.objects.active

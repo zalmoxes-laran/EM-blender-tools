@@ -138,17 +138,24 @@ def update_semantic_shapes(graph):
 def update_representation_models(graph):
     """Updates representation model nodes in the graph based on scene objects."""
     print("\n--- Updating Representation Models ---")
-    
+
     # Cerca sia oggetti mesh che oggetti vuoti con tileset_path
     objects_to_check = [
-        obj for obj in bpy.data.objects 
-        if (obj.type == 'MESH' and len(obj.EM_ep_belong_ob) > 0) or 
+        obj for obj in bpy.data.objects
+        if (obj.type == 'MESH' and len(obj.EM_ep_belong_ob) > 0) or
            ("tileset_path" in obj and obj.get("tileset_path"))
     ]
-    
+
+    # ✅ OPTIMIZATION: Pre-build epoch lookup dict to avoid O(n²) nested loop
+    # Build once: O(n), then lookup is O(1) per RM object
+    epoch_nodes_by_name = {}
+    for node in graph.indices.nodes_by_type.get('EpochNode', []):
+        if hasattr(node, 'name'):
+            epoch_nodes_by_name[node.name] = node
+
     nodes_added = 0
     edges_added = 0
-    
+
     for obj in objects_to_check:
         print(f'Object RM is {obj.name}')
         #model_node_id = str(uuid.uuid4())#f"{obj.name}_model"
@@ -185,16 +192,12 @@ def update_representation_models(graph):
             graph.add_node(model_node)
             nodes_added += 1
         
-        # Gestisci le epoche - ricerca manuale dei nodi epoca
+        # Gestisci le epoche usando pre-built lookup dict
         for ep in obj.EM_ep_belong_ob:
             if ep.epoch != "no_epoch":
-                # Cerca manualmente il nodo dell'epoch nel grafo
-                epoch_node = None
-                for node in graph.nodes:
-                    if node.node_type == "EpochNode" and node.name == ep.epoch:
-                        epoch_node = node
-                        break
-                
+                # ✅ OPTIMIZATION: O(1) dict lookup instead of O(n) iteration
+                epoch_node = epoch_nodes_by_name.get(ep.epoch)
+
                 if epoch_node:
                     edge_id = f"{epoch_node.node_id}_has_representation_model_{model_node_id}"
                     if not graph.find_edge_by_id(edge_id):

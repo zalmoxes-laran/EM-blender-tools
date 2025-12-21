@@ -927,6 +927,10 @@ class EM_listitem_OT_to3D(Operator):
         proxy_name = node_name_to_proxy_name(item.name, context=context, graph=active_graph)
         context.active_object.name = proxy_name
 
+        # ✅ FIX: Invalidate object cache after renaming
+        from ..object_cache import invalidate_object_cache
+        invalidate_object_cache()
+
         update_icons(context, self.list_type)
         if self.list_type == "em_list":
             current_mode = scene.em_tools.proxy_display_mode
