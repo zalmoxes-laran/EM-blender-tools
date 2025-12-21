@@ -275,35 +275,40 @@ class EM_strat_sync_visibility(Operator):
         # ✅ Usa SOLO nuovo path
         visible_proxy_names = {item.name for item in strat.units}
 
-        # ✅ FIX: Get ALL mesh objects in scene using cache (works regardless of organization)
+        # ✅ FIX: Get ALL stratigraphic nodes from graph to build complete proxy list
         from ..object_cache import get_object_cache
         from ..functions import is_graph_available
+        from ..operators.addon_prefix_helpers import node_name_to_proxy_name
 
         cache = get_object_cache()
 
-        # Get graph for prefix checking
+        # Get graph to access ALL stratigraphic nodes
         graph_exists, graph = is_graph_available(context)
-        active_graph = graph if graph_exists else None
+        if not graph_exists:
+            return  # Can't sync without graph
 
-        # Get ALL mesh objects from cache - this includes objects in ANY collection
-        all_mesh_objects = cache.get_mesh_objects()
+        # Get ALL stratigraphic node names from graph (not just filtered list)
+        stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
+        all_strat_node_names = set()
+        for node_type in stratigraphic_types:
+            for node in graph.indices.nodes_by_type.get(node_type, []):
+                if hasattr(node, 'name'):
+                    all_strat_node_names.add(node.name)
 
-        # Identify proxy objects by checking if they have graph prefix pattern
+        # Build list of ALL proxy objects that correspond to stratigraphic nodes
         proxy_objects = []
         collections_with_visible = set()
 
-        for obj in all_mesh_objects:
-            base_name = get_base_name(obj.name)
+        for node_name in all_strat_node_names:
+            # Convert node name to proxy name (with graph prefix)
+            proxy_name = node_name_to_proxy_name(node_name, context=context, graph=graph)
+            obj = cache.get_object(proxy_name)
 
-            # Check if object has graph prefix (pattern: "PREFIX.NODENAME")
-            # This identifies it as a proxy regardless of which collection it's in
-            is_proxy = '.' in obj.name and base_name != obj.name
-
-            if is_proxy:
+            if obj and obj.type == 'MESH':
                 proxy_objects.append(obj)
 
                 # Track collections that contain visible proxies (for activation)
-                if base_name in visible_proxy_names:
+                if node_name in visible_proxy_names:
                     for collection in bpy.data.collections:
                         if obj.name in collection.objects:
                             collections_with_visible.add(collection)
