@@ -328,7 +328,8 @@ if DEPENDENCIES_LOADED:
             viewport_overlay,
             em_base_props,  # ← Base PropertyGroup classes
             em_props,
-            debug_graph_connections  # Debug operator
+            debug_graph_connections,  # Debug operator
+            tapestry_integration  # Tapestry AI reconstruction
         )
 
         # Import base PropertyGroup classes into this namespace
@@ -671,6 +672,13 @@ def register_modules():
     except Exception as e:
         logger.error(f"Error registering landscape system: {e}")
 
+    # FASE 5: Tapestry Integration (experimental feature)
+    try:
+        tapestry_integration.register()
+        logger.debug(f"Registered tapestry integration")
+    except Exception as e:
+        logger.error(f"Error registering tapestry integration: {e}")
+
     # Registra il keymap manager per ultimo
     if KEYMAP_MANAGER_LOADED:
         try:
@@ -717,7 +725,14 @@ def unregister_modules():
             logger.error(f"Error unregistering keymap manager: {e}")
 
 
-    # FASE 1: Landscape system (va rimosso per primo)
+    # FASE 1: Tapestry Integration (va rimosso per primo - experimental feature)
+    try:
+        tapestry_integration.unregister()
+        logger.debug(f"Unregistered tapestry integration")
+    except Exception as e:
+        logger.warning(f"Error unregistering tapestry integration: {e}")
+
+    # FASE 2: Landscape system
     try:
         landscape_system.unregister()
         logger.debug(f"Unregistered landscape system")

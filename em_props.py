@@ -43,6 +43,9 @@ from .em_setup.properties import (
 # Import base PropertyGroup classes
 from .em_base_props import EMviqListErrors, EDGESListItem, EMListParadata, EM_Other_Settings
 
+# Import Tapestry integration
+from .tapestry_integration.properties import TapestryManagerProps
+
 
 # =====================================================
 # UPDATE CALLBACKS
@@ -508,6 +511,12 @@ class EM_Tools(PropertyGroup):
         type=ProxyBoxSettings,
         name="Proxy Box Creator",
         description="Proxy box creation settings"
+    )  # type: ignore
+
+    tapestry: PointerProperty(
+        type=TapestryManagerProps,
+        name="Tapestry Integration",
+        description="AI-powered photorealistic reconstruction"
     )  # type: ignore
 
     # ============================================
