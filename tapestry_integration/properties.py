@@ -24,6 +24,13 @@ class TapestryVisibleProxy(PropertyGroup):
     in_queue: BoolProperty(name="In Queue", default=False)  # type: ignore
 
 
+def _update_render_resolution(self, context):
+    """Update scene render resolution when Tapestry resolution changes"""
+    scene = context.scene
+    scene.render.resolution_x = self.render_resolution_x
+    scene.render.resolution_y = self.render_resolution_y
+
+
 class TapestryManagerProps(PropertyGroup):
     """
     Tapestry integration properties
@@ -71,7 +78,8 @@ class TapestryManagerProps(PropertyGroup):
         description="Render resolution width",
         default=1024,
         min=256,
-        max=4096
+        max=4096,
+        update=_update_render_resolution
     )  # type: ignore
 
     render_resolution_y: IntProperty(
@@ -79,7 +87,8 @@ class TapestryManagerProps(PropertyGroup):
         description="Render resolution height",
         default=1024,
         min=256,
-        max=4096
+        max=4096,
+        update=_update_render_resolution
     )  # type: ignore
 
     use_visible_only: BoolProperty(
@@ -99,6 +108,29 @@ class TapestryManagerProps(PropertyGroup):
     visible_proxies_count: IntProperty(
         name="Visible Proxies Count",
         default=0
+    )  # type: ignore
+
+    # ============================================
+    # EPOCH SELECTION
+    # ============================================
+
+    def _get_epoch_items(self, context):
+        """Dynamic epoch list from EM Epoch Manager"""
+        items = [('NONE', 'No Epoch Filter', 'Use all objects regardless of epoch')]
+
+        scene = context.scene
+        if hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced:
+            epochs = scene.em_tools.epochs
+            if hasattr(epochs, 'list') and epochs.list:
+                for i, epoch in enumerate(epochs.list):
+                    items.append((epoch.name, epoch.name, f"Filter by epoch: {epoch.name}"))
+
+        return items
+
+    selected_epoch: EnumProperty(
+        name="Epoch",
+        description="Select epoch to filter objects (EM Advanced mode only)",
+        items=_get_epoch_items
     )  # type: ignore
 
     # ============================================
@@ -147,8 +179,8 @@ class TapestryManagerProps(PropertyGroup):
 
     render_samples: IntProperty(
         name="Samples",
-        description="Number of render samples (Cycles)",
-        default=8,  # Very low - just for ID/depth
+        description="Number of render samples (Cycles) - 1 is enough for ID/depth/cryptomatte",
+        default=1,  # 1 sample is sufficient for ID/depth (no lighting calculation)
         min=1,
         max=64
     )  # type: ignore
@@ -169,6 +201,12 @@ class TapestryManagerProps(PropertyGroup):
         name="Auto Submit",
         description="Automatically submit job to Tapestry after render",
         default=False
+    )  # type: ignore
+
+    last_export_path: StringProperty(
+        name="Last Export Path",
+        description="Path to last Tapestry export directory",
+        default=""
     )  # type: ignore
 
     # ============================================

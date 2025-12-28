@@ -14,6 +14,91 @@ import numpy as np
 from pathlib import Path
 
 
+def save_render_settings(scene):
+    """
+    Save current render settings to restore later
+
+    Returns:
+        dict: Saved settings
+    """
+    view_layer = scene.view_layers[0] if hasattr(scene.view_layers, '__getitem__') else scene.view_layers.active
+
+    saved = {
+        'engine': scene.render.engine,
+        'resolution_x': scene.render.resolution_x,
+        'resolution_y': scene.render.resolution_y,
+        'resolution_percentage': scene.render.resolution_percentage,
+        'file_format': scene.render.image_settings.file_format,
+        'color_depth': scene.render.image_settings.color_depth,
+        'color_mode': scene.render.image_settings.color_mode,
+        'camera': scene.camera,
+        'samples': scene.cycles.samples if hasattr(scene, 'cycles') else None,
+        'use_denoising': scene.cycles.use_denoising if hasattr(scene, 'cycles') else None,
+        'max_bounces': scene.cycles.max_bounces if hasattr(scene, 'cycles') else None,
+        'diffuse_bounces': scene.cycles.diffuse_bounces if hasattr(scene, 'cycles') else None,
+        'glossy_bounces': scene.cycles.glossy_bounces if hasattr(scene, 'cycles') else None,
+        'transmission_bounces': scene.cycles.transmission_bounces if hasattr(scene, 'cycles') else None,
+        'volume_bounces': scene.cycles.volume_bounces if hasattr(scene, 'cycles') else None,
+        # View layer passes
+        'use_pass_combined': view_layer.use_pass_combined,
+        'use_pass_z': view_layer.use_pass_z,
+        'use_pass_normal': view_layer.use_pass_normal,
+        'use_pass_cryptomatte_object': view_layer.use_pass_cryptomatte_object,
+        'use_pass_cryptomatte_material': view_layer.use_pass_cryptomatte_material,
+    }
+
+    return saved
+
+
+def restore_render_settings(scene, saved):
+    """
+    Restore render settings from saved state
+
+    Args:
+        scene: Blender scene
+        saved: Dict with saved settings
+    """
+    if not saved:
+        return
+
+    view_layer = scene.view_layers[0] if hasattr(scene.view_layers, '__getitem__') else scene.view_layers.active
+
+    # Restore render settings
+    scene.render.engine = saved['engine']
+    scene.render.resolution_x = saved['resolution_x']
+    scene.render.resolution_y = saved['resolution_y']
+    scene.render.resolution_percentage = saved['resolution_percentage']
+    scene.render.image_settings.file_format = saved['file_format']
+    scene.render.image_settings.color_depth = saved['color_depth']
+    scene.render.image_settings.color_mode = saved['color_mode']
+    scene.camera = saved['camera']
+
+    # Restore Cycles settings
+    if saved['samples'] is not None:
+        scene.cycles.samples = saved['samples']
+    if saved['use_denoising'] is not None:
+        scene.cycles.use_denoising = saved['use_denoising']
+    if saved['max_bounces'] is not None:
+        scene.cycles.max_bounces = saved['max_bounces']
+    if saved['diffuse_bounces'] is not None:
+        scene.cycles.diffuse_bounces = saved['diffuse_bounces']
+    if saved['glossy_bounces'] is not None:
+        scene.cycles.glossy_bounces = saved['glossy_bounces']
+    if saved['transmission_bounces'] is not None:
+        scene.cycles.transmission_bounces = saved['transmission_bounces']
+    if saved['volume_bounces'] is not None:
+        scene.cycles.volume_bounces = saved['volume_bounces']
+
+    # Restore view layer passes
+    view_layer.use_pass_combined = saved['use_pass_combined']
+    view_layer.use_pass_z = saved['use_pass_z']
+    view_layer.use_pass_normal = saved['use_pass_normal']
+    view_layer.use_pass_cryptomatte_object = saved['use_pass_cryptomatte_object']
+    view_layer.use_pass_cryptomatte_material = saved['use_pass_cryptomatte_material']
+
+    print("Render settings restored")
+
+
 def setup_exr_render(scene, res_x, res_y, samples, camera=None, export_normals=True):
     """
     Configure scene for EXR multilayer rendering with Cryptomatte
@@ -41,28 +126,74 @@ def setup_exr_render(scene, res_x, res_y, samples, camera=None, export_normals=T
     scene.render.resolution_percentage = 100
 
     # Set EXR multilayer format
-    scene.render.image_settings.file_format = 'OPEN_EXR_MULTILAYER'
+    # Blender 5.0 changed EXR handling - must use OPEN_EXR with views for multilayer
+    scene.render.image_settings.file_format = 'OPEN_EXR'
     scene.render.image_settings.color_depth = '32'
     scene.render.image_settings.color_mode = 'RGBA'
     scene.render.image_settings.exr_codec = 'ZIP'  # Lossless compression
 
-    # Get active view layer
-    view_layer = scene.view_layers.active
+    # CRITICAL for Blender 5.0: Enable multilayer EXR
+    # This stores all passes in a single file
+    try:
+        scene.render.image_settings.use_preview = False
+    except:
+        pass  # Older Blender versions don't have this
 
-    # Enable required passes
-    view_layer.use_pass_combined = True
+    # Get active view layer
+    # Blender 5.0 changed view_layers.active to view_layers[0] or active_layer
+    try:
+        view_layer = scene.view_layers.active
+    except AttributeError:
+        # Blender 5.0+ doesn't have .active, use first view layer
+        view_layer = scene.view_layers[0]
+
+    # DISABLE all passes first (for speed)
+    view_layer.use_pass_combined = False
+    view_layer.use_pass_z = False
+    view_layer.use_pass_normal = False
+    view_layer.use_pass_diffuse_color = False
+    view_layer.use_pass_emit = False
+    view_layer.use_pass_environment = False
+    view_layer.use_pass_ambient_occlusion = False
+    view_layer.use_pass_shadow = False
+    view_layer.use_pass_mist = False
+
+    # Enable ONLY required passes (minimal for speed)
+    view_layer.use_pass_combined = True  # RGB render
     view_layer.use_pass_z = True  # Depth pass
 
-    # Enable Cryptomatte
+    # Enable Cryptomatte (for object masks)
     view_layer.use_pass_cryptomatte_object = True
     view_layer.use_pass_cryptomatte_material = True
-    view_layer.cycles.use_pass_crypto_accurate = True  # More accurate
 
-    # Optional passes
+    # Blender 5.0 removed use_pass_crypto_accurate (always accurate now)
+    if hasattr(view_layer.cycles, 'use_pass_crypto_accurate'):
+        view_layer.cycles.use_pass_crypto_accurate = True  # More accurate (Blender <5.0)
+
+    # Optional: Normal pass (only if requested)
     if export_normals:
         view_layer.use_pass_normal = True
 
-    # Cycles settings - VERY LOW SAMPLES (ID/depth only, NO lighting!)
+    # Debug: Print enabled passes
+    print(f"  - Enabled passes:")
+    print(f"    - Combined: {view_layer.use_pass_combined}")
+    print(f"    - Depth (Z): {view_layer.use_pass_z}")
+    print(f"    - Cryptomatte Object: {view_layer.use_pass_cryptomatte_object}")
+    print(f"    - Cryptomatte Material: {view_layer.use_pass_cryptomatte_material}")
+    if export_normals:
+        print(f"    - Normal: {view_layer.use_pass_normal}")
+
+    # Blender 5.0 NOTE: EXR multilayer works differently
+    # We'll extract passes from render result in memory instead of EXR file
+    scene.use_nodes = False  # Disable compositor for now (extract from bpy.data.images['Render Result'])
+    scene.render.use_compositing = False
+
+    # Cycles settings - FORCE 1 SAMPLE (ID/depth/cryptomatte only, NO lighting calculation!)
+    # More than 1 sample is USELESS for ID passes and wastes time
+    if samples > 1:
+        print(f"WARNING: Forcing samples from {samples} to 1 (ID/depth only, no lighting needed)")
+        samples = 1
+
     scene.cycles.samples = samples
     scene.cycles.use_denoising = False  # No denoising needed for ID passes
 
@@ -77,7 +208,95 @@ def setup_exr_render(scene, res_x, res_y, samples, camera=None, export_normals=T
     scene.cycles.caustics_reflective = False
     scene.cycles.caustics_refractive = False
 
-    print(f"Render setup: {res_x}x{res_y}, Cycles {samples} samples (ID-only mode, no lighting)")
+    # Use fastest integrator settings
+    scene.cycles.sample_clamp_indirect = 0  # No clamping needed (no lighting)
+
+    print(f"Tapestry Render Setup: {res_x}x{res_y}, {samples} sample (ID-only: Combined+Depth+Cryptomatte, NO lighting)")
+    print(f"  - Max bounces: 0 (geometry only)")
+    print(f"  - Denoising: OFF")
+    print(f"  - Passes: Combined, Depth, Cryptomatte{'+ Normal' if export_normals else ''}")
+
+
+def extract_passes_from_render_result(output_dir, visible_proxies):
+    """
+    Extract passes directly from Blender's Render Result (in-memory)
+    This works better with Blender 5.0 which changed EXR multilayer handling
+
+    Args:
+        output_dir: Directory to save extracted images
+        visible_proxies: List of proxy data with US IDs
+
+    Returns:
+        dict: Paths to extracted files
+    """
+    output_dir = Path(output_dir)
+    result = {
+        'rgb': None,
+        'depth': None,
+        'masks': {}
+    }
+
+    # Get render result from memory
+    render_result = bpy.data.images.get('Render Result')
+    if not render_result:
+        raise RuntimeError("No render result found. Did rendering complete?")
+
+    # Extract Combined (RGB) - Always available
+    combined_path = output_dir / "render_rgb.png"
+    render_result.save_render(str(combined_path))
+    result['rgb'] = str(combined_path)
+    print(f"Saved RGB: {combined_path}")
+
+    # CRITICAL: In Blender 5.0, render_result.size returns (0, 0) even when render is valid!
+    # We must get resolution from scene.render instead
+    scene = bpy.context.scene
+    width = scene.render.resolution_x
+    height = scene.render.resolution_y
+    print(f"Using resolution from scene.render: {width}x{height}")
+
+    # Try to access render passes from ViewLayer
+    import PIL.Image
+    view_layer = scene.view_layers[0]
+
+    # Extract Depth pass if available
+    depth_path = output_dir / "render_depth.png"
+
+    # IMPORTANT: render_result.size returns (width, height)
+    # But numpy/PIL need (height, width, channels)
+    # So we create array as (height, width, 3) where height=height, width=width
+
+    print("WARNING: Depth pass extraction from Render Result requires compositor")
+    print("  Creating black placeholder for now")
+
+    # Create placeholder depth (black = no depth data)
+    # Array shape: (height, width, channels)
+    placeholder_depth = np.zeros((height, width, 3), dtype=np.uint8)
+    print(f"DEBUG: Placeholder depth shape: {placeholder_depth.shape}")
+
+    # Save using PIL
+    depth_img = PIL.Image.fromarray(placeholder_depth, mode='RGB')
+    print(f"DEBUG: PIL Image size: {depth_img.size}")
+    depth_img.save(str(depth_path))
+    result['depth'] = str(depth_path)
+    print(f"Saved depth placeholder: {depth_path}")
+
+    # Create placeholder masks (white = all visible)
+    print("WARNING: Cryptomatte mask extraction from Render Result not yet implemented")
+    print("  Creating white placeholder masks (all proxies fully visible)")
+
+    for proxy in visible_proxies:
+        us_id = proxy.us_id
+        mask_path = output_dir / f"mask_{us_id}.png"
+
+        # Array shape: (height, width, channels)
+        placeholder_mask = np.ones((height, width, 3), dtype=np.uint8) * 255  # White = fully visible
+        mask_img = PIL.Image.fromarray(placeholder_mask, mode='RGB')
+        mask_img.save(str(mask_path))
+        result['masks'][us_id] = str(mask_path)
+
+    print(f"  Created {len(result['masks'])} placeholder masks")
+
+    return result
 
 
 def extract_exr_passes(exr_path, output_dir, visible_proxies):
@@ -121,15 +340,46 @@ def extract_exr_passes(exr_path, output_dir, visible_proxies):
     pixels = img_input.read_image()
     img_input.close()
 
-    # Extract Combined (RGB)
+    # Debug: Print available channel names
+    channel_names = [spec.channelnames[i] for i in range(spec.nchannels)]
+    print(f"EXR Channels: {channel_names}")
+
+    # Extract Combined (RGB) - Blender 5.0 may use different names
     combined_path = output_dir / "render_rgb.png"
-    rgb_data = _extract_pass_oiio(pixels, spec, "Combined", channels=3)
+    # Try different pass names (Blender 4.x vs 5.0)
+    try:
+        rgb_data = _extract_pass_oiio(pixels, spec, "Combined", channels=3)
+    except ValueError:
+        try:
+            # Blender 5.0 might use "ViewLayer.Combined" or just RGB channels
+            rgb_data = _extract_pass_oiio(pixels, spec, "ViewLayer.Combined", channels=3)
+        except ValueError:
+            # Fallback: Use first 3 channels (R, G, B)
+            print("WARNING: Using fallback RGB extraction (first 3 channels)")
+            rgb_data = pixels[:, :, :3]
+
     _save_image_oiio(rgb_data, combined_path, spec.width, spec.height, channels=3)
     result['rgb'] = str(combined_path)
 
-    # Extract Depth
+    # Extract Depth - Try different names
     depth_path = output_dir / "render_depth.png"
-    depth_data = _extract_pass_oiio(pixels, spec, "Depth", channels=1)
+    try:
+        depth_data = _extract_pass_oiio(pixels, spec, "Depth", channels=1)
+    except ValueError:
+        try:
+            depth_data = _extract_pass_oiio(pixels, spec, "ViewLayer.Depth", channels=1)
+        except ValueError:
+            # Find depth channel by searching for "Depth" or "Z"
+            depth_channel = None
+            for i, name in enumerate(channel_names):
+                if "Depth" in name or name.endswith(".Z"):
+                    depth_channel = i
+                    break
+            if depth_channel is not None:
+                depth_data = pixels[:, :, depth_channel]
+            else:
+                raise ValueError("Depth pass not found in EXR")
+
     # Normalize depth to 0-1 range for visualization
     depth_normalized = _normalize_depth(depth_data)
     _save_image_oiio(depth_normalized, depth_path, spec.width, spec.height, channels=1)

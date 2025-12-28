@@ -142,6 +142,13 @@ def generate_tapestry_json(context, job_id, render_data, tapestry_settings):
     Returns:
         dict: Tapestry JSON structure
     """
+    # Get selected epoch for context metadata
+    selected_epoch = None
+    scene = context.scene
+    if hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced:
+        if tapestry_settings.selected_epoch and tapestry_settings.selected_epoch != 'NONE':
+            selected_epoch = tapestry_settings.selected_epoch
+
     json_data = {
         "job_id": job_id,
         "input": {
@@ -156,6 +163,11 @@ def generate_tapestry_json(context, job_id, render_data, tapestry_settings):
             "cfg_scale": tapestry_settings.cfg_scale,
             "seed": -1,  # Random seed
             "denoise_strength": tapestry_settings.denoise_strength
+        },
+        "metadata": {
+            "epoch": selected_epoch,
+            "blender_version": str(bpy.app.version),
+            "em_advanced_mode": scene.em_tools.mode_em_advanced if hasattr(scene, 'em_tools') else False
         }
     }
 

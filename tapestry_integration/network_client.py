@@ -48,12 +48,15 @@ def test_connection(server_address, server_port):
 
 def submit_job(server_address, server_port, job_data):
     """
-    Submit job to Tapestry server
+    Submit job to Tapestry server with file upload
+
+    Uploads image files (RGB, depth, masks) along with job metadata.
+    Files are sent as multipart/form-data instead of file paths.
 
     Args:
         server_address: Server hostname/IP
         server_port: Server port
-        job_data: Job JSON data
+        job_data: Job JSON data (contains file paths to upload)
 
     Returns:
         tuple: (success: bool, message: str)
@@ -63,14 +66,61 @@ def submit_job(server_address, server_port, job_data):
     except ImportError:
         return False, "requests library not installed"
 
-    url = f"http://{server_address}:{server_port}/jobs"
+    url = f"http://{server_address}:{server_port}/jobs/upload"
 
     try:
+        # Extract file paths from job_data
+        input_data = job_data.get('input', {})
+        rgb_path = input_data.get('render_rgb')
+        depth_path = input_data.get('render_depth')
+        mask_paths = input_data.get('masks', {})
+
+        # Prepare multipart form data
+        files = {}
+
+        # Upload RGB image
+        if rgb_path:
+            try:
+                with open(rgb_path, 'rb') as f:
+                    files['render_rgb'] = ('render_rgb.png', f.read(), 'image/png')
+            except Exception as e:
+                return False, f"Cannot read RGB file: {e}"
+
+        # Upload depth image
+        if depth_path:
+            try:
+                with open(depth_path, 'rb') as f:
+                    files['render_depth'] = ('render_depth.png', f.read(), 'image/png')
+            except Exception as e:
+                return False, f"Cannot read depth file: {e}"
+
+        # Upload mask images (multiple files)
+        mask_files = []
+        for us_id, mask_path in mask_paths.items():
+            try:
+                with open(mask_path, 'rb') as f:
+                    mask_files.append((f'mask_{us_id}', (f'mask_{us_id}.png', f.read(), 'image/png')))
+            except Exception as e:
+                print(f"Warning: Cannot read mask for {us_id}: {e}")
+
+        # Add mask files to form data
+        for field_name, file_data in mask_files:
+            files[field_name] = file_data
+
+        # Create job metadata (without file paths)
+        job_metadata = {
+            'job_id': job_data.get('job_id'),
+            'proxies': job_data.get('proxies', {}),
+            'generation_params': job_data.get('generation_params', {}),
+            'metadata': job_data.get('metadata', {})
+        }
+
+        # Send multipart request with files + JSON metadata
         response = requests.post(
             url,
-            json=job_data,
-            headers={"Content-Type": "application/json"},
-            timeout=10
+            files=files,
+            data={'job_data': json.dumps(job_metadata)},
+            timeout=30  # Longer timeout for file upload
         )
 
         if response.status_code == 200:
@@ -82,6 +132,8 @@ def submit_job(server_address, server_port, job_data):
             return False, f"HTTP {response.status_code}: {response.text}"
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return False, str(e)
 
 

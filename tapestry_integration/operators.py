@@ -217,27 +217,34 @@ class TAPESTRY_OT_render_for_tapestry(Operator):
             self.report({'ERROR'}, "No visible proxies. Run 'Analyze Camera View' first")
             return {'CANCELLED'}
 
-        # Setup render (includes camera configuration)
-        bpy.ops.tapestry.setup_render()
-
-        # Determine output path
-        output_dir = Path(bpy.path.abspath("//")) / "tapestry_export"
-        output_dir.mkdir(exist_ok=True, parents=True)
-
-        # Generate unique job ID
-        import time
-        job_id = f"blender_{int(time.time())}"
-
-        job_dir = output_dir / job_id
-        job_dir.mkdir(exist_ok=True)
-
-        # Render EXR
-        self.report({'INFO'}, "Rendering EXR multilayer...")
-
-        exr_path = job_dir / "render.exr"
-        scene.render.filepath = str(exr_path)
+        # SAVE render settings before modifying
+        saved_settings = render_utils.save_render_settings(scene)
+        self.report({'INFO'}, "Saved render settings (will restore after export)")
 
         try:
+            # Setup render (includes camera configuration)
+            bpy.ops.tapestry.setup_render()
+
+            # Determine output path
+            output_dir = Path(bpy.path.abspath("//")) / "tapestry_export"
+            output_dir.mkdir(exist_ok=True, parents=True)
+
+            # Generate unique job ID
+            import time
+            job_id = f"blender_{int(time.time())}"
+
+            job_dir = output_dir / job_id
+            job_dir.mkdir(exist_ok=True)
+
+            # Store export path in property for UI display
+            tapestry.last_export_path = str(job_dir)
+
+            # Render EXR
+            self.report({'INFO'}, f"Rendering to: {job_dir}")
+
+            exr_path = job_dir / "render.exr"
+            scene.render.filepath = str(exr_path)
+
             # Render
             bpy.ops.render.render(write_still=True)
 
@@ -246,11 +253,22 @@ class TAPESTRY_OT_render_for_tapestry(Operator):
             # Extract passes
             self.report({'INFO'}, "Extracting passes and masks...")
 
-            render_data = render_utils.extract_exr_passes(
-                exr_path,
-                job_dir,
-                tapestry.visible_proxies
-            )
+            # Try to extract from EXR first, fallback to Render Result
+            try:
+                render_data = render_utils.extract_exr_passes(
+                    exr_path,
+                    job_dir,
+                    tapestry.visible_proxies
+                )
+            except (ValueError, RuntimeError) as e:
+                self.report({'WARNING'}, f"EXR extraction failed: {e}")
+                self.report({'INFO'}, "Falling back to Render Result extraction (Blender 5.0)")
+
+                # Extract from Render Result in memory
+                render_data = render_utils.extract_passes_from_render_result(
+                    job_dir,
+                    tapestry.visible_proxies
+                )
 
             # Generate JSON
             self.report({'INFO'}, "Generating Tapestry JSON...")
@@ -268,6 +286,9 @@ class TAPESTRY_OT_render_for_tapestry(Operator):
                 json.dump(json_data, f, indent=2)
 
             self.report({'INFO'}, f"Export complete: {json_path}")
+            print(f"\nTAPESTRY EXPORT PATH: {job_dir}")
+            print(f"  - EXR: {exr_path}")
+            print(f"  - JSON: {json_path}\n")
 
             # Auto-submit if enabled
             if tapestry.auto_submit:
@@ -287,12 +308,19 @@ class TAPESTRY_OT_render_for_tapestry(Operator):
             # Cleanup if needed
             if not tapestry.keep_intermediate:
                 os.remove(exr_path)
+                self.report({'INFO'}, "Removed intermediate EXR file")
 
         except Exception as e:
             self.report({'ERROR'}, f"Render failed: {str(e)}")
             import traceback
             traceback.print_exc()
+            # RESTORE settings even on error
+            render_utils.restore_render_settings(scene, saved_settings)
             return {'CANCELLED'}
+
+        finally:
+            # ALWAYS restore render settings
+            render_utils.restore_render_settings(scene, saved_settings)
 
         return {'FINISHED'}
 

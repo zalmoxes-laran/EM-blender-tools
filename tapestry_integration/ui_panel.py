@@ -90,6 +90,11 @@ class TAPESTRY_PT_main_panel(Panel):
         row = box.row()
         row.prop(tapestry, "render_camera", text="Camera")
 
+        # Epoch selection (only in EM Advanced mode)
+        if scene.em_tools.mode_em_advanced:
+            row = box.row()
+            row.prop(tapestry, "selected_epoch", text="Epoch")
+
         # Resolution
         row = box.row()
         col = row.column()
@@ -175,6 +180,18 @@ class TAPESTRY_PT_main_panel(Panel):
             # Submit toggle
             row = box.row()
             row.prop(tapestry, "auto_submit", text="Auto-submit to Server")
+
+            # Show last export path if exists
+            if tapestry.last_export_path:
+                box.separator()
+                row = box.row()
+                row.label(text="Last Export:", icon='FOLDER_REDIRECT')
+                row = box.row()
+                row.label(text=tapestry.last_export_path, icon='NONE')
+                # Open folder button
+                row = box.row()
+                op = row.operator("wm.path_open", text="Open Export Folder", icon='FILE_FOLDER')
+                op.filepath = tapestry.last_export_path
 
     def draw_advanced_section(self, layout, tapestry):
         """Draw advanced settings section"""
