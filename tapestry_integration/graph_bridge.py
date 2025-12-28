@@ -11,7 +11,6 @@ Interfaces with EM-blender-tools' s3Dgraphy integration to:
 import bpy
 import json
 from mathutils import Vector
-from mathutils.bounding_volume import BoundingBox
 
 # Import EM helper functions for proxy naming
 from ..operators.addon_prefix_helpers import node_name_to_proxy_name, proxy_name_to_node_name
@@ -26,7 +25,7 @@ def get_visible_proxies(context, camera, use_frustum_culling=True, epoch_filter=
         context: Blender context
         camera: Camera object
         use_frustum_culling: Filter objects outside camera frustum
-        epoch_filter: Epoch name to filter (EM mode only)
+        epoch_filter: Epoch name to filter (EM mode only, deprecated - use scene.filter_by_epoch instead)
 
     Returns:
         list: Proxy data dicts with us_id, object_name, visibility_percent, properties
@@ -34,26 +33,24 @@ def get_visible_proxies(context, camera, use_frustum_culling=True, epoch_filter=
     scene = context.scene
     visible_proxies = []
 
-    # Get s3Dgraphy graph (if available)
-    try:
-        from s3dgraphy import get_graph
-        graph = get_graph(context)
-    except:
-        # Fallback: use all mesh objects
-        print("Warning: s3Dgraphy not available, using all mesh objects")
-        graph = None
+    # Check if EM mode with epoch filtering enabled
+    em_mode = hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced
+    use_em_filtering = em_mode and scene.filter_by_epoch
 
-    if graph:
-        # Query US nodes from graph
-        us_nodes = _get_us_nodes_from_graph(graph, epoch_filter)
+    if use_em_filtering:
+        # Use EM's native stratigraphy filtering
+        # When filter_by_epoch is True, scene.em_tools.stratigraphy.units contains only filtered units
+        us_list = _get_us_from_em_stratigraphy(scene)
 
-        for us_node in us_nodes:
-            us_id = us_node.get('id', us_node.get('name'))
-
+        for us_id in us_list:
             # Find corresponding Blender object
-            proxy_obj = _find_proxy_object(us_id, scene)
+            proxy_obj = _find_proxy_object(us_id, context)
 
             if not proxy_obj:
+                continue
+
+            # Skip if not visible in viewport
+            if proxy_obj.hide_get() or proxy_obj.hide_render:
                 continue
 
             # Check visibility
@@ -64,29 +61,67 @@ def get_visible_proxies(context, camera, use_frustum_culling=True, epoch_filter=
                     'us_id': us_id,
                     'object_name': proxy_obj.name,
                     'visibility_percent': visibility * 100,
-                    'properties': us_node.get('properties', {})
+                    'properties': _get_proxy_properties(context, us_id, proxy_obj.name)
                 })
 
     else:
-        # Fallback: analyze all mesh objects
-        for obj in scene.objects:
-            if obj.type != 'MESH':
-                continue
+        # Get s3Dgraphy graph (if available)
+        try:
+            from s3dgraphy import get_graph
+            graph = get_graph(context)
+        except:
+            # Fallback: use all mesh objects
+            print("Warning: s3Dgraphy not available, using all mesh objects")
+            graph = None
 
-            # Skip if not visible in viewport
-            if obj.hide_get() or obj.hide_render:
-                continue
+        if graph:
+            # Query US nodes from graph (no filtering)
+            us_nodes = _get_us_nodes_from_graph(graph)
 
-            # Check visibility
-            visibility = _estimate_visibility(obj, camera, use_frustum_culling)
+            for us_node in us_nodes:
+                us_id = us_node.get('id', us_node.get('name'))
 
-            if visibility > 0.01:
-                visible_proxies.append({
-                    'us_id': obj.name,  # Use object name as US ID
-                    'object_name': obj.name,
-                    'visibility_percent': visibility * 100,
-                    'properties': _extract_properties_from_object(obj)
-                })
+                # Find corresponding Blender object
+                proxy_obj = _find_proxy_object(us_id, context)
+
+                if not proxy_obj:
+                    continue
+
+                # Skip if not visible in viewport
+                if proxy_obj.hide_get() or proxy_obj.hide_render:
+                    continue
+
+                # Check visibility
+                visibility = _estimate_visibility(proxy_obj, camera, use_frustum_culling)
+
+                if visibility > 0.01:  # At least 1% visible
+                    visible_proxies.append({
+                        'us_id': us_id,
+                        'object_name': proxy_obj.name,
+                        'visibility_percent': visibility * 100,
+                        'properties': us_node.get('properties', {})
+                    })
+
+        else:
+            # Fallback: analyze all mesh objects
+            for obj in scene.objects:
+                if obj.type != 'MESH':
+                    continue
+
+                # Skip if not visible in viewport
+                if obj.hide_get() or obj.hide_render:
+                    continue
+
+                # Check visibility
+                visibility = _estimate_visibility(obj, camera, use_frustum_culling)
+
+                if visibility > 0.01:
+                    visible_proxies.append({
+                        'us_id': obj.name,  # Use object name as US ID
+                        'object_name': obj.name,
+                        'visibility_percent': visibility * 100,
+                        'properties': _extract_properties_from_object(obj)
+                    })
 
     # Sort by visibility (most visible first)
     visible_proxies.sort(key=lambda x: x['visibility_percent'], reverse=True)
@@ -144,8 +179,47 @@ def generate_tapestry_json(context, job_id, render_data, tapestry_settings):
     return json_data
 
 
-def _get_us_nodes_from_graph(graph, epoch_filter=None):
-    """Query US nodes from s3Dgraphy graph"""
+def _get_us_from_em_stratigraphy(scene):
+    """
+    Get US list from EM's native stratigraphy system
+
+    When filter_by_epoch is True, this returns only units matching the active epoch.
+    Uses EM's built-in filtering instead of re-implementing epoch logic.
+
+    Args:
+        scene: Blender scene
+
+    Returns:
+        list: US IDs (strings) from filtered stratigraphy
+    """
+    try:
+        stratigraphy = scene.em_tools.stratigraphy
+        us_list = []
+
+        # Iterate through units in stratigraphy manager
+        # If filter_by_epoch is True, EM already filtered this list
+        for unit in stratigraphy.units:
+            # Extract US ID from unit
+            # Unit has .name property containing US identifier
+            us_id = unit.name
+            us_list.append(us_id)
+
+        return us_list
+
+    except Exception as e:
+        print(f"Warning: Could not access EM stratigraphy: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
+def _get_us_nodes_from_graph(graph):
+    """
+    Query US nodes from s3Dgraphy graph (without epoch filtering)
+
+    NOTE: Epoch filtering is now handled by EM's native system via filter_by_epoch.
+    This function only retrieves all US nodes from the graph.
+    """
     try:
         us_nodes = []
 
@@ -165,13 +239,6 @@ def _get_us_nodes_from_graph(graph, epoch_filter=None):
                     'name': node.name,
                     'properties': getattr(node, 'attributes', {})
                 })
-
-        # Filter by epoch if specified
-        if epoch_filter:
-            us_nodes = [
-                node for node in us_nodes
-                if node.get('properties', {}).get('epoch') == epoch_filter
-            ]
 
         return us_nodes
 

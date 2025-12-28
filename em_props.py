@@ -44,7 +44,7 @@ from .em_setup.properties import (
 from .em_base_props import EMviqListErrors, EDGESListItem, EMListParadata, EM_Other_Settings
 
 # Import Tapestry integration
-from .tapestry_integration.properties import TapestryManagerProps
+from .tapestry_integration.properties import TapestryManagerProps, TapestryVisibleProxy
 
 
 # =====================================================
@@ -1006,6 +1006,7 @@ classes = (
     # NOTE: AuxiliaryFileProperties and GraphMLFileItem are registered by em_setup module
     # to avoid circular imports (em_setup needs them, EM_Tools uses them)
     ProxyBoxSettings,
+    TapestryVisibleProxy,  # Sub-PropertyGroup for Tapestry visible proxies
 
     # Manager aggregators SECOND
     # These use the Sub-PropertyGroups above
@@ -1014,6 +1015,7 @@ classes = (
     VisualManagerProps,
     AnastylosisManagerProps,
     RMManagerProps,
+    TapestryManagerProps,  # Tapestry AI reconstruction
 
     # Main container LAST
     # This uses ALL the classes above (including AuxiliaryFileProperties and GraphMLFileItem from em_setup)

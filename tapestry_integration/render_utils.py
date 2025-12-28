@@ -14,7 +14,7 @@ import numpy as np
 from pathlib import Path
 
 
-def setup_exr_render(scene, res_x, res_y, samples, export_normals=True):
+def setup_exr_render(scene, res_x, res_y, samples, camera=None, export_normals=True):
     """
     Configure scene for EXR multilayer rendering with Cryptomatte
 
@@ -25,8 +25,13 @@ def setup_exr_render(scene, res_x, res_y, samples, export_normals=True):
         res_x: Resolution width
         res_y: Resolution height
         samples: Number of render samples (low, typically 8)
+        camera: Camera object to use for rendering (optional)
         export_normals: Include normal pass
     """
+    # Set active camera if provided
+    if camera:
+        scene.camera = camera
+
     # Force Cycles (no user choice - optimized for ID/depth only)
     scene.render.engine = 'CYCLES'
 

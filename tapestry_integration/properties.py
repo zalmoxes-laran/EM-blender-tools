@@ -194,10 +194,13 @@ classes = (
 
 
 def register():
-    for cls in classes:
-        bpy.utils.register_class(cls)
+    # NOTE: PropertyGroups are registered by em_props.py
+    # TapestryVisibleProxy and TapestryManagerProps are in the em_props.classes tuple
+    # No need to register them here to avoid "already registered" errors
+    pass
 
 
 def unregister():
-    for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
+    # NOTE: PropertyGroups are unregistered by em_props.py
+    # No need to unregister them here
+    pass

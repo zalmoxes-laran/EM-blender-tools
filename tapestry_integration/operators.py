@@ -71,7 +71,7 @@ class TAPESTRY_OT_analyze_camera_view(Operator):
             # Use active epoch from epoch manager
             epochs = scene.em_tools.epochs
             if epochs.list and epochs.list_index >= 0:
-                epoch_filter = epochs.list[epochs.list_index].epoch
+                epoch_filter = epochs.list[epochs.list_index].name
 
         # Analyze visible proxies
         try:
@@ -117,6 +117,7 @@ class TAPESTRY_OT_setup_render(Operator):
                 tapestry.render_resolution_x,
                 tapestry.render_resolution_y,
                 tapestry.render_samples,
+                camera=tapestry.render_camera,
                 export_normals=tapestry.export_normals
             )
 
@@ -124,6 +125,74 @@ class TAPESTRY_OT_setup_render(Operator):
 
         except Exception as e:
             self.report({'ERROR'}, f"Setup failed: {str(e)}")
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+
+class TAPESTRY_OT_setup_epoch_filter(Operator):
+    """Setup epoch filtering for Tapestry render"""
+    bl_idname = "tapestry.setup_epoch_filter"
+    bl_label = "Setup Epoch Filter"
+    bl_description = "Configure epoch filtering by hiding RMs and enabling stratigraphy filter"
+
+    def execute(self, context):
+        scene = context.scene
+        em_tools = scene.em_tools
+
+        # Verify we're in EM mode
+        if not em_tools.mode_em_advanced:
+            self.report({'WARNING'}, "Epoch filtering only available in EM Advanced mode")
+            return {'CANCELLED'}
+
+        # Verify epoch is selected
+        epochs = em_tools.epochs
+        if not epochs.list or epochs.list_index < 0:
+            self.report({'ERROR'}, "No epoch selected. Select an epoch from the Epoch Manager first")
+            return {'CANCELLED'}
+
+        try:
+            # Step 1: Hide all RMs
+            bpy.ops.em.strat_hide_all_rms()
+            self.report({'INFO'}, "Hidden all RMs")
+
+            # Step 2: Disable RM visibility sync
+            scene.sync_rm_visibility = False
+            self.report({'INFO'}, "Disabled RM visibility sync")
+
+            # Step 3: Enable epoch filtering
+            scene.filter_by_epoch = True
+
+            active_epoch = epochs.list[epochs.list_index].name
+            self.report({'INFO'}, f"Epoch filter enabled: {active_epoch}")
+
+        except Exception as e:
+            self.report({'ERROR'}, f"Epoch filter setup failed: {str(e)}")
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+
+class TAPESTRY_OT_disable_epoch_filter(Operator):
+    """Disable epoch filtering and restore normal visibility"""
+    bl_idname = "tapestry.disable_epoch_filter"
+    bl_label = "Disable Epoch Filter"
+    bl_description = "Disable epoch filtering and restore RM visibility sync"
+
+    def execute(self, context):
+        scene = context.scene
+
+        try:
+            # Disable epoch filtering
+            scene.filter_by_epoch = False
+
+            # Re-enable RM visibility sync
+            scene.sync_rm_visibility = True
+
+            self.report({'INFO'}, "Epoch filter disabled, RM sync restored")
+
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to disable epoch filter: {str(e)}")
             return {'CANCELLED'}
 
         return {'FINISHED'}
@@ -148,11 +217,8 @@ class TAPESTRY_OT_render_for_tapestry(Operator):
             self.report({'ERROR'}, "No visible proxies. Run 'Analyze Camera View' first")
             return {'CANCELLED'}
 
-        # Setup render
+        # Setup render (includes camera configuration)
         bpy.ops.tapestry.setup_render()
-
-        # Set camera
-        scene.camera = tapestry.render_camera
 
         # Determine output path
         output_dir = Path(bpy.path.abspath("//")) / "tapestry_export"
@@ -236,6 +302,8 @@ classes = (
     TAPESTRY_OT_test_connection,
     TAPESTRY_OT_analyze_camera_view,
     TAPESTRY_OT_setup_render,
+    TAPESTRY_OT_setup_epoch_filter,
+    TAPESTRY_OT_disable_epoch_filter,
     TAPESTRY_OT_render_for_tapestry,
 )
 
