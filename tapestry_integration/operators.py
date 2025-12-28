@@ -13,10 +13,61 @@ from bpy.types import Operator
 import json
 import os
 from pathlib import Path
+import re
 
 from . import render_utils
 from . import graph_bridge
 from . import network_client
+
+
+def generate_job_name(context, tapestry):
+    """
+    Generate job name from: filename_epoch_camera_###
+
+    Args:
+        context: Blender context
+        tapestry: TapestryManagerProps instance
+
+    Returns:
+        str: Generated job name (e.g., "foro_phase1_cam01_001")
+    """
+    parts = []
+
+    # 1. Filename (without .blend extension)
+    blend_file = bpy.path.basename(bpy.data.filepath)
+    if blend_file:
+        # Remove .blend extension and sanitize
+        filename = blend_file.replace('.blend', '')
+        filename = re.sub(r'[^\w\-]', '_', filename)  # Replace non-alphanumeric with _
+        parts.append(filename)
+    else:
+        parts.append("untitled")
+
+    # 2. Epoch (if EM mode and epoch filtering active)
+    scene = context.scene
+    if hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced:
+        if scene.filter_by_epoch:
+            epochs = scene.em_tools.epochs
+            if epochs.list and epochs.list_index >= 0:
+                epoch = epochs.list[epochs.list_index]
+                epoch_name = re.sub(r'[^\w\-]', '_', epoch.name)
+                parts.append(epoch_name)
+
+    # 3. Camera name
+    if tapestry.render_camera:
+        camera_name = re.sub(r'[^\w\-]', '_', tapestry.render_camera.name)
+        parts.append(camera_name)
+    else:
+        parts.append("nocam")
+
+    # 4. Incremental counter (3 digits)
+    counter_str = f"{tapestry.job_counter:03d}"
+    parts.append(counter_str)
+
+    # Join with underscores
+    job_name = "_".join(parts)
+
+    return job_name
 
 
 class TAPESTRY_OT_test_connection(Operator):
@@ -97,6 +148,26 @@ class TAPESTRY_OT_analyze_camera_view(Operator):
         except Exception as e:
             self.report({'ERROR'}, f"Analysis failed: {str(e)}")
             return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+
+class TAPESTRY_OT_generate_job_name(Operator):
+    """Generate job name from filename_epoch_camera_###"""
+    bl_idname = "tapestry.generate_job_name"
+    bl_label = "Generate Job Name"
+    bl_description = "Auto-generate job name from current settings"
+
+    def execute(self, context):
+        tapestry = context.scene.em_tools.tapestry
+
+        # Generate job name
+        job_name = generate_job_name(context, tapestry)
+
+        # Set in property
+        tapestry.job_name = job_name
+
+        self.report({'INFO'}, f"Job name: {job_name}")
 
         return {'FINISHED'}
 
@@ -222,6 +293,14 @@ class TAPESTRY_OT_render_for_tapestry(Operator):
         self.report({'INFO'}, "Saved render settings (will restore after export)")
 
         try:
+            # Generate job name if not set
+            if not tapestry.job_name:
+                job_name = generate_job_name(context, tapestry)
+                tapestry.job_name = job_name
+                self.report({'INFO'}, f"Auto-generated job name: {job_name}")
+            else:
+                job_name = tapestry.job_name
+
             # Setup render (includes camera configuration)
             bpy.ops.tapestry.setup_render()
 
@@ -229,12 +308,14 @@ class TAPESTRY_OT_render_for_tapestry(Operator):
             output_dir = Path(bpy.path.abspath("//")) / "tapestry_export"
             output_dir.mkdir(exist_ok=True, parents=True)
 
-            # Generate unique job ID
-            import time
-            job_id = f"blender_{int(time.time())}"
+            # Use job name as directory name (job_id)
+            job_id = job_name
 
             job_dir = output_dir / job_id
             job_dir.mkdir(exist_ok=True)
+
+            # Increment counter for next render
+            tapestry.job_counter += 1
 
             # Store export path in property for UI display
             tapestry.last_export_path = str(job_dir)
@@ -250,27 +331,15 @@ class TAPESTRY_OT_render_for_tapestry(Operator):
 
             self.report({'INFO'}, f"Render complete: {exr_path}")
 
-            # Extract passes
-            self.report({'INFO'}, "Extracting passes and masks...")
+            # Prepare EXR for Tapestry (new EXR-only pipeline)
+            self.report({'INFO'}, "Preparing EXR for Tapestry...")
 
-            # Try to extract from EXR first, fallback to Render Result
-            try:
-                render_data = render_utils.extract_exr_passes(
-                    exr_path,
-                    job_dir,
-                    tapestry.visible_proxies
-                )
-            except (ValueError, RuntimeError) as e:
-                self.report({'WARNING'}, f"EXR extraction failed: {e}")
-                self.report({'INFO'}, "Falling back to Render Result extraction (Blender 5.0)")
+            render_data = render_utils.prepare_exr_for_tapestry(
+                exr_path,
+                job_dir
+            )
 
-                # Extract from Render Result in memory
-                render_data = render_utils.extract_passes_from_render_result(
-                    job_dir,
-                    tapestry.visible_proxies
-                )
-
-            # Generate JSON
+            # Generate Tapestry JSON (legacy format, will be deprecated)
             self.report({'INFO'}, "Generating Tapestry JSON...")
 
             json_data = graph_bridge.generate_tapestry_json(
@@ -280,24 +349,54 @@ class TAPESTRY_OT_render_for_tapestry(Operator):
                 tapestry
             )
 
-            # Save JSON
+            # Save Tapestry JSON
             json_path = job_dir / "tapestry_input.json"
             with open(json_path, 'w') as f:
                 json.dump(json_data, f, indent=2)
 
-            self.report({'INFO'}, f"Export complete: {json_path}")
+            # Generate semantic JSON from graph
+            self.report({'INFO'}, "Generating semantic JSON from EM graph...")
+
+            semantic_json = graph_bridge.extract_semantic_json_from_graph(
+                context,
+                tapestry.visible_proxies,
+                tapestry.render_camera
+            )
+
+            # Set job_id in semantic JSON
+            semantic_json["scene"]["job_id"] = job_id
+
+            # Save semantic JSON
+            semantic_path = job_dir / "semantic.json"
+            with open(semantic_path, 'w') as f:
+                json.dump(semantic_json, f, indent=2)
+
+            self.report({'INFO'}, f"Export complete: {json_path}, {semantic_path}")
             print(f"\nTAPESTRY EXPORT PATH: {job_dir}")
             print(f"  - EXR: {exr_path}")
-            print(f"  - JSON: {json_path}\n")
+            print(f"  - JSON: {json_path}")
+            print(f"  - Semantic JSON: {semantic_path}\n")
 
             # Auto-submit if enabled
             if tapestry.auto_submit:
                 self.report({'INFO'}, "Submitting to Tapestry server...")
 
+                # Prepare upload data with EXR + semantic JSON
+                upload_data = {
+                    'job_id': job_id,
+                    'input': {
+                        'exr': str(exr_path),
+                        'semantic_json': str(semantic_path),
+                        'rgb_preview': render_data.get('rgb_preview')
+                    },
+                    'generation_params': json_data.get('generation_params', {}),
+                    'metadata': semantic_json.get('metadata', {})
+                }
+
                 success, message = network_client.submit_job(
                     tapestry.server_address,
                     tapestry.server_port,
-                    json_data
+                    upload_data
                 )
 
                 if success:
@@ -353,6 +452,7 @@ class TAPESTRY_OT_open_web_ui(Operator):
 classes = (
     TAPESTRY_OT_test_connection,
     TAPESTRY_OT_analyze_camera_view,
+    TAPESTRY_OT_generate_job_name,
     TAPESTRY_OT_setup_render,
     TAPESTRY_OT_setup_epoch_filter,
     TAPESTRY_OT_disable_epoch_filter,

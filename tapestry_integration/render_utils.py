@@ -214,7 +214,60 @@ def setup_exr_render(scene, res_x, res_y, samples, camera=None, export_normals=T
     print(f"Tapestry Render Setup: {res_x}x{res_y}, {samples} sample (ID-only: Combined+Depth+Cryptomatte, NO lighting)")
     print(f"  - Max bounces: 0 (geometry only)")
     print(f"  - Denoising: OFF")
-    print(f"  - Passes: Combined, Depth, Cryptomatte{'+ Normal' if export_normals else ''}")
+    print(f"  - Passes: Combined, Depth, Cryptomatte{' + Normal' if export_normals else ''}")
+
+
+def prepare_exr_for_tapestry(exr_path, output_dir):
+    """
+    Prepare EXR for Tapestry upload (EXR-only pipeline)
+
+    In the new pipeline:
+    - EXR contains all passes (Combined, Depth, Normal, Cryptomatte)
+    - Cryptomatte IDs are in the EXR itself (no separate mask PNGs)
+    - Semantic JSON provides object names for Cryptomatte matching
+
+    Args:
+        exr_path: Path to rendered EXR file
+        output_dir: Directory for any extracted preview images (optional)
+
+    Returns:
+        dict: Paths to files for upload
+            {
+                'exr': path to multilayer EXR,
+                'rgb_preview': optional RGB preview PNG (for UI)
+            }
+    """
+    output_dir = Path(output_dir)
+    result = {
+        'exr': str(exr_path),
+        'rgb_preview': None
+    }
+
+    # Optional: Extract RGB preview for UI display
+    # This is just for visual feedback, not required for generation
+    try:
+        render_result = bpy.data.images.get('Render Result')
+        if render_result:
+            scene = bpy.context.scene
+            old_format = scene.render.image_settings.file_format
+
+            scene.render.image_settings.file_format = 'PNG'
+            scene.render.image_settings.color_mode = 'RGB'
+
+            preview_path = output_dir / "preview_rgb.png"
+            render_result.save_render(str(preview_path))
+            result['rgb_preview'] = str(preview_path)
+
+            scene.render.image_settings.file_format = old_format
+            print(f"  - Saved RGB preview: {preview_path}")
+    except Exception as e:
+        print(f"Warning: Could not extract RGB preview: {e}")
+
+    print(f"EXR prepared for Tapestry: {exr_path}")
+    print(f"  - All passes embedded in EXR (Combined, Depth, Cryptomatte, Normal)")
+    print(f"  - Object masks via Cryptomatte IDs (no separate PNGs)")
+
+    return result
 
 
 def extract_passes_from_render_result(output_dir, visible_proxies):

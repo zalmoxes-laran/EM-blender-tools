@@ -375,3 +375,240 @@ def _extract_properties_from_object(obj):
             props['subtype'] = 'generic'
 
     return props
+
+
+# ============================================================================
+# SEMANTIC JSON GENERATION (New Pipeline)
+# ============================================================================
+
+def extract_semantic_json_from_graph(context, visible_proxies, camera):
+    """
+    Extract rich semantic JSON from EM knowledge graph
+
+    Generates comprehensive JSON with dynamic properties, epochs, visual references,
+    relationships, and data completeness scoring.
+
+    Args:
+        context: Blender context
+        visible_proxies: List of visible proxy dicts from get_visible_proxies()
+        camera: Camera object
+
+    Returns:
+        dict: Semantic JSON structure for Tapestry
+    """
+    scene = context.scene
+    em_mode = hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced
+
+    # Try to get graph
+    try:
+        from s3dgraphy import get_graph
+        graph = get_graph(context)
+    except:
+        graph = None
+
+    # Build semantic JSON
+    semantic_data = {
+        "scene": {
+            "job_id": None,  # Will be set later
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "camera": {
+                "name": camera.name if camera else "Unknown",
+                "location": list(camera.location) if camera else [0, 0, 0],
+                "rotation": list(camera.rotation_euler) if camera else [0, 0, 0]
+            },
+            "render": {
+                "resolution": [scene.render.resolution_x, scene.render.resolution_y],
+                "visible_objects_count": len(visible_proxies)
+            }
+        },
+        "objects": [],
+        "metadata": {
+            "em_advanced_mode": em_mode,
+            "blender_version": ".".join(str(v) for v in bpy.app.version),
+            "graph_available": graph is not None
+        }
+    }
+
+    # Add scene-level epoch if filtering is active
+    if em_mode and scene.filter_by_epoch:
+        epoch_info = _get_active_epoch_info(scene)
+        if epoch_info:
+            semantic_data["scene"]["epoch"] = epoch_info
+
+    # Extract data for each visible object
+    required_fields = ['us_id', 'epoch']
+    recommended_fields = ['properties.material', 'interpretation', 'visual_references']
+    missing_fields = []
+    completeness_scores = []
+
+    for proxy in visible_proxies:
+        us_id = proxy['us_id']
+        obj_name = proxy['object_name']
+
+        # Get Blender object for bounding box
+        obj = scene.objects.get(obj_name)
+
+        # Build object data
+        obj_data = {
+            "us_id": us_id,
+            "cryptomatte_name": obj_name,  # Exact name for Cryptomatte matching
+            "visibility": proxy['visibility_percent'] / 100.0,
+        }
+
+        # Add bounding box if object exists
+        if obj:
+            obj_data["bounding_box"] = _get_bounding_box(obj)
+
+        # Extract from graph if available
+        if graph:
+            node_data = _extract_node_data_from_graph(graph, us_id, context)
+            obj_data.update(node_data)
+        else:
+            # Fallback: use basic properties
+            obj_data["properties"] = proxy.get('properties', {})
+
+        # Calculate completeness for this object
+        completeness, missing = _calculate_object_completeness(
+            obj_data, required_fields, recommended_fields
+        )
+        completeness_scores.append(completeness)
+        missing_fields.extend([f"{us_id}.{field}" for field in missing])
+
+        semantic_data["objects"].append(obj_data)
+
+    # Add global completeness metrics
+    if completeness_scores:
+        semantic_data["metadata"]["data_completeness"] = sum(completeness_scores) / len(completeness_scores)
+        semantic_data["metadata"]["completeness_by_object"] = {
+            obj["us_id"]: score
+            for obj, score in zip(semantic_data["objects"], completeness_scores)
+        }
+
+    if missing_fields:
+        semantic_data["metadata"]["missing_fields"] = list(set(missing_fields))
+
+    return semantic_data
+
+
+def _get_active_epoch_info(scene):
+    """Extract active epoch information from EM"""
+    try:
+        epochs = scene.em_tools.epochs
+        if hasattr(epochs, 'list') and epochs.list and epochs.list_index >= 0:
+            active_epoch = epochs.list[epochs.list_index]
+            return {
+                "name": active_epoch.name,
+                "start_year": getattr(active_epoch, 'start_year', None),
+                "end_year": getattr(active_epoch, 'end_year', None),
+                "description": getattr(active_epoch, 'description', '')
+            }
+    except:
+        pass
+    return None
+
+
+def _get_bounding_box(obj):
+    """Calculate world-space bounding box for object"""
+    if not obj.data or not hasattr(obj.data, 'vertices'):
+        return None
+
+    # Get world matrix
+    matrix_world = obj.matrix_world
+
+    # Transform all vertices to world space
+    coords = [matrix_world @ Vector(v.co) for v in obj.data.vertices]
+
+    if not coords:
+        return None
+
+    # Find min/max
+    min_coords = [min(c[i] for c in coords) for i in range(3)]
+    max_coords = [max(c[i] for c in coords) for i in range(3)]
+
+    return {
+        "min": min_coords,
+        "max": max_coords
+    }
+
+
+def _extract_node_data_from_graph(graph, us_id, context):
+    """
+    Extract all data from graph node using semantic_extractor module
+
+    Uses proper s3Dgraphy API methods via semantic_extractor.
+
+    Returns dict with:
+    - epoch: {name, start_year, end_year, description}
+    - properties: {all properties from graph - dynamic!}
+    - interpretation: {function, certainty, notes}
+    - visual_references: [{type, uri, description, weight}]
+    - relationships: {covers, covered_by, bonds_with, etc.}
+    """
+    node_data = {}
+
+    try:
+        # Find US node in graph
+        us_node = graph.find_node_by_id(us_id)
+
+        if not us_node:
+            return node_data
+
+        # Use semantic_extractor module for proper s3Dgraphy API usage
+        from . import semantic_extractor
+        node_data = semantic_extractor.extract_us_semantic_data(graph, us_node)
+
+    except Exception as e:
+        print(f"Warning: Could not extract data for {us_id}: {e}")
+        import traceback
+        traceback.print_exc()
+
+    return node_data
+
+
+# NOTE: Extraction helper functions now live in semantic_extractor.py
+# This keeps the code modular and uses proper s3Dgraphy API methods
+
+
+def _calculate_object_completeness(obj_data, required_fields, recommended_fields):
+    """
+    Calculate completeness score for an object
+
+    Returns:
+        tuple: (score 0-1, list of missing fields)
+    """
+    total_fields = len(required_fields) + len(recommended_fields)
+    found_fields = 0
+    missing = []
+
+    # Check required fields (weighted 2x)
+    for field in required_fields:
+        if _has_field(obj_data, field):
+            found_fields += 2
+        else:
+            missing.append(field)
+
+    # Check recommended fields (weighted 1x)
+    for field in recommended_fields:
+        if _has_field(obj_data, field):
+            found_fields += 1
+        else:
+            missing.append(field)
+
+    # Normalize to 0-1 range
+    max_score = len(required_fields) * 2 + len(recommended_fields)
+    score = found_fields / max_score if max_score > 0 else 0.0
+
+    return score, missing
+
+
+def _has_field(data, field_path):
+    """Check if nested field exists (e.g., 'properties.material')"""
+    parts = field_path.split('.')
+    current = data
+
+    for part in parts:
+        if not isinstance(current, dict) or part not in current:
+            return False
+        current = current[part]
+
+    return current is not None

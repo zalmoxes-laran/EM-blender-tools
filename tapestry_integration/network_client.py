@@ -51,10 +51,12 @@ def test_connection(server_address, server_port):
 
 def submit_job(server_address, server_port, job_data):
     """
-    Submit job to Tapestry server with file upload
+    Submit job to Tapestry server with EXR + semantic JSON upload
 
-    Uploads image files (RGB, depth, masks) along with job metadata.
-    Files are sent as multipart/form-data instead of file paths.
+    NEW PIPELINE (EXR-only):
+    - Uploads EXR multilayer file (contains Combined, Depth, Normal, Cryptomatte)
+    - Uploads semantic JSON (contains object names for Cryptomatte matching + RAG data)
+    - Optional: RGB preview PNG for UI display
 
     Args:
         server_address: Server hostname/IP
@@ -74,60 +76,66 @@ def submit_job(server_address, server_port, job_data):
     try:
         # Extract file paths from job_data
         input_data = job_data.get('input', {})
-        rgb_path = input_data.get('render_rgb')
-        depth_path = input_data.get('render_depth')
-        mask_paths = input_data.get('masks', {})
+        exr_path = input_data.get('exr')  # NEW: EXR multilayer
+        rgb_preview_path = input_data.get('rgb_preview')  # Optional preview
+        semantic_json_path = input_data.get('semantic_json')  # NEW: Semantic data
 
         # Prepare files using BytesIO for proper binary handling
         files = {}
 
-        # Upload RGB image
-        if rgb_path:
+        # Upload EXR multilayer (REQUIRED)
+        if exr_path:
             try:
                 # Wait for file to be fully written by Blender
-                max_wait = 5  # seconds
+                max_wait = 10  # EXR can be larger, wait longer
                 wait_time = 0
                 while wait_time < max_wait:
-                    if os.path.exists(rgb_path):
+                    if os.path.exists(exr_path):
                         # Check if file size is stable (file finished writing)
-                        size1 = os.path.getsize(rgb_path)
-                        time.sleep(0.1)
-                        size2 = os.path.getsize(rgb_path)
+                        size1 = os.path.getsize(exr_path)
+                        time.sleep(0.2)
+                        size2 = os.path.getsize(exr_path)
                         if size1 == size2 and size1 > 0:
                             break
-                    time.sleep(0.1)
-                    wait_time += 0.1
+                    time.sleep(0.2)
+                    wait_time += 0.2
 
-                # Verify it's a valid PNG
-                with open(rgb_path, 'rb') as f:
+                # Read EXR file
+                with open(exr_path, 'rb') as f:
                     content = f.read()
 
-                # Check PNG signature
-                if not content.startswith(b'\x89PNG\r\n\x1a\n'):
-                    return False, f"RGB file is not a valid PNG (first bytes: {content[:8]})"
+                # Verify it's a valid EXR (starts with magic number)
+                if not content.startswith(b'\x76\x2f\x31\x01'):
+                    return False, f"EXR file is not valid (first bytes: {content[:4]})"
 
-                print(f"RGB file verified: {len(content)} bytes, valid PNG signature")
-                files['render_rgb'] = ('render_rgb.png', io.BytesIO(content), 'image/png')
+                print(f"EXR file verified: {len(content)} bytes, valid OpenEXR format")
+                files['render_exr'] = ('render.exr', io.BytesIO(content), 'application/octet-stream')
             except Exception as e:
-                return False, f"Cannot read RGB file: {e}"
+                return False, f"Cannot read EXR file: {e}"
+        else:
+            return False, "No EXR file provided"
 
-        # Upload depth image
-        if depth_path:
+        # Upload semantic JSON (REQUIRED)
+        if semantic_json_path:
             try:
-                with open(depth_path, 'rb') as f:
+                with open(semantic_json_path, 'rb') as f:
                     content = f.read()
-                files['render_depth'] = ('render_depth.png', io.BytesIO(content), 'image/png')
+                files['semantic_json'] = ('semantic.json', io.BytesIO(content), 'application/json')
+                print(f"Semantic JSON uploaded: {len(content)} bytes")
             except Exception as e:
-                return False, f"Cannot read depth file: {e}"
+                return False, f"Cannot read semantic JSON: {e}"
+        else:
+            return False, "No semantic JSON provided"
 
-        # Upload mask images (multiple files)
-        for us_id, mask_path in mask_paths.items():
+        # Upload RGB preview (OPTIONAL - for UI display)
+        if rgb_preview_path and os.path.exists(rgb_preview_path):
             try:
-                with open(mask_path, 'rb') as f:
+                with open(rgb_preview_path, 'rb') as f:
                     content = f.read()
-                files[f'mask_{us_id}'] = (f'mask_{us_id}.png', io.BytesIO(content), 'image/png')
+                files['rgb_preview'] = ('preview.png', io.BytesIO(content), 'image/png')
+                print(f"RGB preview uploaded: {len(content)} bytes")
             except Exception as e:
-                print(f"Warning: Cannot read mask for {us_id}: {e}")
+                print(f"Warning: Could not upload RGB preview: {e}")
 
         # Create job metadata (without file paths)
         job_metadata = {

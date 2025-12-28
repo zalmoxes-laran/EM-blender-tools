@@ -66,6 +66,19 @@ class TapestryManagerProps(PropertyGroup):
     # RENDER SETTINGS
     # ============================================
 
+    job_name: StringProperty(
+        name="Job Name",
+        description="Name for this render job (auto-generated from filename_epoch_camera_###)",
+        default=""
+    )  # type: ignore
+
+    job_counter: IntProperty(
+        name="Job Counter",
+        description="Incremental counter for re-renders",
+        default=1,
+        min=1
+    )  # type: ignore
+
     render_camera: PointerProperty(
         name="Camera",
         description="Camera to use for rendering",

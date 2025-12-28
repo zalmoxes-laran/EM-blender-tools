@@ -95,6 +95,11 @@ class TAPESTRY_PT_main_panel(Panel):
         row = box.row()
         row.prop(tapestry, "render_camera", text="Camera")
 
+        # Job name with auto-generate button
+        row = box.row(align=True)
+        row.prop(tapestry, "job_name", text="Job Name")
+        row.operator("tapestry.generate_job_name", text="", icon='FILE_REFRESH')
+
         # Epoch selection (only in EM Advanced mode)
         if scene.em_tools.mode_em_advanced:
             row = box.row()
