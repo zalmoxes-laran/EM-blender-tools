@@ -22,28 +22,35 @@ from . import network_client
 
 def generate_job_name(context, tapestry):
     """
-    Generate job name from: filename_epoch_camera_###
+    Generate job name: {timestamp}_{filename_7chars}_{epoch}_{camera}
 
     Args:
         context: Blender context
         tapestry: TapestryManagerProps instance
 
     Returns:
-        str: Generated job name (e.g., "foro_phase1_cam01_001")
+        str: Generated job name (e.g., "20251228_EMdatas_Phase1_Cam01")
     """
     parts = []
 
-    # 1. Filename (without .blend extension)
+    # 1. Timestamp (YYYYMMDD format)
+    import datetime
+    timestamp = datetime.datetime.now().strftime("%Y%m%d")
+    parts.append(timestamp)
+
+    # 2. Filename (first 7 characters, without .blend extension)
     blend_file = bpy.path.basename(bpy.data.filepath)
     if blend_file:
         # Remove .blend extension and sanitize
         filename = blend_file.replace('.blend', '')
         filename = re.sub(r'[^\w\-]', '_', filename)  # Replace non-alphanumeric with _
-        parts.append(filename)
+        # Take first 7 characters
+        filename_short = filename[:7]
+        parts.append(filename_short)
     else:
-        parts.append("untitled")
+        parts.append("untitle")
 
-    # 2. Epoch (if EM mode and epoch filtering active)
+    # 3. Epoch (if EM mode and epoch filtering active)
     scene = context.scene
     if hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced:
         if scene.filter_by_epoch:
@@ -53,16 +60,12 @@ def generate_job_name(context, tapestry):
                 epoch_name = re.sub(r'[^\w\-]', '_', epoch.name)
                 parts.append(epoch_name)
 
-    # 3. Camera name
+    # 4. Camera name
     if tapestry.render_camera:
         camera_name = re.sub(r'[^\w\-]', '_', tapestry.render_camera.name)
         parts.append(camera_name)
     else:
         parts.append("nocam")
-
-    # 4. Incremental counter (3 digits)
-    counter_str = f"{tapestry.job_counter:03d}"
-    parts.append(counter_str)
 
     # Join with underscores
     job_name = "_".join(parts)
@@ -313,9 +316,6 @@ class TAPESTRY_OT_render_for_tapestry(Operator):
 
             job_dir = output_dir / job_id
             job_dir.mkdir(exist_ok=True)
-
-            # Increment counter for next render
-            tapestry.job_counter += 1
 
             # Store export path in property for UI display
             tapestry.last_export_path = str(job_dir)

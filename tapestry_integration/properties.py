@@ -68,15 +68,8 @@ class TapestryManagerProps(PropertyGroup):
 
     job_name: StringProperty(
         name="Job Name",
-        description="Name for this render job (auto-generated from filename_epoch_camera_###)",
+        description="Name for this render job (auto-generated from timestamp_filename_epoch_camera)",
         default=""
-    )  # type: ignore
-
-    job_counter: IntProperty(
-        name="Job Counter",
-        description="Incremental counter for re-renders",
-        default=1,
-        min=1
     )  # type: ignore
 
     render_camera: PointerProperty(
@@ -140,10 +133,29 @@ class TapestryManagerProps(PropertyGroup):
 
         return items
 
+    def _update_selected_epoch(self, context):
+        """Update Epoch Manager when Tapestry epoch changes"""
+        scene = context.scene
+
+        if not hasattr(scene, 'em_tools') or not scene.em_tools.mode_em_advanced:
+            return
+
+        epochs = scene.em_tools.epochs
+        if not hasattr(epochs, 'list') or not epochs.list:
+            return
+
+        # Find epoch by name and set list_index
+        for i, epoch in enumerate(epochs.list):
+            if epoch.name == self.selected_epoch:
+                epochs.list_index = i
+                print(f"Tapestry: Changed active epoch to {epoch.name} (index {i})")
+                break
+
     selected_epoch: EnumProperty(
         name="Epoch",
         description="Select epoch to filter objects (EM Advanced mode only)",
-        items=_get_epoch_items
+        items=_get_epoch_items,
+        update=_update_selected_epoch
     )  # type: ignore
 
     # ============================================

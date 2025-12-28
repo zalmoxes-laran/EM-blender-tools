@@ -150,14 +150,15 @@ def generate_tapestry_json(context, job_id, render_data, tapestry_settings):
         if tapestry_settings.selected_epoch and tapestry_settings.selected_epoch != 'NONE':
             selected_epoch = tapestry_settings.selected_epoch
 
+    # NEW: render_data now contains EXR path instead of individual PNGs
     json_data = {
         "job_id": job_id,
         "input": {
-            "render_rgb": render_data['rgb'],
-            "render_depth": render_data['depth'],
-            "masks": render_data['masks']
+            "exr": render_data.get('exr'),  # NEW: EXR multilayer
+            "rgb_preview": render_data.get('rgb_preview'),  # Optional preview
+            "semantic_json": None  # Will be set by operator
         },
-        "proxies": {},
+        "proxies": {},  # Deprecated: data now in semantic JSON
         "generation_params": {
             "model": tapestry_settings.model_name,
             "steps": tapestry_settings.generation_steps,
