@@ -242,8 +242,19 @@ def extract_passes_from_render_result(output_dir, visible_proxies):
         raise RuntimeError("No render result found. Did rendering complete?")
 
     # Extract Combined (RGB) - Always available
+    # CRITICAL: Set format to PNG before saving (was OPEN_EXR from render setup)
+    scene = bpy.context.scene
+    old_format = scene.render.image_settings.file_format
+    scene.render.image_settings.file_format = 'PNG'
+    scene.render.image_settings.color_mode = 'RGB'
+    scene.render.image_settings.color_depth = '8'
+
     combined_path = output_dir / "render_rgb.png"
     render_result.save_render(str(combined_path))
+
+    # Restore format
+    scene.render.image_settings.file_format = old_format
+
     result['rgb'] = str(combined_path)
     print(f"Saved RGB: {combined_path}")
 

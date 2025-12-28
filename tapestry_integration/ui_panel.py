@@ -77,6 +77,11 @@ class TAPESTRY_PT_main_panel(Panel):
 
             row.operator("tapestry.test_connection", text="Test Connection", icon='PLUGIN')
 
+            # Open Web UI button
+            row = box.row()
+            row.scale_y = 1.3
+            row.operator("tapestry.open_web_ui", text="Open Tapestry Web UI", icon='URL')
+
             # Future: Authentication
             row = box.row()
             row.label(text="Future: Keycloak Authentication", icon='INFO')

@@ -9,6 +9,9 @@ Handles:
 """
 
 import json
+import io
+import os
+import time
 
 
 def test_connection(server_address, server_port):
@@ -75,34 +78,54 @@ def submit_job(server_address, server_port, job_data):
         depth_path = input_data.get('render_depth')
         mask_paths = input_data.get('masks', {})
 
-        # Prepare file handlers (keep them open during request)
-        file_handles = []
+        # Prepare files using BytesIO for proper binary handling
         files = {}
 
         # Upload RGB image
         if rgb_path:
             try:
-                f = open(rgb_path, 'rb')
-                file_handles.append(f)
-                files['render_rgb'] = ('render_rgb.png', f, 'image/png')
+                # Wait for file to be fully written by Blender
+                max_wait = 5  # seconds
+                wait_time = 0
+                while wait_time < max_wait:
+                    if os.path.exists(rgb_path):
+                        # Check if file size is stable (file finished writing)
+                        size1 = os.path.getsize(rgb_path)
+                        time.sleep(0.1)
+                        size2 = os.path.getsize(rgb_path)
+                        if size1 == size2 and size1 > 0:
+                            break
+                    time.sleep(0.1)
+                    wait_time += 0.1
+
+                # Verify it's a valid PNG
+                with open(rgb_path, 'rb') as f:
+                    content = f.read()
+
+                # Check PNG signature
+                if not content.startswith(b'\x89PNG\r\n\x1a\n'):
+                    return False, f"RGB file is not a valid PNG (first bytes: {content[:8]})"
+
+                print(f"RGB file verified: {len(content)} bytes, valid PNG signature")
+                files['render_rgb'] = ('render_rgb.png', io.BytesIO(content), 'image/png')
             except Exception as e:
                 return False, f"Cannot read RGB file: {e}"
 
         # Upload depth image
         if depth_path:
             try:
-                f = open(depth_path, 'rb')
-                file_handles.append(f)
-                files['render_depth'] = ('render_depth.png', f, 'image/png')
+                with open(depth_path, 'rb') as f:
+                    content = f.read()
+                files['render_depth'] = ('render_depth.png', io.BytesIO(content), 'image/png')
             except Exception as e:
                 return False, f"Cannot read depth file: {e}"
 
         # Upload mask images (multiple files)
         for us_id, mask_path in mask_paths.items():
             try:
-                f = open(mask_path, 'rb')
-                file_handles.append(f)
-                files[f'mask_{us_id}'] = (f'mask_{us_id}.png', f, 'image/png')
+                with open(mask_path, 'rb') as f:
+                    content = f.read()
+                files[f'mask_{us_id}'] = (f'mask_{us_id}.png', io.BytesIO(content), 'image/png')
             except Exception as e:
                 print(f"Warning: Cannot read mask for {us_id}: {e}")
 
@@ -114,18 +137,13 @@ def submit_job(server_address, server_port, job_data):
             'metadata': job_data.get('metadata', {})
         }
 
-        try:
-            # Send multipart request with files + JSON metadata
-            response = requests.post(
-                url,
-                files=files,
-                data={'job_data': json.dumps(job_metadata)},
-                timeout=30  # Longer timeout for file upload
-            )
-        finally:
-            # Close all file handles
-            for f in file_handles:
-                f.close()
+        # Send multipart request with files + JSON metadata
+        response = requests.post(
+            url,
+            files=files,
+            data={'job_data': json.dumps(job_metadata)},
+            timeout=30  # Longer timeout for file upload
+        )
 
         if response.status_code == 200:
             data = response.json()

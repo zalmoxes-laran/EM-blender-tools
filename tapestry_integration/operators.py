@@ -326,6 +326,30 @@ class TAPESTRY_OT_render_for_tapestry(Operator):
 
 
 # Registration
+class TAPESTRY_OT_open_web_ui(Operator):
+    """Open Tapestry Web UI in browser"""
+    bl_idname = "tapestry.open_web_ui"
+    bl_label = "Open Tapestry Web UI"
+    bl_description = "Open Tapestry Web UI in your default browser to monitor jobs and download results"
+
+    def execute(self, context):
+        import webbrowser
+
+        tapestry = context.scene.em_tools.tapestry
+
+        # Build URL from server settings
+        url = f"http://{tapestry.server_address}:{tapestry.server_port}"
+
+        # Open in browser
+        try:
+            webbrowser.open(url)
+            self.report({'INFO'}, f"Opening {url} in browser")
+            return {'FINISHED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Cannot open browser: {e}")
+            return {'CANCELLED'}
+
+
 classes = (
     TAPESTRY_OT_test_connection,
     TAPESTRY_OT_analyze_camera_view,
@@ -333,6 +357,7 @@ classes = (
     TAPESTRY_OT_setup_epoch_filter,
     TAPESTRY_OT_disable_epoch_filter,
     TAPESTRY_OT_render_for_tapestry,
+    TAPESTRY_OT_open_web_ui,
 )
 
 
