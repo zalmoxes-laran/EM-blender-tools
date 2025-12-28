@@ -10,22 +10,33 @@ def clean_wheels_directory(force=False):
     """Pulisce la directory wheels solo se necessario"""
     script_dir = os.path.dirname(__file__)
     wheels_dir = os.path.join(script_dir, '..', 'wheels')
-    
+
     # Se force=True, rimuovi sempre
     if force:
         if os.path.exists(wheels_dir):
             print("FORCE MODE: Cleaning existing wheels directory...")
             shutil.rmtree(wheels_dir)
+
+        # Clean Python caches quando in force mode
+        print("\n🧹 FORCE MODE: Cleaning Python caches...")
+        try:
+            from clean_caches import clean_python_caches
+            root_dir = os.path.abspath(os.path.join(script_dir, '..'))
+            clean_python_caches(root_dir)
+        except Exception as e:
+            print(f"⚠️  Warning: Could not clean Python caches: {e}")
+            print(f"   You can manually run: python scripts/clean_caches.py")
+
         os.makedirs(wheels_dir, exist_ok=True)
         return wheels_dir
-    
+
     # Se force=False, crea solo se non esiste
     if not os.path.exists(wheels_dir):
         print("Creating wheels directory...")
         os.makedirs(wheels_dir)
     else:
         print("Using existing wheels directory...")
-    
+
     return wheels_dir
 
 def check_existing_wheels(wheels_dir):
