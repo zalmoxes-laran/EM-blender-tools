@@ -10,6 +10,7 @@ Interfaces with EM-blender-tools' s3Dgraphy integration to:
 
 import bpy
 import json
+import time
 from mathutils import Vector
 
 # Import EM helper functions for proxy naming
@@ -161,7 +162,7 @@ def generate_tapestry_json(context, job_id, render_data, tapestry_settings):
             "model": tapestry_settings.model_name,
             "steps": tapestry_settings.generation_steps,
             "cfg_scale": tapestry_settings.cfg_scale,
-            "seed": -1,  # Random seed
+            "seed": int(time.time() * 1000) % 2147483647,  # Random positive seed
             "denoise_strength": tapestry_settings.denoise_strength
         },
         "metadata": {

@@ -75,37 +75,36 @@ def submit_job(server_address, server_port, job_data):
         depth_path = input_data.get('render_depth')
         mask_paths = input_data.get('masks', {})
 
-        # Prepare multipart form data
+        # Prepare file handlers (keep them open during request)
+        file_handles = []
         files = {}
 
         # Upload RGB image
         if rgb_path:
             try:
-                with open(rgb_path, 'rb') as f:
-                    files['render_rgb'] = ('render_rgb.png', f.read(), 'image/png')
+                f = open(rgb_path, 'rb')
+                file_handles.append(f)
+                files['render_rgb'] = ('render_rgb.png', f, 'image/png')
             except Exception as e:
                 return False, f"Cannot read RGB file: {e}"
 
         # Upload depth image
         if depth_path:
             try:
-                with open(depth_path, 'rb') as f:
-                    files['render_depth'] = ('render_depth.png', f.read(), 'image/png')
+                f = open(depth_path, 'rb')
+                file_handles.append(f)
+                files['render_depth'] = ('render_depth.png', f, 'image/png')
             except Exception as e:
                 return False, f"Cannot read depth file: {e}"
 
         # Upload mask images (multiple files)
-        mask_files = []
         for us_id, mask_path in mask_paths.items():
             try:
-                with open(mask_path, 'rb') as f:
-                    mask_files.append((f'mask_{us_id}', (f'mask_{us_id}.png', f.read(), 'image/png')))
+                f = open(mask_path, 'rb')
+                file_handles.append(f)
+                files[f'mask_{us_id}'] = (f'mask_{us_id}.png', f, 'image/png')
             except Exception as e:
                 print(f"Warning: Cannot read mask for {us_id}: {e}")
-
-        # Add mask files to form data
-        for field_name, file_data in mask_files:
-            files[field_name] = file_data
 
         # Create job metadata (without file paths)
         job_metadata = {
@@ -115,13 +114,18 @@ def submit_job(server_address, server_port, job_data):
             'metadata': job_data.get('metadata', {})
         }
 
-        # Send multipart request with files + JSON metadata
-        response = requests.post(
-            url,
-            files=files,
-            data={'job_data': json.dumps(job_metadata)},
-            timeout=30  # Longer timeout for file upload
-        )
+        try:
+            # Send multipart request with files + JSON metadata
+            response = requests.post(
+                url,
+                files=files,
+                data={'job_data': json.dumps(job_metadata)},
+                timeout=30  # Longer timeout for file upload
+            )
+        finally:
+            # Close all file handles
+            for f in file_handles:
+                f.close()
 
         if response.status_code == 200:
             data = response.json()
