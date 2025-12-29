@@ -126,18 +126,22 @@ def setup_exr_render(scene, res_x, res_y, samples, camera=None, export_normals=T
     scene.render.resolution_percentage = 100
 
     # Set EXR multilayer format
-    # CRITICAL: Use OPEN_EXR_MULTILAYER to export all passes (Combined, Depth, Cryptomatte)
-    # OPEN_EXR alone only exports RGBA channels!
-    scene.render.image_settings.file_format = 'OPEN_EXR_MULTILAYER'
+    # Blender 5.0 changed EXR: use media_type instead of OPEN_EXR_MULTILAYER
+    # Try Blender 5.0 method first, then fallback to older versions
+
     scene.render.image_settings.color_depth = '32'
     scene.render.image_settings.exr_codec = 'ZIP'  # Lossless compression
 
-    # CRITICAL for Blender 5.0: Enable multilayer EXR
-    # This stores all passes in a single file
+    # CRITICAL: Try Blender 5.0 approach first (media_type)
     try:
-        scene.render.image_settings.use_preview = False
-    except:
-        pass  # Older Blender versions don't have this
+        # Blender 5.0: OPEN_EXR + media_type
+        scene.render.image_settings.file_format = 'OPEN_EXR'
+        scene.render.image_settings.media_type = 'MULTI_LAYER_IMAGE'
+        print("Using Blender 5.0 EXR multilayer (OPEN_EXR + MULTI_LAYER_IMAGE)")
+    except (AttributeError, TypeError):
+        # Blender 4.x and older: OPEN_EXR_MULTILAYER
+        scene.render.image_settings.file_format = 'OPEN_EXR_MULTILAYER'
+        print("Using Blender 4.x EXR multilayer (OPEN_EXR_MULTILAYER)")
 
     # Get active view layer
     # Blender 5.0 changed view_layers.active to view_layers[0] or active_layer
