@@ -126,10 +126,10 @@ def setup_exr_render(scene, res_x, res_y, samples, camera=None, export_normals=T
     scene.render.resolution_percentage = 100
 
     # Set EXR multilayer format
-    # Blender 5.0 changed EXR handling - must use OPEN_EXR with views for multilayer
-    scene.render.image_settings.file_format = 'OPEN_EXR'
+    # CRITICAL: Use OPEN_EXR_MULTILAYER to export all passes (Combined, Depth, Cryptomatte)
+    # OPEN_EXR alone only exports RGBA channels!
+    scene.render.image_settings.file_format = 'OPEN_EXR_MULTILAYER'
     scene.render.image_settings.color_depth = '32'
-    scene.render.image_settings.color_mode = 'RGBA'
     scene.render.image_settings.exr_codec = 'ZIP'  # Lossless compression
 
     # CRITICAL for Blender 5.0: Enable multilayer EXR
