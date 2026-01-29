@@ -9,6 +9,7 @@ from ..populate_lists import clear_lists, populate_blender_lists_from_graph
 from ..functions import get_compatible_icon
 from ..thumb_utils import reload_doc_previews_from_cache, has_doc_thumbs
 from ..operators.graphml_converter import GRAPHML_OT_convert_borders
+from ..operators.xlsx_to_graphml import XLSX_OT_to_graphml
 
 from s3dgraphy import get_graph, get_all_graph_ids
 
@@ -771,6 +772,15 @@ class EM_SetupPanel(bpy.types.Panel):
                     "the original file."
                 )
                 help_op.url = "EMstructure.html#em-setup"
+
+                # XLSX to GraphML Converter (AI Data)
+                row = tools_col.row(align=True)
+                row.scale_y = 0.9
+                row.operator(
+                    XLSX_OT_to_graphml.bl_idname,
+                    text="XLSX → GraphML (AI Data)",
+                    icon='SPREADSHEET'
+                )
 
                 # Collection Manager (compact)
                 collection_box = tools_col.box()
