@@ -1180,10 +1180,12 @@ class SET_materials_using_em_list(Operator):
                 
                 # Check the node_type first (most reliable method)
                 if hasattr(current_ob_em_list, 'node_type') and current_ob_em_list.node_type:
-                    if current_ob_em_list.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']:
+                    if current_ob_em_list.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']:
                         ob_material_name = current_ob_em_list.node_type
                 else:
-                    # Fallback to shape + border style
+                    ob_material_name ='US'
+                    pass
+                    # to be removed after testing: fallback to shape-based method for legacy items without node_type
                     if current_ob_em_list.shape == 'rectangle':
                         ob_material_name = 'US'
                     elif current_ob_em_list.shape == 'ellipse_white':
