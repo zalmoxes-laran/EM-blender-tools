@@ -288,7 +288,7 @@ class EM_strat_sync_visibility(Operator):
             return  # Can't sync without graph
 
         # Get ALL stratigraphic node names from graph (not just filtered list)
-        stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
+        stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
         all_strat_node_names = set()
         for node_type in stratigraphic_types:
             for node in graph.indices.nodes_by_type.get(node_type, []):
@@ -1044,7 +1044,7 @@ class EM_not_in_matrix(Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
+        EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
         EM_mat_name = "mat_NotInTheMatrix"
         R = 1.0
         G = 0.0

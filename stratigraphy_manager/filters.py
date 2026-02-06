@@ -38,7 +38,7 @@ class EM_filter_lists(Operator):
         # Get all stratigraphic nodes
         all_strat_nodes = [node for node in graph.nodes
                            if hasattr(node, 'node_type') and
-                           node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']]
+                           node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
 
         # Apply filters
         filtered_items = all_strat_nodes  # Start with all nodes
@@ -163,7 +163,7 @@ class EM_reset_filters(Operator):
                 # Get all stratigraphic nodes
                 strat_nodes = [node for node in graph.nodes
                                if hasattr(node, 'node_type') and
-                               node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']]
+                               node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
 
                 # ✅ Repopulate SOLO nuova lista
                 for i, node in enumerate(strat_nodes):

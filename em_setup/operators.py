@@ -678,7 +678,7 @@ class AUXILIARY_OT_import_now(Operator):
         the node types at creation time.
         """
         # Stratigraphic node types
-        stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU',
+        stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD',
                               'serUSVn', 'serUSVs', 'TSU', 'SE', 'BR', 'unknown']
 
         node_type = getattr(target_node, 'node_type', None)

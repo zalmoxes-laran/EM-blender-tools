@@ -581,6 +581,7 @@ def get_node_color_from_datamodel(node_type: str) -> Optional[Tuple[float, float
         'white octagon': (0.95, 0.85, 0.3),           # SF - giallo
         'black octagon': (0.7, 0.6, 0.2),             # VSF - giallo ocra
         'white ellipse': (0.85, 0.85, 0.85),          # serSU
+        'white ellipse with orange border': (0.85, 0.5, 0.0), # serUSD
         'black ellipse green border': (0.3, 0.6, 0.4), # serUSVn
         'black ellipse blue border': (0.3, 0.4, 0.6),  # serUSVs
         'white round rectangle with orange border': (0.9, 0.7, 0.5), # USD

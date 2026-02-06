@@ -215,6 +215,17 @@ class EMGraphSerSUNode(EMGraphStratigraphicNode):
         self.use_custom_color = True
         self.color = color
 
+class EMGraphSerUSDNode(EMGraphStratigraphicNode):
+    """Wrapper per serUSD (Series of Documentary SU)"""
+    bl_idname = 'EMGraphSerUSDNodeType'
+    bl_label = 'serUSD'
+
+    def init(self, context):
+        super().init(context)
+        color = get_node_color_from_datamodel('serUSD') or (0.85, 0.5, 0.0)
+        self.use_custom_color = True
+        self.color = color
+
 class EMGraphSerUSVsNode(EMGraphStratigraphicNode):
     """Wrapper per serUSVs (Series of Structural Virtual SU)"""
     bl_idname = 'EMGraphSerUSVsNodeType'
@@ -660,6 +671,7 @@ classes = (
 
     # Stratigraphic nodes - Series and special types
     EMGraphSerSUNode,
+    EMGraphSerUSDNode,
     EMGraphSerUSVsNode,
     EMGraphSerUSVnNode,
     EMGraphTSUNode,

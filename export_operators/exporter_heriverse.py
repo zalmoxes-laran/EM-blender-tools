@@ -174,7 +174,7 @@ class EXPORT_OT_heriverse(Operator):
         stratigraphic_names = []
         
         # Tipi di nodi stratigrafici da cercare
-        stratigraphic_types = ['US', 'USVs', 'USVn', 'SF', 'VSF', 'USD', 'serSU', 'serUSVn', 'serUSVs', 'TSU', 'SE', 'BR']
+        stratigraphic_types = ['US', 'USVs', 'USVn', 'SF', 'VSF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs', 'TSU', 'SE', 'BR']
         
         # Usa gli indici per rapidità
         indices = graph.indices

@@ -92,7 +92,7 @@ def create_property_value_mapping_direct(graph, property_name):
                 print(f"  -> {us_node.name}: '{value}'")
 
     # ✅ OPTIMIZATION: Iterate only stratigraphic node types instead of all graph.nodes
-    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
+    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
     no_property_count = 0
     for node_type in stratigraphic_types:
         for node in graph.indices.nodes_by_type.get(node_type, []):
@@ -147,7 +147,7 @@ def create_property_value_mapping_legacy(graph, property_name):
                     mapping[strat_node.name] = f"empty property {property_name} node"
 
     # ✅ OPTIMIZATION: Iterate only stratigraphic node types instead of all graph.nodes
-    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']
+    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
     no_property_count = 0
     for node_type in stratigraphic_types:
         for node in graph.indices.nodes_by_type.get(node_type, []):
