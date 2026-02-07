@@ -773,15 +773,6 @@ class EM_SetupPanel(bpy.types.Panel):
                 )
                 help_op.url = "EMstructure.html#em-setup"
 
-                # XLSX to GraphML Converter (AI Data)
-                row = tools_col.row(align=True)
-                row.scale_y = 0.9
-                row.operator(
-                    XLSX_OT_to_graphml.bl_idname,
-                    text="XLSX → GraphML (AI Data)",
-                    icon='SPREADSHEET'
-                )
-
                 # Collection Manager (compact)
                 collection_box = tools_col.box()
                 collection_header = collection_box.row(align=True)
@@ -881,6 +872,23 @@ class EM_SetupPanel(bpy.types.Panel):
                     help_op.text = (
                         "Runs internal performance checks for property\n"
                         "handlers. Expect temporary UI stalls during run."
+                    )
+                    help_op.url = "EMstructure.html#em-setup"
+
+                    # XLSX to GraphML Converter (AI Data) - EXPERIMENTAL
+                    row = exp_box.row(align=True)
+                    row.scale_y = 0.9
+                    row.operator(
+                        XLSX_OT_to_graphml.bl_idname,
+                        text="XLSX → GraphML (AI Data)",
+                        icon='SPREADSHEET'
+                    )
+                    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                    help_op.title = "XLSX → GraphML Converter (Experimental)"
+                    help_op.text = (
+                        "Converts AI-extracted stratigraphic data from Excel\n"
+                        "to Extended Matrix GraphML format. Uses s3dgraphy\n"
+                        "mapping pipeline. EXPERIMENTAL: Data fidelity may vary."
                     )
                     help_op.url = "EMstructure.html#em-setup"
 
