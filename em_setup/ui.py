@@ -892,6 +892,33 @@ class EM_SetupPanel(bpy.types.Panel):
                     )
                     help_op.url = "EMstructure.html#em-setup"
 
+                    # Save Templates to Disk
+                    exp_box.separator(factor=0.5)
+                    exp_box.label(text="Templates:", icon='FILE_NEW')
+
+                    row = exp_box.row(align=True)
+                    row.scale_y = 0.9
+                    row.operator(
+                        "emtools.save_stratigraphy_template",
+                        text="Save Stratigraphy Template",
+                        icon='FILE_TICK'
+                    )
+                    row.operator(
+                        "emtools.save_site_properties_template",
+                        text="Save Properties Template",
+                        icon='FILE_TICK'
+                    )
+
+                    # Open Documentation
+                    row = exp_box.row(align=True)
+                    row.scale_y = 0.9
+                    op = row.operator(
+                        "wm.url_open",
+                        text="Open Documentation: Creating EM",
+                        icon='URL'
+                    )
+                    op.url = "https://docs.extendedmatrix.org/projects/EM-tools/en/1.5.0/creating_em.html#from-excel-standard-stratigraphy"
+
                     warning_box = exp_box.box()
                     warning_box.alert = True
                     warning_box.label(text="Warning: experimental tools are not for production.", icon='ERROR')
