@@ -563,6 +563,12 @@ class EM_Tools(PropertyGroup):
         default=False
     )  # type: ignore
 
+    exp_create_graphml_expanded: BoolProperty(
+        name="Create a GraphML",
+        description="Expand the Create a GraphML section",
+        default=True
+    )  # type: ignore
+
     mode_3dgis_import_type: EnumProperty(
         name="Import Type",
         description="Select the 3D GIS import format",
