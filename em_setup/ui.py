@@ -875,49 +875,49 @@ class EM_SetupPanel(bpy.types.Panel):
                     )
                     help_op.url = "EMstructure.html#em-setup"
 
-                    # XLSX to GraphML Converter (AI Data) - EXPERIMENTAL
-                    row = exp_box.row(align=True)
-                    row.scale_y = 0.9
-                    row.operator(
-                        XLSX_OT_to_graphml.bl_idname,
-                        text="XLSX → GraphML (AI Data)",
-                        icon='SPREADSHEET'
-                    )
-                    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-                    help_op.title = "XLSX → GraphML Converter (Experimental)"
-                    help_op.text = (
-                        "Converts AI-extracted stratigraphic data from Excel\n"
-                        "to Extended Matrix GraphML format. Uses s3dgraphy\n"
-                        "mapping pipeline. EXPERIMENTAL: Data fidelity may vary."
-                    )
-                    help_op.url = "EMstructure.html#em-setup"
-
-                    # Save Templates to Disk
-                    exp_box.separator(factor=0.5)
-                    exp_box.label(text="Templates:", icon='FILE_NEW')
-
-                    row = exp_box.row(align=True)
-                    row.scale_y = 0.9
-                    row.operator(
-                        "emtools.save_stratigraphy_template",
-                        text="Save Stratigraphy Template",
-                        icon='FILE_TICK'
-                    )
-                    row.operator(
-                        "emtools.save_site_properties_template",
-                        text="Save Properties Template",
-                        icon='FILE_TICK'
+                    # ── Create a GraphML (collapsible section) ──
+                    graphml_box = exp_box.box()
+                    row = graphml_box.row(align=True)
+                    row.prop(
+                        em_tools, "exp_create_graphml_expanded",
+                        icon="TRIA_DOWN" if em_tools.exp_create_graphml_expanded else "TRIA_RIGHT",
+                        emboss=False
                     )
 
-                    # Open Documentation
-                    row = exp_box.row(align=True)
-                    row.scale_y = 0.9
-                    op = row.operator(
-                        "wm.url_open",
-                        text="Open Documentation: Creating EM",
-                        icon='URL'
-                    )
-                    op.url = "https://docs.extendedmatrix.org/projects/EM-tools/en/1.5.0/creating_em.html#from-excel-standard-stratigraphy"
+                    if em_tools.exp_create_graphml_expanded:
+                        # XLSX to GraphML Converter
+                        row = graphml_box.row(align=True)
+                        row.scale_y = 0.9
+                        row.operator(
+                            XLSX_OT_to_graphml.bl_idname,
+                            text="XLSX → GraphML",
+                            icon='SPREADSHEET'
+                        )
+                        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                        help_op.title = "XLSX → GraphML Converter (Experimental)"
+                        help_op.text = (
+                            "Converts AI-extracted stratigraphic data from Excel\n"
+                            "to Extended Matrix GraphML format. Uses s3dgraphy\n"
+                            "mapping pipeline. EXPERIMENTAL: Data fidelity may vary."
+                        )
+                        help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
+
+                        # Templates
+                        graphml_box.separator(factor=0.5)
+                        graphml_box.label(text="Templates:", icon='FILE_NEW')
+
+                        row = graphml_box.row(align=True)
+                        row.scale_y = 0.9
+                        row.operator(
+                            "emtools.save_stratigraphy_template",
+                            text="Save Stratigraphy Template",
+                            icon='FILE_TICK'
+                        )
+                        row.operator(
+                            "emtools.save_site_properties_template",
+                            text="Save Properties Template",
+                            icon='FILE_TICK'
+                        )
 
                     warning_box = exp_box.box()
                     warning_box.alert = True
