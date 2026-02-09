@@ -39,6 +39,26 @@ class XLSX_OT_to_graphml(bpy.types.Operator, ImportHelper):
         default="output"
     )  # type: ignore
 
+    # Paradata enrichment (optional)
+    paradata_filepath: bpy.props.StringProperty(
+        name="Paradata File (optional)",
+        description="Path to em_paradata.xlsx. Leave empty to skip paradata enrichment",
+        default="",
+        subtype='FILE_PATH'
+    )  # type: ignore
+
+    paradata_mapping_name: bpy.props.StringProperty(
+        name="Paradata Mapping",
+        description="Paradata mapping configuration name",
+        default="em_paradata_mapping"
+    )  # type: ignore
+
+    overwrite_properties: bpy.props.BoolProperty(
+        name="Overwrite Existing Properties",
+        description="If ON: update duplicate properties. If OFF: skip duplicates with warning",
+        default=False
+    )  # type: ignore
+
     def execute(self, context):
         """Execute the XLSX → GraphML conversion."""
         try:
@@ -101,6 +121,36 @@ class XLSX_OT_to_graphml(bpy.types.Operator, ImportHelper):
 
         self.report({'INFO'}, f"Graph created: {len(strat_nodes)} stratigraphic units, {total_nodes} total nodes, {total_edges} edges")
 
+        # Step 2b: Optionally enrich with qualia paradata
+        if self.paradata_filepath and self.paradata_filepath.strip():
+            paradata_path = bpy.path.abspath(self.paradata_filepath)
+            if not os.path.exists(paradata_path):
+                self.report({'ERROR'}, f"Paradata file not found: {paradata_path}")
+                return {'CANCELLED'}
+
+            self.report({'INFO'}, f"Enriching with paradata: {os.path.basename(paradata_path)}")
+
+            try:
+                from s3dgraphy.importer.qualia_importer import QualiaImporter
+                qualia = QualiaImporter(
+                    filepath=paradata_path,
+                    existing_graph=graph,
+                    mapping_name=self.paradata_mapping_name,
+                    overwrite=self.overwrite_properties
+                )
+                graph = qualia.parse()
+
+                # Update counts after enrichment
+                total_nodes = len(graph.nodes)
+                total_edges = len(graph.edges)
+                self.report({'INFO'}, f"Paradata enriched: {total_nodes} total nodes, {total_edges} edges")
+
+            except Exception as e:
+                self.report({'ERROR'}, f"Failed to import paradata: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                return {'CANCELLED'}
+
         # Step 3: Export Graph → GraphML
         self.report({'INFO'}, f"Exporting to GraphML: {output_filename}")
 
@@ -128,6 +178,17 @@ class XLSX_OT_to_graphml(bpy.types.Operator, ImportHelper):
         print("="*70)
 
         return {'FINISHED'}
+
+    def draw(self, context):
+        """Draw the sidebar panel in the file browser."""
+        layout = self.layout
+        layout.prop(self, "mapping_name")
+        layout.prop(self, "output_name")
+        layout.separator()
+        layout.label(text="Paradata Enrichment (optional):")
+        layout.prop(self, "paradata_filepath")
+        layout.prop(self, "paradata_mapping_name")
+        layout.prop(self, "overwrite_properties")
 
     def invoke(self, context, event):
         """Open file browser when operator is invoked."""

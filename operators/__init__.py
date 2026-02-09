@@ -12,6 +12,9 @@ from .xlsx_to_graphml import *
 # Import save template operators
 from .save_template import *
 
+# Import bake paradata operator
+from .bake_paradata import *
+
 from .addon_prefix_helpers import (
     get_active_graph_code,
     get_graph_code_from_graph,
@@ -29,6 +32,7 @@ __all__ = [
     "XLSX_OT_to_graphml",
     "EMTOOLS_OT_save_stratigraphy_template",
     "EMTOOLS_OT_save_site_properties_template",
+    "PARADATA_OT_bake",
     "get_active_graph_code",
     "get_graph_code_from_graph",
     "node_name_to_proxy_name",
@@ -48,12 +52,14 @@ def register():
     from . import help_popup
     from . import xlsx_to_graphml
     from . import save_template
+    from . import bake_paradata
 
     # Register each submodule
     update_graph.register()
     help_popup.register()
     xlsx_to_graphml.register()
     save_template.register()
+    bake_paradata.register()
     print("DEBUG operators/__init__.py: All operators registered")
 
 
@@ -64,8 +70,10 @@ def unregister():
     from . import help_popup
     from . import xlsx_to_graphml
     from . import save_template
+    from . import bake_paradata
 
     # Unregister in reverse order
+    bake_paradata.unregister()
     save_template.unregister()
     xlsx_to_graphml.unregister()
     help_popup.unregister()
