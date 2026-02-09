@@ -99,13 +99,13 @@ class EMTOOLS_OT_save_stratigraphy_template(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class EMTOOLS_OT_save_site_properties_template(bpy.types.Operator):
-    """Save the site properties Excel template to disk"""
-    bl_idname = "emtools.save_site_properties_template"
-    bl_label = "Save Site Properties Template"
+class EMTOOLS_OT_save_em_paradata_template(bpy.types.Operator):
+    """Save the em_paradata Excel template to disk"""
+    bl_idname = "emtools.save_em_paradata_template"
+    bl_label = "Save Paradata Template"
     bl_description = (
-        "Save the standard site properties Excel template "
-        "(template_site_properties.xlsx) to a chosen directory"
+        "Save the standard em_paradata Excel template "
+        "(template_em_paradata.xlsx) to a chosen directory"
     )
     bl_options = {'REGISTER'}
 
@@ -124,9 +124,9 @@ class EMTOOLS_OT_save_site_properties_template(bpy.types.Operator):
             return {'CANCELLED'}
 
         try:
-            template_path = self._find_template("template_site_properties.xlsx")
+            template_path = self._find_template("template_em_paradata.xlsx")
             if template_path:
-                dest = os.path.join(self.directory, "template_site_properties.xlsx")
+                dest = os.path.join(self.directory, "template_em_paradata.xlsx")
                 shutil.copy2(template_path, dest)
                 self.report({'INFO'}, f"Template saved to: {dest}")
                 return {'FINISHED'}
@@ -163,13 +163,11 @@ class EMTOOLS_OT_save_site_properties_template(bpy.types.Operator):
 
         wb = Workbook()
         ws = wb.active
-        ws.title = "Properties"
+        ws.title = "Paradata"
 
         headers = [
-            "ID", "DEFINITION", "INTERPRETATION", "BUILDING_TECHNIQUE",
-            "INORGANIC_COMPONENTS", "ORGANIC_COMPONENTS", "MEASURES",
-            "MATERIAL", "COLOR", "CONSERVATION_STATE", "SITE", "AREA",
-            "SOURCE_PDF", "SOURCE_PAGE", "NOTES"
+            "US_ID", "PROPERTY_TYPE", "VALUE", "COMBINER_REASONING",
+            "EXTRACTOR_1", "DOCUMENT_1", "EXTRACTOR_2", "DOCUMENT_2"
         ]
 
         bold = Font(bold=True)
@@ -177,7 +175,7 @@ class EMTOOLS_OT_save_site_properties_template(bpy.types.Operator):
             cell = ws.cell(row=1, column=col, value=header)
             cell.font = bold
 
-        dest = os.path.join(directory, "template_site_properties.xlsx")
+        dest = os.path.join(directory, "template_em_paradata.xlsx")
         wb.save(dest)
         self.report({'INFO'}, f"Template generated and saved to: {dest}")
         return {'FINISHED'}
@@ -185,7 +183,7 @@ class EMTOOLS_OT_save_site_properties_template(bpy.types.Operator):
 
 classes = (
     EMTOOLS_OT_save_stratigraphy_template,
-    EMTOOLS_OT_save_site_properties_template,
+    EMTOOLS_OT_save_em_paradata_template,
 )
 
 

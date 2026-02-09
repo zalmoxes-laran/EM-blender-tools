@@ -41,13 +41,6 @@ class PARADATA_OT_bake(bpy.types.Operator, ImportHelper):
         subtype='FILE_PATH'
     )  # type: ignore
 
-    # Paradata mapping name
-    paradata_mapping_name: bpy.props.StringProperty(
-        name="Paradata Mapping",
-        description="Paradata mapping configuration name",
-        default="em_paradata_mapping"
-    )  # type: ignore
-
     # Overwrite toggle
     overwrite_properties: bpy.props.BoolProperty(
         name="Overwrite Existing Properties",
@@ -100,7 +93,6 @@ class PARADATA_OT_bake(bpy.types.Operator, ImportHelper):
             qualia = QualiaImporter(
                 filepath=paradata_path,
                 existing_graph=graph,
-                mapping_name=self.paradata_mapping_name,
                 overwrite=self.overwrite_properties
             )
             graph = qualia.parse()
@@ -152,7 +144,6 @@ class PARADATA_OT_bake(bpy.types.Operator, ImportHelper):
         layout = self.layout
         layout.label(text="Paradata Source:")
         layout.prop(self, "paradata_filepath")
-        layout.prop(self, "paradata_mapping_name")
         layout.separator()
         layout.label(text="Options:")
         layout.prop(self, "overwrite_properties")

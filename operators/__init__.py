@@ -31,7 +31,7 @@ __all__ = [
     "EM_help_popup",
     "XLSX_OT_to_graphml",
     "EMTOOLS_OT_save_stratigraphy_template",
-    "EMTOOLS_OT_save_site_properties_template",
+    "EMTOOLS_OT_save_em_paradata_template",
     "PARADATA_OT_bake",
     "get_active_graph_code",
     "get_graph_code_from_graph",

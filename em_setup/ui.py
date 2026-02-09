@@ -914,8 +914,8 @@ class EM_SetupPanel(bpy.types.Panel):
                             icon='FILE_TICK'
                         )
                         row.operator(
-                            "emtools.save_site_properties_template",
-                            text="Save Properties Template",
+                            "emtools.save_em_paradata_template",
+                            text="Save Paradata Template",
                             icon='FILE_TICK'
                         )
 
