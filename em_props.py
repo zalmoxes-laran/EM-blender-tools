@@ -564,8 +564,8 @@ class EM_Tools(PropertyGroup):
     )  # type: ignore
 
     exp_create_graphml_expanded: BoolProperty(
-        name="Create a GraphML",
-        description="Expand the Create a GraphML section",
+        name="GraphML Wizard",
+        description="Expand the GraphML wizard section",
         default=True
     )  # type: ignore
 

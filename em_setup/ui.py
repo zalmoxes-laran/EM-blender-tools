@@ -969,6 +969,18 @@ class EM_SetupPanel(bpy.types.Panel):
                             icon='FILE_TICK'
                         )
 
+                        # ── AI Extraction Prompt ──
+                        graphml_box.separator(factor=0.5)
+                        graphml_box.label(text="AI Extraction Prompt:", icon='FILE_TEXT')
+                        graphml_box.prop(em_tools, "xlsx_wizard_prompt_language", text="Language")
+                        row = graphml_box.row()
+                        row.scale_y = 1.1
+                        row.operator(
+                            "xlsx_wizard.copy_ai_prompt",
+                            text="Copy AI Prompt to Clipboard",
+                            icon='COPYDOWN'
+                        )
+
                     warning_box = exp_box.box()
                     warning_box.alert = True
                     warning_box.label(text="Warning: experimental tools are not for production.", icon='ERROR')

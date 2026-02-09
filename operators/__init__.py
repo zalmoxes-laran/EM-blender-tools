@@ -39,6 +39,7 @@ __all__ = [
     "XLSX_WIZARD_OT_convert_stratigraphy",
     "XLSX_WIZARD_OT_enrich_paradata",
     "XLSX_WIZARD_OT_export_graphml",
+    "XLSX_WIZARD_OT_copy_ai_prompt",
     "get_active_graph_code",
     "get_graph_code_from_graph",
     "node_name_to_proxy_name",

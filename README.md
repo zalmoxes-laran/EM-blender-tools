@@ -69,6 +69,7 @@ See [ROADMAP.md](ROADMAP.md) for planned features and development timeline.
 - ✅ Extension format migration
 - ✅ Automated dependency management
 - 🚧 Enhanced graph visualization
+- 🔮 Hybrid enrichment: add US and paradata from XLSX pipeline to an existing in-scene GraphML
 
 ## 🤝 Contributing
 
