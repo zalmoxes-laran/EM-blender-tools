@@ -15,6 +15,9 @@ from .save_template import *
 # Import bake paradata operator
 from .bake_paradata import *
 
+# Import XLSX wizard operators (panel-based 3-step workflow)
+from .xlsx_wizard import *
+
 from .addon_prefix_helpers import (
     get_active_graph_code,
     get_graph_code_from_graph,
@@ -33,6 +36,9 @@ __all__ = [
     "EMTOOLS_OT_save_stratigraphy_template",
     "EMTOOLS_OT_save_em_paradata_template",
     "PARADATA_OT_bake",
+    "XLSX_WIZARD_OT_convert_stratigraphy",
+    "XLSX_WIZARD_OT_enrich_paradata",
+    "XLSX_WIZARD_OT_export_graphml",
     "get_active_graph_code",
     "get_graph_code_from_graph",
     "node_name_to_proxy_name",
@@ -53,6 +59,7 @@ def register():
     from . import xlsx_to_graphml
     from . import save_template
     from . import bake_paradata
+    from . import xlsx_wizard
 
     # Register each submodule
     update_graph.register()
@@ -60,6 +67,7 @@ def register():
     xlsx_to_graphml.register()
     save_template.register()
     bake_paradata.register()
+    xlsx_wizard.register()
     print("DEBUG operators/__init__.py: All operators registered")
 
 
@@ -71,8 +79,10 @@ def unregister():
     from . import xlsx_to_graphml
     from . import save_template
     from . import bake_paradata
+    from . import xlsx_wizard
 
     # Unregister in reverse order
+    xlsx_wizard.unregister()
     bake_paradata.unregister()
     save_template.unregister()
     xlsx_to_graphml.unregister()

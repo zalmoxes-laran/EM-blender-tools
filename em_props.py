@@ -664,6 +664,55 @@ class EM_Tools(PropertyGroup):
     )  # type: ignore
 
     # ============================================
+    # XLSX-TO-GRAPHML WIZARD (panel-based workflow)
+    # ============================================
+
+    xlsx_wizard_strat_file: StringProperty(
+        name="Stratigraphy XLSX",
+        description="Path to the stratigraphy Excel file",
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    xlsx_wizard_mapping: StringProperty(
+        name="Mapping Name",
+        description="Name of the mapping configuration (without .json extension)",
+        default="excel_to_graphml_mapping"
+    )  # type: ignore
+
+    xlsx_wizard_paradata_file: StringProperty(
+        name="Paradata XLSX",
+        description="Path to em_paradata.xlsx (optional enrichment)",
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    xlsx_wizard_overwrite_properties: BoolProperty(
+        name="Overwrite Properties",
+        description="If ON: update duplicate properties. If OFF: skip duplicates",
+        default=False
+    )  # type: ignore
+
+    xlsx_wizard_output_path: StringProperty(
+        name="Output GraphML",
+        description="Path where the GraphML file will be saved",
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    xlsx_wizard_prompt_language: StringProperty(
+        name="Prompt Language",
+        description="Language for AI-generated descriptions. Leave default to keep the source language",
+        default="the same as the original document"
+    )  # type: ignore
+
+    xlsx_wizard_graph_id: StringProperty(
+        name="Active Wizard Graph",
+        description="Internal: graph_id of the graph created by the wizard",
+        default=""
+    )  # type: ignore
+
+    # ============================================
     # PARADATA COLLECTIONS & INDICES
     # ============================================
 

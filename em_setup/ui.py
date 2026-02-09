@@ -9,7 +9,8 @@ from ..populate_lists import clear_lists, populate_blender_lists_from_graph
 from ..functions import get_compatible_icon
 from ..thumb_utils import reload_doc_previews_from_cache, has_doc_thumbs
 from ..operators.graphml_converter import GRAPHML_OT_convert_borders
-from ..operators.xlsx_to_graphml import XLSX_OT_to_graphml
+# XLSX_OT_to_graphml kept registered for F3 access but no longer used in panel UI
+# from ..operators.xlsx_to_graphml import XLSX_OT_to_graphml
 
 from s3dgraphy import get_graph, get_all_graph_ids
 
@@ -885,27 +886,76 @@ class EM_SetupPanel(bpy.types.Panel):
                     )
 
                     if em_tools.exp_create_graphml_expanded:
-                        # XLSX to GraphML Converter
-                        row = graphml_box.row(align=True)
-                        row.scale_y = 0.9
-                        row.operator(
-                            XLSX_OT_to_graphml.bl_idname,
-                            text="XLSX → GraphML",
-                            icon='SPREADSHEET'
-                        )
-                        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-                        help_op.title = "XLSX → GraphML Converter (Experimental)"
-                        help_op.text = (
-                            "Converts AI-extracted stratigraphic data from Excel\n"
-                            "to Extended Matrix GraphML format. Uses s3dgraphy\n"
-                            "mapping pipeline. EXPERIMENTAL: Data fidelity may vary."
-                        )
-                        help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
 
-                        # Templates
+                        # ── STEP 1: Convert Stratigraphy ──
+                        step1_box = graphml_box.box()
+                        step1_box.label(text="Step 1: Convert Stratigraphy", icon='IMPORT')
+                        step1_box.prop(em_tools, "xlsx_wizard_strat_file", text="Excel File")
+                        step1_box.prop(em_tools, "xlsx_wizard_mapping", text="Mapping")
+
+                        can_convert = bool(em_tools.xlsx_wizard_strat_file)
+                        row = step1_box.row()
+                        row.scale_y = 1.3
+                        row.enabled = can_convert
+                        row.operator(
+                            "xlsx_wizard.convert_stratigraphy",
+                            text="Convert to Graph",
+                            icon='GRAPH'
+                        )
+
+                        has_graph = bool(em_tools.xlsx_wizard_graph_id)
+                        if has_graph:
+                            # Show graph stats from memory
+                            try:
+                                from s3dgraphy import get_graph as _get_graph
+                                _g = _get_graph(em_tools.xlsx_wizard_graph_id)
+                                if _g:
+                                    step1_box.label(
+                                        text=f"Graph in memory: {len(_g.nodes)} nodes, {len(_g.edges)} edges",
+                                        icon='CHECKMARK'
+                                    )
+                                else:
+                                    step1_box.label(text="Graph expired — re-run Step 1", icon='ERROR')
+                                    has_graph = False
+                            except Exception:
+                                step1_box.label(text="Graph loaded", icon='CHECKMARK')
+
+                        # ── STEP 2: Enrich with Paradata (optional) ──
+                        step2_box = graphml_box.box()
+                        step2_box.enabled = has_graph
+                        step2_box.label(text="Step 2: Enrich with Paradata", icon='PROPERTIES')
+                        step2_box.prop(em_tools, "xlsx_wizard_paradata_file", text="Paradata File")
+                        step2_box.prop(em_tools, "xlsx_wizard_overwrite_properties")
+
+                        can_enrich = has_graph and bool(em_tools.xlsx_wizard_paradata_file)
+                        row = step2_box.row()
+                        row.scale_y = 1.3
+                        row.enabled = can_enrich
+                        row.operator(
+                            "xlsx_wizard.enrich_paradata",
+                            text="Enrich Graph",
+                            icon='MODIFIER'
+                        )
+
+                        # ── STEP 3: Export GraphML ──
+                        step3_box = graphml_box.box()
+                        step3_box.enabled = has_graph
+                        step3_box.label(text="Step 3: Export GraphML", icon='EXPORT')
+                        step3_box.prop(em_tools, "xlsx_wizard_output_path", text="Output Path")
+
+                        can_export = has_graph and bool(em_tools.xlsx_wizard_output_path)
+                        row = step3_box.row()
+                        row.scale_y = 1.3
+                        row.enabled = can_export
+                        row.operator(
+                            "xlsx_wizard.export_graphml",
+                            text="Export GraphML",
+                            icon='FILE_TICK'
+                        )
+
+                        # ── Templates ──
                         graphml_box.separator(factor=0.5)
                         graphml_box.label(text="Templates:", icon='FILE_NEW')
-
                         row = graphml_box.row(align=True)
                         row.scale_y = 0.9
                         row.operator(
