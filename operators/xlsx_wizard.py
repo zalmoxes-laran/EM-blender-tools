@@ -275,74 +275,28 @@ class XLSX_WIZARD_OT_copy_ai_prompt(bpy.types.Operator):
     def execute(self, context):
         em_tools = context.scene.em_tools
 
-        # ── 1. Locate AI_EXTRACTION_PROMPT.md in s3dgraphy package ──
+        # ── 1. Build the prompt via s3dgraphy ──
         try:
-            import s3dgraphy
-            # s3dgraphy.__file__ = .../src/s3dgraphy/__init__.py
-            # We need .../docs/AI_EXTRACTION_PROMPT.md (2 levels up from __file__)
-            pkg_dir = os.path.dirname(os.path.dirname(s3dgraphy.__file__))
-            prompt_path = os.path.join(pkg_dir, '..', 'docs', 'AI_EXTRACTION_PROMPT.md')
-            prompt_path = os.path.normpath(prompt_path)
+            from s3dgraphy import get_ai_prompt
         except ImportError:
-            self.report({'ERROR'}, "s3dgraphy package not found")
+            self.report({'ERROR'}, "s3dgraphy package not found or outdated (missing get_ai_prompt)")
             return {'CANCELLED'}
 
-        if not os.path.exists(prompt_path):
-            self.report({'ERROR'}, f"AI prompt file not found: {prompt_path}")
-            return {'CANCELLED'}
-
-        # ── 2. Read and parse the prompt file ──
-        try:
-            with open(prompt_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-        except Exception as e:
-            self.report({'ERROR'}, f"Failed to read prompt file: {str(e)}")
-            return {'CANCELLED'}
-
-        # Extract code blocks (text between ``` delimiters)
-        blocks = []
-        current_block = []
-        in_block = False
-        for line in content.splitlines():
-            if line.strip() == '```':
-                if in_block:
-                    blocks.append('\n'.join(current_block))
-                    current_block = []
-                in_block = not in_block
-            elif in_block:
-                current_block.append(line)
-
-        if len(blocks) < 2:
-            self.report({'ERROR'}, "Could not parse prompt blocks from AI_EXTRACTION_PROMPT.md")
-            return {'CANCELLED'}
-
-        part_a = blocks[0]  # Core Stratigraphy Extraction
-        part_b = blocks[1]  # Paradata Extraction
-
-        # ── 3. Build language instruction ──
         language = em_tools.xlsx_wizard_prompt_language.strip()
-        default_lang = "the same as the original document"
 
-        if not language or language.lower() == default_lang.lower():
-            lang_instruction = (
-                "IMPORTANT: Write all descriptions and properties in the same "
-                "language as the original document."
-            )
-        else:
-            lang_instruction = (
-                f"IMPORTANT: Write all descriptions and properties in {language}."
-            )
+        try:
+            full_prompt = get_ai_prompt(language=language if language else None)
+        except FileNotFoundError as e:
+            self.report({'ERROR'}, str(e))
+            return {'CANCELLED'}
+        except ValueError as e:
+            self.report({'ERROR'}, str(e))
+            return {'CANCELLED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to build AI prompt: {str(e)}")
+            return {'CANCELLED'}
 
-        # ── 4. Compose final prompt ──
-        full_prompt = (
-            f"{lang_instruction}\n\n"
-            f"--- PART A: STRATIGRAPHY EXTRACTION ---\n\n"
-            f"{part_a}\n\n"
-            f"--- PART B: PARADATA EXTRACTION ---\n\n"
-            f"{part_b}"
-        )
-
-        # ── 5. Copy to clipboard ──
+        # ── 2. Copy to clipboard ──
         bpy.context.window_manager.clipboard = full_prompt
 
         # ── Report ──

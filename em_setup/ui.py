@@ -884,12 +884,31 @@ class EM_SetupPanel(bpy.types.Panel):
                         icon="TRIA_DOWN" if em_tools.exp_create_graphml_expanded else "TRIA_RIGHT",
                         emboss=False
                     )
+                    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                    help_op.title = "Create a GraphML"
+                    help_op.text = (
+                        "3-step wizard for creating an Extended Matrix\n"
+                        "GraphML from Excel data (manually filled or\n"
+                        "AI-extracted). Optionally enrich with paradata\n"
+                        "provenance before exporting."
+                    )
+                    help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
 
                     if em_tools.exp_create_graphml_expanded:
 
                         # ── STEP 1: Convert Stratigraphy ──
                         step1_box = graphml_box.box()
-                        step1_box.label(text="Step 1: Convert Stratigraphy", icon='IMPORT')
+                        row = step1_box.row(align=True)
+                        row.label(text="Step 1: Convert Stratigraphy", icon='IMPORT')
+                        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                        help_op.title = "Step 1 — Convert Stratigraphy"
+                        help_op.text = (
+                            "Load a stratigraphy.xlsx file and convert it\n"
+                            "to an s3dgraphy graph in memory. The Excel must\n"
+                            "follow the 24-column template. Download the\n"
+                            "template using the button below."
+                        )
+                        help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
                         step1_box.prop(em_tools, "xlsx_wizard_strat_file", text="Excel File")
                         step1_box.prop(em_tools, "xlsx_wizard_mapping", text="Mapping")
 
@@ -923,7 +942,16 @@ class EM_SetupPanel(bpy.types.Panel):
                         # ── STEP 2: Enrich with Paradata (optional) ──
                         step2_box = graphml_box.box()
                         step2_box.enabled = has_graph
-                        step2_box.label(text="Step 2: Enrich with Paradata", icon='PROPERTIES')
+                        row = step2_box.row(align=True)
+                        row.label(text="Step 2: Enrich with Paradata", icon='PROPERTIES')
+                        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                        help_op.title = "Step 2 — Enrich with Paradata"
+                        help_op.text = (
+                            "Optional. Load em_paradata.xlsx to add per-property\n"
+                            "provenance chains (extractor text + source document)\n"
+                            "to the in-memory graph. Requires Step 1 first."
+                        )
+                        help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
                         step2_box.prop(em_tools, "xlsx_wizard_paradata_file", text="Paradata File")
                         step2_box.prop(em_tools, "xlsx_wizard_overwrite_properties")
 
@@ -940,7 +968,16 @@ class EM_SetupPanel(bpy.types.Panel):
                         # ── STEP 3: Export GraphML ──
                         step3_box = graphml_box.box()
                         step3_box.enabled = has_graph
-                        step3_box.label(text="Step 3: Export GraphML", icon='EXPORT')
+                        row = step3_box.row(align=True)
+                        row.label(text="Step 3: Export GraphML", icon='EXPORT')
+                        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                        help_op.title = "Step 3 — Export GraphML"
+                        help_op.text = (
+                            "Save the in-memory graph as a GraphML file.\n"
+                            "Then import it via File > Import EM file to\n"
+                            "populate the Blender lists and scene."
+                        )
+                        help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
                         step3_box.prop(em_tools, "xlsx_wizard_output_path", text="Output Path")
 
                         can_export = has_graph and bool(em_tools.xlsx_wizard_output_path)
@@ -955,7 +992,17 @@ class EM_SetupPanel(bpy.types.Panel):
 
                         # ── Templates ──
                         graphml_box.separator(factor=0.5)
-                        graphml_box.label(text="Templates:", icon='FILE_NEW')
+                        row = graphml_box.row(align=True)
+                        row.label(text="Templates:", icon='FILE_NEW')
+                        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                        help_op.title = "Excel Templates"
+                        help_op.text = (
+                            "Download empty Excel templates to fill manually\n"
+                            "or use as reference for AI-assisted extraction.\n"
+                            "stratigraphy.xlsx: 24-column stratigraphic data.\n"
+                            "em_paradata.xlsx: per-property provenance data."
+                        )
+                        help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
                         row = graphml_box.row(align=True)
                         row.scale_y = 0.9
                         row.operator(
@@ -971,7 +1018,17 @@ class EM_SetupPanel(bpy.types.Panel):
 
                         # ── AI Extraction Prompt ──
                         graphml_box.separator(factor=0.5)
-                        graphml_box.label(text="AI Extraction Prompt:", icon='FILE_TEXT')
+                        row = graphml_box.row(align=True)
+                        row.label(text="AI Extraction Prompt:", icon='FILE_TEXT')
+                        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                        help_op.title = "AI-Assisted Extraction"
+                        help_op.text = (
+                            "Copy a ready-to-use prompt to paste into Claude,\n"
+                            "ChatGPT, or Gemini alongside your archaeological\n"
+                            "documents. The AI will produce the two Excel files\n"
+                            "needed by Steps 1 and 2."
+                        )
+                        help_op.url = "creating_em.html#ai-assisted-extraction"
                         graphml_box.prop(em_tools, "xlsx_wizard_prompt_language", text="Language")
                         row = graphml_box.row()
                         row.scale_y = 1.1
