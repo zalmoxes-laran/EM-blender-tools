@@ -1092,7 +1092,7 @@ class RM_OT_promote_to_rm(Operator):
             selected_objects = []
 
             for obj in context.selected_objects:
-                if obj.type == 'MESH' or obj.type == 'CURVE':
+                if obj.type == 'MESH' or obj.type == 'CURVE' or (obj.type == 'EMPTY' and obj.instance_type != 'COLLECTION'):
                     selected_objects.append(obj)
                 elif obj.type == 'EMPTY' and obj.instance_type == 'COLLECTION' and obj.instance_collection:
                     # Aggiungi tutti gli oggetti mesh della collezione istanziata
@@ -1303,7 +1303,7 @@ class RM_OT_remove_epoch_from_selected(Operator):
         active_epoch = epochs.list[epochs.list_index]
         
         # Ottieni gli oggetti selezionati
-        selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH' or obj.type == 'EMPTY']
         
         if not selected_objects:
             self.report({'ERROR'}, "No mesh objects selected")
@@ -1596,11 +1596,11 @@ class RM_OT_remove_from_epoch(Operator):
 class RM_OT_demote_from_rm(Operator):
     bl_idname = "rm.demote_from_rm"
     bl_label = "Remove from ALL Epochs"
-    bl_description = "DANGER: Remove selected objects completely from ALL epochs and the graph. This cannot be undone easily."
+    bl_description = "DANGER: Remove selected objects completely from ALL epochs and the graph."
     
     def execute(self, context):
         scene = context.scene
-        selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH' or obj.type == 'EMPTY']
         
         if not selected_objects:
             self.report({'ERROR'}, "No mesh objects selected")
