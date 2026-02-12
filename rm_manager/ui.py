@@ -203,6 +203,7 @@ class VIEW3D_PT_RM_Manager(Panel):
         # Check if a graph is available
         graph_available, _graph = is_graph_available(context)
 
+        '''
         # Update controls
         row = layout.row(align=True)
         row.operator("rm.update_list", text="Update from Scene", icon='FILE_REFRESH').from_graph = False
@@ -210,7 +211,7 @@ class VIEW3D_PT_RM_Manager(Panel):
         # Check if a graph is available
         if graph_available:
             row.operator("rm.update_list", text="Update from Graph", icon='NODE_MATERIAL').from_graph = True
-
+        '''
         # Orphaned epochs detector
         row = layout.row(align=True)
         row.operator("rm.detect_orphaned_epochs", text="Detect Orphaned Epochs", icon='ERROR')

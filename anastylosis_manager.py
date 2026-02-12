@@ -129,7 +129,7 @@ class ANASTYLOSIS_OT_update_list(Operator):
         name="Update from Graph",
         description="Update the list using graph data. If False, uses only scene objects.",
         default=True
-    )
+    ) # type: ignore
     
     def execute(self, context):
         try:
@@ -816,6 +816,7 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
         # Check if a graph is available
         graph_available, graph = is_graph_available(context)
 
+        '''
         # Update controls
         row = layout.row(align=True)
         row.operator("anastylosis.update_list", text="Update from Scene", icon='FILE_REFRESH').from_graph = False
@@ -823,7 +824,8 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
         # Check if a graph is available
         if graph_available:
             row.operator("anastylosis.update_list", text="Update from Graph", icon='NODE_MATERIAL').from_graph = True
-
+        '''
+        
         # Main action buttons
         box = layout.box()
         box.label(text="Operations on selected objects:")
