@@ -10,7 +10,7 @@ from bpy.props import StringProperty, IntProperty, BoolProperty
 from bpy.types import Operator
 
 from ..functions import check_material_presence, em_setup_mat_cycles, update_icons
-from ..functions import select_3D_obj, select_list_element_from_obj_proxy
+from ..functions import select_list_element_from_obj_proxy
 
 from s3dgraphy.utils.utils import manage_id_prefix, get_base_name, add_graph_prefix
 
@@ -993,48 +993,180 @@ class EM_select_from_list_item(Operator):
 
     list_type: StringProperty() # type: ignore
     specific_item: StringProperty(default="") # type: ignore
+    changes_description: StringProperty(default="") # type: ignore
+
+    def _get_active_graph(self, context):
+        from ..functions import is_graph_available as check_graph
+
+        graph_exists, graph = check_graph(context)
+        return graph if graph_exists else None
+
+    def _resolve_node_name(self, context):
+        scene = context.scene
+        if self.specific_item:
+            return self.specific_item
+
+        if "." in self.list_type:
+            list_type_cmd = "scene." + self.list_type + "[scene." + self.list_type + "_index]"
+        else:
+            if self.list_type.startswith("em_v_") or self.list_type in ["em_extractors_list", "em_sources_list", "em_combiners_list", "em_properties_list"]:
+                list_type_cmd = "scene.em_tools." + self.list_type + "[scene.em_tools." + self.list_type + "_index]"
+            else:
+                list_type_cmd = "scene." + self.list_type + "[scene." + self.list_type + "_index]"
+
+        try:
+            list_item = eval(list_type_cmd)
+        except Exception:
+            return None
+        return getattr(list_item, "name", None)
+
+    def _resolve_target_object(self, context):
+        from ..object_cache import get_object_cache
+        from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+
+        node_name = self._resolve_node_name(context)
+        if not node_name:
+            return None, None, None
+
+        active_graph = self._get_active_graph(context)
+        proxy_name = node_name_to_proxy_name(node_name, context=context, graph=active_graph)
+        obj = get_object_cache().get_object(proxy_name)
+        return node_name, proxy_name, obj
+
+    def _analyze_visibility_requirements(self, context, obj):
+        needs_unhide = False
+        needs_unprotect = False
+        needs_collection_activation = set()
+
+        for collection in obj.users_collection:
+            layer_col = find_layer_collection(context.view_layer.layer_collection, collection.name)
+            if layer_col:
+                if layer_col.exclude:
+                    needs_collection_activation.add(collection.name)
+                if collection.hide_viewport:
+                    needs_collection_activation.add(collection.name)
+
+        if obj.hide_viewport or obj.hide_get():
+            needs_unhide = True
+        if obj.hide_select:
+            needs_unprotect = True
+
+        total_changes = int(needs_unhide) + int(needs_unprotect) + len(needs_collection_activation)
+        return {
+            "needs_unhide": needs_unhide,
+            "needs_unprotect": needs_unprotect,
+            "needs_collection_activation": sorted(needs_collection_activation),
+            "total_changes": total_changes,
+        }
+
+    def _apply_visibility_changes(self, context, obj):
+        activated_collections = []
+
+        for collection in obj.users_collection:
+            if activate_collection_fully(context, collection):
+                activated_collections.append(collection.name)
+
+        if obj.hide_viewport:
+            obj.hide_viewport = False
+        if obj.hide_get():
+            try:
+                obj.hide_set(False)
+            except RuntimeError:
+                pass
+        if obj.hide_select:
+            obj.hide_select = False
+
+        return sorted(set(activated_collections))
+
+    def invoke(self, context, event):
+        node_name, _proxy_name, obj = self._resolve_target_object(context)
+        if not node_name:
+            self.report({'ERROR'}, "No valid list item selected")
+            return {'CANCELLED'}
+        if not obj:
+            self.report({'ERROR'}, f"Object not found in scene for '{node_name}'")
+            return {'CANCELLED'}
+
+        analysis = self._analyze_visibility_requirements(context, obj)
+        if analysis["total_changes"] == 0:
+            return self.execute(context)
+
+        parts = []
+        if analysis["needs_unhide"]:
+            parts.append("unhide object")
+        if analysis["needs_unprotect"]:
+            parts.append("unlock selection")
+        if analysis["needs_collection_activation"]:
+            col_count = len(analysis["needs_collection_activation"])
+            parts.append(f"activate {col_count} collection{'s' if col_count > 1 else ''}")
+        self.changes_description = ", ".join(parts)
+        return context.window_manager.invoke_props_dialog(self, width=350)
+
+    def draw(self, context):
+        layout = self.layout
+        node_name, _proxy_name, _obj = self._resolve_target_object(context)
+        label = node_name if node_name else "the selected item"
+        layout.label(text=f"To select '{label}':", icon='INFO')
+        layout.label(text=f"  {self.changes_description}")
+        layout.separator()
+        layout.label(text="Press OK to proceed, or cancel to abort.")
 
     def execute(self, context):
         """
         Seleziona un oggetto 3D dalla lista.
-        
-        ✅ MODIFICATO: Ora ottiene il graph attivo e lo passa a select_3D_obj
         """
-        from ..functions import is_graph_available as check_graph
-        
         scene = context.scene
-        
-        # ✅ Ottieni il grafo attivo
-        graph_exists, graph = check_graph(context)
-        active_graph = graph if graph_exists else None
-        
-        if self.specific_item:
-            # Use the specific item name passed from the UI
-            select_3D_obj(
-                self.specific_item, 
-                context=context,
-                graph=active_graph  # ✅ Passa il graph
-            )
-        else:
-            # Fallback to the old behavior using the active index
-            # Handle both "em_list" and "em_extractors_list" formats
-            if "." in self.list_type:
-                # Already has the full path (e.g., "em_tools.stratigraphy.units")
-                list_type_cmd = "scene." + self.list_type + "[scene." + self.list_type + "_index]"
-            else:
-                # Simple name, need to add em_tools prefix for paradata lists
-                if self.list_type.startswith("em_v_") or self.list_type in ["em_extractors_list", "em_sources_list", "em_combiners_list", "em_properties_list"]:
-                    list_type_cmd = "scene.em_tools." + self.list_type + "[scene.em_tools." + self.list_type + "_index]"
-                else:
-                    list_type_cmd = "scene." + self.list_type + "[scene." + self.list_type + "_index]"
+        strat = scene.em_tools.stratigraphy
+        node_name, proxy_name, obj = self._resolve_target_object(context)
 
-            list_item = eval(list_type_cmd)
-            select_3D_obj(
-                list_item.name,
-                context=context,
-                graph=active_graph  # ✅ Passa il graph
-            )
-        
+        if not node_name:
+            self.report({'ERROR'}, "No valid list item selected")
+            return {'CANCELLED'}
+        if not obj:
+            self.report({'ERROR'}, f"Object '{proxy_name}' not found in scene")
+            return {'CANCELLED'}
+
+        if self.list_type == "em_list" and self.specific_item:
+            for i, item in enumerate(strat.units):
+                if item.name == self.specific_item:
+                    strat.units_index = i
+                    break
+
+        bpy.ops.object.select_all(action='DESELECT')
+        activated_collections = self._apply_visibility_changes(context, obj)
+
+        try:
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+        except RuntimeError as e:
+            self.report({'ERROR'}, f"Could not select '{proxy_name}': {str(e)}")
+            return {'CANCELLED'}
+
+        if strat.zoom_to_selected:
+            win = context.window
+            scr = win.screen if win else None
+            if scr:
+                for area in scr.areas:
+                    if area.type == 'VIEW_3D':
+                        region = next((r for r in area.regions if r.type == 'WINDOW'), None)
+                        space = area.spaces.active if hasattr(area, "spaces") else None
+                        if region:
+                            with context.temp_override(
+                                window=win,
+                                screen=scr,
+                                area=area,
+                                region=region,
+                                space_data=space,
+                                scene=scene,
+                                view_layer=context.view_layer
+                            ):
+                                bpy.ops.view3d.view_selected()
+                        break
+
+        if activated_collections:
+            self.report({'INFO'}, f"Selected '{node_name}' (activated {len(activated_collections)} collections)")
+        else:
+            self.report({'INFO'}, f"Selected '{node_name}'")
         return {'FINISHED'}
 
 class EM_not_in_matrix(Operator):

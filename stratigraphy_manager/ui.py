@@ -359,6 +359,23 @@ class EM_ToolsPanel:
                             select_list_element_from_obj_proxy(obj, "em_list")
 
         # ==================
+        # SETTINGS
+        # ==================
+        box = layout.box()
+        row = box.row()
+        row.prop(
+            strat,
+            "show_settings",
+            icon="TRIA_DOWN" if strat.show_settings else "TRIA_RIGHT",
+            text="Settings",
+            emboss=False
+        )
+
+        if strat.show_settings:
+            row = box.row()
+            row.prop(strat, "zoom_to_selected")
+
+        # ==================
         # DOCUMENTS SECTION
         # ==================
         self.draw_documents_section(layout, context)

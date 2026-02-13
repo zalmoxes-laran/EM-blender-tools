@@ -263,6 +263,18 @@ class StratigraphyManagerProps(PropertyGroup):
         default=False
     )  # type: ignore
 
+    show_settings: BoolProperty(
+        name="Show Settings",
+        description="Show/hide stratigraphy interaction settings",
+        default=False
+    )  # type: ignore
+
+    zoom_to_selected: BoolProperty(
+        name="Zoom to Selected",
+        description="Zoom to selected proxy when clicking a row in stratigraphy list",
+        default=True
+    )  # type: ignore
+
     documents_view_mode: EnumProperty(
         name="Documents View Mode",
         description="How to display document thumbnails",
