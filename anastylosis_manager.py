@@ -169,6 +169,72 @@ def _remove_item_from_graph(graph, item):
             graph.remove_node(link_node_id)
 
 
+def analyze_visibility_requirements(context, objects):
+    """Analyze which visibility/collection changes are needed to select objects."""
+    from .stratigraphy_manager.operators import find_layer_collection
+
+    needs_unhide = []
+    needs_unprotect = []
+    needs_collection_activation = set()
+    not_in_view_layer = []
+    already_visible = []
+
+    for obj in objects:
+        obj_needs_changes = False
+        obj_in_view_layer = False
+
+        for collection in obj.users_collection:
+            layer_col = find_layer_collection(context.view_layer.layer_collection, collection.name)
+            if layer_col:
+                if layer_col.exclude:
+                    needs_collection_activation.add(collection.name)
+                    obj_needs_changes = True
+                else:
+                    obj_in_view_layer = True
+                if collection.hide_viewport:
+                    needs_collection_activation.add(collection.name)
+                    obj_needs_changes = True
+
+        if not obj_in_view_layer and obj.users_collection:
+            not_in_view_layer.append(obj.name)
+            obj_needs_changes = True
+
+        if obj.hide_viewport or obj.hide_get():
+            needs_unhide.append(obj.name)
+            obj_needs_changes = True
+
+        if obj.hide_select:
+            needs_unprotect.append(obj.name)
+            obj_needs_changes = True
+
+        if not obj_needs_changes:
+            already_visible.append(obj.name)
+
+    return {
+        'needs_unhide': needs_unhide,
+        'needs_unprotect': needs_unprotect,
+        'needs_collection_activation': list(needs_collection_activation),
+        'not_in_view_layer': not_in_view_layer,
+        'already_visible': already_visible,
+        'total_changes': len(needs_unhide) + len(needs_unprotect) + len(needs_collection_activation),
+    }
+
+
+def apply_visibility_changes(context, objects):
+    """Apply visibility/collection changes to make objects selectable."""
+    from .stratigraphy_manager.operators import activate_collection_fully
+
+    for obj in objects:
+        if obj.hide_viewport:
+            obj.hide_viewport = False
+        if obj.hide_get():
+            obj.hide_set(False)
+        if obj.hide_select:
+            obj.hide_select = False
+        for collection in obj.users_collection:
+            activate_collection_fully(context, collection)
+
+
 # PropertyGroup for representing a SpecialFind association
 class AnastylisisItem(PropertyGroup):
     """Properties for SpecialFind models in the anastylosis list"""
@@ -751,6 +817,56 @@ class ANASTYLOSIS_OT_select_from_list(Operator):
         default=-1
     )
 
+    changes_description: StringProperty(default="")  # type: ignore
+
+    def invoke(self, context, event):
+        scene = context.scene
+        anastylosis = scene.em_tools.anastylosis
+        index = self.anastylosis_index if self.anastylosis_index >= 0 else anastylosis.list_index
+
+        if index < 0 or index >= len(anastylosis.list):
+            self.report({'ERROR'}, "No anastylosis model selected")
+            return {'CANCELLED'}
+
+        anastylosis.list_index = index
+        self.anastylosis_index = index
+
+        item = anastylosis.list[index]
+        obj = bpy.data.objects.get(item.name)
+        if not obj:
+            self.report({'ERROR'}, f"Object {item.name} not found in scene")
+            return {'CANCELLED'}
+
+        analysis = analyze_visibility_requirements(context, [obj])
+        if analysis['total_changes'] == 0:
+            return self.execute(context)
+
+        parts = []
+        if analysis['needs_unhide']:
+            parts.append("unhide object")
+        if analysis['needs_unprotect']:
+            parts.append("unlock selection")
+        if analysis['needs_collection_activation']:
+            col_count = len(analysis['needs_collection_activation'])
+            parts.append(f"activate {col_count} collection{'s' if col_count > 1 else ''}")
+        self.changes_description = ", ".join(parts)
+
+        return context.window_manager.invoke_props_dialog(self, width=350)
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        anastylosis = scene.em_tools.anastylosis
+        index = self.anastylosis_index if self.anastylosis_index >= 0 else anastylosis.list_index
+        if index < 0 or index >= len(anastylosis.list):
+            return
+        item = anastylosis.list[index]
+
+        layout.label(text=f"To select '{item.name}':", icon='INFO')
+        layout.label(text=f"  {self.changes_description}")
+        layout.separator()
+        layout.label(text="Press OK to proceed, or cancel to abort.")
+
     def execute(self, context):
         scene = context.scene
         anastylosis = scene.em_tools.anastylosis
@@ -770,6 +886,8 @@ class ANASTYLOSIS_OT_select_from_list(Operator):
         if not obj:
             self.report({'ERROR'}, f"Object {item.name} not found in scene")
             return {'CANCELLED'}
+
+        apply_visibility_changes(context, [obj])
 
         # Deselect all objects
         bpy.ops.object.select_all(action='DESELECT')
