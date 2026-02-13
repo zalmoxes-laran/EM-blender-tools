@@ -25,6 +25,81 @@ from . import icons_manager
 
 # --- LOD Helper ---
 
+LOD_MIN_LEVEL = 0
+LOD_MAX_LEVEL = 4
+LOD_SUFFIX_RE = re.compile(r"^(.+)_LOD(\d+)$")
+
+
+def _split_lod_name(name):
+    """Return (base_name, lod_level) if name ends with _LOD#, else (None, None)."""
+    m = LOD_SUFFIX_RE.match(name or "")
+    if not m:
+        return None, None
+    return m.group(1), int(m.group(2))
+
+
+def _resolve_lod_with_fallback(available_levels, requested_level, min_level=LOD_MIN_LEVEL, max_level=LOD_MAX_LEVEL):
+    """Clamp request to [min,max] and fallback to highest available <= request."""
+    if not available_levels:
+        return None
+
+    req = max(min_level, min(max_level, int(requested_level)))
+    levels_in_range = sorted({lvl for lvl in available_levels if min_level <= lvl <= max_level})
+    if not levels_in_range:
+        return None
+
+    lower_or_equal = [lvl for lvl in levels_in_range if lvl <= req]
+    if lower_or_equal:
+        return max(lower_or_equal)
+
+    # If no lower level exists, use the minimum available in range.
+    return min(levels_in_range)
+
+
+def _rename_object_to_lod(obj, target_lod):
+    """Rename object suffix to _LODn only if the object already follows that convention."""
+    base_name, _ = _split_lod_name(obj.name)
+    if base_name is None:
+        return
+    obj.name = f"{base_name}_LOD{target_lod}"
+
+
+def _switch_linked_mesh_lod(obj, requested_lod):
+    """Switch linked mesh data to requested LOD with fallback to max available <= request."""
+    if not obj or obj.type != 'MESH' or not obj.data or not obj.data.library:
+        return False, None, None, "Object has no linked mesh library"
+
+    mesh_name = obj.data.name
+    base_name, _ = _split_lod_name(mesh_name)
+    if base_name is None:
+        return False, None, None, f"Mesh '{mesh_name}' has no _LODn suffix"
+
+    lib_path = bpy.path.abspath(obj.data.library.filepath)
+    target_mesh_name = None
+    resolved_lod = None
+
+    with bpy.data.libraries.load(lib_path, link=True) as (data_from, data_to):
+        available_levels = []
+        for name in data_from.meshes:
+            m = LOD_SUFFIX_RE.match(name)
+            if m and m.group(1) == base_name:
+                available_levels.append(int(m.group(2)))
+
+        resolved_lod = _resolve_lod_with_fallback(available_levels, requested_lod)
+        if resolved_lod is None:
+            return False, None, None, f"No LOD levels found for base '{base_name}' in library"
+
+        target_mesh_name = f"{base_name}_LOD{resolved_lod}"
+        data_to.meshes = [target_mesh_name]
+
+    target_mesh = bpy.data.meshes.get(target_mesh_name)
+    if target_mesh is None:
+        return False, None, None, f"Mesh '{target_mesh_name}' could not be loaded from library"
+
+    obj.data = target_mesh
+    _rename_object_to_lod(obj, resolved_lod)
+    return True, resolved_lod, target_mesh_name, None
+
 def detect_lod_variants(obj_name):
     """Given an object name, find all its LOD variants in the scene.
     Recognizes pattern: BaseName_LOD0, BaseName_LOD1, etc.
@@ -181,6 +256,14 @@ class ANASTYLOSIS_UL_List(UIList):
                 else:
                     row.label(text="[Not Connected]", icon='QUESTION')
 
+                # LOD dropdown (if there are LOD variants)
+                lod_variants = detect_lod_variants(item.name)
+                if len(lod_variants) >= 1:
+                    sub = row.row(align=True)
+                    sub.scale_x = 0.6
+                    sub.menu("ANASTYLOSIS_MT_lod_selector", text=f"L{item.active_lod}", icon='MOD_DECIM')
+
+
                 # Search SF/VSF button (replaces old link_to_sf)
                 op = row.operator("anastylosis.search_sf_node", text="", icon='VIEWZOOM', emboss=False)
                 op.anastylosis_index = index
@@ -197,12 +280,7 @@ class ANASTYLOSIS_UL_List(UIList):
                     else:
                         row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
 
-                # LOD dropdown (if there are LOD variants)
-                lod_variants = detect_lod_variants(item.name)
-                if len(lod_variants) >= 1:
-                    sub = row.row(align=True)
-                    sub.scale_x = 0.6
-                    sub.menu("ANASTYLOSIS_MT_lod_selector", text=f"L{item.active_lod}", icon='MOD_DECIM')
+
 
                 # Trash bin for removing
                 op = row.operator("anastylosis.remove_from_list", text="", icon='TRASH', emboss=False)
@@ -1207,26 +1285,46 @@ class ANASTYLOSIS_OT_switch_lod(Operator):
 
         item = anastylosis.list[self.anastylosis_index]
 
-        # Find the target LOD variant
-        variants = detect_lod_variants(item.name)
-        target_name = None
-        for lod_level, lod_name in variants:
-            if lod_level == self.target_lod:
-                target_name = lod_name
-                break
+        obj = bpy.data.objects.get(item.name)
+        requested_lod = max(LOD_MIN_LEVEL, min(LOD_MAX_LEVEL, int(self.target_lod)))
 
-        if not target_name:
-            self.report({'ERROR'}, f"LOD {self.target_lod} not found")
+        if not obj:
+            self.report({'ERROR'}, f"Object '{item.name}' not found in scene")
             return {'CANCELLED'}
 
-        if target_name == item.name:
-            self.report({'INFO'}, f"Already at LOD {self.target_lod}")
+        # Linked mesh workflow: swap mesh datablock from library and fallback automatically.
+        if obj.type == 'MESH' and obj.data and obj.data.library:
+            ok, resolved_lod, target_mesh_name, err = _switch_linked_mesh_lod(obj, requested_lod)
+            if not ok:
+                self.report({'ERROR'}, err or "LOD switch failed")
+                return {'CANCELLED'}
+
+            item.name = obj.name
+            item.active_lod = resolved_lod
+            item.object_exists = True
+            self.report({'INFO'}, f"Set LOD {resolved_lod} ({target_mesh_name})")
             return {'FINISHED'}
 
-        # Hide current object, show target
-        old_obj = bpy.data.objects.get(item.name)
-        new_obj = bpy.data.objects.get(target_name)
+        # Local-scene workflow: switch visibility to an existing object variant in scene.
+        variants = detect_lod_variants(item.name)
+        if not variants:
+            self.report({'ERROR'}, "No LOD variants found in scene")
+            return {'CANCELLED'}
 
+        by_level = {lod_level: lod_name for lod_level, lod_name in variants}
+        resolved_lod = _resolve_lod_with_fallback(by_level.keys(), requested_lod)
+        if resolved_lod is None or resolved_lod not in by_level:
+            self.report({'ERROR'}, f"No usable LOD in range {LOD_MIN_LEVEL}-{LOD_MAX_LEVEL}")
+            return {'CANCELLED'}
+
+        target_name = by_level[resolved_lod]
+        if target_name == item.name:
+            item.active_lod = resolved_lod
+            self.report({'INFO'}, f"Already at LOD {resolved_lod}")
+            return {'FINISHED'}
+
+        old_obj = obj
+        new_obj = bpy.data.objects.get(target_name)
         if old_obj:
             old_obj.hide_viewport = True
             old_obj.hide_render = True
@@ -1234,12 +1332,11 @@ class ANASTYLOSIS_OT_switch_lod(Operator):
             new_obj.hide_viewport = False
             new_obj.hide_render = False
 
-        # Update the item in the list
         item.name = target_name
-        item.active_lod = self.target_lod
+        item.active_lod = resolved_lod
         item.object_exists = new_obj is not None
 
-        self.report({'INFO'}, f"Switched to {target_name}")
+        self.report({'INFO'}, f"Set LOD {resolved_lod} ({target_name})")
         return {'FINISHED'}
 
 # Operator for batch LOD switching across all items
@@ -1259,35 +1356,47 @@ class ANASTYLOSIS_OT_batch_switch_lod(Operator):
         switched = 0
 
         for item in anastylosis.list:
+            obj = bpy.data.objects.get(item.name)
+            if not obj or obj.type != 'MESH':
+                continue
+
+            target_lod = max(LOD_MIN_LEVEL, min(LOD_MAX_LEVEL, item.active_lod + self.direction))
+
+            if obj.data and obj.data.library:
+                ok, resolved_lod, _target_mesh_name, _err = _switch_linked_mesh_lod(obj, target_lod)
+                if ok:
+                    item.name = obj.name
+                    item.active_lod = resolved_lod
+                    item.object_exists = True
+                    switched += 1
+                continue
+
             variants = detect_lod_variants(item.name)
             if len(variants) <= 1:
                 continue
 
-            target_lod = item.active_lod + self.direction
-            # Check if target LOD exists
-            lod_levels = [v[0] for v in variants]
-            if target_lod not in lod_levels:
+            by_level = {lod_level: lod_name for lod_level, lod_name in variants}
+            resolved_lod = _resolve_lod_with_fallback(by_level.keys(), target_lod)
+            if resolved_lod is None or resolved_lod not in by_level:
                 continue
 
-            target_name = None
-            for lod_level, lod_name in variants:
-                if lod_level == target_lod:
-                    target_name = lod_name
-                    break
+            target_name = by_level[resolved_lod]
+            if target_name == item.name:
+                item.active_lod = resolved_lod
+                continue
 
-            if target_name and target_name != item.name:
-                old_obj = bpy.data.objects.get(item.name)
-                new_obj = bpy.data.objects.get(target_name)
-                if old_obj:
-                    old_obj.hide_viewport = True
-                    old_obj.hide_render = True
-                if new_obj:
-                    new_obj.hide_viewport = False
-                    new_obj.hide_render = False
-                item.name = target_name
-                item.active_lod = target_lod
-                item.object_exists = new_obj is not None
-                switched += 1
+            old_obj = obj
+            new_obj = bpy.data.objects.get(target_name)
+            if old_obj:
+                old_obj.hide_viewport = True
+                old_obj.hide_render = True
+            if new_obj:
+                new_obj.hide_viewport = False
+                new_obj.hide_render = False
+            item.name = target_name
+            item.active_lod = resolved_lod
+            item.object_exists = new_obj is not None
+            switched += 1
 
         direction_text = "higher" if self.direction > 0 else "lower"
         self.report({'INFO'}, f"Switched {switched} items to {direction_text} LOD")
@@ -1304,9 +1413,8 @@ class ANASTYLOSIS_MT_lod_selector(bpy.types.Menu):
         if anastylosis.list_index < 0 or anastylosis.list_index >= len(anastylosis.list):
             return
         item = anastylosis.list[anastylosis.list_index]
-        lod_variants = detect_lod_variants(item.name)
-        for lod_level, lod_name in lod_variants:
-            is_active = (lod_name == item.name)
+        for lod_level in range(LOD_MIN_LEVEL, LOD_MAX_LEVEL + 1):
+            is_active = (item.active_lod == lod_level)
             op = layout.operator("anastylosis.switch_lod",
                                  text=f"LOD {lod_level}" + (" (active)" if is_active else ""),
                                  icon='CHECKMARK' if is_active else 'NONE')
@@ -1321,15 +1429,7 @@ class ANASTYLOSIS_MT_batch_lod_selected(bpy.types.Menu):
 
     def draw(self, context):
         layout = self.layout
-        # Find all available LOD levels across selected objects
-        all_levels = set()
-        for obj in context.selected_objects:
-            for lod_level, _ in detect_lod_variants(obj.name):
-                all_levels.add(lod_level)
-        if not all_levels:
-            layout.label(text="No LOD variants found", icon='INFO')
-            return
-        for level in sorted(all_levels):
+        for level in range(LOD_MIN_LEVEL, LOD_MAX_LEVEL + 1):
             op = layout.operator("anastylosis.batch_lod_selected", text=f"Set LOD {level}")
             op.target_lod = level
 
@@ -1349,6 +1449,7 @@ class ANASTYLOSIS_OT_batch_lod_selected(Operator):
         switched = 0
         skipped = 0
         anastylosis = context.scene.em_tools.anastylosis
+        requested_lod = max(LOD_MIN_LEVEL, min(LOD_MAX_LEVEL, int(self.target_lod)))
 
         for obj in context.selected_objects:
             # Find this object in the anastylosis list
@@ -1361,21 +1462,33 @@ class ANASTYLOSIS_OT_batch_lod_selected(Operator):
                 continue
 
             item = anastylosis.list[item_idx]
-            variants = detect_lod_variants(item.name)
-            target_name = None
-            for lod_level, lod_name in variants:
-                if lod_level == self.target_lod:
-                    target_name = lod_name
-                    break
+            if obj.type == 'MESH' and obj.data and obj.data.library:
+                ok, resolved_lod, _target_mesh_name, _err = _switch_linked_mesh_lod(obj, requested_lod)
+                if not ok:
+                    skipped += 1
+                    continue
+                item.name = obj.name
+                item.active_lod = resolved_lod
+                item.object_exists = True
+                switched += 1
+                continue
 
-            if not target_name:
+            variants = detect_lod_variants(item.name)
+            if not variants:
                 skipped += 1
                 continue
 
-            if target_name == item.name:
-                continue  # already at this LOD
+            by_level = {lod_level: lod_name for lod_level, lod_name in variants}
+            resolved_lod = _resolve_lod_with_fallback(by_level.keys(), requested_lod)
+            if resolved_lod is None or resolved_lod not in by_level:
+                skipped += 1
+                continue
 
-            # Switch visibility
+            target_name = by_level[resolved_lod]
+            if target_name == item.name:
+                item.active_lod = resolved_lod
+                continue
+
             old_obj = bpy.data.objects.get(item.name)
             new_obj = bpy.data.objects.get(target_name)
             if old_obj:
@@ -1385,11 +1498,11 @@ class ANASTYLOSIS_OT_batch_lod_selected(Operator):
                 new_obj.hide_viewport = False
                 new_obj.hide_render = False
             item.name = target_name
-            item.active_lod = self.target_lod
+            item.active_lod = resolved_lod
             item.object_exists = new_obj is not None
             switched += 1
 
-        msg = f"Switched {switched} objects to LOD {self.target_lod}"
+        msg = f"Switched {switched} objects to LOD {requested_lod}"
         if skipped > 0:
             msg += f" ({skipped} skipped - LOD not available)"
         self.report({'INFO'}, msg)
@@ -1509,9 +1622,9 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
 
                 # Buttons to switch LOD
                 row = box.row(align=True)
-                for lod_level, lod_name in lod_variants:
+                for lod_level in range(LOD_MIN_LEVEL, LOD_MAX_LEVEL + 1):
                     sub = row.row(align=True)
-                    is_active = (lod_name == item.name) or (item.active_lod == lod_level)
+                    is_active = (item.active_lod == lod_level)
                     if is_active:
                         sub.alert = True  # highlight the active LOD
                     op = sub.operator("anastylosis.switch_lod", text=f"LOD {lod_level}")
