@@ -11,6 +11,77 @@ from bpy.types import Operator # type: ignore
 from ..functions import is_graph_available
 from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
 
+
+def _safe_hide_set(obj, hidden_bool):
+    """Call hide_set safely, returning (ok, error_message)."""
+    try:
+        obj.hide_set(hidden_bool)
+        return True, None
+    except RuntimeError as e:
+        return False, str(e)
+
+
+def _ensure_object_accessible_for_viewlayer(context, obj, make_visible=False, make_selectable=False):
+    """
+    Ensure object can be operated in current View Layer.
+    Returns metadata with activated collections, actions, and non-fatal errors.
+    """
+    from ..stratigraphy_manager.operators import activate_collection_fully
+
+    activated_collections = []
+    actions = []
+    errors = []
+
+    for collection in obj.users_collection:
+        try:
+            if activate_collection_fully(context, collection):
+                activated_collections.append(collection.name)
+        except Exception as e:
+            errors.append(f"{obj.name}: could not activate collection '{collection.name}' ({e})")
+
+    if make_visible:
+        if obj.hide_viewport:
+            obj.hide_viewport = False
+            actions.append("unhide viewport")
+
+        if obj.hide_render:
+            obj.hide_render = False
+            actions.append("unhide render")
+
+        if obj.hide_get():
+            ok, err = _safe_hide_set(obj, False)
+            if ok:
+                actions.append("unhide view layer restriction")
+            else:
+                errors.append(f"{obj.name}: {err}")
+
+    if make_selectable and obj.hide_select:
+        obj.hide_select = False
+        actions.append("unlock selection")
+
+    return {
+        "activated_collections": activated_collections,
+        "actions": actions,
+        "errors": errors,
+    }
+
+
+def _report_bulk_result(operator, header, activated_collections, missing_objects, failed_objects):
+    """Centralized report helper for batch operators."""
+    parts = []
+    if missing_objects:
+        parts.append(f"{len(missing_objects)} missing object(s)")
+    if failed_objects:
+        parts.append(f"{len(failed_objects)} operation failure(s)")
+    if activated_collections:
+        parts.append(f"{len(activated_collections)} collection(s) activated")
+
+    if parts:
+        operator.report({'WARNING'}, f"{header}: " + ", ".join(parts))
+    else:
+        operator.report({'INFO'}, header)
+
+
 class EPOCH_OT_reset_index(Operator):
     bl_idname = "epoch_manager.reset_index"
     bl_label = "Reset Epoch Index"
@@ -41,7 +112,9 @@ class EM_toggle_select(Operator):
         em_tools = context.scene.em_tools
         epochs = em_tools.epochs.list
         missing_objects = []
-        
+        failed_objects = []
+        activated_collections = set()
+
         # Ottieni il grafo attivo
         graph_exists, graph = is_graph_available(context)
         active_graph = graph if graph_exists else None
@@ -50,39 +123,48 @@ class EM_toggle_select(Operator):
         from ..object_cache import get_object_cache
         cache = get_object_cache()
 
-        if self.group_em_idx < len(epochs):
-            current_e_manager = epochs[self.group_em_idx]
+        if self.group_em_idx >= len(epochs):
+            self.report({'ERROR'}, "Invalid epoch index")
+            return {'CANCELLED'}
 
-            strat = em_tools.stratigraphy  # ✅ Nuovo
-            for us in strat.units:
-                if us.icon == "LINKED":
-                    if current_e_manager.name == us.epoch:
-                        # ✅ MODIFICATO: Converti il nome con prefisso
-                        proxy_name = node_name_to_proxy_name(
-                            us.name,
-                            context=context,
-                            graph=active_graph
-                        )
+        current_e_manager = epochs[self.group_em_idx]
 
-                        # ✅ OPTIMIZED: Use cached object lookup
-                        object_to_select = cache.get_object(proxy_name)
-                        
-                        if object_to_select:
-                            try:
-                                object_to_select.select_set(True)
-                            except RuntimeError as e:
-                                if "can't be selected because it is not in View Layer" in str(e):
-                                    missing_objects.append(proxy_name)
-                                else:
-                                    self.report({'ERROR'}, f"Error selecting object '{proxy_name}': {e}")
-                                    return {'CANCELLED'}
-                        else:
-                            print(f"⚠️ Warning: Object '{proxy_name}' not found")
-                            missing_objects.append(proxy_name)
+        strat = em_tools.stratigraphy  # ✅ Nuovo
+        for us in strat.units:
+            if us.icon == "LINKED" and current_e_manager.name == us.epoch:
+                proxy_name = node_name_to_proxy_name(
+                    us.name,
+                    context=context,
+                    graph=active_graph
+                )
 
-        if missing_objects:
-            self.report({'WARNING'}, f"The following objects cannot be selected because they are in inactive layers: {', '.join(missing_objects)}")
-            self.show_message(", ".join(missing_objects))
+                object_to_select = cache.get_object(proxy_name)
+
+                if object_to_select:
+                    prep = _ensure_object_accessible_for_viewlayer(
+                        context,
+                        object_to_select,
+                        make_visible=True,
+                        make_selectable=True,
+                    )
+                    activated_collections.update(prep["activated_collections"])
+                    failed_objects.extend(prep["errors"])
+
+                    try:
+                        object_to_select.select_set(True)
+                    except RuntimeError as e:
+                        failed_objects.append(f"{proxy_name}: {e}")
+                else:
+                    print(f"⚠️ Warning: Object '{proxy_name}' not found")
+                    missing_objects.append(proxy_name)
+
+        _report_bulk_result(
+            self,
+            "Epoch selection update completed",
+            activated_collections=activated_collections,
+            missing_objects=missing_objects,
+            failed_objects=failed_objects,
+        )
 
         return {'FINISHED'}
     
@@ -104,11 +186,13 @@ class EM_toggle_visibility(Operator):
     def execute(self, context):
         from ..operators.addon_prefix_helpers import node_name_to_proxy_name
         from ..functions import is_graph_available
-        from ..stratigraphy_manager.operators import activate_collection_fully
 
         scene = context.scene
         em_tools = scene.em_tools
         epochs = em_tools.epochs.list
+        missing_objects = []
+        failed_objects = []
+        activated_collections = set()
 
         # Disable active filters when manually toggling epoch visibility
         if scene.filter_by_epoch or scene.filter_by_activity:
@@ -124,60 +208,53 @@ class EM_toggle_visibility(Operator):
         from ..object_cache import get_object_cache
         cache = get_object_cache()
 
-        if self.group_em_vis_idx < len(epochs):
-            current_e_manager = epochs[self.group_em_vis_idx]
+        if self.group_em_vis_idx >= len(epochs):
+            self.report({'ERROR'}, "Invalid epoch index")
+            return {'CANCELLED'}
 
-            # Collect collections to activate
-            collections_to_activate = set()
-            activated_collections = []
+        current_e_manager = epochs[self.group_em_vis_idx]
 
-            # Parsing the em list
-            strat = em_tools.stratigraphy  # ✅ Nuovo
-            for us in strat.units:
-                # Selecting only in-scene em elements
-                if us.icon == "LINKED":
-                    # Check if the us is in epoch
-                    if current_e_manager.name == us.epoch:
-                        # ✅ MODIFICATO: Converti il nome con prefisso
-                        proxy_name = node_name_to_proxy_name(
-                            us.name,
-                            context=context,
-                            graph=active_graph
-                        )
+        # Parsing the em list
+        strat = em_tools.stratigraphy  # ✅ Nuovo
+        for us in strat.units:
+            # Selecting only in-scene em elements
+            if us.icon == "LINKED" and current_e_manager.name == us.epoch:
+                proxy_name = node_name_to_proxy_name(
+                    us.name,
+                    context=context,
+                    graph=active_graph
+                )
 
-                        # ✅ OPTIMIZED: Use cached object lookup (auto-validates object exists)
-                        object_to_set_visibility = cache.get_object(proxy_name)
+                object_to_set_visibility = cache.get_object(proxy_name)
 
-                        if object_to_set_visibility:
-                            # ✅ UPDATED: Now uses all three visibility systems
-                            # 1. Restricted View Layer (hide_set)
-                            object_to_set_visibility.hide_set(current_e_manager.use_toggle)
+                if object_to_set_visibility:
+                    prep = _ensure_object_accessible_for_viewlayer(
+                        context,
+                        object_to_set_visibility,
+                        make_visible=not current_e_manager.use_toggle,
+                        make_selectable=False,
+                    )
+                    activated_collections.update(prep["activated_collections"])
+                    failed_objects.extend(prep["errors"])
 
-                            # 2. Viewport visibility
-                            object_to_set_visibility.hide_viewport = current_e_manager.use_toggle
+                    ok, err = _safe_hide_set(object_to_set_visibility, current_e_manager.use_toggle)
+                    if not ok:
+                        failed_objects.append(f"{proxy_name}: {err}")
 
-                            # 3. Render visibility
-                            object_to_set_visibility.hide_render = current_e_manager.use_toggle
-
-                            # Collect collections if we're showing objects
-                            if not current_e_manager.use_toggle:  # If becoming visible
-                                for collection in bpy.data.collections:
-                                    if object_to_set_visibility.name in collection.objects:
-                                        collections_to_activate.add(collection)
-                        else:
-                            print(f"⚠️ Warning: Object '{proxy_name}' not found")
-
-            # Activate collections if showing objects
-            if not current_e_manager.use_toggle:  # If becoming visible
-                for collection in collections_to_activate:
-                    if activate_collection_fully(context, collection):
-                        activated_collections.append(collection.name)
-
-                # Show activation message if any collections were activated
-                if activated_collections:
-                    self.show_activation_message(", ".join(activated_collections))
+                    object_to_set_visibility.hide_viewport = current_e_manager.use_toggle
+                    object_to_set_visibility.hide_render = current_e_manager.use_toggle
+                else:
+                    print(f"⚠️ Warning: Object '{proxy_name}' not found")
+                    missing_objects.append(proxy_name)
 
         current_e_manager.use_toggle = not current_e_manager.use_toggle
+        _report_bulk_result(
+            self,
+            "Epoch visibility update completed",
+            activated_collections=activated_collections,
+            missing_objects=missing_objects,
+            failed_objects=failed_objects,
+        )
         return {'FINISHED'}
 
     def show_activation_message(self, collection_names):
@@ -203,6 +280,9 @@ class EM_toggle_selectable(Operator):
         
         em_tools = context.scene.em_tools
         epochs = em_tools.epochs.list
+        missing_objects = []
+        failed_objects = []
+        activated_collections = set()
         
         # Ottieni il grafo attivo
         graph_exists, graph = is_graph_available(context)
@@ -212,29 +292,50 @@ class EM_toggle_selectable(Operator):
         from ..object_cache import get_object_cache
         cache = get_object_cache()
 
-        if self.group_em_idx < len(epochs):
-            current_e_manager = epochs[self.group_em_idx]
+        if self.group_em_idx >= len(epochs):
+            self.report({'ERROR'}, "Invalid epoch index")
+            return {'CANCELLED'}
 
-            strat = em_tools.stratigraphy  # ✅ Nuovo
-            for us in strat.units:
-                if us.icon == "LINKED":
-                    if current_e_manager.name == us.epoch:
-                        # ✅ MODIFICATO: Converti il nome con prefisso
-                        proxy_name = node_name_to_proxy_name(
-                            us.name,
-                            context=context,
-                            graph=active_graph
+        current_e_manager = epochs[self.group_em_idx]
+
+        strat = em_tools.stratigraphy  # ✅ Nuovo
+        for us in strat.units:
+            if us.icon == "LINKED" and current_e_manager.name == us.epoch:
+                proxy_name = node_name_to_proxy_name(
+                    us.name,
+                    context=context,
+                    graph=active_graph
+                )
+
+                object_to_set_visibility = cache.get_object(proxy_name)
+                
+                if object_to_set_visibility:
+                    if not current_e_manager.is_locked:
+                        prep = _ensure_object_accessible_for_viewlayer(
+                            context,
+                            object_to_set_visibility,
+                            make_visible=False,
+                            make_selectable=False,
                         )
+                        activated_collections.update(prep["activated_collections"])
+                        failed_objects.extend(prep["errors"])
 
-                        # ✅ OPTIMIZED: Use cached object lookup
-                        object_to_set_visibility = cache.get_object(proxy_name)
-                        
-                        if object_to_set_visibility:
-                            object_to_set_visibility.hide_select = current_e_manager.is_locked
-                        else:
-                            print(f"⚠️ Warning: Object '{proxy_name}' not found")
+                    try:
+                        object_to_set_visibility.hide_select = current_e_manager.is_locked
+                    except Exception as e:
+                        failed_objects.append(f"{proxy_name}: {e}")
+                else:
+                    print(f"⚠️ Warning: Object '{proxy_name}' not found")
+                    missing_objects.append(proxy_name)
                             
         current_e_manager.is_locked = not current_e_manager.is_locked
+        _report_bulk_result(
+            self,
+            "Epoch selectable update completed",
+            activated_collections=activated_collections,
+            missing_objects=missing_objects,
+            failed_objects=failed_objects,
+        )
         return {'FINISHED'}
 
 class EM_select_epoch_rm(Operator):
