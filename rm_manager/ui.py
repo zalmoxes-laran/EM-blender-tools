@@ -9,7 +9,6 @@ from .. import icons_manager
 from ..object_cache import get_object_cache
 
 __all__ = [
-    'VIEW3D_PT_RM_Tileset_Properties',
     'RM_UL_List',
     'RM_UL_EpochList',
     'RM_MT_epoch_selector',
@@ -18,51 +17,6 @@ __all__ = [
     'unregister_ui',
 ]
 
-
-class VIEW3D_PT_RM_Tileset_Properties(Panel):  # Nome corretto per la registrazione
-    bl_label = "Tileset Properties"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'EM Annotator'
-    bl_parent_id = "VIEW3D_PT_RM_Manager"
-    bl_options = {'DEFAULT_CLOSED'}
-    
-    @classmethod
-    def poll(cls, context):
-        # Show when a tileset is selected in the RM list
-        scene = context.scene
-        if scene.rm_list_index >= 0 and scene.rm_list_index < len(scene.rm_list):
-            rm_item = scene.rm_list[scene.rm_list_index]
-            obj = get_object_cache().get_object(rm_item.name)
-            # Check if it's a tileset
-            return obj and "tileset_path" in obj
-        return False
-    
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        
-        # Get the selected RM item and corresponding object
-        rm_item = scene.rm_list[scene.rm_list_index]
-        obj = get_object_cache().get_object(rm_item.name)
-        
-        # Display the tileset path
-        layout.label(text="Tileset Properties:")
-        
-        # Path field - identico al GraphML
-        row = layout.row(align=True)
-        row.prop(obj, '["tileset_path"]', text="Path")
-        
-        # Pulsante browse per file ZIP
-        op = row.operator("rm.set_tileset_path", text="", icon='FILEBROWSER')
-        op.object_name = obj.name
-        
-        # Show warning if path doesn't exist
-        path = obj.get("tileset_path", "")
-        if path and not os.path.exists(bpy.path.abspath(path)):
-            row = layout.row()
-            row.alert = True
-            row.label(text="Warning: File not found!", icon='ERROR')
 
 class RM_UL_List(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -105,10 +59,15 @@ class RM_UL_List(UIList):
 
                 # Selection object (inline)
                 op = row.operator("rm.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
-                
-                # Flag pubblicabile
+                op.rm_index = index
+
+                # Flag pubblicabile (custom icons)
                 if hasattr(item, 'is_publishable'):
-                    row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
+                    pub_icon = icons_manager.get_icon_value("em_publish") if item.is_publishable else icons_manager.get_icon_value("em_no_publish")
+                    if pub_icon:
+                        row.prop(item, "is_publishable", text="", icon_value=pub_icon)
+                    else:
+                        row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
                 
                 # Add trash bin button for demote functionality
                 op = row.operator("rm.demote_from_rm_list", text="", icon='TRASH', emboss=False)
@@ -212,10 +171,6 @@ class VIEW3D_PT_RM_Manager(Panel):
         if graph_available:
             row.operator("rm.update_list", text="Update from Graph", icon='NODE_MATERIAL').from_graph = True
         '''
-        # Orphaned epochs detector
-        row = layout.row(align=True)
-        row.operator("rm.detect_orphaned_epochs", text="Detect Orphaned Epochs", icon='ERROR')
-
         # Orphaned epochs mapping panel (only shown when orphaned epochs are detected)
         rm_settings = scene.rm_settings
         if rm_settings.has_orphaned_epochs and len(rm_settings.orphaned_epochs) > 0:
@@ -257,10 +212,6 @@ class VIEW3D_PT_RM_Manager(Panel):
             apply_row.scale_y = 1.5
             apply_row.operator("rm.apply_epoch_mapping", text="Apply Mapping", icon='CHECKMARK')
 
-        # Selection sync button
-        row = layout.row(align=True)
-        row.operator("rm.select_from_object", text="Select from Object", icon='RESTRICT_SELECT_OFF')
-
         # Show active epoch
         has_active_epoch = False
         epochs = em_tools.epochs
@@ -271,46 +222,31 @@ class VIEW3D_PT_RM_Manager(Panel):
         # Active Epoch Selector Box
         box = layout.box()
         if has_active_epoch:
-            # Dropdown to change active epoch using menu
             row = box.row(align=True)
             row.label(text="Active Epoch:", icon='TIME')
-
-            # Create a menu-based dropdown using operator
             row.menu("RM_MT_epoch_selector", text=active_epoch.name)
-
-            # Button to select all RMs from active epoch
-            row = box.row()
-            row.operator("rm.select_all_from_active_epoch", text="Select All from this Epoch", icon='RESTRICT_SELECT_OFF')
-
-            # Add Tileset button
-            row = box.row()
-            row.operator("rm.add_tileset", text="Add New Cesium Tileset", icon='ORIENTATION_GLOBAL')
-
-            # Hint
-            row = box.row()
-            row.scale_y = 0.8
-            row.label(text="You can add multiple tilesets to the same epoch", icon='INFO')
+            row.operator("rm.select_all_from_active_epoch", text="", icon='SELECT_EXTEND')
+            row.operator("rm.detect_orphaned_epochs", text="", icon='FUND')
         else:
-            box.label(text="No active epoch selected", icon='INFO')
+            row = box.row(align=True)
+            row.label(text="No active epoch selected", icon='INFO')
+            row.operator("rm.detect_orphaned_epochs", text="", icon='FUND')
 
         # Main action buttons
         if has_active_epoch:
-            active_object = context.active_object
-            if active_object:
+            selected_objects = context.selected_objects
+            if selected_objects:
+                sel_count = len(selected_objects)
                 box = layout.box()
-                box.label(text="Operations on selected objects in 3D scene:", icon='OBJECT_DATA')
                 row = box.row(align=True)
-
-                # Clarified button labels
-                op = row.operator("rm.promote_to_rm", text="Add to Active Epoch", icon='ADD')
+                row.label(text=f"Sel: {sel_count} obj{'s' if sel_count != 1 else ''}", icon='OBJECT_DATA')
+                row.operator("rm.select_from_object", text="", icon='VIEWZOOM')
+                op = row.operator("rm.promote_to_rm", text="", icon='ADD')
                 op.mode = 'SELECTED'
-
-                row.operator("rm.remove_epoch_from_selected", text="Remove from Active Epoch", icon='REMOVE')
-
-                # Demote with warning color
-                row = box.row(align=True)
-                row.alert = True
-                row.operator("rm.demote_from_rm", text="Remove from ALL Epochs", icon='TRASH')
+                row.operator("rm.remove_epoch_from_selected", text="", icon='REMOVE')
+                sub = row.row(align=True)
+                sub.alert = True
+                sub.operator("rm.demote_from_rm", text="", icon='TRASH')
         else:
             box = layout.box()
             box.label(text="Select an epoch to manage RM objects", icon='INFO')
@@ -372,9 +308,40 @@ class VIEW3D_PT_RM_Manager(Panel):
                 row = box.row()
                 row.prop(scene.rm_settings, "auto_update_on_load")
 
+        # Cesium Tilesets management
+        if has_active_epoch:
+            box = layout.box()
+            box.label(text="Cesium Tilesets:", icon='ORIENTATION_GLOBAL')
+            row = box.row()
+            row.operator("rm.add_tileset", text="Add New Cesium Tileset", icon='ADD')
+
+            # Inline tileset properties (replaces the old subpanel)
+            if scene.rm_list_index >= 0 and scene.rm_list_index < len(scene.rm_list):
+                rm_item = scene.rm_list[scene.rm_list_index]
+                obj = get_object_cache().get_object(rm_item.name)
+                if obj and "tileset_path" in obj:
+                    row = box.row()
+                    row.prop(
+                        scene.rm_settings, "show_tileset_properties",
+                        icon="TRIA_DOWN" if scene.rm_settings.show_tileset_properties else "TRIA_RIGHT",
+                        text=f"Tileset Properties: {rm_item.name}",
+                        emboss=False,
+                    )
+
+                    if scene.rm_settings.show_tileset_properties:
+                        row = box.row(align=True)
+                        row.prop(obj, '["tileset_path"]', text="Path")
+                        op = row.operator("rm.set_tileset_path", text="", icon='FILEBROWSER')
+                        op.object_name = obj.name
+
+                        path = obj.get("tileset_path", "")
+                        if path and not os.path.exists(bpy.path.abspath(path)):
+                            row = box.row()
+                            row.alert = True
+                            row.label(text="Warning: File not found!", icon='ERROR')
+
 classes = [
     VIEW3D_PT_RM_Manager,
-    VIEW3D_PT_RM_Tileset_Properties,
     RM_UL_List,
     RM_UL_EpochList,
     RM_MT_epoch_selector,

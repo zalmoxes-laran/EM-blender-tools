@@ -1,6 +1,7 @@
+import re
 import bpy
 from bpy.props import (
-    StringProperty, 
+    StringProperty,
     BoolProperty,
     CollectionProperty,
     IntProperty,
@@ -19,7 +20,75 @@ from s3dgraphy import get_graph
 from s3dgraphy.nodes.representation_node import RepresentationModelSpecialFindNode
 from s3dgraphy.nodes.stratigraphic_node import SpecialFindUnit, VirtualSpecialFindUnit
 from s3dgraphy.nodes.link_node import LinkNode
-from . import icons_manager  
+from . import icons_manager
+
+
+# --- LOD Helper ---
+
+def detect_lod_variants(obj_name):
+    """Given an object name, find all its LOD variants in the scene.
+    Recognizes pattern: BaseName_LOD0, BaseName_LOD1, etc.
+    Returns list of tuples (lod_level, obj_name) sorted by LOD level.
+    """
+    # Try to extract base name by removing _LODN suffix (greedy match)
+    match = re.match(r'^(.+)_LOD(\d+)$', obj_name)
+    if match:
+        base_name = match.group(1)
+    else:
+        # Object doesn't have LOD suffix — use full name as base
+        base_name = obj_name
+
+    variants = []
+    pattern = re.compile(r'^' + re.escape(base_name) + r'_LOD(\d+)$')
+
+    for obj in bpy.data.objects:
+        m = pattern.match(obj.name)
+        if m:
+            lod_level = int(m.group(1))
+            variants.append((lod_level, obj.name))
+
+    variants.sort(key=lambda x: x[0])
+    return variants
+
+
+# --- Graph helper ---
+
+def _remove_item_from_graph(graph, item):
+    """Remove RMSF node, its link node, and all connected edges from the graph.
+    Shared logic used by both single-remove and batch-remove operators.
+    """
+    if not graph or not item.node_id:
+        return
+
+    rmsf_node = graph.find_node_by_id(item.node_id)
+    if rmsf_node:
+        # Find all connected edges
+        edges_to_remove = []
+        for edge in graph.edges:
+            if edge.edge_source == item.node_id or edge.edge_target == item.node_id:
+                edges_to_remove.append(edge.edge_id)
+
+        # Remove edges
+        for edge_id in edges_to_remove:
+            graph.remove_edge(edge_id)
+
+        # Remove node
+        graph.remove_node(item.node_id)
+
+        # Also remove the link node if it exists
+        link_node_id = f"{item.node_id}_link"
+        link_node = graph.find_node_by_id(link_node_id)
+        if link_node:
+            # Find and remove edges to the link node
+            link_edges = [
+                edge.edge_id for edge in graph.edges
+                if edge.edge_source == link_node_id or edge.edge_target == link_node_id
+            ]
+            for edge_id in link_edges:
+                graph.remove_edge(edge_id)
+
+            # Remove the link node
+            graph.remove_node(link_node_id)
 
 
 # PropertyGroup for representing a SpecialFind association
@@ -60,6 +129,24 @@ class AnastylisisItem(PropertyGroup):
         description="Whether the object exists in the scene",
         default=False
     )
+    # LOD properties
+    active_lod: IntProperty(
+        name="Active LOD",
+        description="Currently active LOD level for this object",
+        default=0,
+        min=0
+    )
+    has_lod_variants: BoolProperty(
+        name="Has LOD Variants",
+        description="Whether this object has LOD variants in the scene",
+        default=False
+    )
+    lod_count: IntProperty(
+        name="LOD Count",
+        description="Number of LOD variants available",
+        default=0,
+        min=0
+    )
 
 # UI List for showing the anastylosis models
 class ANASTYLOSIS_UL_List(UIList):
@@ -68,7 +155,7 @@ class ANASTYLOSIS_UL_List(UIList):
             if self.layout_type in {'DEFAULT', 'COMPACT'}:
                 # Get the object
                 obj = bpy.data.objects.get(item.name)
-                
+
                 # Determine appropriate icon
                 if hasattr(item, 'object_exists') and item.object_exists:
                     icon_value=icons_manager.get_icon_value("show_all_special_finds")
@@ -78,14 +165,13 @@ class ANASTYLOSIS_UL_List(UIList):
                     row.prop(item, "name", text="", emboss=False, icon_value=icon_value)
                 else:
                     obj_icon = 'ERROR'
+                    row = layout.row(align=True)
                     row.prop(item, "name", text="", emboss=False, icon=obj_icon)
 
                 # Associated SF/VSF node
                 if hasattr(item, 'sf_node_name') and item.sf_node_name:
-                    
+
                     if item.is_virtual:
-                        #sf_icon = 'OUTLINER_OB_EMPTY'
-                        #row.label(text=item.sf_node_name, icon=sf_icon)
                         icon_value=icons_manager.get_icon_value("show_all_proxies")
                         row.label(text=item.sf_node_name, icon_value=icon_value)
                     else:
@@ -94,26 +180,38 @@ class ANASTYLOSIS_UL_List(UIList):
 
                 else:
                     row.label(text="[Not Connected]", icon='QUESTION')
-                
-                # Link/Select buttons
-                op = row.operator("anastylosis.link_to_sf", text="", icon='LINKED', emboss=False)
+
+                # Search SF/VSF button (replaces old link_to_sf)
+                op = row.operator("anastylosis.search_sf_node", text="", icon='VIEWZOOM', emboss=False)
                 op.anastylosis_index = index
-                
+
+                # Selection object (inline)
                 op = row.operator("anastylosis.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
                 op.anastylosis_index = index
-                
-                # Publish flag
+
+                # Publish flag with custom icons
                 if hasattr(item, 'is_publishable'):
-                    row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
-                
+                    pub_icon = icons_manager.get_icon_value("em_publish") if item.is_publishable else icons_manager.get_icon_value("em_no_publish")
+                    if pub_icon:
+                        row.prop(item, "is_publishable", text="", icon_value=pub_icon)
+                    else:
+                        row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
+
+                # LOD dropdown (if there are LOD variants)
+                lod_variants = detect_lod_variants(item.name)
+                if len(lod_variants) >= 1:
+                    sub = row.row(align=True)
+                    sub.scale_x = 0.6
+                    sub.menu("ANASTYLOSIS_MT_lod_selector", text=f"L{item.active_lod}", icon='MOD_DECIM')
+
                 # Trash bin for removing
                 op = row.operator("anastylosis.remove_from_list", text="", icon='TRASH', emboss=False)
                 op.anastylosis_index = index
-                
+
             elif self.layout_type in {'GRID'}:
                 layout.alignment = 'CENTER'
                 layout.label(text="", icon='OBJECT_DATA')
-                
+
         except Exception as e:
             # In case of error, show basic element
             row = layout.row()
@@ -124,22 +222,22 @@ class ANASTYLOSIS_OT_update_list(Operator):
     bl_idname = "anastylosis.update_list"
     bl_label = "Update Anastylosis List"
     bl_description = "Update the list of anastylosis models from the graph and scene objects"
-    
+
     from_graph: BoolProperty(
         name="Update from Graph",
         description="Update the list using graph data. If False, uses only scene objects.",
         default=True
     ) # type: ignore
-    
+
     def execute(self, context):
         try:
             scene = context.scene
             anastylosis = scene.em_tools.anastylosis
             anastylosis_list = anastylosis.list
-            
+
             # Save current index to restore after update
             current_index = anastylosis.list_index
-            
+
             # Track objects already in the list
             existing_objects = {}
             for i, item in enumerate(anastylosis_list):
@@ -149,35 +247,35 @@ class ANASTYLOSIS_OT_update_list(Operator):
                         "sf_node_id": item.sf_node_id,
                         "is_publishable": item.is_publishable if hasattr(item, 'is_publishable') else True
                     }
-            
+
             # Get active graph if updating from graph
             graph = None
             if self.from_graph and hasattr(context.scene, 'em_tools'):
                 if (hasattr(context.scene.em_tools, 'graphml_files') and
                     len(context.scene.em_tools.graphml_files) > 0 and
                     context.scene.em_tools.active_file_index >= 0):
-                    
+
                     graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
                     graph = get_graph(graphml.name)
-            
+
             # If we have a graph, process all RMSF nodes
             if graph:
                 # Find all RMSF nodes
                 rmsf_nodes = [node for node in graph.nodes if node.node_type == "representation_model_sf"]
-                
+
                 for node in rmsf_nodes:
                     # Extract object name from node_id (assuming node_id format is "{obj_name}_rmsf")
                     obj_name = node.name.replace("RMSF for ", "").strip()
-                    
+
                     # Check if object exists in scene
                     obj_exists = obj_name in bpy.data.objects
-                    
+
                     # Find connected SF/VSF node
                     sf_node = None
                     sf_node_id = ""
                     sf_node_name = ""
                     is_virtual = False
-                    
+
                     # Find edges connecting to SF/VSF nodes
                     for edge in graph.edges:
                         if edge.edge_source == node.node_id and edge.edge_type == "has_representation_model":
@@ -196,7 +294,7 @@ class ANASTYLOSIS_OT_update_list(Operator):
                                 sf_node_name = source_node.name
                                 is_virtual = source_node.node_type == "VSF"
                                 break
-                    
+
                     # Check if this object is already in the list
                     if obj_name in existing_objects:
                         # Update existing item
@@ -217,116 +315,130 @@ class ANASTYLOSIS_OT_update_list(Operator):
                         item.node_id = node.node_id
                         item.object_exists = obj_exists
                         item.is_publishable = node.attributes.get('is_publishable', True) if hasattr(node, 'attributes') else True
-            
+
+                    # Detect LOD variants
+                    variants = detect_lod_variants(item.name)
+                    item.has_lod_variants = len(variants) > 1
+                    item.lod_count = len(variants)
+                    m = re.match(r'^.+_LOD(\d+)$', item.name)
+                    item.active_lod = int(m.group(1)) if m else 0
+
             # Process all selected objects from scene if needed
             if not self.from_graph or not graph:
                 # Get all selected mesh objects
                 selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
-                
+
                 for obj in selected_objects:
                     # Skip if already processed from graph
                     if obj.name in existing_objects:
                         continue
-                    
+
                     # Create new item for this object
                     item = anastylosis_list.add()
                     item.name = obj.name
                     item.object_exists = True
                     item.is_publishable = True
-                    
+
                     # Set up node ID following same convention as other modules
                     item.node_id = f"{obj.name}_rmsf"
-            
+
+                    # Detect LOD variants
+                    variants = detect_lod_variants(item.name)
+                    item.has_lod_variants = len(variants) > 1
+                    item.lod_count = len(variants)
+                    m = re.match(r'^.+_LOD(\d+)$', item.name)
+                    item.active_lod = int(m.group(1)) if m else 0
+
             # Restore index if possible
             anastylosis.list_index = min(current_index, len(anastylosis_list)-1) if anastylosis_list else 0
-            
+
             # Report
             if self.from_graph:
                 self.report({'INFO'}, f"Updated anastylosis list from graph: {len(anastylosis_list)} models")
             else:
                 self.report({'INFO'}, f"Updated anastylosis list from scene: {len(anastylosis_list)} models")
-            
+
             return {'FINISHED'}
-            
+
         except Exception as e:
             import traceback
             traceback.print_exc()
             self.report({'ERROR'}, f"Error updating anastylosis list: {str(e)}")
             return {'CANCELLED'}
 
-# Operator to link an object to a SF/VSF node
+# Operator to link an object to a SF/VSF node (kept for backward compatibility)
 class ANASTYLOSIS_OT_link_to_sf(Operator):
     bl_idname = "anastylosis.link_to_sf"
     bl_label = "Link to Active SpecialFind"
     bl_description = "Link this object to the currently active SpecialFind in Stratigraphy Manager"
-    
+
     anastylosis_index: IntProperty(
         name="Anastylosis Index",
         description="Index of the anastylosis item in the list",
         default=-1
     )
-    
+
     def execute(self, context):
         scene = context.scene
         anastylosis = scene.em_tools.anastylosis
-        
+
         # Get item from anastylosis list
         if self.anastylosis_index < 0:
             self.anastylosis_index = anastylosis.list_index
-            
+
         if self.anastylosis_index < 0 or self.anastylosis_index >= len(anastylosis.list):
             self.report({'ERROR'}, "No anastylosis model selected")
             return {'CANCELLED'}
-            
+
         item = anastylosis.list[self.anastylosis_index]
-        
+
         # Get object
         obj = bpy.data.objects.get(item.name)
         if not obj:
             self.report({'ERROR'}, f"Object {item.name} not found in scene")
             return {'CANCELLED'}
-        
+
         # Get active stratigraphy item
-        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+        strat = scene.em_tools.stratigraphy
         if strat.units_index < 0 or strat.units_index >= len(strat.units):
             self.report({'ERROR'}, "No active stratigraphy unit selected")
             return {'CANCELLED'}
 
         active_strat_item = strat.units[strat.units_index]
-        
+
         # Get graph
         graph = None
         if context.scene.em_tools.active_file_index >= 0:
             graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
             graph = get_graph(graphml.name)
-            
+
         if not graph:
             self.report({'ERROR'}, "No active graph available")
             return {'CANCELLED'}
-        
+
         # Get SF node
         sf_node = graph.find_node_by_id(active_strat_item.id_node)
         if not sf_node:
             self.report({'ERROR'}, f"SpecialFind node {active_strat_item.id_node} not found in graph")
             return {'CANCELLED'}
-            
+
         # Check if it's actually a SF or VSF
         if sf_node.node_type not in ["SF", "VSF"]:
             self.report({'ERROR'}, f"Active node is not a SpecialFind (type: {sf_node.node_type})")
             return {'CANCELLED'}
-        
+
         # Proceed with linking
         # Get or create RMSF node
         rmsf_id = f"{item.name}_rmsf"
         rmsf_node = graph.find_node_by_id(rmsf_id)
-        
+
         if not rmsf_node:
             # Get object transform
             transform = {
                 "position": [f"{obj.location.x}", f"{obj.location.y}", f"{obj.location.z}"],
                 "scale": [f"{obj.scale.x}", f"{obj.scale.y}", f"{obj.scale.z}"]
             }
-            
+
             # Handle rotation based on rotation mode
             if obj.rotation_mode == 'QUATERNION':
                 quat = obj.rotation_quaternion
@@ -334,7 +446,7 @@ class ANASTYLOSIS_OT_link_to_sf(Operator):
                 transform["rotation"] = [f"{euler.x}", f"{euler.y}", f"{euler.z}"]
             else:
                 transform["rotation"] = [f"{obj.rotation_euler.x}", f"{obj.rotation_euler.y}", f"{obj.rotation_euler.z}"]
-            
+
             # Create RMSF node
             rmsf_node = RepresentationModelSpecialFindNode(
                 node_id=rmsf_id,
@@ -343,10 +455,10 @@ class ANASTYLOSIS_OT_link_to_sf(Operator):
                 transform=transform,
                 description=f"Representation model for {sf_node.node_type} {sf_node.name}"
             )
-            
+
             # Add node to graph
             graph.add_node(rmsf_node)
-        
+
         # Remove previous has_representation_model edges for this RMSF so relinking updates cleanly
         stale_edges = [
             edge.edge_id
@@ -360,7 +472,7 @@ class ANASTYLOSIS_OT_link_to_sf(Operator):
         # Create or update edge
         edge_id = f"{sf_node.node_id}_has_representation_model_{rmsf_id}"
         existing_edge = graph.find_edge_by_id(edge_id)
-        
+
         if not existing_edge:
             graph.add_edge(
                 edge_id=edge_id,
@@ -368,11 +480,11 @@ class ANASTYLOSIS_OT_link_to_sf(Operator):
                 edge_target=rmsf_id,
                 edge_type="has_representation_model"
             )
-        
+
         # Create a LinkNode to store the URL
         link_node_id = f"{rmsf_id}_link"
         link_node = graph.find_node_by_id(link_node_id)
-        
+
         if not link_node:
             # Create new LinkNode
             gltf_path = f"models_sf/{item.name}.gltf"
@@ -384,7 +496,7 @@ class ANASTYLOSIS_OT_link_to_sf(Operator):
                 url_type="3d_model"
             )
             graph.add_node(link_node)
-            
+
             # Create edge between RMSF and LinkNode
             edge_id = f"{rmsf_id}_has_linked_resource_{link_node_id}"
             graph.add_edge(
@@ -393,63 +505,63 @@ class ANASTYLOSIS_OT_link_to_sf(Operator):
                 edge_target=link_node_id,
                 edge_type="has_linked_resource"
             )
-        
+
         # Update the anastylosis list
         item.sf_node_id = sf_node.node_id
         item.sf_node_name = sf_node.name
         item.is_virtual = sf_node.node_type == "VSF"
         item.node_id = rmsf_id
-        
+
         # Refresh the list
         bpy.ops.anastylosis.update_list(from_graph=True)
-        
+
         self.report({'INFO'}, f"Linked {item.name} to {sf_node.node_type} {sf_node.name}")
         return {'FINISHED'}
-    
-# Operator to confirm SF/VSF link selection
+
+# Operator to confirm SF/VSF link selection (kept for backward compatibility)
 class ANASTYLOSIS_OT_confirm_link(Operator):
     bl_idname = "anastylosis.confirm_link"
     bl_label = "Confirm Link"
     bl_description = "Confirm linking object to this SpecialFind node"
-    
+
     sf_node_index: IntProperty(
         name="SF Node Index",
         description="Index of the SF node in the temporary list",
         default=-1
     )
-    
+
     def execute(self, context):
         scene = context.scene
         anastylosis = scene.em_tools.anastylosis
-        
+
         # Check if we have valid selection
         if self.sf_node_index < 0 or self.sf_node_index >= len(anastylosis.sf_nodes):
             self.report({'ERROR'}, "Invalid SpecialFind node selection")
             return {'CANCELLED'}
-        
+
         # Get the selected SF node
         sf_item = anastylosis.sf_nodes[self.sf_node_index]
-        
+
         # Get object name and RMSF ID from temp properties
         obj_name = anastylosis.temp_obj_name
         rmsf_id = anastylosis.temp_rmsf_id
-        
+
         # Get object
         obj = bpy.data.objects.get(obj_name)
         if not obj:
             self.report({'ERROR'}, f"Object {obj_name} not found in scene")
             return {'CANCELLED'}
-        
+
         # Get graph
         graph = None
         if context.scene.em_tools.active_file_index >= 0:
             graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
             graph = get_graph(graphml.name)
-            
+
         if not graph:
             self.report({'ERROR'}, "No active graph available")
             return {'CANCELLED'}
-        
+
         # Get or create RMSF node
         rmsf_node = graph.find_node_by_id(rmsf_id)
         if not rmsf_node:
@@ -458,7 +570,7 @@ class ANASTYLOSIS_OT_confirm_link(Operator):
                 "position": [f"{obj.location.x}", f"{obj.location.y}", f"{obj.location.z}"],
                 "scale": [f"{obj.scale.x}", f"{obj.scale.y}", f"{obj.scale.z}"]
             }
-            
+
             # Handle rotation based on rotation mode
             if obj.rotation_mode == 'QUATERNION':
                 quat = obj.rotation_quaternion
@@ -466,7 +578,7 @@ class ANASTYLOSIS_OT_confirm_link(Operator):
                 transform["rotation"] = [f"{euler.x}", f"{euler.y}", f"{euler.z}"]
             else:
                 transform["rotation"] = [f"{obj.rotation_euler.x}", f"{obj.rotation_euler.y}", f"{obj.rotation_euler.z}"]
-            
+
             # Create RMSF node
             rmsf_node = RepresentationModelSpecialFindNode(
                 node_id=rmsf_id,
@@ -475,16 +587,16 @@ class ANASTYLOSIS_OT_confirm_link(Operator):
                 transform=transform,
                 description=f"Representation model for SpecialFind {obj_name}"
             )
-            
+
             # Add node to graph
             graph.add_node(rmsf_node)
-        
+
         # Get SF node
         sf_node = graph.find_node_by_id(sf_item.node_id)
         if not sf_node:
             self.report({'ERROR'}, f"SpecialFind node {sf_item.node_id} not found in graph")
             return {'CANCELLED'}
-        
+
         # Remove previous has_representation_model edges for this RMSF so relinking updates cleanly
         stale_edges = [
             edge.edge_id
@@ -498,7 +610,7 @@ class ANASTYLOSIS_OT_confirm_link(Operator):
         # Create or update edge
         edge_id = f"{sf_item.node_id}_has_representation_model_{rmsf_id}"
         existing_edge = graph.find_edge_by_id(edge_id)
-        
+
         if not existing_edge:
             graph.add_edge(
                 edge_id=edge_id,
@@ -506,11 +618,11 @@ class ANASTYLOSIS_OT_confirm_link(Operator):
                 edge_target=rmsf_id,
                 edge_type="has_representation_model"
             )
-        
+
         # Create a LinkNode to store the URL
         link_node_id = f"{rmsf_id}_link"
         link_node = graph.find_node_by_id(link_node_id)
-        
+
         if not link_node:
             # Create new LinkNode
             gltf_path = f"models_sf/{obj_name}.gltf"
@@ -522,7 +634,7 @@ class ANASTYLOSIS_OT_confirm_link(Operator):
                 url_type="3d_model"
             )
             graph.add_node(link_node)
-            
+
             # Create edge between RMSF and LinkNode
             edge_id = f"{rmsf_id}_has_linked_resource_{link_node_id}"
             graph.add_edge(
@@ -531,7 +643,7 @@ class ANASTYLOSIS_OT_confirm_link(Operator):
                 edge_target=link_node_id,
                 edge_type="has_linked_resource"
             )
-        
+
         # Update the anastylosis list
         for item in anastylosis.list:
             if item.name == obj_name:
@@ -539,10 +651,10 @@ class ANASTYLOSIS_OT_confirm_link(Operator):
                 item.sf_node_name = sf_item.name
                 item.is_virtual = "Virtual" in sf_item.description
                 break
-        
+
         # Refresh the list
         bpy.ops.anastylosis.update_list(from_graph=True)
-        
+
         self.report({'INFO'}, f"Linked {obj_name} to SpecialFind {sf_item.name}")
         return {'FINISHED'}
 
@@ -551,40 +663,40 @@ class ANASTYLOSIS_OT_select_from_list(Operator):
     bl_idname = "anastylosis.select_from_list"
     bl_label = "Select Object"
     bl_description = "Select this object in the 3D view"
-    
+
     anastylosis_index: IntProperty(
         name="Anastylosis Index",
         description="Index of the anastylosis item in the list",
         default=-1
     )
-    
+
     def execute(self, context):
         scene = context.scene
         anastylosis = scene.em_tools.anastylosis
-        
+
         # Get item from list
         if self.anastylosis_index < 0:
             self.anastylosis_index = anastylosis.list_index
-            
+
         if self.anastylosis_index < 0 or self.anastylosis_index >= len(anastylosis.list):
             self.report({'ERROR'}, "No anastylosis model selected")
             return {'CANCELLED'}
-            
+
         item = anastylosis.list[self.anastylosis_index]
-        
+
         # Get object
         obj = bpy.data.objects.get(item.name)
         if not obj:
             self.report({'ERROR'}, f"Object {item.name} not found in scene")
             return {'CANCELLED'}
-        
+
         # Deselect all objects
         bpy.ops.object.select_all(action='DESELECT')
-        
+
         # Select the object
         obj.select_set(True)
         context.view_layer.objects.active = obj
-        
+
         # Zoom to object if settings allow
         if hasattr(anastylosis, 'settings') and anastylosis.settings and anastylosis.settings.zoom_to_selected:
             win = context.window
@@ -607,7 +719,7 @@ class ANASTYLOSIS_OT_select_from_list(Operator):
                             ):
                                 bpy.ops.view3d.view_selected()
                         break
-        
+
         self.report({'INFO'}, f"Selected object: {item.name}")
         return {'FINISHED'}
 
@@ -616,71 +728,45 @@ class ANASTYLOSIS_OT_remove_from_list(Operator):
     bl_idname = "anastylosis.remove_from_list"
     bl_label = "Remove from Anastylosis"
     bl_description = "Remove this object from anastylosis list and unlink from SpecialFind node"
-    
+
     anastylosis_index: IntProperty(
         name="Anastylosis Index",
         description="Index of the anastylosis item in the list",
         default=-1
     )
-    
+
     def execute(self, context):
         scene = context.scene
         anastylosis = scene.em_tools.anastylosis
-        
+
         # Get item from list
         if self.anastylosis_index < 0:
             self.anastylosis_index = anastylosis.list_index
-            
+
         if self.anastylosis_index < 0 or self.anastylosis_index >= len(anastylosis.list):
             self.report({'ERROR'}, "No anastylosis model selected")
             return {'CANCELLED'}
-            
+
         item = anastylosis.list[self.anastylosis_index]
-        
+
         # Get graph
         graph = None
         if context.scene.em_tools.active_file_index >= 0:
             graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
             graph = get_graph(graphml.name)
-        
-        # If we have a graph, remove nodes and edges
-        if graph:
-            # Find and remove RMSF node
-            rmsf_node = graph.find_node_by_id(item.node_id)
-            if rmsf_node:
-                # Find all connected edges
-                edges_to_remove = []
-                for edge in graph.edges:
-                    if edge.edge_source == item.node_id or edge.edge_target == item.node_id:
-                        edges_to_remove.append(edge.edge_id)
-                
-                # Remove edges
-                for edge_id in edges_to_remove:
-                    graph.remove_edge(edge_id)
-                
-                # Remove node
-                graph.remove_node(item.node_id)
-                
-                # Also remove the link node if it exists
-                link_node_id = f"{item.node_id}_link"
-                link_node = graph.find_node_by_id(link_node_id)
-                if link_node:
-                    # Find and remove edges to the link node
-                    for edge in graph.edges:
-                        if edge.edge_source == link_node_id or edge.edge_target == link_node_id:
-                            graph.remove_edge(edge.edge_id)
-                    
-                    # Remove the link node
-                    graph.remove_node(link_node_id)
-        
+
+        # Remove from graph using shared helper
+        _remove_item_from_graph(graph, item)
+
         # Remove from list
+        item_name = item.name
         anastylosis.list.remove(self.anastylosis_index)
-        
+
         # Update index if needed
         if anastylosis.list_index >= len(anastylosis.list):
             anastylosis.list_index = max(0, len(anastylosis.list) - 1)
-        
-        self.report({'INFO'}, f"Removed {item.name} from anastylosis list")
+
+        self.report({'INFO'}, f"Removed {item_name} from anastylosis list")
         return {'FINISHED'}
 
 # Operator to add selected objects to the list
@@ -688,42 +774,49 @@ class ANASTYLOSIS_OT_add_selected(Operator):
     bl_idname = "anastylosis.add_selected"
     bl_label = "Add Selected Objects"
     bl_description = "Add selected mesh objects to the anastylosis list"
-    
+
     def execute(self, context):
         scene = context.scene
         anastylosis = scene.em_tools.anastylosis
-        
+
         # Get all selected mesh objects
         selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
-        
+
         if not selected_objects:
             self.report({'ERROR'}, "No mesh objects selected")
             return {'CANCELLED'}
-        
+
         # Keep track of objects added
         added_count = 0
-        
+
         # Get graph (optional)
         graph = None
         if context.scene.em_tools.active_file_index >= 0:
             graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
             graph = get_graph(graphml.name)
-        
+
         # Find existing objects in the list
         existing_objects = {item.name for item in anastylosis.list}
-        
+
         for obj in selected_objects:
             # Skip if already in list
             if obj.name in existing_objects:
                 continue
-                
+
             # Create new item
             item = anastylosis.list.add()
             item.name = obj.name
             item.object_exists = True
             item.is_publishable = True
             item.node_id = f"{obj.name}_rmsf"
-            
+
+            # Detect LOD variants
+            variants = detect_lod_variants(item.name)
+            item.has_lod_variants = len(variants) > 1
+            item.lod_count = len(variants)
+            m = re.match(r'^.+_LOD(\d+)$', item.name)
+            item.active_lod = int(m.group(1)) if m else 0
+
             # If we have a graph, create RMSF node
             if graph:
                 # Check if node already exists
@@ -734,7 +827,7 @@ class ANASTYLOSIS_OT_add_selected(Operator):
                         "position": [f"{obj.location.x}", f"{obj.location.y}", f"{obj.location.z}"],
                         "scale": [f"{obj.scale.x}", f"{obj.scale.y}", f"{obj.scale.z}"]
                     }
-                    
+
                     # Handle rotation based on rotation mode
                     if obj.rotation_mode == 'QUATERNION':
                         quat = obj.rotation_quaternion
@@ -742,7 +835,7 @@ class ANASTYLOSIS_OT_add_selected(Operator):
                         transform["rotation"] = [f"{euler.x}", f"{euler.y}", f"{euler.z}"]
                     else:
                         transform["rotation"] = [f"{obj.rotation_euler.x}", f"{obj.rotation_euler.y}", f"{obj.rotation_euler.z}"]
-                    
+
                     # Create RMSF node
                     rmsf_node = RepresentationModelSpecialFindNode(
                         node_id=item.node_id,
@@ -751,18 +844,557 @@ class ANASTYLOSIS_OT_add_selected(Operator):
                         transform=transform,
                         description=f"Representation model for SpecialFind {obj.name}"
                     )
-                    
+
                     # Add node to graph
                     graph.add_node(rmsf_node)
-            
+
             added_count += 1
-        
+
         # Update list if objects added
         if added_count > 0:
             bpy.ops.anastylosis.update_list(from_graph=graph is not None)
-            
+
         self.report({'INFO'}, f"Added {added_count} objects to anastylosis list")
         return {'FINISHED'}
+
+# Operator to remove selected objects from list (batch)
+class ANASTYLOSIS_OT_remove_selected(Operator):
+    bl_idname = "anastylosis.remove_selected"
+    bl_label = "Remove Selected from Anastylosis"
+    bl_description = "Remove all selected objects from the anastylosis list and unlink from graph"
+
+    def execute(self, context):
+        scene = context.scene
+        anastylosis = scene.em_tools.anastylosis
+        selected_names = {obj.name for obj in context.selected_objects}
+
+        # Find indices to remove (from bottom to top to not invalidate indices)
+        indices_to_remove = []
+        for i, item in enumerate(anastylosis.list):
+            if item.name in selected_names:
+                indices_to_remove.append(i)
+
+        if not indices_to_remove:
+            self.report({'WARNING'}, "No selected objects found in the anastylosis list")
+            return {'CANCELLED'}
+
+        # Get graph
+        graph = None
+        if context.scene.em_tools.active_file_index >= 0:
+            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+            graph = get_graph(graphml.name)
+
+        # Remove from graph and list (reverse order)
+        removed_count = 0
+        for idx in reversed(indices_to_remove):
+            item = anastylosis.list[idx]
+            # Remove from graph using shared helper
+            _remove_item_from_graph(graph, item)
+            anastylosis.list.remove(idx)
+            removed_count += 1
+
+        # Update index
+        if anastylosis.list_index >= len(anastylosis.list):
+            anastylosis.list_index = max(0, len(anastylosis.list) - 1)
+
+        self.report({'INFO'}, f"Removed {removed_count} objects from anastylosis list")
+        return {'FINISHED'}
+
+# Operator to select in list from active 3D object
+class ANASTYLOSIS_OT_select_from_object(Operator):
+    bl_idname = "anastylosis.select_from_object"
+    bl_label = "Select in List from Active Object"
+    bl_description = "Find and select the active 3D object in the anastylosis list"
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj:
+            self.report({'ERROR'}, "No active object")
+            return {'CANCELLED'}
+
+        anastylosis = context.scene.em_tools.anastylosis
+        for i, item in enumerate(anastylosis.list):
+            if item.name == obj.name:
+                anastylosis.list_index = i
+                self.report({'INFO'}, f"Selected {obj.name} in list (index {i})")
+                return {'FINISHED'}
+
+        self.report({'WARNING'}, f"Object '{obj.name}' not found in anastylosis list")
+        return {'CANCELLED'}
+
+# Search popup for SF/VSF nodes (replaces link_to_sf in the UI)
+class ANASTYLOSIS_OT_search_sf_node(Operator):
+    """Search and select an SF/VSF node to link to this object"""
+    bl_idname = "anastylosis.search_sf_node"
+    bl_label = "Link to SpecialFind"
+    bl_description = "Search for an SF or VSF node to link this object to"
+    bl_options = {'REGISTER', 'INTERNAL'}
+
+    anastylosis_index: IntProperty(
+        name="Anastylosis Index",
+        description="Index of the anastylosis item in the list",
+        default=-1
+    ) # type: ignore
+
+    search_query: StringProperty(
+        name="Search",
+        description="Search for SF/VSF node by name",
+        default=""
+    ) # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        em_tools = context.scene.em_tools
+        return em_tools.active_file_index >= 0
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=400)
+
+    def draw(self, context):
+        layout = self.layout
+
+        # Search box
+        layout.prop(self, "search_query", text="", icon='VIEWZOOM')
+        layout.separator()
+
+        # Get the active graph
+        em_tools = context.scene.em_tools
+        if em_tools.active_file_index < 0:
+            layout.label(text="No active graph", icon='ERROR')
+            return
+
+        graph_info = em_tools.graphml_files[em_tools.active_file_index]
+        graph = get_graph(graph_info.name)
+
+        if not graph:
+            layout.label(text="Graph not loaded", icon='ERROR')
+            return
+
+        # Filter SF and VSF nodes by search query
+        sf_nodes = []
+        for node in graph.nodes:
+            if hasattr(node, 'node_type') and node.node_type in ["SF", "VSF"]:
+                node_id = node.node_id if hasattr(node, 'node_id') else ""
+                node_name = node.name if hasattr(node, 'name') else ""
+
+                # Search in both node_id and name
+                search_lower = self.search_query.lower()
+                if (not self.search_query or
+                    search_lower in node_id.lower() or
+                    search_lower in node_name.lower()):
+                    sf_nodes.append(node)
+
+        # Sort by name
+        sf_nodes.sort(key=lambda x: x.name)
+
+        # Display results
+        if sf_nodes:
+            box = layout.box()
+            icon_val = icons_manager.get_icon_value("show_all_proxies")
+            box.label(text=f"Found {len(sf_nodes)} SF/VSF nodes:", icon='MESH_ICOSPHERE')
+
+            # Limit display to first 20 results
+            for node in sf_nodes[:20]:
+                row = box.row(align=True)
+                type_label = "VSF" if node.node_type == "VSF" else "SF"
+
+                if icon_val:
+                    op = row.operator("anastylosis.assign_sf_node",
+                                      text=f"{node.name} ({type_label})",
+                                      icon_value=icon_val)
+                else:
+                    sf_icon = 'OUTLINER_OB_EMPTY' if node.node_type == "VSF" else 'MESH_ICOSPHERE'
+                    op = row.operator("anastylosis.assign_sf_node",
+                                      text=f"{node.name} ({type_label})",
+                                      icon=sf_icon)
+                op.anastylosis_index = self.anastylosis_index
+                op.sf_node_id = node.node_id
+                op.sf_node_name = node.name
+                op.is_virtual = (node.node_type == "VSF")
+
+            if len(sf_nodes) > 20:
+                box.label(text=f"...and {len(sf_nodes) - 20} more. Refine your search.",
+                          icon='INFO')
+        else:
+            layout.label(text="No SF/VSF nodes found", icon='INFO')
+            if self.search_query:
+                layout.label(text="Try a different search term")
+
+    def execute(self, context):
+        # This operator only shows a dialog, no execution needed
+        return {'FINISHED'}
+
+# Operator to assign an SF/VSF node to an anastylosis item (called from search popup)
+class ANASTYLOSIS_OT_assign_sf_node(Operator):
+    """Assign an SF/VSF node to an anastylosis item"""
+    bl_idname = "anastylosis.assign_sf_node"
+    bl_label = "Assign SF Node"
+    bl_description = "Link this anastylosis object to the selected SpecialFind node"
+    bl_options = {'REGISTER', 'UNDO', 'INTERNAL'}
+
+    anastylosis_index: IntProperty(
+        name="Anastylosis Index",
+        default=-1
+    ) # type: ignore
+
+    sf_node_id: StringProperty(
+        name="SF Node ID",
+        default=""
+    ) # type: ignore
+
+    sf_node_name: StringProperty(
+        name="SF Node Name",
+        default=""
+    ) # type: ignore
+
+    is_virtual: BoolProperty(
+        name="Is Virtual",
+        default=False
+    ) # type: ignore
+
+    def execute(self, context):
+        scene = context.scene
+        anastylosis = scene.em_tools.anastylosis
+
+        # Get item from anastylosis list
+        if self.anastylosis_index < 0:
+            self.anastylosis_index = anastylosis.list_index
+
+        if self.anastylosis_index < 0 or self.anastylosis_index >= len(anastylosis.list):
+            self.report({'ERROR'}, "No anastylosis model selected")
+            return {'CANCELLED'}
+
+        item = anastylosis.list[self.anastylosis_index]
+
+        # Get object
+        obj = bpy.data.objects.get(item.name)
+        if not obj:
+            self.report({'ERROR'}, f"Object {item.name} not found in scene")
+            return {'CANCELLED'}
+
+        # Get graph
+        graph = None
+        if context.scene.em_tools.active_file_index >= 0:
+            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+            graph = get_graph(graphml.name)
+
+        if not graph:
+            self.report({'ERROR'}, "No active graph available")
+            return {'CANCELLED'}
+
+        # Find the SF node in the graph
+        sf_node = graph.find_node_by_id(self.sf_node_id)
+        if not sf_node:
+            self.report({'ERROR'}, f"SpecialFind node {self.sf_node_id} not found in graph")
+            return {'CANCELLED'}
+
+        # Check if it's actually a SF or VSF
+        if sf_node.node_type not in ["SF", "VSF"]:
+            self.report({'ERROR'}, f"Node is not a SpecialFind (type: {sf_node.node_type})")
+            return {'CANCELLED'}
+
+        # Get or create RMSF node
+        rmsf_id = f"{item.name}_rmsf"
+        rmsf_node = graph.find_node_by_id(rmsf_id)
+
+        if not rmsf_node:
+            # Get object transform
+            transform = {
+                "position": [f"{obj.location.x}", f"{obj.location.y}", f"{obj.location.z}"],
+                "scale": [f"{obj.scale.x}", f"{obj.scale.y}", f"{obj.scale.z}"]
+            }
+
+            # Handle rotation based on rotation mode
+            if obj.rotation_mode == 'QUATERNION':
+                quat = obj.rotation_quaternion
+                euler = quat.to_euler('XYZ')
+                transform["rotation"] = [f"{euler.x}", f"{euler.y}", f"{euler.z}"]
+            else:
+                transform["rotation"] = [f"{obj.rotation_euler.x}", f"{obj.rotation_euler.y}", f"{obj.rotation_euler.z}"]
+
+            # Create RMSF node
+            rmsf_node = RepresentationModelSpecialFindNode(
+                node_id=rmsf_id,
+                name=f"RMSF for {item.name}",
+                type="RM",
+                transform=transform,
+                description=f"Representation model for {sf_node.node_type} {sf_node.name}"
+            )
+
+            # Add node to graph
+            graph.add_node(rmsf_node)
+
+        # Remove previous has_representation_model edges for this RMSF so relinking updates cleanly
+        stale_edges = [
+            edge.edge_id
+            for edge in list(graph.edges)
+            if edge.edge_type == "has_representation_model"
+            and (edge.edge_source == rmsf_id or edge.edge_target == rmsf_id)
+        ]
+        for edge_id in stale_edges:
+            graph.remove_edge(edge_id)
+
+        # Create edge
+        edge_id = f"{sf_node.node_id}_has_representation_model_{rmsf_id}"
+        existing_edge = graph.find_edge_by_id(edge_id)
+
+        if not existing_edge:
+            graph.add_edge(
+                edge_id=edge_id,
+                edge_source=sf_node.node_id,
+                edge_target=rmsf_id,
+                edge_type="has_representation_model"
+            )
+
+        # Create a LinkNode to store the URL
+        link_node_id = f"{rmsf_id}_link"
+        link_node = graph.find_node_by_id(link_node_id)
+
+        if not link_node:
+            gltf_path = f"models_sf/{item.name}.gltf"
+            link_node = LinkNode(
+                node_id=link_node_id,
+                name=f"GLTF Link for {item.name}",
+                description=f"Link to exported GLTF for {sf_node.node_type} {sf_node.name}",
+                url=gltf_path,
+                url_type="3d_model"
+            )
+            graph.add_node(link_node)
+
+            # Create edge between RMSF and LinkNode
+            edge_id = f"{rmsf_id}_has_linked_resource_{link_node_id}"
+            graph.add_edge(
+                edge_id=edge_id,
+                edge_source=rmsf_id,
+                edge_target=link_node_id,
+                edge_type="has_linked_resource"
+            )
+
+        # Update the anastylosis list item
+        item.sf_node_id = sf_node.node_id
+        item.sf_node_name = sf_node.name
+        item.is_virtual = sf_node.node_type == "VSF"
+        item.node_id = rmsf_id
+
+        # Refresh the list
+        bpy.ops.anastylosis.update_list(from_graph=True)
+
+        self.report({'INFO'}, f"Linked {item.name} to {sf_node.node_type} {sf_node.name}")
+        return {'FINISHED'}
+
+# Operator to switch LOD level for a single item
+class ANASTYLOSIS_OT_switch_lod(Operator):
+    bl_idname = "anastylosis.switch_lod"
+    bl_label = "Switch LOD"
+    bl_description = "Switch this item to a different Level of Detail"
+
+    anastylosis_index: IntProperty(
+        name="Anastylosis Index",
+        default=-1
+    ) # type: ignore
+
+    target_lod: IntProperty(
+        name="Target LOD",
+        default=0
+    ) # type: ignore
+
+    def execute(self, context):
+        anastylosis = context.scene.em_tools.anastylosis
+
+        if self.anastylosis_index < 0 or self.anastylosis_index >= len(anastylosis.list):
+            self.report({'ERROR'}, "Invalid anastylosis index")
+            return {'CANCELLED'}
+
+        item = anastylosis.list[self.anastylosis_index]
+
+        # Find the target LOD variant
+        variants = detect_lod_variants(item.name)
+        target_name = None
+        for lod_level, lod_name in variants:
+            if lod_level == self.target_lod:
+                target_name = lod_name
+                break
+
+        if not target_name:
+            self.report({'ERROR'}, f"LOD {self.target_lod} not found")
+            return {'CANCELLED'}
+
+        if target_name == item.name:
+            self.report({'INFO'}, f"Already at LOD {self.target_lod}")
+            return {'FINISHED'}
+
+        # Hide current object, show target
+        old_obj = bpy.data.objects.get(item.name)
+        new_obj = bpy.data.objects.get(target_name)
+
+        if old_obj:
+            old_obj.hide_viewport = True
+            old_obj.hide_render = True
+        if new_obj:
+            new_obj.hide_viewport = False
+            new_obj.hide_render = False
+
+        # Update the item in the list
+        item.name = target_name
+        item.active_lod = self.target_lod
+        item.object_exists = new_obj is not None
+
+        self.report({'INFO'}, f"Switched to {target_name}")
+        return {'FINISHED'}
+
+# Operator for batch LOD switching across all items
+class ANASTYLOSIS_OT_batch_switch_lod(Operator):
+    bl_idname = "anastylosis.batch_switch_lod"
+    bl_label = "Batch Switch LOD"
+    bl_description = "Switch LOD level for all items that have LOD variants"
+
+    direction: IntProperty(
+        name="Direction",
+        description="+1 for higher LOD number, -1 for lower",
+        default=1
+    ) # type: ignore
+
+    def execute(self, context):
+        anastylosis = context.scene.em_tools.anastylosis
+        switched = 0
+
+        for item in anastylosis.list:
+            variants = detect_lod_variants(item.name)
+            if len(variants) <= 1:
+                continue
+
+            target_lod = item.active_lod + self.direction
+            # Check if target LOD exists
+            lod_levels = [v[0] for v in variants]
+            if target_lod not in lod_levels:
+                continue
+
+            target_name = None
+            for lod_level, lod_name in variants:
+                if lod_level == target_lod:
+                    target_name = lod_name
+                    break
+
+            if target_name and target_name != item.name:
+                old_obj = bpy.data.objects.get(item.name)
+                new_obj = bpy.data.objects.get(target_name)
+                if old_obj:
+                    old_obj.hide_viewport = True
+                    old_obj.hide_render = True
+                if new_obj:
+                    new_obj.hide_viewport = False
+                    new_obj.hide_render = False
+                item.name = target_name
+                item.active_lod = target_lod
+                item.object_exists = new_obj is not None
+                switched += 1
+
+        direction_text = "higher" if self.direction > 0 else "lower"
+        self.report({'INFO'}, f"Switched {switched} items to {direction_text} LOD")
+        return {'FINISHED'}
+
+# Menu for LOD level selection (per-item dropdown in UIList)
+class ANASTYLOSIS_MT_lod_selector(bpy.types.Menu):
+    bl_label = "Select LOD Level"
+    bl_idname = "ANASTYLOSIS_MT_lod_selector"
+
+    def draw(self, context):
+        layout = self.layout
+        anastylosis = context.scene.em_tools.anastylosis
+        if anastylosis.list_index < 0 or anastylosis.list_index >= len(anastylosis.list):
+            return
+        item = anastylosis.list[anastylosis.list_index]
+        lod_variants = detect_lod_variants(item.name)
+        for lod_level, lod_name in lod_variants:
+            is_active = (lod_name == item.name)
+            op = layout.operator("anastylosis.switch_lod",
+                                 text=f"LOD {lod_level}" + (" (active)" if is_active else ""),
+                                 icon='CHECKMARK' if is_active else 'NONE')
+            op.anastylosis_index = anastylosis.list_index
+            op.target_lod = lod_level
+
+
+# Menu for batch LOD switch on selected 3D objects
+class ANASTYLOSIS_MT_batch_lod_selected(bpy.types.Menu):
+    bl_label = "Batch LOD for Selected"
+    bl_idname = "ANASTYLOSIS_MT_batch_lod_selected"
+
+    def draw(self, context):
+        layout = self.layout
+        # Find all available LOD levels across selected objects
+        all_levels = set()
+        for obj in context.selected_objects:
+            for lod_level, _ in detect_lod_variants(obj.name):
+                all_levels.add(lod_level)
+        if not all_levels:
+            layout.label(text="No LOD variants found", icon='INFO')
+            return
+        for level in sorted(all_levels):
+            op = layout.operator("anastylosis.batch_lod_selected", text=f"Set LOD {level}")
+            op.target_lod = level
+
+
+# Operator for batch LOD switch on selected 3D objects
+class ANASTYLOSIS_OT_batch_lod_selected(Operator):
+    bl_idname = "anastylosis.batch_lod_selected"
+    bl_label = "Batch LOD for Selected Objects"
+    bl_description = "Switch LOD level for all selected objects that have LOD variants"
+
+    target_lod: IntProperty(
+        name="Target LOD",
+        default=0
+    ) # type: ignore
+
+    def execute(self, context):
+        switched = 0
+        skipped = 0
+        anastylosis = context.scene.em_tools.anastylosis
+
+        for obj in context.selected_objects:
+            # Find this object in the anastylosis list
+            item_idx = None
+            for i, item in enumerate(anastylosis.list):
+                if item.name == obj.name:
+                    item_idx = i
+                    break
+            if item_idx is None:
+                continue
+
+            item = anastylosis.list[item_idx]
+            variants = detect_lod_variants(item.name)
+            target_name = None
+            for lod_level, lod_name in variants:
+                if lod_level == self.target_lod:
+                    target_name = lod_name
+                    break
+
+            if not target_name:
+                skipped += 1
+                continue
+
+            if target_name == item.name:
+                continue  # already at this LOD
+
+            # Switch visibility
+            old_obj = bpy.data.objects.get(item.name)
+            new_obj = bpy.data.objects.get(target_name)
+            if old_obj:
+                old_obj.hide_viewport = True
+                old_obj.hide_render = True
+            if new_obj:
+                new_obj.hide_viewport = False
+                new_obj.hide_render = False
+            item.name = target_name
+            item.active_lod = self.target_lod
+            item.object_exists = new_obj is not None
+            switched += 1
+
+        msg = f"Switched {switched} objects to LOD {self.target_lod}"
+        if skipped > 0:
+            msg += f" ({skipped} skipped - LOD not available)"
+        self.report({'INFO'}, msg)
+        return {'FINISHED'}
+
 
 # Settings for Anastylosis Manager
 class AnastylisisSettings(PropertyGroup):
@@ -771,7 +1403,7 @@ class AnastylisisSettings(PropertyGroup):
         description="Zoom to the selected object when clicked in the list",
         default=True
     )
-    
+
     show_settings: BoolProperty(
         name="Show Settings",
         description="Show or hide the settings section",
@@ -792,13 +1424,13 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
     bl_region_type = 'UI'
     bl_category = 'EM Annotator'
     bl_options = {'DEFAULT_CLOSED'}
-        
+
     @classmethod
     def poll(cls, context):
         em_tools = context.scene.em_tools
         # Show only if we're in advanced EM mode
         return em_tools.mode_em_advanced
-    
+
     def draw_header(self, context):
         layout = self.layout
         icon_id = icons_manager.get_icon_value("show_all_special_finds")
@@ -806,13 +1438,13 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
             layout.label(text="", icon_value=icon_id)
         else:
             layout.label(text="", icon='MESH_ICOSPHERE')
-    
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
 
         from .functions import is_graph_available
-        
+
         # Check if a graph is available
         graph_available, graph = is_graph_available(context)
 
@@ -825,13 +1457,25 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
         if graph_available:
             row.operator("anastylosis.update_list", text="Update from Graph", icon='NODE_MATERIAL').from_graph = True
         '''
-        
-        # Main action buttons
-        box = layout.box()
-        box.label(text="Operations on selected objects:")
-        row = box.row(align=True)
-        row.operator("anastylosis.add_selected", icon='ADD')
-        
+
+        # Operations on selected objects (only shown when objects are selected)
+        selected_objects = context.selected_objects
+        if selected_objects:
+            sel_count = len(selected_objects)
+            box = layout.box()
+            row = box.row(align=True)
+            row.label(text=f"Sel: {sel_count} obj{'s' if sel_count != 1 else ''}", icon='OBJECT_DATA')
+            row.operator("anastylosis.select_from_object", text="", icon='VIEWZOOM')
+            row.operator("anastylosis.add_selected", text="", icon='ADD')
+            sub = row.row(align=True)
+            sub.alert = True
+            sub.operator("anastylosis.remove_selected", text="", icon='TRASH')
+            # Batch LOD dropdown (only if at least one selected object has LOD variants)
+            has_lod_objects = any(len(detect_lod_variants(obj.name)) >= 1 for obj in selected_objects)
+            if has_lod_objects:
+                sub = row.row(align=True)
+                sub.menu("ANASTYLOSIS_MT_batch_lod_selected", text="", icon='MOD_DECIM')
+
         # List of anastylosis models
         row = layout.row()
         anastylosis = scene.em_tools.anastylosis
@@ -840,39 +1484,57 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
             anastylosis, "list",
             anastylosis, "list_index"
         )
-        
+
         # Show connection info if an item is selected
         if anastylosis.list_index >= 0 and len(anastylosis.list) > 0:
             item = anastylosis.list[anastylosis.list_index]
-            
+
             if item.sf_node_id:
                 box = layout.box()
                 row = box.row()
                 sf_icon = 'OUTLINER_OB_EMPTY' if item.is_virtual else 'MESH_ICOSPHERE'
                 row.label(text=f"Connected to: {item.sf_node_name}", icon=sf_icon)
-                
-                # Add button to unlink
-                #row = box.row()
-                #op = row.operator("anastylosis.remove_from_list", text="Unlink from SpecialFind", icon='TRASH')
-                #op.anastylosis_index = scene.anastylosis_list_index
             else:
                 box = layout.box()
                 row = box.row()
                 row.label(text="Not connected to any SpecialFind", icon='INFO')
-                
-                #row = box.row()
-                #op = row.operator("anastylosis.link_to_sf", text="Link to SpecialFind", icon='LINKED')
-                #op.anastylosis_index = scene.anastylosis_list_index
-                
-        
+
+            # LOD Management (if the selected item has LOD variants)
+            lod_variants = detect_lod_variants(item.name)
+
+            if len(lod_variants) >= 1:
+                box = layout.box()
+                row = box.row()
+                row.label(text=f"LOD for {item.name}:", icon='MOD_DECIM')
+
+                # Buttons to switch LOD
+                row = box.row(align=True)
+                for lod_level, lod_name in lod_variants:
+                    sub = row.row(align=True)
+                    is_active = (lod_name == item.name) or (item.active_lod == lod_level)
+                    if is_active:
+                        sub.alert = True  # highlight the active LOD
+                    op = sub.operator("anastylosis.switch_lod", text=f"LOD {lod_level}")
+                    op.anastylosis_index = anastylosis.list_index
+                    op.target_lod = lod_level
+
+                # Batch LOD switch for all items
+                box.separator()
+                row = box.row(align=True)
+                row.label(text="Batch LOD switch:", icon='PRESET')
+                op = row.operator("anastylosis.batch_switch_lod", text="", icon='TRIA_LEFT')
+                op.direction = -1
+                op = row.operator("anastylosis.batch_switch_lod", text="", icon='TRIA_RIGHT')
+                op.direction = 1
+
         # Settings (collapsible)
         box = layout.box()
         row = box.row()
-        row.prop(anastylosis.settings, "show_settings", 
+        row.prop(anastylosis.settings, "show_settings",
                 icon="TRIA_DOWN" if anastylosis.settings.show_settings else "TRIA_RIGHT",
-                text="Settings", 
+                text="Settings",
                 emboss=False)
-                
+
         if anastylosis.settings.show_settings:
             row = box.row()
             row.prop(anastylosis.settings, "zoom_to_selected")
@@ -882,25 +1544,25 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
 @bpy.app.handlers.persistent
 def update_anastylosis_list_on_graph_load(dummy):
     """Update anastylosis list when a graph is loaded"""
-    
+
     # Ensure we're in a context where we can access scene
     if not bpy.context or not hasattr(bpy.context, 'scene'):
         return
-        
+
     scene = bpy.context.scene
-    
+
     # Check if graph is available
-    if (hasattr(scene, 'em_tools') and 
-        hasattr(scene.em_tools, 'graphml_files') and 
-        len(scene.em_tools.graphml_files) > 0 and 
+    if (hasattr(scene, 'em_tools') and
+        hasattr(scene.em_tools, 'graphml_files') and
+        len(scene.em_tools.graphml_files) > 0 and
         scene.em_tools.active_file_index >= 0):
-        
+
         try:
-            # ✅ BLENDER 4.5 COMPATIBLE: Timer callback must return None or float
+            # BLENDER 4.5 COMPATIBLE: Timer callback must return None or float
             def timer_callback():
                 bpy.ops.anastylosis.update_list(from_graph=True)
                 return None  # Required for Blender 4.5+
-            
+
             bpy.app.timers.register(timer_callback, first_interval=0.5)
         except Exception as e:
             print(f"Error updating anastylosis list on graph load: {e}")
@@ -908,19 +1570,28 @@ def update_anastylosis_list_on_graph_load(dummy):
 # Registration classes
 classes = [
     ANASTYLOSIS_UL_List,
+    ANASTYLOSIS_MT_lod_selector,
+    ANASTYLOSIS_MT_batch_lod_selected,
     ANASTYLOSIS_OT_update_list,
     ANASTYLOSIS_OT_link_to_sf,
     ANASTYLOSIS_OT_select_from_list,
     ANASTYLOSIS_OT_remove_from_list,
     ANASTYLOSIS_OT_add_selected,
     ANASTYLOSIS_OT_confirm_link,
+    ANASTYLOSIS_OT_remove_selected,
+    ANASTYLOSIS_OT_select_from_object,
+    ANASTYLOSIS_OT_search_sf_node,
+    ANASTYLOSIS_OT_assign_sf_node,
+    ANASTYLOSIS_OT_switch_lod,
+    ANASTYLOSIS_OT_batch_switch_lod,
+    ANASTYLOSIS_OT_batch_lod_selected,
     VIEW3D_PT_Anastylosis_Manager,
 ]
 
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
-    
+
     # Register handler
     if update_anastylosis_list_on_graph_load not in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.append(update_anastylosis_list_on_graph_load)
@@ -929,6 +1600,6 @@ def unregister():
     # Remove handler
     if update_anastylosis_list_on_graph_load in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.remove(update_anastylosis_list_on_graph_load)
-    
+
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)

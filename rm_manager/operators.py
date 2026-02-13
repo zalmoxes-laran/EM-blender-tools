@@ -42,6 +42,97 @@ __all__ = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Helper functions for visibility analysis and changes
+# ---------------------------------------------------------------------------
+
+def analyze_visibility_requirements(context, objects):
+    """
+    Analyze which objects need visibility or collection changes to become selectable.
+
+    Args:
+        context: Blender context
+        objects: List of Blender objects to analyze
+
+    Returns:
+        dict with analysis results
+    """
+    from ..stratigraphy_manager.operators import find_layer_collection
+
+    needs_unhide = []
+    needs_unprotect = []
+    needs_collection_activation = set()
+    not_in_view_layer = []
+    already_visible = []
+
+    for obj in objects:
+        obj_needs_changes = False
+
+        # Check if object is in any collection that is excluded from the view layer
+        obj_in_view_layer = False
+        for collection in obj.users_collection:
+            layer_col = find_layer_collection(
+                context.view_layer.layer_collection, collection.name
+            )
+            if layer_col:
+                if layer_col.exclude:
+                    needs_collection_activation.add(collection.name)
+                    obj_needs_changes = True
+                else:
+                    obj_in_view_layer = True
+                if collection.hide_viewport:
+                    needs_collection_activation.add(collection.name)
+                    obj_needs_changes = True
+
+        if not obj_in_view_layer and obj.users_collection:
+            not_in_view_layer.append(obj.name)
+            obj_needs_changes = True
+
+        # Check viewport visibility
+        if obj.hide_viewport or obj.hide_get():
+            needs_unhide.append(obj.name)
+            obj_needs_changes = True
+
+        # Check selectability
+        if obj.hide_select:
+            needs_unprotect.append(obj.name)
+            obj_needs_changes = True
+
+        if not obj_needs_changes:
+            already_visible.append(obj.name)
+
+    return {
+        'needs_unhide': needs_unhide,
+        'needs_unprotect': needs_unprotect,
+        'needs_collection_activation': list(needs_collection_activation),
+        'not_in_view_layer': not_in_view_layer,
+        'already_visible': already_visible,
+        'total_changes': len(needs_unhide) + len(needs_unprotect) + len(needs_collection_activation),
+    }
+
+
+def apply_visibility_changes(context, objects):
+    """
+    Apply visibility/collection changes to make objects selectable.
+    Same logic as RM_OT_select_from_list uses.
+
+    Args:
+        context: Blender context
+        objects: List of Blender objects to make visible and selectable
+    """
+    from ..stratigraphy_manager.operators import activate_collection_fully
+
+    for obj in objects:
+        if obj.hide_viewport:
+            obj.hide_viewport = False
+        if obj.hide_get():
+            obj.hide_set(False)
+        if obj.hide_select:
+            obj.hide_select = False
+        for collection in obj.users_collection:
+            activate_collection_fully(context, collection)
+
+
 class RM_OT_detect_orphaned_epochs(Operator):
     bl_idname = "rm.detect_orphaned_epochs"
     bl_label = "Detect Orphaned Epochs"
@@ -332,47 +423,130 @@ class RM_OT_select_all_from_active_epoch(Operator):
     bl_idname = "rm.select_all_from_active_epoch"
     bl_label = "Select All from Active Epoch"
     bl_description = "Select all RM objects in the 3D view that belong to the currently active epoch"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    # Properties for the confirmation dialog (populated in invoke, displayed in draw)
+    num_hidden: IntProperty(default=0)  # type: ignore
+    num_protected: IntProperty(default=0)  # type: ignore
+    num_collections: IntProperty(default=0)  # type: ignore
+    num_already_visible: IntProperty(default=0)  # type: ignore
+    total_objects: IntProperty(default=0)  # type: ignore
+
+    apply_changes: BoolProperty(
+        name="Make hidden objects visible and selectable",
+        description="If enabled, hidden objects and excluded collections will be made visible. If disabled, only already-visible objects will be selected.",
+        default=True,
+    )  # type: ignore
+
+    def _get_epoch_objects(self, context):
+        """Collect all objects belonging to the active epoch."""
+        scene = context.scene
+        epochs = scene.em_tools.epochs
+        active_epoch = epochs.list[epochs.list_index]
+
+        epoch_objects = []
+        for obj in bpy.data.objects:
+            if hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0:
+                for ep in obj.EM_ep_belong_ob:
+                    if ep.epoch == active_epoch.name:
+                        epoch_objects.append(obj)
+                        break
+        return epoch_objects
+
+    def invoke(self, context, event):
+        scene = context.scene
+        epochs = scene.em_tools.epochs
+
+        # Validate active epoch
+        if epochs.list_index < 0 or epochs.list_index >= len(epochs.list):
+            self.report({'ERROR'}, "No active epoch selected")
+            return {'CANCELLED'}
+
+        # Collect objects and analyze visibility
+        epoch_objects = self._get_epoch_objects(context)
+
+        if not epoch_objects:
+            active_epoch = epochs.list[epochs.list_index]
+            self.report({'WARNING'}, f"No objects found for epoch '{active_epoch.name}'")
+            return {'CANCELLED'}
+
+        analysis = analyze_visibility_requirements(context, epoch_objects)
+
+        self.total_objects = len(epoch_objects)
+        self.num_hidden = len(analysis['needs_unhide'])
+        self.num_protected = len(analysis['needs_unprotect'])
+        self.num_collections = len(analysis['needs_collection_activation'])
+        self.num_already_visible = len(analysis['already_visible'])
+
+        # If no changes needed, skip confirmation and execute directly
+        if analysis['total_changes'] == 0:
+            return self.execute(context)
+
+        # Show confirmation dialog
+        return context.window_manager.invoke_props_dialog(self, width=400)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text=f"Found {self.total_objects} objects in this epoch:", icon='INFO')
+        layout.separator()
+
+        if self.num_already_visible > 0:
+            layout.label(text=f"  Already visible: {self.num_already_visible}")
+        if self.num_hidden > 0:
+            layout.label(text=f"  Hidden objects: {self.num_hidden}", icon='HIDE_ON')
+        if self.num_protected > 0:
+            layout.label(text=f"  Selection-locked objects: {self.num_protected}", icon='LOCKED')
+        if self.num_collections > 0:
+            layout.label(text=f"  Excluded collections: {self.num_collections}", icon='OUTLINER_COLLECTION')
+
+        layout.separator()
+        layout.prop(self, "apply_changes")
 
     def execute(self, context):
         scene = context.scene
         epochs = scene.em_tools.epochs
 
-        # Check if there's an active epoch
         if epochs.list_index < 0 or epochs.list_index >= len(epochs.list):
             self.report({'ERROR'}, "No active epoch selected")
             return {'CANCELLED'}
 
         active_epoch = epochs.list[epochs.list_index]
+        epoch_objects = self._get_epoch_objects(context)
 
-        # Deselect all objects first
         bpy.ops.object.select_all(action='DESELECT')
 
-        # Count selected objects
         selected_count = 0
 
-        # Iterate through all objects in the scene
-        for obj in bpy.data.objects:
-            # Check if object has epoch properties
-            if hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0:
-                # Check if the active epoch is in this object's epochs
-                for ep in obj.EM_ep_belong_ob:
-                    if ep.epoch == active_epoch.name:
-                        # Select this object
+        if self.apply_changes:
+            # Apply visibility changes, then select all
+            apply_visibility_changes(context, epoch_objects)
+            for obj in epoch_objects:
+                try:
+                    obj.select_set(True)
+                    selected_count += 1
+                except RuntimeError:
+                    pass
+        else:
+            # Only select already-visible objects
+            analysis = analyze_visibility_requirements(context, epoch_objects)
+            for obj in epoch_objects:
+                if obj.name in analysis['already_visible']:
+                    try:
                         obj.select_set(True)
                         selected_count += 1
-                        break
+                    except RuntimeError:
+                        pass
 
-        # Set the first selected object as active if any were selected
+        # Set active object
         if selected_count > 0:
             for obj in context.selected_objects:
                 context.view_layer.objects.active = obj
                 break
-
             self.report({'INFO'}, f"Selected {selected_count} object(s) from epoch '{active_epoch.name}'")
-            return {'FINISHED'}
         else:
-            self.report({'WARNING'}, f"No objects found for epoch '{active_epoch.name}'")
-            return {'FINISHED'}
+            self.report({'WARNING'}, f"No selectable objects found for epoch '{active_epoch.name}'")
+
+        return {'FINISHED'}
 
 class RM_OT_select_from_object(Operator):
     bl_idname = "rm.select_from_object"
@@ -1596,7 +1770,7 @@ class RM_OT_remove_from_epoch(Operator):
 class RM_OT_demote_from_rm(Operator):
     bl_idname = "rm.demote_from_rm"
     bl_label = "Remove from ALL Epochs"
-    bl_description = "DANGER: Remove selected objects completely from ALL epochs and the graph."
+    bl_description = "Remove selected objects completely from ALL epochs."
     
     def execute(self, context):
         scene = context.scene
@@ -1667,13 +1841,65 @@ class RM_OT_select_from_list(Operator):
     bl_idname = "rm.select_from_list"
     bl_label = "Select RM Object"
     bl_description = "Select the RM object in the 3D view"
-    
+
     rm_index: IntProperty(
         name="RM Index",
         description="Index of the RM item in the list",
         default=-1
     ) # type: ignore
-    
+
+    # Property to store description of changes needed (for the confirmation dialog)
+    changes_description: StringProperty(default="") # type: ignore
+
+    def invoke(self, context, event):
+        scene = context.scene
+        index = self.rm_index if self.rm_index >= 0 else scene.rm_list_index
+
+        if index < 0 or index >= len(scene.rm_list):
+            self.report({'ERROR'}, "No item selected in the list")
+            return {'CANCELLED'}
+
+        # Also set the list index so the correct row becomes active
+        scene.rm_list_index = index
+
+        item = scene.rm_list[index]
+        obj = get_object_cache().get_object(item.name)
+
+        if not obj:
+            self.report({'ERROR'}, f"Object not found in scene: {item.name}")
+            return {'CANCELLED'}
+
+        # Analyze what changes are needed
+        analysis = analyze_visibility_requirements(context, [obj])
+
+        if analysis['total_changes'] == 0:
+            # No changes needed, execute directly
+            return self.execute(context)
+
+        # Build description string for the dialog
+        parts = []
+        if analysis['needs_unhide']:
+            parts.append("unhide object")
+        if analysis['needs_unprotect']:
+            parts.append("unlock selection")
+        if analysis['needs_collection_activation']:
+            col_count = len(analysis['needs_collection_activation'])
+            parts.append(f"activate {col_count} collection{'s' if col_count > 1 else ''}")
+        self.changes_description = ", ".join(parts)
+
+        return context.window_manager.invoke_props_dialog(self, width=350)
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        index = self.rm_index if self.rm_index >= 0 else scene.rm_list_index
+        item = scene.rm_list[index]
+
+        layout.label(text=f"To select '{item.name}':", icon='INFO')
+        layout.label(text=f"  {self.changes_description}")
+        layout.separator()
+        layout.label(text="Press OK to proceed, or cancel to abort.")
+
     def execute(self, context):
         try:
             scene = context.scene

@@ -140,6 +140,12 @@ class RMSettings(PropertyGroup):
         default=False,
     )  # type: ignore
 
+    show_tileset_properties: BoolProperty(
+        name="Show Tileset Properties",
+        description="Show or hide the tileset properties section",
+        default=False,
+    )  # type: ignore
+
     has_orphaned_epochs: BoolProperty(
         name="Has Orphaned Epochs",
         description="Whether orphaned epochs have been detected",
