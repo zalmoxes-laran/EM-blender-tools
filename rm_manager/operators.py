@@ -1,5 +1,6 @@
 import os as os
 import re
+import subprocess
 import bpy  # type: ignore
 from bpy.props import (  # type: ignore
     BoolProperty,
@@ -38,6 +39,8 @@ __all__ = [
     'RM_OT_select_from_list',
     'RM_OT_toggle_publishable',
     'RM_OT_add_epoch',
+    'RM_OT_cleanup_missing_objects',
+    'RM_OT_open_linked_file',
     'RM_OT_switch_lod',
     'RM_OT_batch_switch_lod',
     'RM_OT_batch_lod_selected',
@@ -53,6 +56,7 @@ __all__ = [
 LOD_MIN_LEVEL = 0
 LOD_MAX_LEVEL = 4
 LOD_SUFFIX_RE = re.compile(r"^(.+)_LOD(\d+)$")
+LOD_FALLBACK_WARNING = "Some Levels of Detail were not found. Fallback applied to the nearest available LOD."
 
 
 def _split_lod_name(name):
@@ -226,6 +230,40 @@ def apply_visibility_changes(context, objects):
             activate_collection_fully(context, collection)
 
 
+def _remove_rm_node_and_edges(graph, model_node_id):
+    """Remove RM node and all connected edges from graph if present."""
+    if not graph or not model_node_id:
+        return
+
+    model_node = graph.find_node_by_id(model_node_id)
+    if not model_node:
+        return
+
+    edges_to_remove = []
+    for edge in graph.edges:
+        if edge.edge_source == model_node_id or edge.edge_target == model_node_id:
+            edges_to_remove.append(edge.edge_id)
+
+    for edge_id in edges_to_remove:
+        graph.remove_edge(edge_id)
+
+    graph.remove_node(model_node_id)
+
+
+def _cleanup_missing_rm_rows(scene):
+    """Remove RM list rows whose objects no longer exist in scene."""
+    removed = 0
+    for idx in range(len(scene.rm_list) - 1, -1, -1):
+        item = scene.rm_list[idx]
+        if get_object_cache().get_object(item.name) is None:
+            scene.rm_list.remove(idx)
+            removed += 1
+
+    if scene.rm_list_index >= len(scene.rm_list):
+        scene.rm_list_index = max(0, len(scene.rm_list) - 1)
+    return removed
+
+
 class RM_OT_detect_orphaned_epochs(Operator):
     bl_idname = "rm.detect_orphaned_epochs"
     bl_label = "Detect Orphaned Epochs"
@@ -234,6 +272,7 @@ class RM_OT_detect_orphaned_epochs(Operator):
     def execute(self, context):
         scene = context.scene
         rm_settings = scene.rm_settings
+        cleaned_missing_rows = _cleanup_missing_rm_rows(scene)
 
         # Get all valid epochs from the scene
         valid_epochs = set()
@@ -256,7 +295,10 @@ class RM_OT_detect_orphaned_epochs(Operator):
             # Clear any existing orphaned epochs data
             rm_settings.orphaned_epochs.clear()
             rm_settings.has_orphaned_epochs = False
-            self.report({'INFO'}, "No orphaned epochs found. All epochs are valid!")
+            if cleaned_missing_rows > 0:
+                self.report({'INFO'}, f"No orphaned epochs found. All epochs are valid! Cleaned {cleaned_missing_rows} missing object rows.")
+            else:
+                self.report({'INFO'}, "No orphaned epochs found. All epochs are valid!")
             return {'FINISHED'}
 
         # Populate the orphaned epochs data structure
@@ -271,7 +313,10 @@ class RM_OT_detect_orphaned_epochs(Operator):
 
         rm_settings.has_orphaned_epochs = True
 
-        self.report({'WARNING'}, f"Found {len(orphaned_epochs)} orphaned epoch(s). Review the mapping panel below.")
+        if cleaned_missing_rows > 0:
+            self.report({'WARNING'}, f"Found {len(orphaned_epochs)} orphaned epoch(s). Also cleaned {cleaned_missing_rows} missing object rows.")
+        else:
+            self.report({'WARNING'}, f"Found {len(orphaned_epochs)} orphaned epoch(s). Review the mapping panel below.")
 
         return {'FINISHED'}
 
@@ -880,51 +925,37 @@ class RM_OT_demote_from_rm_list(Operator):
         # Get the RM item and the corresponding object
         rm_item = scene.rm_list[self.rm_index]
         obj = get_object_cache().get_object(rm_item.name)
-        
-        if not obj:
-            self.report({'ERROR'}, f"Object {rm_item.name} not found in scene")
-            return {'CANCELLED'}
-            
-        # First select the object to make it visible in the viewport
-        bpy.ops.object.select_all(action='DESELECT')
-        obj.select_set(True)
-        context.view_layer.objects.active = obj
-        
-        # Make sure we can see the object (unhide if hidden)
-        was_hidden = obj.hide_viewport
-        if was_hidden:
-            obj.hide_viewport = False
-            
+
         # Get the graph
         graph = None
         if context.scene.em_tools.active_file_index >= 0:
             graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
             from s3dgraphy import get_graph
             graph = get_graph(graphml.name)
-            
-        # Remove all epochs from the object
-        while len(obj.EM_ep_belong_ob) > 0:
-            obj.EM_ep_belong_ob.remove(0)
-            
-        # Remove from graph if available
+
+        if obj:
+            # First select the object to make it visible in the viewport
+            bpy.ops.object.select_all(action='DESELECT')
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+
+            # Make sure we can see the object (unhide if hidden)
+            was_hidden = obj.hide_viewport
+            if was_hidden:
+                obj.hide_viewport = False
+
+            # Remove all epochs from the object
+            while len(obj.EM_ep_belong_ob) > 0:
+                obj.EM_ep_belong_ob.remove(0)
+
+            # Restore visibility state
+            obj.hide_viewport = was_hidden
+
+        # Remove from graph if available (also works if object is missing)
         if graph:
-            model_node_id = f"{obj.name}_model"
-            model_node = graph.find_node_by_id(model_node_id)
-            
-            if model_node:
-                # Find and remove all edges associated with the node
-                edges_to_remove = []
-                for edge in graph.edges:
-                    if edge.edge_source == model_node_id or edge.edge_target == model_node_id:
-                        edges_to_remove.append(edge.edge_id)
-                
-                # Remove the edges
-                for edge_id in edges_to_remove:
-                    graph.remove_edge(edge_id)
-                
-                # Remove the node
-                graph.remove_node(model_node_id)
-                
+            model_node_id = rm_item.node_id if getattr(rm_item, "node_id", "") else f"{rm_item.name}_model"
+            _remove_rm_node_and_edges(graph, model_node_id)
+
         # Remove from the list
         scene.rm_list.remove(self.rm_index)
         
@@ -932,10 +963,22 @@ class RM_OT_demote_from_rm_list(Operator):
         if scene.rm_list_index >= len(scene.rm_list):
             scene.rm_list_index = max(0, len(scene.rm_list) - 1)
         
-        # Restore visibility state
-        obj.hide_viewport = was_hidden
-        
-        self.report({'INFO'}, f"Removed {obj.name} from RM models")
+        if obj:
+            self.report({'INFO'}, f"Removed {obj.name} from RM models")
+        else:
+            self.report({'INFO'}, f"Removed stale RM row '{rm_item.name}'")
+        return {'FINISHED'}
+
+
+class RM_OT_cleanup_missing_objects(Operator):
+    bl_idname = "rm.cleanup_missing_objects"
+    bl_label = "Clean Missing RM Rows"
+    bl_description = "Remove RM list rows whose objects no longer exist in scene"
+
+    def execute(self, context):
+        scene = context.scene
+        removed = _cleanup_missing_rm_rows(scene)
+        self.report({'INFO'}, f"Cleaned {removed} missing object row(s) from RM list")
         return {'FINISHED'}
 
 class RM_OT_update_list(Operator):
@@ -1238,6 +1281,8 @@ class RM_OT_switch_lod(Operator):
             if not ok:
                 self.report({'ERROR'}, err or "LOD switch failed")
                 return {'CANCELLED'}
+            if resolved_lod != requested_lod:
+                self.report({'WARNING'}, LOD_FALLBACK_WARNING)
 
             item.name = obj.name
             item.active_lod = resolved_lod
@@ -1258,6 +1303,8 @@ class RM_OT_switch_lod(Operator):
         if resolved_lod is None or resolved_lod not in by_level:
             self.report({'ERROR'}, f"No usable LOD in range {LOD_MIN_LEVEL}-{LOD_MAX_LEVEL}")
             return {'CANCELLED'}
+        if resolved_lod != requested_lod:
+            self.report({'WARNING'}, LOD_FALLBACK_WARNING)
 
         target_name = by_level[resolved_lod]
         if target_name == item.name:
@@ -1297,6 +1344,7 @@ class RM_OT_batch_switch_lod(Operator):
     def execute(self, context):
         scene = context.scene
         switched = 0
+        fallback_applied = False
 
         for item in scene.rm_list:
             obj = get_object_cache().get_object(item.name)
@@ -1308,6 +1356,8 @@ class RM_OT_batch_switch_lod(Operator):
             if obj.data and obj.data.library:
                 ok, resolved_lod, _target_mesh_name, _err = _switch_linked_mesh_lod(obj, target_lod)
                 if ok:
+                    if resolved_lod != target_lod:
+                        fallback_applied = True
                     item.name = obj.name
                     item.active_lod = resolved_lod
                     item.object_exists = True
@@ -1325,6 +1375,8 @@ class RM_OT_batch_switch_lod(Operator):
             resolved_lod = _resolve_lod_with_fallback(by_level.keys(), target_lod)
             if resolved_lod is None or resolved_lod not in by_level:
                 continue
+            if resolved_lod != target_lod:
+                fallback_applied = True
 
             target_name = by_level[resolved_lod]
             if target_name == item.name:
@@ -1347,6 +1399,8 @@ class RM_OT_batch_switch_lod(Operator):
             switched += 1
 
         direction_text = "higher" if self.direction > 0 else "lower"
+        if fallback_applied:
+            self.report({'WARNING'}, LOD_FALLBACK_WARNING)
         self.report({'INFO'}, f"Switched {switched} items to {direction_text} LOD")
         return {'FINISHED'}
 
@@ -1365,6 +1419,7 @@ class RM_OT_batch_lod_selected(Operator):
         scene = context.scene
         switched = 0
         skipped = 0
+        fallback_applied = False
         requested_lod = max(LOD_MIN_LEVEL, min(LOD_MAX_LEVEL, int(self.target_lod)))
 
         for obj in context.selected_objects:
@@ -1377,6 +1432,8 @@ class RM_OT_batch_lod_selected(Operator):
                 if not ok:
                     skipped += 1
                     continue
+                if resolved_lod != requested_lod:
+                    fallback_applied = True
                 item.name = obj.name
                 item.active_lod = resolved_lod
                 item.object_exists = True
@@ -1396,6 +1453,8 @@ class RM_OT_batch_lod_selected(Operator):
             if resolved_lod is None or resolved_lod not in by_level:
                 skipped += 1
                 continue
+            if resolved_lod != requested_lod:
+                fallback_applied = True
 
             target_name = by_level[resolved_lod]
             if target_name == item.name:
@@ -1417,10 +1476,61 @@ class RM_OT_batch_lod_selected(Operator):
             item.lod_count = len(variants)
             switched += 1
 
+        if fallback_applied:
+            self.report({'WARNING'}, LOD_FALLBACK_WARNING)
         msg = f"Switched {switched} objects to LOD {requested_lod}"
         if skipped > 0:
             msg += f" ({skipped} skipped - LOD not available)"
         self.report({'INFO'}, msg)
+        return {'FINISHED'}
+
+
+class RM_OT_open_linked_file(Operator):
+    """Open linked .blend file for this RM object in a new Blender instance"""
+    bl_idname = "rm.open_linked_file"
+    bl_label = "Open Linked File"
+    bl_options = {"REGISTER", "UNDO"}
+
+    rm_index: IntProperty(
+        name="RM Index",
+        default=-1
+    )  # type: ignore
+
+    def execute(self, context):
+        scene = context.scene
+        index = self.rm_index if self.rm_index >= 0 else scene.rm_list_index
+        if index < 0 or index >= len(scene.rm_list):
+            self.report({'ERROR'}, "No RM item selected")
+            return {'CANCELLED'}
+
+        item = scene.rm_list[index]
+        obj = get_object_cache().get_object(item.name)
+        if not obj:
+            self.report({'ERROR'}, f"Object '{item.name}' not found in scene")
+            return {'CANCELLED'}
+
+        linked_file = None
+        if obj.library:
+            linked_file = obj.library.filepath
+        elif obj.data and obj.data.library:
+            linked_file = obj.data.library.filepath
+
+        if not linked_file:
+            self.report({'ERROR'}, f"Object '{obj.name}' is not linked from an external .blend")
+            return {'CANCELLED'}
+
+        linked_file = bpy.path.abspath(linked_file)
+        if not os.path.exists(linked_file):
+            self.report({'ERROR'}, f"Linked file not found: {linked_file}")
+            return {'CANCELLED'}
+
+        try:
+            subprocess.Popen([bpy.app.binary_path, linked_file])
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to open linked file: {str(e)}")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"Opened linked file: {linked_file}")
         return {'FINISHED'}
 
 class RM_OT_resolve_mismatches(Operator):
@@ -2603,6 +2713,8 @@ classes = [
     RM_OT_select_from_list,
     RM_OT_toggle_publishable,
     RM_OT_add_epoch,
+    RM_OT_cleanup_missing_objects,
+    RM_OT_open_linked_file,
     RM_OT_switch_lod,
     RM_OT_batch_switch_lod,
     RM_OT_batch_lod_selected,

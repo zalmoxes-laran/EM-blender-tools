@@ -272,11 +272,13 @@ class VIEW3D_PT_RM_Manager(Panel):
             row.label(text="Active Epoch:", icon='TIME')
             row.menu("RM_MT_epoch_selector", text=active_epoch.name)
             row.operator("rm.select_all_from_active_epoch", text="", icon='SELECT_EXTEND')
-            row.operator("rm.detect_orphaned_epochs", text="", icon='FUND')
+            row.operator("rm.detect_orphaned_epochs", text="", icon='ORPHAN_DATA')
+            row.operator("rm.cleanup_missing_objects", text="", icon='TRASH')
         else:
             row = box.row(align=True)
             row.label(text="No active epoch selected", icon='INFO')
-            row.operator("rm.detect_orphaned_epochs", text="", icon='FUND')
+            row.operator("rm.detect_orphaned_epochs", text="", icon='ORPHAN_DATA')
+            row.operator("rm.cleanup_missing_objects", text="", icon='TRASH')
 
         # Main action buttons
         if has_active_epoch:
@@ -317,15 +319,18 @@ class VIEW3D_PT_RM_Manager(Panel):
             lod_variants = detect_lod_variants(item.name)
             if len(lod_variants) >= 1:
                 box = layout.box()
-                row = box.row()
-                row.label(text=f"LOD for {item.name}:", icon='MOD_DECIM')
-
                 row = box.row(align=True)
+                op = row.operator("rm.open_linked_file", text="", icon='FILE_FOLDER')
+                op.rm_index = scene.rm_list_index
+                row.label(text="LOD:")
                 for lod_level in range(LOD_MIN_LEVEL, LOD_MAX_LEVEL + 1):
                     sub = row.row(align=True)
-                    if item.active_lod == lod_level:
-                        sub.alert = True
-                    op = sub.operator("rm.switch_lod", text=f"LOD {lod_level}")
+                    sub.scale_x = 0.7
+                    op = sub.operator(
+                        "rm.switch_lod",
+                        text=str(lod_level),
+                        depress=(item.active_lod == lod_level)
+                    )
                     op.rm_index = scene.rm_list_index
                     op.target_lod = lod_level
 

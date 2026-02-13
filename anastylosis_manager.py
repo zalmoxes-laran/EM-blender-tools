@@ -1,4 +1,6 @@
 import re
+import os
+import subprocess
 import bpy
 from bpy.props import (
     StringProperty,
@@ -28,6 +30,7 @@ from . import icons_manager
 LOD_MIN_LEVEL = 0
 LOD_MAX_LEVEL = 4
 LOD_SUFFIX_RE = re.compile(r"^(.+)_LOD(\d+)$")
+LOD_FALLBACK_WARNING = "Some Levels of Detail were not found. Fallback applied to the nearest available LOD."
 
 
 def _split_lod_name(name):
@@ -978,6 +981,35 @@ class ANASTYLOSIS_OT_remove_selected(Operator):
         self.report({'INFO'}, f"Removed {removed_count} objects from anastylosis list")
         return {'FINISHED'}
 
+
+class ANASTYLOSIS_OT_cleanup_missing_objects(Operator):
+    bl_idname = "anastylosis.cleanup_missing_objects"
+    bl_label = "Clean Missing Anastylosis Rows"
+    bl_description = "Remove anastylosis rows whose objects no longer exist in scene"
+
+    def execute(self, context):
+        scene = context.scene
+        anastylosis = scene.em_tools.anastylosis
+
+        graph = None
+        if context.scene.em_tools.active_file_index >= 0:
+            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+            graph = get_graph(graphml.name)
+
+        removed = 0
+        for idx in range(len(anastylosis.list) - 1, -1, -1):
+            item = anastylosis.list[idx]
+            if bpy.data.objects.get(item.name) is None:
+                _remove_item_from_graph(graph, item)
+                anastylosis.list.remove(idx)
+                removed += 1
+
+        if anastylosis.list_index >= len(anastylosis.list):
+            anastylosis.list_index = max(0, len(anastylosis.list) - 1)
+
+        self.report({'INFO'}, f"Cleaned {removed} missing object row(s) from anastylosis list")
+        return {'FINISHED'}
+
 # Operator to select in list from active 3D object
 class ANASTYLOSIS_OT_select_from_object(Operator):
     bl_idname = "anastylosis.select_from_object"
@@ -1298,6 +1330,8 @@ class ANASTYLOSIS_OT_switch_lod(Operator):
             if not ok:
                 self.report({'ERROR'}, err or "LOD switch failed")
                 return {'CANCELLED'}
+            if resolved_lod != requested_lod:
+                self.report({'WARNING'}, LOD_FALLBACK_WARNING)
 
             item.name = obj.name
             item.active_lod = resolved_lod
@@ -1318,6 +1352,8 @@ class ANASTYLOSIS_OT_switch_lod(Operator):
             return {'CANCELLED'}
 
         target_name = by_level[resolved_lod]
+        if resolved_lod != requested_lod:
+            self.report({'WARNING'}, LOD_FALLBACK_WARNING)
         if target_name == item.name:
             item.active_lod = resolved_lod
             self.report({'INFO'}, f"Already at LOD {resolved_lod}")
@@ -1354,6 +1390,7 @@ class ANASTYLOSIS_OT_batch_switch_lod(Operator):
     def execute(self, context):
         anastylosis = context.scene.em_tools.anastylosis
         switched = 0
+        fallback_applied = False
 
         for item in anastylosis.list:
             obj = bpy.data.objects.get(item.name)
@@ -1365,6 +1402,8 @@ class ANASTYLOSIS_OT_batch_switch_lod(Operator):
             if obj.data and obj.data.library:
                 ok, resolved_lod, _target_mesh_name, _err = _switch_linked_mesh_lod(obj, target_lod)
                 if ok:
+                    if resolved_lod != target_lod:
+                        fallback_applied = True
                     item.name = obj.name
                     item.active_lod = resolved_lod
                     item.object_exists = True
@@ -1379,6 +1418,8 @@ class ANASTYLOSIS_OT_batch_switch_lod(Operator):
             resolved_lod = _resolve_lod_with_fallback(by_level.keys(), target_lod)
             if resolved_lod is None or resolved_lod not in by_level:
                 continue
+            if resolved_lod != target_lod:
+                fallback_applied = True
 
             target_name = by_level[resolved_lod]
             if target_name == item.name:
@@ -1399,6 +1440,8 @@ class ANASTYLOSIS_OT_batch_switch_lod(Operator):
             switched += 1
 
         direction_text = "higher" if self.direction > 0 else "lower"
+        if fallback_applied:
+            self.report({'WARNING'}, LOD_FALLBACK_WARNING)
         self.report({'INFO'}, f"Switched {switched} items to {direction_text} LOD")
         return {'FINISHED'}
 
@@ -1448,6 +1491,7 @@ class ANASTYLOSIS_OT_batch_lod_selected(Operator):
     def execute(self, context):
         switched = 0
         skipped = 0
+        fallback_applied = False
         anastylosis = context.scene.em_tools.anastylosis
         requested_lod = max(LOD_MIN_LEVEL, min(LOD_MAX_LEVEL, int(self.target_lod)))
 
@@ -1467,6 +1511,8 @@ class ANASTYLOSIS_OT_batch_lod_selected(Operator):
                 if not ok:
                     skipped += 1
                     continue
+                if resolved_lod != requested_lod:
+                    fallback_applied = True
                 item.name = obj.name
                 item.active_lod = resolved_lod
                 item.object_exists = True
@@ -1483,6 +1529,8 @@ class ANASTYLOSIS_OT_batch_lod_selected(Operator):
             if resolved_lod is None or resolved_lod not in by_level:
                 skipped += 1
                 continue
+            if resolved_lod != requested_lod:
+                fallback_applied = True
 
             target_name = by_level[resolved_lod]
             if target_name == item.name:
@@ -1502,10 +1550,61 @@ class ANASTYLOSIS_OT_batch_lod_selected(Operator):
             item.object_exists = new_obj is not None
             switched += 1
 
+        if fallback_applied:
+            self.report({'WARNING'}, LOD_FALLBACK_WARNING)
         msg = f"Switched {switched} objects to LOD {requested_lod}"
         if skipped > 0:
             msg += f" ({skipped} skipped - LOD not available)"
         self.report({'INFO'}, msg)
+        return {'FINISHED'}
+
+
+class ANASTYLOSIS_OT_open_linked_file(Operator):
+    """Open linked .blend file for this anastylosis object in a new Blender instance"""
+    bl_idname = "anastylosis.open_linked_file"
+    bl_label = "Open Linked File"
+    bl_options = {"REGISTER", "UNDO"}
+
+    anastylosis_index: IntProperty(
+        name="Anastylosis Index",
+        default=-1
+    )  # type: ignore
+
+    def execute(self, context):
+        anastylosis = context.scene.em_tools.anastylosis
+        index = self.anastylosis_index if self.anastylosis_index >= 0 else anastylosis.list_index
+        if index < 0 or index >= len(anastylosis.list):
+            self.report({'ERROR'}, "No anastylosis item selected")
+            return {'CANCELLED'}
+
+        item = anastylosis.list[index]
+        obj = bpy.data.objects.get(item.name)
+        if not obj:
+            self.report({'ERROR'}, f"Object '{item.name}' not found in scene")
+            return {'CANCELLED'}
+
+        linked_file = None
+        if obj.library:
+            linked_file = obj.library.filepath
+        elif obj.data and obj.data.library:
+            linked_file = obj.data.library.filepath
+
+        if not linked_file:
+            self.report({'ERROR'}, f"Object '{obj.name}' is not linked from an external .blend")
+            return {'CANCELLED'}
+
+        linked_file = bpy.path.abspath(linked_file)
+        if not os.path.exists(linked_file):
+            self.report({'ERROR'}, f"Linked file not found: {linked_file}")
+            return {'CANCELLED'}
+
+        try:
+            subprocess.Popen([bpy.app.binary_path, linked_file])
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to open linked file: {str(e)}")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"Opened linked file: {linked_file}")
         return {'FINISHED'}
 
 
@@ -1589,6 +1688,9 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
                 sub = row.row(align=True)
                 sub.menu("ANASTYLOSIS_MT_batch_lod_selected", text="", icon='MOD_DECIM')
 
+        row = layout.row(align=True)
+        row.operator("anastylosis.cleanup_missing_objects", text="", icon='TRASH')
+
         # List of anastylosis models
         row = layout.row()
         anastylosis = scene.em_tools.anastylosis
@@ -1617,17 +1719,18 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
 
             if len(lod_variants) >= 1:
                 box = layout.box()
-                row = box.row()
-                row.label(text=f"LOD for {item.name}:", icon='MOD_DECIM')
-
-                # Buttons to switch LOD
                 row = box.row(align=True)
+                op = row.operator("anastylosis.open_linked_file", text="", icon='FILE_FOLDER')
+                op.anastylosis_index = anastylosis.list_index
+                row.label(text="LOD:")
                 for lod_level in range(LOD_MIN_LEVEL, LOD_MAX_LEVEL + 1):
                     sub = row.row(align=True)
-                    is_active = (item.active_lod == lod_level)
-                    if is_active:
-                        sub.alert = True  # highlight the active LOD
-                    op = sub.operator("anastylosis.switch_lod", text=f"LOD {lod_level}")
+                    sub.scale_x = 0.7
+                    op = sub.operator(
+                        "anastylosis.switch_lod",
+                        text=str(lod_level),
+                        depress=(item.active_lod == lod_level)
+                    )
                     op.anastylosis_index = anastylosis.list_index
                     op.target_lod = lod_level
 
@@ -1692,9 +1795,11 @@ classes = [
     ANASTYLOSIS_OT_add_selected,
     ANASTYLOSIS_OT_confirm_link,
     ANASTYLOSIS_OT_remove_selected,
+    ANASTYLOSIS_OT_cleanup_missing_objects,
     ANASTYLOSIS_OT_select_from_object,
     ANASTYLOSIS_OT_search_sf_node,
     ANASTYLOSIS_OT_assign_sf_node,
+    ANASTYLOSIS_OT_open_linked_file,
     ANASTYLOSIS_OT_switch_lod,
     ANASTYLOSIS_OT_batch_switch_lod,
     ANASTYLOSIS_OT_batch_lod_selected,
