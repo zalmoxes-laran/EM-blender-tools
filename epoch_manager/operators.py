@@ -168,12 +168,6 @@ class EM_toggle_select(Operator):
 
         return {'FINISHED'}
     
-    def show_message(self, missing_objects_str):
-        def draw(self, context):
-            self.layout.label(text="Some objects cannot be selected because they are in inactive layers:")
-            self.layout.label(text=missing_objects_str)
-        bpy.context.window_manager.popup_menu(draw, title="Warning", icon='INFO')
-
 class EM_toggle_visibility(Operator):
     """Toggle visibility"""
     bl_idname = "epoch_manager.toggle_visibility"
@@ -256,14 +250,6 @@ class EM_toggle_visibility(Operator):
             failed_objects=failed_objects,
         )
         return {'FINISHED'}
-
-    def show_activation_message(self, collection_names):
-        """Show collections activation popup"""
-        def draw(self, context):
-            self.layout.label(text="The following collections have been activated:")
-            self.layout.label(text=collection_names)
-
-        bpy.context.window_manager.popup_menu(draw, title="Collections Activated", icon='INFO')
 
 class EM_toggle_selectable(Operator):
     """Toggle select"""

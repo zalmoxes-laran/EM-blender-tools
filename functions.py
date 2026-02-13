@@ -631,6 +631,9 @@ def select_3D_obj(node_name, context=None, graph=None):
         graph: Istanza del grafo (opzionale)
     """
     
+    if context is None:
+        context = bpy.context
+
     # Converti il nome del nodo nel nome del proxy (aggiunge prefisso se necessario)
     proxy_name = node_name_to_proxy_name(node_name, context=context, graph=graph)
     
@@ -641,8 +644,50 @@ def select_3D_obj(node_name, context=None, graph=None):
     obj = get_object_cache().get_object(proxy_name)
     
     if obj:
-        obj.select_set(True)
-        bpy.context.view_layer.objects.active = obj
+        activated_collections = []
+
+        # Ensure object collections are active in current View Layer
+        try:
+            from .stratigraphy_manager.operators import activate_collection_fully
+            for collection in obj.users_collection:
+                try:
+                    if activate_collection_fully(context, collection):
+                        activated_collections.append(collection.name)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Make object visible/selectable before selection
+        if obj.hide_viewport:
+            obj.hide_viewport = False
+        if obj.hide_get():
+            try:
+                obj.hide_set(False)
+            except RuntimeError:
+                pass
+        if obj.hide_select:
+            obj.hide_select = False
+
+        try:
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+        except RuntimeError as e:
+            show_popup_message(
+                context,
+                "Selection Error",
+                f"Could not select object '{proxy_name}'.\n{e}",
+                'ERROR'
+            )
+            return
+
+        if activated_collections:
+            show_popup_message(
+                context,
+                "Collections Activated",
+                "The following collections have been activated:\n" + "\n".join(sorted(set(activated_collections))),
+                'INFO'
+            )
     else:
         print(f"Warning: Object '{proxy_name}' not found in scene")
 
