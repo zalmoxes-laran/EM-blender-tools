@@ -67,6 +67,23 @@ class RMItem(PropertyGroup):
         description="Whether the object exists in the scene",
         default=False,
     )  # type: ignore
+    active_lod: IntProperty(
+        name="Active LOD",
+        description="Currently active LOD level for this object",
+        default=0,
+        min=0,
+    )  # type: ignore
+    has_lod_variants: BoolProperty(
+        name="Has LOD Variants",
+        description="Whether this object has LOD variants in the scene",
+        default=False,
+    )  # type: ignore
+    lod_count: IntProperty(
+        name="LOD Count",
+        description="Number of LOD variants available",
+        default=0,
+        min=0,
+    )  # type: ignore
     epoch_mismatch: BoolProperty(
         name="Epoch Mismatch",
         description="Indicates if there's a mismatch between the graph and the object epochs",

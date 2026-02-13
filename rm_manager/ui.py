@@ -4,6 +4,11 @@ from bpy.types import Panel, UIList, Menu  # type: ignore
 
 from ..functions import is_graph_available
 from .. import icons_manager
+from .operators import (
+    detect_lod_variants,
+    LOD_MIN_LEVEL,
+    LOD_MAX_LEVEL,
+)
 
 # ✅ OPTIMIZED: Import object cache for O(1) lookups
 from ..object_cache import get_object_cache
@@ -12,6 +17,8 @@ __all__ = [
     'RM_UL_List',
     'RM_UL_EpochList',
     'RM_MT_epoch_selector',
+    'RM_MT_lod_selector',
+    'RM_MT_batch_lod_selected',
     'VIEW3D_PT_RM_Manager',
     'register_ui',
     'unregister_ui',
@@ -52,6 +59,13 @@ class RM_UL_List(UIList):
                         row.label(text=item.first_epoch, icon='TIME')
                 else:
                     row.label(text="[Unknown]", icon='QUESTION')
+
+                # LOD dropdown (if object has any LOD variant pattern in scene)
+                lod_variants = detect_lod_variants(item.name)
+                if len(lod_variants) >= 1:
+                    sub = row.row(align=True)
+                    sub.scale_x = 0.6
+                    sub.menu("RM_MT_lod_selector", text=f"L{item.active_lod}", icon='MOD_DECIM')
 
                 # Add list item to epoch
                 op = row.operator("rm.promote_to_rm", text="", icon='ADD', emboss=False)
@@ -131,6 +145,38 @@ class RM_MT_epoch_selector(Menu):
             # Highlight current active epoch
             if i == epochs.list_index:
                 layout.separator()
+
+
+class RM_MT_lod_selector(Menu):
+    bl_label = "Select LOD Level"
+    bl_idname = "RM_MT_lod_selector"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        if scene.rm_list_index < 0 or scene.rm_list_index >= len(scene.rm_list):
+            return
+        item = scene.rm_list[scene.rm_list_index]
+        for lod_level in range(LOD_MIN_LEVEL, LOD_MAX_LEVEL + 1):
+            is_active = (item.active_lod == lod_level)
+            op = layout.operator(
+                "rm.switch_lod",
+                text=f"LOD {lod_level}" + (" (active)" if is_active else ""),
+                icon='CHECKMARK' if is_active else 'NONE'
+            )
+            op.rm_index = scene.rm_list_index
+            op.target_lod = lod_level
+
+
+class RM_MT_batch_lod_selected(Menu):
+    bl_label = "Batch LOD for Selected"
+    bl_idname = "RM_MT_batch_lod_selected"
+
+    def draw(self, context):
+        layout = self.layout
+        for level in range(LOD_MIN_LEVEL, LOD_MAX_LEVEL + 1):
+            op = layout.operator("rm.batch_lod_selected", text=f"Set LOD {level}")
+            op.target_lod = level
 
 class VIEW3D_PT_RM_Manager(Panel):
     bl_label = "RM Manager"
@@ -247,6 +293,10 @@ class VIEW3D_PT_RM_Manager(Panel):
                 sub = row.row(align=True)
                 sub.alert = True
                 sub.operator("rm.demote_from_rm", text="", icon='TRASH')
+                has_lod_objects = any(len(detect_lod_variants(obj.name)) >= 1 for obj in selected_objects)
+                if has_lod_objects:
+                    sub = row.row(align=True)
+                    sub.menu("RM_MT_batch_lod_selected", text="", icon='MOD_DECIM')
         else:
             box = layout.box()
             box.label(text="Select an epoch to manage RM objects", icon='INFO')
@@ -262,6 +312,30 @@ class VIEW3D_PT_RM_Manager(Panel):
         # List of associated epochs only if an RM is selected
         if scene.rm_list_index >= 0 and len(scene.rm_list) > 0:
             item = scene.rm_list[scene.rm_list_index]
+
+            # LOD Management (if selected item has LOD variants)
+            lod_variants = detect_lod_variants(item.name)
+            if len(lod_variants) >= 1:
+                box = layout.box()
+                row = box.row()
+                row.label(text=f"LOD for {item.name}:", icon='MOD_DECIM')
+
+                row = box.row(align=True)
+                for lod_level in range(LOD_MIN_LEVEL, LOD_MAX_LEVEL + 1):
+                    sub = row.row(align=True)
+                    if item.active_lod == lod_level:
+                        sub.alert = True
+                    op = sub.operator("rm.switch_lod", text=f"LOD {lod_level}")
+                    op.rm_index = scene.rm_list_index
+                    op.target_lod = lod_level
+
+                box.separator()
+                row = box.row(align=True)
+                row.label(text="Batch LOD switch:", icon='PRESET')
+                op = row.operator("rm.batch_switch_lod", text="", icon='TRIA_LEFT')
+                op.direction = -1
+                op = row.operator("rm.batch_switch_lod", text="", icon='TRIA_RIGHT')
+                op.direction = 1
             
             # Show the list of associated epochs
             box = layout.box()
@@ -345,6 +419,8 @@ classes = [
     RM_UL_List,
     RM_UL_EpochList,
     RM_MT_epoch_selector,
+    RM_MT_lod_selector,
+    RM_MT_batch_lod_selected,
 ]
 
 

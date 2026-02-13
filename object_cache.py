@@ -116,12 +116,24 @@ class ObjectCache:
         if obj:
             try:
                 # Test if object still exists (accessing name will raise ReferenceError if deleted)
-                _ = obj.name
+                current_name = obj.name
+                if current_name != name:
+                    # Cache is stale after rename; force rebuild and retry once.
+                    self._dirty = True
+                    self._rebuild()
+                    return self._object_by_name.get(name)
                 return obj
             except ReferenceError:
                 # Object was deleted, remove from cache and return None
                 del self._object_by_name[name]
                 return None
+
+        # Cache miss can happen after object rename without count changes.
+        # Fallback to Blender's native lookup and self-heal cache.
+        direct_obj = bpy.data.objects.get(name)
+        if direct_obj is not None:
+            self._object_by_name[name] = direct_obj
+            return direct_obj
 
         return None
 
@@ -202,7 +214,15 @@ class ObjectCache:
         if self._needs_rebuild():
             self._rebuild()
 
-        return name in self._object_by_name
+        if name in self._object_by_name:
+            obj = self._object_by_name[name]
+            try:
+                return obj.name == name
+            except ReferenceError:
+                return False
+
+        # Fallback to native lookup for rename-safe behavior.
+        return bpy.data.objects.get(name) is not None
 
     def get_stats(self) -> Dict[str, int]:
         """
