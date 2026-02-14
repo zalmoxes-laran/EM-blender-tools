@@ -511,6 +511,12 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
         default=""
     )  # type: ignore
 
+    show_warnings_section: BoolProperty(
+        name="Show GraphML Warnings",
+        description="Expand/collapse GraphML warnings section",
+        default=False
+    )  # type: ignore
+
     auxiliary_files: CollectionProperty(type=AuxiliaryFileProperties)  # type: ignore
     active_auxiliary_index: IntProperty()  # type: ignore
 

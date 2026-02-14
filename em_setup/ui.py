@@ -493,9 +493,6 @@ class EM_SetupPanel(bpy.types.Panel):
 
                 ####################################################
 
-                # Se abbiamo un codice per il grafo, mostriamolo come non modificabile
-                warning_found = False
-
                 # Controllo se ci sono warning da mostrare
                 graph_code_warning = False
                 epochs_date_warning = False
@@ -511,37 +508,43 @@ class EM_SetupPanel(bpy.types.Panel):
                             epochs_date_warning = True
                             break
 
-                # Check for import warnings (e.g., duplicate extractor names)
-                has_import_warnings = (hasattr(active_file, 'import_warnings')
-                                       and active_file.import_warnings)
+                warning_messages = []
+
+                if graph_code_warning:
+                    warning_messages.append("Please add a proper site ID in the header")
+
+                if epochs_date_warning:
+                    warning_messages.append("Update the epochs placeholder dates (xx)")
+
+                if hasattr(active_file, 'import_warnings') and active_file.import_warnings:
+                    for line in active_file.import_warnings.split("\n"):
+                        stripped = line.strip()
+                        if stripped:
+                            warning_messages.append(stripped)
+
+                warning_count = len(warning_messages)
 
                 # Se ci sono warning, mostra il box di warning
-                if graph_code_warning or epochs_date_warning or has_import_warnings:
+                if warning_count > 0:
                     warning_box = layout.box()
-                    warning_box.label(text="GraphML Warning:", icon='ERROR')
-                    warning_col = warning_box.column(align=True)
+                    header_row = warning_box.row(align=True)
+                    icon = 'TRIA_DOWN' if active_file.show_warnings_section else 'TRIA_RIGHT'
+                    header_row.prop(
+                        active_file,
+                        "show_warnings_section",
+                        text=f"GraphML Warning ({warning_count}):",
+                        icon=icon,
+                        emboss=False,
+                    )
+                    header_row.label(text="", icon='ERROR')
 
-                    if graph_code_warning:
-                        _draw_wrapped_warning(
-                            warning_col,
-                            context,
-                            "Please add a proper site ID in the header",
-                        )
+                    if active_file.show_warnings_section:
+                        warning_col = warning_box.column(align=True)
+                        for warning_msg in warning_messages:
+                            _draw_wrapped_warning(warning_col, context, warning_msg)
 
-                    if epochs_date_warning:
-                        _draw_wrapped_warning(
-                            warning_col,
-                            context,
-                            "Update the epochs placeholder dates (xx)",
-                        )
-
-                    if has_import_warnings:
-                        for line in active_file.import_warnings.split("\n"):
-                            if line.strip():
-                                _draw_wrapped_warning(warning_col, context, line.strip())
-
-                    op = warning_box.operator("wm.url_open", text="Quick guide", icon="HELP")
-                    op.url = "https://docs.extendedmatrix.org/en/1.5.0dev/data_funnel.html#important-considerations"
+                        op = warning_box.operator("wm.url_open", text="Quick guide", icon="HELP")
+                        op.url = "https://docs.extendedmatrix.org/en/1.5.0dev/data_funnel.html#important-considerations"
 
                 # DEPRECATED: DosCo is now integrated as an Auxiliary Resource type
                 # The legacy DosCo section has been removed. DosCo is now managed
