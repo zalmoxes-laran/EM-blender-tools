@@ -1,5 +1,6 @@
 import bpy
 import os
+import textwrap
 from bpy.props import EnumProperty
 
 # Relative imports from parent modules
@@ -179,6 +180,27 @@ def get_mapping_description(mapping_file, mapping_type="emdb"):
     except Exception as e:
         print(f"Error loading mapping description: {str(e)}")
         return None
+
+
+def _draw_wrapped_warning(layout, context, text, bullet="- "):
+    """Draw warning text wrapped to current sidebar width."""
+    region_width = getattr(context.region, "width", 320)
+    # Approximate characters that fit in the N-panel width.
+    wrap_width = max(32, min(110, int((region_width - 90) / 6.6)))
+
+    wrapped_lines = textwrap.wrap(
+        text.strip(),
+        width=wrap_width,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+
+    if not wrapped_lines:
+        return
+
+    for idx, wrapped in enumerate(wrapped_lines):
+        prefix = bullet if idx == 0 else "  "
+        layout.label(text=f"{prefix}{wrapped}")
 
 
 # ============================================================================
@@ -497,17 +519,26 @@ class EM_SetupPanel(bpy.types.Panel):
                 if graph_code_warning or epochs_date_warning or has_import_warnings:
                     warning_box = layout.box()
                     warning_box.label(text="GraphML Warning:", icon='ERROR')
+                    warning_col = warning_box.column(align=True)
 
                     if graph_code_warning:
-                        warning_box.label(text="- Please add a proper site ID in the header")
+                        _draw_wrapped_warning(
+                            warning_col,
+                            context,
+                            "Please add a proper site ID in the header",
+                        )
 
                     if epochs_date_warning:
-                        warning_box.label(text="- Update the epochs placeholder dates (xx)")
+                        _draw_wrapped_warning(
+                            warning_col,
+                            context,
+                            "Update the epochs placeholder dates (xx)",
+                        )
 
                     if has_import_warnings:
                         for line in active_file.import_warnings.split("\n"):
                             if line.strip():
-                                warning_box.label(text=f"- {line.strip()}")
+                                _draw_wrapped_warning(warning_col, context, line.strip())
 
                     op = warning_box.operator("wm.url_open", text="Quick guide", icon="HELP")
                     op.url = "https://docs.extendedmatrix.org/en/1.5.0dev/data_funnel.html#important-considerations"
