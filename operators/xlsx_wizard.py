@@ -14,8 +14,17 @@ through the standard EM import flow (which handles yEd layout attributes etc.).
 
 import bpy  # type: ignore
 import os
+import random
 
 from ..functions import normalize_path
+
+
+def _random_epoch_hex_color():
+    """Generate a vivid random hex color for epoch nodes."""
+    r = random.randint(50, 230)
+    g = random.randint(50, 230)
+    b = random.randint(50, 230)
+    return f"#{r:02X}{g:02X}{b:02X}"
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -71,6 +80,15 @@ class XLSX_WIZARD_OT_convert_stratigraphy(bpy.types.Operator):
             import traceback
             traceback.print_exc()
             return {'CANCELLED'}
+
+        # ── 3b. Assign random colors to all generated epochs ──
+        for node in graph.nodes:
+            if getattr(node, "node_type", None) == "EpochNode":
+                epoch_color = _random_epoch_hex_color()
+                if hasattr(node, "color"):
+                    node.color = epoch_color
+                if hasattr(node, "attributes") and isinstance(node.attributes, dict):
+                    node.attributes["fill_color"] = epoch_color
 
         # ── 4. Assign graph_id and register in MultiGraphManager ──
         base_name = os.path.splitext(os.path.basename(strat_file))[0]
