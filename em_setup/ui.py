@@ -489,8 +489,12 @@ class EM_SetupPanel(bpy.types.Panel):
                             epochs_date_warning = True
                             break
 
+                # Check for import warnings (e.g., duplicate extractor names)
+                has_import_warnings = (hasattr(active_file, 'import_warnings')
+                                       and active_file.import_warnings)
+
                 # Se ci sono warning, mostra il box di warning
-                if graph_code_warning or epochs_date_warning:
+                if graph_code_warning or epochs_date_warning or has_import_warnings:
                     warning_box = layout.box()
                     warning_box.label(text="GraphML Warning:", icon='ERROR')
 
@@ -499,6 +503,11 @@ class EM_SetupPanel(bpy.types.Panel):
 
                     if epochs_date_warning:
                         warning_box.label(text="- Update the epochs placeholder dates (xx)")
+
+                    if has_import_warnings:
+                        for line in active_file.import_warnings.split("\n"):
+                            if line.strip():
+                                warning_box.label(text=f"- {line.strip()}")
 
                     op = warning_box.operator("wm.url_open", text="Quick guide", icon="HELP")
                     op.url = "https://docs.extendedmatrix.org/en/1.5.0dev/data_funnel.html#important-considerations"

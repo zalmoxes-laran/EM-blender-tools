@@ -505,6 +505,12 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
         default=""
     )  # type: ignore
 
+    import_warnings: StringProperty(
+        name="Import Warnings",
+        description="Warnings generated during GraphML import (e.g., duplicate extractor names)",
+        default=""
+    )  # type: ignore
+
     auxiliary_files: CollectionProperty(type=AuxiliaryFileProperties)  # type: ignore
     active_auxiliary_index: IntProperty()  # type: ignore
 

@@ -92,6 +92,15 @@ class EM_import_GraphML(bpy.types.Operator):
                         graphml.graph_code = graph_instance.attributes['graph_code']
                     elif hasattr(graphml, 'graph_code'):  # Assicuriamoci che la proprietà esista
                         graphml.graph_code = "site_id"  # Valore di fallback
+
+                    # Propagate import warnings from s3dgraphy to Blender UI property
+                    if hasattr(graph_instance, 'warnings') and graph_instance.warnings:
+                        graphml.import_warnings = "\n".join(graph_instance.warnings)
+                        print(f"\n⚠️  {len(graph_instance.warnings)} import warning(s) detected:")
+                        for w in graph_instance.warnings:
+                            print(f"  - {w}")
+                    else:
+                        graphml.import_warnings = ""
                 else: 
                     error_msg = f"Grafo non trovato con ID: {final_graph_id}"
                     self.report({'ERROR'}, error_msg)
