@@ -551,6 +551,78 @@ class EM_SetupPanel(bpy.types.Panel):
                 # through the Auxiliary Resources UIList with file_type="dosco"
                 # Legacy properties (dosco_dir on GraphMLFileItem) are kept for backward compatibility
 
+                # ── Enrich GraphML section ──
+                enrich_box = layout.box()
+                enrich_header = enrich_box.row(align=True)
+                enrich_icon = 'TRIA_DOWN' if active_file.enrich_expanded else 'TRIA_RIGHT'
+                enrich_header.prop(
+                    active_file, "enrich_expanded",
+                    text="Enrich GraphML",
+                    icon=enrich_icon,
+                    emboss=False
+                )
+                help_op = enrich_header.operator("em.help_popup", text="", icon='QUESTION')
+                help_op.title = "Enrich GraphML"
+                help_op.text = (
+                    "Bake EM Tables into the loaded GraphML file.\n"
+                    "EM Paradata Table adds deep provenance chains\n"
+                    "(extractor + document per property).\n"
+                    "A rotating backup is created automatically."
+                )
+                help_op.url = "creating_em.html#enriching-graphml"
+
+                if active_file.enrich_expanded:
+                    # Check if graph is loaded
+                    _graph_loaded = False
+                    try:
+                        from s3dgraphy import get_graph as _sg_get_graph
+                        _g = _sg_get_graph(active_file.name)
+                        _graph_loaded = bool(_g and hasattr(_g, 'nodes') and len(_g.nodes) > 0)
+                    except Exception:
+                        pass
+
+                    if not _graph_loaded:
+                        warn_row = enrich_box.row()
+                        warn_row.label(
+                            text="Load the GraphML first (click reload icon)",
+                            icon='ERROR'
+                        )
+
+                    # ── EM Paradata Table ──
+                    para_box = enrich_box.box()
+                    row = para_box.row(align=True)
+                    row.label(text="EM Paradata Table", icon='PROPERTIES')
+                    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                    help_op.title = "EM Paradata Table"
+                    help_op.text = (
+                        "Long-table Excel format (em_paradata.xlsx) with one\n"
+                        "row per property per US. Adds deep provenance chains:\n"
+                        "PropertyNode -> ExtractorNode -> DocumentNode.\n"
+                        "Use the AI prompt to generate this file automatically."
+                    )
+                    help_op.url = "creating_em.html#em-paradata-table"
+
+                    para_box.prop(active_file, "enrich_paradata_file", text="File")
+                    para_box.prop(active_file, "enrich_paradata_overwrite")
+
+                    can_bake = _graph_loaded and bool(active_file.enrich_paradata_file)
+                    row = para_box.row()
+                    row.scale_y = 1.3
+                    row.enabled = can_bake
+                    row.operator(
+                        "enrich.bake_paradata",
+                        text="Bake Paradata into GraphML",
+                        icon='MODIFIER'
+                    )
+
+                    # Info label
+                    enrich_box.separator(factor=0.3)
+                    info_row = enrich_box.row()
+                    info_row.label(
+                        text="Changes are saved to the GraphML file. Backup is automatic.",
+                        icon='INFO'
+                    )
+
                 # Expanded settings
                 box = layout.box()
                 box.prop(active_file, "expanded", icon="TRIA_DOWN" if active_file.expanded else "TRIA_RIGHT", emboss=False)

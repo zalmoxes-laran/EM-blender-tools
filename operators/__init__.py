@@ -18,6 +18,9 @@ from .bake_paradata import *
 # Import XLSX wizard operators (panel-based 3-step workflow)
 from .xlsx_wizard import *
 
+# Import enrich GraphML operators (bake EM tables into loaded GraphML)
+from .enrich_graphml import *
+
 from .addon_prefix_helpers import (
     get_active_graph_code,
     get_graph_code_from_graph,
@@ -40,6 +43,7 @@ __all__ = [
     "XLSX_WIZARD_OT_enrich_paradata",
     "XLSX_WIZARD_OT_export_graphml",
     "XLSX_WIZARD_OT_copy_ai_prompt",
+    "ENRICH_OT_bake_paradata",
     "get_active_graph_code",
     "get_graph_code_from_graph",
     "node_name_to_proxy_name",
@@ -61,6 +65,7 @@ def register():
     from . import save_template
     from . import bake_paradata
     from . import xlsx_wizard
+    from . import enrich_graphml
 
     # Register each submodule
     update_graph.register()
@@ -69,6 +74,7 @@ def register():
     save_template.register()
     bake_paradata.register()
     xlsx_wizard.register()
+    enrich_graphml.register()
     print("DEBUG operators/__init__.py: All operators registered")
 
 
@@ -81,8 +87,10 @@ def unregister():
     from . import save_template
     from . import bake_paradata
     from . import xlsx_wizard
+    from . import enrich_graphml
 
     # Unregister in reverse order
+    enrich_graphml.unregister()
     xlsx_wizard.unregister()
     bake_paradata.unregister()
     save_template.unregister()

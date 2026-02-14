@@ -551,6 +551,27 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
         default=0
     )  # type: ignore
 
+    # Enrich GraphML section
+    enrich_expanded: BoolProperty(
+        name="Enrich GraphML",
+        description="Show/hide tools to enrich this GraphML with EM Tables",
+        default=False
+    )  # type: ignore
+
+    enrich_paradata_file: StringProperty(
+        name="EM Paradata Table",
+        description="Path to em_paradata.xlsx (long-table format with deep provenance chains)",
+        subtype='FILE_PATH',
+        default="",
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )  # type: ignore
+
+    enrich_paradata_overwrite: BoolProperty(
+        name="Overwrite Existing Properties",
+        description="If ON: replace existing properties with new ones. If OFF: skip duplicates",
+        default=False
+    )  # type: ignore
+
 
 # Registration
 # NOTE: AuxiliaryFileProperties and GraphMLFileItem are registered HERE

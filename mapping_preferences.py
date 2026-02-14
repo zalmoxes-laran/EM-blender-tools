@@ -227,6 +227,15 @@ class EMToolsMappingPreferences(AddonPreferences):
         max=0
     )
 
+    # ===== GRAPHML BACKUP SETTINGS =====
+    graphml_backup_count: IntProperty(
+        name="GraphML Backup Count",
+        description="Number of rotating backups to keep when baking data into a GraphML file (0 = no backup)",
+        default=2,
+        min=0,
+        max=10
+    )
+
     # ✅ Verbose Logging
     verbose_logging: BoolProperty(
         name="Verbose Logging",
@@ -371,17 +380,33 @@ class EMToolsMappingPreferences(AddonPreferences):
 
         layout.separator()
 
+        # ===== GRAPHML BACKUP SETTINGS =====
+        box = layout.box()
+        box.label(text="GraphML Backup Settings", icon='FILE_BACKUP')
+        row = box.row()
+        row.prop(self, "graphml_backup_count", text="Max Backups")
+        info_box = box.box()
+        if self.graphml_backup_count == 0:
+            info_box.label(text="Backups disabled: bake operations will overwrite without backup", icon='ERROR')
+        else:
+            info_box.label(
+                text=f"Keeps {self.graphml_backup_count} rotating backup(s) (.bak1, .bak2, ...) when baking into GraphML",
+                icon='INFO'
+            )
+
+        layout.separator()
+
         # ===== DEVELOPER SETTINGS =====
         box = layout.box()
-        box.label(text="🔧 Developer Settings", icon='PREFERENCES')
+        box.label(text="Developer Settings", icon='PREFERENCES')
         row = box.row()
         row.prop(self, "verbose_logging", text="Enable Verbose Console Logging")
         if self.verbose_logging:
             info_box = box.box()
-            info_box.label(text="ℹ Verbose logging active: detailed operations will be printed to console", icon='INFO')
+            info_box.label(text="Verbose logging active: detailed operations will be printed to console", icon='INFO')
         else:
             info_box = box.box()
-            info_box.label(text="ℹ Quiet mode: only warnings, errors, and essential messages", icon='INFO')
+            info_box.label(text="Quiet mode: only warnings, errors, and essential messages", icon='INFO')
 
         layout.separator()
 
