@@ -17,7 +17,6 @@ __all__ = [
     'RM_UL_List',
     'RM_UL_EpochList',
     'RM_MT_epoch_selector',
-    'RM_MT_lod_selector',
     'RM_MT_batch_lod_selected',
     'VIEW3D_PT_RM_Manager',
     'register_ui',
@@ -45,48 +44,49 @@ class RM_UL_List(UIList):
                 if hasattr(item, 'epoch_mismatch') and item.epoch_mismatch:
                     obj_icon = 'ERROR'
                 
-                # Split layout: left side (name + epoch), right side (LOD + buttons)
-                split = layout.split(factor=0.55, align=True)
-                left = split.row(align=True)
-                right = split.row(align=True)
+                # Main row
+                row = layout.row(align=True)
 
-                # Name of the RM model (on left side)
-                left.prop(item, "name", text="", emboss=False, icon=obj_icon)
+                # LOD indicator — fixed width, first element
+                lod_variants = detect_lod_variants(item.name)
+                sub = row.row(align=True)
+                sub.ui_units_x = 2.3
+                if len(lod_variants) >= 1:
+                    op = sub.operator("rm.open_lod_menu", text=str(item.active_lod), icon='MOD_DECIM')
+                    op.rm_index = index
+                else:
+                    sub.label(text="X", icon='MOD_DECIM')
 
-                # Epoch of belonging (on left side)
+                # Name of the RM model
+                row.prop(item, "name", text="", emboss=False, icon=obj_icon)
+
+                # Epoch of belonging
                 if hasattr(item, 'first_epoch'):
                     if item.first_epoch == "no_epoch":
-                        left.label(text="[No Epoch]", icon='QUESTION')
+                        row.label(text="[No Epoch]", icon='QUESTION')
                     else:
-                        left.label(text=item.first_epoch, icon='TIME')
+                        row.label(text=item.first_epoch, icon='TIME')
                 else:
-                    left.label(text="[Unknown]", icon='QUESTION')
-
-                # LOD dropdown on right side (if object has any LOD variant)
-                lod_variants = detect_lod_variants(item.name)
-                if len(lod_variants) >= 1:
-                    sub = right.row(align=True)
-                    sub.scale_x = 0.5
-                    sub.menu("RM_MT_lod_selector", text=str(item.active_lod), icon='MOD_DECIM')
+                    row.label(text="[Unknown]", icon='QUESTION')
 
                 # Add list item to epoch
-                op = right.operator("rm.promote_to_rm", text="", icon='ADD', emboss=False)
+                op = row.operator("rm.promote_to_rm", text="", icon='ADD', emboss=False)
                 op.mode = 'RM_LIST'
 
                 # Selection object (inline)
-                op = right.operator("rm.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
+                op = row.operator("rm.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
                 op.rm_index = index
 
                 # Flag pubblicabile (custom icons)
                 if hasattr(item, 'is_publishable'):
                     pub_icon = icons_manager.get_icon_value("em_publish") if item.is_publishable else icons_manager.get_icon_value("em_no_publish")
                     if pub_icon:
-                        right.prop(item, "is_publishable", text="", icon_value=pub_icon)
+                        row.prop(item, "is_publishable", text="", icon_value=pub_icon)
                     else:
-                        right.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
+                        row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
 
                 # Add trash bin button for demote functionality
-                op = right.operator("rm.demote_from_rm_list", text="", icon='TRASH', emboss=False)
+                op = row.operator("rm.demote_from_rm_list", text="", icon='TRASH', emboss=False)
                 op.rm_index = index
                 
             elif self.layout_type in {'GRID'}:
@@ -147,27 +147,6 @@ class RM_MT_epoch_selector(Menu):
             # Highlight current active epoch
             if i == epochs.list_index:
                 layout.separator()
-
-
-class RM_MT_lod_selector(Menu):
-    bl_label = "Select LOD Level"
-    bl_idname = "RM_MT_lod_selector"
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        if scene.rm_list_index < 0 or scene.rm_list_index >= len(scene.rm_list):
-            return
-        item = scene.rm_list[scene.rm_list_index]
-        for lod_level in range(LOD_MIN_LEVEL, LOD_MAX_LEVEL + 1):
-            is_active = (item.active_lod == lod_level)
-            op = layout.operator(
-                "rm.switch_lod",
-                text=f"LOD {lod_level}" + (" (active)" if is_active else ""),
-                icon='CHECKMARK' if is_active else 'NONE'
-            )
-            op.rm_index = scene.rm_list_index
-            op.target_lod = lod_level
 
 
 class RM_MT_batch_lod_selected(Menu):
@@ -427,7 +406,6 @@ classes = [
     RM_UL_List,
     RM_UL_EpochList,
     RM_MT_epoch_selector,
-    RM_MT_lod_selector,
     RM_MT_batch_lod_selected,
 ]
 

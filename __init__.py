@@ -40,7 +40,7 @@ from .thumb_utils import cleanup_preview_collections
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("EMTools")
 
-# Constants for reuse
+# Constants for reuse 
 VERSION = "1.5.0"
 BL_INFO = {
     "name": "EM Tools",

@@ -324,52 +324,51 @@ class ANASTYLOSIS_UL_List(UIList):
                 # Get the object
                 obj = bpy.data.objects.get(item.name)
 
-                # Split layout: left side (name + SF label), right side (LOD + buttons)
-                split = layout.split(factor=0.55, align=True)
-                left = split.row(align=True)
-                right = split.row(align=True)
+                # Main row
+                row = layout.row(align=True)
 
-                # Determine appropriate icon and draw name on left side
+                # LOD indicator — fixed width, first element
+                lod_variants = detect_lod_variants(item.name)
+                sub = row.row(align=True)
+                sub.ui_units_x = 2.3
+                if len(lod_variants) >= 1:
+                    op = sub.operator("anastylosis.open_lod_menu", text=str(item.active_lod), icon='MOD_DECIM')
+                    op.anastylosis_index = index
+                else:
+                    sub.label(text="X", icon='MOD_DECIM')
+
+                # Object name
                 if hasattr(item, 'object_exists') and item.object_exists:
                     icon_value=icons_manager.get_icon_value("show_all_special_finds")
-                    left.prop(item, "name", text="", emboss=False, icon_value=icon_value)
+                    row.prop(item, "name", text="", emboss=False, icon_value=icon_value)
                 else:
-                    left.prop(item, "name", text="", emboss=False, icon='ERROR')
+                    row.prop(item, "name", text="", emboss=False, icon='ERROR')
 
-                # Associated SF/VSF node (on left side)
-                if hasattr(item, 'sf_node_name') and item.sf_node_name:
-                    icon_value=icons_manager.get_icon_value("show_all_proxies")
-                    left.label(text=item.sf_node_name, icon_value=icon_value)
-                else:
-                    left.label(text="[Not Connected]", icon='QUESTION')
-
-                # LOD dropdown on right side (if there are LOD variants)
-                lod_variants = detect_lod_variants(item.name)
-                if len(lod_variants) >= 1:
-                    sub = right.row(align=True)
-                    sub.scale_x = 0.5
-                    sub.menu("ANASTYLOSIS_MT_lod_selector", text=str(item.active_lod), icon='MOD_DECIM')
-
-                # Search SF/VSF button
-                op = right.operator("anastylosis.search_sf_node", text="", icon='VIEWZOOM', emboss=False)
+                # Search SF/VSF button (between name and SF label)
+                op = row.operator("anastylosis.search_sf_node", text="", icon='VIEWZOOM', emboss=False)
                 op.anastylosis_index = index
 
+                # Associated SF/VSF node
+                if hasattr(item, 'sf_node_name') and item.sf_node_name:
+                    icon_value=icons_manager.get_icon_value("show_all_proxies")
+                    row.label(text=item.sf_node_name, icon_value=icon_value)
+                else:
+                    row.label(text="[Not Connected]", icon='QUESTION')
+
                 # Selection object (inline)
-                op = right.operator("anastylosis.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
+                op = row.operator("anastylosis.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
                 op.anastylosis_index = index
 
                 # Publish flag with custom icons
                 if hasattr(item, 'is_publishable'):
                     pub_icon = icons_manager.get_icon_value("em_publish") if item.is_publishable else icons_manager.get_icon_value("em_no_publish")
                     if pub_icon:
-                        right.prop(item, "is_publishable", text="", icon_value=pub_icon)
+                        row.prop(item, "is_publishable", text="", icon_value=pub_icon)
                     else:
-                        right.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
-
-
+                        row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
 
                 # Trash bin for removing
-                op = right.operator("anastylosis.remove_from_list", text="", icon='TRASH', emboss=False)
+                op = row.operator("anastylosis.remove_from_list", text="", icon='TRASH', emboss=False)
                 op.anastylosis_index = index
 
             elif self.layout_type in {'GRID'}:
@@ -1577,24 +1576,34 @@ class ANASTYLOSIS_OT_batch_switch_lod(Operator):
         self.report({'INFO'}, f"Switched {switched} items to {direction_text} LOD")
         return {'FINISHED'}
 
-# Menu for LOD level selection (per-item dropdown in UIList)
-class ANASTYLOSIS_MT_lod_selector(bpy.types.Menu):
-    bl_label = "Select LOD Level"
-    bl_idname = "ANASTYLOSIS_MT_lod_selector"
+# Operator to open LOD popup menu for a specific row (fixes per-row index bug)
+class ANASTYLOSIS_OT_open_lod_menu(Operator):
+    bl_idname = "anastylosis.open_lod_menu"
+    bl_label = "Select LOD"
+    bl_description = "Select LOD level for this item"
+    bl_options = set()
 
-    def draw(self, context):
-        layout = self.layout
+    anastylosis_index: IntProperty(default=-1)  # type: ignore
+
+    def invoke(self, context, event):
+        idx = self.anastylosis_index
         anastylosis = context.scene.em_tools.anastylosis
-        if anastylosis.list_index < 0 or anastylosis.list_index >= len(anastylosis.list):
-            return
-        item = anastylosis.list[anastylosis.list_index]
-        for lod_level in range(LOD_MIN_LEVEL, LOD_MAX_LEVEL + 1):
-            is_active = (item.active_lod == lod_level)
-            op = layout.operator("anastylosis.switch_lod",
-                                 text=f"LOD {lod_level}" + (" (active)" if is_active else ""),
-                                 icon='CHECKMARK' if is_active else 'NONE')
-            op.anastylosis_index = anastylosis.list_index
-            op.target_lod = lod_level
+        if idx < 0 or idx >= len(anastylosis.list):
+            return {'CANCELLED'}
+        item = anastylosis.list[idx]
+
+        def draw_popup(self_menu, context):
+            layout = self_menu.layout
+            for lod_level in range(LOD_MIN_LEVEL, LOD_MAX_LEVEL + 1):
+                is_active = (item.active_lod == lod_level)
+                op = layout.operator("anastylosis.switch_lod",
+                    text=f"LOD {lod_level}" + (" (active)" if is_active else ""),
+                    icon='CHECKMARK' if is_active else 'NONE')
+                op.anastylosis_index = idx
+                op.target_lod = lod_level
+
+        context.window_manager.popup_menu(draw_popup, title="Select LOD Level")
+        return {'FINISHED'}
 
 
 # Menu for batch LOD switch on selected 3D objects
@@ -1918,7 +1927,7 @@ def update_anastylosis_list_on_graph_load(dummy):
 # Registration classes
 classes = [
     ANASTYLOSIS_UL_List,
-    ANASTYLOSIS_MT_lod_selector,
+    ANASTYLOSIS_OT_open_lod_menu,
     ANASTYLOSIS_MT_batch_lod_selected,
     ANASTYLOSIS_OT_update_list,
     ANASTYLOSIS_OT_link_to_sf,

@@ -44,6 +44,7 @@ __all__ = [
     'RM_OT_switch_lod',
     'RM_OT_batch_switch_lod',
     'RM_OT_batch_lod_selected',
+    'RM_OT_open_lod_menu',
     'register_operators',
     'unregister_operators',
 ]
@@ -1511,6 +1512,36 @@ class RM_OT_batch_lod_selected(Operator):
         return {'FINISHED'}
 
 
+# Operator to open LOD popup menu for a specific row (fixes per-row index bug)
+class RM_OT_open_lod_menu(Operator):
+    bl_idname = "rm.open_lod_menu"
+    bl_label = "Select LOD"
+    bl_description = "Select LOD level for this item"
+    bl_options = set()
+
+    rm_index: IntProperty(default=-1)  # type: ignore
+
+    def invoke(self, context, event):
+        idx = self.rm_index
+        scene = context.scene
+        if idx < 0 or idx >= len(scene.rm_list):
+            return {'CANCELLED'}
+        item = scene.rm_list[idx]
+
+        def draw_popup(self_menu, context):
+            layout = self_menu.layout
+            for lod_level in range(LOD_MIN_LEVEL, LOD_MAX_LEVEL + 1):
+                is_active = (item.active_lod == lod_level)
+                op = layout.operator("rm.switch_lod",
+                    text=f"LOD {lod_level}" + (" (active)" if is_active else ""),
+                    icon='CHECKMARK' if is_active else 'NONE')
+                op.rm_index = idx
+                op.target_lod = lod_level
+
+        context.window_manager.popup_menu(draw_popup, title="Select LOD Level")
+        return {'FINISHED'}
+
+
 class RM_OT_open_linked_file(Operator):
     """Open linked .blend file for this RM object in a new Blender instance"""
     bl_idname = "rm.open_linked_file"
@@ -2744,6 +2775,7 @@ classes = [
     RM_OT_switch_lod,
     RM_OT_batch_switch_lod,
     RM_OT_batch_lod_selected,
+    RM_OT_open_lod_menu,
 ]
 
 
