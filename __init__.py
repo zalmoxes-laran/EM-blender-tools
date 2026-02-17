@@ -46,7 +46,7 @@ BL_INFO = {
     "name": "EM Tools",
     "author": "Emanuel Demetrescu",
     "version": VERSION,
-    "blender": (4, 4, 0),
+    "blender": (5, 0, 1),
     "location": "View3D > Sidebar > EM",
     "description": "Extended Matrix 3D Tools",
     "warning": "",

@@ -41,6 +41,19 @@ def _split_lod_name(name):
     return m.group(1), int(m.group(2))
 
 
+def _get_active_lod(item_name):
+    """Get active LOD level from object name or mesh datablock name."""
+    _, lod = _split_lod_name(item_name)
+    if lod is not None:
+        return lod
+    obj = bpy.data.objects.get(item_name)
+    if obj and obj.type == 'MESH' and obj.data:
+        _, lod = _split_lod_name(obj.data.name)
+        if lod is not None:
+            return lod
+    return 0
+
+
 def _resolve_lod_with_fallback(available_levels, requested_level, min_level=LOD_MIN_LEVEL, max_level=LOD_MAX_LEVEL):
     """Clamp request to [min,max] and fallback to highest available <= request."""
     if not available_levels:
@@ -104,26 +117,37 @@ def _switch_linked_mesh_lod(obj, requested_lod):
     return True, resolved_lod, target_mesh_name, None
 
 def detect_lod_variants(obj_name):
-    """Given an object name, find all its LOD variants in the scene.
-    Recognizes pattern: BaseName_LOD0, BaseName_LOD1, etc.
+    """Find LOD variants by checking both object names and mesh datablock names.
     Returns list of tuples (lod_level, obj_name) sorted by LOD level.
     """
-    # Try to extract base name by removing _LODN suffix (greedy match)
-    match = re.match(r'^(.+)_LOD(\d+)$', obj_name)
-    if match:
-        base_name = match.group(1)
-    else:
-        # Object doesn't have LOD suffix — use full name as base
-        base_name = obj_name
+    base_name, _ = _split_lod_name(obj_name)
+    if base_name is None:
+        # Object name has no LOD suffix — check mesh datablock name
+        obj = bpy.data.objects.get(obj_name)
+        if obj and obj.type == 'MESH' and obj.data:
+            mesh_base, _ = _split_lod_name(obj.data.name)
+            if mesh_base is not None:
+                base_name = mesh_base
+        if base_name is None:
+            base_name = obj_name  # fallback
 
     variants = []
+    seen = set()
     pattern = re.compile(r'^' + re.escape(base_name) + r'_LOD(\d+)$')
 
     for obj in bpy.data.objects:
+        # Check object name
         m = pattern.match(obj.name)
-        if m:
-            lod_level = int(m.group(1))
-            variants.append((lod_level, obj.name))
+        if m and obj.name not in seen:
+            variants.append((int(m.group(1)), obj.name))
+            seen.add(obj.name)
+            continue
+        # Check mesh datablock name (for linked mesh objects)
+        if obj.type == 'MESH' and obj.data:
+            m2 = pattern.match(obj.data.name)
+            if m2 and obj.name not in seen:
+                variants.append((int(m2.group(1)), obj.name))
+                seen.add(obj.name)
 
     variants.sort(key=lambda x: x[0])
     return variants
@@ -465,10 +489,9 @@ class ANASTYLOSIS_OT_update_list(Operator):
 
                     # Detect LOD variants
                     variants = detect_lod_variants(item.name)
-                    item.has_lod_variants = len(variants) > 1
+                    item.has_lod_variants = len(variants) >= 1
                     item.lod_count = len(variants)
-                    m = re.match(r'^.+_LOD(\d+)$', item.name)
-                    item.active_lod = int(m.group(1)) if m else 0
+                    item.active_lod = _get_active_lod(item.name)
 
             # Process all selected objects from scene if needed
             if not self.from_graph or not graph:
@@ -491,10 +514,9 @@ class ANASTYLOSIS_OT_update_list(Operator):
 
                     # Detect LOD variants
                     variants = detect_lod_variants(item.name)
-                    item.has_lod_variants = len(variants) > 1
+                    item.has_lod_variants = len(variants) >= 1
                     item.lod_count = len(variants)
-                    m = re.match(r'^.+_LOD(\d+)$', item.name)
-                    item.active_lod = int(m.group(1)) if m else 0
+                    item.active_lod = _get_active_lod(item.name)
 
             # Restore index if possible
             anastylosis.list_index = min(current_index, len(anastylosis_list)-1) if anastylosis_list else 0
@@ -1011,10 +1033,9 @@ class ANASTYLOSIS_OT_add_selected(Operator):
 
             # Detect LOD variants
             variants = detect_lod_variants(item.name)
-            item.has_lod_variants = len(variants) > 1
+            item.has_lod_variants = len(variants) >= 1
             item.lod_count = len(variants)
-            m = re.match(r'^.+_LOD(\d+)$', item.name)
-            item.active_lod = int(m.group(1)) if m else 0
+            item.active_lod = _get_active_lod(item.name)
 
             # If we have a graph, create RMSF node
             if graph:

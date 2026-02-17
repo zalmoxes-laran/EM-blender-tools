@@ -67,18 +67,48 @@ def _split_lod_name(name):
     return m.group(1), int(m.group(2))
 
 
+def _get_active_lod(item_name):
+    """Get active LOD level from object name or mesh datablock name."""
+    _, lod = _split_lod_name(item_name)
+    if lod is not None:
+        return lod
+    obj = bpy.data.objects.get(item_name)
+    if obj and obj.type == 'MESH' and obj.data:
+        _, lod = _split_lod_name(obj.data.name)
+        if lod is not None:
+            return lod
+    return 0
+
+
 def detect_lod_variants(obj_name):
-    """Find all scene object variants named Base_LOD# for the given object/base name."""
-    base_name, _lod = _split_lod_name(obj_name)
+    """Find LOD variants by checking both object names and mesh datablock names."""
+    base_name, _ = _split_lod_name(obj_name)
     if base_name is None:
-        base_name = obj_name
+        # Object name has no LOD suffix — check mesh datablock name
+        obj = bpy.data.objects.get(obj_name)
+        if obj and obj.type == 'MESH' and obj.data:
+            mesh_base, _ = _split_lod_name(obj.data.name)
+            if mesh_base is not None:
+                base_name = mesh_base
+        if base_name is None:
+            base_name = obj_name  # fallback
 
     variants = []
+    seen = set()
     pattern = re.compile(r"^" + re.escape(base_name) + r"_LOD(\d+)$")
     for obj in bpy.data.objects:
+        # Check object name
         m = pattern.match(obj.name)
-        if m:
+        if m and obj.name not in seen:
             variants.append((int(m.group(1)), obj.name))
+            seen.add(obj.name)
+            continue
+        # Check mesh datablock name (for linked mesh objects)
+        if obj.type == 'MESH' and obj.data:
+            m2 = pattern.match(obj.data.name)
+            if m2 and obj.name not in seen:
+                variants.append((int(m2.group(1)), obj.name))
+                seen.add(obj.name)
 
     variants.sort(key=lambda x: x[0])
     return variants
@@ -1090,11 +1120,10 @@ class RM_OT_update_list(Operator):
 
                     # Aggiorna LOD metadata
                     variants = detect_lod_variants(item.name)
-                    item.has_lod_variants = len(variants) > 1
+                    item.has_lod_variants = len(variants) >= 1
                     item.lod_count = len(variants)
-                    _base_name, active_lod = _split_lod_name(item.name)
-                    item.active_lod = active_lod if active_lod is not None else 0
-                    
+                    item.active_lod = _get_active_lod(item.name)
+
                     # Debug print
                     #print(f"Prima epoch aggiornata: {item.first_epoch}")
                 
@@ -1144,11 +1173,10 @@ class RM_OT_update_list(Operator):
 
                     # Initialize LOD metadata
                     variants = detect_lod_variants(item.name)
-                    item.has_lod_variants = len(variants) > 1
+                    item.has_lod_variants = len(variants) >= 1
                     item.lod_count = len(variants)
-                    _base_name, active_lod = _split_lod_name(item.name)
-                    item.active_lod = active_lod if active_lod is not None else 0
-            
+                    item.active_lod = _get_active_lod(item.name)
+
             # Rimuovi gli oggetti non più presenti
             for i in range(len(rm_list) - 1, -1, -1):
                 if rm_list[i].name not in processed_objects:
@@ -1176,11 +1204,10 @@ class RM_OT_update_list(Operator):
                         existing_item.object_exists = obj_exists
                         existing_item.is_publishable = node.attributes.get('is_publishable', True)
                         variants = detect_lod_variants(existing_item.name)
-                        existing_item.has_lod_variants = len(variants) > 1
+                        existing_item.has_lod_variants = len(variants) >= 1
                         existing_item.lod_count = len(variants)
-                        _base_name, active_lod = _split_lod_name(existing_item.name)
-                        existing_item.active_lod = active_lod if active_lod is not None else 0
-                    
+                        existing_item.active_lod = _get_active_lod(existing_item.name)
+
                     # Se l'oggetto non esiste nella lista, crealo
                     if not existing_item:
                         new_item = rm_list.add()
@@ -1221,10 +1248,9 @@ class RM_OT_update_list(Operator):
 
                         # Initialize LOD metadata for graph-only entries
                         variants = detect_lod_variants(new_item.name)
-                        new_item.has_lod_variants = len(variants) > 1
+                        new_item.has_lod_variants = len(variants) >= 1
                         new_item.lod_count = len(variants)
-                        _base_name, active_lod = _split_lod_name(new_item.name)
-                        new_item.active_lod = active_lod if active_lod is not None else 0
+                        new_item.active_lod = _get_active_lod(new_item.name)
             
             # Ripristina l'indice se possibile
             scene.rm_list_index = min(current_index, len(rm_list)-1) if rm_list else 0
