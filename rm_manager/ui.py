@@ -45,46 +45,48 @@ class RM_UL_List(UIList):
                 if hasattr(item, 'epoch_mismatch') and item.epoch_mismatch:
                     obj_icon = 'ERROR'
                 
-                # Layout
-                row = layout.row(align=True)
-                
-                # Name of the RM model
-                row.prop(item, "name", text="", emboss=False, icon=obj_icon)
-                
-                # Epoch of belonging
+                # Split layout: left side (name + epoch), right side (LOD + buttons)
+                split = layout.split(factor=0.55, align=True)
+                left = split.row(align=True)
+                right = split.row(align=True)
+
+                # Name of the RM model (on left side)
+                left.prop(item, "name", text="", emboss=False, icon=obj_icon)
+
+                # Epoch of belonging (on left side)
                 if hasattr(item, 'first_epoch'):
                     if item.first_epoch == "no_epoch":
-                        row.label(text="[No Epoch]", icon='QUESTION')
+                        left.label(text="[No Epoch]", icon='QUESTION')
                     else:
-                        row.label(text=item.first_epoch, icon='TIME')
+                        left.label(text=item.first_epoch, icon='TIME')
                 else:
-                    row.label(text="[Unknown]", icon='QUESTION')
+                    left.label(text="[Unknown]", icon='QUESTION')
 
-                # LOD dropdown (if object has any LOD variant pattern in scene)
+                # LOD dropdown on right side (if object has any LOD variant)
                 lod_variants = detect_lod_variants(item.name)
                 if len(lod_variants) >= 1:
-                    sub = row.row(align=True)
-                    sub.scale_x = 0.6
-                    sub.menu("RM_MT_lod_selector", text=f"L{item.active_lod}", icon='MOD_DECIM')
+                    sub = right.row(align=True)
+                    sub.scale_x = 0.5
+                    sub.menu("RM_MT_lod_selector", text=str(item.active_lod), icon='MOD_DECIM')
 
                 # Add list item to epoch
-                op = row.operator("rm.promote_to_rm", text="", icon='ADD', emboss=False)
+                op = right.operator("rm.promote_to_rm", text="", icon='ADD', emboss=False)
                 op.mode = 'RM_LIST'
 
                 # Selection object (inline)
-                op = row.operator("rm.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
+                op = right.operator("rm.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
                 op.rm_index = index
 
                 # Flag pubblicabile (custom icons)
                 if hasattr(item, 'is_publishable'):
                     pub_icon = icons_manager.get_icon_value("em_publish") if item.is_publishable else icons_manager.get_icon_value("em_no_publish")
                     if pub_icon:
-                        row.prop(item, "is_publishable", text="", icon_value=pub_icon)
+                        right.prop(item, "is_publishable", text="", icon_value=pub_icon)
                     else:
-                        row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
-                
+                        right.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
+
                 # Add trash bin button for demote functionality
-                op = row.operator("rm.demote_from_rm_list", text="", icon='TRASH', emboss=False)
+                op = right.operator("rm.demote_from_rm_list", text="", icon='TRASH', emboss=False)
                 op.rm_index = index
                 
             elif self.layout_type in {'GRID'}:

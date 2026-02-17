@@ -324,59 +324,52 @@ class ANASTYLOSIS_UL_List(UIList):
                 # Get the object
                 obj = bpy.data.objects.get(item.name)
 
-                # Determine appropriate icon
+                # Split layout: left side (name + SF label), right side (LOD + buttons)
+                split = layout.split(factor=0.55, align=True)
+                left = split.row(align=True)
+                right = split.row(align=True)
+
+                # Determine appropriate icon and draw name on left side
                 if hasattr(item, 'object_exists') and item.object_exists:
                     icon_value=icons_manager.get_icon_value("show_all_special_finds")
-                    # Layout
-                    row = layout.row(align=True)
-                    # Name of the model
-                    row.prop(item, "name", text="", emboss=False, icon_value=icon_value)
+                    left.prop(item, "name", text="", emboss=False, icon_value=icon_value)
                 else:
-                    obj_icon = 'ERROR'
-                    row = layout.row(align=True)
-                    row.prop(item, "name", text="", emboss=False, icon=obj_icon)
+                    left.prop(item, "name", text="", emboss=False, icon='ERROR')
 
-                # Associated SF/VSF node
+                # Associated SF/VSF node (on left side)
                 if hasattr(item, 'sf_node_name') and item.sf_node_name:
-
-                    if item.is_virtual:
-                        icon_value=icons_manager.get_icon_value("show_all_proxies")
-                        row.label(text=item.sf_node_name, icon_value=icon_value)
-                    else:
-                        icon_value=icons_manager.get_icon_value("show_all_proxies")
-                        row.label(text=item.sf_node_name, icon_value=icon_value)
-
+                    icon_value=icons_manager.get_icon_value("show_all_proxies")
+                    left.label(text=item.sf_node_name, icon_value=icon_value)
                 else:
-                    row.label(text="[Not Connected]", icon='QUESTION')
+                    left.label(text="[Not Connected]", icon='QUESTION')
 
-                # LOD dropdown (if there are LOD variants)
+                # LOD dropdown on right side (if there are LOD variants)
                 lod_variants = detect_lod_variants(item.name)
                 if len(lod_variants) >= 1:
-                    sub = row.row(align=True)
-                    sub.scale_x = 0.6
-                    sub.menu("ANASTYLOSIS_MT_lod_selector", text=f"L{item.active_lod}", icon='MOD_DECIM')
+                    sub = right.row(align=True)
+                    sub.scale_x = 0.5
+                    sub.menu("ANASTYLOSIS_MT_lod_selector", text=str(item.active_lod), icon='MOD_DECIM')
 
-
-                # Search SF/VSF button (replaces old link_to_sf)
-                op = row.operator("anastylosis.search_sf_node", text="", icon='VIEWZOOM', emboss=False)
+                # Search SF/VSF button
+                op = right.operator("anastylosis.search_sf_node", text="", icon='VIEWZOOM', emboss=False)
                 op.anastylosis_index = index
 
                 # Selection object (inline)
-                op = row.operator("anastylosis.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
+                op = right.operator("anastylosis.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
                 op.anastylosis_index = index
 
                 # Publish flag with custom icons
                 if hasattr(item, 'is_publishable'):
                     pub_icon = icons_manager.get_icon_value("em_publish") if item.is_publishable else icons_manager.get_icon_value("em_no_publish")
                     if pub_icon:
-                        row.prop(item, "is_publishable", text="", icon_value=pub_icon)
+                        right.prop(item, "is_publishable", text="", icon_value=pub_icon)
                     else:
-                        row.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
+                        right.prop(item, "is_publishable", text="", icon='EXPORT' if item.is_publishable else 'CANCEL')
 
 
 
                 # Trash bin for removing
-                op = row.operator("anastylosis.remove_from_list", text="", icon='TRASH', emboss=False)
+                op = right.operator("anastylosis.remove_from_list", text="", icon='TRASH', emboss=False)
                 op.anastylosis_index = index
 
             elif self.layout_type in {'GRID'}:
