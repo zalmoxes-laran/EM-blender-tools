@@ -332,7 +332,7 @@ class AUXILIARY_OT_add_file(Operator):
         if em_tools.active_file_index >= 0:
             graphml = em_tools.graphml_files[em_tools.active_file_index]
             new_file = graphml.auxiliary_files.add()
-            new_file.name = "New Auxiliary File"
+            new_file.name = "Rename me"
             graphml.active_auxiliary_index = len(graphml.auxiliary_files) - 1
             return {'FINISHED'}
         return {'CANCELLED'}

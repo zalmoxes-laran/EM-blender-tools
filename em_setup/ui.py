@@ -182,8 +182,8 @@ def get_mapping_description(mapping_file, mapping_type="emdb"):
         return None
 
 
-def _draw_wrapped_warning(layout, context, text, bullet="- "):
-    """Draw warning text wrapped to current sidebar width."""
+def _draw_wrapped_text(layout, context, text, icon=None, first_prefix="", next_prefix=""):
+    """Draw text wrapped to current sidebar width."""
     region_width = getattr(context.region, "width", 320)
     # Approximate characters that fit in the N-panel width.
     wrap_width = max(32, min(110, int((region_width - 90) / 6.6)))
@@ -199,8 +199,23 @@ def _draw_wrapped_warning(layout, context, text, bullet="- "):
         return
 
     for idx, wrapped in enumerate(wrapped_lines):
-        prefix = bullet if idx == 0 else "  "
-        layout.label(text=f"{prefix}{wrapped}")
+        prefix = first_prefix if idx == 0 else next_prefix
+        line_text = f"{prefix}{wrapped}"
+        if icon and idx == 0:
+            layout.label(text=line_text, icon=icon)
+        else:
+            layout.label(text=line_text)
+
+
+def _draw_wrapped_warning(layout, context, text, bullet="- "):
+    """Draw warning text wrapped to current sidebar width."""
+    _draw_wrapped_text(
+        layout,
+        context,
+        text,
+        first_prefix=bullet,
+        next_prefix="  ",
+    )
 
 
 # ============================================================================
@@ -372,12 +387,19 @@ class EM_SetupPanel(bpy.types.Panel):
         col.operator("emtools.switch_mode", text=activemode_label)
 
         if not em_tools.mode_em_advanced and len(em_tools.graphml_files) > 0:
-            row = box.row()
-            row.alert = True  # Imposta il colore rosso
-            row.label(text=" Warning: Starting from a blank file is strongly recommended", icon='ERROR')
-            row = box.row()
-            row.alert = True
-            row.label(text="when working in Basic 3D GIS mode with existing Advanced EM graphs.")
+            warn_col = box.column(align=True)
+            warn_col.alert = True
+            _draw_wrapped_text(
+                warn_col,
+                context,
+                "Warning: Starting from a blank file is strongly recommended",
+                icon='ERROR',
+            )
+            _draw_wrapped_text(
+                warn_col,
+                context,
+                "when working in Basic 3D GIS mode with existing Advanced EM graphs.",
+            )
 
         # ========================================================================
         # SEZIONE LANDSCAPE MODE - (in experimental mode)
@@ -681,11 +703,18 @@ class EM_SetupPanel(bpy.types.Panel):
                                     if os.path.isabs(aux_file.resource_folder) and not aux_file.resource_folder.startswith('//'):
                                         warn_box = col.box()
                                         warn_box.alert = True
-                                        warn_row = warn_box.row()
-                                        warn_row.label(text="Use relative path (// prefix) for cross-PC compatibility",
-                                                    icon='ERROR')
-                                        warn_row = warn_box.row()
-                                        warn_row.label(text="Example: //Resources or //../../SharedFolder/Resources")
+                                        warn_col = warn_box.column(align=True)
+                                        _draw_wrapped_text(
+                                            warn_col,
+                                            context,
+                                            "Use relative path (// prefix) for cross-PC compatibility",
+                                            icon='ERROR',
+                                        )
+                                        _draw_wrapped_text(
+                                            warn_col,
+                                            context,
+                                            "Example: //Resources or //../../SharedFolder/Resources",
+                                        )
 
                                 # Sezione thumbnails
                                 col.separator()
@@ -779,11 +808,18 @@ class EM_SetupPanel(bpy.types.Panel):
                                     if os.path.isabs(aux_file.resource_folder) and not aux_file.resource_folder.startswith('//'):
                                         warn_box = col.box()
                                         warn_box.alert = True
-                                        warn_row = warn_box.row()
-                                        warn_row.label(text="Use relative path (// prefix) for cross-PC compatibility",
-                                                    icon='ERROR')
-                                        warn_row = warn_box.row()
-                                        warn_row.label(text="Example: //Resources or //../../SharedFolder/Resources")
+                                        warn_col = warn_box.column(align=True)
+                                        _draw_wrapped_text(
+                                            warn_col,
+                                            context,
+                                            "Use relative path (// prefix) for cross-PC compatibility",
+                                            icon='ERROR',
+                                        )
+                                        _draw_wrapped_text(
+                                            warn_col,
+                                            context,
+                                            "Example: //Resources or //../../SharedFolder/Resources",
+                                        )
 
                                 # Sezione thumbnails
                                 col.separator()
@@ -836,7 +872,11 @@ class EM_SetupPanel(bpy.types.Panel):
 
                             # DosCo options
                             dosco_box = box.box()
-                            dosco_box.label(text="Populate extractors, documents and combiners using DosCo files:")
+                            _draw_wrapped_text(
+                                dosco_box,
+                                context,
+                                "Populate extractors, documents and combiners using DosCo files:",
+                            )
 
                             row = dosco_box.row()
                             row.prop(aux_file, "dosco_overwrite_paths", text="Overwrite paths with DosCo files")
@@ -846,17 +886,41 @@ class EM_SetupPanel(bpy.types.Panel):
 
                             # Info box with examples
                             info_box = dosco_box.box()
-                            info_box.label(text="When enabled, node paths will be linked to files in DosCo")
+                            _draw_wrapped_text(
+                                info_box,
+                                context,
+                                "When enabled, node paths will be linked to files in DosCo",
+                            )
                             info_box.label(text="Examples:")
-                            info_box.label(text="Node GT16.D.01 → Searches for GT16.D.01 and D.01 in DosCo")
+                            _draw_wrapped_text(
+                                info_box,
+                                context,
+                                "Node GT16.D.01 -> Searches for GT16.D.01 and D.01 in DosCo",
+                            )
 
                         elif aux_file.file_type == "source_list":
                             # Source List - simple filepath
                             source_box = box.box()
-                            source_box.label(text="Source List updates descriptions for Document nodes")
-                            source_box.label(text="Excel file must contain a 'sources' sheet with:")
-                            source_box.label(text="• Column 'Name': node name to match")
-                            source_box.label(text="• Column 'Description': description to set")
+                            _draw_wrapped_text(
+                                source_box,
+                                context,
+                                "Source List updates descriptions for Document nodes",
+                            )
+                            _draw_wrapped_text(
+                                source_box,
+                                context,
+                                "Excel file must contain a 'sources' sheet with:",
+                            )
+                            _draw_wrapped_text(
+                                source_box,
+                                context,
+                                "Column 'Name': node name to match",
+                            )
+                            _draw_wrapped_text(
+                                source_box,
+                                context,
+                                "Column 'Description': description to set",
+                            )
 
             # Advanced Tools section
             box = layout.box()
@@ -864,7 +928,7 @@ class EM_SetupPanel(bpy.types.Panel):
             header.prop(
                 em_tools,
                 "show_advanced_tools",
-                text="Utilities & Settings",
+                text="Utils",
                 icon="TRIA_DOWN" if em_tools.show_advanced_tools else "TRIA_RIGHT",
                 emboss=False
             )
@@ -872,90 +936,36 @@ class EM_SetupPanel(bpy.types.Panel):
             if em_tools.show_advanced_tools:
                 tools_col = box.column(align=True)
 
-                # Convert Legacy GraphML
+                # Main utility actions (compact 2x2 grid)
                 row = tools_col.row(align=True)
                 row.scale_y = 0.9
-                row.operator(
+                split = row.split(factor=0.5, align=True)
+                split.operator(
                     GRAPHML_OT_convert_borders.bl_idname,
                     text="Convert 1.x->1.5",
                     icon='FILE_REFRESH'
                 )
-                help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-                help_op.title = "Convert legacy GraphML"
-                help_op.text = (
-                    "Upgrades GraphML 1.x files to the EM 1.5 schema\n"
-                    "and fixes border nodes. A backup is kept next to\n"
-                    "the original file."
-                )
-                help_op.url = "EMstructure.html#em-setup"
-
-                # Collection Manager (compact)
-                collection_box = tools_col.box()
-                collection_header = collection_box.row(align=True)
-                collection_header.prop(
-                    em_tools,
-                    "show_collection_manager",
-                    text="",
-                    icon="TRIA_DOWN" if em_tools.show_collection_manager else "TRIA_RIGHT",
-                    emboss=False
-                )
-                collection_header.label(text="Collections")
-
-                create_row = collection_header.row(align=True)
-                create_row.scale_y = 0.9
-                create_row.operator(
+                split.operator(
                     "create.collection",
                     text="Create",
                     icon="COLLECTION_NEW"
                 )
-                help_op = collection_header.operator("em.help_popup", text="", icon='QUESTION')
-                help_op.title = "Standard Collections"
-                help_op.text = (
-                    "Creates the base Proxy, RM and CAMS collections\n"
-                    "used by EM tools. Safe to re-run: missing ones\n"
-                    "are added, existing collections are preserved."
-                )
-                help_op.url = "EMstructure.html#em-setup"
 
-                if em_tools.show_collection_manager:
-                    info_box = collection_box.box()
-                    info_row = info_box.row(align=True)
-                    info_row.label(text="Proxy / RM / CAMS", icon='INFO')
-                    info_box.label(text="Creates the expected structure for EM pipelines.")
-
-                # Manage Object Prefixes
                 row = tools_col.row(align=True)
                 row.scale_y = 0.9
-                row.operator(
+                split = row.split(factor=0.5, align=True)
+                split.operator(
                     "em.manage_object_prefixes",
                     text="Proxy Prefixes",
                     icon='SYNTAX_ON'
                 )
-                help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-                help_op.title = "Manage Proxies' Prefixes"
-                help_op.text = (
-                    "Edit and apply naming prefixes to Proxy objects\n"
-                    "so imported assets stay consistent across scenes."
-                )
-                help_op.url = "EMstructure.html#em-setup"
-
-                # Experimental features toggle and tools
-                exp_toggle = tools_col.row(align=True)
-                exp_toggle.scale_y = 0.9
-                exp_toggle.prop(
+                split.prop(
                     em_tools,
                     "experimental_features",
                     text="Experimental",
                     toggle=True,
                     icon="EXPERIMENTAL"
                 )
-                help_op = exp_toggle.operator("em.help_popup", text="", icon='QUESTION')
-                help_op.title = "Experimental Features"
-                help_op.text = (
-                    "Enables beta tools for testing. Use on disposable\n"
-                    "copies; behavior and performance may change."
-                )
-                help_op.url = "EMstructure.html#em-setup"
 
                 if em_tools.experimental_features:
                     exp_box = tools_col.box()
@@ -1155,8 +1165,17 @@ class EM_SetupPanel(bpy.types.Panel):
 
                     warning_box = exp_box.box()
                     warning_box.alert = True
-                    warning_box.label(text="Warning: experimental tools are not for production.", icon='ERROR')
-                    warning_box.label(text="Work on copies or staging files only.")
+                    _draw_wrapped_text(
+                        warning_box,
+                        context,
+                        "Warning: experimental tools are not for production.",
+                        icon='ERROR',
+                    )
+                    _draw_wrapped_text(
+                        warning_box,
+                        context,
+                        "Work on copies or staging files only.",
+                    )
 
         ################################################################################
         # 3D GIS MODE SECTION
