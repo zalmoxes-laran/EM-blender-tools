@@ -17,8 +17,8 @@ class VIEW3D_PT_ProxyInflatePanel(Panel):
 
     @classmethod
     def poll(cls, context):
-        # Il pannello è visibile solo se experimental_features è abilitato
-        return context.scene.em_tools.experimental_features
+        # UI moved to Visual Manager collapsible section (Label Tools style).
+        return False
 
     def draw(self, context):
         layout = self.layout

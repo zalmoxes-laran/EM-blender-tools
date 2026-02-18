@@ -6,6 +6,11 @@ Contains panels and UI elements for the node editor interface.
 import bpy
 from bpy.types import Panel, UIList
 
+
+def _is_experimental_enabled(context):
+    return hasattr(context.scene, 'em_tools') and context.scene.em_tools.experimental_features
+
+
 class GRAPHEDIT_UL_edge_filters(UIList):
     """UIList per i filtri edge types"""
     
@@ -22,7 +27,7 @@ class GRAPHEDIT_UL_edge_filters(UIList):
 
 class GRAPHEDIT_PT_main_panel(Panel):
     """Pannello principale nel Node Editor"""
-    bl_label = "EMGraph Tools"
+    bl_label = "EMGraph Tools (Experimental)"
     bl_idname = "GRAPHEDIT_PT_main_panel"
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
@@ -30,8 +35,14 @@ class GRAPHEDIT_PT_main_panel(Panel):
     
     @classmethod
     def poll(cls, context):
-        return (context.space_data.type == 'NODE_EDITOR' and
-                context.space_data.tree_type == 'EMGraphNodeTreeType')
+        return (
+            _is_experimental_enabled(context) and
+            context.space_data.type == 'NODE_EDITOR' and
+            context.space_data.tree_type == 'EMGraphNodeTreeType'
+        )
+
+    def draw_header(self, context):
+        self.layout.label(text="", icon='EXPERIMENTAL')
     
     def draw(self, context):
         layout = self.layout
@@ -152,8 +163,11 @@ class GRAPHEDIT_PT_edge_filters(Panel):
     
     @classmethod
     def poll(cls, context):
-        return (context.space_data.type == 'NODE_EDITOR' and
-                context.space_data.tree_type == 'EMGraphNodeTreeType')
+        return (
+            _is_experimental_enabled(context) and
+            context.space_data.type == 'NODE_EDITOR' and
+            context.space_data.tree_type == 'EMGraphNodeTreeType'
+        )
     
     def draw_header(self, context):
         settings = context.scene.graph_editor_settings
@@ -234,8 +248,11 @@ class GRAPHEDIT_PT_appearance(Panel):
     
     @classmethod
     def poll(cls, context):
-        return (context.space_data.type == 'NODE_EDITOR' and
-                context.space_data.tree_type == 'EMGraphNodeTreeType')
+        return (
+            _is_experimental_enabled(context) and
+            context.space_data.type == 'NODE_EDITOR' and
+            context.space_data.tree_type == 'EMGraphNodeTreeType'
+        )
     
     def draw(self, context):
         layout = self.layout
@@ -270,9 +287,12 @@ class GRAPHEDIT_PT_node_info(Panel):
     
     @classmethod
     def poll(cls, context):
-        return (context.space_data.type == 'NODE_EDITOR' and
-                context.space_data.tree_type == 'EMGraphNodeTreeType' and
-                context.active_node is not None)
+        return (
+            _is_experimental_enabled(context) and
+            context.space_data.type == 'NODE_EDITOR' and
+            context.space_data.tree_type == 'EMGraphNodeTreeType' and
+            context.active_node is not None
+        )
     
     def draw(self, context):
         layout = self.layout
@@ -321,13 +341,20 @@ class GRAPHEDIT_PT_node_info(Panel):
 
 class VIEW3D_PT_graphedit_sync(Panel):
     """Pannello nella 3D View per EMGraph"""
-    bl_label = "EMGraph"
+    bl_label = "EMGraph (Experimental)"
     bl_idname = "VIEW3D_PT_graphedit_sync"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM"
     bl_options = {'DEFAULT_CLOSED'}
     bl_order = 10
+
+    @classmethod
+    def poll(cls, context):
+        return _is_experimental_enabled(context)
+
+    def draw_header(self, context):
+        self.layout.label(text="", icon='EXPERIMENTAL')
 
     def draw(self, context):
         layout = self.layout

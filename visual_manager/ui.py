@@ -115,6 +115,10 @@ class VIEW3D_PT_visual_panel(Panel):
         
         # Label Tools (collapsible section)
         self.draw_label_tools(layout, context)
+
+        # Proxy Inflate Manager (experimental, same collapsible style as Label Tools)
+        if hasattr(scene.em_tools, 'experimental_features') and scene.em_tools.experimental_features:
+            self.draw_proxy_inflate_tools(layout, context)
         
         # RM Coloring (only in advanced mode, RM sync active, AND experimental features)
         if (hasattr(scene, 'em_tools') and scene.em_tools.mode_em_advanced and 
@@ -525,6 +529,64 @@ class VIEW3D_PT_visual_panel(Panel):
                 col.separator()
                 col.label(text="Behavior:")
                 col.prop(label_settings, "auto_move_cameras", text="Auto Move Cameras to CAMS")
+
+    def draw_proxy_inflate_tools(self, layout, context):
+        """Draw proxy inflate controls using the same collapsible pattern as Label Tools."""
+        scene = context.scene
+
+        if not hasattr(scene, 'label_settings'):
+            return
+
+        label_settings = scene.label_settings
+
+        box = layout.box()
+        row = box.row()
+        row.alert = True
+        row.prop(
+            label_settings,
+            "show_proxy_inflate_tools",
+            text="Proxy Inflate Manager (Experimental)",
+            icon='TRIA_DOWN' if label_settings.show_proxy_inflate_tools else 'TRIA_RIGHT',
+            emboss=False
+        )
+        row.label(text="", icon='EXPERIMENTAL')
+
+        if not label_settings.show_proxy_inflate_tools:
+            return
+
+        settings_box = box.box()
+        settings_box.label(text="Inflation Settings:")
+
+        if hasattr(scene.em_tools, "proxy_inflate_thickness"):
+            row = settings_box.row()
+            row.prop(scene.em_tools, "proxy_inflate_thickness", text="Thickness")
+
+            row = settings_box.row()
+            row.prop(scene.em_tools, "proxy_inflate_offset", text="Offset")
+        else:
+            row = settings_box.row()
+            row.label(text="Settings not available. Please reload addon.", icon='ERROR')
+
+        selection_box = box.box()
+        selection_box.label(text="Modify Selection:")
+        row = selection_box.row(align=True)
+        row.operator("em.proxy_add_inflate", text="Add", icon='ADD')
+        row.operator("em.proxy_activate_inflate", text="Activate", icon='PLAY')
+        row.operator("em.proxy_deactivate_inflate", text="Deactivate", icon='PAUSE')
+        row.operator("em.proxy_remove_inflate", text="Remove", icon='X')
+
+        global_box = box.box()
+        global_box.label(text="Global Operations:")
+        row = global_box.row()
+        row.operator("em.proxy_inflate_all", text="Inflate All Proxies", icon='MOD_SOLIDIFY')
+
+        if hasattr(scene.em_tools, "proxy_auto_inflate_on_export"):
+            row = global_box.row()
+            row.prop(scene.em_tools, "proxy_auto_inflate_on_export", text="Auto-Inflate on Export")
+
+        if hasattr(scene, "proxy_inflate_stats"):
+            row = box.row()
+            row.label(text=f"Proxies with inflation: {scene.proxy_inflate_stats}", icon='INFO')
 
 
 def register_ui():

@@ -143,6 +143,12 @@ class LabelSettings(PropertyGroup):
         default=False
     ) # type: ignore
 
+    show_proxy_inflate_tools: BoolProperty(
+        name="Show Proxy Inflate Tools",
+        description="Show/hide proxy inflate management tools",
+        default=False
+    ) # type: ignore
+
     show_settings: BoolProperty(
         name="Show Settings",
         description="Show label creation settings",

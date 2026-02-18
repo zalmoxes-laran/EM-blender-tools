@@ -14,7 +14,7 @@ from bpy.types import Panel
 
 class TAPESTRY_PT_main_panel(Panel):
     """Main Tapestry panel in EM Bridge tab"""
-    bl_label = "Tapestry"
+    bl_label = "Tapestry (Experimental)"
     bl_idname = "TAPESTRY_PT_main_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -25,6 +25,9 @@ class TAPESTRY_PT_main_panel(Panel):
     def poll(cls, context):
         """Show only when experimental features enabled"""
         return hasattr(context.scene, 'em_tools') and context.scene.em_tools.experimental_features
+
+    def draw_header(self, context):
+        self.layout.label(text="", icon='EXPERIMENTAL')
 
     def draw(self, context):
         layout = self.layout

@@ -207,7 +207,7 @@ def format_decimal(value):
 
 # Pannello per l'interfaccia utente
 class EM_PT_ExportPanel(bpy.types.Panel):
-    bl_label = "Export statistics"
+    bl_label = "Export statistics (Experimental)"
     bl_idname = "EM_PT_ExportPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -218,6 +218,9 @@ class EM_PT_ExportPanel(bpy.types.Panel):
     def poll(cls, context):
         # ✅ Show only if experimental features are enabled
         return hasattr(context.scene, 'em_tools') and context.scene.em_tools.experimental_features
+
+    def draw_header(self, context):
+        self.layout.label(text="", icon='EXPERIMENTAL')
 
     def draw(self, context):
         layout = self.layout

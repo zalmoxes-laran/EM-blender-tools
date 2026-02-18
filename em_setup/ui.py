@@ -218,6 +218,185 @@ def _draw_wrapped_warning(layout, context, text, bullet="- "):
     )
 
 
+def _draw_experimental_notice(layout, context):
+    """Draw compact note for experimental sections."""
+    note_box = layout.box()
+    _draw_wrapped_text(
+        note_box,
+        context,
+        "Le sezioni con il simbolo Experimental sono sperimentali: usale solo su file con backup.",
+        icon='INFO',
+    )
+
+
+def _draw_graphml_wizard(layout, context, em_tools):
+    """Draw GraphML Wizard content (used in EM Bridge panel)."""
+    graphml_box = layout.box()
+    row = graphml_box.row(align=True)
+    row.prop(
+        em_tools,
+        "exp_create_graphml_expanded",
+        text="GraphML Wizard (Experimental)",
+        icon="TRIA_DOWN" if em_tools.exp_create_graphml_expanded else "TRIA_RIGHT",
+        emboss=False
+    )
+    row.label(text="", icon='EXPERIMENTAL')
+    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+    help_op.title = "Create a GraphML"
+    help_op.text = (
+        "3-step wizard for creating an Extended Matrix\n"
+        "GraphML from Excel data (manually filled or\n"
+        "AI-extracted). Optionally enrich with paradata\n"
+        "provenance before exporting."
+    )
+    help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
+
+    if not em_tools.exp_create_graphml_expanded:
+        return
+
+    # ── STEP 1: Convert Stratigraphy ──
+    step1_box = graphml_box.box()
+    row = step1_box.row(align=True)
+    row.label(text="Step 1: Convert Stratigraphy", icon='IMPORT')
+    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+    help_op.title = "Step 1 — Convert Stratigraphy"
+    help_op.text = (
+        "Load a stratigraphy.xlsx file and convert it\n"
+        "to an s3dgraphy graph in memory. The Excel must\n"
+        "follow the 24-column template. Download the\n"
+        "template using the button below."
+    )
+    help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
+    step1_box.prop(em_tools, "xlsx_wizard_strat_file", text="Excel File")
+    step1_box.prop(em_tools, "xlsx_wizard_mapping", text="Mapping")
+
+    can_convert = bool(em_tools.xlsx_wizard_strat_file)
+    row = step1_box.row()
+    row.scale_y = 1.3
+    row.enabled = can_convert
+    row.operator(
+        "xlsx_wizard.convert_stratigraphy",
+        text="Convert to Graph",
+        icon='GRAPH'
+    )
+
+    has_graph = bool(em_tools.xlsx_wizard_graph_id)
+    if has_graph:
+        # Show graph stats from memory
+        try:
+            from s3dgraphy import get_graph as _get_graph
+            _g = _get_graph(em_tools.xlsx_wizard_graph_id)
+            if _g:
+                step1_box.label(
+                    text=f"Graph in memory: {len(_g.nodes)} nodes, {len(_g.edges)} edges",
+                    icon='CHECKMARK'
+                )
+            else:
+                step1_box.label(text="Graph expired — re-run Step 1", icon='ERROR')
+                has_graph = False
+        except Exception:
+            step1_box.label(text="Graph loaded", icon='CHECKMARK')
+
+    # ── STEP 2: Enrich with Paradata (optional) ──
+    step2_box = graphml_box.box()
+    step2_box.enabled = has_graph
+    row = step2_box.row(align=True)
+    row.label(text="Step 2: Enrich with Paradata", icon='PROPERTIES')
+    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+    help_op.title = "Step 2 — Enrich with Paradata"
+    help_op.text = (
+        "Optional. Load em_paradata.xlsx to add per-property\n"
+        "provenance chains (extractor text + source document)\n"
+        "to the in-memory graph. Requires Step 1 first."
+    )
+    help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
+    step2_box.prop(em_tools, "xlsx_wizard_paradata_file", text="Paradata File")
+    step2_box.prop(em_tools, "xlsx_wizard_overwrite_properties")
+
+    can_enrich = has_graph and bool(em_tools.xlsx_wizard_paradata_file)
+    row = step2_box.row()
+    row.scale_y = 1.3
+    row.enabled = can_enrich
+    row.operator(
+        "xlsx_wizard.enrich_paradata",
+        text="Enrich Graph",
+        icon='MODIFIER'
+    )
+
+    # ── STEP 3: Export GraphML ──
+    step3_box = graphml_box.box()
+    step3_box.enabled = has_graph
+    row = step3_box.row(align=True)
+    row.label(text="Step 3: Export GraphML", icon='EXPORT')
+    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+    help_op.title = "Step 3 — Export GraphML"
+    help_op.text = (
+        "Save the in-memory graph as a GraphML file.\n"
+        "Then import it via File > Import EM file to\n"
+        "populate the Blender lists and scene."
+    )
+    help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
+    step3_box.prop(em_tools, "xlsx_wizard_output_path", text="Output Path")
+
+    can_export = has_graph and bool(em_tools.xlsx_wizard_output_path)
+    row = step3_box.row()
+    row.scale_y = 1.3
+    row.enabled = can_export
+    row.operator(
+        "xlsx_wizard.export_graphml",
+        text="Export GraphML",
+        icon='FILE_TICK'
+    )
+
+    # ── Templates ──
+    graphml_box.separator(factor=0.5)
+    row = graphml_box.row(align=True)
+    row.label(text="Templates:", icon='FILE_NEW')
+    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+    help_op.title = "Excel Templates"
+    help_op.text = (
+        "Download empty Excel templates to fill manually\n"
+        "or use as reference for AI-assisted extraction.\n"
+        "stratigraphy.xlsx: 24-column stratigraphic data.\n"
+        "em_paradata.xlsx: per-property provenance data."
+    )
+    help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
+    row = graphml_box.row(align=True)
+    row.scale_y = 0.9
+    row.operator(
+        "emtools.save_stratigraphy_template",
+        text="Save Stratigraphy Template",
+        icon='FILE_TICK'
+    )
+    row.operator(
+        "emtools.save_em_paradata_template",
+        text="Save Paradata Template",
+        icon='FILE_TICK'
+    )
+
+    # ── AI Extraction Prompt ──
+    graphml_box.separator(factor=0.5)
+    row = graphml_box.row(align=True)
+    row.label(text="AI Extraction Prompt:", icon='FILE_TEXT')
+    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+    help_op.title = "AI-Assisted Extraction"
+    help_op.text = (
+        "Copy a ready-to-use prompt to paste into Claude,\n"
+        "ChatGPT, or Gemini alongside your archaeological\n"
+        "documents. The AI will produce the two Excel files\n"
+        "needed by Steps 1 and 2."
+    )
+    help_op.url = "creating_em.html#ai-assisted-extraction"
+    graphml_box.prop(em_tools, "xlsx_wizard_prompt_language", text="Language")
+    row = graphml_box.row()
+    row.scale_y = 1.1
+    row.operator(
+        "xlsx_wizard.copy_ai_prompt",
+        text="Copy AI Prompt to Clipboard",
+        icon='COPYDOWN'
+    )
+
+
 # ============================================================================
 # UI CLASSES
 # ============================================================================
@@ -573,77 +752,80 @@ class EM_SetupPanel(bpy.types.Panel):
                 # through the Auxiliary Resources UIList with file_type="dosco"
                 # Legacy properties (dosco_dir on GraphMLFileItem) are kept for backward compatibility
 
-                # ── Enrich GraphML section ──
-                enrich_box = layout.box()
-                enrich_header = enrich_box.row(align=True)
-                enrich_icon = 'TRIA_DOWN' if active_file.enrich_expanded else 'TRIA_RIGHT'
-                enrich_header.prop(
-                    active_file, "enrich_expanded",
-                    text="Enrich GraphML",
-                    icon=enrich_icon,
-                    emboss=False
-                )
-                help_op = enrich_header.operator("em.help_popup", text="", icon='QUESTION')
-                help_op.title = "Enrich GraphML"
-                help_op.text = (
-                    "Bake EM Tables into the loaded GraphML file.\n"
-                    "EM Paradata Table adds deep provenance chains\n"
-                    "(extractor + document per property).\n"
-                    "A rotating backup is created automatically."
-                )
-                help_op.url = "creating_em.html#enriching-graphml"
+                # ── Enrich GraphML section (experimental) ──
+                if em_tools.experimental_features:
+                    enrich_box = layout.box()
+                    enrich_header = enrich_box.row(align=True)
+                    enrich_header.alert = True
+                    enrich_icon = 'TRIA_DOWN' if active_file.enrich_expanded else 'TRIA_RIGHT'
+                    enrich_header.prop(
+                        active_file, "enrich_expanded",
+                        text="Enrich GraphML (Experimental)",
+                        icon=enrich_icon,
+                        emboss=False
+                    )
+                    enrich_header.label(text="", icon='EXPERIMENTAL')
+                    help_op = enrich_header.operator("em.help_popup", text="", icon='QUESTION')
+                    help_op.title = "Enrich GraphML"
+                    help_op.text = (
+                        "Bake EM Tables into the loaded GraphML file.\n"
+                        "EM Paradata Table adds deep provenance chains\n"
+                        "(extractor + document per property).\n"
+                        "A rotating backup is created automatically."
+                    )
+                    help_op.url = "creating_em.html#enriching-graphml"
 
-                if active_file.enrich_expanded:
-                    # Check if graph is loaded
-                    _graph_loaded = False
-                    try:
-                        from s3dgraphy import get_graph as _sg_get_graph
-                        _g = _sg_get_graph(active_file.name)
-                        _graph_loaded = bool(_g and hasattr(_g, 'nodes') and len(_g.nodes) > 0)
-                    except Exception:
-                        pass
+                    if active_file.enrich_expanded:
+                        # Check if graph is loaded
+                        _graph_loaded = False
+                        try:
+                            from s3dgraphy import get_graph as _sg_get_graph
+                            _g = _sg_get_graph(active_file.name)
+                            _graph_loaded = bool(_g and hasattr(_g, 'nodes') and len(_g.nodes) > 0)
+                        except Exception:
+                            pass
 
-                    if not _graph_loaded:
-                        warn_row = enrich_box.row()
-                        warn_row.label(
-                            text="Load the GraphML first (click reload icon)",
-                            icon='ERROR'
+                        if not _graph_loaded:
+                            warn_row = enrich_box.row()
+                            warn_row.label(
+                                text="Load the GraphML first (click reload icon)",
+                                icon='ERROR'
+                            )
+
+                        # ── EM Paradata Table ──
+                        para_box = enrich_box.box()
+                        row = para_box.row(align=True)
+                        row.label(text="EM Paradata Table", icon='PROPERTIES')
+                        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                        help_op.title = "EM Paradata Table"
+                        help_op.text = (
+                            "Long-table Excel format (em_paradata.xlsx) with one\n"
+                            "row per property per US. Adds deep provenance chains:\n"
+                            "PropertyNode -> ExtractorNode -> DocumentNode.\n"
+                            "Use the AI prompt to generate this file automatically."
+                        )
+                        help_op.url = "creating_em.html#em-paradata-table"
+
+                        para_box.prop(active_file, "enrich_paradata_file", text="File")
+                        para_box.prop(active_file, "enrich_paradata_overwrite")
+
+                        can_bake = _graph_loaded and bool(active_file.enrich_paradata_file)
+                        row = para_box.row()
+                        row.scale_y = 1.3
+                        row.enabled = can_bake
+                        row.operator(
+                            "enrich.bake_paradata",
+                            text="Bake Paradata into GraphML",
+                            icon='MODIFIER'
                         )
 
-                    # ── EM Paradata Table ──
-                    para_box = enrich_box.box()
-                    row = para_box.row(align=True)
-                    row.label(text="EM Paradata Table", icon='PROPERTIES')
-                    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-                    help_op.title = "EM Paradata Table"
-                    help_op.text = (
-                        "Long-table Excel format (em_paradata.xlsx) with one\n"
-                        "row per property per US. Adds deep provenance chains:\n"
-                        "PropertyNode -> ExtractorNode -> DocumentNode.\n"
-                        "Use the AI prompt to generate this file automatically."
-                    )
-                    help_op.url = "creating_em.html#em-paradata-table"
-
-                    para_box.prop(active_file, "enrich_paradata_file", text="File")
-                    para_box.prop(active_file, "enrich_paradata_overwrite")
-
-                    can_bake = _graph_loaded and bool(active_file.enrich_paradata_file)
-                    row = para_box.row()
-                    row.scale_y = 1.3
-                    row.enabled = can_bake
-                    row.operator(
-                        "enrich.bake_paradata",
-                        text="Bake Paradata into GraphML",
-                        icon='MODIFIER'
-                    )
-
-                    # Info label
-                    enrich_box.separator(factor=0.3)
-                    info_row = enrich_box.row()
-                    info_row.label(
-                        text="Changes are saved to the GraphML file. Backup is automatic.",
-                        icon='INFO'
-                    )
+                        # Info label
+                        enrich_box.separator(factor=0.3)
+                        info_row = enrich_box.row()
+                        info_row.label(
+                            text="Changes are saved to the GraphML file. Backup is automatic.",
+                            icon='INFO'
+                        )
 
                 # Expanded settings
                 box = layout.box()
@@ -959,7 +1141,9 @@ class EM_SetupPanel(bpy.types.Panel):
                     text="Proxy Prefixes",
                     icon='SYNTAX_ON'
                 )
-                split.prop(
+                exp_toggle = split.row(align=True)
+                exp_toggle.alert = em_tools.experimental_features
+                exp_toggle.prop(
                     em_tools,
                     "experimental_features",
                     text="Experimental",
@@ -968,6 +1152,8 @@ class EM_SetupPanel(bpy.types.Panel):
                 )
 
                 if em_tools.experimental_features:
+                    _draw_experimental_notice(tools_col, context)
+
                     exp_box = tools_col.box()
                     exp_box.label(text="Experimental tools", icon="EXPERIMENTAL")
 
@@ -1000,182 +1186,8 @@ class EM_SetupPanel(bpy.types.Panel):
                         "handlers. Expect temporary UI stalls during run."
                     )
                     help_op.url = "EMstructure.html#em-setup"
-
-                    # ── Create a GraphML (collapsible section) ──
-                    graphml_box = exp_box.box()
-                    row = graphml_box.row(align=True)
-                    row.prop(
-                        em_tools, "exp_create_graphml_expanded",
-                        icon="TRIA_DOWN" if em_tools.exp_create_graphml_expanded else "TRIA_RIGHT",
-                        emboss=False
-                    )
-                    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-                    help_op.title = "Create a GraphML"
-                    help_op.text = (
-                        "3-step wizard for creating an Extended Matrix\n"
-                        "GraphML from Excel data (manually filled or\n"
-                        "AI-extracted). Optionally enrich with paradata\n"
-                        "provenance before exporting."
-                    )
-                    help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
-
-                    if em_tools.exp_create_graphml_expanded:
-
-                        # ── STEP 1: Convert Stratigraphy ──
-                        step1_box = graphml_box.box()
-                        row = step1_box.row(align=True)
-                        row.label(text="Step 1: Convert Stratigraphy", icon='IMPORT')
-                        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-                        help_op.title = "Step 1 — Convert Stratigraphy"
-                        help_op.text = (
-                            "Load a stratigraphy.xlsx file and convert it\n"
-                            "to an s3dgraphy graph in memory. The Excel must\n"
-                            "follow the 24-column template. Download the\n"
-                            "template using the button below."
-                        )
-                        help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
-                        step1_box.prop(em_tools, "xlsx_wizard_strat_file", text="Excel File")
-                        step1_box.prop(em_tools, "xlsx_wizard_mapping", text="Mapping")
-
-                        can_convert = bool(em_tools.xlsx_wizard_strat_file)
-                        row = step1_box.row()
-                        row.scale_y = 1.3
-                        row.enabled = can_convert
-                        row.operator(
-                            "xlsx_wizard.convert_stratigraphy",
-                            text="Convert to Graph",
-                            icon='GRAPH'
-                        )
-
-                        has_graph = bool(em_tools.xlsx_wizard_graph_id)
-                        if has_graph:
-                            # Show graph stats from memory
-                            try:
-                                from s3dgraphy import get_graph as _get_graph
-                                _g = _get_graph(em_tools.xlsx_wizard_graph_id)
-                                if _g:
-                                    step1_box.label(
-                                        text=f"Graph in memory: {len(_g.nodes)} nodes, {len(_g.edges)} edges",
-                                        icon='CHECKMARK'
-                                    )
-                                else:
-                                    step1_box.label(text="Graph expired — re-run Step 1", icon='ERROR')
-                                    has_graph = False
-                            except Exception:
-                                step1_box.label(text="Graph loaded", icon='CHECKMARK')
-
-                        # ── STEP 2: Enrich with Paradata (optional) ──
-                        step2_box = graphml_box.box()
-                        step2_box.enabled = has_graph
-                        row = step2_box.row(align=True)
-                        row.label(text="Step 2: Enrich with Paradata", icon='PROPERTIES')
-                        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-                        help_op.title = "Step 2 — Enrich with Paradata"
-                        help_op.text = (
-                            "Optional. Load em_paradata.xlsx to add per-property\n"
-                            "provenance chains (extractor text + source document)\n"
-                            "to the in-memory graph. Requires Step 1 first."
-                        )
-                        help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
-                        step2_box.prop(em_tools, "xlsx_wizard_paradata_file", text="Paradata File")
-                        step2_box.prop(em_tools, "xlsx_wizard_overwrite_properties")
-
-                        can_enrich = has_graph and bool(em_tools.xlsx_wizard_paradata_file)
-                        row = step2_box.row()
-                        row.scale_y = 1.3
-                        row.enabled = can_enrich
-                        row.operator(
-                            "xlsx_wizard.enrich_paradata",
-                            text="Enrich Graph",
-                            icon='MODIFIER'
-                        )
-
-                        # ── STEP 3: Export GraphML ──
-                        step3_box = graphml_box.box()
-                        step3_box.enabled = has_graph
-                        row = step3_box.row(align=True)
-                        row.label(text="Step 3: Export GraphML", icon='EXPORT')
-                        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-                        help_op.title = "Step 3 — Export GraphML"
-                        help_op.text = (
-                            "Save the in-memory graph as a GraphML file.\n"
-                            "Then import it via File > Import EM file to\n"
-                            "populate the Blender lists and scene."
-                        )
-                        help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
-                        step3_box.prop(em_tools, "xlsx_wizard_output_path", text="Output Path")
-
-                        can_export = has_graph and bool(em_tools.xlsx_wizard_output_path)
-                        row = step3_box.row()
-                        row.scale_y = 1.3
-                        row.enabled = can_export
-                        row.operator(
-                            "xlsx_wizard.export_graphml",
-                            text="Export GraphML",
-                            icon='FILE_TICK'
-                        )
-
-                        # ── Templates ──
-                        graphml_box.separator(factor=0.5)
-                        row = graphml_box.row(align=True)
-                        row.label(text="Templates:", icon='FILE_NEW')
-                        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-                        help_op.title = "Excel Templates"
-                        help_op.text = (
-                            "Download empty Excel templates to fill manually\n"
-                            "or use as reference for AI-assisted extraction.\n"
-                            "stratigraphy.xlsx: 24-column stratigraphic data.\n"
-                            "em_paradata.xlsx: per-property provenance data."
-                        )
-                        help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
-                        row = graphml_box.row(align=True)
-                        row.scale_y = 0.9
-                        row.operator(
-                            "emtools.save_stratigraphy_template",
-                            text="Save Stratigraphy Template",
-                            icon='FILE_TICK'
-                        )
-                        row.operator(
-                            "emtools.save_em_paradata_template",
-                            text="Save Paradata Template",
-                            icon='FILE_TICK'
-                        )
-
-                        # ── AI Extraction Prompt ──
-                        graphml_box.separator(factor=0.5)
-                        row = graphml_box.row(align=True)
-                        row.label(text="AI Extraction Prompt:", icon='FILE_TEXT')
-                        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-                        help_op.title = "AI-Assisted Extraction"
-                        help_op.text = (
-                            "Copy a ready-to-use prompt to paste into Claude,\n"
-                            "ChatGPT, or Gemini alongside your archaeological\n"
-                            "documents. The AI will produce the two Excel files\n"
-                            "needed by Steps 1 and 2."
-                        )
-                        help_op.url = "creating_em.html#ai-assisted-extraction"
-                        graphml_box.prop(em_tools, "xlsx_wizard_prompt_language", text="Language")
-                        row = graphml_box.row()
-                        row.scale_y = 1.1
-                        row.operator(
-                            "xlsx_wizard.copy_ai_prompt",
-                            text="Copy AI Prompt to Clipboard",
-                            icon='COPYDOWN'
-                        )
-
-                    warning_box = exp_box.box()
-                    warning_box.alert = True
-                    _draw_wrapped_text(
-                        warning_box,
-                        context,
-                        "Warning: experimental tools are not for production.",
-                        icon='ERROR',
-                    )
-                    _draw_wrapped_text(
-                        warning_box,
-                        context,
-                        "Work on copies or staging files only.",
-                    )
+                    info_row = exp_box.row(align=True)
+                    info_row.label(text="GraphML Wizard moved to EM Bridge", icon='INFO')
 
         ################################################################################
         # 3D GIS MODE SECTION
@@ -1309,6 +1321,34 @@ class EM_SetupPanel(bpy.types.Panel):
             op.auxiliary_index = -1  # Non applicabile in modalità 3DGIS
 
 
+class VIEW3D_PT_graphml_wizard_bridge(bpy.types.Panel):
+    """GraphML Wizard in EM Bridge tab (experimental only)."""
+    bl_label = "GraphML Wizard (Experimental)"
+    bl_idname = "VIEW3D_PT_graphml_wizard_bridge"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'EM Bridge'
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        return (
+            hasattr(context.scene, 'em_tools') and
+            context.scene.em_tools.mode_em_advanced and
+            context.scene.em_tools.experimental_features
+        )
+
+    def draw_header(self, context):
+        self.layout.label(text="", icon='EXPERIMENTAL')
+
+    def draw(self, context):
+        layout = self.layout
+        em_tools = context.scene.em_tools
+
+        _draw_experimental_notice(layout, context)
+        _draw_graphml_wizard(layout, context, em_tools)
+
+
 class AUXILIARY_MT_context_menu(bpy.types.Menu):
     bl_idname = "AUXILIARY_MT_context_menu"
     bl_label = "Auxiliary File Specials"
@@ -1338,6 +1378,7 @@ classes = (
     AUXILIARY_UL_files,
     EMTOOLS_UL_files,
     EM_SetupPanel,
+    VIEW3D_PT_graphml_wizard_bridge,
     AUXILIARY_MT_context_menu,
 )
 

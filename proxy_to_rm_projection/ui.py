@@ -12,7 +12,7 @@ from . import is_system_available, get_system_status, check_prerequisites
 
 class VIEW3D_PT_proxy_projection_panel(Panel):
     """Panel for Proxy to RM Projection in Visual Manager"""
-    bl_label = "Proxy to RM Projection"
+    bl_label = "Proxy to RM Projection (Experimental)"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "EM"
@@ -37,6 +37,7 @@ class VIEW3D_PT_proxy_projection_panel(Panel):
         """Draw panel header with status indicator"""
         layout = self.layout
         scene = context.scene
+        layout.label(text="", icon='EXPERIMENTAL')
         
         if hasattr(scene, 'proxy_projection_settings'):
             settings = scene.proxy_projection_settings
