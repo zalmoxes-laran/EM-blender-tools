@@ -120,8 +120,8 @@ def validate_enum_value(obj, prop_name, get_items_func, context):
 
 def validate_all_mapping_enums(context):
     """
-    Valida tutti gli EnumProperty che usano mappings dinamici.
-    Cerca in tutte le posizioni dove possono essere salvati i mapping.
+    Validates all EnumProperties that use dynamic mappings.
+    Searches all locations where mappings may be stored.
     """
     from .properties import get_emdb_mappings, get_pyarchinit_mappings
 
@@ -224,10 +224,10 @@ def _draw_experimental_notice(layout, context):
     _draw_wrapped_text(
         note_box,
         context,
-        "Le sezioni con il simbolo Experimental sono sperimentali: usale solo su file con backup.",
+        "Sections marked with the Experimental symbol are experimental: \\" 
+        "only use them on files with backups.",
         icon='INFO',
     )
-
 
 def _draw_graphml_wizard(layout, context, em_tools):
     """Draw GraphML Wizard content (used in EM Bridge panel)."""

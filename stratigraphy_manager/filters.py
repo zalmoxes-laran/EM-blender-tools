@@ -139,13 +139,10 @@ class EM_reset_filters(Operator):
         scene = context.scene
         strat = scene.em_tools.stratigraphy  # ✅ Nuovo
 
-        # Remember current filter states
-        previous_epoch_filter = scene.filter_by_epoch
-        previous_activity_filter = scene.filter_by_activity
-
-        # Disable update callback temporarily
-        if hasattr(filter_list_update, "is_running"):
-            filter_list_update.is_running = True
+        # Disable filter update callbacks while resetting toggles.
+        from . import operators as strat_ops
+        old_bypass = strat_ops._em_bypass_filter_update
+        strat_ops._em_bypass_filter_update = True
 
         try:
             # Disable filters
@@ -175,13 +172,16 @@ class EM_reset_filters(Operator):
                 else:
                     strat.units_index = -1
 
-                self.report({'INFO'}, "Filters reset, showing all items")
+                # Optional behavior: re-enable visibility for all proxies.
+                if scene.reset_filters_show_all_proxies and hasattr(bpy.ops.em, "strat_show_all_proxies"):
+                    bpy.ops.em.strat_show_all_proxies()
+                    self.report({'INFO'}, "Filters reset, list restored and all proxies shown")
+                else:
+                    self.report({'INFO'}, "Filters reset, list restored (visibility preserved)")
             else:
                 self.report({'WARNING'}, "No active graph found")
         finally:
-            # Restore update callbacks
-            if hasattr(filter_list_update, "is_running"):
-                filter_list_update.is_running = False
+            strat_ops._em_bypass_filter_update = old_bypass
 
         return {'FINISHED'}
 

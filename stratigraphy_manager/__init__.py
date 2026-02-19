@@ -21,12 +21,19 @@ def update_filter_by_epoch(self, context):
     if _em_bypass_filter_update:
         return
 
-    # Reset epoch visibility toggles when activating filter
-    if context.scene.filter_by_epoch and hasattr(bpy.ops.epoch_manager, 'reset_visibility_ui'):
+    scene = context.scene
+
+    # Reset epoch visibility toggles only when activating epoch filter
+    if scene.filter_by_epoch and hasattr(bpy.ops.epoch_manager, 'reset_visibility_ui'):
         bpy.ops.epoch_manager.reset_visibility_ui()
 
-    if hasattr(bpy.ops.em, 'filter_lists'):
-        bpy.ops.em.filter_lists()
+    # If at least one filter is active, apply filters; otherwise run reset logic.
+    if scene.filter_by_epoch or scene.filter_by_activity:
+        if hasattr(bpy.ops.em, 'filter_lists'):
+            bpy.ops.em.filter_lists()
+    else:
+        if hasattr(bpy.ops.em, 'reset_filters'):
+            bpy.ops.em.reset_filters()
 
 def update_filter_by_activity(self, context):
     """Update function per filter_by_activity"""
@@ -35,12 +42,19 @@ def update_filter_by_activity(self, context):
     if _em_bypass_filter_update:
         return
 
-    # Reset epoch visibility toggles when activating filter
-    if context.scene.filter_by_activity and hasattr(bpy.ops.epoch_manager, 'reset_visibility_ui'):
+    scene = context.scene
+
+    # Reset epoch visibility toggles only when activating activity filter
+    if scene.filter_by_activity and hasattr(bpy.ops.epoch_manager, 'reset_visibility_ui'):
         bpy.ops.epoch_manager.reset_visibility_ui()
 
-    if hasattr(bpy.ops.em, 'filter_lists'):
-        bpy.ops.em.filter_lists()
+    # If at least one filter is active, apply filters; otherwise run reset logic.
+    if scene.filter_by_epoch or scene.filter_by_activity:
+        if hasattr(bpy.ops.em, 'filter_lists'):
+            bpy.ops.em.filter_lists()
+    else:
+        if hasattr(bpy.ops.em, 'reset_filters'):
+            bpy.ops.em.reset_filters()
 
 def update_include_surviving(self, context):
     """Update function per include_surviving_units"""
@@ -123,6 +137,14 @@ def register():
         update=update_sync_visibility  # ✅ Update function collegata
     )
 
+    if hasattr(bpy.types.Scene, "reset_filters_show_all_proxies"):
+        del bpy.types.Scene.reset_filters_show_all_proxies
+    bpy.types.Scene.reset_filters_show_all_proxies = BoolProperty(
+        name="Reset shows all proxies",
+        description="Show all proxies on filter reset",
+        default=False
+    )
+
 def unregister():
     """Unregister all Stratigraphy Manager classes and properties."""
     # Unregister in reverse order
@@ -139,6 +161,7 @@ def unregister():
         "show_reconstruction_units",
         "sync_list_visibility",
         "sync_rm_visibility",
+        "reset_filters_show_all_proxies",
     ]
     
     for prop_name in properties_to_remove:

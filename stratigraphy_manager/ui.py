@@ -147,6 +147,12 @@ class EM_ToolsPanel:
         
         if scene.filter_by_epoch or scene.filter_by_activity:
             row.operator("em.reset_filters", text="", icon='CANCEL')
+            row.prop(
+                scene, "reset_filters_show_all_proxies",
+                text="",
+                toggle=True,
+                icon='HIDE_OFF' if scene.reset_filters_show_all_proxies else 'HIDE_ON'
+            )
 
         # ==================
         # FILTER SECTION

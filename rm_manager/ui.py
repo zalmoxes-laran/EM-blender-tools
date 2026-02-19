@@ -255,11 +255,29 @@ class VIEW3D_PT_RM_Manager(Panel):
             row.operator("rm.select_all_from_active_epoch", text="", icon='SELECT_EXTEND')
             row.operator("rm.detect_orphaned_epochs", text="", icon='ORPHAN_DATA')
             row.operator("rm.cleanup_missing_objects", text="", icon='TRASH')
+            help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+            help_op.title = "RM Manager"
+            help_op.text = (
+                "Manage Representation Models (RM) linked to epochs and graph data.\n"
+                "Use the active epoch selector, RM list actions, LOD controls,\n"
+                "and Cesium tileset tools to keep reconstruction models consistent.\n"
+                "See the full manual section for workflow details."
+            )
+            help_op.url = "EMstructure.html#rm-manager"
         else:
             row = box.row(align=True)
             row.label(text="No active epoch selected", icon='INFO')
             row.operator("rm.detect_orphaned_epochs", text="", icon='ORPHAN_DATA')
             row.operator("rm.cleanup_missing_objects", text="", icon='TRASH')
+            help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+            help_op.title = "RM Manager"
+            help_op.text = (
+                "Manage Representation Models (RM) linked to epochs and graph data.\n"
+                "Use the active epoch selector, RM list actions, LOD controls,\n"
+                "and Cesium tileset tools to keep reconstruction models consistent.\n"
+                "See the full manual section for workflow details."
+            )
+            help_op.url = "EMstructure.html#rm-manager"
 
         # Main action buttons
         if has_active_epoch:

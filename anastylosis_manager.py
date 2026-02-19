@@ -1829,8 +1829,18 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
                 sub = row.row(align=True)
                 sub.menu("ANASTYLOSIS_MT_batch_lod_selected", text="", icon='MOD_DECIM')
 
-        row = layout.row(align=True)
+        box = layout.box()
+        row = box.row(align=True)
         row.operator("anastylosis.cleanup_missing_objects", text="", icon='TRASH')
+        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Anastylosis Manager"
+        help_op.text = (
+            "Manage anastylosis models and their links to Special Find (SF) nodes.\n"
+            "Use selection actions, list management, SF linking, and LOD tools\n"
+            "to keep source-based reconstruction objects aligned with the graph.\n"
+            "See the documentation section for complete workflow guidance."
+        )
+        help_op.url = "EMstructure.html#anastylosis-manager"
 
         # List of anastylosis models
         row = layout.row()
