@@ -58,7 +58,7 @@ def _clear_excel_cache():
     _excel_cache['columns'] = []
 
 
-def get_pyarchinit_mappings(self, context):
+def get_pyarchinit_mappings(self=None, context=None):
     """Get available pyArchInit mapping files from registry"""
     mappings = [("none", "No Mapping", "Select a mapping file")]
 
