@@ -724,6 +724,18 @@ class EM_Tools(PropertyGroup):
         default=""
     )  # type: ignore
 
+    xlsx_wizard_warnings: StringProperty(
+        name="Wizard Warnings",
+        description="Warnings collected during wizard steps (newline-separated)",
+        default=""
+    )  # type: ignore
+
+    xlsx_wizard_show_warnings: BoolProperty(
+        name="Show Wizard Warnings",
+        description="Expand/collapse wizard warnings section",
+        default=True
+    )  # type: ignore
+
     # ============================================
     # PARADATA COLLECTIONS & INDICES
     # ============================================

@@ -348,6 +348,27 @@ def _draw_graphml_wizard(layout, context, em_tools):
         icon='FILE_TICK'
     )
 
+    # ── Wizard Warnings ──
+    if em_tools.xlsx_wizard_warnings:
+        warnings_list = [w for w in em_tools.xlsx_wizard_warnings.split("\n") if w.strip()]
+        if warnings_list:
+            graphml_box.separator(factor=0.5)
+            warn_box = graphml_box.box()
+            warn_box.alert = True
+            header_row = warn_box.row(align=True)
+            icon = 'TRIA_DOWN' if em_tools.xlsx_wizard_show_warnings else 'TRIA_RIGHT'
+            header_row.prop(
+                em_tools, "xlsx_wizard_show_warnings",
+                text=f"Wizard Warnings ({len(warnings_list)})",
+                icon=icon,
+                emboss=False
+            )
+            header_row.label(text="", icon='ERROR')
+            if em_tools.xlsx_wizard_show_warnings:
+                warn_col = warn_box.column(align=True)
+                for w in warnings_list:
+                    _draw_wrapped_warning(warn_col, context, w)
+
     # ── Templates ──
     graphml_box.separator(factor=0.5)
     row = graphml_box.row(align=True)

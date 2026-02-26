@@ -109,6 +109,11 @@ class XLSX_WIZARD_OT_convert_stratigraphy(bpy.types.Operator):
         # ── 5. Save wizard state ──
         em_tools.xlsx_wizard_graph_id = graph_id
 
+        # Collect warnings from Step 1 (reset: new graph, fresh start)
+        step1_warnings = list(getattr(graph, 'warnings', []) or [])
+        em_tools.xlsx_wizard_warnings = "\n".join(step1_warnings)
+        em_tools.xlsx_wizard_show_warnings = True  # auto-open if warnings present
+
         # Auto-suggest output path if empty
         if not em_tools.xlsx_wizard_output_path:
             input_dir = os.path.dirname(strat_file)
@@ -185,6 +190,10 @@ class XLSX_WIZARD_OT_enrich_paradata(bpy.types.Operator):
             traceback.print_exc()
             return {'CANCELLED'}
 
+        # Collect accumulated warnings (Step 1 + Step 2)
+        all_warnings = list(getattr(graph, 'warnings', []) or [])
+        em_tools.xlsx_wizard_warnings = "\n".join(all_warnings)
+
         # ── Report ──
         nodes_added = len(graph.nodes) - nodes_before
         self.report(
@@ -260,8 +269,15 @@ class XLSX_WIZARD_OT_export_graphml(bpy.types.Operator):
             traceback.print_exc()
             return {'CANCELLED'}
 
+        # Collect accumulated warnings (Step 1 + Step 2 + Step 3 — e.g. temporal cycles)
+        all_warnings = list(getattr(graph, 'warnings', []) or [])
+        em_tools.xlsx_wizard_warnings = "\n".join(all_warnings)
+
         # ── Report ──
-        self.report({'INFO'}, f"GraphML exported: {output_path}")
+        if all_warnings:
+            self.report({'WARNING'}, f"GraphML exported with {len(all_warnings)} warning(s). See Wizard Warnings panel.")
+        else:
+            self.report({'INFO'}, f"GraphML exported: {output_path}")
 
         print("=" * 70)
         print("XLSX Wizard — GraphML Export Complete")
