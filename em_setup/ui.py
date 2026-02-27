@@ -364,6 +364,7 @@ def _draw_graphml_wizard(layout, context, em_tools):
                 emboss=False
             )
             header_row.label(text="", icon='ERROR')
+            header_row.operator("xlsx_wizard.clear_warnings", text="", icon='X')
             if em_tools.xlsx_wizard_show_warnings:
                 warn_col = warn_box.column(align=True)
                 for w in warnings_list:
@@ -409,6 +410,14 @@ def _draw_graphml_wizard(layout, context, em_tools):
     )
     help_op.url = "creating_em.html#ai-assisted-extraction"
     graphml_box.prop(em_tools, "xlsx_wizard_prompt_language", text="Language")
+    col = graphml_box.column(align=True)
+    col.label(text="Sezioni:", icon='LINENUMBERS_ON')
+    col.prop(em_tools, "xlsx_wizard_prompt_part_a")
+    col.prop(em_tools, "xlsx_wizard_prompt_part_b")
+    col.prop(em_tools, "xlsx_wizard_prompt_part_c")
+    col.prop(em_tools, "xlsx_wizard_prompt_part_d")
+    col.prop(em_tools, "xlsx_wizard_prompt_checklist")
+    col.prop(em_tools, "xlsx_wizard_prompt_validation")
     row = graphml_box.row()
     row.scale_y = 1.1
     row.operator(

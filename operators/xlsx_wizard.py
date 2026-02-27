@@ -319,7 +319,15 @@ class XLSX_WIZARD_OT_copy_ai_prompt(bpy.types.Operator):
         language = em_tools.xlsx_wizard_prompt_language.strip()
 
         try:
-            full_prompt = get_ai_prompt(language=language if language else None)
+            full_prompt = get_ai_prompt(
+                language=language if language else None,
+                include_part_a=em_tools.xlsx_wizard_prompt_part_a,
+                include_part_b=em_tools.xlsx_wizard_prompt_part_b,
+                include_part_c=em_tools.xlsx_wizard_prompt_part_c,
+                include_part_d=em_tools.xlsx_wizard_prompt_part_d,
+                include_checklist=em_tools.xlsx_wizard_prompt_checklist,
+                include_validation=em_tools.xlsx_wizard_prompt_validation,
+            )
         except FileNotFoundError as e:
             self.report({'ERROR'}, str(e))
             return {'CANCELLED'}
@@ -342,6 +350,22 @@ class XLSX_WIZARD_OT_copy_ai_prompt(bpy.types.Operator):
 
 
 # ──────────────────────────────────────────────────────────────────────
+# CLEAR WARNINGS
+# ──────────────────────────────────────────────────────────────────────
+
+class XLSX_WIZARD_OT_clear_warnings(bpy.types.Operator):
+    """Clear all wizard warnings"""
+    bl_idname = "xlsx_wizard.clear_warnings"
+    bl_label = "Clear Wizard Warnings"
+    bl_description = "Clear all warnings collected during wizard steps"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        context.scene.em_tools.xlsx_wizard_warnings = ""
+        return {'FINISHED'}
+
+
+# ──────────────────────────────────────────────────────────────────────
 # Registration
 # ──────────────────────────────────────────────────────────────────────
 
@@ -350,6 +374,7 @@ classes = (
     XLSX_WIZARD_OT_enrich_paradata,
     XLSX_WIZARD_OT_export_graphml,
     XLSX_WIZARD_OT_copy_ai_prompt,
+    XLSX_WIZARD_OT_clear_warnings,
 )
 
 

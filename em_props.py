@@ -736,6 +736,43 @@ class EM_Tools(PropertyGroup):
         default=True
     )  # type: ignore
 
+    # AI Prompt Assembler section toggles (v4.1)
+    xlsx_wizard_prompt_part_a: BoolProperty(
+        name="Parte A – Stratigrafia",
+        description="Include Part A (stratigraphy extraction) in the AI prompt",
+        default=True
+    )  # type: ignore
+
+    xlsx_wizard_prompt_part_b: BoolProperty(
+        name="Parte B – Paradata",
+        description="Include Part B (paradata extraction) in the AI prompt",
+        default=True
+    )  # type: ignore
+
+    xlsx_wizard_prompt_part_c: BoolProperty(
+        name="Parte C – Epoche",
+        description="Include Part C (ParadataEpochs sheet) in the AI prompt",
+        default=False
+    )  # type: ignore
+
+    xlsx_wizard_prompt_part_d: BoolProperty(
+        name="Parte D – Fonti",
+        description="Include Part D (sources list) in the AI prompt",
+        default=False
+    )  # type: ignore
+
+    xlsx_wizard_prompt_checklist: BoolProperty(
+        name="Parte E – Checklist",
+        description="Include Part E (end-of-session checklist) in the AI prompt",
+        default=True
+    )  # type: ignore
+
+    xlsx_wizard_prompt_validation: BoolProperty(
+        name="Script Validazione",
+        description="Include embedded Python validation script and related checklist items",
+        default=False
+    )  # type: ignore
+
     # ============================================
     # PARADATA COLLECTIONS & INDICES
     # ============================================
