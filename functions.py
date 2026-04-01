@@ -738,6 +738,19 @@ def select_list_element_from_obj_proxy(obj, list_type, context=None, graph=None)
     collection = list_getter(scene)
     index_owner = index_owner_getter(scene)
 
+    # Reset containment filter when selecting from 3D viewport
+    if list_type == "em_list":
+        strat = scene.em_tools.stratigraphy
+        if strat.filter_by_containment:
+            strat.filter_by_containment = False
+            strat.containment_filter_node_id = ""
+            # Reload full list so the element can be found
+            try:
+                bpy.ops.em.reset_filters()
+            except Exception:
+                pass
+            collection = list_getter(scene)
+
     found = False
     for idx, item in enumerate(collection):
         if node_name == item.name:

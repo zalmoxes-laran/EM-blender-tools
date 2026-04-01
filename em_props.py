@@ -286,6 +286,18 @@ class StratigraphyManagerProps(PropertyGroup):
         default='LIST'
     )  # type: ignore
 
+    filter_by_containment: BoolProperty(
+        name="Filter by Containment",
+        description="When active, list is filtered to show a container US and its children",
+        default=False
+    )  # type: ignore
+
+    containment_filter_node_id: StringProperty(
+        name="Container Node ID",
+        description="Node ID of the container US currently used for filtering",
+        default=""
+    )  # type: ignore
+
     selected_document: EnumProperty(
         name="Selected Document",
         description="Currently selected document in gallery view",

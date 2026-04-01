@@ -39,12 +39,20 @@ class EM_STRAT_UL_List(UIList):
             op.specific_item = item.name
         
         remaining = first_split.column(align=True)
-        
-        # Name column (25% of remaining space)
-        name_split = remaining.split(factor=0.25)
-        col2 = name_split.column(align=True)
-        col2.label(text=item.name)
-        
+
+        # Name + containment icon column (28% of remaining space)
+        name_split = remaining.split(factor=0.28)
+        name_row = name_split.row(align=True)
+        name_row.label(text=item.name)
+
+        # Containment icons (arrow up/down)
+        if item.is_container:
+            op = name_row.operator("em.filter_by_containment", text="", icon='SORT_DESC', emboss=False)
+            op.container_node_id = item.id_node
+        elif item.parent_node_id != "":
+            op = name_row.operator("em.select_parent_us", text="", icon='SORT_ASC', emboss=False)
+            op.parent_node_id = item.parent_node_id
+
         # Description and visibility toggle
         desc_vis_split = name_split.column(align=True).split(factor=0.98)
         col3 = desc_vis_split.column(align=True)
@@ -140,12 +148,13 @@ class EM_ToolsPanel:
         row = header_box.row(align=True)    
 
         # ✅ PORTED: Use strat.units instead of scene.em_list
-        if not scene.filter_by_epoch and not scene.filter_by_activity:
+        is_filtered = scene.filter_by_epoch or scene.filter_by_activity or strat.filter_by_containment
+        if not is_filtered:
             row.label(text="Total Rows: " + str(len(strat.units)), icon='PRESET')
-        elif scene.filter_by_epoch or scene.filter_by_activity:
+        else:
             row.label(text="Filtered Rows: " + str(len(strat.units)), icon='FILTER')
-        
-        if scene.filter_by_epoch or scene.filter_by_activity:
+
+        if is_filtered:
             row.operator("em.reset_filters", text="", icon='CANCEL')
             row.prop(
                 scene, "reset_filters_show_all_proxies",

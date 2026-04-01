@@ -5,7 +5,7 @@ providing a consistent way to filter stratigraphic units based on multiple crite
 """
 
 import bpy # type: ignore
-from bpy.props import BoolProperty # type: ignore
+from bpy.props import BoolProperty, StringProperty # type: ignore
 from bpy.types import Operator # type: ignore
 
 from ..functions import is_reconstruction_us, EM_list_clear
@@ -149,6 +149,10 @@ class EM_reset_filters(Operator):
             scene.filter_by_epoch = False
             scene.filter_by_activity = False
 
+            # Reset containment filter
+            strat.filter_by_containment = False
+            strat.containment_filter_node_id = ""
+
             # Get graph
             from ..functions import is_graph_available
             graph_exists, graph = is_graph_available(context)
@@ -224,6 +228,99 @@ class EM_toggle_show_reconstruction(Operator):
         return {'FINISHED'}
 
 
+class EM_filter_by_containment(Operator):
+    bl_idname = "em.filter_by_containment"
+    bl_label = "Filter by Containment"
+    bl_description = "Show only the container US and the elements it contains"
+    bl_options = {"REGISTER", "UNDO"}
+
+    container_node_id: StringProperty(
+        name="Container Node ID",
+        description="Node ID of the container US to filter by"
+    )  # type: ignore
+
+    def execute(self, context):
+        scene = context.scene
+        strat = scene.em_tools.stratigraphy
+
+        from ..functions import is_graph_available as check_graph
+        graph_exists, graph = check_graph(context)
+
+        if not graph_exists:
+            self.report({'WARNING'}, "No active graph found.")
+            return {'CANCELLED'}
+
+        container_id = self.container_node_id
+
+        # Disable other filters to avoid conflicts
+        from . import operators as strat_ops
+        old_bypass = strat_ops._em_bypass_filter_update
+        strat_ops._em_bypass_filter_update = True
+        try:
+            scene.filter_by_epoch = False
+            scene.filter_by_activity = False
+        finally:
+            strat_ops._em_bypass_filter_update = old_bypass
+
+        # Find all children of this container via is_part_of edges
+        child_node_ids = set()
+        for edge in graph.edges:
+            if edge.edge_type == "is_part_of" and edge.edge_target == container_id:
+                child_node_ids.add(edge.edge_source)
+
+        # Get all matching nodes (container + children)
+        matching_nodes = []
+        for node in graph.nodes:
+            if not hasattr(node, 'node_type'):
+                continue
+            if node.node_id == container_id or node.node_id in child_node_ids:
+                matching_nodes.append(node)
+
+        # Rebuild list with filtered items
+        from ..functions import EM_list_clear
+        EM_list_clear(context, "em_list")
+
+        for i, node in enumerate(matching_nodes):
+            populate_stratigraphic_node(scene, node, i, graph)
+
+        # Set filter state
+        strat.filter_by_containment = True
+        strat.containment_filter_node_id = container_id
+
+        # Select the container row
+        if len(strat.units) > 0:
+            strat.units_index = 0
+
+        self.report({'INFO'}, f"Showing container and {len(child_node_ids)} contained elements")
+        return {'FINISHED'}
+
+
+class EM_select_parent_us(Operator):
+    bl_idname = "em.select_parent_us"
+    bl_label = "Select Parent US"
+    bl_description = "Select the container US that contains this element"
+    bl_options = {"REGISTER", "UNDO"}
+
+    parent_node_id: StringProperty(
+        name="Parent Node ID",
+        description="Node ID of the parent US to select"
+    )  # type: ignore
+
+    def execute(self, context):
+        scene = context.scene
+        strat = scene.em_tools.stratigraphy
+
+        # Find the parent in the current list
+        for i, item in enumerate(strat.units):
+            if item.id_node == self.parent_node_id:
+                strat.units_index = i
+                self.report({'INFO'}, f"Selected container: {item.name}")
+                return {'FINISHED'}
+
+        self.report({'WARNING'}, "Parent US not found in current list")
+        return {'CANCELLED'}
+
+
 def filter_list_update(self, context):
     """
     Update callback for filter toggle buttons.
@@ -246,7 +343,14 @@ def filter_list_update(self, context):
         filter_value = getattr(scene, filter_name, False) if filter_name else False
         
         print(f"\n--- Filter toggle: {filter_name} = {filter_value} ---")
-        
+
+        # Reset containment filter when epoch/activity filters are toggled
+        strat = scene.em_tools.stratigraphy
+        if strat.filter_by_containment:
+            strat.filter_by_containment = False
+            strat.containment_filter_node_id = ""
+            print("Containment filter reset due to epoch/activity filter change")
+
         # Check if there's a valid graph before proceeding
         from ..functions import is_graph_available as check_graph
         graph_exists, _ = check_graph(context)
@@ -307,6 +411,8 @@ def register_filters():
         EM_reset_filters,
         EM_toggle_include_surviving,
         EM_toggle_show_reconstruction,
+        EM_filter_by_containment,
+        EM_select_parent_us,
     ]
     
     for cls in classes:
@@ -319,7 +425,8 @@ def register_filters():
 def unregister_filters():
     """Unregister filter-related operators and properties."""
     classes = [
-
+        EM_select_parent_us,
+        EM_filter_by_containment,
         EM_toggle_show_reconstruction,
         EM_toggle_include_surviving,
         EM_reset_filters,

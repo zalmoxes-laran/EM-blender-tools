@@ -52,10 +52,24 @@ def populate_stratigraphic_node(scene, node, index, graph):
     
     # Epoch
     first_epoch = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
-    if not first_epoch: 
+    if not first_epoch:
         graph.print_node_connections(node)
     em_item.epoch = first_epoch.name if first_epoch else ""
-    
+
+    # Containment relationships (is_part_of / has_part)
+    # is_part_of edge direction: source=child, target=parent
+    for edge in graph.edges:
+        if edge.edge_type == "is_part_of":
+            if edge.edge_source == node.node_id:
+                # This node is a child (contained in parent)
+                parent_node = graph.find_node_by_id(edge.edge_target)
+                if parent_node:
+                    em_item.parent_node_id = parent_node.node_id
+                    em_item.contained_in_name = parent_node.name
+            elif edge.edge_target == node.node_id:
+                # This node is a container (has children)
+                em_item.is_container = True
+
     return index + 1
 
 

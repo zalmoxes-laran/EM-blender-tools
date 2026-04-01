@@ -99,6 +99,21 @@ class EMListItem(PropertyGroup):
         description="The type of this node",
         default=""
     ) # type: ignore
+    parent_node_id: StringProperty(
+        name="Parent Node ID",
+        description="Node ID of the container US (if this node is contained via is_part_of)",
+        default=""
+    ) # type: ignore
+    is_container: BoolProperty(
+        name="Is Container",
+        description="True if this US contains other elements (has has_part edges)",
+        default=False
+    ) # type: ignore
+    contained_in_name: StringProperty(
+        name="Contained In",
+        description="Name of the container US",
+        default=""
+    ) # type: ignore
 
 
 class EMreusedUS(PropertyGroup):
