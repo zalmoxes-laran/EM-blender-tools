@@ -17,10 +17,55 @@ from .functions import (
 )
 
 
-def populate_stratigraphic_node(scene, node, index, graph):
+def build_instance_chains(graph):
+    """
+    Pre-compute instance chains from changed_from edges using BFS.
+    Returns dict[node_id] -> comma-separated string of all chain member IDs.
+    Only includes entries for nodes that belong to a chain of size > 1.
+    """
+    # Build adjacency list (undirected) from changed_from edges
+    adjacency = {}
+    for edge in graph.edges:
+        if edge.edge_type == "changed_from":
+            src, tgt = edge.edge_source, edge.edge_target
+            adjacency.setdefault(src, set()).add(tgt)
+            adjacency.setdefault(tgt, set()).add(src)
+
+    if not adjacency:
+        return {}
+
+    # BFS to find connected components
+    visited = set()
+    chains = {}  # node_id -> csv string of chain members
+
+    for start_id in adjacency:
+        if start_id in visited:
+            continue
+        # BFS
+        component = set()
+        queue = [start_id]
+        while queue:
+            current = queue.pop(0)
+            if current in visited:
+                continue
+            visited.add(current)
+            component.add(current)
+            for neighbor in adjacency.get(current, set()):
+                if neighbor not in visited:
+                    queue.append(neighbor)
+
+        if len(component) > 1:
+            chain_csv = ",".join(component)
+            for node_id in component:
+                chains[node_id] = chain_csv
+
+    return chains
+
+
+def populate_stratigraphic_node(scene, node, index, graph, instance_chains=None):
     """
     Popola la lista di unità stratigrafiche.
-    
+
     ✅ CLEAN VERSION: Popola SOLO scene.em_tools.stratigraphy.units
     ✅ USA SEMPRE il nome pulito del nodo, senza prefisso
     """
@@ -69,6 +114,11 @@ def populate_stratigraphic_node(scene, node, index, graph):
             elif edge.edge_target == node.node_id:
                 # This node is a container (has children)
                 em_item.is_container = True
+
+    # Instance chain (changed_from)
+    if instance_chains and node.node_id in instance_chains:
+        em_item.is_in_instance_chain = True
+        em_item.instance_chain_node_ids = instance_chains[node.node_id]
 
     return index + 1
 
@@ -301,10 +351,13 @@ def populate_blender_lists_from_graph(context, graph):
         elif node_type == 'EpochNode':
             epoch_nodes.append(node)
 
+    # Pre-compute instance chains from changed_from edges
+    instance_chains = build_instance_chains(graph)
+
     # 1. Nodi stratigrafici
     for node in stratigraphic_nodes:
         if isinstance(node, StratigraphicNode):
-            em_list_index_ema = populate_stratigraphic_node(scene, node, em_list_index_ema, graph)
+            em_list_index_ema = populate_stratigraphic_node(scene, node, em_list_index_ema, graph, instance_chains)
             em_reused_index_ema = populate_reuse_US_table(scene, node, em_reused_index_ema, graph)
 
     # 2. Nodi documento

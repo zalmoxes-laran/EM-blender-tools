@@ -298,6 +298,18 @@ class StratigraphyManagerProps(PropertyGroup):
         default=""
     )  # type: ignore
 
+    filter_by_instance_chain: BoolProperty(
+        name="Filter by Instance Chain",
+        description="When active, list is filtered to show an instance chain (changed_from)",
+        default=False
+    )  # type: ignore
+
+    instance_chain_filter_node_ids: StringProperty(
+        name="Instance Chain Node IDs",
+        description="Comma-separated node IDs of the currently filtered instance chain",
+        default=""
+    )  # type: ignore
+
     selected_document: EnumProperty(
         name="Selected Document",
         description="Currently selected document in gallery view",

@@ -53,6 +53,11 @@ class EM_STRAT_UL_List(UIList):
             op = name_row.operator("em.select_parent_us", text="", icon='SORT_ASC', emboss=False)
             op.parent_node_id = item.parent_node_id
 
+        # Instance chain icon
+        if item.is_in_instance_chain:
+            op = name_row.operator("em.filter_by_instance_chain", text="", icon='THREE_DOTS', emboss=False)
+            op.chain_node_ids = item.instance_chain_node_ids
+
         # Description and visibility toggle
         desc_vis_split = name_split.column(align=True).split(factor=0.98)
         col3 = desc_vis_split.column(align=True)
@@ -148,7 +153,7 @@ class EM_ToolsPanel:
         row = header_box.row(align=True)    
 
         # ✅ PORTED: Use strat.units instead of scene.em_list
-        is_filtered = scene.filter_by_epoch or scene.filter_by_activity or strat.filter_by_containment
+        is_filtered = scene.filter_by_epoch or scene.filter_by_activity or strat.filter_by_containment or strat.filter_by_instance_chain
         if not is_filtered:
             row.label(text="Total Rows: " + str(len(strat.units)), icon='PRESET')
         else:

@@ -153,6 +153,10 @@ class EM_reset_filters(Operator):
             strat.filter_by_containment = False
             strat.containment_filter_node_id = ""
 
+            # Reset instance chain filter
+            strat.filter_by_instance_chain = False
+            strat.instance_chain_filter_node_ids = ""
+
             # Get graph
             from ..functions import is_graph_available
             graph_exists, graph = is_graph_available(context)
@@ -262,6 +266,9 @@ class EM_filter_by_containment(Operator):
         finally:
             strat_ops._em_bypass_filter_update = old_bypass
 
+        strat.filter_by_instance_chain = False
+        strat.instance_chain_filter_node_ids = ""
+
         # Find all children of this container via is_part_of edges
         child_node_ids = set()
         for edge in graph.edges:
@@ -321,6 +328,74 @@ class EM_select_parent_us(Operator):
         return {'CANCELLED'}
 
 
+class EM_filter_by_instance_chain(Operator):
+    bl_idname = "em.filter_by_instance_chain"
+    bl_label = "Filter by Instance Chain"
+    bl_description = "Show all instances of this object across different epochs"
+    bl_options = {"REGISTER", "UNDO"}
+
+    chain_node_ids: StringProperty(
+        name="Chain Node IDs",
+        description="Comma-separated node IDs of all chain members"
+    )  # type: ignore
+
+    def execute(self, context):
+        scene = context.scene
+        strat = scene.em_tools.stratigraphy
+
+        from ..functions import is_graph_available as check_graph
+        graph_exists, graph = check_graph(context)
+
+        if not graph_exists:
+            self.report({'WARNING'}, "No active graph found.")
+            return {'CANCELLED'}
+
+        chain_ids = set(self.chain_node_ids.split(","))
+
+        # Disable other filters to avoid conflicts
+        from . import operators as strat_ops
+        old_bypass = strat_ops._em_bypass_filter_update
+        strat_ops._em_bypass_filter_update = True
+        try:
+            scene.filter_by_epoch = False
+            scene.filter_by_activity = False
+        finally:
+            strat_ops._em_bypass_filter_update = old_bypass
+
+        strat.filter_by_containment = False
+        strat.containment_filter_node_id = ""
+
+        # Collect matching nodes
+        matching_nodes = []
+        for node in graph.nodes:
+            if not hasattr(node, 'node_type'):
+                continue
+            if node.node_id in chain_ids:
+                matching_nodes.append(node)
+
+        # Sort by y_pos (most recent = smallest y_pos first)
+        matching_nodes.sort(key=lambda n: n.attributes.get('y_pos', 0.0))
+
+        # Rebuild list with filtered items
+        EM_list_clear(context, "em_list")
+
+        from ..populate_lists import build_instance_chains
+        instance_chains = build_instance_chains(graph)
+
+        for i, node in enumerate(matching_nodes):
+            populate_stratigraphic_node(scene, node, i, graph, instance_chains)
+
+        # Set filter state
+        strat.filter_by_instance_chain = True
+        strat.instance_chain_filter_node_ids = self.chain_node_ids
+
+        if len(strat.units) > 0:
+            strat.units_index = 0
+
+        self.report({'INFO'}, f"Showing {len(matching_nodes)} instances in chain")
+        return {'FINISHED'}
+
+
 def filter_list_update(self, context):
     """
     Update callback for filter toggle buttons.
@@ -344,12 +419,16 @@ def filter_list_update(self, context):
         
         print(f"\n--- Filter toggle: {filter_name} = {filter_value} ---")
 
-        # Reset containment filter when epoch/activity filters are toggled
+        # Reset containment and instance chain filters when epoch/activity filters are toggled
         strat = scene.em_tools.stratigraphy
         if strat.filter_by_containment:
             strat.filter_by_containment = False
             strat.containment_filter_node_id = ""
             print("Containment filter reset due to epoch/activity filter change")
+        if strat.filter_by_instance_chain:
+            strat.filter_by_instance_chain = False
+            strat.instance_chain_filter_node_ids = ""
+            print("Instance chain filter reset due to epoch/activity filter change")
 
         # Check if there's a valid graph before proceeding
         from ..functions import is_graph_available as check_graph
@@ -413,6 +492,7 @@ def register_filters():
         EM_toggle_show_reconstruction,
         EM_filter_by_containment,
         EM_select_parent_us,
+        EM_filter_by_instance_chain,
     ]
     
     for cls in classes:
@@ -425,6 +505,7 @@ def register_filters():
 def unregister_filters():
     """Unregister filter-related operators and properties."""
     classes = [
+        EM_filter_by_instance_chain,
         EM_select_parent_us,
         EM_filter_by_containment,
         EM_toggle_show_reconstruction,

@@ -114,6 +114,16 @@ class EMListItem(PropertyGroup):
         description="Name of the container US",
         default=""
     ) # type: ignore
+    is_in_instance_chain: BoolProperty(
+        name="In Instance Chain",
+        description="True if this node has changed_from/changed_to edges",
+        default=False
+    ) # type: ignore
+    instance_chain_node_ids: StringProperty(
+        name="Instance Chain Node IDs",
+        description="Comma-separated node IDs of all members in this instance chain",
+        default=""
+    ) # type: ignore
 
 
 class EMreusedUS(PropertyGroup):
