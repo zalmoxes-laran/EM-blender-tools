@@ -117,6 +117,10 @@ show_help() {
     echo "  setup [force] 3.13 Setup for Blender 5.1+ (Python 3.13)"
     echo "  setup [force] all  Setup for both Python 3.11 and 3.13"
     echo
+    echo "=== SWITCH BLENDER VERSION ==="
+    echo "  manifest 3.11      Rigenera manifest per Blender 5.0.x (usa wheels cp311)"
+    echo "  manifest 3.13      Rigenera manifest per Blender 5.1+  (usa wheels cp313)"
+    echo
     echo "=== s3dgraphy DEVELOPMENT ==="
     echo "  s3d                Activate s3dgraphy development version"
     echo "  s3d on             Same as above"
@@ -292,7 +296,33 @@ case "$1" in
         # Notify if dev version was replaced
         notify_dev_replaced
         ;;
-    
+
+    manifest)
+        # Rigenera solo il manifest puntando ai wheels già scaricati
+        PYTHON_VER="${2:-3.11}"
+        CP_TAG="cp${PYTHON_VER//.}"
+
+        # Verifica che i wheels esistano
+        if [ -d "wheels/$CP_TAG" ] && ls wheels/$CP_TAG/*.whl 1>/dev/null 2>&1; then
+            WHEEL_COUNT=$(ls wheels/$CP_TAG/*.whl | wc -l | tr -d ' ')
+            echo "🔄 Switching manifest to Blender target (Python $PYTHON_VER)"
+            echo "   Found $WHEEL_COUNT wheels in wheels/$CP_TAG/"
+            $PYTHON_CMD scripts/version_manager.py update --python-version $PYTHON_VER
+            echo ""
+            echo "✅ blender_manifest.toml rigenerato con wheels $CP_TAG"
+            echo "   Ora puoi avviare Blender da VS Code."
+        elif [ -d "wheels" ] && ls wheels/*.whl 1>/dev/null 2>&1; then
+            echo "🔄 Switching manifest (legacy flat wheels directory)"
+            $PYTHON_CMD scripts/version_manager.py update --python-version $PYTHON_VER
+            echo ""
+            echo "✅ blender_manifest.toml rigenerato"
+        else
+            echo "❌ Nessun wheel trovato per Python $PYTHON_VER"
+            echo "   Esegui prima: ./em.sh setup $PYTHON_VER"
+            exit 1
+        fi
+        ;;
+
     s3d)
         shift  # Remove 's3d' from arguments
         s3d_command "$@"

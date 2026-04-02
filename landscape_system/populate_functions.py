@@ -21,22 +21,29 @@ def populate_lists_landscape_mode(context):
     Popola tutte le liste in modalità Landscape con elementi da tutti i grafi
     """
     scene = context.scene
-    
+
     # Verifica che siamo in modalità Landscape
     if not getattr(scene, 'landscape_mode_active', False):
         return
-    
+
     print("🌍 Populating lists in Landscape mode...")
-    
+
     # Ottieni tutti i grafi caricati
     all_graphs = get_all_loaded_graphs(context)
     if not all_graphs:
         print("❌ No graphs loaded for Landscape mode")
         return
-    
+
+    # Calcola cronologia per ogni grafo (necessario per filtro temporale)
+    for graph_code, graph in all_graphs.items():
+        try:
+            graph.calculate_chronology()
+        except Exception as e:
+            print(f"Warning: chronology calculation failed for {graph_code}: {e}")
+
     # Pulisci tutte le liste esistenti
     clear_all_lists(context)
-    
+
     # Popola ogni lista con elementi da tutti i grafi
     populate_stratigraphy_list_landscape(context, all_graphs)
     populate_properties_list_landscape(context, all_graphs)
@@ -44,7 +51,7 @@ def populate_lists_landscape_mode(context):
     populate_extractors_list_landscape(context, all_graphs)
     populate_combiners_list_landscape(context, all_graphs)
     populate_epochs_list_landscape(context, all_graphs)
-    
+
     print(f"✅ Landscape mode: populated lists from {len(all_graphs)} graphs")
 
 def get_all_loaded_graphs(context):
@@ -71,22 +78,17 @@ def get_all_loaded_graphs(context):
     return loaded_graphs
 
 def clear_all_lists(context):
-    """Pulisce tutte le liste principali"""
+    """Pulisce tutte le liste principali (centralizzate e legacy)"""
     scene = context.scene
-    
-    lists_to_clear = [
-        'em_list',
-        'em_properties_list', 
-        'em_sources_list',
-        'em_extractors_list',
-        'em_combiners_list',
-        'em_reused'
-    ]
-    
-    for list_name in lists_to_clear:
-        if hasattr(scene, list_name):
-            list_obj = getattr(scene, list_name)
-            list_obj.clear()
+    from ..functions import EM_list_clear
+
+    # Clear centralized lists via EM_list_clear
+    for list_type in ['em_list', 'em_reused', 'em_sources_list',
+                      'em_properties_list', 'em_extractors_list', 'em_combiners_list']:
+        try:
+            EM_list_clear(context, list_type)
+        except Exception:
+            pass
 
     # Clear epochs from the centralized container
     scene.em_tools.epochs.list.clear()
@@ -109,10 +111,11 @@ def populate_stratigraphy_list_landscape(context, all_graphs):
             
             # Nome con prefisso grafo per Landscape
             item.name = f"[{graph_code}] {node.name}"
-            
+            item.source_graph = graph_code
+
             # Icona basata sul nome originale (senza prefisso)
             item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
-            
+
             # Altri attributi
             item.id_node = node.node_id
             item.description = getattr(node, 'description', '')

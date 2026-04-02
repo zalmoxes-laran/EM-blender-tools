@@ -21,13 +21,16 @@ class EM_filter_lists(Operator):
     def execute(self, context):
         """
         Apply filters to stratigraphy list.
-
-        ✅ CLEAN VERSION: Uses only scene.em_tools.stratigraphy paths
+        Supports both single graph and landscape (multi-graph) modes.
         """
         scene = context.scene
-        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+        strat = scene.em_tools.stratigraphy
+        is_landscape = getattr(scene, 'landscape_mode_active', False)
 
-        # Check graph availability
+        if is_landscape:
+            return self._execute_landscape(context)
+
+        # --- SINGLE GRAPH MODE ---
         from ..functions import is_graph_available as check_graph
         graph_exists, graph = check_graph(context)
 
@@ -35,96 +38,132 @@ class EM_filter_lists(Operator):
             self.report({'WARNING'}, "No active graph found. Please load a GraphML file first.")
             return {'CANCELLED'}
 
-        # Get all stratigraphic nodes
         all_strat_nodes = [node for node in graph.nodes
                            if hasattr(node, 'node_type') and
                            node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
 
-        # Apply filters
-        filtered_items = all_strat_nodes  # Start with all nodes
+        filtered_items = self._apply_common_filters(scene, graph, all_strat_nodes)
 
-        # Filter by epoch
-        if scene.filter_by_epoch:
-            epochs = scene.em_tools.epochs
-            if epochs.list and len(epochs.list) > 0:
-                active_epoch_index = epochs.list_index
-                if active_epoch_index >= 0 and active_epoch_index < len(epochs.list):
-                    active_epoch = epochs.list[active_epoch_index]
-
-                    # Filter nodes
-                    epoch_filtered = []
-                    for node in filtered_items:
-                        first_epoch = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
-
-                        # Check if created in this epoch
-                        if first_epoch and first_epoch.name == active_epoch.name:
-                            epoch_filtered.append(node)
-                        # Check if survived in this epoch (if option enabled)
-                        elif scene.include_surviving_units:
-                            survived_epochs = graph.get_connected_epoch_nodes_list_by_edge_type(node, "survive_in_epoch")
-                            if any(e.name == active_epoch.name for e in survived_epochs):
-                                epoch_filtered.append(node)
-
-                    filtered_items = epoch_filtered
-
-        # Filter by activity
-        if scene.filter_by_activity:
-            activity_manager = scene.activity_manager
-            if activity_manager.activities and len(activity_manager.activities) > 0:
-                active_activity_index = activity_manager.active_index
-                if active_activity_index >= 0 and active_activity_index < len(activity_manager.activities):
-                    active_activity = activity_manager.activities[active_activity_index]
-
-                    # Filter nodes that belong to this activity
-                    activity_filtered = []
-                    for node in filtered_items:
-                        # Check if node is connected to this activity via "is_in_activity" edge
-                        connected_activities = graph.get_connected_nodes_by_edge_type(node.node_id, "is_in_activity")
-                        if any(activity.name == active_activity.name for activity in connected_activities):
-                            activity_filtered.append(node)
-
-                    filtered_items = activity_filtered
-
-        # Filter reconstruction units
-        if not scene.show_reconstruction_units:
-            from ..functions import is_reconstruction_us
-            filtered_items = [node for node in filtered_items if not is_reconstruction_us(node)]
-
-        # ✅ Save current selection (SOLO nuovo)
+        # Save current selection
         current_selected = None
         if strat.units_index >= 0 and strat.units_index < len(strat.units):
             current_selected = strat.units[strat.units_index].name
 
-        # ✅ Clear SOLO nuova lista
         EM_list_clear(context, "em_list")
 
-        # ✅ Rebuild (popola SOLO nuova lista)
         from ..populate_lists import build_instance_chains
         instance_chains = build_instance_chains(graph)
-        print(f"\nPopulating with {len(filtered_items)} filtered items")
         for i, node in enumerate(filtered_items):
             populate_stratigraphic_node(scene, node, i, graph, instance_chains)
 
-        # ✅ Reset index SOLO nuovo
-        if len(strat.units) == 0:
-            strat.units_index = -1
-            self.report({'INFO'}, "No items match the current filters")
-        else:
-            strat.units_index = 0
+        self._restore_selection(strat, current_selected)
 
-            # Restore selection if possible
-            if current_selected:
-                for i, item in enumerate(strat.units):
-                    if item.name == current_selected:
-                        strat.units_index = i
-                        print(f"Restored selection to index {i}: {item.name}")
-                        break
-
-        # Sync visibility if active
         if scene.sync_list_visibility:
             bpy.ops.em.strat_sync_visibility()
 
         return {'FINISHED'}
+
+    def _execute_landscape(self, context):
+        """Filter in landscape/multi-graph mode."""
+        scene = context.scene
+        strat = scene.em_tools.stratigraphy
+
+        from ..landscape_system.populate_functions import get_all_loaded_graphs
+        from ..functions import check_objs_in_scene_and_provide_icon_for_list_element
+        from ..populate_lists import get_connected_epoch_for_node
+
+        all_graphs = get_all_loaded_graphs(context)
+        if not all_graphs:
+            self.report({'WARNING'}, "No graphs loaded for Landscape mode")
+            return {'CANCELLED'}
+
+        current_selected = None
+        if strat.units_index >= 0 and strat.units_index < len(strat.units):
+            current_selected = strat.units[strat.units_index].name
+
+        EM_list_clear(context, "em_list")
+
+        for graph_code, graph in all_graphs.items():
+            all_strat_nodes = [node for node in graph.nodes
+                               if hasattr(node, 'node_type') and
+                               node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
+
+            filtered_items = self._apply_common_filters(scene, graph, all_strat_nodes)
+
+            for node in filtered_items:
+                item = strat.units.add()
+                item.name = f"[{graph_code}] {node.name}"
+                item.source_graph = graph_code
+                item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+                item.id_node = node.node_id
+                item.description = getattr(node, 'description', '')
+                item.node_type = getattr(node, 'node_type', 'US')
+                connected_epoch = get_connected_epoch_for_node(graph, node)
+                if connected_epoch:
+                    item.epoch = f"[{graph_code}] {connected_epoch}"
+
+        self._restore_selection(strat, current_selected)
+
+        if scene.sync_list_visibility:
+            bpy.ops.em.strat_sync_visibility()
+
+        return {'FINISHED'}
+
+    def _apply_common_filters(self, scene, graph, nodes):
+        """Apply epoch, activity, and reconstruction filters to a node list."""
+        filtered = nodes
+
+        if scene.filter_by_epoch:
+            epochs = scene.em_tools.epochs
+            if epochs.list and len(epochs.list) > 0:
+                active_epoch_index = epochs.list_index
+                if 0 <= active_epoch_index < len(epochs.list):
+                    active_epoch = epochs.list[active_epoch_index]
+                    # Strip graph prefix for comparison if present
+                    epoch_name = active_epoch.name
+                    if '] ' in epoch_name:
+                        epoch_name = epoch_name.split('] ', 1)[1]
+
+                    epoch_filtered = []
+                    for node in filtered:
+                        first_epoch = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
+                        if first_epoch and first_epoch.name == epoch_name:
+                            epoch_filtered.append(node)
+                        elif scene.include_surviving_units:
+                            survived_epochs = graph.get_connected_epoch_nodes_list_by_edge_type(node, "survive_in_epoch")
+                            if any(e.name == epoch_name for e in survived_epochs):
+                                epoch_filtered.append(node)
+                    filtered = epoch_filtered
+
+        if scene.filter_by_activity:
+            activity_manager = scene.activity_manager
+            if activity_manager.activities and len(activity_manager.activities) > 0:
+                active_activity_index = activity_manager.active_index
+                if 0 <= active_activity_index < len(activity_manager.activities):
+                    active_activity = activity_manager.activities[active_activity_index]
+                    activity_filtered = []
+                    for node in filtered:
+                        connected_activities = graph.get_connected_nodes_by_edge_type(node.node_id, "is_in_activity")
+                        if any(a.name == active_activity.name for a in connected_activities):
+                            activity_filtered.append(node)
+                    filtered = activity_filtered
+
+        if not scene.show_reconstruction_units:
+            filtered = [node for node in filtered if not is_reconstruction_us(node)]
+
+        return filtered
+
+    def _restore_selection(self, strat, current_selected):
+        """Restore selection or reset index."""
+        if len(strat.units) == 0:
+            strat.units_index = -1
+        else:
+            strat.units_index = 0
+            if current_selected:
+                for i, item in enumerate(strat.units):
+                    if item.name == current_selected:
+                        strat.units_index = i
+                        break
 
 class EM_reset_filters(Operator):
     bl_idname = "em.reset_filters"
@@ -135,11 +174,11 @@ class EM_reset_filters(Operator):
     def execute(self, context):
         """
         Reset all filters and reload the complete list.
-
-        ✅ CLEAN VERSION: Uses only scene.em_tools.stratigraphy paths
+        Supports both single graph and landscape (multi-graph) modes.
         """
         scene = context.scene
-        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+        strat = scene.em_tools.stratigraphy
+        is_landscape = getattr(scene, 'landscape_mode_active', False)
 
         # Disable filter update callbacks while resetting toggles.
         from . import operators as strat_ops
@@ -159,39 +198,40 @@ class EM_reset_filters(Operator):
             strat.filter_by_instance_chain = False
             strat.instance_chain_filter_node_ids = ""
 
-            # Get graph
-            from ..functions import is_graph_available
-            graph_exists, graph = is_graph_available(context)
-
-            if graph_exists:
-                # ✅ Clear SOLO nuova lista
-                EM_list_clear(context, "em_list")
-
-                # Get all stratigraphic nodes
-                strat_nodes = [node for node in graph.nodes
-                               if hasattr(node, 'node_type') and
-                               node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
-
-                # ✅ Repopulate SOLO nuova lista
-                from ..populate_lists import build_instance_chains
-                instance_chains = build_instance_chains(graph)
-                for i, node in enumerate(strat_nodes):
-                    populate_stratigraphic_node(scene, node, i, graph, instance_chains)
-
-                # ✅ Ensure index SOLO nuovo
-                if len(strat.units) > 0:
-                    strat.units_index = 0
-                else:
-                    strat.units_index = -1
-
-                # Optional behavior: re-enable visibility for all proxies.
-                if scene.reset_filters_show_all_proxies and hasattr(bpy.ops.em, "strat_show_all_proxies"):
-                    bpy.ops.em.strat_show_all_proxies()
-                    self.report({'INFO'}, "Filters reset, list restored and all proxies shown")
-                else:
-                    self.report({'INFO'}, "Filters reset, list restored (visibility preserved)")
+            if is_landscape:
+                # Landscape mode: repopulate from all graphs
+                from ..landscape_system.populate_functions import populate_lists_landscape_mode
+                populate_lists_landscape_mode(context)
+                self.report({'INFO'}, "Filters reset, landscape lists restored")
             else:
-                self.report({'WARNING'}, "No active graph found")
+                # Single graph mode
+                from ..functions import is_graph_available
+                graph_exists, graph = is_graph_available(context)
+
+                if graph_exists:
+                    EM_list_clear(context, "em_list")
+
+                    strat_nodes = [node for node in graph.nodes
+                                   if hasattr(node, 'node_type') and
+                                   node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
+
+                    from ..populate_lists import build_instance_chains
+                    instance_chains = build_instance_chains(graph)
+                    for i, node in enumerate(strat_nodes):
+                        populate_stratigraphic_node(scene, node, i, graph, instance_chains)
+
+                    if len(strat.units) > 0:
+                        strat.units_index = 0
+                    else:
+                        strat.units_index = -1
+
+                    if scene.reset_filters_show_all_proxies and hasattr(bpy.ops.em, "strat_show_all_proxies"):
+                        bpy.ops.em.strat_show_all_proxies()
+                        self.report({'INFO'}, "Filters reset, list restored and all proxies shown")
+                    else:
+                        self.report({'INFO'}, "Filters reset, list restored (visibility preserved)")
+                else:
+                    self.report({'WARNING'}, "No active graph found")
         finally:
             strat_ops._em_bypass_filter_update = old_bypass
 

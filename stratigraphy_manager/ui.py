@@ -14,36 +14,73 @@ from .data import ensure_valid_index
 from .. import icons_manager
 import os
 
+# Icone NODE_SOCKET per distinguere visivamente i grafi (ciclica)
+_GRAPH_SOCKET_ICONS = [
+    'NODE_SOCKET_OBJECT',      # Orange
+    'NODE_SOCKET_STRING',      # Blue
+    'NODE_SOCKET_SHADER',      # Green
+    'NODE_SOCKET_VECTOR',      # Purple
+    'NODE_SOCKET_BOOLEAN',     # Pink
+    'NODE_SOCKET_INT',         # Teal
+    'NODE_SOCKET_RGBA',        # Yellow
+    'NODE_SOCKET_MATERIAL',    # Salmon
+]
+
+# Cache per mappare graph_code -> indice icona
+_graph_icon_cache = {}
+
+def _get_graph_icon(graph_code):
+    """Ritorna l'icona NODE_SOCKET per un dato graph_code (ciclica)."""
+    if graph_code not in _graph_icon_cache:
+        idx = len(_graph_icon_cache) % len(_GRAPH_SOCKET_ICONS)
+        _graph_icon_cache[graph_code] = _GRAPH_SOCKET_ICONS[idx]
+    return _graph_icon_cache[graph_code]
+
+
 class EM_STRAT_UL_List(UIList):
     """Custom UIList for displaying stratigraphic units with visibility toggle"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         icons_style = 'OUTLINER'
         scene = context.scene
         is_in_scene = item.icon == 'LINKED'  # Check if the item is linked in the scene
-        
+        is_landscape = getattr(scene, 'landscape_mode_active', False)
+
         # Layout with better spacing
         row = layout.row(align=True)
-        
+
         # First column: Chain icon (active or inactive)
         first_split = row.split(factor=0.03)
         col1 = first_split.column(align=True)
-        
+
         # Use the same column structure but control enablement at the column level
         sub_col = col1.column(align=True)
         sub_col.enabled = is_in_scene
-        
+
         # Always use an operator, but the column enablement controls its functionality
         op = sub_col.operator("select.fromlistitem", text="", icon=item.icon, emboss=False)
         if op:
             op.list_type = "em_list"
             op.specific_item = item.name
-        
+
         remaining = first_split.column(align=True)
+
+        # Graph badge in landscape mode: colored NODE_SOCKET icon + graph code
+        if is_landscape and item.source_graph:
+            socket_icon = _get_graph_icon(item.source_graph)
+            badge_split = remaining.split(factor=0.12)
+            badge_row = badge_split.row(align=True)
+            badge_row.label(text=item.source_graph, icon=socket_icon)
+            remaining = badge_split.column(align=True)
+
+        # Display name: strip [GRAPH_CODE] prefix in landscape mode for cleaner display
+        display_name = item.name
+        if is_landscape and item.source_graph and display_name.startswith(f"[{item.source_graph}] "):
+            display_name = display_name[len(item.source_graph) + 3:]  # strip "[CODE] "
 
         # Name + containment icon column (28% of remaining space)
         name_split = remaining.split(factor=0.28)
         name_row = name_split.row(align=True)
-        name_row.label(text=item.name)
+        name_row.label(text=display_name)
 
         # Containment icons
         if item.is_container:

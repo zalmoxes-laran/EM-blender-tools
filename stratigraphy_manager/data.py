@@ -124,6 +124,11 @@ class EMListItem(PropertyGroup):
         description="Comma-separated node IDs of all members in this instance chain",
         default=""
     ) # type: ignore
+    source_graph: StringProperty(
+        name="Source Graph",
+        description="Graph code of origin (used in landscape/multigraph mode)",
+        default=""
+    ) # type: ignore
 
 
 class EMreusedUS(PropertyGroup):

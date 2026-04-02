@@ -17,6 +17,21 @@ from .functions import (
 )
 
 
+def get_connected_epoch_for_node(graph, node):
+    """
+    Get the name of the first epoch connected to a stratigraphic node.
+
+    Args:
+        graph: The s3dgraphy Graph instance.
+        node: The node to look up.
+
+    Returns:
+        str or None: The epoch name, or None if no epoch is connected.
+    """
+    first_epoch = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
+    return first_epoch.name if first_epoch else None
+
+
 def build_instance_chains(graph):
     """
     Pre-compute instance chains from changed_from edges using BFS.
@@ -350,6 +365,12 @@ def populate_blender_lists_from_graph(context, graph):
             combiner_nodes.append(node)
         elif node_type == 'EpochNode':
             epoch_nodes.append(node)
+
+    # Calculate chronology (TPQ/TAQ propagation) for temporal filtering
+    try:
+        graph.calculate_chronology()
+    except Exception as e:
+        print(f"Warning: chronology calculation failed: {e}")
 
     # Pre-compute instance chains from changed_from edges
     instance_chains = build_instance_chains(graph)

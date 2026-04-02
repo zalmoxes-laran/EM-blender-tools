@@ -265,6 +265,175 @@ class CF_OT_LoadHorizons(Operator, ImportHelper):
             return {'CANCELLED'}
 
 # ============================
+# TEMPORAL FILTER OPERATORS
+# ============================
+
+class CF_OT_ApplyFilter(Operator):
+    """Apply temporal filter using the selected horizon's time range"""
+    bl_idname = "cronofilter.apply_filter"
+    bl_label = "Apply Temporal Filter"
+    bl_description = "Filter stratigraphic units by the selected horizon's time range"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        scene = context.scene
+        cf_settings = scene.cf_settings
+
+        if not cf_settings.horizons or cf_settings.active_horizon_index < 0:
+            self.report({'WARNING'}, "No horizon selected")
+            return {'CANCELLED'}
+
+        if cf_settings.active_horizon_index >= len(cf_settings.horizons):
+            self.report({'WARNING'}, "Invalid horizon index")
+            return {'CANCELLED'}
+
+        horizon = cf_settings.horizons[cf_settings.active_horizon_index]
+        start_time = float(horizon.start_time)
+        end_time = float(horizon.end_time)
+
+        from ..landscape_system.populate_functions import get_all_loaded_graphs
+        from ..functions import check_objs_in_scene_and_provide_icon_for_list_element, EM_list_clear
+        from ..populate_lists import get_connected_epoch_for_node
+
+        all_graphs = get_all_loaded_graphs(context)
+        if not all_graphs:
+            self.report({'WARNING'}, "No graphs loaded")
+            return {'CANCELLED'}
+
+        strat = scene.em_tools.stratigraphy
+        EM_list_clear(context, "em_list")
+
+        total_filtered = 0
+        for graph_code, graph in all_graphs.items():
+            # Ensure chronology is calculated
+            has_chrono = any(
+                node.attributes.get("CALCUL_START_T") is not None
+                for node in graph.nodes
+                if hasattr(node, 'node_type') and node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU']
+            )
+            if not has_chrono:
+                try:
+                    graph.calculate_chronology()
+                except Exception as e:
+                    print(f"Warning: chronology calculation failed for {graph_code}: {e}")
+                    continue
+
+            filtered_nodes = graph.filter_nodes_by_time_range(start_time, end_time)
+
+            for node in filtered_nodes:
+                item = strat.units.add()
+                item.name = f"[{graph_code}] {node.name}"
+                item.source_graph = graph_code
+                item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+                item.id_node = node.node_id
+                item.description = getattr(node, 'description', '')
+                item.node_type = getattr(node, 'node_type', 'US')
+                connected_epoch = get_connected_epoch_for_node(graph, node)
+                if connected_epoch:
+                    item.epoch = f"[{graph_code}] {connected_epoch}"
+
+            total_filtered += len(filtered_nodes)
+
+        if len(strat.units) > 0:
+            strat.units_index = 0
+        else:
+            strat.units_index = -1
+
+        self.report({'INFO'}, f"Temporal filter [{start_time} - {end_time}]: {total_filtered} units")
+        return {'FINISHED'}
+
+
+class CF_OT_ResetFilter(Operator):
+    """Reset temporal filter and restore full list"""
+    bl_idname = "cronofilter.reset_filter"
+    bl_label = "Reset Temporal Filter"
+    bl_description = "Remove temporal filter and show all stratigraphic units"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        from ..landscape_system.populate_functions import populate_lists_landscape_mode
+        populate_lists_landscape_mode(context)
+        self.report({'INFO'}, "Temporal filter reset")
+        return {'FINISHED'}
+
+
+class CF_OT_AutoHorizons(Operator):
+    """Generate horizons automatically from all loaded graphs' epochs"""
+    bl_idname = "cronofilter.auto_horizons"
+    bl_label = "Auto from Epochs"
+    bl_description = "Generate chronological horizons by intersecting epochs from all loaded graphs"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        scene = context.scene
+        cf_settings = scene.cf_settings
+
+        from ..landscape_system.populate_functions import get_all_loaded_graphs
+
+        all_graphs = get_all_loaded_graphs(context)
+        if not all_graphs:
+            self.report({'WARNING'}, "No graphs loaded")
+            return {'CANCELLED'}
+
+        # Collect all epoch time boundaries
+        breakpoints = set()
+        epoch_info = []  # (start, end, name, color, graph_code)
+
+        for graph_code, graph in all_graphs.items():
+            for node in graph.nodes:
+                if hasattr(node, 'node_type') and node.node_type == 'EpochNode':
+                    s = getattr(node, 'start_time', None)
+                    e = getattr(node, 'end_time', None)
+                    if s is not None and e is not None:
+                        try:
+                            s_val = float(s)
+                            e_val = float(e)
+                        except (ValueError, TypeError):
+                            continue
+                        breakpoints.add(s_val)
+                        breakpoints.add(e_val)
+                        color = getattr(node, 'color', '#808080')
+                        epoch_info.append((s_val, e_val, node.name, color, graph_code))
+
+        if len(breakpoints) < 2:
+            self.report({'WARNING'}, "Not enough epoch data to generate horizons")
+            return {'CANCELLED'}
+
+        # Sort breakpoints and create sub-horizons
+        sorted_bp = sorted(breakpoints)
+        cf_settings.horizons.clear()
+
+        for i in range(len(sorted_bp) - 1):
+            bp_start = sorted_bp[i]
+            bp_end = sorted_bp[i + 1]
+
+            # Find the most specific epoch covering this interval
+            best_epoch = None
+            best_span = float('inf')
+            for ep_start, ep_end, ep_name, ep_color, ep_graph in epoch_info:
+                if ep_start <= bp_start and ep_end >= bp_end:
+                    span = ep_end - ep_start
+                    if span < best_span:
+                        best_span = span
+                        best_epoch = (ep_name, ep_color, ep_graph)
+
+            new_h = cf_settings.horizons.add()
+            new_h.start_time = int(bp_start)
+            new_h.end_time = int(bp_end)
+            new_h.enabled = True
+
+            if best_epoch:
+                new_h.label = f"{best_epoch[0]} ({best_epoch[2]})"
+                new_h.color = hex_to_rgb(best_epoch[1])
+            else:
+                new_h.label = f"Horizon {int(bp_start)}-{int(bp_end)}"
+
+        cf_settings.active_horizon_index = 0
+        self.report({'INFO'}, f"Generated {len(cf_settings.horizons)} horizons from {len(epoch_info)} epochs")
+        return {'FINISHED'}
+
+
+# ============================
 # PANELS
 # ============================
 class CF_PT_CronoFilterPanel(Panel):
@@ -275,38 +444,34 @@ class CF_PT_CronoFilterPanel(Panel):
     bl_region_type = 'UI'
     bl_category = "EM"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     @classmethod
     def poll(cls, context):
-        """✅ NUOVO: Visibile SOLO in modalità Landscape"""
         scene = context.scene
         return getattr(scene, 'landscape_mode_active', False)
-    
+
     def draw(self, context):
         layout = self.layout
         cf_settings = context.scene.cf_settings
-        
-        #if not cf_settings.expanded:
-        #    return
-        
+
         # Header info
         box = layout.box()
         row = box.row()
-        row.label(text="Custom Chronological Horizons", icon='TIME')
-        
-        # File operations
-        file_box = layout.box()
-        row = file_box.row()
-        row.label(text="File Operations:")
-        row = file_box.row()
-        row.operator("cronofilter.save_horizons", text="Save Horizons", icon='FILE_TICK')
-        row.operator("cronofilter.load_horizons", text="Load Horizons", icon='FILE_FOLDER')
-        
+        row.label(text="Chronological Horizons", icon='TIME')
+
+        # Auto + File operations
+        ops_box = layout.box()
+        row = ops_box.row(align=True)
+        row.operator("cronofilter.auto_horizons", text="Auto from Epochs", icon='AUTO')
+        row = ops_box.row(align=True)
+        row.operator("cronofilter.save_horizons", text="Save", icon='FILE_TICK')
+        row.operator("cronofilter.load_horizons", text="Load", icon='FILE_FOLDER')
+
         # Horizons list
         list_box = layout.box()
         row = list_box.row()
         row.label(text=f"Horizons ({len(cf_settings.horizons)}):")
-        
+
         # List controls
         row = list_box.row()
         col = row.column()
@@ -314,7 +479,7 @@ class CF_PT_CronoFilterPanel(Panel):
                          cf_settings, "horizons",
                          cf_settings, "active_horizon_index",
                          rows=4)
-        
+
         # List buttons
         col = row.column(align=True)
         col.operator("cronofilter.add_horizon", text="", icon='ADD')
@@ -324,37 +489,39 @@ class CF_PT_CronoFilterPanel(Panel):
         op.direction = "UP"
         op = col.operator("cronofilter.move_horizon", text="", icon='TRIA_DOWN')
         op.direction = "DOWN"
-        
+
+        # Temporal filter buttons
+        filter_box = layout.box()
+        row = filter_box.row(align=True)
+        row.operator("cronofilter.apply_filter", text="Apply Filter", icon='FILTER')
+        row.operator("cronofilter.reset_filter", text="Reset", icon='X')
+
         # Edit active horizon
         if cf_settings.horizons and cf_settings.active_horizon_index < len(cf_settings.horizons):
             active_horizon = cf_settings.horizons[cf_settings.active_horizon_index]
-            
+
             edit_box = layout.box()
             row = edit_box.row()
             row.label(text="Edit Selected Horizon:", icon='GREASEPENCIL')
-            
+
             row = edit_box.row()
             row.prop(active_horizon, "label")
-            
+
             row = edit_box.row()
             col = row.column()
             col.prop(active_horizon, "start_time")
             col = row.column()
             col.prop(active_horizon, "end_time")
-            
+
             row = edit_box.row()
             row.prop(active_horizon, "color")
             row.prop(active_horizon, "enabled")
-        
+
         # Status
         status_box = layout.box()
         enabled_count = sum(1 for h in cf_settings.horizons if h.enabled)
         row = status_box.row()
         row.label(text=f"Status: {enabled_count}/{len(cf_settings.horizons)} horizons enabled")
-        
-        if enabled_count > 0:
-            row = status_box.row()
-            row.label(text="✅ Horizons will be included in Heriverse export", icon='INFO')
 
 # ============================
 # REGISTRATION
@@ -369,6 +536,9 @@ classes = [
     CF_OT_MoveHorizon,
     CF_OT_SaveHorizons,
     CF_OT_LoadHorizons,
+    CF_OT_ApplyFilter,
+    CF_OT_ResetFilter,
+    CF_OT_AutoHorizons,
     CF_PT_CronoFilterPanel,
 ]
 
