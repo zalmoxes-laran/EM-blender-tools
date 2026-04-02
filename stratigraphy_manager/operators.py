@@ -365,135 +365,171 @@ class EM_strat_sync_visibility(Operator):
         self.report({'INFO'}, message)
         
     def sync_rm_visibility(self, context):
-        """Synchronize RM object visibility based on active epoch"""
+        """Synchronize RM object visibility based on active epoch or horizon."""
         scene = context.scene
-        epochs = scene.em_tools.epochs
-        
-        # Check if we have an active epoch
-        if epochs.list_index < 0 or epochs.list_index >= len(epochs.list):
-            self.report({'WARNING'}, "No active epoch selected")
-            return
-            
-        active_epoch = epochs.list[epochs.list_index]
-        active_epoch_name = active_epoch.name
-        
-        # ✅ OPTIMIZED: Use object cache for batch lookups
+        is_landscape = getattr(scene, 'landscape_mode_active', False)
+
+        if is_landscape:
+            self._sync_rm_landscape(context)
+        else:
+            self._sync_rm_single(context)
+
+    def _collect_rm_objects(self, context):
+        """Collect all RM objects from rm_list and RM collection."""
         from ..object_cache import get_object_cache
+        scene = context.scene
         cache = get_object_cache()
-
-        # Get RM objects from the RM list
         rm_objects = []
-        activated_collections = []
 
-        # Find objects in the scene that are registered as RM in the rm_list
         for item in scene.rm_list:
             obj = cache.get_object(item.name)
             if obj and obj.type == 'MESH':
                 rm_objects.append((obj, item))
-        
-        # Also check for objects in the RM collection
+
         rm_collection = bpy.data.collections.get('RM')
         if rm_collection:
             for obj in rm_collection.objects:
                 if obj.type == 'MESH' and not any(o[0] == obj for o in rm_objects):
-                    # Try to find matching RM item
                     rm_item = None
                     for item in scene.rm_list:
                         if item.name == obj.name:
                             rm_item = item
                             break
-                    
                     if rm_item:
                         rm_objects.append((obj, rm_item))
-        
-        # Find collections that contain RM objects that should be visible
-        visible_rm_objects = []
-        for obj, rm_item in rm_objects:
-            # Check if this RM belongs to the active epoch
-            belongs_to_active_epoch = False
-            
-            # Check the first epoch and any additional epochs
-            if rm_item.first_epoch == active_epoch_name:
-                belongs_to_active_epoch = True
-            else:
-                # Check additional epochs
-                for epoch_item in rm_item.epochs:
-                    if epoch_item.name == active_epoch_name:
-                        belongs_to_active_epoch = True
-                        break
-            
-            if belongs_to_active_epoch:
-                visible_rm_objects.append(obj)
-        
-        # Activate collections that contain visible RM objects
+
+        return rm_objects
+
+    def _rm_belongs_to_epoch(self, rm_item, epoch_name):
+        """Check if an RM item belongs to a given epoch by name."""
+        if rm_item.first_epoch == epoch_name:
+            return True
+        for epoch_item in rm_item.epochs:
+            if epoch_item.name == epoch_name:
+                return True
+        return False
+
+    def _apply_rm_visibility(self, context, rm_objects, visible_rm_objects, label):
+        """Apply visibility to RM objects and activate needed collections."""
+        activated_collections = []
+        visible_set = set(id(obj) for obj in visible_rm_objects)
+
+        # Activate collections containing visible RM objects
+        rm_collection = bpy.data.collections.get('RM')
         collections_to_check = set()
-        
-        # Add RM collection
         if rm_collection:
             collections_to_check.add(rm_collection)
-        
-        # Find all collections containing visible RM objects
         for obj in visible_rm_objects:
             for collection in bpy.data.collections:
                 if obj.name in collection.objects:
                     collections_to_check.add(collection)
-        
-        # ATTIVA COMPLETAMENTE le collezioni (base + view layer + parent)
+
         for collection in collections_to_check:
-            contains_visible_rm = any(obj.name in collection.objects for obj in visible_rm_objects)
-            if contains_visible_rm:
+            contains_visible = any(obj.name in collection.objects for obj in visible_rm_objects)
+            if contains_visible:
                 if activate_collection_fully(context, collection):
                     activated_collections.append(collection.name)
-        
-        # Hide/Show RM objects based on epoch association AND sync render state
+
         hidden_count = 0
         shown_count = 0
-        
         for obj, rm_item in rm_objects:
-            # Check if this RM belongs to the active epoch
-            belongs_to_active_epoch = False
-            
-            # Check the first epoch and any additional epochs
-            if rm_item.first_epoch == active_epoch_name:
-                belongs_to_active_epoch = True
-            else:
-                # Check additional epochs
-                for epoch_item in rm_item.epochs:
-                    if epoch_item.name == active_epoch_name:
-                        belongs_to_active_epoch = True
-                        break
-            
-            # Handle visibility using ALL THREE visibility systems
-            if belongs_to_active_epoch:
-                # Object should be visible AND renderable using ALL THREE systems
+            if id(obj) in visible_set:
                 if obj.hide_viewport or obj.hide_render:
-                    # 1. Restricted View Layer (hide_set)
-                    obj.hide_set(False)
-                    # 2. Viewport visibility
+                    try:
+                        obj.hide_set(False)
+                    except RuntimeError:
+                        pass
                     obj.hide_viewport = False
-                    # 3. Render visibility
                     obj.hide_render = False
                     shown_count += 1
             else:
-                # Object should be hidden AND non-renderable using ALL THREE systems
                 if not obj.hide_viewport or not obj.hide_render:
-                    # 1. Restricted View Layer (hide_set)
                     try:
                         obj.hide_set(True)
                     except RuntimeError:
                         pass
-                    # 2. Viewport visibility
                     obj.hide_viewport = True
-                    # 3. Render visibility
                     obj.hide_render = True
                     hidden_count += 1
-        
-        # Report results
-        message = f"RM visibility and render synchronized: {shown_count} shown, {hidden_count} hidden for epoch '{active_epoch_name}'"
+
+        message = f"RM visibility and render synchronized: {shown_count} shown, {hidden_count} hidden for {label}"
         if activated_collections:
             message += f". Activated collections: {', '.join(activated_collections)}"
-        
         self.report({'INFO'}, message)
+
+    def _sync_rm_single(self, context):
+        """Single graph mode: filter RM by active epoch name."""
+        scene = context.scene
+        epochs = scene.em_tools.epochs
+
+        if epochs.list_index < 0 or epochs.list_index >= len(epochs.list):
+            self.report({'WARNING'}, "No active epoch selected")
+            return
+
+        active_epoch = epochs.list[epochs.list_index]
+        active_epoch_name = active_epoch.name
+
+        rm_objects = self._collect_rm_objects(context)
+        visible = [obj for obj, rm_item in rm_objects
+                   if self._rm_belongs_to_epoch(rm_item, active_epoch_name)]
+
+        self._apply_rm_visibility(context, rm_objects, visible, f"epoch '{active_epoch_name}'")
+
+    def _sync_rm_landscape(self, context):
+        """Landscape mode: filter RM by horizon time range overlap.
+
+        Each RM has one or more epoch names. We resolve those names to
+        time ranges using all loaded graphs, then check for overlap with
+        the active CronoFilter horizon.
+        """
+        scene = context.scene
+        cf = scene.cf_settings
+
+        if not cf.horizons or cf.active_horizon_index < 0 or cf.active_horizon_index >= len(cf.horizons):
+            self.report({'WARNING'}, "No active horizon selected")
+            return
+
+        horizon = cf.horizons[cf.active_horizon_index]
+        h_start = float(horizon.start_time)
+        h_end = float(horizon.end_time)
+
+        # Build epoch name → (start, end) lookup from all loaded graphs
+        from ..landscape_system.populate_functions import get_all_loaded_graphs
+        epoch_times = {}  # epoch_name -> (start, end)
+        all_graphs = get_all_loaded_graphs(context)
+        for graph_code, graph in all_graphs.items():
+            for node in graph.nodes:
+                if hasattr(node, 'node_type') and node.node_type == 'EpochNode':
+                    s = getattr(node, 'start_time', None)
+                    e = getattr(node, 'end_time', None)
+                    if s is not None and e is not None:
+                        try:
+                            epoch_times[node.name] = (float(s), float(e))
+                        except (ValueError, TypeError):
+                            pass
+
+        rm_objects = self._collect_rm_objects(context)
+
+        # For each RM, check if any of its epochs overlap with the horizon
+        visible = []
+        for obj, rm_item in rm_objects:
+            # Collect all epoch names for this RM
+            rm_epoch_names = set()
+            if rm_item.first_epoch:
+                rm_epoch_names.add(rm_item.first_epoch)
+            for epoch_item in rm_item.epochs:
+                if epoch_item.name:
+                    rm_epoch_names.add(epoch_item.name)
+
+            # Check if any epoch time range overlaps with the horizon
+            for ep_name in rm_epoch_names:
+                if ep_name in epoch_times:
+                    ep_start, ep_end = epoch_times[ep_name]
+                    if ep_start <= h_end and ep_end >= h_start:
+                        visible.append(obj)
+                        break
+
+        self._apply_rm_visibility(context, rm_objects, visible, f"horizon '{horizon.label}'")
 
 class EM_strat_show_all_proxies(Operator):
     """Show all proxy objects"""
