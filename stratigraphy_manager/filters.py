@@ -190,7 +190,7 @@ class EM_filter_lists(Operator):
                                     epoch_filtered.append(node)
                         filtered = epoch_filtered
 
-        if scene.filter_by_activity:
+        if scene.filter_by_activity and not is_landscape:
             activity_manager = scene.activity_manager
             if activity_manager.activities and len(activity_manager.activities) > 0:
                 active_activity_index = activity_manager.active_index

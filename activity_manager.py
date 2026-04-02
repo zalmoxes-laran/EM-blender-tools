@@ -116,7 +116,9 @@ class VIEW3D_PT_activity_manager(Panel):
     @classmethod
     def poll(cls, context):
         em_tools = context.scene.em_tools
-        # Restituisce True se mode_em_advanced è False, quindi il pannello viene mostrato solo in modalità 3D GIS
+        # Hidden in landscape/multigraph mode (not yet multigraph-aware)
+        if getattr(context.scene, 'landscape_mode_active', False):
+            return False
         return em_tools.mode_em_advanced
 
     def draw(self, context):

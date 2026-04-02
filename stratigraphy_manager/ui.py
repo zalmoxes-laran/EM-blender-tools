@@ -289,26 +289,27 @@ class EM_ToolsPanel:
                     epoch_row.label(text="By Epoch", icon='SORTTIME')
                     epoch_row.label(text="No epochs available", icon='ERROR')
 
-            # === ACTIVITY FILTER ROW ===
-            activity_row = filter_box.row(align=True)
-            activity_row.enabled = graph_available
+            # === ACTIVITY FILTER ROW (hidden in landscape mode) ===
+            if not is_landscape:
+                activity_row = filter_box.row(align=True)
+                activity_row.enabled = graph_available
 
-            # "By Activity" toggle button with icon
-            if (len(scene.activity_manager.activities) > 0
-                and scene.activity_manager.active_index < len(scene.activity_manager.activities)):
-                activity_row.prop(
-                    scene, "filter_by_activity",
-                    text="By Activity",
-                    toggle=True,
-                    icon='NETWORK_DRIVE'
-                )
+                # "By Activity" toggle button with icon
+                if (len(scene.activity_manager.activities) > 0
+                    and scene.activity_manager.active_index < len(scene.activity_manager.activities)):
+                    activity_row.prop(
+                        scene, "filter_by_activity",
+                        text="By Activity",
+                        toggle=True,
+                        icon='NETWORK_DRIVE'
+                    )
 
-                # Dropdown selector (without repeating the icon)
-                current_activity = scene.activity_manager.activities[scene.activity_manager.active_index]
-                activity_row.menu("STRAT_MT_activity_selector", text=current_activity.name)
-            else:
-                activity_row.label(text="By Activity", icon='NETWORK_DRIVE')
-                activity_row.label(text="No activities available", icon='ERROR')
+                    # Dropdown selector (without repeating the icon)
+                    current_activity = scene.activity_manager.activities[scene.activity_manager.active_index]
+                    activity_row.menu("STRAT_MT_activity_selector", text=current_activity.name)
+                else:
+                    activity_row.label(text="By Activity", icon='NETWORK_DRIVE')
+                    activity_row.label(text="No activities available", icon='ERROR')
 
             # Sync 3D scene (only when filters are active)
             if scene.filter_by_epoch or scene.filter_by_activity:
@@ -466,9 +467,9 @@ class EM_ToolsPanel:
         strat = scene.em_tools.stratigraphy  # ✅ NEW: Use centralized props
         
         # ✅ PORTED: Use strat.units and strat.units_index
-        if not strat.units or strat.units_index < 0:
+        if not strat.units or strat.units_index < 0 or strat.units_index >= len(strat.units):
             return
-        
+
         selected_us = strat.units[strat.units_index]
         
         # Documents header box
