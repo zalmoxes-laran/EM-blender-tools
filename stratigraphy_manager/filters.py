@@ -99,9 +99,11 @@ class EM_filter_lists(Operator):
         EM_list_clear(context, "em_list")
 
         # ✅ Rebuild (popola SOLO nuova lista)
+        from ..populate_lists import build_instance_chains
+        instance_chains = build_instance_chains(graph)
         print(f"\nPopulating with {len(filtered_items)} filtered items")
         for i, node in enumerate(filtered_items):
-            populate_stratigraphic_node(scene, node, i, graph)
+            populate_stratigraphic_node(scene, node, i, graph, instance_chains)
 
         # ✅ Reset index SOLO nuovo
         if len(strat.units) == 0:
@@ -171,8 +173,10 @@ class EM_reset_filters(Operator):
                                node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
 
                 # ✅ Repopulate SOLO nuova lista
+                from ..populate_lists import build_instance_chains
+                instance_chains = build_instance_chains(graph)
                 for i, node in enumerate(strat_nodes):
-                    populate_stratigraphic_node(scene, node, i, graph)
+                    populate_stratigraphic_node(scene, node, i, graph, instance_chains)
 
                 # ✅ Ensure index SOLO nuovo
                 if len(strat.units) > 0:
@@ -287,8 +291,10 @@ class EM_filter_by_containment(Operator):
         from ..functions import EM_list_clear
         EM_list_clear(context, "em_list")
 
+        from ..populate_lists import build_instance_chains
+        instance_chains = build_instance_chains(graph)
         for i, node in enumerate(matching_nodes):
-            populate_stratigraphic_node(scene, node, i, graph)
+            populate_stratigraphic_node(scene, node, i, graph, instance_chains)
 
         # Set filter state
         strat.filter_by_containment = True

@@ -47,8 +47,10 @@ def repopulate_list_without_sync(context):
                    node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']]
 
     # Repopulate list
+    from ..populate_lists import build_instance_chains
+    instance_chains = build_instance_chains(graph)
     for i, node in enumerate(strat_nodes):
-        populate_stratigraphic_node(scene, node, i, graph)
+        populate_stratigraphic_node(scene, node, i, graph, instance_chains)
 
     # Restore index
     if len(strat.units) > 0:
