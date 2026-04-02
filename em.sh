@@ -381,15 +381,17 @@ case "$1" in
         echo
         echo "⏱️  Expected completion: ~10-15 minutes"
         echo
-        echo "💡 Files will be (for each Python version 3.11 + 3.13):"
-        echo "   - em_tools-v$VERSION-windows-x64-py311.zip"
-        echo "   - em_tools-v$VERSION-macosx-arm64-py311.zip"
-        echo "   - em_tools-v$VERSION-macosx-x64-py311.zip"
-        echo "   - em_tools-v$VERSION-linux-x64-py311.zip"
-        echo "   - em_tools-v$VERSION-windows-x64-py313.zip"
-        echo "   - em_tools-v$VERSION-macosx-arm64-py313.zip"
-        echo "   - em_tools-v$VERSION-macosx-x64-py313.zip"
-        echo "   - em_tools-v$VERSION-linux-x64-py313.zip"
+        echo "💡 Files will be:"
+        echo "   For Blender 5.0.x:"
+        echo "   - em_tools-v$VERSION-windows-x64-blender50.zip"
+        echo "   - em_tools-v$VERSION-macosx-arm64-blender50.zip"
+        echo "   - em_tools-v$VERSION-macosx-x64-blender50.zip"
+        echo "   - em_tools-v$VERSION-linux-x64-blender50.zip"
+        echo "   For Blender 5.1+:"
+        echo "   - em_tools-v$VERSION-windows-x64-blender51.zip"
+        echo "   - em_tools-v$VERSION-macosx-arm64-blender51.zip"
+        echo "   - em_tools-v$VERSION-macosx-x64-blender51.zip"
+        echo "   - em_tools-v$VERSION-linux-x64-blender51.zip"
         echo
         ;;
     

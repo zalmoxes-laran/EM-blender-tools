@@ -171,10 +171,16 @@ def build_extension(mode: str = 'dev', platform: str = None, python_version: str
         wheels_script = root_dir / "scripts" / "setup_development.py"
         subprocess.run([sys.executable, str(wheels_script), f'--python-version={python_version}'], cwd=root_dir)
 
+    # Mapping Python version → Blender compatibility tag (user-friendly)
+    BLENDER_TAG_MAP = {
+        '3.11': 'blender50',
+        '3.13': 'blender51',
+    }
+    blender_tag = BLENDER_TAG_MAP.get(python_version, f'py{python_version.replace(".", "")}')
+
     # Crea il package blext con nome appropriato
-    cp_tag = f"py{python_version.replace('.', '')}"
     if platform and mode != 'dev':
-        package_name = f"em_tools-v{version}-{platform}-{cp_tag}.blext"
+        package_name = f"em_tools-v{version}-{platform}-{blender_tag}.blext"
     else:
         package_name = f"em_tools-v{version}.blext"
     

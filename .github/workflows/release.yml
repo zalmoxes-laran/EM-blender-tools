@@ -45,14 +45,20 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Set Python ABI tag
+      - name: Set Python ABI tag and Blender tag
         id: pytag
         run: |
           PY_VER="${{ matrix.python-version }}"
           CP_TAG="cp${PY_VER//.}"
-          PY_TAG="py${PY_VER//.}"
           echo "cp_tag=$CP_TAG" >> $GITHUB_OUTPUT
-          echo "py_tag=$PY_TAG" >> $GITHUB_OUTPUT
+
+          # Map Python version to user-friendly Blender tag
+          case "$PY_VER" in
+            3.11) BLENDER_TAG="blender50" ;;
+            3.13) BLENDER_TAG="blender51" ;;
+            *)    BLENDER_TAG="py${PY_VER//.}" ;;
+          esac
+          echo "blender_tag=$BLENDER_TAG" >> $GITHUB_OUTPUT
 
       - name: Download platform-specific wheels
         run: |
@@ -123,8 +129,8 @@ jobs:
         run: |
           PLATFORM="${{ matrix.platform }}"
           VERSION="${{ steps.version.outputs.version }}"
-          PY_TAG="${{ steps.pytag.outputs.py_tag }}"
-          PACKAGE_NAME="em_tools-v${VERSION}-${PLATFORM}-${PY_TAG}.zip"
+          BLENDER_TAG="${{ steps.pytag.outputs.blender_tag }}"
+          PACKAGE_NAME="em_tools-v${VERSION}-${PLATFORM}-${BLENDER_TAG}.zip"
 
           # Create build directory
           mkdir -p build
@@ -175,7 +181,7 @@ jobs:
       - name: Upload platform package
         uses: actions/upload-artifact@v4
         with:
-          name: em_tools-${{ matrix.platform }}-${{ steps.pytag.outputs.py_tag }}
+          name: em_tools-${{ matrix.platform }}-${{ steps.pytag.outputs.blender_tag }}
           path: ${{ env.package_name }}
   
   release:
@@ -224,22 +230,22 @@ jobs:
 
             This is a **${{ steps.prerelease.outputs.release_type }}** of EM Tools.
 
-            ### Downloads for Blender 5.0.x (Python 3.11)
-            - **Windows (x64)**: `em_tools-${{ steps.version.outputs.tag }}-windows-x64-py311.zip`
-            - **macOS (Apple Silicon)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-arm64-py311.zip`
-            - **macOS (Intel)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-x64-py311.zip`
-            - **Linux (x64)**: `em_tools-${{ steps.version.outputs.tag }}-linux-x64-py311.zip`
+            ### Downloads for Blender 5.0.x
+            - **Windows (x64)**: `em_tools-${{ steps.version.outputs.tag }}-windows-x64-blender50.zip`
+            - **macOS (Apple Silicon)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-arm64-blender50.zip`
+            - **macOS (Intel)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-x64-blender50.zip`
+            - **Linux (x64)**: `em_tools-${{ steps.version.outputs.tag }}-linux-x64-blender50.zip`
 
-            ### Downloads for Blender 5.1+ (Python 3.13)
-            - **Windows (x64)**: `em_tools-${{ steps.version.outputs.tag }}-windows-x64-py313.zip`
-            - **macOS (Apple Silicon)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-arm64-py313.zip`
-            - **macOS (Intel)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-x64-py313.zip`
-            - **Linux (x64)**: `em_tools-${{ steps.version.outputs.tag }}-linux-x64-py313.zip`
+            ### Downloads for Blender 5.1+
+            - **Windows (x64)**: `em_tools-${{ steps.version.outputs.tag }}-windows-x64-blender51.zip`
+            - **macOS (Apple Silicon)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-arm64-blender51.zip`
+            - **macOS (Intel)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-x64-blender51.zip`
+            - **Linux (x64)**: `em_tools-${{ steps.version.outputs.tag }}-linux-x64-blender51.zip`
 
             ### Installation
             1. Choose the `.zip` file matching your **platform** and **Blender version**
-               - Blender 5.0.x → `py311` files
-               - Blender 5.1+ → `py313` files
+               - Blender 5.0.x → `blender50` files
+               - Blender 5.1+ → `blender51` files
             2. In Blender: **Extensions** → **Install from Disk**
             3. Select the downloaded zip file (do not unzip)
             4. Enable the extension
