@@ -54,6 +54,9 @@ def clean_blender_extension_cache():
 
     blender_sitepackages_paths = []
 
+    # Python versions to scan for site-packages
+    python_versions = ["python3.11", "python3.13"]
+
     # Windows
     if os.name == 'nt':
         appdata = os.environ.get('APPDATA')
@@ -61,13 +64,12 @@ def clean_blender_extension_cache():
             # Blender 4.0+ extensions location
             base_path = Path(appdata) / "Blender Foundation" / "Blender"
             if base_path.exists():
-                # Find all Blender versions
                 for version_dir in base_path.glob("*"):
                     if version_dir.is_dir():
-                        # Python site-packages cache
-                        sitepackages_path = version_dir / "extensions" / ".local" / "lib" / "python3.11" / "site-packages"
-                        if sitepackages_path.exists():
-                            blender_sitepackages_paths.append(sitepackages_path)
+                        for pyver in python_versions:
+                            sitepackages_path = version_dir / "extensions" / ".local" / "lib" / pyver / "site-packages"
+                            if sitepackages_path.exists():
+                                blender_sitepackages_paths.append(sitepackages_path)
 
     # Linux
     elif os.name == 'posix' and not sys.platform.startswith('darwin'):
@@ -77,10 +79,10 @@ def clean_blender_extension_cache():
             if base_path.exists():
                 for version_dir in base_path.glob("*"):
                     if version_dir.is_dir():
-                        # Python site-packages cache
-                        sitepackages_path = version_dir / "extensions" / ".local" / "lib" / "python3.11" / "site-packages"
-                        if sitepackages_path.exists():
-                            blender_sitepackages_paths.append(sitepackages_path)
+                        for pyver in python_versions:
+                            sitepackages_path = version_dir / "extensions" / ".local" / "lib" / pyver / "site-packages"
+                            if sitepackages_path.exists():
+                                blender_sitepackages_paths.append(sitepackages_path)
 
     # macOS
     elif sys.platform.startswith('darwin'):
@@ -90,10 +92,10 @@ def clean_blender_extension_cache():
             if base_path.exists():
                 for version_dir in base_path.glob("*"):
                     if version_dir.is_dir():
-                        # Python site-packages cache
-                        sitepackages_path = version_dir / "extensions" / ".local" / "lib" / "python3.11" / "site-packages"
-                        if sitepackages_path.exists():
-                            blender_sitepackages_paths.append(sitepackages_path)
+                        for pyver in python_versions:
+                            sitepackages_path = version_dir / "extensions" / ".local" / "lib" / pyver / "site-packages"
+                            if sitepackages_path.exists():
+                                blender_sitepackages_paths.append(sitepackages_path)
 
     if not blender_sitepackages_paths:
         print("   ℹ️  No Blender site-packages cache found")

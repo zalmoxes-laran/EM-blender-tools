@@ -65,7 +65,7 @@ def copy_source_files(source_dir: Path, build_dir: Path):
     print(f"✅ Copied {copied_files} files and directories")
     print(f"⏭️  Skipped {skipped_files} excluded items")
 
-def download_platform_wheels(platform: str, wheels_dir: Path):
+def download_platform_wheels(platform: str, wheels_dir: Path, python_version: str = '3.11'):
     """Download wheels for specific platform"""
     # Platform mapping
     platform_map = {
@@ -74,50 +74,51 @@ def download_platform_wheels(platform: str, wheels_dir: Path):
         'macos-arm': 'macosx_11_0_arm64',
         'linux': 'manylinux2014_x86_64'
     }
-    
+
+    cp_tag = f"cp{python_version.replace('.', '')}"
     pip_platform = platform_map.get(platform, 'win_amd64')
     requirements_file = Path(__file__).parent / 'requirements_wheels.txt'
-    
-    print(f"Downloading wheels for {platform} ({pip_platform})...")
-    
+
+    print(f"Downloading wheels for {platform} ({pip_platform}) Python {python_version}...")
+
     with open(requirements_file, 'r') as f:
         packages = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-    
+
     for package in packages:
         cmd = [
             sys.executable, '-m', 'pip', 'download',
             package,
             '--only-binary=:all:',
             '--platform', pip_platform,
-            '--python-version', '3.11',
+            '--python-version', python_version,
             '--implementation', 'cp',
-            '--abi', 'cp311',
+            '--abi', cp_tag,
             '-d', str(wheels_dir)
         ]
         result = subprocess.run(cmd, capture_output=True)
         if result.returncode != 0:
-            print(f"Warning: Failed to download {package} for {platform}")
+            print(f"Warning: Failed to download {package} for {platform} (Python {python_version})")
 
-def build_extension(mode: str = 'dev', platform: str = None):
+def build_extension(mode: str = 'dev', platform: str = None, python_version: str = '3.11'):
     """Costruisce l'extension in modalità specificata"""
     root_dir = Path(__file__).parent.parent
     build_dir = root_dir / "build"
-    
+
     # Rimuovi vecchi file .blext per evitare raddoppiamenti
     print("Cleaning old .blext files...")
     for old_blext in root_dir.glob("*.blext"):
         print(f"  Removing: {old_blext.name}")
         old_blext.unlink()
-    
+
     # Gestione versione - PRIMA genera il manifest!
     vm = VersionManager(root_dir)
-    
+
     # Set mode se specificato
     if mode != 'dev':
         vm.set_mode(mode)
-    
-    # Aggiorna i file con la versione corrente
-    version = vm.update_manifest()  # Questo genera blender_manifest.toml valido!
+
+    # Aggiorna i file con la versione corrente (con python_version per selezionare le wheels giuste)
+    version = vm.update_manifest(python_version)  # Questo genera blender_manifest.toml valido!
     
     print(f"Building EM Tools v{version} in {mode} mode...")
     
@@ -166,13 +167,14 @@ def build_extension(mode: str = 'dev', platform: str = None):
     
     # Se modalità produzione e non ci sono wheels, scaricale
     if mode != 'dev' and not wheels_dir.exists():
-        print("Production mode but no wheels found - downloading...")
+        print(f"Production mode but no wheels found - downloading for Python {python_version}...")
         wheels_script = root_dir / "scripts" / "setup_development.py"
-        subprocess.run([sys.executable, str(wheels_script)], cwd=root_dir)
-    
+        subprocess.run([sys.executable, str(wheels_script), f'--python-version={python_version}'], cwd=root_dir)
+
     # Crea il package blext con nome appropriato
+    cp_tag = f"py{python_version.replace('.', '')}"
     if platform and mode != 'dev':
-        package_name = f"em_tools-v{version}-{platform}.blext"
+        package_name = f"em_tools-v{version}-{platform}-{cp_tag}.blext"
     else:
         package_name = f"em_tools-v{version}.blext"
     
@@ -224,7 +226,7 @@ def build_extension(mode: str = 'dev', platform: str = None):
 
 def main():
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Build EM Tools extension")
     parser.add_argument('--mode', choices=['dev', 'rc', 'stable'], default='dev',
                        help="Build mode")
@@ -232,18 +234,20 @@ def main():
                        help="Increment version before building")
     parser.add_argument('--platform', choices=['windows', 'macos-intel', 'macos-arm', 'linux'],
                        help="Build for specific platform (production only)")
-    
+    parser.add_argument('--python-version', default='3.11',
+                       help="Target Python version (default: 3.11). Use 3.13 for Blender 5.1+")
+
     args = parser.parse_args()
-    
+
     # Incrementa versione se richiesto
     if args.increment:
         vm = VersionManager(Path(__file__).parent.parent)
         version = vm.increment_version(args.increment)
         print(f"Version incremented to: {version}")
-    
+
     # Build extension
-    package_path, version = build_extension(args.mode, args.platform)
-    
+    package_path, version = build_extension(args.mode, args.platform, args.python_version)
+
     # Auto-tag per stable releases
     if args.mode == 'stable' and not args.platform:
         tag = f"v{version}"

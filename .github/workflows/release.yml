@@ -21,17 +21,18 @@ jobs:
     strategy:
       matrix:
         platform: [windows-x64, macosx-arm64, macosx-x64, linux-x64]
-    
+        python-version: ['3.11', '3.13']
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
-      
+          python-version: ${{ matrix.python-version }}
+
       - name: Extract version from tag
         id: version
         run: |
@@ -43,11 +44,21 @@ jobs:
           VERSION=${TAG#v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-      
+
+      - name: Set Python ABI tag
+        id: pytag
+        run: |
+          PY_VER="${{ matrix.python-version }}"
+          CP_TAG="cp${PY_VER//.}"
+          PY_TAG="py${PY_VER//.}"
+          echo "cp_tag=$CP_TAG" >> $GITHUB_OUTPUT
+          echo "py_tag=$PY_TAG" >> $GITHUB_OUTPUT
+
       - name: Download platform-specific wheels
         run: |
-          mkdir -p wheels
-          
+          CP_TAG="${{ steps.pytag.outputs.cp_tag }}"
+          mkdir -p wheels/$CP_TAG
+
           # Map GitHub platform to pip platform tags
           case "${{ matrix.platform }}" in
             windows-x64)
@@ -63,33 +74,33 @@ jobs:
               PIP_PLATFORM="manylinux2014_x86_64"
               ;;
           esac
-          
-          echo "Downloading wheels for $PIP_PLATFORM..."
-          
-          # Download each package for the specific platform
+
+          echo "Downloading wheels for $PIP_PLATFORM (Python ${{ matrix.python-version }})..."
+
+          # Download each package for the specific platform and Python version
           while IFS= read -r package || [ -n "$package" ]; do
             # Skip empty lines and comments
             [[ -z "$package" || "$package" =~ ^[[:space:]]*# ]] && continue
-            
-            echo "Downloading $package for $PIP_PLATFORM..."
+
+            echo "Downloading $package for $PIP_PLATFORM ($CP_TAG)..."
             pip download "$package" \
               --only-binary=:all: \
               --platform="$PIP_PLATFORM" \
-              --python-version=3.11 \
+              --python-version=${{ matrix.python-version }} \
               --implementation=cp \
-              --abi=cp311 \
-              -d wheels/ || true
+              --abi=$CP_TAG \
+              -d wheels/$CP_TAG/ || true
           done < scripts/requirements_wheels.txt
-          
+
           # List downloaded wheels
           echo "Downloaded wheels:"
-          ls -la wheels/
-      
+          ls -la wheels/$CP_TAG/
+
       - name: Generate platform-specific manifest
         run: |
-          python scripts/version_manager.py set-mode --mode stable
+          python scripts/version_manager.py set-mode --mode stable --python-version ${{ matrix.python-version }}
           VERSION="${{ steps.version.outputs.version }}"
-          
+
           # Aggiorna version.json
           python -c "
           import json
@@ -97,27 +108,27 @@ jobs:
           with open('version.json', 'w') as f:
               json.dump(config, f, indent=2)
           "
-          
-          # Update manifest
-          python scripts/version_manager.py update
-          
+
+          # Update manifest with python version
+          python scripts/version_manager.py update --python-version ${{ matrix.python-version }}
+
           # Verifica l'integrità del manifest generato
           if ! grep -q "version = \"$VERSION\"" blender_manifest.toml; then
             echo "WARNING: Versione nel manifest non corretta, riparazione..."
-            # Usa un approccio più semplice con sed che è più affidabile
             sed -i "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" blender_manifest.toml
             echo "Manifest riparato con versione: $VERSION"
           fi
-      
+
       - name: Create platform-specific package
         run: |
           PLATFORM="${{ matrix.platform }}"
           VERSION="${{ steps.version.outputs.version }}"
-          PACKAGE_NAME="em_tools-v${VERSION}-${PLATFORM}.zip"
-          
+          PY_TAG="${{ steps.pytag.outputs.py_tag }}"
+          PACKAGE_NAME="em_tools-v${VERSION}-${PLATFORM}-${PY_TAG}.zip"
+
           # Create build directory
           mkdir -p build
-          
+
           # Copy all addon files except development files
           rsync -av --exclude='.git' \
                     --exclude='.github' \
@@ -141,25 +152,30 @@ jobs:
                     --exclude='sync_dev.bat' \
                     --exclude='sync_dev.sh' \
                     . build/
-          
-          # Copy platform-specific wheels
-          cp -r wheels build/ 2>/dev/null || true
-          
+
+          # Copy platform-specific wheels (flatten cp* subfolder into wheels/)
+          CP_TAG="${{ steps.pytag.outputs.cp_tag }}"
+          mkdir -p build/wheels
+          cp wheels/$CP_TAG/*.whl build/wheels/ 2>/dev/null || true
+
+          # Update manifest to reference wheels/ (flat) instead of wheels/cp*/
+          sed -i "s|wheels/$CP_TAG/|wheels/|g" build/blender_manifest.toml
+
           # Create the zip package
           cd build
           zip -r "../${PACKAGE_NAME}" . -x "*.pyc" "__pycache__/*"
           cd ..
-          
+
           echo "Created package: ${PACKAGE_NAME}"
           ls -la "${PACKAGE_NAME}"
-          
+
           # Store package name for release
           echo "package_name=${PACKAGE_NAME}" >> $GITHUB_ENV
-      
+
       - name: Upload platform package
         uses: actions/upload-artifact@v4
         with:
-          name: em_tools-${{ matrix.platform }}
+          name: em_tools-${{ matrix.platform }}-${{ steps.pytag.outputs.py_tag }}
           path: ${{ env.package_name }}
   
   release:
@@ -205,22 +221,30 @@ jobs:
           generate_release_notes: true
           body: |
             ## EM Tools ${{ steps.version.outputs.tag }}
-            
+
             This is a **${{ steps.prerelease.outputs.release_type }}** of EM Tools.
-            
-            ### Platform-Specific Downloads
-            - **Windows (x64)**: `em_tools-${{ steps.version.outputs.tag }}-windows-x64.zip`
-            - **macOS (Apple Silicon)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-arm64.zip`
-            - **macOS (Intel)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-x64.zip`
-            - **Linux (x64)**: `em_tools-${{ steps.version.outputs.tag }}-linux-x64.zip`
-            
+
+            ### Downloads for Blender 5.0.x (Python 3.11)
+            - **Windows (x64)**: `em_tools-${{ steps.version.outputs.tag }}-windows-x64-py311.zip`
+            - **macOS (Apple Silicon)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-arm64-py311.zip`
+            - **macOS (Intel)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-x64-py311.zip`
+            - **Linux (x64)**: `em_tools-${{ steps.version.outputs.tag }}-linux-x64-py311.zip`
+
+            ### Downloads for Blender 5.1+ (Python 3.13)
+            - **Windows (x64)**: `em_tools-${{ steps.version.outputs.tag }}-windows-x64-py313.zip`
+            - **macOS (Apple Silicon)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-arm64-py313.zip`
+            - **macOS (Intel)**: `em_tools-${{ steps.version.outputs.tag }}-macosx-x64-py313.zip`
+            - **Linux (x64)**: `em_tools-${{ steps.version.outputs.tag }}-linux-x64-py313.zip`
+
             ### Installation
-            1. Download the appropriate `.zip` file for your platform
-            2. In Blender 4.0+: **Extensions** → **Install from Disk**
+            1. Choose the `.zip` file matching your **platform** and **Blender version**
+               - Blender 5.0.x → `py311` files
+               - Blender 5.1+ → `py313` files
+            2. In Blender: **Extensions** → **Install from Disk**
             3. Select the downloaded zip file (do not unzip)
             4. Enable the extension
-            
+
             ### What's Included
-            Each platform package contains only the wheels needed for that specific platform, resulting in smaller file sizes.
+            Each package contains wheels compiled for a specific platform and Python version.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

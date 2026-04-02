@@ -21,7 +21,7 @@ cd /d "%~dp0"
 :: Setup command
 if "%1"=="setup" (
     echo Setting up development environment...
-    
+
     :: Verifica che esista la cartella scripts
     if not exist "scripts" (
         echo ERROR: scripts directory not found!
@@ -30,7 +30,7 @@ if "%1"=="setup" (
         pause
         exit /b 1
     )
-    
+
     :: Verifica che lo script di setup esista
     if not exist "scripts\setup_dev_windows.bat" (
         echo ERROR: setup_dev_windows.bat not found!
@@ -38,50 +38,61 @@ if "%1"=="setup" (
         pause
         exit /b 1
     )
-    
+
+    :: Parse arguments: setup [force] [3.11|3.13|all]
+    set FORCE_ARG=
+    set PYTHON_VER=
+    for %%a in (%2 %3) do (
+        if "%%a"=="force" set FORCE_ARG=force
+        if "%%a"=="3.11" set PYTHON_VER=3.11
+        if "%%a"=="3.13" set PYTHON_VER=3.13
+        if "%%a"=="all" set PYTHON_VER=all
+    )
+    if "!PYTHON_VER!"=="" set PYTHON_VER=3.11
+
+    echo Python target: !PYTHON_VER!
+
     :: Crea la directory wheels se non esiste
     if not exist "wheels" (
         echo Creating wheels directory...
         mkdir wheels
     )
-    
+
     echo Changing to scripts directory...
     pushd scripts
-    
-    :: Controllo opzione force
-    if "%2"=="force" (
-        echo FORCE MODE: Cleaning existing wheels...
-        cd ..
-        if exist "wheels" (
-            rmdir /s /q "wheels"
-            echo Wheels directory removed
-            mkdir wheels
-            echo Wheels directory recreated
+
+    :: Controllo opzione force - clean only the target cp* subdirectory
+    if "!FORCE_ARG!"=="force" (
+        echo FORCE MODE enabled
+    )
+
+    if "!PYTHON_VER!"=="all" (
+        :: Setup for both Python versions
+        for %%P in (3.11 3.13) do (
+            echo.
+            echo ============================================
+            echo   Setting up for Python %%P
+            echo ============================================
+            call setup_dev_windows.bat !FORCE_ARG! %%P
         )
-        cd scripts
-    )
-    
-    :: Esegui setup con o senza force
-    echo Running setup script...
-    if "%2"=="force" (
-        call setup_dev_windows.bat force
     ) else (
-        call setup_dev_windows.bat
+        :: Setup for single Python version
+        call setup_dev_windows.bat !FORCE_ARG! !PYTHON_VER!
     )
-    
+
     :: Salva l'exit code
     set SETUP_EXIT_CODE=%ERRORLEVEL%
-    
+
     :: Torna alla directory originale
     popd
-    
+
     :: Controlla se il setup è riuscito
     if !SETUP_EXIT_CODE! NEQ 0 (
         echo Setup failed with exit code !SETUP_EXIT_CODE!
         pause
         exit /b !SETUP_EXIT_CODE!
     )
-    
+
     echo Setup completed successfully!
     goto :end
 )
@@ -303,8 +314,10 @@ echo.
 echo Usage: em.bat [command] [options]
 echo.
 echo === SETUP ===
-echo   setup              Setup development environment
+echo   setup              Setup development environment (Python 3.11)
 echo   setup force        Setup and force re-download wheels (clean install)
+echo   setup [force] 3.13 Setup for Blender 5.1+ (Python 3.13)
+echo   setup [force] all  Setup for both Python 3.11 and 3.13
 echo.
 echo === s3dgraphy DEVELOPMENT ===
 echo   s3d                Activate s3dgraphy development version

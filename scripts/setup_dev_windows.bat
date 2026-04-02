@@ -1,8 +1,14 @@
 @echo off
 setlocal enabledelayedexpansion
 
+:: Arguments: %1 = "force" or "", %2 = python version (default: 3.11)
+set FORCE_ARG=%1
+set PYTHON_VER=%2
+if "!PYTHON_VER!"=="" set PYTHON_VER=3.11
+
 echo ============================================
 echo    EM Tools - Windows Development Setup
+echo    Python target: !PYTHON_VER!
 echo ============================================
 echo.
 
@@ -139,16 +145,17 @@ if !BLENDER_FOUND!==0 (
     echo You can manually set the path later in .vscode\settings.json
 )
 
-:: Download wheels - FIXED: Pass force parameter correctly
+:: Download wheels
 echo.
-echo Downloading wheels...
-if "%1"=="force" (
+echo Downloading wheels for Python !PYTHON_VER!...
+set SETUP_ARGS=--python-version=!PYTHON_VER!
+if "!FORCE_ARG!"=="force" (
     echo FORCE MODE enabled - will re-download all wheels
-    python setup_development.py --force
+    set SETUP_ARGS=!SETUP_ARGS! --force
 ) else (
     echo NORMAL MODE - will skip if wheels exist
-    python setup_development.py
 )
+python setup_development.py !SETUP_ARGS!
 
 if errorlevel 1 (
     echo ERROR: Failed to download wheels
@@ -162,24 +169,32 @@ if errorlevel 1 (
 :: Verifica che le wheels siano state create
 echo.
 echo Verifying wheels directory...
+set CP_TAG=cp!PYTHON_VER:.=!
 cd ..
-if not exist "wheels" (
-    echo WARNING: wheels directory not created!
-    echo This means the download failed silently
-) else (
-    echo SUCCESS: wheels directory found
-    dir wheels\*.whl /b | find /c ".whl" > temp_count.txt
+if exist "wheels\!CP_TAG!" (
+    echo SUCCESS: wheels\!CP_TAG! directory found
+    dir wheels\!CP_TAG!\*.whl /b 2>nul | find /c ".whl" > temp_count.txt
     set /p WHEEL_COUNT=<temp_count.txt
     del temp_count.txt
     echo Found !WHEEL_COUNT! wheel files
+) else if exist "wheels" (
+    echo SUCCESS: wheels directory found (legacy flat structure)
+    dir wheels\*.whl /b 2>nul | find /c ".whl" > temp_count.txt
+    set /p WHEEL_COUNT=<temp_count.txt
+    del temp_count.txt
+    echo Found !WHEEL_COUNT! wheel files
+) else (
+    echo WARNING: wheels directory not created!
+    echo This means the download failed silently
 )
 cd scripts
 
 :: Genera il manifest DOPO aver scaricato le wheels
 echo.
-echo Generating blender_manifest.toml...
+echo Generating blender_manifest.toml (Python !PYTHON_VER! wheels)...
 cd ..
-python scripts/version_manager.py update
+python scripts/version_manager.py set-mode --mode dev --python-version !PYTHON_VER!
+python scripts/version_manager.py update --python-version !PYTHON_VER!
 if not exist "blender_manifest.toml" (
     echo ERROR: Failed to generate blender_manifest.toml!
     pause

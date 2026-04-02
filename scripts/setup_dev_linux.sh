@@ -1,7 +1,12 @@
 #!/bin/bash
 
+# Arguments: $1 = "force" or "", $2 = python version (default: 3.11)
+FORCE_ARG="$1"
+PYTHON_VER="${2:-3.11}"
+
 echo "============================================"
 echo "    EM Tools - Linux Development Setup"
+echo "    Python target: $PYTHON_VER"
 echo "============================================"
 echo
 
@@ -71,8 +76,12 @@ fi
 
 # Download wheels
 echo
-echo "Downloading wheels..."
-$PYTHON_CMD setup_development.py
+echo "Downloading wheels for Python $PYTHON_VER..."
+SETUP_ARGS="--python-version=$PYTHON_VER"
+if [ "$FORCE_ARG" = "force" ]; then
+    SETUP_ARGS="$SETUP_ARGS --force"
+fi
+$PYTHON_CMD setup_development.py $SETUP_ARGS
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to download wheels"
     read -p "Press enter to exit..."
@@ -84,24 +93,29 @@ fi
 # Verifica wheels
 echo
 echo "Verifying wheels directory..."
+CP_TAG="cp${PYTHON_VER//.}"
 cd ..
-if [ ! -d "wheels" ]; then
-    echo "WARNING: wheels directory not created!"
-    echo "This means the download failed silently"
-else
-    echo "SUCCESS: wheels directory found"
+if [ -d "wheels/$CP_TAG" ]; then
+    echo "SUCCESS: wheels/$CP_TAG directory found"
+    WHEEL_COUNT=$(ls wheels/$CP_TAG/*.whl 2>/dev/null | wc -l)
+    echo "Found $WHEEL_COUNT wheel files"
+elif [ -d "wheels" ]; then
+    echo "SUCCESS: wheels directory found (legacy flat structure)"
     WHEEL_COUNT=$(ls wheels/*.whl 2>/dev/null | wc -l)
     echo "Found $WHEEL_COUNT wheel files"
+else
+    echo "WARNING: wheels directory not created!"
+    echo "This means the download failed silently"
 fi
 cd scripts
 
 # Genera il manifest DOPO aver scaricato le wheels
 echo
-echo "Generating blender_manifest.toml..."
+echo "Generating blender_manifest.toml (Python $PYTHON_VER wheels)..."
 cd ..
 # Aggiungiamo un'ulteriore impostazione mode prima dell'update
-$PYTHON_CMD scripts/version_manager.py set-mode --mode dev
-$PYTHON_CMD scripts/version_manager.py update
+$PYTHON_CMD scripts/version_manager.py set-mode --mode dev --python-version $PYTHON_VER
+$PYTHON_CMD scripts/version_manager.py update --python-version $PYTHON_VER
 if [ ! -f "blender_manifest.toml" ]; then
     echo "ERROR: Failed to generate blender_manifest.toml!"
     read -p "Press enter to exit..."

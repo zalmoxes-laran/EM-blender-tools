@@ -112,8 +112,10 @@ show_help() {
     echo "Usage: ./em.sh [command] [options]"
     echo
     echo "=== SETUP ==="
-    echo "  setup              Setup development environment"
+    echo "  setup              Setup development environment (Python 3.11)"
     echo "  setup force        Setup and force re-download wheels"
+    echo "  setup [force] 3.13 Setup for Blender 5.1+ (Python 3.13)"
+    echo "  setup [force] all  Setup for both Python 3.11 and 3.13"
     echo
     echo "=== s3dgraphy DEVELOPMENT ==="
     echo "  s3d                Activate s3dgraphy development version"
@@ -150,7 +152,10 @@ show_help() {
     echo "  push               Push changes and tags to remote"
     echo
     echo "=== EXAMPLES ==="
-    echo "  ./em.sh setup      # First time setup"
+    echo "  ./em.sh setup          # First time setup (Python 3.11, Blender 5.0.x)"
+    echo "  ./em.sh setup 3.13     # Setup for Blender 5.1+ (Python 3.13)"
+    echo "  ./em.sh setup force 3.13  # Force re-download for Python 3.13"
+    echo "  ./em.sh setup all      # Setup for both Blender 5.0.x and 5.1+"
     echo "  ./em.sh s3d        # Activate s3dgraphy development version"
     echo "  ./em.sh s3d off    # Back to s3dgraphy PyPI version"
     echo "  ./em.sh dev        # Quick: inc dev + build LOCAL .zip for testing"
@@ -220,30 +225,70 @@ case "$1" in
     setup)
         # Check if dev s3dgraphy is active before setup
         check_dev_s3dgraphy
-        
+
+        # Parse arguments: setup [force] [3.11|3.13|all]
+        FORCE_ARG=""
+        PYTHON_VER=""
+        for arg in "${@:2}"; do
+            case "$arg" in
+                force) FORCE_ARG="force" ;;
+                3.11|3.13|all) PYTHON_VER="$arg" ;;
+            esac
+        done
+
+        # Default python version
+        if [ -z "$PYTHON_VER" ]; then
+            PYTHON_VER="3.11"
+        fi
+
         # Warn user if dev version will be overridden
-        if [ "$2" = "force" ]; then
+        if [ "$FORCE_ARG" = "force" ]; then
             warn_dev_override
         fi
-        
+
         echo "Setting up development environment..."
-        # Change to scripts directory before running setup
-        cd scripts
-        case "$(uname -s)" in
-            Darwin)
-                bash setup_dev_macos.sh "$2"
-                ;;
-            Linux)
-                bash setup_dev_linux.sh "$2"
-                ;;
-            *)
-                echo "Unsupported OS: $(uname -s)"
-                exit 1
-                ;;
-        esac
-        # Return to original directory
-        cd "$SCRIPT_DIR"
-        
+        echo "🐍 Python target: $PYTHON_VER"
+
+        if [ "$PYTHON_VER" = "all" ]; then
+            # Setup for both Python versions
+            for PV in 3.11 3.13; do
+                echo ""
+                echo "============================================"
+                echo "  Setting up for Python $PV"
+                echo "============================================"
+                cd scripts
+                case "$(uname -s)" in
+                    Darwin)
+                        bash setup_dev_macos.sh "$FORCE_ARG" "$PV"
+                        ;;
+                    Linux)
+                        bash setup_dev_linux.sh "$FORCE_ARG" "$PV"
+                        ;;
+                    *)
+                        echo "Unsupported OS: $(uname -s)"
+                        exit 1
+                        ;;
+                esac
+                cd "$SCRIPT_DIR"
+            done
+        else
+            # Setup for single Python version
+            cd scripts
+            case "$(uname -s)" in
+                Darwin)
+                    bash setup_dev_macos.sh "$FORCE_ARG" "$PYTHON_VER"
+                    ;;
+                Linux)
+                    bash setup_dev_linux.sh "$FORCE_ARG" "$PYTHON_VER"
+                    ;;
+                *)
+                    echo "Unsupported OS: $(uname -s)"
+                    exit 1
+                    ;;
+            esac
+            cd "$SCRIPT_DIR"
+        fi
+
         # Notify if dev version was replaced
         notify_dev_replaced
         ;;
@@ -336,11 +381,15 @@ case "$1" in
         echo
         echo "⏱️  Expected completion: ~10-15 minutes"
         echo
-        echo "💡 Files will be:"
-        echo "   - em_tools-v$VERSION-windows-x64.zip"
-        echo "   - em_tools-v$VERSION-macosx-arm64.zip"
-        echo "   - em_tools-v$VERSION-macosx-x64.zip"
-        echo "   - em_tools-v$VERSION-linux-x64.zip"
+        echo "💡 Files will be (for each Python version 3.11 + 3.13):"
+        echo "   - em_tools-v$VERSION-windows-x64-py311.zip"
+        echo "   - em_tools-v$VERSION-macosx-arm64-py311.zip"
+        echo "   - em_tools-v$VERSION-macosx-x64-py311.zip"
+        echo "   - em_tools-v$VERSION-linux-x64-py311.zip"
+        echo "   - em_tools-v$VERSION-windows-x64-py313.zip"
+        echo "   - em_tools-v$VERSION-macosx-arm64-py313.zip"
+        echo "   - em_tools-v$VERSION-macosx-x64-py313.zip"
+        echo "   - em_tools-v$VERSION-linux-x64-py313.zip"
         echo
         ;;
     
