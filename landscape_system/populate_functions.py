@@ -109,12 +109,12 @@ def populate_stratigraphy_list_landscape(context, all_graphs):
         for node in stratigraphic_nodes:
             item = strat.units.add()
             
-            # Nome con prefisso grafo per Landscape
-            item.name = f"[{graph_code}] {node.name}"
+            # Nome pulito (il source_graph traccia l'origine, il badge mostra il grafo)
+            item.name = node.name
             item.source_graph = graph_code
 
             # Icona basata sul nome originale (senza prefisso)
-            item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+            item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
 
             # Altri attributi
             item.id_node = node.node_id
@@ -131,10 +131,7 @@ def populate_stratigraphy_list_landscape(context, all_graphs):
             
             # Epoca collegata
             connected_epoch = get_connected_epoch_for_node(graph, node)
-            if connected_epoch:
-                item.epoch = f"[{graph_code}] {connected_epoch}"
-            else:
-                item.epoch = ""
+            item.epoch = connected_epoch if connected_epoch else ""
 
 def populate_properties_list_landscape(context, all_graphs):
     """Popola la lista proprietà con elementi da tutti i grafi"""
@@ -150,11 +147,11 @@ def populate_properties_list_landscape(context, all_graphs):
         for node in property_nodes:
             item = scene.em_tools.em_properties_list.add()
             
-            # Nome con prefisso grafo
-            item.name = f"[{graph_code}] {node.name}"
+            # Nome pulito (source_graph traccia l'origine)
+            item.name = node.name
             
             # Icona basata sul nome originale
-            item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+            item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
             
             # Altri attributi
             item.id_node = node.node_id
@@ -182,11 +179,11 @@ def populate_documents_list_landscape(context, all_graphs):
         for node in document_nodes:
             item = scene.em_tools.em_sources_list.add()
             
-            # Nome con prefisso grafo
-            item.name = f"[{graph_code}] {node.name}"
+            # Nome pulito (source_graph traccia l'origine)
+            item.name = node.name
             
             # Icona basata sul nome originale
-            item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+            item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
             
             # Altri attributi
             item.id_node = node.node_id
@@ -214,11 +211,11 @@ def populate_extractors_list_landscape(context, all_graphs):
         for node in extractor_nodes:
             item = scene.em_tools.em_extractors_list.add()
             
-            # Nome con prefisso grafo
-            item.name = f"[{graph_code}] {node.name}"
+            # Nome pulito (source_graph traccia l'origine)
+            item.name = node.name
             
             # Icona basata sul nome originale
-            item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+            item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
             
             # Altri attributi
             item.id_node = node.node_id
@@ -246,11 +243,11 @@ def populate_combiners_list_landscape(context, all_graphs):
         for node in combiner_nodes:
             item = scene.em_tools.em_combiners_list.add()
             
-            # Nome con prefisso grafo
-            item.name = f"[{graph_code}] {node.name}"
+            # Nome pulito (source_graph traccia l'origine)
+            item.name = node.name
             
             # Icona basata sul nome originale
-            item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+            item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
             
             # Altri attributi
             item.id_node = node.node_id
@@ -278,8 +275,8 @@ def populate_epochs_list_landscape(context, all_graphs):
         for node in epoch_nodes:
             item = scene.em_tools.epochs.list.add()
             
-            # Nome con prefisso grafo
-            item.name = f"[{graph_code}] {node.name}"
+            # Nome pulito (source_graph traccia l'origine)
+            item.name = node.name
             
             # ID del nodo
             item.id = node.node_id

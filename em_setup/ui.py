@@ -497,8 +497,13 @@ class EMTOOLS_UL_files(bpy.types.UIList):
             # Mostra il codice del grafo (graph_code) invece del nome (UUID)
             graph_code = item.graph_code if hasattr(item, 'graph_code') and item.graph_code else item.name
 
-            # Mostra il graph_code come testo non modificabile invece di un campo editabile
-            layout.label(text=graph_code)
+            # Mostra il graph_code con icona NODE_SOCKET colorata per rimando visivo
+            try:
+                from ..stratigraphy_manager.ui import _get_graph_icon
+                socket_icon = _get_graph_icon(graph_code)
+            except ImportError:
+                socket_icon = 'NODE_SOCKET_OBJECT'
+            layout.label(text=graph_code, icon=socket_icon)
 
             # Mostra l'icona di stato
             row = layout.row()
@@ -614,64 +619,6 @@ class EM_SetupPanel(bpy.types.Panel):
         # SEZIONE LANDSCAPE MODE - (in experimental mode)
         # ========================================================================
 
-        if em_tools.experimental_features:
-
-            # Conta i grafi caricati e validi
-            loaded_graphs = []
-            if em_tools.graphml_files:
-                for graph_file in em_tools.graphml_files:
-                    # Controlla se il grafo è effettivamente caricato
-                    if hasattr(graph_file, 'is_graph') and graph_file.is_graph:
-                        loaded_graphs.append(graph_file)
-                    else:
-                        # Fallback: controlla se il grafo esiste nel sistema
-                        from s3dgraphy import get_graph
-                        if get_graph(graph_file.name):
-                            loaded_graphs.append(graph_file)
-
-            # Mostra controlli Landscape sempre (con info se non disponibile)
-            #layout.separator()
-
-            # Box per Landscape Mode - COMPATTO
-            landscape_box = layout.box()
-
-            # Riga unica con tutto
-            row = landscape_box.row(align=True)
-
-            # Pulsante info
-            info_op = row.operator("wm.call_menu", text="", icon='INFO')
-            info_op.name = "EM_MT_LandscapeInfo"
-
-            # Label
-            row.label(text="Multigraph Mode")
-
-            # Stato attuale e pulsante toggle
-            is_landscape_active = getattr(scene, 'landscape_mode_active', False)
-            can_enable_landscape = len(loaded_graphs) >= 2
-
-            if is_landscape_active:
-                # Attivo: pulsante per disattivare
-                disable_op = row.operator("em.toggle_landscape_mode",
-                                        text="Disable",
-                                        icon='CANCEL')
-                disable_op.enable = False  # Per disattivare
-            else:
-                # Non attivo: pulsante per attivare
-                # Crea un sub-row per poter disabilitare solo il pulsante
-                button_row = row.row()
-                button_row.enabled = can_enable_landscape  # ✅ CORRETTO: disabilita il row
-
-                enable_op = button_row.operator("em.toggle_landscape_mode",
-                                               text="Enable",
-                                               icon='FILE_VOLUME')
-                enable_op.enable = True  # Per attivare
-
-
-        # ========================================================================
-        # END OF LANDSCAPE MODE SECTION
-        # ========================================================================
-
-
         if em_tools.mode_em_advanced:
 
             # List of GraphML files
@@ -681,6 +628,37 @@ class EM_SetupPanel(bpy.types.Panel):
             row = layout.row(align=True)
             row.operator('em_tools.add_file', text="Add GraphML", icon="ADD")
             row.operator('em_tools.remove_file', text="Remove GraphML", icon="REMOVE")
+
+            # Multigraph Mode - inline with graph management
+            loaded_graphs = []
+            if em_tools.graphml_files:
+                for graph_file in em_tools.graphml_files:
+                    if hasattr(graph_file, 'is_graph') and graph_file.is_graph:
+                        loaded_graphs.append(graph_file)
+                    else:
+                        from s3dgraphy import get_graph
+                        if get_graph(graph_file.name):
+                            loaded_graphs.append(graph_file)
+
+            is_landscape_active = getattr(scene, 'landscape_mode_active', False)
+            can_enable_landscape = len(loaded_graphs) >= 2
+
+            row = layout.row(align=True)
+            info_op = row.operator("wm.call_menu", text="", icon='INFO')
+            info_op.name = "EM_MT_LandscapeInfo"
+
+            if is_landscape_active:
+                row.label(text="Multigraph Mode", icon='WORLD')
+                disable_op = row.operator("em.toggle_landscape_mode",
+                                        text="Disable", icon='CANCEL')
+                disable_op.enable = False
+            else:
+                row.label(text="Multigraph Mode")
+                button_row = row.row()
+                button_row.enabled = can_enable_landscape
+                enable_op = button_row.operator("em.toggle_landscape_mode",
+                                               text="Enable", icon='FILE_VOLUME')
+                enable_op.enable = True
 
             # Details for selected GraphML file (codice esistente)
             if em_tools.active_file_index >= 0 and em_tools.graphml_files:

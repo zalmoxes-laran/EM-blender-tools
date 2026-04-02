@@ -92,15 +92,14 @@ class EM_filter_lists(Operator):
 
             for node in filtered_items:
                 item = strat.units.add()
-                item.name = f"[{graph_code}] {node.name}"
+                item.name = node.name
                 item.source_graph = graph_code
-                item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
+                item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
                 item.id_node = node.node_id
                 item.description = getattr(node, 'description', '')
                 item.node_type = getattr(node, 'node_type', 'US')
                 connected_epoch = get_connected_epoch_for_node(graph, node)
-                if connected_epoch:
-                    item.epoch = f"[{graph_code}] {connected_epoch}"
+                item.epoch = connected_epoch if connected_epoch else ""
 
         self._restore_selection(strat, current_selected)
 
@@ -110,30 +109,49 @@ class EM_filter_lists(Operator):
         return {'FINISHED'}
 
     def _apply_common_filters(self, scene, graph, nodes):
-        """Apply epoch, activity, and reconstruction filters to a node list."""
+        """Apply epoch/horizon, activity, and reconstruction filters to a node list."""
         filtered = nodes
+        is_landscape = getattr(scene, 'landscape_mode_active', False)
 
         if scene.filter_by_epoch:
-            epochs = scene.em_tools.epochs
-            if epochs.list and len(epochs.list) > 0:
-                active_epoch_index = epochs.list_index
-                if 0 <= active_epoch_index < len(epochs.list):
-                    active_epoch = epochs.list[active_epoch_index]
-                    # Strip graph prefix for comparison if present
-                    epoch_name = active_epoch.name
-                    if '] ' in epoch_name:
-                        epoch_name = epoch_name.split('] ', 1)[1]
+            if is_landscape:
+                # Landscape mode: filter by CronoFilter horizon time range overlap
+                cf = scene.cf_settings
+                if cf.horizons and 0 <= cf.active_horizon_index < len(cf.horizons):
+                    horizon = cf.horizons[cf.active_horizon_index]
+                    h_start = float(horizon.start_time)
+                    h_end = float(horizon.end_time)
 
                     epoch_filtered = []
                     for node in filtered:
-                        first_epoch = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
-                        if first_epoch and first_epoch.name == epoch_name:
-                            epoch_filtered.append(node)
-                        elif scene.include_surviving_units:
-                            survived_epochs = graph.get_connected_epoch_nodes_list_by_edge_type(node, "survive_in_epoch")
-                            if any(e.name == epoch_name for e in survived_epochs):
+                        node_start = node.attributes.get("CALCUL_START_T")
+                        node_end = node.attributes.get("CALCUL_END_T")
+                        if node_start is not None and node_end is not None:
+                            ns = float(node_start)
+                            ne = float(node_end)
+                            # Temporal overlap: node range intersects horizon range
+                            if ns <= h_end and ne >= h_start:
                                 epoch_filtered.append(node)
                     filtered = epoch_filtered
+            else:
+                # Single graph mode: filter by epoch name
+                epochs = scene.em_tools.epochs
+                if epochs.list and len(epochs.list) > 0:
+                    active_epoch_index = epochs.list_index
+                    if 0 <= active_epoch_index < len(epochs.list):
+                        active_epoch = epochs.list[active_epoch_index]
+                        epoch_name = active_epoch.name
+
+                        epoch_filtered = []
+                        for node in filtered:
+                            first_epoch = graph.get_connected_epoch_node_by_edge_type(node, "has_first_epoch")
+                            if first_epoch and first_epoch.name == epoch_name:
+                                epoch_filtered.append(node)
+                            elif scene.include_surviving_units:
+                                survived_epochs = graph.get_connected_epoch_nodes_list_by_edge_type(node, "survive_in_epoch")
+                                if any(e.name == epoch_name for e in survived_epochs):
+                                    epoch_filtered.append(node)
+                        filtered = epoch_filtered
 
         if scene.filter_by_activity:
             activity_manager = scene.activity_manager

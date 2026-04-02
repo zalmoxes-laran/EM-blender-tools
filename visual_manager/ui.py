@@ -78,7 +78,9 @@ class VISUAL_MT_display_mode_menu(Menu):
 
         if context.scene.em_tools.mode_em_advanced:
             layout.operator("emset.emmaterial", text="EM")
-            layout.operator("emset.epochmaterial", text="Epochs")
+            is_landscape = getattr(context.scene, 'landscape_mode_active', False)
+            label = "Horizons" if is_landscape else "Epochs"
+            layout.operator("emset.epochmaterial", text=label)
 
         layout.operator("visual.set_property_materials", text="Properties")
 

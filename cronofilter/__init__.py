@@ -19,6 +19,17 @@ import json
 import os
 from bpy_extras.io_utils import ImportHelper, ExportHelper
 
+
+def _hex_to_rgb(hex_color):
+    """Convert hex color string to normalized RGB tuple for Blender."""
+    if not hex_color or not hex_color.startswith('#'):
+        return (0.5, 0.5, 0.5)
+    try:
+        h = hex_color.lstrip('#')
+        return tuple(int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+    except (ValueError, IndexError):
+        return (0.5, 0.5, 0.5)
+
 # ============================
 # PROPERTY GROUPS
 # ============================
@@ -264,99 +275,6 @@ class CF_OT_LoadHorizons(Operator, ImportHelper):
             self.report({'ERROR'}, f"Failed to load horizons: {str(e)}")
             return {'CANCELLED'}
 
-# ============================
-# TEMPORAL FILTER OPERATORS
-# ============================
-
-class CF_OT_ApplyFilter(Operator):
-    """Apply temporal filter using the selected horizon's time range"""
-    bl_idname = "cronofilter.apply_filter"
-    bl_label = "Apply Temporal Filter"
-    bl_description = "Filter stratigraphic units by the selected horizon's time range"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        scene = context.scene
-        cf_settings = scene.cf_settings
-
-        if not cf_settings.horizons or cf_settings.active_horizon_index < 0:
-            self.report({'WARNING'}, "No horizon selected")
-            return {'CANCELLED'}
-
-        if cf_settings.active_horizon_index >= len(cf_settings.horizons):
-            self.report({'WARNING'}, "Invalid horizon index")
-            return {'CANCELLED'}
-
-        horizon = cf_settings.horizons[cf_settings.active_horizon_index]
-        start_time = float(horizon.start_time)
-        end_time = float(horizon.end_time)
-
-        from ..landscape_system.populate_functions import get_all_loaded_graphs
-        from ..functions import check_objs_in_scene_and_provide_icon_for_list_element, EM_list_clear
-        from ..populate_lists import get_connected_epoch_for_node
-
-        all_graphs = get_all_loaded_graphs(context)
-        if not all_graphs:
-            self.report({'WARNING'}, "No graphs loaded")
-            return {'CANCELLED'}
-
-        strat = scene.em_tools.stratigraphy
-        EM_list_clear(context, "em_list")
-
-        total_filtered = 0
-        for graph_code, graph in all_graphs.items():
-            # Ensure chronology is calculated
-            has_chrono = any(
-                node.attributes.get("CALCUL_START_T") is not None
-                for node in graph.nodes
-                if hasattr(node, 'node_type') and node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU']
-            )
-            if not has_chrono:
-                try:
-                    graph.calculate_chronology()
-                except Exception as e:
-                    print(f"Warning: chronology calculation failed for {graph_code}: {e}")
-                    continue
-
-            filtered_nodes = graph.filter_nodes_by_time_range(start_time, end_time)
-
-            for node in filtered_nodes:
-                item = strat.units.add()
-                item.name = f"[{graph_code}] {node.name}"
-                item.source_graph = graph_code
-                item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name)
-                item.id_node = node.node_id
-                item.description = getattr(node, 'description', '')
-                item.node_type = getattr(node, 'node_type', 'US')
-                connected_epoch = get_connected_epoch_for_node(graph, node)
-                if connected_epoch:
-                    item.epoch = f"[{graph_code}] {connected_epoch}"
-
-            total_filtered += len(filtered_nodes)
-
-        if len(strat.units) > 0:
-            strat.units_index = 0
-        else:
-            strat.units_index = -1
-
-        self.report({'INFO'}, f"Temporal filter [{start_time} - {end_time}]: {total_filtered} units")
-        return {'FINISHED'}
-
-
-class CF_OT_ResetFilter(Operator):
-    """Reset temporal filter and restore full list"""
-    bl_idname = "cronofilter.reset_filter"
-    bl_label = "Reset Temporal Filter"
-    bl_description = "Remove temporal filter and show all stratigraphic units"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        from ..landscape_system.populate_functions import populate_lists_landscape_mode
-        populate_lists_landscape_mode(context)
-        self.report({'INFO'}, "Temporal filter reset")
-        return {'FINISHED'}
-
-
 class CF_OT_AutoHorizons(Operator):
     """Generate horizons automatically from all loaded graphs' epochs"""
     bl_idname = "cronofilter.auto_horizons"
@@ -407,26 +325,42 @@ class CF_OT_AutoHorizons(Operator):
             bp_start = sorted_bp[i]
             bp_end = sorted_bp[i + 1]
 
-            # Find the most specific epoch covering this interval
+            # Find the best epoch for this interval:
+            # 1. Prefer the most specific epoch that fully contains the interval
+            # 2. Fallback: the epoch with the most overlap
             best_epoch = None
             best_span = float('inf')
+            best_overlap_epoch = None
+            best_overlap = 0.0
+
             for ep_start, ep_end, ep_name, ep_color, ep_graph in epoch_info:
+                # Full containment
                 if ep_start <= bp_start and ep_end >= bp_end:
                     span = ep_end - ep_start
                     if span < best_span:
                         best_span = span
                         best_epoch = (ep_name, ep_color, ep_graph)
+                else:
+                    # Partial overlap
+                    overlap_start = max(bp_start, ep_start)
+                    overlap_end = min(bp_end, ep_end)
+                    overlap = max(0.0, overlap_end - overlap_start)
+                    if overlap > best_overlap:
+                        best_overlap = overlap
+                        best_overlap_epoch = (ep_name, ep_color, ep_graph)
+
+            chosen = best_epoch or best_overlap_epoch
 
             new_h = cf_settings.horizons.add()
             new_h.start_time = int(bp_start)
             new_h.end_time = int(bp_end)
             new_h.enabled = True
 
-            if best_epoch:
-                new_h.label = f"{best_epoch[0]} ({best_epoch[2]})"
-                new_h.color = hex_to_rgb(best_epoch[1])
+            if chosen:
+                new_h.label = f"{chosen[0]} ({chosen[2]})"
+                new_h.color = _hex_to_rgb(chosen[1])
             else:
-                new_h.label = f"Horizon {int(bp_start)}-{int(bp_end)}"
+                new_h.label = f"{int(bp_start)}-{int(bp_end)}"
 
         cf_settings.active_horizon_index = 0
         self.report({'INFO'}, f"Generated {len(cf_settings.horizons)} horizons from {len(epoch_info)} epochs")
@@ -490,12 +424,6 @@ class CF_PT_CronoFilterPanel(Panel):
         op = col.operator("cronofilter.move_horizon", text="", icon='TRIA_DOWN')
         op.direction = "DOWN"
 
-        # Temporal filter buttons
-        filter_box = layout.box()
-        row = filter_box.row(align=True)
-        row.operator("cronofilter.apply_filter", text="Apply Filter", icon='FILTER')
-        row.operator("cronofilter.reset_filter", text="Reset", icon='X')
-
         # Edit active horizon
         if cf_settings.horizons and cf_settings.active_horizon_index < len(cf_settings.horizons):
             active_horizon = cf_settings.horizons[cf_settings.active_horizon_index]
@@ -536,8 +464,6 @@ classes = [
     CF_OT_MoveHorizon,
     CF_OT_SaveHorizons,
     CF_OT_LoadHorizons,
-    CF_OT_ApplyFilter,
-    CF_OT_ResetFilter,
     CF_OT_AutoHorizons,
     CF_PT_CronoFilterPanel,
 ]

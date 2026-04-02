@@ -67,20 +67,15 @@ class EM_STRAT_UL_List(UIList):
         # Graph badge in landscape mode: colored NODE_SOCKET icon + graph code
         if is_landscape and item.source_graph:
             socket_icon = _get_graph_icon(item.source_graph)
-            badge_split = remaining.split(factor=0.12)
+            badge_split = remaining.split(factor=0.18)
             badge_row = badge_split.row(align=True)
             badge_row.label(text=item.source_graph, icon=socket_icon)
             remaining = badge_split.column(align=True)
 
-        # Display name: strip [GRAPH_CODE] prefix in landscape mode for cleaner display
-        display_name = item.name
-        if is_landscape and item.source_graph and display_name.startswith(f"[{item.source_graph}] "):
-            display_name = display_name[len(item.source_graph) + 3:]  # strip "[CODE] "
-
         # Name + containment icon column (28% of remaining space)
         name_split = remaining.split(factor=0.28)
         name_row = name_split.row(align=True)
-        name_row.label(text=display_name)
+        name_row.label(text=item.name)
 
         # Containment icons
         if item.is_container:
@@ -111,30 +106,42 @@ class EM_STRAT_UL_List(UIList):
 
 
 class STRAT_MT_epoch_selector(Menu):
-    """Menu dropdown for selecting active epoch in Stratigraphy Manager"""
+    """Menu dropdown for selecting active epoch/horizon in Stratigraphy Manager"""
     bl_label = "Select Active Epoch"
     bl_idname = "STRAT_MT_epoch_selector"
 
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        epochs = scene.em_tools.epochs
+        is_landscape = getattr(scene, 'landscape_mode_active', False)
 
-        if len(epochs.list) == 0:
-            layout.label(text="No epochs available", icon='ERROR')
-            return
+        if is_landscape:
+            # Landscape mode: show CronoFilter horizons
+            cf = scene.cf_settings
+            if not cf.horizons:
+                layout.label(text="No horizons defined", icon='ERROR')
+                return
 
-        # Draw each epoch as a menu item
-        for i, epoch in enumerate(epochs.list):
-            epoch_label = epoch.name
+            for i, h in enumerate(cf.horizons):
+                if not h.enabled:
+                    continue
+                op = layout.operator("strat.set_active_horizon", text=h.label, icon='TIME')
+                op.horizon_index = i
+                if i == cf.active_horizon_index:
+                    layout.separator()
+        else:
+            # Single graph mode: show epochs
+            epochs = scene.em_tools.epochs
 
-            # Create operator to set this epoch as active
-            op = layout.operator("strat.set_active_epoch", text=epoch_label, icon='TIME')
-            op.epoch_index = i
+            if len(epochs.list) == 0:
+                layout.label(text="No epochs available", icon='ERROR')
+                return
 
-            # Highlight current active epoch
-            if i == epochs.list_index:
-                layout.separator()
+            for i, epoch in enumerate(epochs.list):
+                op = layout.operator("strat.set_active_epoch", text=epoch.name, icon='TIME')
+                op.epoch_index = i
+                if i == epochs.list_index:
+                    layout.separator()
 
 
 class STRAT_MT_activity_selector(Menu):
@@ -244,27 +251,43 @@ class EM_ToolsPanel:
         # ✅ PORTED: Use strat.show_filter_system
         if strat.show_filter_system:
 
+            is_landscape = getattr(scene, 'landscape_mode_active', False)
             epochs = scene.em_tools.epochs
 
-            # === EPOCH FILTER ROW ===
+            # === EPOCH / HORIZON FILTER ROW ===
             epoch_row = filter_box.row(align=True)
             epoch_row.enabled = graph_available
 
-            # "By Epoch" toggle button with icon
-            if len(epochs.list) > 0 and epochs.list_index < len(epochs.list):
-                epoch_row.prop(
-                    scene, "filter_by_epoch",
-                    text="By Epoch",
-                    toggle=True,
-                    icon='SORTTIME'
-                )
-
-                # Dropdown selector (without repeating the icon)
-                current_epoch = epochs.list[epochs.list_index]
-                epoch_row.menu("STRAT_MT_epoch_selector", text=current_epoch.name)
+            if is_landscape:
+                # Landscape mode: use horizons from CronoFilter
+                cf = scene.cf_settings
+                filter_label = "By Horizon"
+                if cf.horizons and 0 <= cf.active_horizon_index < len(cf.horizons):
+                    epoch_row.prop(
+                        scene, "filter_by_epoch",
+                        text=filter_label,
+                        toggle=True,
+                        icon='SORTTIME'
+                    )
+                    current_horizon = cf.horizons[cf.active_horizon_index]
+                    epoch_row.menu("STRAT_MT_epoch_selector", text=current_horizon.label)
+                else:
+                    epoch_row.label(text=filter_label, icon='SORTTIME')
+                    epoch_row.label(text="No horizons defined", icon='ERROR')
             else:
-                epoch_row.label(text="By Epoch", icon='SORTTIME')
-                epoch_row.label(text="No epochs available", icon='ERROR')
+                # Single graph mode: use epochs
+                if len(epochs.list) > 0 and epochs.list_index < len(epochs.list):
+                    epoch_row.prop(
+                        scene, "filter_by_epoch",
+                        text="By Epoch",
+                        toggle=True,
+                        icon='SORTTIME'
+                    )
+                    current_epoch = epochs.list[epochs.list_index]
+                    epoch_row.menu("STRAT_MT_epoch_selector", text=current_epoch.name)
+                else:
+                    epoch_row.label(text="By Epoch", icon='SORTTIME')
+                    epoch_row.label(text="No epochs available", icon='ERROR')
 
             # === ACTIVITY FILTER ROW ===
             activity_row = filter_box.row(align=True)

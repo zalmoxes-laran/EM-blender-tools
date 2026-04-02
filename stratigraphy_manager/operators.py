@@ -1003,6 +1003,42 @@ class EM_select_from_list_item(Operator):
         graph_exists, graph = check_graph(context)
         return graph if graph_exists else None
 
+    def _get_graph_for_item(self, context):
+        """In landscape mode, resolve the correct graph using source_graph from the list item."""
+        scene = context.scene
+        if not getattr(scene, 'landscape_mode_active', False):
+            return None
+
+        strat = scene.em_tools.stratigraphy
+        # Determine which item we're working with
+        item = None
+        if self.specific_item:
+            # Find item by name
+            for it in strat.units:
+                if it.name == self.specific_item:
+                    item = it
+                    break
+        elif strat.units_index >= 0 and strat.units_index < len(strat.units):
+            item = strat.units[strat.units_index]
+
+        if not item or not item.source_graph:
+            return None
+
+        # Find the graph matching this source_graph code
+        try:
+            from s3dgraphy import get_graph
+            for graph_file in scene.em_tools.graphml_files:
+                try:
+                    graph = get_graph(graph_file.name)
+                    if graph and graph.attributes.get('graph_code', '') == item.source_graph:
+                        return graph
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        return None
+
     def _resolve_node_name(self, context):
         scene = context.scene
         if self.specific_item:
@@ -1030,8 +1066,9 @@ class EM_select_from_list_item(Operator):
         if not node_name:
             return None, None, None
 
-        active_graph = self._get_active_graph(context)
-        proxy_name = node_name_to_proxy_name(node_name, context=context, graph=active_graph)
+        # In landscape mode, use source_graph to find the correct graph
+        graph = self._get_graph_for_item(context) or self._get_active_graph(context)
+        proxy_name = node_name_to_proxy_name(node_name, context=context, graph=graph)
         obj = get_object_cache().get_object(proxy_name)
         return node_name, proxy_name, obj
 
@@ -1257,11 +1294,12 @@ class EM_set_EM_materials(Operator):
 class EM_set_epoch_materials(Operator):
     bl_idname = "emset.epochmaterial"
     bl_label = "Change proxy Epochs"
-    bl_description = "Change proxy materials using Epochs"
+    bl_description = "Change proxy materials using Epochs or Horizons"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     def execute(self, context):
-        context.scene.em_tools.proxy_display_mode = "Epochs"
+        is_landscape = getattr(context.scene, 'landscape_mode_active', False)
+        context.scene.em_tools.proxy_display_mode = "Horizons" if is_landscape else "Epochs"
         update_icons(context, "em_list")
         bpy.ops.set_materials.using_epoch_list()
         return {'FINISHED'}
@@ -1369,24 +1407,32 @@ class SET_materials_using_epoch_list(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        # ✅ AGGIUNTO: Import delle funzioni necessarie
+        scene = context.scene
+        is_landscape = getattr(scene, 'landscape_mode_active', False)
+
+        if is_landscape:
+            return self._execute_landscape(context)
+        else:
+            return self._execute_single(context)
+
+    def _execute_single(self, context):
+        """Original single-graph epoch coloring."""
         from ..functions import (
-            check_material_presence, 
-            em_setup_mat_cycles, 
+            check_material_presence,
+            em_setup_mat_cycles,
             consolidate_epoch_material_presence
         )
         from ..functions import is_graph_available as check_graph
         from ..operators.addon_prefix_helpers import node_name_to_proxy_name
-        
-        # ✅ AGGIUNTO: Ottieni il grafo attivo una sola volta
+
         graph_exists, graph = check_graph(context)
         active_graph = graph if graph_exists else None
-        
-        scene = context.scene 
+
+        scene = context.scene
         epochs = scene.em_tools.epochs.list
         mat_prefix = "ep_"
-        applied_count = 0  # ✅ AGGIUNTO: Counter per il report
-        
+        applied_count = 0
+
         # Create/update epoch materials
         for epoch in epochs:
             matname = mat_prefix + epoch.name
@@ -1395,40 +1441,115 @@ class SET_materials_using_epoch_list(Operator):
             G = epoch.epoch_RGB_color[1]
             B = epoch.epoch_RGB_color[2]
             em_setup_mat_cycles(matname, R, G, B)
-            
-            # ✅ OPTIMIZED: Use object cache for batch lookups
+
             from ..object_cache import get_object_cache
             cache = get_object_cache()
 
-            # Apply materials to objects in this epoch
-            strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+            strat = scene.em_tools.stratigraphy
             for em_element in strat.units:
                 if em_element.icon == "LINKED":
                     if em_element.epoch == epoch.name:
-                        # ✅ MODIFICATO: Converti il nome con prefisso
                         proxy_name = node_name_to_proxy_name(
                             em_element.name,
                             context=context,
                             graph=active_graph
                         )
-
-                        # ✅ OPTIMIZED: Use cached object lookup
                         obj = cache.get_object(proxy_name)
-                        
+
                         if obj:
                             obj.data.materials.clear()
                             obj.data.materials.append(mat)
                             applied_count += 1
-                            print(f"✅ Applied epoch material '{matname}' to {proxy_name}")
-                        else:
-                            print(f"⚠️ Warning: Object '{proxy_name}' not found in scene (node: {em_element.name})")
-        
-        # ✅ AGGIUNTO: Report finale
-        print(f"\n{'='*50}")
-        print(f"✅ Applied Epoch materials to {applied_count} objects")
-        print(f"{'='*50}")
+
         self.report({'INFO'}, f"Applied Epoch materials to {applied_count} objects")
-        
+        return {'FINISHED'}
+
+    def _execute_landscape(self, context):
+        """Landscape mode: color proxies using CronoFilter horizons and temporal overlap."""
+        from ..functions import em_setup_mat_cycles, consolidate_epoch_material_presence
+        from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+        from ..object_cache import get_object_cache
+        from ..landscape_system.populate_functions import get_all_loaded_graphs
+
+        scene = context.scene
+        cf_settings = scene.cf_settings
+        strat = scene.em_tools.stratigraphy
+        cache = get_object_cache()
+        mat_prefix = "ep_"
+        applied_count = 0
+
+        if not cf_settings.horizons:
+            self.report({'WARNING'}, "No CronoFilter horizons defined. Use Auto from Epochs first.")
+            return {'CANCELLED'}
+
+        # Build graph lookup by graph_code for resolving proxy names
+        all_graphs = get_all_loaded_graphs(context)
+
+        # Create materials for each horizon
+        horizon_materials = {}
+        for horizon in cf_settings.horizons:
+            if not horizon.enabled:
+                continue
+            matname = mat_prefix + horizon.label
+            mat = consolidate_epoch_material_presence(matname)
+            R, G, B = horizon.color[0], horizon.color[1], horizon.color[2]
+            em_setup_mat_cycles(matname, R, G, B)
+            horizon_materials[horizon.label] = {
+                'mat': mat,
+                'start': float(horizon.start_time),
+                'end': float(horizon.end_time),
+            }
+
+        # For each unit, find matching horizon via temporal overlap
+        for em_element in strat.units:
+            if em_element.icon != "LINKED":
+                continue
+
+            # Get the graph for this element
+            graph = all_graphs.get(em_element.source_graph)
+            if not graph:
+                continue
+
+            # Find node in graph to get CALCUL_START_T / CALCUL_END_T
+            node = None
+            for n in graph.nodes:
+                if n.name == em_element.name:
+                    node = n
+                    break
+            if not node:
+                continue
+
+            node_start = node.attributes.get("CALCUL_START_T")
+            node_end = node.attributes.get("CALCUL_END_T")
+            if node_start is None or node_end is None:
+                continue
+
+            node_start = float(node_start)
+            node_end = float(node_end)
+
+            # Find best matching horizon (most overlap)
+            best_horizon = None
+            best_overlap = 0.0
+            for h_label, h_data in horizon_materials.items():
+                overlap_start = max(node_start, h_data['start'])
+                overlap_end = min(node_end, h_data['end'])
+                overlap = max(0.0, overlap_end - overlap_start)
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    best_horizon = h_label
+
+            if not best_horizon:
+                continue
+
+            # Apply material
+            proxy_name = node_name_to_proxy_name(em_element.name, context=context, graph=graph)
+            obj = cache.get_object(proxy_name)
+            if obj:
+                obj.data.materials.clear()
+                obj.data.materials.append(horizon_materials[best_horizon]['mat'])
+                applied_count += 1
+
+        self.report({'INFO'}, f"Applied Horizon materials to {applied_count} objects")
         return {'FINISHED'}
 
 
@@ -1657,6 +1778,7 @@ def register_operators():
     operators = [
         EMTOOLS_OT_refresh_us_thumbs,
         STRAT_OT_set_active_epoch,
+        STRAT_OT_set_active_horizon,
         STRAT_OT_set_active_activity,
         EM_strat_toggle_visibility,
         EM_strat_sync_visibility,
@@ -1741,6 +1863,38 @@ class STRAT_OT_set_active_epoch(Operator):
         return {'FINISHED'}
 
 
+class STRAT_OT_set_active_horizon(Operator):
+    """Set the active horizon for filtering in landscape mode"""
+    bl_idname = "strat.set_active_horizon"
+    bl_label = "Set Active Horizon"
+    bl_description = "Set the active CronoFilter horizon for stratigraphy filtering"
+    bl_options = {'REGISTER'}
+
+    horizon_index: IntProperty(
+        name="Horizon Index",
+        description="Index of the horizon to set as active",
+        default=0
+    )  # type: ignore
+
+    def execute(self, context):
+        scene = context.scene
+        cf_settings = scene.cf_settings
+
+        if self.horizon_index < 0 or self.horizon_index >= len(cf_settings.horizons):
+            self.report({'ERROR'}, "Invalid horizon index")
+            return {'CANCELLED'}
+
+        cf_settings.active_horizon_index = self.horizon_index
+        horizon = cf_settings.horizons[self.horizon_index]
+
+        # If filter_by_epoch is active, trigger re-filter
+        if scene.filter_by_epoch:
+            bpy.ops.em.filter_lists()
+
+        self.report({'INFO'}, f"Active horizon set to: {horizon.label}")
+        return {'FINISHED'}
+
+
 class STRAT_OT_set_active_activity(Operator):
     """Set the active activity for filtering"""
     bl_idname = "strat.set_active_activity"
@@ -1776,6 +1930,7 @@ def unregister_operators():
     operators = [
         EMTOOLS_OT_refresh_us_thumbs,
         STRAT_OT_set_active_epoch,
+        STRAT_OT_set_active_horizon,
         STRAT_OT_set_active_activity,
         STRAT_OT_open_document_folder,
         STRAT_OT_open_document_file,
