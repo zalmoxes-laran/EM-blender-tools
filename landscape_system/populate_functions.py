@@ -320,13 +320,13 @@ def populate_lists_single_mode(context):
     try:
         # Usa la logica esistente per popolare da un singolo grafo
         from ..populate_lists import populate_blender_lists_from_graph, clear_lists
-        from s3dgraphy import get_active_graph
-        
+        from ..functions import is_graph_available
+
         # Pulisci le liste
         clear_lists(context)
-        
+
         # Popola dal grafo attivo
-        active_graph = get_active_graph()
+        graph_exists, active_graph = is_graph_available(context)
         if active_graph:
             populate_blender_lists_from_graph(context, active_graph)
             print(f"✅ Single mode: populated from graph {active_graph.attributes.get('graph_code', 'UNKNOWN')}")
