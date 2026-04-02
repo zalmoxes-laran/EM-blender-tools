@@ -45,12 +45,12 @@ class EM_STRAT_UL_List(UIList):
         name_row = name_split.row(align=True)
         name_row.label(text=item.name)
 
-        # Containment icons (arrow up/down)
+        # Containment icons
         if item.is_container:
-            op = name_row.operator("em.filter_by_containment", text="", icon='SORT_DESC', emboss=False)
+            op = name_row.operator("em.filter_by_containment", text="", icon='OUTLINER_OB_GROUP_INSTANCE', emboss=False)
             op.container_node_id = item.id_node
         elif item.parent_node_id != "":
-            op = name_row.operator("em.select_parent_us", text="", icon='SORT_ASC', emboss=False)
+            op = name_row.operator("em.select_parent_us", text="", icon='TRACKING_BACKWARDS', emboss=False)
             op.parent_node_id = item.parent_node_id
 
         # Instance chain icon
