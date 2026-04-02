@@ -37,7 +37,7 @@ def populate_lists_landscape_mode(context):
     # Calcola cronologia per ogni grafo (necessario per filtro temporale)
     for graph_code, graph in all_graphs.items():
         try:
-            graph.calculate_chronology()
+            graph.calculate_chronology(graph)
         except Exception as e:
             print(f"Warning: chronology calculation failed for {graph_code}: {e}")
 

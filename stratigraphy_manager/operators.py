@@ -340,7 +340,10 @@ class EM_strat_sync_visibility(Operator):
                 # Object should be hidden AND non-renderable using ALL THREE systems
                 if not obj.hide_viewport or not obj.hide_render:
                     # 1. Restricted View Layer (hide_set)
-                    obj.hide_set(True)
+                    try:
+                        obj.hide_set(True)
+                    except RuntimeError:
+                        pass
                     # 2. Viewport visibility
                     obj.hide_viewport = True
                     # 3. Render visibility
@@ -475,7 +478,10 @@ class EM_strat_sync_visibility(Operator):
                 # Object should be hidden AND non-renderable using ALL THREE systems
                 if not obj.hide_viewport or not obj.hide_render:
                     # 1. Restricted View Layer (hide_set)
-                    obj.hide_set(True)
+                    try:
+                        obj.hide_set(True)
+                    except RuntimeError:
+                        pass
                     # 2. Viewport visibility
                     obj.hide_viewport = True
                     # 3. Render visibility
@@ -722,8 +728,10 @@ class EM_strat_hide_all_proxies(Operator):
             # Cerca tra TUTTI gli oggetti della scena
             for obj in bpy.data.objects:
                 if obj.type == 'MESH' and get_base_name(obj.name) == obj_name:
-                    # Usa hide_set() per gestire correttamente la visibilità
-                    obj.hide_set(True)
+                    try:
+                        obj.hide_set(True)
+                    except RuntimeError:
+                        pass
                     obj.hide_viewport = True
                     obj.hide_render = True
                     hidden_count += 1

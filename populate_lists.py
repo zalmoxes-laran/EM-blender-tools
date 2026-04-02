@@ -368,7 +368,7 @@ def populate_blender_lists_from_graph(context, graph):
 
     # Calculate chronology (TPQ/TAQ propagation) for temporal filtering
     try:
-        graph.calculate_chronology()
+        graph.calculate_chronology(graph)
     except Exception as e:
         print(f"Warning: chronology calculation failed: {e}")
 
