@@ -31,7 +31,11 @@ class PROXYBOX_PT_main_panel(Panel):
     
     @classmethod
     def poll(cls, context):
-        return hasattr(context.scene, 'em_tools')
+        if not hasattr(context.scene, 'em_tools'):
+            return False
+        if getattr(context.scene, 'landscape_mode_active', False):
+            return False
+        return True
     
     def draw_header(self, context):
         layout = self.layout

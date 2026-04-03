@@ -250,6 +250,12 @@ class VIEW3D_PT_RM_Manager(Panel):
         box = layout.box()
         if has_active_epoch:
             row = box.row(align=True)
+            # Active graph indicator
+            if em_tools.graphml_files and 0 <= em_tools.active_file_index < len(em_tools.graphml_files):
+                gf = em_tools.graphml_files[em_tools.active_file_index]
+                code = gf.graph_code if hasattr(gf, 'graph_code') and gf.graph_code not in ("site_id", "") else gf.name
+                from ..stratigraphy_manager.ui import _get_graph_icon
+                row.label(text=code, icon=_get_graph_icon(code))
             row.label(text="Active Epoch:", icon='TIME')
             row.menu("RM_MT_epoch_selector", text=active_epoch.name)
             row.operator("rm.select_all_from_active_epoch", text="", icon='SELECT_EXTEND')
@@ -266,6 +272,12 @@ class VIEW3D_PT_RM_Manager(Panel):
             help_op.url = "EMstructure.html#rm-manager"
         else:
             row = box.row(align=True)
+            # Active graph indicator
+            if em_tools.graphml_files and 0 <= em_tools.active_file_index < len(em_tools.graphml_files):
+                gf = em_tools.graphml_files[em_tools.active_file_index]
+                code = gf.graph_code if hasattr(gf, 'graph_code') and gf.graph_code not in ("site_id", "") else gf.name
+                from ..stratigraphy_manager.ui import _get_graph_icon
+                row.label(text=code, icon=_get_graph_icon(code))
             row.label(text="No active epoch selected", icon='INFO')
             row.operator("rm.detect_orphaned_epochs", text="", icon='ORPHAN_DATA')
             row.operator("rm.cleanup_missing_objects", text="", icon='TRASH')

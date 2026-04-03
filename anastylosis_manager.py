@@ -1831,6 +1831,13 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
 
         box = layout.box()
         row = box.row(align=True)
+        # Active graph indicator
+        em_tools = scene.em_tools
+        if em_tools.graphml_files and 0 <= em_tools.active_file_index < len(em_tools.graphml_files):
+            gf = em_tools.graphml_files[em_tools.active_file_index]
+            code = gf.graph_code if hasattr(gf, 'graph_code') and gf.graph_code not in ("site_id", "") else gf.name
+            from .stratigraphy_manager.ui import _get_graph_icon
+            row.label(text=code, icon=_get_graph_icon(code))
         row.operator("anastylosis.cleanup_missing_objects", text="", icon='TRASH')
         help_op = row.operator("em.help_popup", text="", icon='QUESTION')
         help_op.title = "Anastylosis Manager"

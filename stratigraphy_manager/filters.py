@@ -87,19 +87,6 @@ class EM_filter_lists(Operator):
             # Ensure chronology is calculated (needed for horizon time filtering)
             try:
                 graph.calculate_chronology(graph)
-                # Debug: check if chronology was actually set
-                test_nodes = graph.get_nodes_by_type("StratigraphicNode")
-                print(f"[DEBUG CHRONO] {graph_code}: get_nodes_by_type('StratigraphicNode') returned {len(test_nodes)} nodes")
-                if test_nodes:
-                    n = test_nodes[0]
-                    print(f"[DEBUG CHRONO]   Sample node '{n.name}': CALCUL_START_T={n.attributes.get('CALCUL_START_T')}, CALCUL_END_T={n.attributes.get('CALCUL_END_T')}")
-                else:
-                    # Try checking raw nodes
-                    strat_count = sum(1 for n in graph.nodes if hasattr(n, 'node_type') and n.node_type in ['US', 'USVs', 'USVn'])
-                    print(f"[DEBUG CHRONO]   But raw graph has {strat_count} strat nodes (US/USVs/USVn)")
-                    if strat_count > 0:
-                        sample = next(n for n in graph.nodes if hasattr(n, 'node_type') and n.node_type in ['US', 'USVs', 'USVn'])
-                        print(f"[DEBUG CHRONO]   Sample raw node: type={type(sample).__name__}, node_type={sample.node_type}")
             except Exception as e:
                 import traceback
                 print(f"Warning: chronology calculation failed for {graph_code}: {e}")
@@ -143,21 +130,6 @@ class EM_filter_lists(Operator):
                     h_start = float(horizon.start_time)
                     h_end = float(horizon.end_time)
 
-                    print(f"[DEBUG FILTER] Horizon '{horizon.label}': {h_start} - {h_end}")
-                    print(f"[DEBUG FILTER] Total nodes to filter: {len(filtered)}")
-
-                    # Debug: check how many nodes have chronology data
-                    has_chrono = 0
-                    no_chrono = 0
-                    for node in filtered:
-                        s = node.attributes.get("CALCUL_START_T")
-                        e = node.attributes.get("CALCUL_END_T")
-                        if s is not None and e is not None:
-                            has_chrono += 1
-                        else:
-                            no_chrono += 1
-                    print(f"[DEBUG FILTER] Nodes with chronology: {has_chrono}, without: {no_chrono}")
-
                     epoch_filtered = []
                     for node in filtered:
                         node_start = node.attributes.get("CALCUL_START_T")
@@ -165,10 +137,8 @@ class EM_filter_lists(Operator):
                         if node_start is not None and node_end is not None:
                             ns = float(node_start)
                             ne = float(node_end)
-                            # Temporal overlap: node range intersects horizon range
                             if ns <= h_end and ne >= h_start:
                                 epoch_filtered.append(node)
-                    print(f"[DEBUG FILTER] Nodes passing filter: {len(epoch_filtered)}")
                     filtered = epoch_filtered
             else:
                 # Single graph mode: filter by epoch name
