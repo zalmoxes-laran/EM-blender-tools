@@ -145,7 +145,11 @@ class EM_import_GraphML(bpy.types.Operator):
 
                 # Step 5: Populate Blender lists (70-85%)
                 # ✅ ORA procedi con il popolamento delle liste (grafo completamente popolato)
-                populate_blender_lists_from_graph(context, graph_instance)
+                if getattr(scene, 'landscape_mode_active', False):
+                    from ..landscape_system.populate_functions import populate_lists_landscape_mode
+                    populate_lists_landscape_mode(context)
+                else:
+                    populate_blender_lists_from_graph(context, graph_instance)
                 wm.progress_update(85)
 
                 # Step 6: Update graph statistics (85-90%)

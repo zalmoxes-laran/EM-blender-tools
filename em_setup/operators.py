@@ -305,11 +305,13 @@ class EM_InvokePopulateLists(Operator):
                 self.report({'ERROR'}, "Graph not loaded. Please import the GraphML file first.")
                 return {'CANCELLED'}
 
-            # Clear Blender Lists
-            clear_lists(context)
-
-            # Istanzia l'operatore `EM_import_GraphML`
-            populate_blender_lists_from_graph(context, graph_instance)
+            if getattr(scene, 'landscape_mode_active', False):
+                from ..landscape_system.populate_functions import populate_lists_landscape_mode
+                populate_lists_landscape_mode(context)
+            else:
+                # Clear Blender Lists
+                clear_lists(context)
+                populate_blender_lists_from_graph(context, graph_instance)
 
             # ✅ Aggiorna le statistiche del grafo
             from ..populate_lists import update_graph_statistics
