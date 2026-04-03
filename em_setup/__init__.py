@@ -8,6 +8,7 @@ import bpy
 # Import submodules
 from . import properties
 from . import operators
+from . import resource_operators
 from . import ui
 from . import utils
 
@@ -56,6 +57,7 @@ def register():
 
     # Then operators
     operators.register()
+    resource_operators.register()
 
     # Finally UI (which may depend on properties and operators)
     ui.register()
@@ -69,6 +71,7 @@ def unregister():
 
     # Unregister in reverse order
     ui.unregister()
+    resource_operators.unregister()
     operators.unregister()
     properties.unregister()
 

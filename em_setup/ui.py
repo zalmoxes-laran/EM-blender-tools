@@ -452,11 +452,20 @@ class AUXILIARY_UL_files(bpy.types.UIList):
             elif item.file_type == "generic_xlsx":
                 row.label(text="", icon='SPREADSHEET')
 
+            elif item.file_type == "resource_collection":
+                row.label(text="", icon='FILE_FOLDER')
+
             # Nome file
             row.prop(item, "name", text="", emboss=False)
 
             # Stato del file
-            if item.filepath or item.dosco_folder:
+            if item.file_type == "resource_collection":
+                # Resource collections need resource_folder, not filepath
+                if item.resource_folder:
+                    row.label(text="", icon='CHECKMARK')
+                else:
+                    row.label(text="", icon='ERROR')
+            elif item.filepath or item.dosco_folder:
                 row.label(text="", icon='CHECKMARK')
             else:
                 row.label(text="", icon='ERROR')
@@ -858,93 +867,18 @@ class EM_SetupPanel(bpy.types.Panel):
                         row = box.row()
                         row.prop(aux_file, "file_type", text="Type")
 
-                        # Path: mostra filepath solo per tipi non-DosCo
-                        if aux_file.file_type != "dosco":
+                        # Path: mostra filepath solo per tipi che lo richiedono
+                        if aux_file.file_type not in ("dosco", "resource_collection"):
                             row = box.row()
                             row.prop(aux_file, "filepath", text="Path")
 
-                        # EMdb mapping se necessario
+                        # EMdb mapping
                         if aux_file.file_type == "emdb_xlsx":
                             row = box.row()
                             row.prop(aux_file, "emdb_mapping", text="Format")
                             row.operator("emtools.open_mapping_preferences",
                                         text="",
                                         icon='PREFERENCES')
-                            # SEZIONE COLLASSABILE DOCUMENT RESOURCES
-                            resources_box = box.box()
-
-                            # Header con triangolino
-                            header_row = resources_box.row(align=True)
-                            icon = 'TRIA_DOWN' if aux_file.show_resources_section else 'TRIA_RIGHT'
-                            header_row.prop(aux_file, "show_resources_section",
-                                        text=f"Document Resources for {aux_file.name}",
-                                        icon=icon,
-                                        emboss=False)
-
-                            # Mostra contenuto solo se espanso
-                            if aux_file.show_resources_section:
-                                # Cartella risorse
-                                col = resources_box.column()
-                                row = col.row()
-                                row.prop(aux_file, "resource_folder", text="Resources Folder")
-
-                                # Warning se path assoluto
-                                if aux_file.resource_folder:
-                                    if os.path.isabs(aux_file.resource_folder) and not aux_file.resource_folder.startswith('//'):
-                                        warn_box = col.box()
-                                        warn_box.alert = True
-                                        warn_col = warn_box.column(align=True)
-                                        _draw_wrapped_text(
-                                            warn_col,
-                                            context,
-                                            "Use relative path (// prefix) for cross-PC compatibility",
-                                            icon='ERROR',
-                                        )
-                                        _draw_wrapped_text(
-                                            warn_col,
-                                            context,
-                                            "Example: //Resources or //../../SharedFolder/Resources",
-                                        )
-
-                                # Sezione thumbnails
-                                col.separator()
-                                col.label(text="Thumbnails Generation:")
-
-                                thumb_row = col.row(align=True)
-
-                                # Indicatore esistenza thumbs (ICONE ORIGINALI!)
-                                if has_doc_thumbs():
-                                    thumb_row.label(text="", icon='KEYTYPE_JITTER_VEC')  # Verde
-                                else:
-                                    thumb_row.label(text="", icon='KEYTYPE_KEYFRAME_VEC')  # Rosso
-
-                                # Pulsanti thumbnails
-                                thumb_row.operator("emtools.build_doc_thumbs", text="(Re)generate")
-                                thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
-                                op = thumb_row.operator("wm.url_open", text="", icon="HELP")
-                                op.url = "https://docs.extendedmatrix.org/projects/EM-tools/en/1.5.0/EMstructure.html#setting-up-resource-folders"
-
-                                # THUMBNAILS PATH - Sotto triangolino collassabile
-                                path_box = col.box()
-                                path_row = path_box.row(align=True)
-
-                                # Triangolino per espandere/collassare
-                                path_icon = 'TRIA_DOWN' if aux_file.show_thumbs_path_section else 'TRIA_RIGHT'
-                                path_row.prop(aux_file, "show_thumbs_path_section",
-                                            text="Thumbnails Path",
-                                            icon=path_icon,
-                                            emboss=False)
-
-                                # Mostra il campo path solo se espanso
-                                if aux_file.show_thumbs_path_section:
-                                    path_col = path_box.column()
-                                    path_row = path_col.row()
-                                    path_row.prop(aux_file, "custom_thumbs_path", text="")
-
-                                    # Se non c'è path custom, mostra info
-                                    if not aux_file.custom_thumbs_path:
-                                        info_row = path_col.row()
-                                        info_row.label(text="Path will be auto-generated on first use", icon='INFO')
 
                         elif aux_file.file_type == "pyarchinit":
                             row = box.row()
@@ -974,82 +908,6 @@ class EM_SetupPanel(bpy.types.Panel):
                                             desc_box.label(text=mapping_data["description"])
                                         if "table_settings" in mapping_data:
                                             desc_box.label(text=f"Table: {mapping_data['table_settings']['table_name']}")
-
-                            # SEZIONE COLLASSABILE DOCUMENT RESOURCES (come per EMdb)
-                            resources_box = box.box()
-
-                            # Header con triangolino
-                            header_row = resources_box.row(align=True)
-                            icon = 'TRIA_DOWN' if aux_file.show_resources_section else 'TRIA_RIGHT'
-                            header_row.prop(aux_file, "show_resources_section",
-                                        text=f"Document Resources for {aux_file.name}",
-                                        icon=icon,
-                                        emboss=False)
-
-                            # Mostra contenuto solo se espanso
-                            if aux_file.show_resources_section:
-                                # Cartella risorse
-                                col = resources_box.column()
-                                row = col.row()
-                                row.prop(aux_file, "resource_folder", text="Resources Folder")
-
-                                # Warning se path assoluto
-                                if aux_file.resource_folder:
-                                    if os.path.isabs(aux_file.resource_folder) and not aux_file.resource_folder.startswith('//'):
-                                        warn_box = col.box()
-                                        warn_box.alert = True
-                                        warn_col = warn_box.column(align=True)
-                                        _draw_wrapped_text(
-                                            warn_col,
-                                            context,
-                                            "Use relative path (// prefix) for cross-PC compatibility",
-                                            icon='ERROR',
-                                        )
-                                        _draw_wrapped_text(
-                                            warn_col,
-                                            context,
-                                            "Example: //Resources or //../../SharedFolder/Resources",
-                                        )
-
-                                # Sezione thumbnails
-                                col.separator()
-                                col.label(text="Thumbnails Generation:")
-
-                                thumb_row = col.row(align=True)
-
-                                # Indicatore esistenza thumbs (ICONE ORIGINALI!)
-                                if has_doc_thumbs():
-                                    thumb_row.label(text="", icon='KEYTYPE_JITTER_VEC')  # Verde
-                                else:
-                                    thumb_row.label(text="", icon='KEYTYPE_KEYFRAME_VEC')  # Rosso
-
-                                # Pulsanti thumbnails
-                                thumb_row.operator("emtools.build_doc_thumbs", text="(Re)generate")
-                                thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
-                                op = thumb_row.operator("wm.url_open", text="", icon="HELP")
-                                op.url = "https://docs.extendedmatrix.org/projects/EM-tools/en/1.5.0/EMstructure.html#setting-up-resource-folders"
-
-                                # THUMBNAILS PATH - Sotto triangolino collassabile
-                                path_box = col.box()
-                                path_row = path_box.row(align=True)
-
-                                # Triangolino per espandere/collassare
-                                path_icon = 'TRIA_DOWN' if aux_file.show_thumbs_path_section else 'TRIA_RIGHT'
-                                path_row.prop(aux_file, "show_thumbs_path_section",
-                                            text="Thumbnails Path",
-                                            icon=path_icon,
-                                            emboss=False)
-
-                                # Mostra il campo path solo se espanso
-                                if aux_file.show_thumbs_path_section:
-                                    path_col = path_box.column()
-                                    path_row = path_col.row()
-                                    path_row.prop(aux_file, "custom_thumbs_path", text="")
-
-                                    # Se non c'è path custom, mostra info
-                                    if not aux_file.custom_thumbs_path:
-                                        info_row = path_col.row()
-                                        info_row.label(text="Path will be auto-generated on first use", icon='INFO')
 
                         elif aux_file.file_type == "dosco":
                             # DosCo folder path
@@ -1111,6 +969,77 @@ class EM_SetupPanel(bpy.types.Panel):
                                 context,
                                 "Column 'Description': description to set",
                             )
+
+                        elif aux_file.file_type == "resource_collection":
+                            # Resource Collection - standalone resource folder
+                            row = box.row()
+                            row.prop(aux_file, "resource_folder", text="Resources Folder")
+
+                            # Warning if absolute path
+                            if aux_file.resource_folder:
+                                if os.path.isabs(aux_file.resource_folder) and not aux_file.resource_folder.startswith('//'):
+                                    warn_box = box.box()
+                                    warn_box.alert = True
+                                    warn_col = warn_box.column(align=True)
+                                    _draw_wrapped_text(
+                                        warn_col,
+                                        context,
+                                        "Use relative path (// prefix) for cross-PC compatibility",
+                                        icon='ERROR',
+                                    )
+                                    _draw_wrapped_text(
+                                        warn_col,
+                                        context,
+                                        "Example: //Resources or //../../SharedFolder/Resources",
+                                    )
+
+                            # Target node types and scan mode
+                            row = box.row()
+                            row.prop(aux_file, "target_node_types", text="Target Nodes")
+
+                            row = box.row()
+                            row.prop(aux_file, "scan_mode", text="Scan Mode")
+
+                            # Scan & Link button
+                            row = box.row()
+                            row.scale_y = 1.2
+                            row.operator("auxiliary.import_now", text="Scan & Link Resources", icon='VIEWZOOM')
+
+                            # Thumbnails section
+                            box.separator()
+                            box.label(text="Thumbnails Generation:")
+
+                            thumb_row = box.row(align=True)
+
+                            # Thumbnail status indicator
+                            if has_doc_thumbs():
+                                thumb_row.label(text="", icon='KEYTYPE_JITTER_VEC')
+                            else:
+                                thumb_row.label(text="", icon='KEYTYPE_KEYFRAME_VEC')
+
+                            # Thumbnail action buttons
+                            thumb_row.operator("emtools.build_doc_thumbs", text="(Re)generate")
+                            thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
+                            op = thumb_row.operator("wm.url_open", text="", icon="HELP")
+                            op.url = "https://docs.extendedmatrix.org/projects/EM-tools/en/1.5.0/EMstructure.html#setting-up-resource-folders"
+
+                            # Thumbnails path (collapsible)
+                            path_box = box.box()
+                            path_row = path_box.row(align=True)
+                            path_icon = 'TRIA_DOWN' if aux_file.show_thumbs_path_section else 'TRIA_RIGHT'
+                            path_row.prop(aux_file, "show_thumbs_path_section",
+                                          text="Thumbnails Path",
+                                          icon=path_icon,
+                                          emboss=False)
+
+                            if aux_file.show_thumbs_path_section:
+                                path_col = path_box.column()
+                                path_row = path_col.row()
+                                path_row.prop(aux_file, "custom_thumbs_path", text="")
+
+                                if not aux_file.custom_thumbs_path:
+                                    info_row = path_col.row()
+                                    info_row.label(text="Path will be auto-generated on first use", icon='INFO')
 
             # Advanced Tools section
             box = layout.box()

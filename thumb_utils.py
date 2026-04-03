@@ -348,116 +348,101 @@ def create_placeholder_thumb(thumb_path: Path, text: str, size: Tuple[int, int] 
         return False
 
 
-def has_doc_thumbs(verbose: bool = False) -> bool:
+def _check_resource_source_has_thumbs(source, source_index, verbose=False):
     """
-    Verifica se esistono thumbnails disponibili per QUALSIASI file ausiliario del GraphML attivo.
-    Controlla:
-    1. Se c'è un GraphML caricato
-    2. Se esiste almeno un file ausiliario con resource_folder configurata
-    3. Se esiste la cartella thumbs per quella resource_folder
-    4. Se l'indice contiene almeno una thumbnail
-
-    ✅ MIGLIORAMENTO: Cerca in TUTTI i file ausiliari, non solo quello "attivo" in EM Setup
-
-    Args:
-        verbose: Se True, stampa messaggi di debug dettagliati (default: False)
+    Check if a single resource source (AuxiliaryFileProperties)
+    has valid thumbnails available. Both types expose .resource_folder (duck typing).
 
     Returns:
-        bool: True se ci sono thumbs disponibili, False altrimenti
+        bool: True if valid thumbnails found
+    """
+    if not source.resource_folder:
+        if verbose:
+            print(f"  [{source_index}] {source.name}: No resource_folder - skipping")
+        return False
+
+    resource_folder_raw = source.resource_folder
+    resource_folder_resolved = resolve_resource_folder(resource_folder_raw, verbose=False)
+
+    if not resource_folder_resolved or not os.path.exists(resource_folder_resolved):
+        if verbose:
+            print(f"  [{source_index}] {source.name}: Cannot resolve path '{resource_folder_raw}' - skipping")
+        return False
+
+    thumbs_root = em_thumbs_root(resource_folder_raw)
+
+    if verbose:
+        print(f"  [{source_index}] {source.name}: Checking thumbs in {thumbs_root}")
+
+    if not thumbs_root.exists():
+        if verbose:
+            print(f"  [{source_index}] {source.name}: Thumbs folder does not exist - skipping")
+        return False
+
+    index_data = load_index_json(thumbs_root)
+    items = index_data.get("items", {})
+
+    if not items:
+        if verbose:
+            print(f"  [{source_index}] {source.name}: Index is empty - skipping")
+        return False
+
+    # Verify at least one thumbnail exists on disk
+    valid_thumbs_count = 0
+    for doc_key, item_data in items.items():
+        thumb_rel_path = item_data.get("thumb", "")
+        if thumb_rel_path:
+            thumb_abs_path = thumbs_root / thumb_rel_path
+            if thumb_abs_path.exists():
+                valid_thumbs_count += 1
+
+    if valid_thumbs_count == 0:
+        if verbose:
+            print(f"  [{source_index}] {source.name}: No valid thumbnails (index has {len(items)} items but none exist on disk) - skipping")
+        return False
+
+    if verbose:
+        print(f"  [{source_index}] {source.name}: Found {valid_thumbs_count} valid thumbnails!")
+    return True
+
+
+def has_doc_thumbs(verbose: bool = False) -> bool:
+    """
+    Check if thumbnails are available from ANY resource source of the active GraphML.
+    Searches both auxiliary files (legacy) and standalone resource collections.
+
+    Args:
+        verbose: If True, print detailed debug messages (default: False)
+
+    Returns:
+        bool: True if valid thumbnails are available, False otherwise
     """
     try:
         scene = bpy.context.scene
         em_tools = scene.em_tools
 
-        # Controlla se c'è un GraphML caricato
         if em_tools.active_file_index < 0 or not em_tools.graphml_files:
             if verbose:
-                print(f"⚠️ has_doc_thumbs: No GraphML loaded")
+                print(f"has_doc_thumbs: No GraphML loaded")
             return False
 
         graphml = em_tools.graphml_files[em_tools.active_file_index]
 
-        # Controlla se ci sono file ausiliari
-        if not graphml.auxiliary_files or len(graphml.auxiliary_files) == 0:
+        # Check all auxiliary files (including resource_collection type)
+        if graphml.auxiliary_files and len(graphml.auxiliary_files) > 0:
             if verbose:
-                print(f"⚠️ has_doc_thumbs: No auxiliary files configured")
-            return False
+                print(f"has_doc_thumbs: Checking {len(graphml.auxiliary_files)} auxiliary files...")
+            for aux_index, aux_file in enumerate(graphml.auxiliary_files):
+                if _check_resource_source_has_thumbs(aux_file, aux_index, verbose):
+                    return True
 
-        # ✅ NUOVO: Cerca in TUTTI i file ausiliari, non solo quello attivo
-        # Questo permette di rilevare thumbs anche se l'utente non ha selezionato
-        # esplicitamente un file ausiliario in EM Setup
         if verbose:
-            print(f"🔍 has_doc_thumbs: Checking {len(graphml.auxiliary_files)} auxiliary files...")
-
-        for aux_index, aux_file in enumerate(graphml.auxiliary_files):
-            # Salta se questo aux non ha resource_folder
-            if not aux_file.resource_folder:
-                if verbose:
-                    print(f"  [{aux_index}] {aux_file.name}: No resource_folder - skipping")
-                continue
-
-            # ✅ FIXED: Passa il path RAW a em_thumbs_root (non quello risolto)
-            # perché em_thumbs_root fa l'hash basandosi sul path originale
-            resource_folder_raw = aux_file.resource_folder
-
-            # Verifica che il path risolto esista (ma usa il RAW per calcolare thumbs_root)
-            resource_folder_resolved = resolve_resource_folder(resource_folder_raw, verbose=False)  # Non verbose qui per non spammare
-
-            if not resource_folder_resolved or not os.path.exists(resource_folder_resolved):
-                if verbose:
-                    print(f"  [{aux_index}] {aux_file.name}: Cannot resolve path '{resource_folder_raw}' - skipping")
-                continue
-
-            # Calcola thumbs_root usando il path RAW (come fa il generatore)
-            thumbs_root = em_thumbs_root(resource_folder_raw)
-
-            if verbose:
-                print(f"  [{aux_index}] {aux_file.name}: Checking thumbs in {thumbs_root}")
-
-            # Verifica che la cartella thumbs esista
-            if not thumbs_root.exists():
-                if verbose:
-                    print(f"  [{aux_index}] {aux_file.name}: Thumbs folder does not exist - skipping")
-                continue
-
-            # Carica l'indice
-            index_data = load_index_json(thumbs_root)
-
-            # Controlla se ci sono items nell'indice
-            items = index_data.get("items", {})
-
-            if not items:
-                if verbose:
-                    print(f"  [{aux_index}] {aux_file.name}: Index is empty - skipping")
-                continue
-
-            # Verifica che almeno una thumbnail esista fisicamente
-            valid_thumbs_count = 0
-            for doc_key, item_data in items.items():
-                thumb_rel_path = item_data.get("thumb", "")
-                if thumb_rel_path:
-                    thumb_abs_path = thumbs_root / thumb_rel_path
-                    if thumb_abs_path.exists():
-                        valid_thumbs_count += 1
-
-            if valid_thumbs_count == 0:
-                if verbose:
-                    print(f"  [{aux_index}] {aux_file.name}: No valid thumbnails (index has {len(items)} items but none exist on disk) - skipping")
-                continue
-
-            # ✅ TROVATO! Almeno un aux file ha thumbs valide
-            if verbose:
-                print(f"  ✓ [{aux_index}] {aux_file.name}: Found {valid_thumbs_count} valid thumbnails!")
-            return True
-
-        # Nessun file ausiliario ha thumbs valide
-        if verbose:
-            print(f"⚠️ has_doc_thumbs: No valid thumbnails found in any auxiliary file")
+            print(f"has_doc_thumbs: No valid thumbnails found in any source")
         return False
 
     except Exception as e:
         if verbose:
-            print(f"❌ Error in has_doc_thumbs(): {e}")
+            print(f"Error in has_doc_thumbs(): {e}")
             import traceback
             traceback.print_exc()
         return False
@@ -498,7 +483,7 @@ def reload_doc_previews_for_us_async(us_node_id: str, on_ready_callback=None) ->
 
         graphml = em_tools.graphml_files[em_tools.active_file_index]
 
-        # Check if we have auxiliary files
+        # Check if we have auxiliary files (includes resource_collection type)
         if not graphml.auxiliary_files or len(graphml.auxiliary_files) == 0:
             return []
 
@@ -541,12 +526,11 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
 
         graphml = em_tools.graphml_files[em_tools.active_file_index]
 
-        # Verifica che ci siano file ausiliari
+        # Check auxiliary files (includes resource_collection type)
         if not graphml.auxiliary_files or len(graphml.auxiliary_files) == 0:
             return []
 
-        # ✅ NUOVO: Cerca in TUTTI i file ausiliari finché non trovi thumbs valide
-        # Questo permette di vedere thumbs indipendentemente da quale aux file è "attivo" in EM Setup
+        # Search ALL auxiliary files until valid thumbs are found
         for aux_file in graphml.auxiliary_files:
             # Salta se questo aux non ha resource_folder
             if not aux_file.resource_folder:

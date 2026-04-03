@@ -3,13 +3,10 @@
 import bpy
 import os
 import json
-import uuid
 from bpy.types import Operator
 from bpy.props import EnumProperty, IntProperty
 
 from s3dgraphy import get_graph, remove_graph, get_all_graph_ids
-from s3dgraphy.nodes.document_node import DocumentNode
-from s3dgraphy.nodes.link_node import LinkNode
 
 # Import from parent package
 from ..populate_lists import clear_lists, populate_blender_lists_from_graph
@@ -402,6 +399,10 @@ class AUXILIARY_OT_import_now(Operator):
         if aux_file.file_type == "source_list":
             return self._process_source_list(context, graphml, aux_file)
 
+        # Handle Resource Collection type - standalone folder scanning
+        if aux_file.file_type == "resource_collection":
+            return self._process_resource_collection(context, graphml, aux_file)
+
         # ✅ 1. Importa file xlsx (aggiunge proprietà ai nodi esistenti)
         result = bpy.ops.em.import_3dgis_database(
             auxiliary_mode=True,
@@ -426,159 +427,76 @@ class AUXILIARY_OT_import_now(Operator):
         return {'FINISHED'}
 
     def _process_resource_folder(self, context, graphml, aux_file):
-        """Processa cartella risorse con ricerca ricorsiva o da JSON thumbnails"""
-        # ✅ RISOLVI il path della resource_folder PRIMA di usarlo
-        resource_folder_raw = aux_file.resource_folder
+        """Process resource folder - delegates to shared resource_utils."""
+        from .resource_utils import process_resource_folder
+        allowed_formats = self._get_allowed_formats_from_mapping(aux_file)
+        process_resource_folder(
+            get_graph(graphml.name),
+            aux_file.resource_folder,
+            aux_file,
+            graphml.name,
+            allowed_formats=allowed_formats
+        )
 
-        # Risolvi con la stessa logica di resolve_resource_folder
-        if os.path.isabs(resource_folder_raw) and not resource_folder_raw.startswith("//"):
-            base_resource_folder = os.path.normpath(resource_folder_raw)
-        elif resource_folder_raw.startswith("//"):
-            base_resource_folder = os.path.normpath(bpy.path.abspath(resource_folder_raw))
-        else:
-            blend_path = bpy.data.filepath
-            if blend_path:
-                blend_dir = os.path.dirname(blend_path)
-                base_resource_folder = os.path.normpath(os.path.join(blend_dir, resource_folder_raw))
-            else:
-                raise Exception("File .blend non salvato, impossibile usare path relativi senza //")
+    def _process_resource_collection(self, context, graphml, aux_file):
+        """Process a standalone resource collection (scan folder, link to graph nodes)."""
+        from .resource_utils import (
+            resolve_resource_path, process_resource_folder,
+            process_resource_folder_by_prefix, get_target_types_from_enum
+        )
 
-        print(f"✓ Resource folder risolta per import: {base_resource_folder}")
+        if not aux_file.resource_folder:
+            self.report({'ERROR'}, "Resource folder not configured")
+            return {'CANCELLED'}
 
-        if not os.path.exists(base_resource_folder):
-            raise Exception(f"Resource folder non trovata: {base_resource_folder}")
+        try:
+            resolved = resolve_resource_path(aux_file.resource_folder)
+        except ValueError as e:
+            self.report({'ERROR'}, str(e))
+            return {'CANCELLED'}
+
+        import os
+        if not os.path.exists(resolved):
+            self.report({'ERROR'}, f"Resource folder not found: {resolved}")
+            return {'CANCELLED'}
 
         graph = get_graph(graphml.name)
         if not graph:
-            raise Exception(f"Graph {graphml.name} not found")
+            self.report({'ERROR'}, f"Graph '{graphml.name}' not loaded. Import the GraphML first.")
+            return {'CANCELLED'}
 
-        # ✅ CHECK: Se esiste il JSON delle thumbnails, usa quello (VELOCE)
-        from ..thumb_utils import em_thumbs_root, load_index_json
+        target_types = get_target_types_from_enum(aux_file.target_node_types)
 
         try:
-            thumbs_root = em_thumbs_root(resource_folder_raw)
-            index_data = load_index_json(thumbs_root)
-
-            if index_data.get("items") and len(index_data["items"]) > 0:
-                print(f"✅ Found thumbnails JSON with {len(index_data['items'])} items - using fast import")
-                self._process_from_thumbnails_json(graph, base_resource_folder, index_data, aux_file)
-                return
-            else:
-                print(f"⚠️ Thumbnails JSON exists but is empty - falling back to folder scan")
-        except Exception as e:
-            print(f"⚠️ Could not load thumbnails JSON: {e} - falling back to folder scan")
-
-        # ✅ FALLBACK: Scansione fisica delle cartelle (LENTA)
-        allowed_formats = self._get_allowed_formats_from_mapping(aux_file)
-
-        print(f"Processing resource folder: {base_resource_folder}")
-        print(f"Allowed formats: {allowed_formats if allowed_formats else 'ALL FORMATS'}")
-
-        # ✅ Ottieni tutti gli ID dalla colonna xlsx (già importati come proprietà)
-        imported_ids = self._get_imported_node_ids(graph)
-
-        # ✅ Per ogni ID, ricerca ricorsiva della cartella
-        for node_id in imported_ids:
-            # ✅ USA base_resource_folder invece di aux_file.resource_folder
-            matching_folders = self._find_folders_by_name(base_resource_folder, node_id)
-
-            if matching_folders:
-                print(f"Found {len(matching_folders)} folder(s) for ID {node_id}:")
-                for folder_path in matching_folders:
-                    print(f"  - {folder_path}")
-                    # ✅ PASSA base_resource_folder come ultimo parametro
-                    self._process_node_resource_folder(graph, node_id, folder_path, allowed_formats, base_resource_folder)
-            else:
-                print(f"No folder found for ID {node_id}")
-
-    def _process_from_thumbnails_json(self, graph, base_resource_folder, index_data, aux_file):
-        """
-        Crea DocumentNode e LinkNode leggendo dal JSON delle thumbnails (VELOCE).
-        Invece di scansionare fisicamente le cartelle, usa le informazioni già presenti nel JSON.
-        """
-        from ..thumb_utils import get_file_hash
-
-        allowed_formats = self._get_allowed_formats_from_mapping(aux_file)
-        created_docs = 0
-        skipped_docs = 0
-
-        # Per ogni file nel JSON
-        for doc_key, item_data in index_data["items"].items():
-            src_path = item_data.get("src_path", "")
-            filename = item_data.get("filename", "")
-
-            if not src_path or not filename:
-                continue
-
-            # Controlla formato se necessario
-            if allowed_formats:
-                ext = filename.lower().split('.')[-1]
-                if ext not in [fmt.lower() for fmt in allowed_formats]:
-                    skipped_docs += 1
-                    continue
-
-            # Ricostruisci il path assoluto del file
-            # src_path nel JSON è relativo al .blend, quindi ricostruiamo
-            blend_path = bpy.data.filepath
-            if blend_path:
-                blend_dir = os.path.dirname(blend_path)
-                file_path = os.path.join(blend_dir, src_path)
-                file_path = os.path.normpath(file_path)
-            else:
-                # Se il .blend non è salvato, assumiamo che src_path sia già relativo a base_resource_folder
-                file_path = os.path.join(base_resource_folder, src_path)
-                file_path = os.path.normpath(file_path)
-
-            if not os.path.exists(file_path):
-                print(f"⚠️ File not found: {file_path} - skipping")
-                skipped_docs += 1
-                continue
-
-            # Calcola path relativo alla resource_folder per URL
-            try:
-                relative_path = os.path.relpath(file_path, base_resource_folder)
-                relative_path = relative_path.replace("\\", "/")
-            except ValueError:
-                print(f"⚠️ Cannot calculate relative path for {filename}")
-                skipped_docs += 1
-                continue
-
-            # Identifica il nodo target (US, Property, etc.) dal path
-            # Es: "US02/01.jpg" → target_node_name = "US02"
-            path_parts = relative_path.split('/')
-            if len(path_parts) < 2:
-                print(f"⚠️ Cannot identify target node from path: {relative_path}")
-                skipped_docs += 1
-                continue
-
-            target_node_name = path_parts[0]  # Prima parte del path (es. "US02")
-
-            # Trova il nodo target nel grafo
-            target_node = self._find_node_by_name(graph, target_node_name)
-            if not target_node:
-                print(f"⚠️ Target node not found: {target_node_name} for file {filename}")
-                skipped_docs += 1
-                continue
-
-            # Determina folder_suffix per naming (se ci sono sottocartelle)
-            folder_suffix = "_".join(path_parts[:-1]) if len(path_parts) > 2 else path_parts[0]
-
-            # Crea DocumentNode e LinkNode
-            try:
-                self._create_document_for_resource(
-                    graph, target_node, file_path, filename, folder_suffix, base_resource_folder
+            if aux_file.scan_mode == 'FOLDER_NAME':
+                process_resource_folder(
+                    graph=graph,
+                    resource_folder_raw=aux_file.resource_folder,
+                    source_item=aux_file,
+                    graph_name=graphml.name,
+                    target_types=target_types
                 )
-                created_docs += 1
-            except Exception as e:
-                print(f"❌ Error creating document for {filename}: {e}")
-                skipped_docs += 1
+            elif aux_file.scan_mode == 'FILENAME_PREFIX':
+                process_resource_folder_by_prefix(
+                    graph=graph,
+                    resource_folder_raw=aux_file.resource_folder,
+                    target_types=target_types
+                )
 
-        print(f"✅ Created {created_docs} DocumentNodes from thumbnails JSON")
-        if skipped_docs > 0:
-            print(f"⏭️ Skipped {skipped_docs} files")
+            # Invalidate graph index so new edges are picked up
+            graph._indices_dirty = True
+
+            self.report({'INFO'}, f"Resources scanned and linked from '{aux_file.name}'")
+            return {'FINISHED'}
+
+        except Exception as e:
+            self.report({'ERROR'}, f"Resource scanning failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {'CANCELLED'}
 
     def _get_allowed_formats_from_mapping(self, aux_file):
-        """Ottieni allowed_formats dal mapping JSON specifico"""
+        """Get allowed_formats from the mapping JSON specific to this aux file type."""
         if aux_file.file_type == "emdb_xlsx" and aux_file.emdb_mapping != "none":
             try:
                 from s3dgraphy.mappings import mapping_registry
@@ -595,230 +513,13 @@ class AUXILIARY_OT_import_now(Operator):
             except Exception as e:
                 print(f"Error loading mapping: {e}")
                 return None
-        return None  # No restrictions = tutti i formati
-
-    def _get_imported_node_ids(self, graph):
-        """Ottieni tutti gli ID dei nodi che sono stati importati dall'xlsx"""
-        node_ids = []
-        for node in graph.nodes:
-            # Cerca nei nodi che hanno nome senza prefisso grafo
-            original_name = getattr(node, 'attributes', {}).get('original_name', node.name)
-            # Se è un nome che potrebbe avere una cartella corrispondente
-            if original_name and not original_name.startswith(('D.', 'DOC.', 'PROP.')):
-                node_ids.append(original_name)
-        return node_ids
-
-    def _find_folders_by_name(self, root_folder, target_name):
-        """Trova ricorsivamente tutte le cartelle con nome specifico"""
-        matching_folders = []
-
-        try:
-            for root, dirs, files in os.walk(root_folder):
-                # ✅ Controlla se una delle sottocartelle ha il nome cercato
-                if target_name in dirs:
-                    match_path = os.path.join(root, target_name)
-                    matching_folders.append(match_path)
-                    print(f"Found matching folder: {match_path}")
-
-        except Exception as e:
-            print(f"Error scanning {root_folder}: {e}")
-
-        return matching_folders
-
-    def _process_node_resource_folder(self, graph, node_id, folder_path, allowed_formats, base_resource_folder):
-        """Processa tutti i file nella cartella di un nodo specifico"""
-        target_node = self._find_node_by_name(graph, node_id)
-        if not target_node:
-            print(f"Warning: Node {node_id} not found in graph")
-            return
-
-        # ✅ Include il percorso relativo nel nome del documento per disambiguare
-        folder_suffix = self._get_folder_suffix(folder_path, base_resource_folder)
-
-        # Scansiona tutti i file nella cartella
-        for filename in os.listdir(folder_path):
-            file_path = os.path.join(folder_path, filename)
-            if os.path.isfile(file_path):
-                if self._is_allowed_format(filename, allowed_formats):
-                    print(f"Creating DocumentNode for: {folder_suffix}/{filename}")
-                    self._create_document_for_resource(
-                        graph, target_node, file_path, filename, folder_suffix, base_resource_folder
-                    )
-                else:
-                    print(f"Skipping {filename} (format not allowed)")
-
-    def _find_node_by_name(self, graph, target_name):
-        """Trova nodo per nome"""
-        for node in graph.nodes:
-            original_name = getattr(node, 'attributes', {}).get('original_name', node.name)
-            if node.name == target_name or original_name == target_name:
-                return node
         return None
-
-    def _get_folder_suffix(self, folder_path, base_resource_folder):
-        """Ottieni suffisso identificativo per cartelle multiple"""
-        relative_path = os.path.relpath(folder_path, base_resource_folder)
-        parts = relative_path.split(os.sep)
-        if len(parts) > 1:
-            return "_".join(parts[:-1])  # Tutto tranne l'ultima parte (nome cartella target)
-        return "main"
-
-    def _is_allowed_format(self, filename, allowed_formats):
-        """Controlla se il file ha formato consentito"""
-        if allowed_formats is None:
-            return True  # Nessuna restrizione = tutti i formati OK
-
-        ext = filename.lower().split('.')[-1]
-        return ext in [fmt.lower() for fmt in allowed_formats]
-
-    def _determine_edge_type_for_document(self, target_node):
-        """
-        Determine the appropriate edge type for connecting a DocumentNode
-        based on the type of the target node.
-
-        This avoids using generic_connection placeholder when we already know
-        the node types at creation time.
-        """
-        # Stratigraphic node types
-        stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD',
-                              'serUSVn', 'serUSVs', 'TSU', 'SE', 'BR', 'unknown']
-
-        node_type = getattr(target_node, 'node_type', None)
-
-        if node_type in stratigraphic_types:
-            # ✅ StratigraphicNode → DocumentNode = has_documentation
-            return "has_documentation"
-        elif node_type == "property":
-            # PropertyNode documented by documents (rare but possible)
-            return "has_documentation"
-        elif node_type == "extractor":
-            # ExtractorNode → DocumentNode = extracted_from
-            return "extracted_from"
-        else:
-            # Fallback to generic_connection for unknown node types
-            # (will be refined later if needed)
-            return "generic_connection"
-
-    def _create_document_for_resource(self, graph, target_node, file_path, filename, folder_suffix, base_resource_folder):
-        """Crea DocumentNode → LinkNode per la risorsa (con controllo duplicati)"""
-        # ✅ Calcola path relativo alla base_resource_folder
-        try:
-            relative_path = os.path.relpath(file_path, base_resource_folder)
-            # Normalizza gli slash per essere cross-platform (sempre /)
-            relative_path = relative_path.replace("\\", "/")
-        except ValueError:
-            # Se file_path e base_resource_folder sono su drive diversi (Windows)
-            print(f"⚠️ Impossibile calcolare path relativo per {filename}, uso assoluto")
-            relative_path = file_path
-
-        # ✅ Determine edge type based on target node type
-        edge_type = self._determine_edge_type_for_document(target_node)
-
-        # ✅ FIX DUPLICATI: Prima controlla se esiste già un documento per questo file
-        existing_doc = None
-        for node in graph.nodes:
-            if (hasattr(node, 'node_type') and node.node_type == 'document' and
-                hasattr(node, 'url') and node.url == relative_path):
-                # Trovato documento esistente con lo stesso URL
-                existing_doc = node
-                print(f"✅ Found existing DocumentNode for file: {filename}")
-                break
-
-        if existing_doc:
-            # ✅ Verifica che sia collegato al nodo target
-            edge_exists = False
-            edge_id = f"{target_node.node_id}_{edge_type}_{existing_doc.node_id}"
-
-            for edge in graph.edges:
-                if (edge.edge_source == target_node.node_id and
-                    edge.edge_target == existing_doc.node_id and
-                    edge.edge_type == edge_type):
-                    edge_exists = True
-                    break
-
-            if not edge_exists:
-                # Crea edge con tipo semantico appropriato
-                graph.add_edge(
-                    edge_id=edge_id,
-                    edge_source=target_node.node_id,
-                    edge_target=existing_doc.node_id,
-                    edge_type=edge_type
-                )
-                print(f"✅ Added {edge_type} edge to existing DocumentNode")
-            else:
-                print(f"✅ Edge already exists to DocumentNode")
-
-            return existing_doc
-
-        # ✅ Se non esiste, crea nuovo documento
-        # Conta documenti esistenti per calcolare l'indice progressivo
-        existing_docs = [n for n in graph.nodes
-                        if hasattr(n, 'name') and n.name.startswith(f"DOC.{target_node.name}")]
-        doc_index = len(existing_docs) + 1
-
-        # Include folder_suffix nel nome se presente
-        if folder_suffix and folder_suffix != "main":
-            doc_id = f"DOC.{target_node.name}.{folder_suffix}.{doc_index:03d}"
-        else:
-            doc_id = f"DOC.{target_node.name}.{doc_index:03d}"
-
-        print(f"Creating NEW DocumentNode: {doc_id}")
-        print(f"  File path: {file_path}")
-        print(f"  Relative path: {relative_path}")
-
-        # Crea DocumentNode
-        doc_node = DocumentNode(
-            node_id=str(uuid.uuid4()),
-            name=doc_id,
-            url=relative_path  # ✅ Path relativo
-        )
-        doc_node.attributes = getattr(doc_node, 'attributes', {})
-        doc_node.attributes['resource_type'] = filename.split('.')[-1].lower()
-
-        graph.add_node(doc_node)
-
-        # Crea edge verso il nodo target con tipo semantico appropriato
-        edge_id = f"{target_node.node_id}_{edge_type}_{doc_node.node_id}"
-        graph.add_edge(
-            edge_id=edge_id,
-            edge_source=target_node.node_id,
-            edge_target=doc_node.node_id,
-            edge_type=edge_type
-        )
-        print(f"  Created {edge_type} edge to DocumentNode")
-
-        # Crea LinkNode per il file
-        link_id = f"LINK.{doc_id}"
-        link_node = LinkNode(
-            node_id=str(uuid.uuid4()),
-            name=link_id,
-            url=relative_path
-        )
-        # ✅ FIXED: Non sovrascrivere data, aggiungi solo filename
-        link_node.data['filename'] = filename
-
-        print(f"  LinkNode created: {link_id}")
-        print(f"  → URL set to: {link_node.data.get('url', 'NO URL')}")
-
-        graph.add_node(link_node)
-
-        # Crea edge tra DocumentNode e LinkNode
-        link_edge_id = f"{doc_node.node_id}_has_linked_resource_{link_node.node_id}"
-        graph.add_edge(
-            edge_id=link_edge_id,
-            edge_source=doc_node.node_id,
-            edge_target=link_node.node_id,
-            edge_type="has_linked_resource"
-        )
-
-        print(f"✅ Created DocumentNode and LinkNode for: {filename}")
-        return doc_node
 
     def _process_dosco(self, context, graphml, aux_file):
         """Process DosCo folder harvesting"""
         from ..functions import inspect_load_dosco_files_on_graph
         from s3dgraphy import get_graph
-        import os
+        from .resource_utils import resolve_resource_path
 
         # Validate DosCo folder path
         if not aux_file.dosco_folder:
@@ -826,19 +527,11 @@ class AUXILIARY_OT_import_now(Operator):
             return {'CANCELLED'}
 
         # Resolve DosCo folder path
-        dosco_folder_raw = aux_file.dosco_folder
-        if os.path.isabs(dosco_folder_raw) and not dosco_folder_raw.startswith("//"):
-            dosco_folder = os.path.normpath(dosco_folder_raw)
-        elif dosco_folder_raw.startswith("//"):
-            dosco_folder = os.path.normpath(bpy.path.abspath(dosco_folder_raw))
-        else:
-            blend_path = bpy.data.filepath
-            if blend_path:
-                blend_dir = os.path.dirname(blend_path)
-                dosco_folder = os.path.normpath(os.path.join(blend_dir, dosco_folder_raw))
-            else:
-                self.report({'ERROR'}, "Blend file not saved, cannot use relative paths without //")
-                return {'CANCELLED'}
+        try:
+            dosco_folder = resolve_resource_path(aux_file.dosco_folder)
+        except ValueError as e:
+            self.report({'ERROR'}, str(e))
+            return {'CANCELLED'}
 
         # Check folder exists
         if not os.path.exists(dosco_folder):
@@ -884,7 +577,7 @@ class AUXILIARY_OT_import_now(Operator):
 
     def _process_source_list(self, context, graphml, aux_file):
         """Process Source List Excel file to update source descriptions"""
-        import os
+        from .resource_utils import resolve_resource_path
 
         # Validate filepath
         if not aux_file.filepath:
@@ -892,19 +585,11 @@ class AUXILIARY_OT_import_now(Operator):
             return {'CANCELLED'}
 
         # Resolve filepath
-        filepath_raw = aux_file.filepath
-        if os.path.isabs(filepath_raw) and not filepath_raw.startswith("//"):
-            filepath = os.path.normpath(filepath_raw)
-        elif filepath_raw.startswith("//"):
-            filepath = os.path.normpath(bpy.path.abspath(filepath_raw))
-        else:
-            blend_path = bpy.data.filepath
-            if blend_path:
-                blend_dir = os.path.dirname(blend_path)
-                filepath = os.path.normpath(os.path.join(blend_dir, filepath_raw))
-            else:
-                self.report({'ERROR'}, "Blend file not saved, cannot use relative paths without //")
-                return {'CANCELLED'}
+        try:
+            filepath = resolve_resource_path(aux_file.filepath)
+        except ValueError as e:
+            self.report({'ERROR'}, str(e))
+            return {'CANCELLED'}
 
         # Check file exists
         if not os.path.exists(filepath):

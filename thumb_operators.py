@@ -33,13 +33,13 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
         graphml = em_tools.graphml_files[em_tools.active_file_index]
         
         if not graphml.auxiliary_files or graphml.active_auxiliary_index < 0:
-            self.report({'ERROR'}, "No auxiliary files configured. Go to EMsetup → Auxiliary files")
+            self.report({'ERROR'}, "No auxiliary files configured. Use Resource Collections instead.")
             return {'CANCELLED'}
-            
+
         aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
-        
+
         if not aux_file.resource_folder:
-            self.report({'ERROR'}, "Resource folder not configured. Go to EMsetup → Auxiliary Files and set 'Resource Folder'.'")
+            self.report({'ERROR'}, "Resource folder not configured on this auxiliary file. Use Resource Collections instead.")
             return {'CANCELLED'}
         
         if not aux_file.custom_thumbs_path:

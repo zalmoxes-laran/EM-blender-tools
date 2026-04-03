@@ -35,11 +35,15 @@ def auto_import_auxiliary_files(context, graphml_index):
         if not aux_file.auto_reload_on_em_update:
             continue
 
-        # Verifica che il file/folder sia configurato
-        # Per DosCo verifichiamo dosco_folder, per altri tipi filepath
+        # Verify the required path/folder is configured for this type
         if aux_file.file_type == "dosco":
             if not aux_file.dosco_folder:
                 em_log(f"Skipping '{aux_file.name}': no DosCo folder configured", "WARNING")
+                error_count += 1
+                continue
+        elif aux_file.file_type == "resource_collection":
+            if not aux_file.resource_folder:
+                em_log(f"Skipping '{aux_file.name}': no resource folder configured", "WARNING")
                 error_count += 1
                 continue
         else:
@@ -69,8 +73,7 @@ def auto_import_auxiliary_files(context, graphml_index):
     if imported_count > 0:
         em_log(f"Auto-import completed: {imported_count} file(s) imported, {error_count} error(s)", "INFO")
 
-        # ✅ OPTIMIZATION: Invalidate graph index after importing auxiliary files
-        # This ensures edge index is rebuilt with new edges from imported data
+        # Invalidate graph index after importing auxiliary files / resource collections
         from s3dgraphy import get_graph
         from ..graph_index import invalidate_graph_index
 
@@ -82,7 +85,7 @@ def auto_import_auxiliary_files(context, graphml_index):
     elif error_count > 0:
         em_log(f"Auto-import completed with {error_count} error(s)", "WARNING")
     else:
-        em_log("No auxiliary files marked for auto-import", "INFO")
+        em_log("No auxiliary files or resource collections marked for auto-import", "INFO")
 
     return imported_count, error_count
 

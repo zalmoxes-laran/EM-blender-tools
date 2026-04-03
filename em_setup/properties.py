@@ -215,6 +215,7 @@ def get_emdb_mappings(self=None, context=None):
         return [("none", "No Mapping", "Select a mapping file")]
 
 
+
 class AuxiliaryFileProperties(bpy.types.PropertyGroup):
     """Properties for auxiliary files (EMdb, pyArchInit, etc.)"""
 
@@ -233,7 +234,8 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
             ("emdb_xlsx", "EMdb Excel", "Import from EMdb Excel format"),
             ("pyarchinit", "pyArchInit", "Import from pyArchInit SQLite DB"),
             ("dosco", "DosCo", "DosCo documentation folder for harvesting document files"),
-            ("source_list", "Source List", "Excel file with sources descriptions for document/extractor/combiner nodes")
+            ("source_list", "Source List", "Excel file with sources descriptions for document/extractor/combiner nodes"),
+            ("resource_collection", "Resource Collection", "Standalone folder of multimodal resources (images, documents) linked to graph nodes"),
         ],
         default="emdb_xlsx"
     )  # type: ignore
@@ -292,6 +294,29 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         name="Show Mapping Info",
         description="Expand to see details for the selected pyArchInit mapping",
         default=False
+    )  # type: ignore
+
+    # Resource Collection specific properties
+    target_node_types: EnumProperty(
+        name="Target Node Types",
+        description="Which node types to match resources against",
+        items=[
+            ('STRATIGRAPHIC', "Stratigraphic Nodes", "US, USVs, USVn, SF, VSF, USD, TSU, SE, BR, series"),
+            ('DOCUMENT', "Document Nodes", "DocumentNode"),
+            ('EXTRACTOR', "Extractor Nodes", "ExtractorNode"),
+            ('ALL', "All Node Types", "Match against all graph node types"),
+        ],
+        default='STRATIGRAPHIC'
+    )  # type: ignore
+
+    scan_mode: EnumProperty(
+        name="Scan Mode",
+        description="How to match resources to graph nodes",
+        items=[
+            ('FOLDER_NAME', "Folder Name Match", "Subfolder names must match node identifiers"),
+            ('FILENAME_PREFIX', "Filename Prefix Match", "Filenames must start with a node identifier"),
+        ],
+        default='FOLDER_NAME'
     )  # type: ignore
 
     # DosCo-specific properties
@@ -574,8 +599,7 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
 
 
 # Registration
-# NOTE: AuxiliaryFileProperties and GraphMLFileItem are registered HERE
-# and imported by em_props.py which uses them in EM_Tools
+# NOTE: PropertyGroups are registered HERE and imported by em_props.py which uses them in EM_Tools
 classes = (
     AuxiliaryFileProperties,
     GraphMLFileItem,
