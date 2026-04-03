@@ -1,10 +1,12 @@
 import bpy # type: ignore
 from s3dgraphy import get_graph, get_all_graph_ids
 from s3dgraphy.nodes.semantic_shape_node import SemanticShapeNode
-from s3dgraphy.nodes.representation_node import RepresentationModelNode
+from s3dgraphy.nodes.representation_node import RepresentationModelNode, RepresentationModelDocNode
 from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
+from s3dgraphy.nodes.document_node import DocumentNode
 import os
 import uuid
+import math
 
 def update_graph_with_scene_data(graph_id=None, update_all_graphs=False, context=None):
     """
@@ -49,6 +51,7 @@ def update_graph_with_scene_data(graph_id=None, update_all_graphs=False, context
                     try:
                         update_semantic_shapes(graph)
                         update_representation_models(graph)
+                        update_representation_model_docs(graph)
                         updated_count += 1
                         print(f"Updated graph: {gid}")
                     except Exception as e:
@@ -72,6 +75,7 @@ def update_graph_with_scene_data(graph_id=None, update_all_graphs=False, context
                 
             update_semantic_shapes(graph)
             update_representation_models(graph)
+            update_representation_model_docs(graph)
             return True
             
         except ValueError as e:
@@ -215,3 +219,127 @@ def update_representation_models(graph):
     
     print(f"Added {nodes_added} representation model nodes")
     print(f"Added {edges_added} representation model edges")
+
+
+def update_representation_model_docs(graph):
+    """
+    Updates representation model doc nodes in the graph based on scene objects.
+
+    Looks for Blender plane objects or empties that represent documents in 3D space.
+    These are identified by a custom property 'em_doc_node_id' pointing to a DocumentNode.
+
+    For each matching object, creates or updates a RepresentationModelDocNode with:
+    - Transform (position, rotation, scale) from the Blender object
+    - Quad dimensions (width, height) from the mesh bounding box
+    - Whether dimensions are real or symbolic
+    - Camera reference if a child camera exists
+    """
+    print("\n--- Updating Representation Model Docs ---")
+
+    document_nodes = [node for node in graph.nodes
+                      if isinstance(node, DocumentNode)]
+
+    if not document_nodes:
+        print("No document nodes in graph, skipping RM doc update")
+        return
+
+    # Find scene objects tagged as document representations
+    doc_objects = [obj for obj in bpy.data.objects
+                   if obj.get('em_doc_node_id')]
+
+    nodes_added = 0
+    nodes_updated = 0
+    edges_added = 0
+
+    for obj in doc_objects:
+        doc_node_id = obj.get('em_doc_node_id')
+        doc_node = graph.find_node_by_id(doc_node_id)
+        if not doc_node or not isinstance(doc_node, DocumentNode):
+            print(f"Warning: Object '{obj.name}' references unknown document node '{doc_node_id}'")
+            continue
+
+        rm_doc_id = f"{doc_node_id}_rm_doc"
+        rm_doc_node = graph.find_node_by_id(rm_doc_id)
+
+        # Extract transform from Blender object
+        loc = obj.location
+        rot = obj.rotation_euler
+        scale = obj.scale
+        transform = {
+            "position": [str(loc.x), str(loc.y), str(loc.z)],
+            "rotation": [str(rot.x), str(rot.y), str(rot.z)],
+            "scale": [str(scale.x), str(scale.y), str(scale.z)],
+        }
+
+        # Extract quad dimensions from bounding box
+        if obj.type == 'MESH' and obj.data:
+            bb = obj.bound_box
+            # Compute width and height from bounding box in local space
+            xs = [v[0] for v in bb]
+            ys = [v[1] for v in bb]
+            zs = [v[2] for v in bb]
+            quad_width = (max(xs) - min(xs)) * scale.x
+            quad_height = (max(ys) - min(ys)) * scale.y
+            if quad_height < 0.001:
+                # Try Z axis if Y is flat (vertical plane)
+                quad_height = (max(zs) - min(zs)) * scale.z
+        else:
+            quad_width = 1.0
+            quad_height = 1.0
+
+        dimensions_type = obj.get('em_dimensions_type', 'symbolic')
+
+        # Find associated camera (child camera or named camera)
+        camera_name = obj.get('em_camera_name', '')
+        if not camera_name:
+            # Look for a child camera
+            for child in obj.children:
+                if child.type == 'CAMERA':
+                    camera_name = child.name
+                    break
+
+        # Determine representation type
+        rm_type = "spatialized_image" if camera_name else "RM"
+
+        if not rm_doc_node:
+            rm_doc_node = RepresentationModelDocNode(
+                node_id=rm_doc_id,
+                name=f"RM Doc for {doc_node.name}",
+                type=rm_type,
+                transform=transform,
+                description=f"Document representation: {doc_node.name}"
+            )
+            # Store extended spatial metadata in data dict
+            rm_doc_node.data['quad_width'] = quad_width
+            rm_doc_node.data['quad_height'] = quad_height
+            rm_doc_node.data['dimensions_type'] = dimensions_type
+            rm_doc_node.data['camera_name'] = camera_name
+            rm_doc_node.data['blender_object'] = obj.name
+
+            graph.add_node(rm_doc_node)
+            nodes_added += 1
+        else:
+            # Update existing node
+            rm_doc_node.transform = transform
+            rm_doc_node.data['quad_width'] = quad_width
+            rm_doc_node.data['quad_height'] = quad_height
+            rm_doc_node.data['dimensions_type'] = dimensions_type
+            rm_doc_node.data['camera_name'] = camera_name
+            rm_doc_node.data['blender_object'] = obj.name
+            nodes_updated += 1
+
+        # Create edge: document -> rm_doc
+        edge_id = f"{doc_node_id}_has_rm_doc_{rm_doc_id}"
+        if not graph.find_edge_by_id(edge_id):
+            try:
+                graph.add_edge(
+                    edge_id=edge_id,
+                    edge_source=doc_node_id,
+                    edge_target=rm_doc_id,
+                    edge_type="has_representation_model_doc"
+                )
+                edges_added += 1
+            except Exception as e:
+                print(f"Error creating RM doc edge: {e}")
+
+    print(f"RM Docs: added {nodes_added}, updated {nodes_updated}, edges added {edges_added}")

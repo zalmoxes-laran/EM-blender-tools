@@ -174,7 +174,7 @@ def populate_document_node(scene, node, index, graph=None):
     if not source_already_in_list:
         scene.em_tools.em_sources_list.add()
         em_item = scene.em_tools.em_sources_list[-1]
-        
+
         # ✅ Nome pulito
         em_item.name = node.name
         em_item.icon = check_objs_in_scene_and_provide_icon_for_list_element(node.name, graph=graph)
@@ -182,6 +182,16 @@ def populate_document_node(scene, node, index, graph=None):
         em_item.url = clean_value_for_ui(getattr(node, 'url', ''))
         em_item.icon_url = "CHECKBOX_HLT" if node.url else "CHECKBOX_DEHLT"
         em_item.description = node.description
+
+        # Master document attributes (from import Phase 1-2)
+        if hasattr(node, 'attributes'):
+            em_item.is_master = node.attributes.get('is_master', False)
+            em_item.certainty_class = node.attributes.get('certainty_class', '')
+            em_item.border_color = node.attributes.get('border_color', '#000000')
+        if hasattr(node, 'data'):
+            em_item.absolute_start_date = node.data.get('absolute_start_date', '')
+            em_item.source_type = node.data.get('source_type', '')
+
         index += 1
 
     return index

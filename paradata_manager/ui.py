@@ -391,10 +391,31 @@ class VIEW3D_PT_ParadataPanel(Panel, EM_ParadataPanel):
 
 
 class EM_UL_sources_managers(UIList):
+    # Map certainty classes to Blender icons for master document indicators
+    CERTAINTY_ICONS = {
+        "direct": "KEYTYPE_KEYFRAME_VEC",        # red diamond
+        "reconstructed": "KEYTYPE_EXTREME_VEC",   # orange diamond
+        "hypothetical": "KEYTYPE_JITTER_VEC",     # yellow diamond
+        "unknown": "KEYTYPE_MOVING_HOLD_VEC",     # gray diamond
+    }
+
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        layout = layout.split(factor=0.22, align=True)
-        layout.label(text=item.name, icon=item.icon)
-        layout.label(text=item.description, icon=item.icon_url)
+        if item.is_master:
+            # Master document: show certainty icon + name + date info
+            certainty_icon = self.CERTAINTY_ICONS.get(item.certainty_class, "KEYTYPE_MOVING_HOLD_VEC")
+            row = layout.row(align=True)
+            row.label(text="", icon=certainty_icon)
+            split = row.split(factor=0.25, align=True)
+            name_label = item.name
+            if item.absolute_start_date:
+                name_label = f"{item.name} ({item.absolute_start_date})"
+            split.label(text=name_label, icon=item.icon)
+            split.label(text=item.description, icon=item.icon_url)
+        else:
+            # Standard document instance display (unchanged)
+            layout = layout.split(factor=0.22, align=True)
+            layout.label(text=item.name, icon=item.icon)
+            layout.label(text=item.description, icon=item.icon_url)
 
 
 class EM_UL_properties_managers(UIList):

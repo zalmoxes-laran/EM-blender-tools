@@ -92,6 +92,38 @@ class EMListParadata(PropertyGroup):
         default=""
     )  # type: ignore
 
+    # Master document attributes (Phase 3: document as space-time entity)
+    is_master: BoolProperty(
+        name="Is Master",
+        description="Whether this document is a master (space-time entity) rather than an instance",
+        default=False
+    )  # type: ignore
+    certainty_class: StringProperty(
+        name="Certainty Class",
+        description="Positional certainty: direct, reconstructed, hypothetical, or unknown",
+        default=""
+    )  # type: ignore
+    border_color: StringProperty(
+        name="Border Color",
+        description="Master document border color (encodes certainty class)",
+        default="#000000"
+    )  # type: ignore
+    epoch_name: StringProperty(
+        name="Epoch",
+        description="Epoch where this master document is placed",
+        default=""
+    )  # type: ignore
+    absolute_start_date: StringProperty(
+        name="Absolute Start Date",
+        description="Absolute start date of this document (e.g., year of creation)",
+        default=""
+    )  # type: ignore
+    source_type: StringProperty(
+        name="Source Type",
+        description="Source type: analytical (from context) or comparative (from analogous contexts)",
+        default=""
+    )  # type: ignore
+
 
 class EM_epochs_belonging_ob(PropertyGroup):
     """Association between objects and epochs"""

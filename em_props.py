@@ -838,6 +838,13 @@ class EM_Tools(PropertyGroup):
         default=0
     )  # type: ignore
 
+    # Document Manager filter
+    docmanager_filter_masters: BoolProperty(
+        name="Filter Masters Only",
+        description="Show only master documents in the Document Manager",
+        default=False
+    )  # type: ignore
+
     # Properties paradata (non-streaming)
     em_properties_list: CollectionProperty(
         type=EMListParadata,
