@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Landscape mode (multi-graph)**: manage 2+ archaeological graphs simultaneously in a single Blender scene
+- **CronoFilter**: chronological horizons manager for landscape mode — define custom time ranges with colours to filter and visualize across multiple graphs
+- **Horizon-based filtering**: Stratigraphy Manager filters nodes by temporal overlap between computed chronology (CALCUL_START_T / CALCUL_END_T) and CronoFilter horizons
+- **Horizon-based colouring**: Visual Manager "Horizons" display mode applies CronoFilter colours to 3D proxy objects based on temporal overlap
+- **RM visibility sync with horizons**: in landscape mode, Representation Models are shown/hidden based on their epoch's overlap with the active horizon
+- **Graph badges in Stratigraphy list**: coloured NODE_SOCKET dot icons and graph code labels differentiate nodes from different graphs
+- **Active graph indicator**: Anastylosis Manager and RM Manager show the active graph code with coloured dot in their header row
+- **Landscape-aware graph reload**: reloading a GraphML in landscape mode correctly repopulates lists with badges and source_graph tracking
+- **Proxy detection in landscape**: uses `GRAPH_CODE.NODE_NAME` naming convention (e.g., `GT16.USM100`) for 3D proxy object resolution
 - Support for detecting placeholder dates (XX) in epochs
 - Warnings for incomplete or malformed GraphML files in EM Setup
 - Flag system for experimental features
@@ -16,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Handling of object prefixes based on graph code
 
 ### Changed
+- Epoch Manager becomes "Horizons" label in Visual Manager when in landscape mode
+- Stratigraphy Manager filter label shows "By Horizon" with horizon name in landscape mode
+- CronoFilter simplified: removed filter/reset buttons, now purely a chronology/horizon editor
+- `EM_select_from_list_item` resolves target objects via `source_graph` property in landscape mode
+- `SET_materials_using_epoch_list` refactored with separate single/landscape execution paths
+- `sync_rm_visibility` refactored with separate single/landscape paths and epoch→time-range lookup
 - Improved robustness of the GraphML import system
 - Optimized Paradata updates (reduced UI overhead)
 - Reorganized the Stratigraphy Manager panel
@@ -29,7 +44,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 3D GIS mode from 1.5.0 (moved to 1.6.0)
 - Soloing functionality, toggle reconstruction, and toggle selectable from the Epoch Manager
 
+### Hidden in Landscape Mode
+- Activity Manager panel (not yet multi-graph aware)
+- "By Activity" filter option in Stratigraphy Manager
+- Proxy Box Creator panels (operates on single-graph proxy geometry)
+
 ### Fixed
+- `RuntimeError: Object cannot be hidden because it is not in View Layer` — wrapped all `hide_set()` calls in try/except
+- `IndexError` when disabling horizon filter with stale list index — added upper bounds check in `draw_documents_section`
 - GraphML import bug with "XX" date format
 - Index handling errors in empty lists
 - Memory Error during UI updates
