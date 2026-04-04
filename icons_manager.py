@@ -44,6 +44,8 @@ def load_icons():
         "em_publish": "em_publish.png",
         "em_logo": "em_logo_small.png",
         "EMdb_logo": "EMdb_logo.png",
+        "show_all_RMDoc": "show_all_RMDoc.png",
+        "show_all_RMDoc_off": "show_all_RMDoc_off.png",
     }
     
     # Carica ogni icona che esiste

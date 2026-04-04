@@ -391,12 +391,12 @@ class VIEW3D_PT_ParadataPanel(Panel, EM_ParadataPanel):
 
 
 class EM_UL_sources_managers(UIList):
-    # Map certainty classes to Blender icons for master document indicators
+    # Map certainty classes to Blender layer color icons
     CERTAINTY_ICONS = {
-        "direct": "KEYTYPE_KEYFRAME_VEC",        # red diamond
-        "reconstructed": "KEYTYPE_EXTREME_VEC",   # orange diamond
-        "hypothetical": "KEYTYPE_JITTER_VEC",     # yellow diamond
-        "unknown": "KEYTYPE_MOVING_HOLD_VEC",     # gray diamond
+        "direct": "COLLECTION_COLOR_01",          # red
+        "reconstructed": "COLLECTION_COLOR_02",   # orange
+        "hypothetical": "COLLECTION_COLOR_03",    # yellow
+        "unknown": "COLLECTION_COLOR_08",         # gray
     }
 
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):

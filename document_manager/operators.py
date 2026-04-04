@@ -371,6 +371,49 @@ class DOCMANAGER_OT_select_scene_object(bpy.types.Operator):
 
 
 # ============================================================================
+# RENAME OBJECT FROM DOCUMENT
+# ============================================================================
+
+class DOCMANAGER_OT_rename_object(bpy.types.Operator):
+    """Rename the selected 3D object using the document name (with graph prefix)"""
+    bl_idname = "em.docmanager_rename_object"
+    bl_label = "Rename Object from Document"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        item = _get_active_doc_item(context)
+        return item is not None and context.active_object is not None and context.active_object.type == 'MESH'
+
+    def execute(self, context):
+        from ..functions import is_graph_available as check_graph
+        from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+
+        item = _get_active_doc_item(context)
+        if not item:
+            return {'CANCELLED'}
+
+        graph_exists, graph = check_graph(context)
+        active_graph = graph if graph_exists else None
+
+        proxy_name = node_name_to_proxy_name(item.name, context=context, graph=active_graph)
+        context.active_object.name = proxy_name
+
+        # Tag the object as document quad for graph_updaters integration
+        context.active_object['em_doc_node_id'] = item.node_id
+
+        # Invalidate object cache after renaming
+        from ..object_cache import invalidate_object_cache
+        invalidate_object_cache()
+
+        # Re-sync to detect the renamed object
+        sync_doc_list(context.scene)
+
+        self.report({'INFO'}, f"Renamed object to '{proxy_name}'")
+        return {'FINISHED'}
+
+
+# ============================================================================
 # REGISTRATION
 # ============================================================================
 
@@ -381,6 +424,7 @@ classes = (
     DOCMANAGER_OT_look_through,
     DOCMANAGER_OT_open_url,
     DOCMANAGER_OT_select_scene_object,
+    DOCMANAGER_OT_rename_object,
 )
 
 

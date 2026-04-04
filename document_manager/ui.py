@@ -7,14 +7,18 @@ image import, camera creation, and look-through controls.
 
 import bpy
 from bpy.types import Panel, UIList
+from .. import icons_manager
 
 
-# Map certainty classes to Blender icons (colored keyframe diamonds)
+# Map certainty classes to Blender layer color icons
 CERTAINTY_ICONS = {
-    "direct": "KEYTYPE_KEYFRAME_VEC",        # red
-    "reconstructed": "KEYTYPE_EXTREME_VEC",   # orange
-    "hypothetical": "KEYTYPE_JITTER_VEC",     # yellow
-    "unknown": "KEYTYPE_MOVING_HOLD_VEC",     # gray
+    "direct": "COLLECTION_COLOR_01",          # red
+    "reconstructed": "COLLECTION_COLOR_02",   # orange
+    "hypothetical": "COLLECTION_COLOR_03",    # yellow
+    # Reserved for future use:
+    # "comparative": "COLLECTION_COLOR_04",   # green
+    # "analogical": "COLLECTION_COLOR_05",    # blue
+    "unknown": "COLLECTION_COLOR_08",         # gray
 }
 
 CERTAINTY_LABELS = {
@@ -94,6 +98,14 @@ class VIEW3D_PT_3DDocumentManager(Panel):
     @classmethod
     def poll(cls, context):
         return hasattr(context.scene, 'em_tools') and context.scene.em_tools.mode_em_advanced
+
+    def draw_header(self, context):
+        layout = self.layout
+        icon_id = icons_manager.get_icon_value("show_all_RMDoc")
+        if icon_id:
+            layout.label(text="", icon_value=icon_id)
+        else:
+            layout.label(text="", icon='FILE_IMAGE')
 
     def draw(self, context):
         layout = self.layout
@@ -218,6 +230,11 @@ class VIEW3D_PT_3DDocumentManager(Panel):
                 action_row = repr_col.row(align=True)
                 action_row.operator("em.docmanager_select_object", text="Select Quad", icon="RESTRICT_SELECT_OFF")
                 action_row.operator("em.docmanager_open_url", text="Open File", icon="URL")
+
+            # Rename object from document (works with any selected mesh)
+            if context.active_object and context.active_object.type == 'MESH':
+                repr_col.separator()
+                repr_col.operator("em.docmanager_rename_object", text="Rename Object from Document", icon="LINK_BLEND")
 
         # --- Settings (collapsible) ---
         settings_header = layout.row()
