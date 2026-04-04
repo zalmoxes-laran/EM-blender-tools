@@ -595,6 +595,76 @@ class EXPORT_OT_heriverse(Operator):
             self.report({'ERROR'}, f"Failed to export panorama: {str(e)}")
             return False
 
+    def export_epoch_panoramas(self, context, project_path):
+        """Copy per-epoch HDR/panorama files into the project panorama folder.
+
+        Returns a dict mapping epoch name -> relative panorama path (e.g.
+        "panorama/my_hdr.hdr") for epochs that have custom lighting with a
+        valid file.  Epochs without custom lighting are not included.
+        """
+        scene = context.scene
+        epochs = scene.em_tools.epochs.list
+        panorama_dir = os.path.join(project_path, "panorama")
+        os.makedirs(panorama_dir, exist_ok=True)
+
+        epoch_pano_map = {}
+        for epoch in epochs:
+            if not epoch.epoch_lighting_enabled or not epoch.epoch_hdr_path:
+                continue
+            abs_path = bpy.path.abspath(epoch.epoch_hdr_path)
+            if not os.path.isfile(abs_path):
+                self.report({'WARNING'},
+                            f"Epoch '{epoch.name}': HDR file not found, skipping: {abs_path}")
+                continue
+            filename = os.path.basename(abs_path)
+            dest = os.path.join(panorama_dir, filename)
+            if not os.path.isfile(dest) or not os.path.samefile(abs_path, dest):
+                shutil.copy2(abs_path, dest)
+                print(f"Copied epoch panorama '{filename}' for epoch '{epoch.name}'")
+            epoch_pano_map[epoch.name] = f"panorama/{filename}"
+        return epoch_pano_map
+
+    def update_json_with_epoch_lighting(self, json_data, context):
+        """Inject per-epoch panorama/lighting data into the exported JSON.
+
+        For each epoch node in the JSON that has custom lighting configured in
+        Blender, adds panorama, panorama_rotation, and panorama_intensity
+        to its data dict.  Epochs without custom lighting are left untouched
+        (the consumer falls back to defaults.panorama).
+        """
+        scene = context.scene
+        epochs_bl = scene.em_tools.epochs.list
+
+        # Build lookup: epoch name -> Blender epoch item
+        bl_lookup = {ep.name: ep for ep in epochs_bl}
+
+        if 'graphs' not in json_data:
+            return json_data
+
+        for graph_id, graph_data in json_data['graphs'].items():
+            epoch_nodes = (graph_data.get('nodes') or {}).get('epochs')
+            if not epoch_nodes:
+                continue
+            for node_id, node_data in epoch_nodes.items():
+                node_name = node_data.get('name', '')
+                bl_epoch = bl_lookup.get(node_name)
+                if bl_epoch is None:
+                    continue
+                if not bl_epoch.epoch_lighting_enabled or not bl_epoch.epoch_hdr_path:
+                    continue
+                # Resolve relative path for the JSON
+                abs_path = bpy.path.abspath(bl_epoch.epoch_hdr_path)
+                if not os.path.isfile(abs_path):
+                    continue
+                filename = os.path.basename(abs_path)
+                if 'data' not in node_data:
+                    node_data['data'] = {}
+                node_data['data']['panorama'] = f"panorama/{filename}"
+                node_data['data']['panorama_rotation'] = bl_epoch.epoch_hdr_rotation
+                node_data['data']['panorama_intensity'] = bl_epoch.epoch_hdr_intensity
+
+        return json_data
+
     def compress_textures_in_folder(self, folder_path, scene):
         """
         Compresses all textures in a folder and its subfolders in a single pass.
@@ -1944,6 +2014,11 @@ class EXPORT_OT_heriverse(Operator):
                     else:
                         print("Panorama export failed or was skipped")
 
+                # STEP 5b: Export per-epoch panoramas (always runs — copies epoch HDR files)
+                epoch_pano_map = self.export_epoch_panoramas(context, project_path)
+                if epoch_pano_map:
+                    print(f"Exported {len(epoch_pano_map)} per-epoch panorama(s)")
+
                 # STEP 6: Compress all textures at once if texture compression is enabled and RM models were exported
                 if scene.heriverse_enable_compression and models_exported and models_path:
                     print("\n--- Starting Texture Compression ---")
@@ -1972,19 +2047,24 @@ class EXPORT_OT_heriverse(Operator):
                     if result == {'FINISHED'}:
                         print("JSON export completed successfully")
 
+                        # Post-process JSON: instancing + per-epoch lighting
+                        needs_rewrite = False
+
+                        with open(json_path, 'r') as f:
+                            json_data = json.load(f)
+
                         if hasattr(self, 'instanced_objects') and len(self.instanced_objects) > 0:
-                            # Leggi il file JSON
-                            with open(json_path, 'r') as f:
-                                json_data = json.load(f)
-                            
-                            # Aggiorna con informazioni sulle istanze
                             json_data = self.update_json_for_instancing(json_data)
-                            
-                            # Scrivi il file JSON aggiornato
+                            print(f"Updated JSON with instancing information for {len(self.instanced_objects)} objects")
+                            needs_rewrite = True
+
+                        # Inject per-epoch panorama/lighting data
+                        json_data = self.update_json_with_epoch_lighting(json_data, context)
+                        needs_rewrite = True
+
+                        if needs_rewrite:
                             with open(json_path, 'w') as f:
                                 json.dump(json_data, f, indent=4)
-                                
-                            print(f"Updated JSON with instancing information for {len(self.instanced_objects)} objects")
 
                     else:
                         self.report({'ERROR'}, "JSON export failed")

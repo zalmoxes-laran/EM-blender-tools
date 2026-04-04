@@ -243,6 +243,13 @@ class EMToolsMappingPreferences(AddonPreferences):
         default=False
     )
 
+    # ===== EPOCH LIGHTING SETTINGS =====
+    apply_epoch_lighting_on_change: BoolProperty(
+        name="Apply Epoch Lighting on Change",
+        description="Automatically update the Blender World lighting when switching epoch (requires per-epoch HDR setup)",
+        default=False
+    )
+
     def draw(self, context):
         layout = self.layout
         
@@ -407,6 +414,19 @@ class EMToolsMappingPreferences(AddonPreferences):
         else:
             info_box = box.box()
             info_box.label(text="Quiet mode: only warnings, errors, and essential messages", icon='INFO')
+
+        layout.separator()
+
+        # ===== EPOCH LIGHTING SETTINGS =====
+        box = layout.box()
+        box.label(text="Epoch Lighting", icon='WORLD')
+        row = box.row()
+        row.prop(self, "apply_epoch_lighting_on_change")
+        info_box = box.box()
+        if self.apply_epoch_lighting_on_change:
+            info_box.label(text="Switching epoch will update the Blender World lighting automatically", icon='INFO')
+        else:
+            info_box.label(text="Epoch switching does not affect scene lighting (default)", icon='INFO')
 
         layout.separator()
 

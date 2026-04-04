@@ -175,6 +175,19 @@ def update_epoch_index(self, context):
         except Exception as e:
             print(f"Warning: Could not re-filter after epoch change: {e}")
 
+    # Apply epoch lighting if enabled in addon preferences
+    try:
+        addon = context.preferences.addons.get(__package__)
+        if addon and getattr(addon.preferences, 'apply_epoch_lighting_on_change', False):
+            epochs = scene.em_tools.epochs
+            if 0 <= epochs.list_index < len(epochs.list):
+                epoch = epochs.list[epochs.list_index]
+                if epoch.epoch_lighting_enabled and epoch.epoch_hdr_path:
+                    from .epoch_manager.lighting import apply_epoch_world_lighting
+                    apply_epoch_world_lighting(context, epoch)
+    except Exception as e:
+        print(f"Warning: Could not apply epoch lighting: {e}")
+
     # Update viewport overlay text if enabled
     try:
         from . import viewport_overlay

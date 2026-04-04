@@ -8,6 +8,8 @@ This file now handles ONLY Scene property attachment/removal.
 """
 
 import bpy # type: ignore
+import math
+
 from bpy.props import ( # type: ignore
     StringProperty,
     BoolProperty,
@@ -88,6 +90,35 @@ class EPOCHListItem(PropertyGroup):
         default=(0.2, 0.2, 0.2),
         min=0.0, max=1.0,
         description="Wire color of the group"
+    ) # type: ignore
+
+    # ---- Per-epoch lighting properties ----
+    epoch_lighting_enabled: BoolProperty(
+        name="Custom Lighting",
+        description="Enable custom HDR lighting for this epoch",
+        default=False
+    ) # type: ignore
+    epoch_hdr_path: StringProperty(
+        name="HDR Image",
+        description="Path to the HDR/equirectangular panorama image for this epoch",
+        subtype='FILE_PATH',
+        default=""
+    ) # type: ignore
+    epoch_hdr_rotation: FloatProperty(
+        name="HDR Rotation",
+        description="Z-axis rotation of the environment panorama",
+        subtype='ANGLE',
+        default=0.0,
+        min=-2 * math.pi,
+        max=2 * math.pi
+    ) # type: ignore
+    epoch_hdr_intensity: FloatProperty(
+        name="HDR Intensity",
+        description="Strength of the world lighting",
+        default=1.0,
+        min=0.0,
+        soft_max=5.0,
+        max=10.0
     ) # type: ignore
 
 

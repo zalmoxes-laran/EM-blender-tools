@@ -107,7 +107,35 @@ class EM_BasePanel:
                     row = col.row(align=True)
                     row.prop(epoch, "start_time", text="Start")
                     row.prop(epoch, "end_time", text="End")
-        
+
+                # --- Epoch Lighting section ---
+                box_light = layout.box()
+                row = box_light.row()
+                row.prop(scene, "show_epoch_lighting",
+                         icon='TRIA_DOWN' if scene.show_epoch_lighting else 'TRIA_RIGHT',
+                         emboss=False, text="Epoch Lighting")
+
+                if scene.show_epoch_lighting:
+                    col = box_light.column(align=True)
+                    col.prop(epoch, "epoch_lighting_enabled", text="Custom Lighting")
+
+                    # Sub-column disabled when lighting is off
+                    sub = col.column(align=True)
+                    sub.enabled = epoch.epoch_lighting_enabled
+                    sub.separator()
+                    sub.prop(epoch, "epoch_hdr_path", text="HDR")
+                    sub.prop(epoch, "epoch_hdr_rotation", text="Rotation")
+                    sub.prop(epoch, "epoch_hdr_intensity", text="Intensity")
+
+                    if epoch.epoch_lighting_enabled and not epoch.epoch_hdr_path:
+                        row = box_light.row()
+                        row.alert = True
+                        row.label(text="No HDR image assigned", icon='ERROR')
+
+                    row = box_light.row()
+                    row.operator("epoch_manager.apply_epoch_lighting",
+                                 text="Apply Lighting", icon='WORLD')
+
         #else:
         #    row.label(text="No epochs here :-(")
 
