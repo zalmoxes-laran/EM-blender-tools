@@ -53,6 +53,45 @@ def resolve_resource_path(raw_path):
             raise ValueError("Blend file not saved, cannot resolve relative paths without // prefix")
 
 
+def resolve_dosco_dir(graphml):
+    """
+    Resolve the DOSCO directory for a GraphML file item.
+
+    Handles both legacy (graphml.dosco_dir) and new auxiliary file system
+    (graphml.auxiliary_files with file_type == "dosco").
+
+    After migrate_legacy_dosco_to_auxiliary() runs, graphml.dosco_dir is
+    cleared to "". The actual path lives in auxiliary_files. This function
+    checks both locations so consumers don't need to know the storage details.
+
+    Args:
+        graphml: A GraphMLFileItem PropertyGroup instance
+
+    Returns:
+        str: Resolved absolute DOSCO directory path, or "" if not configured
+    """
+    # 1. Check legacy property (for pre-migration .blend files)
+    raw_path = getattr(graphml, 'dosco_dir', '')
+    if raw_path:
+        try:
+            return resolve_resource_path(raw_path)
+        except ValueError:
+            pass
+
+    # 2. Check auxiliary files (post-migration)
+    if hasattr(graphml, 'auxiliary_files'):
+        for aux in graphml.auxiliary_files:
+            if getattr(aux, 'file_type', '') == 'dosco':
+                folder = getattr(aux, 'dosco_folder', '')
+                if folder:
+                    try:
+                        return resolve_resource_path(folder)
+                    except ValueError:
+                        pass
+
+    return ""
+
+
 # ============================================================================
 # NODE TYPE FILTERING
 # ============================================================================

@@ -114,6 +114,8 @@ class EM_OT_load_paradata_image(bpy.types.Operator):
 
     def build_file_path(self, context, path):
         """Build a proper file path based on context and path information."""
+        from ..em_setup.resource_utils import resolve_dosco_dir
+
         scene = context.scene
         em_tools = scene.em_tools
 
@@ -124,14 +126,11 @@ class EM_OT_load_paradata_image(bpy.types.Operator):
             return None, False
 
         graphml = em_tools.graphml_files[em_tools.active_file_index]
-        dosco_dir = graphml.dosco_dir
-        if not dosco_dir:
-            dosco_dir = scene.EMDosCo_dir
+        # Use shared utility that checks both legacy dosco_dir and auxiliary files
+        dosco_dir = resolve_dosco_dir(graphml)
 
         if not dosco_dir:
             return None, False
-
-        dosco_dir = bpy.path.abspath(dosco_dir)
         path_variants = [
             path,
             path.split("/")[-1],
@@ -312,10 +311,12 @@ class EM_files_opener(bpy.types.Operator):
             return {"FINISHED"}
 
         if scene.em_tools.active_file_index >= 0 and scene.em_tools.graphml_files:
+            from ..em_setup.resource_utils import resolve_dosco_dir
+
             graphml = scene.em_tools.graphml_files[scene.em_tools.active_file_index]
-            dosco_dir = graphml.dosco_dir
-            if dosco_dir:
-                basedir = bpy.path.abspath(dosco_dir)
+            # Use shared utility that checks both legacy dosco_dir and auxiliary files
+            basedir = resolve_dosco_dir(graphml)
+            if basedir:
                 path_to_file = os.path.join(basedir, file_res_path)
                 if os.path.exists(path_to_file):
                     try:
@@ -330,7 +331,7 @@ class EM_files_opener(bpy.types.Operator):
                 else:
                     self.report({"WARNING"}, f"File not found: {path_to_file}")
             else:
-                self.report({"WARNING"}, "DosCo directory not set for the active GraphML file")
+                self.report({"WARNING"}, "DosCo directory not set. Configure it in Auxiliary Files or legacy DosCo settings.")
         else:
             self.report({"WARNING"}, "No active GraphML file")
 
