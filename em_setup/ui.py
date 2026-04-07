@@ -638,6 +638,12 @@ class EM_SetupPanel(bpy.types.Panel):
             row.operator('em_tools.add_file', text="Add GraphML", icon="ADD")
             row.operator('em_tools.remove_file', text="Remove GraphML", icon="REMOVE")
 
+            # Save / Export / Merge buttons
+            row = layout.row(align=True)
+            row.operator('export.graphml_update', text="Save GraphML", icon="FILE_TICK")
+            row.operator('export.graphml_saveas', text="Save As...", icon="FILE_NEW")
+            row.operator('em.merge_xlsx_start', text="Merge XLSX...", icon="AUTOMERGE_ON")
+
             # Multigraph Mode - inline with graph management
             loaded_graphs = []
             if em_tools.graphml_files:

@@ -601,6 +601,7 @@ def register_modules():
     # Import statements
     from .import_operators import importer_graphml
     from .export_operators import exporter_heriverse
+    from .export_operators import exporter_graphml
     from .import_operators import import_EMdb
     from .operators import graphml_converter
     from . import thumb_operators
@@ -631,6 +632,7 @@ def register_modules():
         graph2geometry,
         importer_graphml,
         exporter_heriverse,
+        exporter_graphml,
         import_EMdb,
         graphml_converter,
         operators,
@@ -709,6 +711,7 @@ def unregister_modules():
         return
     
     from .export_operators import exporter_heriverse
+    from .export_operators import exporter_graphml
     from .import_operators import importer_graphml, import_EMdb
     from .operators import graphml_converter
     from . import thumb_operators
@@ -776,6 +779,7 @@ def unregister_modules():
         operators,
         graphml_converter,
         import_EMdb,
+        exporter_graphml,
         exporter_heriverse,
         importer_graphml,
         graph2geometry,

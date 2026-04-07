@@ -492,6 +492,21 @@ class RMManagerProps(PropertyGroup):
 
 
 # =====================================================
+# MERGE CONFLICT ITEM
+# =====================================================
+
+class MergeConflictItem(PropertyGroup):
+    """Property group for displaying a single merge conflict in the UI."""
+    node_name: StringProperty(name="Node", default="")  # type: ignore
+    field_name: StringProperty(name="Field", default="")  # type: ignore
+    current_value: StringProperty(name="Current", default="")  # type: ignore
+    incoming_value: StringProperty(name="Incoming", default="")  # type: ignore
+    conflict_type: StringProperty(name="Type", default="")  # type: ignore
+    resolved: BoolProperty(name="Resolved", default=False)  # type: ignore
+    accepted: BoolProperty(name="Accepted", default=False)  # type: ignore
+
+
+# =====================================================
 # MAIN CONTAINER CLASS
 # =====================================================
 
@@ -639,6 +654,28 @@ class EM_Tools(PropertyGroup):
         name="Multigraph Mode",
         description="Enable multigraph mode for handling multiple graphs simultaneously",
         default=False
+    )  # type: ignore
+
+    # ============================================
+    # MERGE / CONFLICT RESOLUTION
+    # ============================================
+
+    merge_active: BoolProperty(
+        name="Merge Active",
+        description="Whether a merge operation is in progress",
+        default=False
+    )  # type: ignore
+
+    merge_conflict_index: IntProperty(
+        name="Current Conflict",
+        description="Index of the currently displayed conflict",
+        default=0
+    )  # type: ignore
+
+    merge_conflicts: CollectionProperty(
+        type=MergeConflictItem,
+        name="Merge Conflicts",
+        description="List of conflicts from XLSX merge"
     )  # type: ignore
 
     # ✅ XLSX/EMdb import properties
@@ -1176,6 +1213,7 @@ classes = (
     AnastylosisManagerProps,
     RMManagerProps,
     TapestryManagerProps,  # Tapestry AI reconstruction
+    MergeConflictItem,    # Merge conflict resolution
 
     # Main container LAST
     # This uses ALL the classes above (including AuxiliaryFileProperties and GraphMLFileItem from em_setup)

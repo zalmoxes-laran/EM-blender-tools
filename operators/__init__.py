@@ -66,6 +66,7 @@ def register():
     from . import bake_paradata
     from . import xlsx_wizard
     from . import enrich_graphml
+    from . import merge_conflict_ui
 
     # Register each submodule
     update_graph.register()
@@ -75,6 +76,7 @@ def register():
     bake_paradata.register()
     xlsx_wizard.register()
     enrich_graphml.register()
+    merge_conflict_ui.register()
     print("DEBUG operators/__init__.py: All operators registered")
 
 
@@ -88,8 +90,10 @@ def unregister():
     from . import bake_paradata
     from . import xlsx_wizard
     from . import enrich_graphml
+    from . import merge_conflict_ui
 
     # Unregister in reverse order
+    merge_conflict_ui.unregister()
     enrich_graphml.unregister()
     xlsx_wizard.unregister()
     bake_paradata.unregister()
