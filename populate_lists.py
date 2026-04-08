@@ -130,6 +130,17 @@ def populate_stratigraphic_node(scene, node, index, graph, instance_chains=None)
                 # This node is a container (has children)
                 em_item.is_container = True
 
+    # If container has no epoch, derive from first child that has one
+    if not first_epoch and em_item.is_container:
+        for edge in graph.edges:
+            if edge.edge_type == "is_part_of" and edge.edge_target == node.node_id:
+                child_node = graph.find_node_by_id(edge.edge_source)
+                if child_node:
+                    child_epoch = graph.get_connected_epoch_node_by_edge_type(child_node, "has_first_epoch")
+                    if child_epoch:
+                        em_item.epoch = child_epoch.name
+                        break
+
     # Instance chain (changed_from)
     if instance_chains and node.node_id in instance_chains:
         em_item.is_in_instance_chain = True
