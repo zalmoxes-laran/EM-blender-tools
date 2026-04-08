@@ -37,7 +37,8 @@ from .em_setup.properties import (
     get_excel_id_column_items,
     get_excel_desc_column_items,
     update_generic_xlsx_file,
-    update_generic_xlsx_sheet
+    update_generic_xlsx_sheet,
+    EpochReportItem,
 )
 
 # Import base PropertyGroup classes
@@ -676,6 +677,31 @@ class EM_Tools(PropertyGroup):
         type=MergeConflictItem,
         name="Merge Conflicts",
         description="List of conflicts from XLSX merge"
+    )  # type: ignore
+
+    # Epoch compatibility report for XLSX merge
+    epoch_report: CollectionProperty(
+        type=EpochReportItem,
+        name="Epoch Report",
+        description="Pre-merge epoch compatibility report"
+    )  # type: ignore
+
+    epoch_report_active: BoolProperty(
+        name="Epoch Report Active",
+        description="Whether the epoch report is being shown",
+        default=False
+    )  # type: ignore
+
+    epoch_report_has_errors: BoolProperty(
+        name="Has Epoch Errors",
+        description="Whether there are blocking epoch compatibility issues",
+        default=False
+    )  # type: ignore
+
+    epoch_report_file: StringProperty(
+        name="Epoch Report File",
+        description="Path to the exported epoch conflict report",
+        default=""
     )  # type: ignore
 
     # ✅ XLSX/EMdb import properties

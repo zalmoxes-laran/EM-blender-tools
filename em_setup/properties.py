@@ -3,6 +3,7 @@
 import bpy
 from bpy.props import (
     BoolProperty,
+    FloatProperty,
     StringProperty,
     EnumProperty,
     CollectionProperty,
@@ -598,11 +599,36 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
     )  # type: ignore
 
 
+class EpochReportItem(bpy.types.PropertyGroup):
+    """Single item in the pre-merge epoch compatibility report."""
+
+    node_name: StringProperty(name="Node Name")  # type: ignore
+    category: StringProperty(
+        name="Category",
+        description="EXACT_FIT, WIDER_EPOCH, STRADDLING, NO_EPOCH, INCOMPLETE, NO_MATCH"
+    )  # type: ignore
+    us_start: FloatProperty(name="US Start", default=0.0)  # type: ignore
+    us_end: FloatProperty(name="US End", default=0.0)  # type: ignore
+    epoch_level: StringProperty(
+        name="Epoch Level",
+        description="subphase, phase, or period"
+    )  # type: ignore
+    matched_epoch: StringProperty(
+        name="Matched Epoch",
+        description="Name of the existing epoch matched"
+    )  # type: ignore
+    message: StringProperty(
+        name="Message",
+        description="Human-readable explanation"
+    )  # type: ignore
+
+
 # Registration
 # NOTE: PropertyGroups are registered HERE and imported by em_props.py which uses them in EM_Tools
 classes = (
     AuxiliaryFileProperties,
     GraphMLFileItem,
+    EpochReportItem,
     EMToolsProperties,
     EMToolsSettings,
 )
