@@ -993,7 +993,7 @@ class EM_update_icon_list(Operator):
 
     def execute(self, context):
         if self.list_type == "all":
-            lists = ["em_list","epoch_list","em_sources_list","em_properties_list","em_extractors_list","em_combiners_list","em_v_sources_list","em_v_properties_list","em_v_extractors_list","em_v_combiners_list"]
+            lists = ["em_list","em_sources_list","em_properties_list","em_extractors_list","em_combiners_list","em_v_sources_list","em_v_properties_list","em_v_extractors_list","em_v_combiners_list"]
             for single_list in lists:
                 update_icons(context, single_list)
         else:
