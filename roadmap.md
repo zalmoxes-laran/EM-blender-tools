@@ -21,25 +21,26 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
 - [x] Reduced UI overhead in Paradata Manager  
 - [x] Reorganization of "Utilities & Settings" section  
 
+- [x] Landscape/Multigraph system for managing multiple Extended Matrices simultaneously  
+- [x] Complete multigraph management with graph ID prefixes  
+- [x] CronoFilter (Horizons Manager) with chronological filtering and horizon-based visualization  
+- [x] 3D Document Manager with spatial-temporal document management  
+- [x] Tapestry Integration for AI-powered archaeological proxy reconstruction (experimental)  
+- [x] XLSX merge wizard with conflict resolution and epoch compatibility validation  
+- [x] Special Finds visibility controls (show/hide operators)  
+- [x] Proxy-to-RM projection system  
+- [x] Proxy Box Creator  
+- [x] Epoch Manager operators simplification  
+  - [x] Select functionality  
+  - [x] Remove Set unselectable  
+  - [x] Remove Toggle reconstruction  
+  - [x] Remove Soloing mode with new node-based approach  
+
 #### 🚧 In Progress
 
-- [ ] Complete multigraph management with graph ID prefixes  
 - [ ] New labeling system for better visualization  
-- [ ] Epoch Manager operators simplification  
-  - [ ] Select functionality  
-  - [ ] Remove Set unselectable  
-  - [ ] Remove Toggle reconstruction  
-  - [ ] Remove Soloing mode with new node-based approach  
 
 #### 📋 Planned
-
-- [ ] 3D GIS mode for EM tools  
-  - [ ] UI section for simple 3D GIS switching  
-  - [ ] XLSX/CSV parser with JSON mapping schema  
-  - [ ] Fallback importer for basic ID column support  
-  - [ ] Property-based visualization in Visual Manager  
-  - [ ] Color ramp tools for proxy colorization  
-  - [ ] Complete documentation for GIS features  
 
 - [ ] Special Finds (SF) extended visualization panel  
   - [ ] File path entry in EMsetup panel  
@@ -50,6 +51,14 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
 ## Version 1.6 (Q3 2025)
 
 ### EM-tools for Blender
+
+- [ ] **3D GIS Mode**  
+  - UI section for simple 3D GIS switching  
+  - XLSX/CSV parser with JSON mapping schema  
+  - Fallback importer for basic ID column support  
+  - Property-based visualization in Visual Manager  
+  - Color ramp tools for proxy colorization  
+  - Complete documentation for GIS features  
 
 - [ ] **Enhanced Activity Manager**  
   - Selection buttons  
