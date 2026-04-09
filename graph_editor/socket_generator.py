@@ -66,7 +66,7 @@ def load_datamodels() -> Tuple[Optional[Dict], Optional[Dict]]:
         return None, None
 
     # Nota: il file dei nodi ha uno spazio nel nome!
-    nodes_file = config_path / "s3Dgraphy_node_datamodel .json"
+    nodes_file = config_path / "s3Dgraphy_node_datamodel.json"
     connections_file = config_path / "s3Dgraphy_connections_datamodel.json"
 
     nodes_data = None
