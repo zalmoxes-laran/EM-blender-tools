@@ -625,7 +625,7 @@ class EM_SetupPanel(bpy.types.Panel):
             )
 
         # ========================================================================
-        # SEZIONE LANDSCAPE MODE - (in experimental mode)
+        # SEZIONE LANDSCAPE MODE - (in advanced mode)
         # ========================================================================
 
         if em_tools.mode_em_advanced:
