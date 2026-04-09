@@ -1,0 +1,187 @@
+"""
+Data structures for the Epoch Manager
+This module contains all PropertyGroup definitions and data structures
+needed for the Epoch Manager.
+
+REFACTORED: PropertyGroup classes are registered ONLY by em_props.py
+This file now handles ONLY Scene property attachment/removal.
+"""
+
+import bpy # type: ignore
+import math
+
+from bpy.props import ( # type: ignore
+    StringProperty,
+    BoolProperty,
+    FloatProperty,
+    IntProperty,
+    CollectionProperty,
+    PointerProperty,
+    FloatVectorProperty
+)
+from bpy.types import PropertyGroup # type: ignore
+
+
+# =====================================================
+# PROPERTY GROUP CLASSES
+# =====================================================
+# NOTE: These classes are registered by em_props.py
+# We only define them here for import by other modules
+
+class EPOCHListItem(PropertyGroup):
+    """Period/Epoch information"""
+    name: StringProperty(
+        name="Name",
+        description="Name of this epoch",
+        default="Untitled"
+    ) # type: ignore
+    id: StringProperty(
+        name="id",
+        description="Unique identifier",
+        default=""
+    ) # type: ignore
+    min_y: FloatProperty(
+        name="Min Y Position",
+        description="Minimum Y position",
+        default=0.0
+    ) # type: ignore
+    max_y: FloatProperty(
+        name="Max Y Position",
+        description="Maximum Y position",
+        default=0.0
+    ) # type: ignore
+    height: FloatProperty(
+        name="Height",
+        description="Height of epoch row",
+        default=0.0
+    ) # type: ignore
+    epoch_color: StringProperty(
+        name="Epoch Color",
+        description="Color code for epoch",
+        default=""
+    ) # type: ignore
+    start_time: FloatProperty(
+        name="Start Time",
+        description="Starting time for epoch",
+        default=0.0
+    ) # type: ignore
+    end_time: FloatProperty(
+        name="End Time",
+        description="Ending time for epoch",
+        default=0.0
+    ) # type: ignore
+    use_toggle: BoolProperty(name="Toggle", default=True) # type: ignore
+    is_locked: BoolProperty(name="Locked", default=True) # type: ignore
+    is_selected: BoolProperty(name="Selected", default=False) # type: ignore
+    rm_models: BoolProperty(name="RM Models", default=False) # type: ignore
+    reconstruction_on: BoolProperty(name="Reconstruction", default=False) # type: ignore
+    unique_id: StringProperty(default="") # type: ignore
+    epoch_RGB_color: FloatVectorProperty(
+        name="Epoch RGB Color",
+        subtype="COLOR",
+        size=3,
+        min=0.0,
+        max=1.0,
+        default=(0.5, 0.5, 0.5)
+    ) # type: ignore
+    wire_color: FloatVectorProperty(
+        name="Wire Color",
+        subtype='COLOR',
+        default=(0.2, 0.2, 0.2),
+        min=0.0, max=1.0,
+        description="Wire color of the group"
+    ) # type: ignore
+
+    # ---- Per-epoch lighting properties ----
+    epoch_lighting_enabled: BoolProperty(
+        name="Custom Lighting",
+        description="Enable custom HDR lighting for this epoch",
+        default=False
+    ) # type: ignore
+    epoch_hdr_path: StringProperty(
+        name="HDR Image",
+        description="Path to the HDR/equirectangular panorama image for this epoch",
+        subtype='FILE_PATH',
+        default=""
+    ) # type: ignore
+    epoch_hdr_rotation: FloatProperty(
+        name="HDR Rotation",
+        description="Z-axis rotation of the environment panorama",
+        subtype='ANGLE',
+        default=0.0,
+        min=-2 * math.pi,
+        max=2 * math.pi
+    ) # type: ignore
+    epoch_hdr_intensity: FloatProperty(
+        name="HDR Intensity",
+        description="Strength of the world lighting",
+        default=1.0,
+        min=0.0,
+        soft_max=5.0,
+        max=10.0
+    ) # type: ignore
+
+
+class EMUSItem(PropertyGroup):
+    """Information about a stratigraphic unit"""
+    name: StringProperty(name="Name", default="") # type: ignore
+    description: StringProperty(name="Description", default="") # type: ignore
+    status: StringProperty(name="Status", default="") # type: ignore
+    y_pos: StringProperty(name="y_pos", default="") # type: ignore
+
+
+def update_epoch_selection(self, context):
+    """
+    Update callback for epoch_list_index.
+    This function is called whenever the selected epoch changes.
+    """
+    # Implementazione della logica di update se necessario
+    pass
+
+
+# =====================================================
+# REGISTRATION FUNCTIONS
+# =====================================================
+
+def register_data():
+    """
+    Register Epoch Manager data structures.
+    
+    REFACTORED: PropertyGroup classes are registered by em_props.py
+    Legacy Scene-level epoch collections are removed in favor of em_tools.epochs.*
+    """
+    legacy_props = [
+        "epoch_list",
+        "epoch_list_index",
+        "selected_epoch_us_list",
+        "selected_epoch_us_list_index",
+    ]
+
+    for prop in legacy_props:
+        if hasattr(bpy.types.Scene, prop):
+            try:
+                delattr(bpy.types.Scene, prop)
+            except Exception:
+                pass
+
+
+def unregister_data():
+    """
+    Unregister Epoch Manager data structures.
+    
+    REFACTORED: PropertyGroup classes are unregistered by em_props.py
+    This function now ONLY handles Scene property cleanup.
+    """
+    legacy_props = [
+        "epoch_list",
+        "epoch_list_index",
+        "selected_epoch_us_list",
+        "selected_epoch_us_list_index",
+    ]
+
+    for prop in legacy_props:
+        if hasattr(bpy.types.Scene, prop):
+            try:
+                delattr(bpy.types.Scene, prop)
+            except Exception:
+                pass

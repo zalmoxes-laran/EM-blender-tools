@@ -1,0 +1,53 @@
+{
+    "version": "1.0",
+    "type": "cronofilter_horizons",
+    "description": "Custom chronological horizons for archaeological periods",
+    "created": "2025-06-12",
+    "author": "Archaeologist Name",
+    "horizons": {
+        "custom_horizon_0": {
+            "name": "First Roman Epoch", 
+            "start": -100,
+            "end": 160,
+            "color": "#FF6B6B",
+            "enabled": true
+        },
+        "custom_horizon_1": {
+            "name": "Late Byzantine Period",
+            "start": 1200,
+            "end": 1453,
+            "color": "#4ECDC4", 
+            "enabled": true
+        },
+        "custom_horizon_2": {
+            "name": "Early Medieval Transition",
+            "start": 500,
+            "end": 800,
+            "color": "#45B7D1",
+            "enabled": true
+        },
+        "custom_horizon_3": {
+            "name": "Proto-Historic Phase",
+            "start": -800,
+            "end": -500,
+            "color": "#96CEB4",
+            "enabled": false
+        },
+        "custom_horizon_4": {
+            "name": "Ottoman Period",
+            "start": 1453,
+            "end": 1800,
+            "color": "#FFEAA7",
+            "enabled": true
+        }
+    },
+    "metadata": {
+        "total_horizons": 5,
+        "enabled_horizons": 4,
+        "time_span": {
+            "earliest": -100,
+            "latest": 1800
+        },
+        "notes": "These horizons cover the main archaeological periods for the site excavation project"
+    }
+}

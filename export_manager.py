@@ -15,88 +15,245 @@ from .functions import *
 
 import random
 
+from s3dgraphy.utils.utils import convert_shape2type
+from s3dgraphy.exporter.json_exporter import JSONExporter
+from . import icons_manager
+
+
 #####################################################################
 #Export Section
 
 class EM_ExportPanel:
     bl_label = "Export Manager"
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
+    bl_region_type = 'UI'    
+    bl_options = {'DEFAULT_CLOSED'}
 
+
+    '''
+    @classmethod
+    def poll(cls, context):
+        em_tools = context.scene.em_tools
+        # Restituisce True se mode_em_advanced è False, quindi il pannello viene mostrato solo in modalità 3D GIS
+        return em_tools.mode_em_advanced
+    '''
+    
     def draw(self, context):
         layout = self.layout
         scene = context.scene
+        export_vars = context.window_manager.export_vars
  
-
-        row = layout.row()
         box = layout.box()
         row = box.row()
-        row.label(text="Export:")
-        row = box.row()
-        op = row.operator("export.uuss_export", text="EM (csv)", emboss=True, icon='LONGDISPLAY')
-        row = box.row()
-        row.prop(context.window_manager.export_tables_vars, 'table_type', expand=True)
-        row.operator(JSON_OT_exportEMformat.bl_idname, text="EMjson").use_file_dialog = True
-        row = layout.row()
+        row.prop(
+            export_vars,
+            "tabular_expanded",
+            text="Tabular Export",
+            icon='TRIA_DOWN' if export_vars.tabular_expanded else 'TRIA_RIGHT',
+            emboss=False
+        )
+        if export_vars.tabular_expanded:
+            row = box.row()
+            op = row.operator("export.uuss_export", text="EM (csv)", emboss=True, icon='LONGDISPLAY')
+            row = box.row()
+            row.prop(context.window_manager.export_tables_vars, 'table_type', expand=True)
+
+        # Heriverse Export Section - ✅ Only in EM Advanced mode
+        if context.scene.em_tools.mode_em_advanced:
+            box = layout.box()
+            row = box.row()
+            row.prop(export_vars, "heriverse_expanded",
+                    text="Heriverse Export",
+                    icon='TRIA_DOWN' if export_vars.heriverse_expanded else 'TRIA_RIGHT',
+                    emboss=False)
+
+            if export_vars.heriverse_expanded:
+                row = box.row()
+                # Use scene properties instead of export_vars
+                row.prop(scene, "heriverse_export_path", text="Export Path")
+
+                row = box.row()
+                row.prop(scene, "heriverse_project_name", text="Project Name")
+
+                row = box.row()
+                row.label(text="📋 Only graphs marked as 'Publishable' will be exported", icon='INFO')
+
+                row = box.row()
+                col = row.column()
+                col.prop(export_vars, "heriverse_overwrite_json", text="Export JSON")
+                col = row.column()
+                col.prop(export_vars, "heriverse_export_dosco", text="Export DosCo")
+
+
+                if export_vars.heriverse_overwrite_json and not export_vars.heriverse_export_rm:
+                    warning_box = box.box()
+                    warning_box.alert = True
+                    row = warning_box.row()
+                    row.label(text="⚠️ Warning: JSON export without RM export!", icon='ERROR')
+                    row = warning_box.row()
+                    row.label(text="Links between RM nodes and models will be missing")
+                    row = warning_box.row()
+                    row.label(text="in the JSON if RM Export is not enabled.")
+
+
+                row = box.row()
+                col = row.column()
+                col.prop(export_vars, "heriverse_export_proxies", text="Export Proxies")
+                col = row.column()
+                col.prop(export_vars, "heriverse_export_rm", text="Export RM")
+                row = box.row()
+                col = row.column()
+                col.prop(export_vars, "heriverse_export_rmdoc", text="Export RM Doc")
+                col = row.column()
+                col.prop(export_vars, "heriverse_export_rmsf", text="Export RM SF")
+
+                row = box.row()
+                col = row.column()
+                col.prop(export_vars, "heriverse_create_zip", text="Create ZIP")
+                col = row.column()
+                col.prop(scene, "heriverse_export_panorama", text="Add Panorama")
+
+
+                # Advanced options section
+                row = box.row()
+                row.prop(export_vars, "heriverse_advanced_options",
+                        text="Advanced Options",
+                        icon='TRIA_DOWN' if export_vars.heriverse_advanced_options else 'TRIA_RIGHT',
+                        emboss=False)
+
+                if export_vars.heriverse_advanced_options:
+                    box_pd = box.box()
+                    row_pd = box_pd.row()
+                    row_pd.prop(export_vars, "heriverse_use_draco", text="Use Draco Compression")
+                    row_pd = box_pd.row()
+                    if export_vars.heriverse_use_draco:
+                        row_pd.prop(export_vars, "heriverse_draco_level", text="Compression Level")
+                        row_pd = box_pd.row()
+                    row_pd.prop(export_vars, "heriverse_separate_textures", text="Separate Textures")
+                    row_pd = box_pd.row()
+                    # Add the GPU instancing option here
+                    row_pd.prop(export_vars, "heriverse_use_gpu_instancing", text="Use GPU Instancing")
+
+                    # Add animation export options
+                    row_pd = box_pd.row()
+                    row_pd.prop(export_vars, "heriverse_export_animations", text="Export Animations")
+
+                    # Show additional animation options only if animations are enabled
+                    if export_vars.heriverse_export_animations:
+                        row_pd = box_pd.row()
+                        row_pd.prop(export_vars, "heriverse_export_all_animations", text="All Animations")
+                        row_pd = box_pd.row()
+                        row_pd.prop(export_vars, "heriverse_animation_frame_range", text="Frame Range Only")
+
+                        # Info text for animations
+                        row_pd = box_pd.row()
+                        row_pd.label(text="Note: Exports armatures, bones, and keyframe data", icon='INFO')
+
+                    # Add texture compression options when separate textures is enabled
+                    if export_vars.heriverse_separate_textures:
+                        box_comp = box.box()
+                        row_comp = box_comp.row()
+                        row_comp.label(text="Texture Compression:")
+
+                        row_comp = box_comp.row()
+                        row_comp.prop(scene, "heriverse_enable_compression", text="Enable Compression")
+
+                        if scene.heriverse_enable_compression:
+                            row_comp = box_comp.row()
+                            row_comp.prop(scene, "heriverse_texture_max_res", text="Max Size")
+                            row_comp.prop(scene, "heriverse_texture_quality", text="Quality")
+
+                            row_comp = box_comp.row()
+                            row_comp.label(text="Quality: 100=lossless, 80=good, 60=compressed, 40=heavily compressed")
+
+
+                    if export_vars.heriverse_export_rmdoc:
+
+                        box_pd = box.box()
+                        row_pd = box_pd.row()
+                        row_pd.label(text="ParaData Export Options:")
+                        row_pd = box_pd.row()
+                        row_pd.prop(scene, "heriverse_preserve_rmdoc_transform", text="Preserve Transforms for each RMDoc")
+                        row_pd = box_pd.row()
+                        row_pd.prop(scene, "heriverse_paradata_texture_compression", text="Compress Textures")
+                        if scene.heriverse_paradata_texture_compression:
+                            row_pd = box.row()
+
+                            row_pd = box_pd.row()
+                            row_pd.prop(scene, "heriverse_rmdoc_texture_max_res", text="Max Size")
+                            row_pd.prop(scene, "heriverse_rmdoc_texture_quality", text="Quality")
+
+
+                    # Nuova opzione per i tileset
+                    box_tileset = box.box()
+                    row_tileset = box_tileset.row()
+                    row_tileset.label(text="Cesium Tileset Options:")
+                    row_tileset = box_tileset.row()
+                    row_tileset.prop(export_vars, "heriverse_skip_extracted_tilesets")
+
+                row = box.row()
+                icon_id = icons_manager.get_icon_value("heriverse_logo_tight")
+                if icon_id:
+                    row.operator("export.heriverse", text="Export Heriverse Project", icon_value=icon_id)
+                else:
+                    row.operator("export.heriverse", text="Export Heriverse Project", icon='WORLD_DATA')
+
+        '''
+        # EMviq Export Section
         box = layout.box()
         row = box.row()
-        row.label(text="EMviq export:")
-        row = box.row()
-        row.prop(context.scene, 'EMviq_project_name', toggle=True, text="")
-        row.label(text="<-- Project's name")
-        row = box.row()#(align=True)
-        row.prop(context.scene, 'EMviq_model_author_name', toggle=True, text="")
-        row.label(text="<-- Model's author(s)")
-        row = box.row()
-        row.prop(context.scene, 'EMviq_user_name', toggle=True, text="")
-        row.label(text="<-- ATON user's name")
-        row = box.row()
-        row.prop(context.scene, 'password', toggle=True, text="")
-        row.label(text="<-- ATON user's password")
-        row = box.row()
-        row.prop(context.scene, 'ATON_path', toggle=True, text="")
-        row.label(text="<-- path to ATON")
+        row.prop(export_vars, "emviq_expanded", 
+                text="EMviq export", 
+                icon='TRIA_DOWN' if export_vars.emviq_expanded else 'TRIA_RIGHT',
+                emboss=False)
 
-        '''
-        row = layout.row()  # (align=True)
-        row.prop(context.scene, 'EMviq_folder', toggle=True, text="")
-        row.label(text="<-- Collection folder export path")
-        row = layout.row()#(align=True)
-        row.prop(context.scene, 'EMviq_scene_folder', toggle=True, text="")
-        row.label(text="<-- Scene folder export path")
-        '''
+        if export_vars.emviq_expanded:
+            row = box.row()
+            row.prop(context.scene, 'EMviq_project_name', toggle=True, text="")
+            row.label(text="<-- Project's name")
+            row = box.row()#(align=True)
+            row.prop(context.scene, 'EMviq_model_author_name', toggle=True, text="")
+            row.label(text="<-- Model's author(s)")
+            row = box.row()
+            row.prop(context.scene, 'EMviq_user_name', toggle=True, text="")
+            row.label(text="<-- ATON user's name")
+            row = box.row()
+            row.prop(context.scene, 'password', toggle=True, text="")
+            row.label(text="<-- ATON user's password")
+            row = box.row()
+            row.prop(context.scene, 'ATON_path', toggle=True, text="")
+            row.label(text="<-- path to ATON")
 
-        row = box.row()
-        row.prop(context.window_manager.export_vars, 'format_file', expand=True)
-        #box = layout.box()
-        row = box.row()
-        row.prop(context.scene, 'enable_image_compression', toggle = True, text='Use tex compression')
-        row.prop(context.scene, 'EM_gltf_export_maxres', toggle = True, text='Max res')
-        row.prop(context.scene, 'EM_gltf_export_quality', toggle = True, text='Size')
-        row.prop(context.scene, 'EM_gltf_export_animations', toggle = True, text='Animations')
-        row = box.row()
-        op = row.operator("export_manager.export", text="Generate full EMviq Project", emboss=True, icon='LONGDISPLAY')
-        op.em_export_type = 'EMviq'
-        op.em_export_format = context.window_manager.export_vars.format_file
+            row = box.row()
+            row.prop(export_vars, 'format_file', expand=True)
+            #box = layout.box()
+            row = box.row()
+            row.prop(context.scene, 'enable_image_compression', toggle = True, text='Use tex compression')
+            row.prop(context.scene, 'EM_gltf_export_maxres', toggle = True, text='Max res')
+            row.prop(context.scene, 'EM_gltf_export_quality', toggle = True, text='Size')
+            row = box.row()
+            op = row.operator("export_manager.export", text="Generate full EMviq Project", emboss=True, icon='LONGDISPLAY')
+            op.em_export_type = 'EMviq'
+            op.em_export_format = export_vars.format_file
 
-        row = box.row()
-        row.label(text="Export partial Emviq project's components:")
-        row = box.row()
-        op = row.operator("export_manager.export", text="Proxies", emboss=True, icon='SHADING_SOLID')
-        op.em_export_type = 'Proxies'
-        op = row.operator("export_manager.export", text="GraphML", emboss=True, icon='SHADING_SOLID')
-        op.em_export_type = 'GraphML'
-        op = row.operator("export_manager.export", text="RM", emboss=True, icon='SHADING_TEXTURE')
-        op.em_export_type = 'RM'
+            row = box.row()
+            row.label(text="Export partial Emviq project's components:")
+            row = box.row()
+            op = row.operator("export_manager.export", text="Proxies", emboss=True, icon='SHADING_SOLID')
+            op.em_export_type = 'Proxies'
+            op = row.operator("export_manager.export", text="GraphML", emboss=True, icon='SHADING_SOLID')
+            op.em_export_type = 'GraphML'
+            op = row.operator("export_manager.export", text="RM", emboss=True, icon='SHADING_TEXTURE')
+            op.em_export_type = 'RM'
 
-        row = layout.row()
+            row = layout.row()
 
-        row.operator("open.emviq", text="Open on EMviq", emboss=True, icon='SHADING_TEXTURE')
-        #row.operator("run.aton", text="Run Aton", emboss=True, icon='SHADING_TEXTURE')
+            row.operator("open.emviq", text="Open on EMviq", emboss=True, icon='SHADING_TEXTURE')
+            #row.operator("run.aton", text="Run Aton", emboss=True, icon='SHADING_TEXTURE')
         
-        if scene.emviq_error_list_index >= 0 and len(scene.emviq_error_list) > 0:
+        if scene.em_tools.emviq_error_list_index >= 0 and len(scene.em_tools.emviq_error_list) > 0:
             row.template_list("ER_UL_List", "EM nodes", scene, "emviq_error_list", scene, "emviq_error_list_index")
-            item = scene.emviq_error_list[scene.emviq_error_list_index]
+            item = scene.em_tools.emviq_error_list[scene.em_tools.emviq_error_list_index]
             box = layout.box()
             row = box.row(align=True)
 
@@ -114,9 +271,10 @@ class EM_ExportPanel:
             row = box.row()
             #layout.alignment = 'LEFT'
             row.prop(item, "description", text="", slider=True, emboss=True)
+            '''
 
 class VIEW3D_PT_ExportPanel(Panel, EM_ExportPanel):
-    bl_category = "EM"
+    bl_category = 'EM Bridge'
     bl_idname = "VIEW3D_PT_ExportPanel"
     bl_context = "objectmode"
 
@@ -140,8 +298,8 @@ class EM_runaton(bpy.types.Operator):
 
     def execute(self, context):
         scene = context.scene
-        utente_aton = scene.EMviq_user_name
-        path_aton = scene.ATON_path 
+        utente_aton = scene.em_tools.EMviq_user_name
+        path_aton = scene.em_tools.ATON_path 
         aton_exe = path_aton+"quickstart.sh"
         
         import subprocess
@@ -165,8 +323,8 @@ class EM_export(bpy.types.Operator):
     def execute(self, context):
         #init general variables
         scene = context.scene
-        utente_aton = scene.EMviq_user_name
-        progetto_aton = scene.EMviq_project_name
+        utente_aton = scene.em_tools.EMviq_user_name
+        progetto_aton = scene.em_tools.EMviq_project_name
 
         # deselect everything in the scene
         bpy.ops.object.select_all(action='DESELECT')
@@ -175,7 +333,7 @@ class EM_export(bpy.types.Operator):
         self.salva_stato_collezioni()
 
         # prepare folder paths
-        fix_if_relative_folder = bpy.path.abspath(scene.ATON_path)
+        fix_if_relative_folder = bpy.path.abspath(scene.em_tools.ATON_path)
         base_dir = os.path.dirname(fix_if_relative_folder)
         
         if os.path.exists(os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)):
@@ -183,10 +341,10 @@ class EM_export(bpy.types.Operator):
         else:
             base_dir_scenes = self.createfolder(os.path.join(base_dir,"data","scenes",utente_aton), progetto_aton)
 
-        if os.path.exists(os.path.join(base_dir,"data","collections",utente_aton,progetto_aton)):
-            base_dir_collections = os.path.join(base_dir,"data","collections",utente_aton,progetto_aton)
+        if os.path.exists(os.path.join(base_dir,"data","collections",utente_aton+"-collections","models",progetto_aton)):
+            base_dir_collections = os.path.join(base_dir,"data","collections",utente_aton+"-collections","models",progetto_aton)
         else:
-            base_dir_collections = self.createfolder(os.path.join(base_dir,"data","collections",utente_aton), progetto_aton)
+            base_dir_collections = self.createfolder(os.path.join(base_dir,"data","collections",utente_aton+"-collections","models"), progetto_aton)
 
         # Export proxies
         if self.em_export_type == 'Proxies' or self.em_export_type == "EMviq":
@@ -199,7 +357,9 @@ class EM_export(bpy.types.Operator):
         if self.em_export_type == "GraphML" or self.em_export_type == "EMviq":
     
             em_file_4_emviq = os.path.join(base_dir_scenes, "em.graphml")
-            em_file_fixed_path = bpy.path.abspath(scene.EM_file)
+            em_file_fixed_path = scene.em_tools.graphml_files[scene.em_tools.active_file_index]['graphml_path']
+
+            #em_file_fixed_path = bpy.path.abspath(scene.EM_file)
             shutil.copyfile(em_file_fixed_path, em_file_4_emviq)
 
         # Export Representation Models and Scene JSON file
@@ -222,7 +382,7 @@ class EM_export(bpy.types.Operator):
             
             #section to activate light and background to make better visual effect
             context['environment'] = {
-                "mainpano":{"url":"samples/pano/defsky-grass.jpg"},
+                "mainpano":{"url":"samples/pano/pano.jpg"},
                 "lightprobes":{"auto":True},
                 "mainlight":{"direction":[-0.0846315900906896,-0.7511136796681608,-0.6547256938398531]}
             }
@@ -245,9 +405,10 @@ class EM_export(bpy.types.Operator):
         # Ripristina lo stato delle collezioni dopo l'export
         self.ripristina_stato_collezioni()        
 
-        # Export semantic descriptio in JSON file format 
-        # Avvia senza mostrare la finestra di dialogo
-        bpy.ops.export.emjson('INVOKE_DEFAULT', use_file_dialog=False)          
+        # Export semantic description in JSON file format 
+        # Generate path for the EMviq json export and call the right exporter
+        json_file_path = os.path.join(base_dir_scenes, "em.json")
+        bpy.ops.export.emjson('INVOKE_DEFAULT', filepath=json_file_path, use_file_dialog=False)          
 
         return {'FINISHED'}
 
@@ -275,6 +436,7 @@ class EM_export(bpy.types.Operator):
     def export_rm(self, scene, export_folder, EMviq, nodes, format_file, edges, utente_aton, progetto_aton):
         EM_list_clear(bpy.context, "emviq_error_list")
         edges["."] = []
+        epochs = scene.em_tools.epochs.list
         for ob in bpy.data.objects:
             if len(ob.EM_ep_belong_ob) == 0:
                 # in case the object does not have an epoch it belogs to, do nothing (=0)
@@ -282,7 +444,7 @@ class EM_export(bpy.types.Operator):
             # in case the object belogs to ONE epoch, I manage it accordingly
             if len(ob.EM_ep_belong_ob) == 1:
                 ob_tagged = ob.EM_ep_belong_ob[0]
-                for epoch in scene.epoch_list:
+                for epoch in epochs:
                     if ob_tagged.epoch == epoch.name:
                         epochname1_var = epoch.name.replace(" ", "_")
                         epochname_var = epochname1_var.replace(".", "")
@@ -297,46 +459,7 @@ class EM_export(bpy.types.Operator):
                             copy_tex_ob(ob, export_sub_folder)
 
                         if format_file == "gltf":
-                            #bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', ui_tab='GENERAL', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=scene.EM_gltf_export_animations, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=scene.EM_gltf_export_animations, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_morph_normal=False, export_morph_tangent=False, export_lights=False,  will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
-                            bpy.ops.export_scene.gltf(
-                                export_format='GLTF_SEPARATE', 
-                                ui_tab='GENERAL', 
-                                export_copyright=scene.EMviq_model_author_name, 
-                                export_image_format='AUTO', 
-                                export_texture_dir="", 
-                                export_texcoords=True, 
-                                export_normals=True, 
-                                export_draco_mesh_compression_enable=True, 
-                                export_draco_mesh_compression_level=6, 
-                                export_draco_position_quantization=14, 
-                                export_draco_normal_quantization=10, 
-                                export_draco_texcoord_quantization=12, 
-                                export_draco_generic_quantization=12, 
-                                export_tangents=False, 
-                                export_materials='EXPORT', 
-                                export_cameras=False, 
-                                use_selection=True, 
-                                export_extras=False, 
-                                export_yup=True, 
-                                export_apply=True, 
-                                export_animations=scene.EM_gltf_export_animations,  # Abilita/disabilita animazioni
-                                export_frame_range=scene.EM_gltf_export_animations,  # Usa il playback range se animazioni attive
-                                export_frame_step=1, 
-                                export_force_sampling=scene.EM_gltf_export_animations,  # Sampling animations
-                                export_nla_strips=scene.EM_gltf_export_animations,  # Esporta NLA strips
-                                export_def_bones=False, 
-                                export_current_frame=False,  # Non usa frame corrente come rest pose
-                                export_skins=True, 
-                                export_all_influences=False, 
-                                export_morph=scene.EM_gltf_export_animations,  # Shape keys animation
-                                export_morph_normal=False, 
-                                export_morph_tangent=False, 
-                                export_lights=False,  
-                                will_save_settings=False, 
-                                filepath=str(export_file), 
-                                check_existing=False, 
-                                filter_glob="*.glb;*.gltf"
-                            )
+                            bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', ui_tab='GENERAL', export_copyright=scene.em_tools.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_morph_normal=False, export_morph_tangent=False, export_lights=False,  will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
                         if format_file == "fbx":
                             bpy.ops.export_scene.fbx(filepath = export_file + ".fbx", check_existing=True, filter_glob="*.fbx", use_selection=True, use_active_collection=False, global_scale=1.0, apply_unit_scale=True, apply_scale_options='FBX_SCALE_NONE', bake_space_transform=False, object_types={'MESH'}, use_mesh_modifiers=True, use_mesh_modifiers_render=True, mesh_smooth_type='OFF', use_mesh_edges=False, use_tspace=False, use_custom_props=False, add_leaf_bones=True, primary_bone_axis='Y', secondary_bone_axis='X', use_armature_deform_only=False, armature_nodetype='NULL', bake_anim=False, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=True, bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True, bake_anim_step=1.0, bake_anim_simplify_factor=1.0, path_mode='AUTO', embed_textures=False, batch_mode='OFF', use_batch_own_dir=True, use_metadata=True, axis_forward='-Z', axis_up='Y')
                         if EMviq:
@@ -360,12 +483,12 @@ class EM_export(bpy.types.Operator):
 
                             #exec(epochname_var + '_urls.append("' + epochname_var +'/'+ ob.name + '.' + format_file +'")')
                             #but here we want to set the osgjs file format (the emviq server will convert the obj to osgjs)
-                            exec(epochname_var + '_urls.append("'+utente_aton+'/'+progetto_aton+'/' + epochname_var +'/'+ ob.name + '.gltf")')
+                            exec(epochname_var + '_urls.append("'+utente_aton+'-collections'+'/models/'+progetto_aton+'/' + epochname_var +'/'+ ob.name + '.gltf")')
                         ob.select_set(False)
             # in case the object is in different epochs, I set up a "shared" folder instead of a folder for each epoch
             if len(ob.EM_ep_belong_ob) >= 2:
                 for ob_tagged in ob.EM_ep_belong_ob:
-                    for epoch in scene.epoch_list:
+                    for epoch in epochs:
                         if ob_tagged.epoch == epoch.name:
                             epochname1_var = epoch.name.replace(" ", "_")
                             epochname_var = epochname1_var.replace(".", "")
@@ -379,7 +502,7 @@ class EM_export(bpy.types.Operator):
                                 bpy.ops.export_scene.obj(filepath=str(export_file + '.obj'), use_selection=True, axis_forward='Y', axis_up='Z', path_mode='RELATIVE')
                                 copy_tex_ob(ob, export_sub_folder)
                             if format_file == "gltf":
-                                bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=scene.EM_gltf_export_animations, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=scene.EM_gltf_export_animations, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
+                                bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.em_tools.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='EXPORT', export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False, will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
                             if format_file == "fbx":
                                 bpy.ops.export_scene.fbx(filepath = export_file + ".fbx", check_existing=True, filter_glob="*.fbx", use_selection=True, use_active_collection=False, global_scale=1.0, apply_unit_scale=True, apply_scale_options='FBX_SCALE_NONE', bake_space_transform=False, object_types={'MESH'}, use_mesh_modifiers=True, use_mesh_modifiers_render=True, mesh_smooth_type='OFF', use_mesh_edges=False, use_tspace=False, use_custom_props=False, add_leaf_bones=True, primary_bone_axis='Y', secondary_bone_axis='X', use_armature_deform_only=False, armature_nodetype='NULL', bake_anim=False, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=True, bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True, bake_anim_step=1.0, bake_anim_simplify_factor=1.0, path_mode='AUTO', embed_textures=False, batch_mode='OFF', use_batch_own_dir=True, use_metadata=True, axis_forward='-Z', axis_up='Y')
 
@@ -401,7 +524,7 @@ class EM_export(bpy.types.Operator):
                                     pass
                                     #print("sure, it was defined.")
                                 
-                                exec(epochname_var + '_urls.append("'+utente_aton+'/'+progetto_aton+'/shared/'+ ob.name + '.gltf")')
+                                exec(epochname_var + '_urls.append("'+utente_aton+'-collections'+'/models/'+progetto_aton+'/' +'/shared/'+ ob.name + '.gltf")')
                                 #exec(epochname_var + '_urls.append("rm/shared/' + ob.name + '.osgjs")')
                             ob.select_set(False)
         print(f'E ora di trovare le cartelle per comprimere le immagini: parto dalla folder {export_folder}')
@@ -421,7 +544,7 @@ class EM_export(bpy.types.Operator):
         temp_image_format = scene.render.image_settings.file_format
         temp_image_quality = scene.render.image_settings.quality
         scene.render.image_settings.file_format = 'JPEG'
-        scene.render.image_settings.quality = scene.EM_gltf_export_quality
+        scene.render.image_settings.quality = scene.em_tools.EM_gltf_export_quality
         print(f'Cerco nella directory {dir_path}')
         for entry in os.listdir(dir_path):
             if os.path.isfile(os.path.join(dir_path, entry)):
@@ -431,7 +554,7 @@ class EM_export(bpy.types.Operator):
                     image_dblock = bpy.data.images.load(image_file_path)
                     print(f"l'immagine importata ha lato {str(image_dblock.size[0])}")
                     if self.check_if_scalable(image_dblock):
-                        image_dblock.scale(scene.EM_gltf_export_maxres,scene.EM_gltf_export_maxres)
+                        image_dblock.scale(scene.em_tools.EM_gltf_export_maxres,scene.em_tools.EM_gltf_export_maxres)
                         print(f"l'immagine importata ha ora lato {str(image_dblock.size[0])}")
                         print(f"ho compresso {image_dblock.name} con path {image_dblock.filepath}")
                         #image_dblock.filepath = image_file_path
@@ -444,56 +567,21 @@ class EM_export(bpy.types.Operator):
 
     def check_if_scalable(self, image_block):
         is_scalable = False
-        if image_block.size[0] > bpy.context.scene.EM_gltf_export_maxres and image_block.size[1] > bpy.context.scene.EM_gltf_export_maxres:
+        if image_block.size[0] > bpy.context.scene.em_tools.EM_gltf_export_maxres and image_block.size[1] > bpy.context.scene.em_tools.EM_gltf_export_maxres:
             is_scalable =True
-        if bpy.context.scene.EM_gltf_export_quality < 100:
+        if bpy.context.scene.em_tools.EM_gltf_export_quality < 100:
             is_scalable =True
         return is_scalable
 
     def export_proxies(self, scene, export_folder):
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
         for proxy in bpy.data.objects:
-            for em in scene.em_list:
+            for em in strat.units:
                 if proxy.name == em.name:
                     proxy.select_set(True)
                     name = bpy.path.clean_name(em.name)
                     export_file = os.path.join(export_folder, name)
-                    #bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=False, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='NONE', export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=scene.EM_gltf_export_animations, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=scene.EM_gltf_export_animations, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False,  will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
-                    bpy.ops.export_scene.gltf(
-                        export_format='GLTF_SEPARATE', 
-                        export_copyright=scene.EMviq_model_author_name, 
-                        export_image_format='AUTO', 
-                        export_texture_dir="", 
-                        export_texcoords=True, 
-                        export_normals=True, 
-                        export_draco_mesh_compression_enable=False, 
-                        export_draco_mesh_compression_level=6, 
-                        export_draco_position_quantization=14, 
-                        export_draco_normal_quantization=10, 
-                        export_draco_texcoord_quantization=12, 
-                        export_draco_generic_quantization=12, 
-                        export_tangents=False, 
-                        export_materials='NONE', 
-                        export_cameras=False, 
-                        use_selection=True, 
-                        export_extras=False, 
-                        export_yup=True, 
-                        export_apply=True, 
-                        export_animations=scene.EM_gltf_export_animations,  # Abilita/disabilita animazioni
-                        export_frame_range=scene.EM_gltf_export_animations,  # Usa il playback range se animazioni attive
-                        export_frame_step=1, 
-                        export_force_sampling=scene.EM_gltf_export_animations,  # Sampling animations
-                        export_nla_strips=scene.EM_gltf_export_animations,  # Esporta NLA strips
-                        export_def_bones=False, 
-                        export_current_frame=False,  # Non usa frame corrente come rest pose
-                        export_skins=True, 
-                        export_all_influences=False, 
-                        export_morph=scene.EM_gltf_export_animations,  # Shape keys animation  
-                        export_lights=False,  
-                        will_save_settings=False, 
-                        filepath=str(export_file), 
-                        check_existing=False, 
-                        filter_glob="*.glb;*.gltf"
-                    )
+                    bpy.ops.export_scene.gltf(export_format='GLTF_SEPARATE', export_copyright=scene.em_tools.EMviq_model_author_name, export_image_format='AUTO', export_texture_dir="", export_texcoords=True, export_normals=True, export_draco_mesh_compression_enable=False, export_draco_mesh_compression_level=6, export_draco_position_quantization=14, export_draco_normal_quantization=10, export_draco_texcoord_quantization=12, export_draco_generic_quantization=12, export_tangents=False, export_materials='NONE', export_cameras=False, use_selection=True, export_extras=False, export_yup=True, export_apply=True, export_animations=False, export_frame_range=False, export_frame_step=1, export_force_sampling=True, export_nla_strips=False, export_def_bones=False, export_current_frame=False, export_skins=True, export_all_influences=False, export_morph=True, export_lights=False,  will_save_settings=False, filepath=str(export_file), check_existing=False, filter_glob="*.glb;*.gltf")
                     proxy.select_set(False)
 
     def createfolder(self, base_dir, foldername):
@@ -516,24 +604,11 @@ class EM_openemviq(bpy.types.Operator):
     bl_label = "Open EMviq"
     bl_description = "Open EMviq"
     bl_options = {'REGISTER', 'UNDO'}
-
-    #em_export_type : StringProperty()
-    #em_export_format : StringProperty()
-    '''
-    @classmethod
-    def poll(cls, context):
-        scene = context.scene
-        is_active_button = False
-        prefs = context.preferences.addons.get(__package__, None)
-        if prefs.preferences.is_external_module:# and scene.EMdb_xlsx_filepath is not None:
-            is_active_button = True
-        return is_active_button
-    '''
     
     def execute(self, context):
         scene = context.scene
-        utente_aton = scene.EMviq_user_name
-        progetto_aton = scene.EMviq_project_name 
+        utente_aton = scene.em_tools.EMviq_user_name
+        progetto_aton = scene.em_tools.EMviq_project_name 
         
         import webbrowser
         url_emviq = "http://localhost:8080/a/emviq/?s="+utente_aton+"/"+progetto_aton
@@ -543,8 +618,9 @@ class EM_openemviq(bpy.types.Operator):
         return {'FINISHED'}
 
 class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
+    """Export project data in EMviq JSON format"""
     bl_idname = "export.emjson"
-    bl_label = "Export emjson"
+    bl_label = "Export EMviq JSON"
     bl_options = {"REGISTER", "UNDO"}
 
     # Proprietà per controllare se mostrare la finestra di dialogo
@@ -556,23 +632,23 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
 
     filename_ext = ".json"
 
-    def execute(self, context):
+    def invoke(self, context, event):
         if self.use_file_dialog:
-            return self.export_emjson(context, self.filepath)
+            return ExportHelper.invoke(self, context, event)
         else:
-            return self.export_emjson(context, None)
+            return self.execute(context)
     
-    def export_emjson(self, context, file_path):
-        scene = context.scene
-        if not file_path:
+    def execute(self, context):
+        # If filepath is provided explicitly through the parameter, use it
+        file_path = self.filepath
+        
+        if not file_path or self.use_file_dialog:
+            scene = context.scene
+            utente_aton = scene.em_tools.EMviq_user_name
+            progetto_aton = scene.em_tools.EMviq_project_name 
             
-            utente_aton = scene.EMviq_user_name
-            progetto_aton = scene.EMviq_project_name 
-            
-            bpy.ops.object.select_all(action='DESELECT')
-
             # prepare folder paths
-            fix_if_relative_folder = bpy.path.abspath(scene.ATON_path)
+            fix_if_relative_folder = bpy.path.abspath(scene.em_tools.ATON_path)
             base_dir = os.path.dirname(fix_if_relative_folder)
             
             if os.path.exists(os.path.join(base_dir,"data","scenes",utente_aton,progetto_aton)):
@@ -584,198 +660,156 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
             file_path = os.path.join(base_dir_scenes, "em.json")
 
         # eventually reactivate collections RM and RB
-
-        collectionRM = scene.view_layers['ViewLayer'].layer_collection.children.get('RM')
+        collectionRM = context.view_layer.layer_collection.children.get('RM')
         if collectionRM:
             collectionRM.exclude = False
-        collectionRB = scene.view_layers['ViewLayer'].layer_collection.children.get('RB')
+        collectionRB = context.view_layer.layer_collection.children.get('RB')
         if collectionRB:
             collectionRB.exclude = False
 
-        #setup JSON variables
-        root = {}
-        contextgraph = {}
-        semanticgraph = {}
-        nodes = {}
-        edges = {}
-        epochs = {}
-        emlist = {}
-        site1 = {}
-        #modifica per 3dgraph
-        #contextgraph['backgroundColor'] = "red"
-        #contextgraph['backgroundColorType'] = "MatHub"
-        #contextgraph['mainPanorama'] = "samples/bg-welcome.jpg"
-        #homePOV = {}
-        #contextgraph['homePOV'] = homePOV
-        #homePOV['position'] =  {"x":-10.4,"y":8,"z":4.2}
-        #homePOV['target']=  {"x":0,"y":4,"z":-1}
-        #####################
-        #aggiunta landing nodes 
-        #contextgraph['landingNodes'] = ["US","USVs","serSU","serUSV","USVn","SF","VSF","USD","TSU"]
-        
-        root["context"] = contextgraph
-        root["graphs"] = emlist
-        contextgraph['epochs'] = epochs
-        epochs = self.extract_epochs_from_epoch_list(scene,epochs)
-        
-        #semanticgraph['epochs'] = epochs
-        semanticgraph['EMlist'] = emlist
-        emlist['graph1'] = site1 # questo sarà sostituito dal nome del sito
+        try:
+            # setup JSON variables
+            root = {}
+            contextgraph = {}
+            semanticgraph = {}
+            nodes = {}
+            edges = {}
+            epochs = {}
+            emlist = {}
+            site1 = {}
+            
+            root["context"] = contextgraph
+            root["graphs"] = emlist
+            contextgraph['epochs'] = epochs
+            epochs = self.extract_epochs_from_epoch_list(context.scene, epochs)
+            
+            semanticgraph['EMlist'] = emlist
+            emlist['graph1'] = site1 # questo sarà sostituito dal nome del sito
 
-        #preparo le proprietà del grafo1
-        site1['name'] = "Acropoli"
-        site1['description'] = "Modello 3D Acropoli di Segni"
-        site1_data = {}
-        site1['data'] = site1_data
-        geo_position = {}
-        site1_data['geo_position'] = geo_position
-        geo_position['epsg'] = 3004
-        geo_position['shift_x'] = 0
-        geo_position['shift_y'] = 0
-        geo_position['shift_z'] = 0
+            # preparo le proprietà del grafo1
+            site1['name'] = "Acropoli"
+            site1['description'] = "Modello 3D Acropoli di Segni"
+            site1_data = {}
+            site1['data'] = site1_data
+            geo_position = {}
+            site1_data['geo_position'] = geo_position
+            geo_position['epsg'] = 3004
+            geo_position['shift_x'] = 0
+            geo_position['shift_y'] = 0
+            geo_position['shift_z'] = 0
 
-        #Prepare node graph for the JSON
-        nodes, edges = self.extract_nodes_edges_for_emjson(scene, nodes, edges)
-        site1['nodes'] = nodes
-        site1['edges'] = edges
-        #print(nodes)
-        # encode dict as JSON 
-        data = json.dumps(root, indent=4, ensure_ascii=True)
-        
-        # write JSON file
-        with open(file_path, 'w') as outfile:
-            outfile.write(data + '\n')
-
-        return {'FINISHED'}
+            # Prepare node graph for the JSON
+            nodes, edges = self.extract_nodes_edges_for_emjson(context.scene, nodes, edges)
+            site1['nodes'] = nodes
+            site1['edges'] = edges
+            
+            # encode dict as JSON 
+            data = json.dumps(root, indent=4, ensure_ascii=True)
+            
+            # write JSON file
+            with open(file_path, 'w') as outfile:
+                outfile.write(data + '\n')
+                
+            print(f"Successfully exported EMviq JSON to {file_path}")
+            self.report({'INFO'}, f"Successfully exported EMviq JSON to {file_path}")
+            return {'FINISHED'}
+            
+        except Exception as e:
+            print(f"Error during EMviq JSON export: {e}")
+            import traceback
+            traceback.print_exc()
+            self.report({'ERROR'}, f"Export failed: {str(e)}")
+            return {'CANCELLED'}
+    
+    def createfolder(self, base_dir, foldername):
+        export_folder = os.path.join(base_dir, foldername)
+        if not os.path.exists(export_folder):
+            os.makedirs(export_folder)
+            print(f'There is no {foldername} folder. Creating one...')
+        else:
+            print(f'Found previously created {foldername} folder. I will use it')
+        return export_folder
     
     def extract_nodes_edges_for_emjson(self, scene, nodes, edges):
-        #passo i nodi UUSS:
-
+        # passo i nodi UUSS:
         index_nodes = 0
-        
-        for uuss in scene.em_list:
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+
+        for uuss in strat.units:
             uuss_node = {}
             uuss_data = {}
             uuss_layout = {}
 
-            uuss_node["type"] = convert_shape2type(uuss.shape)[0]
+            uuss_node["type"] = convert_shape2type(uuss.shape, uuss.border_style)[0]
             uuss_node["name"] = uuss.name
 
             uuss_node["data"] = uuss_data 
-            uuss_data["description"]=uuss.description
-            uuss_data["epochs"]=[uuss.epoch]
-            uuss_data["url"]=uuss.url
-            uuss_data["rel_time"]=uuss.y_pos
-            uuss_data["time"]= 0 ### DA DEFINIRE MEGLIO CON VARIABILE
-            uuss_data["end_rel_time"]= 2024 ### DA DEFINIRE MEGLIO CON VARIABILE
-            uuss_data["end_time"]= 0 ### DA DEFINIRE MEGLIO CON VARIABILE
-
-            #uuss_node["layout"] = uuss_layout
-            #uuss_layout["scale"] = 10.0
-            #uuss_layout["visible"] = False
-            #uuss_layout["hasproxy"]= self.set_has_proxy_value(uuss.icon)
+            uuss_data["description"] = uuss.description
+            uuss_data["epochs"] = [uuss.epoch]
+            uuss_data["url"] = uuss.url
+            uuss_data["rel_time"] = uuss.y_pos
+            uuss_data["time"] = 0  ### DA DEFINIRE MEGLIO CON VARIABILE
+            uuss_data["end_rel_time"] = 2024  ### DA DEFINIRE MEGLIO CON VARIABILE
+            uuss_data["end_time"] = 0  ### DA DEFINIRE MEGLIO CON VARIABILE
 
             nodes[uuss.name] = uuss_node
-            #index_nodes +=1
 
-        for property in scene.em_properties_list:
+        for property in scene.em_tools.em_properties_list:
             property_node = {}
             property_data = {}
             property_layout = {}
-            property_node["type"]="property"
-            property_node["name"] =property.name
+            property_node["type"] = "property"
+            property_node["name"] = property.name
 
-            property_node["data"]=property_data
-            property_data["description"]=property.description
-            property_data["icon"]=self.set_has_proxy_value(property.icon)
-            '''
-            property_node["layout"] = property_layout
-            property_layout["scale"] = 10.0
-            property_layout["visible"] = False
-            property_layout["icon_url"] = property.icon_url
-            '''
-            property_data["url"]=property.url
-            property_data["url_type"]= "External link" ## DA DEFINIRE MEGLIO
+            property_node["data"] = property_data
+            property_data["description"] = property.description
+            property_data["icon"] = self.set_has_proxy_value(property.icon)
+            property_data["url"] = property.url
+            property_data["url_type"] = "External link"  ## DA DEFINIRE MEGLIO
 
             nodes[property.id_node] = property_node
-            #index_nodes +=1
 
-        for combiner in scene.em_combiners_list:
+        for combiner in scene.em_tools.em_combiners_list:
             combiner_node = {}
             combiner_data = {}
             combiner_layout = {}
-            combiner_node["type"]="combiner"
-            combiner_node["name"] =combiner.name
+            combiner_node["type"] = "combiner"
+            combiner_node["name"] = combiner.name
 
-            combiner_node["data"]=combiner_data
-            combiner_data["description"]=combiner.description
-            #combiner_data["icon"]=self.set_has_proxy_value(combiner.icon)
-            combiner_data["url"]=combiner.url
-            '''
-            combiner_layout["layout"] = combiner_layout
-            combiner_layout["scale"] = 10.0
-            combiner_layout["visible"] = False
-            combiner_layout["icon_url"]=combiner.icon_url
-            '''
+            combiner_node["data"] = combiner_data
+            combiner_data["description"] = combiner.description
+            combiner_data["url"] = combiner.url
 
             nodes[combiner.id_node] = combiner_node
-            #index_nodes +=1
 
-        for extractor in scene.em_extractors_list:
+        for extractor in scene.em_tools.em_extractors_list:
             extractor_node = {}
             extractor_data = {}
             extractor_layout = {}
-            extractor_node["type"]= "extractor"
+            extractor_node["type"] = "extractor"
             extractor_node["name"] = extractor.name
 
-            extractor_node["data"]=extractor_data
-            extractor_data["description"]=extractor.description
-            extractor_data["icon"]=self.set_has_proxy_value(extractor.icon)
-            extractor_data["url"]=extractor.url
-            extractor_data["src"]=""
-            '''
-            extractor_node["layout"] = extractor_layout
-            extractor_layout["scale"] = 10.0
-            extractor_layout["visible"] = False
-            extractor_layout["icon_url"]=extractor.description
-            '''
+            extractor_node["data"] = extractor_data
+            extractor_data["description"] = extractor.description
+            extractor_data["icon"] = self.set_has_proxy_value(extractor.icon)
+            extractor_data["url"] = extractor.url
+            extractor_data["src"] = ""
 
             nodes[extractor.id_node] = extractor_node
-            #index_nodes +=1
 
-        for source in scene.em_sources_list:
+        for source in scene.em_tools.em_sources_list:
             source_node = {}
             source_data = {}
             source_layout = {}
             source_node["type"] = "document"
             source_node["name"] = source.name
 
-            source_node["data"]=source_data
-            source_data["description"]=source.description
-            source_data["icon"]=self.set_has_proxy_value(source.icon)
-            source_data["url"]=source.url
-            '''
-
-            source_node["layout"] = source_layout
-            source_layout["scale"] = 10.0
-            source_layout["visible"] = False
-            source_layout["icon_url"] = source.icon_url
-            '''
+            source_node["data"] = source_data
+            source_data["description"] = source.description
+            source_data["icon"] = self.set_has_proxy_value(source.icon)
+            source_data["url"] = source.url
 
             nodes[source.id_node] = source_node
-            #index_nodes +=1
-        '''
-        for edge in scene.edges_list:
-            edge_edge = {}
-            edge_edge["type"]=edge.edge_type       
-            edge_edge["from"]=self.original_id_to_new_name(scene,edge.source)
-            edge_edge["to"]=self.original_id_to_new_name(scene,edge.target)
-            #edge_appareance = {}
-            #edge_appareance["color"] = self.edge_type_to_color(edge.edge_type)
-            #edge_edge["appareance"]= edge_appareance     
-            edges[index_nodes] = edge_edge
-            index_nodes +=1
-        '''
 
         # Suppongo che 'scene.edges_list' sia una lista di edge disponibili
         edges = {}
@@ -795,15 +829,11 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
             # Aggiungi l'edge alla lista corrispondente
             edges[edge_type].append(edge_dict)
 
-            # Ora 'edges' contiene i tuoi edge raggruppati per tipo
-
-
         return nodes, edges
 
     def extract_epochs_from_epoch_list(self, scene, epochs):
-        for epoch in scene.epoch_list:
+        for epoch in scene.em_tools.epochs.list:
             epoch_node = {}
-            #epoch_node['description'] = epoch.description
             epoch_node['min'] = epoch.min_y
             epoch_node['max'] = epoch.max_y
             epoch_node['start'] = -1000
@@ -818,32 +848,34 @@ class JSON_OT_exportEMformat(bpy.types.Operator, ExportHelper):
         elif type == "dashed":
             color = "blue"
         else:
-            type == "black"
+            color = "black"
         return color
 
     def original_id_to_new_name(self, scene, id_node):
-        for UUSS in scene.em_list:
+        strat = scene.em_tools.stratigraphy  # ✅ Nuovo
+        for UUSS in strat.units:
             if UUSS.id_node == id_node:
                 return UUSS.name
-        for property in scene.em_properties_list:
+        for property in scene.em_tools.em_properties_list:
             if property.id_node == id_node:
                 return property.id_node
-        for combiner in scene.em_combiners_list:
+        for combiner in scene.em_tools.em_combiners_list:
             if combiner.id_node == id_node:
                 return combiner.id_node
-        for extractor in scene.em_extractors_list:
+        for extractor in scene.em_tools.em_extractors_list:
             if extractor.id_node == id_node:
                 return extractor.id_node
-        for source in scene.em_sources_list:
+        for source in scene.em_tools.em_sources_list:
             if source.id_node == id_node:
                 return source.id_node
+        return id_node
 
     def set_has_proxy_value(self, string):
         hasproxy = False
-        if string == "RESTRICT_INSTANCED_OFF":
+        if string == "LINKED":
             hasproxy = True
-
         return hasproxy
+
 
 class OBJECT_OT_ExportUUSS(bpy.types.Operator):
     bl_idname = "export.uuss_export"
@@ -851,10 +883,7 @@ class OBJECT_OT_ExportUUSS(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-
         bpy.ops.export.uuss_data('INVOKE_DEFAULT')
-        
-            
         return {'FINISHED'}
 
 class ExportuussData(Operator, ExportHelper):
@@ -871,33 +900,6 @@ class ExportuussData(Operator, ExportHelper):
             maxlen=255,  # Max internal buffer length, longer would be clamped.
             ) # type: ignore
 
-    # List of operator properties, the attributes will be assigned
-    # to the class instance from the operator settings before calling.
-
-    # name: BoolProperty(
-    #         name="Names of UUSS",
-    #         description="This tool includes name",
-    #         default=True,
-    #         )
-
-    # description: BoolProperty(
-    #         name="Description",
-    #         description="This tool includes description",
-    #         default=True,
-    #         )
-
-    # epoch: BoolProperty(
-    #         name="Epoch",
-    #         description="This tool includes epoch",
-    #         default=True,
-    #         )
-
-    # type_node: BoolProperty(
-    #         name="Node type",
-    #         description="This includes node type",
-    #         default=True,
-    #         )
-
     only_UUSS_with_proxies: BoolProperty(
             name="Only elements with proxies",
             description="Only elements with proxies",
@@ -912,7 +914,6 @@ class ExportuussData(Operator, ExportHelper):
 
     def execute(self, context):
         return self.write_UUSS_data(context, self.filepath, self.only_UUSS_with_proxies, self.header_line)
-        #return self.write_UUSS_data(context, self.filepath, self.name, self.description, self.epoch, self.type_node, self.only_UUSS_with_proxies, self.header_line)
 
     def write_UUSS_data(self, context, filepath, only_UUSS, header):
         print("running write some data...")
@@ -922,16 +923,20 @@ class ExportuussData(Operator, ExportHelper):
         if  context.window_manager.export_tables_vars.table_type == 'US/USV':
             if header:
                 f.write("Name; Description; Epoch; Type \n")
-            for US in context.scene.em_list:
+            strat = context.scene.em_tools.stratigraphy  # ✅ Nuovo
+            for US in strat.units:
                 if only_UUSS:
                     if US.icon == "RESTRICT_INSTANCED_ON":
-                        f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)[1]))
+                        f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape, US.border_style)[1]))
                 else:
-                    f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape)[1]))
+                    #previous version of the export
+                    #f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, convert_shape2type(US.shape,US.border_style)[1]))
+                    # new version of the export
+                    f.write("%s\t %s\t %s\t %s\n" % (US.name, US.description, US.epoch, US.shape))
         if  context.window_manager.export_tables_vars.table_type == 'Sources':
             if header:
                 f.write("Name; Description \n")
-            for source in context.scene.em_sources_list:
+            for source in context.scene.em_tools.em_sources_list:
                 if only_UUSS:
                     if source.icon == "RESTRICT_INSTANCED_ON":
                         f.write("%s\t %s\n" % (source.name, source.description))
@@ -941,7 +946,7 @@ class ExportuussData(Operator, ExportHelper):
         if  context.window_manager.export_tables_vars.table_type == 'Extractors':
             if header:
                 f.write("Name\t Description \n")
-            for extractor in context.scene.em_extractors_list:
+            for extractor in context.scene.em_tools.em_extractors_list:
                 if only_UUSS:
                     if extractor.icon == "RESTRICT_INSTANCED_ON":
                         f.write("%s\t %s\n" % (extractor.name, extractor.description))
@@ -961,9 +966,9 @@ classes = [
     EM_runaton,
     EM_export,
     EM_openemviq,
+    JSON_OT_exportEMformat,
     ExportuussData,
-    OBJECT_OT_ExportUUSS,
-    JSON_OT_exportEMformat
+    OBJECT_OT_ExportUUSS
     ]
 
 def register():
@@ -977,8 +982,92 @@ def register():
         subtype='PASSWORD'
     )
 
-    bpy.types.Scene.enable_image_compression = BoolProperty(name="Tex compression", description = "Use compression settings for textures. If disabled, original images (size and compression) will be used.",default=True)
+    bpy.types.Scene.enable_image_compression = BoolProperty(
+        name="Tex compression", 
+        description="Use compression settings for textures. If disabled, original images (size and compression) will be used.",
+        default=True
+    )
+    
+    # Add new Heriverse properties to the Scene
+    bpy.types.Scene.heriverse_export_path = bpy.props.StringProperty(
+        name="Heriverse Export Path",
+        description="Path where to export Heriverse project",
+        subtype='DIR_PATH',
+        default="",
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    )
+    
+    bpy.types.Scene.heriverse_project_name = bpy.props.StringProperty(
+        name="Heriverse Project Name",
+        description="Name of the Heriverse project",
+        default=""
+    )
+    
+    bpy.types.Scene.heriverse_export_panorama = bpy.props.BoolProperty(
+        name="Export Default Panorama",
+        description="Export the default panorama (defsky.jpg) to the project",
+        default=True
+    )
+    
+    # Texture compression options
+    bpy.types.Scene.heriverse_enable_compression = bpy.props.BoolProperty(
+        name="Enable Texture Compression",
+        description="Enable compression for textures in Heriverse export",
+        default=True
+    )
+    
+    bpy.types.Scene.heriverse_texture_max_res = bpy.props.IntProperty(
+        name="Max Resolution",
+        description="Maximum resolution for texture edges",
+        default=4096,
+        min=512,
+        max=8192
+    )
+    
+    bpy.types.Scene.heriverse_texture_quality = bpy.props.IntProperty(
+        name="Texture Quality",
+        description="JPEG compression quality (100=lossless, 80=good, 60=compressed, 40=heavily compressed)",
+        default=80,
+        min=10,
+        max=100
+    )
 
+    # Aggiungi queste proprietà alla classe Blender
+    bpy.types.Scene.heriverse_paradata_texture_compression = bpy.props.BoolProperty(
+        name="Compress ParaData Textures",
+        description="Enable compression for textures in ParaData objects",
+        default=True
+    )
+
+    bpy.types.Scene.heriverse_paradata_texture_quality = bpy.props.IntProperty(
+        name="ParaData Texture Quality",
+        description="JPEG compression quality for ParaData textures",
+        min=10,
+        max=100,
+        default=75
+    )
+
+    bpy.types.Scene.heriverse_rmdoc_texture_max_res = bpy.props.IntProperty(
+        name="ParaData Max Resolution",
+        description="Maximum resolution for ParaData textures",
+        default=2048,
+        min=512,
+        max=8192
+    )
+
+    bpy.types.Scene.heriverse_rmdoc_texture_quality = bpy.props.IntProperty(
+        name="ParaData Quality",
+        description="JPEG compression quality for ParaData textures (100=lossless, 80=good, 60=compressed, 40=heavily compressed)",
+        default=60,
+        min=10,
+        max=100
+    )
+
+    bpy.types.Scene.heriverse_preserve_rmdoc_transform = bpy.props.BoolProperty(
+        name="Preserve ParaData Transforms",
+        description="Save and restore original position, rotation and scale of ParaData objects during export",
+        default=True
+    )
 
 def unregister():
     for cls in classes:
@@ -986,4 +1075,16 @@ def unregister():
 
     del bpy.types.Scene.password
     del bpy.types.Scene.enable_image_compression
-
+    
+    # Remove Heriverse properties
+    del bpy.types.Scene.heriverse_rmdoc_texture_quality
+    del bpy.types.Scene.heriverse_rmdoc_texture_max_res
+    del bpy.types.Scene.heriverse_paradata_texture_compression
+    del bpy.types.Scene.heriverse_paradata_texture_quality
+    del bpy.types.Scene.heriverse_export_path
+    del bpy.types.Scene.heriverse_project_name
+    del bpy.types.Scene.heriverse_export_panorama
+    del bpy.types.Scene.heriverse_enable_compression
+    del bpy.types.Scene.heriverse_texture_max_res
+    del bpy.types.Scene.heriverse_texture_quality
+    del bpy.types.Scene.heriverse_preserve_rmdoc_transform

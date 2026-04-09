@@ -1,6 +1,6 @@
-import bpy
-from bpy.types import Operator, AddonPreferences, Panel
-from bpy.props import StringProperty, BoolProperty
+import bpy # type: ignore
+from bpy.types import Operator, AddonPreferences, Panel # type: ignore
+from bpy.props import StringProperty, BoolProperty # type: ignore
 import os
 
 import logging
@@ -35,8 +35,8 @@ class OBJECT_OT_load_EMdb_xlsx(Operator):
     def execute(self, context):
         # import functions for this task
         # execute function
-        import pandas
-        import openpyxl
+        import pandas # type: ignore
+        import openpyxl # type: ignore
         scene = context.scene
         newfile_name = bpy.path.abspath(scene.EMdb_xlsx_filepath)
         data = pandas.read_excel(newfile_name, sheet_name ='sources')
@@ -44,43 +44,13 @@ class OBJECT_OT_load_EMdb_xlsx(Operator):
         #print(df)
         for index, row in df.iterrows():
             #print(row['c1'], row['c2'])
-            for source_item in scene.em_sources_list:
+            for source_item in scene.em_tools.em_sources_list:
                 if source_item.name == row['Name']:
                     source_item.description = row['Description']
-            for source_v_item in scene.em_v_sources_list:
+            for source_v_item in scene.em_tools.em_v_sources_list:
                 if source_v_item.name == row['Name']:
                     source_v_item.description = row['Description']
-
         return {'FINISHED'}
-
-'''
-class ToolsPanelEMdbsources:
-    bl_label = "EMdb sources list"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        obj = context.active_object
-        #resolution_pano = scene.RES_pano
-
-        #row = layout.row()
-        #row.label(text="Google Spreadsheet setup")
-        row = layout.row()
-        row.label(text="Load Source list xlsx file")
-        row.operator("load.emdb_xlsx", icon="STICKY_UVS_DISABLE", text='')
-        row.operator("open_prefs_panel.em_tools", icon="SETTINGS", text="")
-        row = layout.row()
-        layout.prop(scene, "EMdb_xlsx_filepath", text="xlsx path")
-
-
-class VIEW3D_PT_EMDB_panel(Panel, ToolsPanelEMdbsources):
-    bl_category = "EM"
-    bl_idname = "VIEW3D_PT_EMDB_panel"
-    #bl_context = "objectmode"
-'''
 
 classes = [
     OBJECT_OT_EM_open_prefs,
@@ -90,8 +60,6 @@ classes = [
 
 # Registration
 def register():
-    #prima di registrare classi, verifico se ci sono
-    #check_external_modules()
 
     for cls in classes:
         try:
@@ -105,7 +73,8 @@ def register():
         name="Path to xlsx file",
         default="",
         description="Path to xlsx file",
-        subtype='FILE_PATH'
+        subtype='FILE_PATH',
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
     )
 
 def unregister():

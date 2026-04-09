@@ -1,58 +1,117 @@
 # Extended Matrix 3D tools (EMTools)
 
-is a Python-based addon that brings the formal language Extended Matrix within the Blender 3D open-source software (version 4.2 or newer). It has been designed and developed by E. Demetrescu (CNR-ISPC, former ITABC) and is part of the Extended Matrix Framework (EMF).
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/zalmoxes-laran/EM-blender-tools)](https://github.com/zalmoxes-laran/EM-blender-tools/releases)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Blender](https://img.shields.io/badge/Blender-4.0+-orange.svg)](https://www.blender.org/)
+[![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
 
-With EMtools users can import, manage, visualize, modify, represent and export all the information (geometries, data and paradata) concerning micro and macro scale contexts, single objects or collections of objects.
+EMTools is a Blender extension that brings the formal language Extended Matrix within Blender 3D. Designed and developed by E. Demetrescu (CNR-ISPC), it's part of the Extended Matrix Framework (EMF).
 
-The [EMtools user manual](https://docs.extendedmatrix.org/projects/EM-tools/en/latest/) is freely available.
+## 🚀 Features
 
-Channel to join the community of users [Telegram open-group](https%3A%2F%2Ft.me%2FUserGroupEM&sa=D&sntz=1&usg=AOvVaw2i0GwLjFfh3axOAltYyvlR)
+* **Extended Matrix Integration** - Full support for EM language in Blender
+* **Archaeological Workflows** - 3D stratigraphic annotation and analysis
+* **Reconstruction Hypotheses** - Create and manage multiple reconstruction scenarios
+* **Data Export** - Export to ATON 3 (EMviq app) and various formats
+* **Visual Analysis** - Period-based visualization, custom display modes
+* **Statistical Tools (experimental)** - Volume calculations, source analysis, property density
 
-For more details see the [EM-tools page](https://www.extendedmatrix.org/em-framework/emtools) on the EM website
+## 📚 Documentation
 
-## Main features
+- [**User Manual**](https://docs.extendedmatrix.org/projects/EM-tools/en/latest/) - Complete documentation
+- [**Installation Guide**](https://docs.extendedmatrix.org/projects/EM-tools/en/latest/installation.html) - Setup instructions
+- [**API Reference**](https://docs.extendedmatrix.org/projects/EM-tools/en/latest/api.html) - Developer documentation
 
-* Integration of Extended Matrix language with Blender
+## 💬 Community
 
-* Full support to create and visualize reconstruction hypotheses (EM reconstructive workflow)
+- [Telegram Group](https://t.me/UserGroupEM) - Join our community
+- [Facebook Group](https://www.facebook.com/groups/extendedmatrix) - Extended Matrix users
+- [EM Website](https://www.extendedmatrix.org) - Official website
 
-* Full support to annotate archaeological stratigraphy in 3D (EM archaeological workflow)
+## 🔧 Installation
 
-* Full support to annotate masonry stratigraphy (EM architectonical survey workflow)
+### For Users
 
-* Export full dataset to ATON 3 (EMviq app)
+1. Download the latest `.blext` file from [Releases](https://github.com/zalmoxes-laran/EM-blender-tools/releases)
+2. In Blender: `Edit → Preferences → Add-ons → Install from Disk`
+3. Select the downloaded file and enable the addon
 
-## Extended Matrix Tool - Version 1.4 Release Notes
+### For Developers
 
-### New Features
+```bash
+# Clone repository in a folder (not in the Blender paths..)
+git clone --branch EMtools_3dgraphy https://github.com/zalmoxes-laran/EM-blender-tools.git
+cd EM-blender-tools
 
-* **XLSX Reader:** Added functionality to import source files in `.xlsx` format for easier data handling and integration.
+# Setup development environment
 
-* **JSON Exporter for Aton & EMviq:** Extended support for JSON serialization, enabling the export of knowledge graphs for [Aton](https://osiris.itabc.cnr.it/aton/) and specifically for [EMviq](http://osiris.itabc.cnr.it/scenebaker/index.php/projects/emviq/) workflows.
-* **External Libraries Installation:** Introduced new systems to easily install and manage external libraries within the tool.
-* **Aton Integration:** Added the ability to launch Aton directly from Blender for streamlined workflows.
-* **Statistics & Geometry Tools:** New tools for calculating statistics, volumes, and dimensions, including surface areas of wall structures based on selected proxy models.
-* **Automatic Property Numbering:** Support for automatic numbering of properties within the Extended Matrix.
-* **Collection Exporter for EMviq:** Added functionality to export collections directly to EMviq for enhanced data management.
+# For windows
+.\em.bat setup
 
-### Improvements
+# For mac/linux
+chmod +x em.sh
+./em.sh setup
 
-* **Code Cleanup:** General code optimization and performance improvements to enhance overall tool stability and efficiency.
+# Open in VSCode
+code .
 
-* **Bug Fixes:** Resolved various issues and added tools for opening node-related resources, such as images, directly from the operating system.
+# Install "blender Development" addon for Visual Studio Code and use it to run Blender
 
-### Extended Functionality
+```
 
-* **Transformation Stratigraphic Unit (TSU):** Version 1.4 introduces support for TSU, allowing for detailed characterization of degradation surfaces.
+See [Development Guide](docs/installation.rst#development-setup) for detailed instructions.
 
-These updates make the Extended Matrix Tool even more powerful and adaptable to advanced workflows, enhancing integration with Aton and EMviq.
+## 🗺️ Roadmap
 
-## Contribute
+See [ROADMAP.md](ROADMAP.md) for planned features and development timeline.
 
-You are more than welcome to contribute to the project by spotting bugs/issues and providing code or solutions through pull requests to fix or improve EM functionalities (see TODO list below). Get in touch here on github, through the [telegram open-group](https://t.me/UserGroupEM) or through the other channels.
+### Current Focus (v1.5)
+- ✅ Extension format migration
+- ✅ Automated dependency management
+- 🚧 Enhanced graph visualization
+- 🔮 Hybrid enrichment: add US and paradata from XLSX pipeline to an existing in-scene GraphML
 
-## TODO list
+## 🤝 Contributing
 
-* [ ] New label system
-* [ ] New section for visual tools
-* [ ] Simplified proxy generation
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md).
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📋 Requirements
+
+- Blender 4.0+
+- Python 3.11 (bundled with Blender)
+- 500MB free disk space
+- 4GB RAM (8GB recommended)
+
+## 📄 License
+
+This project is licensed under the GNU General Public License v3.0 - see [LICENSE](LICENSE) for details.
+
+## 🏆 Credits
+
+**Lead Developer**: Emanuel Demetrescu (CNR-ISPC)
+
+**Contributors**: See [Contributors](https://github.com/zalmoxes-laran/EM-blender-tools/graphs/contributors)
+
+## 📞 Support
+
+- 📧 **Email**: emanuel.demetrescu@cnr.it
+- 💬 **Telegram**: [@UserGroupEM](https://t.me/UserGroupEM)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/zalmoxes-laran/EM-blender-tools/issues)
+
+## 🔗 Related Projects
+
+- [Extended Matrix Framework](https://www.extendedmatrix.org)
+- [ATON Framework](https://github.com/phoenixbf/aton)
+- [s3Dgraphy Library](https://github.com/zalmoxes-laran/s3Dgraphy) *(coming soon)*
+
+---
+
+<p align="center">
+  Made with ❤️ for the Cultural Heritage community
+</p>

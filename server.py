@@ -11,7 +11,14 @@ class EM_ServerPanel:
     bl_label = "EM Server"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-
+    bl_options = {'DEFAULT_CLOSED'}
+    
+    @classmethod
+    def poll(cls, context):
+        em_tools = context.scene.em_tools
+        # Restituisce True se mode_em_advanced è False, quindi il pannello viene mostrato solo in modalità 3D GIS
+        return em_tools.mode_em_advanced
+    
     def draw(self, context):
         layout = self.layout
         scene = context.scene

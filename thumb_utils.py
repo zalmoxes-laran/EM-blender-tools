@@ -1,0 +1,970 @@
+# thumb_utils.py
+"""
+Sistema di gestione thumbnails per EM-Tools
+Gestisce cache locale, generazione thumbnails e preview collections
+
+✅ OPTIMIZED: Integrated with async thumbnail loading system
+"""
+
+import os
+import json
+import hashlib
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional
+import bpy
+import bpy.utils.previews
+from PIL import Image, ImageOps
+
+# ✅ OPTIMIZED: Import async thumbnail loader
+from .thumb_async import load_thumbnails_async, get_cached_thumbnails
+
+# Collezione globale per le preview
+preview_collections = {}
+
+# Cache per evitare loop infiniti nel caricamento thumbnails
+_cached_us_thumbs = {}  # {us_node_id: [(doc_key, name, desc, icon_id, i), ...]}
+_last_us_id = None
+_last_resource_folder = None
+
+_resolved_paths_cache = {}  # {raw_path: resolved_absolute_path}
+
+def resolve_resource_folder(resource_folder_path: str, verbose: bool = False) -> str:
+    """
+    Risolve correttamente la resource_folder sia che sia assoluta o relativa.
+    ✅ CON CACHE per evitare di risolvere lo stesso path ripetutamente.
+    
+    Args:
+        resource_folder_path: Path che può essere:
+            - Assoluto: "/path/completo/Resources"
+            - Relativo Blender: "//Resources" o "//../Resources" (relativo al .blend)
+            - Relativo semplice: "Resources" o "../Resources"
+        verbose: Se True, stampa i log di debug (default: False)
+    
+    Returns:
+        Path assoluto risolto correttamente, o None se impossibile
+    """
+    global _resolved_paths_cache
+    
+    if not resource_folder_path:
+        return None
+    
+    # Pulisci solo spazi, NON normalizzare ancora!
+    resource_folder_path = resource_folder_path.strip()
+    
+    # ✅ CHECK CACHE: se già risolto, ritorna subito
+    if resource_folder_path in _resolved_paths_cache:
+        return _resolved_paths_cache[resource_folder_path]
+    
+    # Se è già assoluto (non inizia con // e non contiene ..), ritorna
+    if os.path.isabs(resource_folder_path) and not resource_folder_path.startswith("//"):
+        result = os.path.normpath(resource_folder_path)
+        if verbose:
+            print(f"✓ Path assoluto: {result}")
+        _resolved_paths_cache[resource_folder_path] = result
+        return result
+    
+    # Se inizia con //, lascia che bpy.path.abspath lo risolva
+    # IMPORTANTE: NON normalizzare prima, o perdi il ".." in "//../"
+    if resource_folder_path.startswith("//"):
+        resolved = bpy.path.abspath(resource_folder_path)
+        # SOLO ORA normalizza il risultato
+        result = os.path.normpath(resolved)
+        if verbose:
+            print(f"✓ Path relativo Blender: {resource_folder_path} → {result}")
+        
+        # Verifica che il path esista
+        if os.path.exists(result):
+            _resolved_paths_cache[resource_folder_path] = result
+            return result
+        else:
+            if verbose:
+                print(f"⚠️ Path risolto non esiste: {result}")
+            _resolved_paths_cache[resource_folder_path] = None
+            return None
+    
+    # Path relativo semplice (senza //)
+    blend_path = bpy.data.filepath
+    if not blend_path:
+        if verbose:
+            print("⚠️ File .blend non salvato, impossibile risolvere path relativi senza //")
+        return None
+    
+    blend_dir = os.path.dirname(blend_path)
+    # Risolvi il path relativo rispetto alla directory del .blend
+    absolute_path = os.path.join(blend_dir, resource_folder_path)
+    result = os.path.normpath(absolute_path)
+    if verbose:
+        print(f"✓ Path relativo: {resource_folder_path} → {result}")
+    
+    # Verifica che il path esista
+    if os.path.exists(result):
+        _resolved_paths_cache[resource_folder_path] = result
+        return result
+    else:
+        if verbose:
+            print(f"⚠️ Path risolto non esiste: {result}")
+        _resolved_paths_cache[resource_folder_path] = None
+        return None
+
+def em_thumbs_root(resource_folder_path: str = None) -> Path:
+    """
+    Restituisce la cartella thumbnails per una resource_folder specifica.
+    ✅ NUOVO: Hash basato sul path RELATIVO per portabilità cross-PC OneDrive.
+    Se due file ausiliari usano la stessa resource_folder, condividono le thumbs.
+    
+    Args:
+        resource_folder_path: Path relativo (//Resources) o assoluto della resource_folder.
+                             Se None, usa cartella temporanea.
+    
+    Returns:
+        Path alla cartella thumbs specifica per questa resource_folder
+    """
+    blend_path = bpy.data.filepath
+    
+    # Se non c'è resource_folder, usa temp
+    if not resource_folder_path:
+        import tempfile
+        temp_dir = Path(tempfile.gettempdir()) / "EM_thumbs_temp"
+        temp_dir.mkdir(exist_ok=True)
+        return temp_dir
+    
+    # ✅ CHIAVE: Usa il path RELATIVO ORIGINALE per l'hash (non quello assoluto)
+    # Questo garantisce che lo stesso path relativo generi lo stesso hash su PC diversi
+    path_for_hash = resource_folder_path.strip()
+
+    # Normalizza solo i separatori per consistenza cross-platform
+    path_for_hash = path_for_hash.replace('\\', '/')
+
+    # ✅ CRITICAL FIX: Rimuovi slash finale per consistenza
+    # "/path/to/folder/" e "/path/to/folder" devono generare lo stesso hash!
+    path_for_hash = path_for_hash.rstrip('/')
+    
+    # Genera hash dal path relativo
+    path_hash = hashlib.md5(path_for_hash.encode('utf-8')).hexdigest()[:8]
+    
+    # Estrai nome cartella dal path relativo
+    if path_for_hash.startswith('//'):
+        folder_name = os.path.basename(path_for_hash.lstrip('/'))
+    else:
+        folder_name = os.path.basename(os.path.normpath(path_for_hash))
+    
+    
+
+    # Se la cartella è vuota, usa un default
+    if not folder_name:
+        #print("⚠️ Nome cartella vuoto, usando default 'Resources'") 
+        folder_name = "Resources"
+    
+    unique_name = f"{folder_name}_{path_hash}"
+    
+    # Crea thumbs vicino al .blend (o in temp se non salvato)
+    if blend_path:
+        blend_dir = os.path.dirname(blend_path)
+        thumbs_dir = os.path.join(blend_dir, "EM_thumbs", unique_name)
+    else:
+        import tempfile
+        thumbs_dir = os.path.join(tempfile.gettempdir(), "EM_thumbs", unique_name)
+    
+    # Crea la directory
+    os.makedirs(thumbs_dir, exist_ok=True)
+    
+    return Path(thumbs_dir)
+
+def get_thumbs_path_display(resource_folder_path: str = None) -> str:
+    """
+    Ritorna una stringa user-friendly per mostrare il path della cartella thumbs nella UI.
+    
+    Returns:
+        Stringa formattata per la UI (es. ".../EM_thumbs/Resources_abc12345")
+    """
+    if not resource_folder_path:
+        return "[Not configured]"
+    
+    try:
+        thumbs_root = em_thumbs_root(resource_folder_path)
+        
+        # Mostra solo le ultime 2-3 parti del path per brevità
+        parts = Path(thumbs_root).parts
+        if len(parts) >= 3:
+            display = f".../{'/'.join(parts[-3:])}"
+        else:
+            display = str(thumbs_root)
+        
+        return display
+    except Exception as e:
+        return f"[Error: {str(e)}]"
+
+def get_file_hash(file_path: str, content_based: bool = True) -> str:
+    """
+    Genera hash SHA1 per il file (per naming cache).
+
+    Args:
+        file_path: Path del file
+        content_based: Se True, hash basato sul contenuto del file (apre il file, può triggerare OneDrive).
+                      Se False, hash basato solo sul path normalizzato (NON apre il file).
+
+    ✅ OPTIMIZATION: Usa content_based=False quando cerchi thumbnails esistenti per evitare
+    di triggerare download OneDrive dei file originali.
+    """
+    hash_sha1 = hashlib.sha1()
+
+    if not content_based:
+        # ✅ FIX: Hash basato solo sul path normalizzato - NON tocca il file originale
+        normalized_path = os.path.normpath(file_path)
+        hash_sha1.update(normalized_path.encode('utf-8'))
+        return hash_sha1.hexdigest()
+
+    # Hash basato sul contenuto (comportamento originale)
+    try:
+        with open(file_path, "rb") as f:
+            # Leggi in chunks per file grandi
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_sha1.update(chunk)
+        return hash_sha1.hexdigest()
+    except (IOError, OSError):
+        # Fallback usando solo il path
+        hash_sha1.update(file_path.encode('utf-8'))
+        return hash_sha1.hexdigest()
+
+
+def get_thumb_path(file_path: str, thumbs_root: Path) -> Path:
+    """Genera percorso per thumbnail usando bucket hash structure"""
+    file_hash = get_file_hash(file_path)
+    # Crea struttura bucket: ab/cd/hash.png
+    bucket_path = thumbs_root / file_hash[:2] / file_hash[2:4]
+    bucket_path.mkdir(parents=True, exist_ok=True)
+    return bucket_path / f"{file_hash}.png"
+
+
+def load_index_json(thumbs_root: Path) -> Dict:
+    """Carica l'indice JSON dalla cache"""
+    index_path = thumbs_root / "index.json"
+    if index_path.exists():
+        try:
+            with open(index_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    
+    return {
+        "version": 1,
+        "items": {}
+    }
+
+
+def save_index_json(thumbs_root: Path, index_data: Dict):
+    """Salva l'indice JSON nella cache"""
+    index_path = thumbs_root / "index.json"
+    try:
+        with open(index_path, 'w', encoding='utf-8') as f:
+            json.dump(index_data, f, indent=2, ensure_ascii=False)
+    except IOError as e:
+        print(f"Errore salvando index.json: {e}")
+
+
+def generate_thumbnail(src_path: str, thumb_path: Path, size: Tuple[int, int] = (256, 256)) -> bool:
+    """Genera thumbnail da file immagine/documento"""
+    try:
+        src_path = bpy.path.abspath(src_path)
+        
+        if not os.path.exists(src_path):
+            print(f"File sorgente non trovato: {src_path}")
+            return False
+        
+        # Estensioni supportate
+        ext = os.path.splitext(src_path)[1].lower()
+        
+        if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tga']:
+            # Immagini dirette
+            with Image.open(src_path) as img:
+                # Converti in RGB se necessario
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    img = img.convert('RGB')
+                
+                # Ridimensiona mantenendo aspect ratio
+                img_resized = ImageOps.fit(img, size, Image.Resampling.LANCZOS)
+                img_resized.save(thumb_path, 'PNG', quality=90)
+                return True
+        
+        elif ext == '.pdf':
+            # Per PDF usa preview della prima pagina
+            try:
+                import fitz  # PyMuPDF
+                doc = fitz.open(src_path)
+                page = doc[0]
+                mat = fitz.Matrix(1.0, 1.0)  # Scala 1:1
+                pix = page.get_pixmap(matrix=mat)
+                img_data = pix.tobytes("ppm")
+                
+                import io
+                with Image.open(io.BytesIO(img_data)) as img:
+                    img_resized = ImageOps.fit(img, size, Image.Resampling.LANCZOS)
+                    img_resized.save(thumb_path, 'PNG', quality=90)
+                doc.close()
+                return True
+            except ImportError:
+                print("PyMuPDF non disponibile per PDF thumbnails")
+                return create_placeholder_thumb(thumb_path, "PDF", size)
+
+        else:
+            # File non supportato - crea placeholder
+            return create_placeholder_thumb(thumb_path, ext.upper(), size)
+            
+    except Exception as e:
+        print(f"Errore generando thumbnail per {src_path}: {e}")
+        return create_placeholder_thumb(thumb_path, "ERR", size)
+
+
+def create_placeholder_thumb(thumb_path: Path, text: str, size: Tuple[int, int] = (256, 256)) -> bool:
+    """Crea thumbnail placeholder per file non supportati"""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        
+        # Crea immagine placeholder
+        img = Image.new('RGB', size, color=(100, 100, 100))
+        draw = ImageDraw.Draw(img)
+        
+        # Tenta di usare font predefinito
+        try:
+            font = ImageFont.truetype("arial.ttf", 24)
+        except (IOError, OSError):
+            font = ImageFont.load_default()
+        
+        # Testo centrato
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        x = (size[0] - text_width) // 2
+        y = (size[1] - text_height) // 2
+        
+        draw.text((x, y), text, fill=(200, 200, 200), font=font)
+        
+        img.save(thumb_path, 'PNG')
+        return True
+        
+    except Exception as e:
+        print(f"Errore creando placeholder: {e}")
+        return False
+
+
+def _check_resource_source_has_thumbs(source, source_index, verbose=False):
+    """
+    Check if a single resource source (AuxiliaryFileProperties)
+    has valid thumbnails available. Both types expose .resource_folder (duck typing).
+
+    Returns:
+        bool: True if valid thumbnails found
+    """
+    if not source.resource_folder:
+        if verbose:
+            print(f"  [{source_index}] {source.name}: No resource_folder - skipping")
+        return False
+
+    resource_folder_raw = source.resource_folder
+    resource_folder_resolved = resolve_resource_folder(resource_folder_raw, verbose=False)
+
+    if not resource_folder_resolved or not os.path.exists(resource_folder_resolved):
+        if verbose:
+            print(f"  [{source_index}] {source.name}: Cannot resolve path '{resource_folder_raw}' - skipping")
+        return False
+
+    thumbs_root = em_thumbs_root(resource_folder_raw)
+
+    if verbose:
+        print(f"  [{source_index}] {source.name}: Checking thumbs in {thumbs_root}")
+
+    if not thumbs_root.exists():
+        if verbose:
+            print(f"  [{source_index}] {source.name}: Thumbs folder does not exist - skipping")
+        return False
+
+    index_data = load_index_json(thumbs_root)
+    items = index_data.get("items", {})
+
+    if not items:
+        if verbose:
+            print(f"  [{source_index}] {source.name}: Index is empty - skipping")
+        return False
+
+    # Verify at least one thumbnail exists on disk
+    valid_thumbs_count = 0
+    for doc_key, item_data in items.items():
+        thumb_rel_path = item_data.get("thumb", "")
+        if thumb_rel_path:
+            thumb_abs_path = thumbs_root / thumb_rel_path
+            if thumb_abs_path.exists():
+                valid_thumbs_count += 1
+
+    if valid_thumbs_count == 0:
+        if verbose:
+            print(f"  [{source_index}] {source.name}: No valid thumbnails (index has {len(items)} items but none exist on disk) - skipping")
+        return False
+
+    if verbose:
+        print(f"  [{source_index}] {source.name}: Found {valid_thumbs_count} valid thumbnails!")
+    return True
+
+
+def has_doc_thumbs(verbose: bool = False) -> bool:
+    """
+    Check if thumbnails are available from ANY resource source of the active GraphML.
+    Searches both auxiliary files (legacy) and standalone resource collections.
+
+    Args:
+        verbose: If True, print detailed debug messages (default: False)
+
+    Returns:
+        bool: True if valid thumbnails are available, False otherwise
+    """
+    try:
+        scene = bpy.context.scene
+        em_tools = scene.em_tools
+
+        if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            if verbose:
+                print(f"has_doc_thumbs: No GraphML loaded")
+            return False
+
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+
+        # Check all auxiliary files (including resource_collection type)
+        if graphml.auxiliary_files and len(graphml.auxiliary_files) > 0:
+            if verbose:
+                print(f"has_doc_thumbs: Checking {len(graphml.auxiliary_files)} auxiliary files...")
+            for aux_index, aux_file in enumerate(graphml.auxiliary_files):
+                if _check_resource_source_has_thumbs(aux_file, aux_index, verbose):
+                    return True
+
+        if verbose:
+            print(f"has_doc_thumbs: No valid thumbnails found in any source")
+        return False
+
+    except Exception as e:
+        if verbose:
+            print(f"Error in has_doc_thumbs(): {e}")
+            import traceback
+            traceback.print_exc()
+        return False
+
+
+# thumb_utils.py - AGGIUNGI QUESTE VARIABILI GLOBALI ALL'INIZIO DEL FILE
+
+# Cache per evitare loop infiniti nel caricamento thumbnails
+_cached_us_thumbs = {}  # {us_node_id: [(doc_key, name, desc, icon_id, i), ...]}
+_last_us_id = None
+_last_resource_folder = None
+
+# ✅ OPTIMIZED: Async-aware wrapper for thumbnail loading
+def reload_doc_previews_for_us_async(us_node_id: str, on_ready_callback=None) -> List[Tuple[str, str, str, int, int]]:
+    """
+    ✅ OPTIMIZED: Async version of reload_doc_previews_for_us
+
+    Loads thumbnails asynchronously in background thread.
+    Returns cached thumbnails immediately if available, otherwise starts background load.
+
+    Args:
+        us_node_id: US node ID to load thumbnails for
+        on_ready_callback: Optional callback when thumbnails are ready
+
+    Returns:
+        List of cached thumbnails (may be empty if still loading)
+    """
+    if not us_node_id:
+        return []
+
+    try:
+        scene = bpy.context.scene
+        em_tools = scene.em_tools
+
+        # Check if we have an active GraphML
+        if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            return []
+
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+
+        # Check if we have auxiliary files (includes resource_collection type)
+        if not graphml.auxiliary_files or len(graphml.auxiliary_files) == 0:
+            return []
+
+        # Use async thumbnail loader - returns cached or starts background load
+        thumbnails = load_thumbnails_async(us_node_id, graphml.auxiliary_files, on_ready_callback)
+
+        # Convert to the format expected by UI (if we have results)
+        if thumbnails:
+            return thumbnails
+        else:
+            # No cached thumbnails yet, background loading started
+            return []
+
+    except Exception as e:
+        print(f"Error in async thumbnail loading: {e}")
+        return []
+
+
+# ... resto del codice ...
+
+def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int, int]]:
+    """
+    Carica preview filtrate per una specifica US cercando in TUTTI i file ausiliari.
+    IMPORTANTE: Usa il thumbs_root corretto basato sulla resource_folder.
+    ✅ CON CACHE per evitare loop infiniti
+    ✅ MIGLIORAMENTO: Cerca in TUTTI i file ausiliari, non solo quello "attivo"
+    """
+    global preview_collections, _cached_us_thumbs, _last_us_id, _last_resource_folder
+
+    if not us_node_id:
+        return []
+
+    try:
+        scene = bpy.context.scene
+        em_tools = scene.em_tools
+
+        # Verifica che ci sia un GraphML attivo
+        if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            return []
+
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+
+        # Check auxiliary files (includes resource_collection type)
+        if not graphml.auxiliary_files or len(graphml.auxiliary_files) == 0:
+            return []
+
+        # Search ALL auxiliary files until valid thumbs are found
+        for aux_file in graphml.auxiliary_files:
+            # Salta se questo aux non ha resource_folder
+            if not aux_file.resource_folder:
+                continue
+
+            # ✅ FIXED: Mantieni il path RAW per consistenza hash
+            resource_folder_raw = aux_file.resource_folder
+
+            # ✅ CACHE CHECK: Se US e resource_folder non sono cambiati, restituisci cache
+            cache_key = f"{us_node_id}_{resource_folder_raw}"
+            if cache_key in _cached_us_thumbs:
+                cached_result = _cached_us_thumbs[cache_key]
+                # Ritorna solo se la cache contiene effettivamente thumbs
+                if cached_result:
+                    return cached_result
+                else:
+                    # Cache vuota, prova il prossimo aux file
+                    continue
+
+            # Risolvi il path
+            resource_folder_resolved = resolve_resource_folder(resource_folder_raw, verbose=False)
+
+            if not resource_folder_resolved or not os.path.exists(resource_folder_resolved):
+                # Path non valido, salva cache vuota e prova il prossimo
+                _cached_us_thumbs[cache_key] = []
+                continue
+
+            # ✅ FIXED: Usa il path RAW per calcolare thumbs_root (per consistenza hash)
+            thumbs_root = em_thumbs_root(resource_folder_raw)
+            resource_folder = resource_folder_resolved  # Usa il risolto per operazioni file
+
+            # Verifica che la cartella thumbs esista
+            if not thumbs_root.exists():
+                _cached_us_thumbs[cache_key] = []
+                continue
+
+            # ✅ Ottieni il grafo (solo una volta, fuori dal loop aux)
+            from s3dgraphy import get_graph
+            graph = get_graph(graphml.name)
+
+            if not graph:
+                _cached_us_thumbs[cache_key] = []
+                continue
+
+            # ✅ OPTIMIZATION: Use graph.indices for O(1) edge lookups instead of O(E) iteration
+            # Trova DocumentNode collegati a questa US
+            # Supporta entrambe le direzioni per retrocompatibilità:
+            # - CORRETTO:  US → DocumentNode (has_documentation)
+            # - LEGACY:    DocumentNode → US (direzione sbagliata, usata in vecchi import)
+            us_document_ids = set()
+
+            # ✅ OPTIMIZATION: O(1) lookup using composite index for outgoing edges
+            source_key_doc = (us_node_id, "has_documentation")
+            for edge in graph.indices.edges_by_source_type.get(source_key_doc, []):
+                us_document_ids.add(edge.edge_target)
+
+            # ✅ OPTIMIZATION: O(1) lookup using composite index for incoming edges (legacy)
+            target_key_doc = (us_node_id, "has_documentation")
+            for edge in graph.indices.edges_by_target_type.get(target_key_doc, []):
+                us_document_ids.add(edge.edge_source)
+
+            # ⚠️  Fallback per generic_connection (vecchio sistema)
+            source_key_gen = (us_node_id, "generic_connection")
+            for edge in graph.indices.edges_by_source_type.get(source_key_gen, []):
+                # Verifica che il target sia effettivamente un DocumentNode
+                target_node = graph.find_node_by_id(edge.edge_target)
+                if target_node and hasattr(target_node, 'node_type') and 'document' in target_node.node_type.lower():
+                    us_document_ids.add(edge.edge_target)
+
+            target_key_gen = (us_node_id, "generic_connection")
+            for edge in graph.indices.edges_by_target_type.get(target_key_gen, []):
+                # Verifica che il source sia effettivamente un DocumentNode
+                source_node = graph.find_node_by_id(edge.edge_source)
+                if source_node and hasattr(source_node, 'node_type') and 'document' in source_node.node_type.lower():
+                    us_document_ids.add(edge.edge_source)
+
+            if not us_document_ids:
+                # Nessun documento per questa US, salva cache vuota e prova il prossimo aux
+                _cached_us_thumbs[cache_key] = []
+                continue
+
+            # Inizializza preview collection se necessario
+            if "doc_previews" not in preview_collections:
+                pcoll = bpy.utils.previews.new()
+                preview_collections["doc_previews"] = pcoll
+            else:
+                pcoll = preview_collections["doc_previews"]
+
+            # Carica indice
+            index_data = load_index_json(thumbs_root)
+
+            enum_items = []
+            i = 0
+
+            # Per ogni DocumentNode dell'US, cerca la sua thumbnail
+            for doc_id in us_document_ids:
+                doc_node = graph.find_node_by_id(doc_id)
+                if not doc_node:
+                    continue
+
+                # ✅ OPTIMIZATION: O(1) lookup using composite index instead of O(E) iteration
+                # Trova LinkNode collegati a questo DocumentNode
+                source_key_link = (doc_id, "has_linked_resource")
+                link_edges = graph.indices.edges_by_source_type.get(source_key_link, [])
+
+                for edge in link_edges:
+                    link_node = graph.find_node_by_id(edge.edge_target)
+
+                    if link_node and hasattr(link_node, 'node_type') and link_node.node_type.lower() == 'link':
+                        file_url = ''
+                        if hasattr(link_node, 'data') and isinstance(link_node.data, dict):
+                            file_url = link_node.data.get('url', '')
+
+                        if not file_url:
+                            continue
+
+                        # Risoluzione path
+                        if os.path.isabs(file_url):
+                            file_path = file_url
+                        else:
+                            file_path = os.path.join(resource_folder, file_url)
+                            file_path = os.path.normpath(file_path)
+
+                        # ✅ OPTIMIZATION: Cerca nell'indice usando src_path invece di ricalcolare hash
+                        # Questo evita di aprire il file originale (che trigghererebbe OneDrive download)
+
+                        # Calcola path relativo rispetto a resource_folder (come salvato nell'index)
+                        try:
+                            # Normalizza entrambi i path
+                            file_path_abs = os.path.abspath(file_path)
+                            resource_folder_abs = os.path.abspath(resource_folder)
+
+                            # Calcola path relativo
+                            file_path_rel = os.path.relpath(file_path_abs, resource_folder_abs)
+                            # Normalizza separatori per cross-platform (usa sempre /)
+                            file_path_rel = file_path_rel.replace("\\", "/")
+                        except ValueError:
+                            # Path su drive diversi (Windows), usa path assoluto
+                            file_path_rel = file_path
+
+                        # Cerca nell'indice usando src_path
+                        doc_key = None
+                        for key, item_data in index_data.get("items", {}).items():
+                            if "src_path" in item_data:
+                                indexed_path = item_data["src_path"].replace("\\", "/")
+
+                                # Confronta path relativi normalizzati
+                                if indexed_path == file_path_rel:
+                                    doc_key = key
+                                    break
+
+                        # Se non trovato, calcola hash (triggera download OneDrive se file non locale)
+                        if doc_key is None:
+                            file_hash = get_file_hash(file_path)
+                            doc_key = f"doc_{file_hash}"
+
+                        # Verifica che il doc_key esista nell'indice
+                        if doc_key not in index_data.get("items", {}):
+                            continue
+
+                        item_data = index_data["items"][doc_key]
+                        thumb_rel_path = item_data.get("thumb", "")
+
+                        if not thumb_rel_path:
+                            continue
+
+                        thumb_abs_path = thumbs_root / thumb_rel_path
+
+                        if thumb_abs_path.exists():
+                            try:
+                                if doc_key not in pcoll:
+                                    thumb = pcoll.load(doc_key, str(thumb_abs_path), 'IMAGE')
+                                    icon_id = thumb.icon_id
+                                else:
+                                    icon_id = pcoll[doc_key].icon_id
+
+                                # ✅ FIX: Usa il path assoluto calcolato invece del relativo dall'index
+                                src_path_abs = file_path
+                                doc_name = os.path.basename(file_path)
+
+                                enum_items.append((
+                                    doc_key,        # identifier
+                                    doc_name,       # name
+                                    src_path_abs,   # description (absolute path)
+                                    icon_id,        # icon
+                                    i               # number
+                                ))
+                                i += 1
+
+                            except Exception as e:
+                                print(f"❌ Error loading thumbnail: {e}")
+
+            # ✅ SALVA IN CACHE
+            _cached_us_thumbs[cache_key] = enum_items
+
+            # ✅ Se abbiamo trovato thumbs, ritorna subito
+            # Altrimenti continua a cercare negli altri aux files
+            if enum_items:
+                return enum_items
+
+        # ✅ Nessun aux file ha prodotto thumbs valide
+        return []
+        
+    except Exception as e:
+        print(f"Errore in reload_doc_previews_for_us: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+# ✅  FUNZIONE PER PULIRE LA CACHE QUANDO NECESSARIO
+def clear_us_thumbs_cache():
+    """Pulisce la cache delle thumbnails US. Da chiamare quando si rigenera."""
+    global _cached_us_thumbs
+    _cached_us_thumbs.clear()
+    print("🗑️ Cache thumbnails US pulita")
+
+# ✅ NUOVA FUNZIONE
+def clear_resolved_paths_cache():
+    """Pulisce la cache dei path risolti. Da chiamare quando cambia il file .blend."""
+    global _resolved_paths_cache
+    _resolved_paths_cache.clear()
+    print("🗑️ Cache path risolti pulita")
+
+# ✅ NUOVA FUNZIONE COMBO
+def clear_all_thumbs_caches():
+    """Pulisce tutte le cache del sistema thumbnails."""
+    clear_us_thumbs_cache()
+    clear_resolved_paths_cache()
+    print("🧹 Tutte le cache thumbnails pulite")
+
+
+def force_reload_thumbs_cache():
+    """
+    Forza il ricaricamento della cache thumbnails per l'US attualmente selezionata.
+    Da usare quando i DocumentNode sono stati modificati o aggiunti.
+    ✅ PORTED: Usa scene.em_tools.stratigraphy invece di scene.em_stratigraphy_manager
+    """
+    try:
+        import bpy
+        scene = bpy.context.scene
+        em_tools = scene.em_tools
+        strat = em_tools.stratigraphy  # ✅ NEW: Usa il path centralizzato
+
+        if not strat.units or strat.units_index < 0:
+            print("⚠️ Nessuna US selezionata")
+            return False
+
+        selected_us = strat.units[strat.units_index]
+
+        # Pulisci la cache per questa US
+        global _cached_us_thumbs
+        keys_to_remove = [k for k in _cached_us_thumbs.keys() if k.startswith(selected_us.id_node)]
+        for key in keys_to_remove:
+            del _cached_us_thumbs[key]
+
+        print(f"✅ Cache pulita per US: {selected_us.name} (id_node: {selected_us.id_node})")
+        return True
+
+    except Exception as e:
+        print(f"❌ Errore durante pulizia cache: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def reload_doc_previews_from_cache() -> List[Tuple[str, str, str, int, int]]:
+    """Carica preview dalla cache per EnumProperty (LEGACY - non più usato)"""
+    global preview_collections
+
+    scene = bpy.context.scene
+    em_tools = scene.em_tools
+
+    if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+        return {'CANCELLED'}
+        
+    graphml = em_tools.graphml_files[em_tools.active_file_index]
+    
+    if not graphml.auxiliary_files or graphml.active_auxiliary_index < 0:
+        return {'CANCELLED'}
+        
+    aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
+
+    if not aux_file.resource_folder:
+        return {'CANCELLED'}
+
+    # ✅ FIXED: Usa il path RAW per calcolare thumbs_root (per consistenza hash)
+    resource_folder_raw = aux_file.resource_folder
+    thumbs_root = em_thumbs_root(resource_folder_raw)
+    
+    # Inizializza preview collection se necessario
+    if "doc_previews" not in preview_collections:
+        pcoll = bpy.utils.previews.new()
+        preview_collections["doc_previews"] = pcoll
+    else:
+        pcoll = preview_collections["doc_previews"]
+    
+    # Carica indice
+    index_data = load_index_json(thumbs_root)
+    
+    enum_items = []
+    i = 0
+    
+    for doc_key, item_data in index_data.get("items", {}).items():
+        thumb_rel_path = item_data.get("thumb", "")
+        if not thumb_rel_path:
+            continue
+            
+        thumb_abs_path = thumbs_root / thumb_rel_path
+        
+        if thumb_abs_path.exists():
+            # Carica in preview collection
+            try:
+                if doc_key not in pcoll:
+                    thumb = pcoll.load(doc_key, str(thumb_abs_path), 'IMAGE')
+                    icon_id = thumb.icon_id
+                else:
+                    icon_id = pcoll[doc_key].icon_id
+                
+                # Nome documento dal src_path
+                src_path = item_data.get("src_path", doc_key)
+                doc_name = os.path.basename(src_path)
+                
+                enum_items.append((
+                    doc_key,        # identifier
+                    doc_name,       # name
+                    src_path,       # description
+                    icon_id,        # icon
+                    i               # number
+                ))
+                i += 1
+                
+            except Exception as e:
+                print(f"Errore caricando preview per {doc_key}: {e}")
+    
+    return enum_items
+
+
+def get_src_path_from_doc_key(doc_key: str) -> Optional[str]:
+    """
+    Ottiene il percorso originale del documento dal doc_key.
+    Ricostruisce il path assoluto dal path relativo salvato nell'indice.
+    I path relativi sono relativi alla directory del file .blend.
+    
+    Args:
+        doc_key: Chiave del documento (es. "doc_abc123...")
+        
+    Returns:
+        Path assoluto del file originale, o None se non trovato
+    """
+    try:
+        scene = bpy.context.scene
+        em_tools = scene.em_tools
+        
+        # Ottieni resource_folder per calcolare thumbs_root
+        if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            print(f"get_src_path_from_doc_key: Nessun GraphML caricato")
+            return None
+        
+        graphml = em_tools.graphml_files[em_tools.active_file_index]
+        
+        if not graphml.auxiliary_files or graphml.active_auxiliary_index < 0:
+            print(f"get_src_path_from_doc_key: Nessun file ausiliario")
+            return None
+        
+        aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
+        
+        if not aux_file.resource_folder:
+            print(f"get_src_path_from_doc_key: Resource folder non configurata")
+            return None
+
+        # ✅ FIXED: Mantieni il path RAW per consistenza hash
+        resource_folder_raw = aux_file.resource_folder
+
+        # ✅ USA resolve_resource_folder per verifiche
+        resource_folder = resolve_resource_folder(resource_folder_raw)
+
+        if not resource_folder:
+            print(f"get_src_path_from_doc_key: Impossibile risolvere resource_folder")
+            return None
+
+        # ✅ FIXED: Usa il path RAW per calcolare thumbs_root (per consistenza hash)
+        thumbs_root = em_thumbs_root(resource_folder_raw)
+        index_data = load_index_json(thumbs_root)
+        
+        # Ottieni src_path dall'indice
+        item_data = index_data.get("items", {}).get(doc_key, {})
+        relative_src_path = item_data.get("src_path")
+        
+        if not relative_src_path:
+            print(f"get_src_path_from_doc_key: src_path non trovato per {doc_key}")
+            return None
+        
+        # ✅ Ricostruisci path assoluto partendo dalla directory del .blend
+        # Controlla se è già assoluto (per retrocompatibilità con vecchi indici)
+        if os.path.isabs(relative_src_path):
+            # Path assoluto (vecchio formato) - verifica che esista
+            if os.path.exists(relative_src_path):
+                return relative_src_path
+            else:
+                print(f"⚠️ Path assoluto non esiste più: {relative_src_path}")
+                return None
+        else:
+            # Path relativo (nuovo formato) - ricostruisci assoluto dal .blend
+            blend_path = bpy.data.filepath
+            if not blend_path:
+                print(f"⚠️ File .blend non salvato, impossibile ricostruire path assoluto")
+                return None
+            
+            blend_dir = os.path.dirname(blend_path)
+            absolute_path = os.path.join(blend_dir, relative_src_path)
+            absolute_path = os.path.normpath(absolute_path)
+            
+            if os.path.exists(absolute_path):
+                return absolute_path
+            else:
+                print(f"⚠️ File non trovato: {absolute_path}")
+                print(f"     Blend directory: {blend_dir}")
+                print(f"     Path relativo: {relative_src_path}")
+                return None
+    
+    except Exception as e:
+        print(f"Errore in get_src_path_from_doc_key: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def cleanup_preview_collections():
+    """Pulisce le preview collections e tutte le cache (per unregister)"""
+    global preview_collections
+    
+    for pcoll in preview_collections.values():
+        bpy.utils.previews.remove(pcoll)
+    preview_collections.clear()
+    
+    # ✅ Pulisci anche tutte le cache
+    clear_all_thumbs_caches()

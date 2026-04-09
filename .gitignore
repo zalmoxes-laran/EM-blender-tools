@@ -1,17 +1,53 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
-__pycache__/*.*
+**/__pycache__/
 *.py[cod]
-
-# C extensions
+*$py.class
 *.so
+
+# Blender Extension specifics
+blender_manifest.toml          
+*.blext                        
+build/                         
+dist/                          
+releases/                     
+wheels/                        
+*.whl
+
+# Directory releases ESTERNA (per sicurezza)
+../EM_Tools_Releases/
+
+# Version management
+version.json.backup
+
+# Development backups
+*.backup
+
+# VSCode workspace specifics
+.vscode/settings.json          
+.vscode/launch.json           
+
+# Ma mantieni il template VSCode!
+# .vscode/settings_template.json  <- QUESTO VA COMMITTATO
+
+# IDE files
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
 
 # Distribution / packaging
 .Python
 env/
-build/
+venv/
+ENV/
+env.bak/
+venv.bak/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -20,43 +56,77 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
+# Testing
+.coverage
+.pytest_cache/
 htmlcov/
 .tox/
-.coverage
-.coverage.*
 .cache
 nosetests.xml
 coverage.xml
-*,cover
+*.cover
+.hypothesis/
 
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-
-# Sphinx documentation
+# Documentation builds
 docs/_build/
-
-# PyBuilder
 target/
-.vscode/launch.json
-em-blender-tools_updater/EM-blender-tools_updater_status.json
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# Logs
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Temporary files
+*~
+.tmp/
+temp/
+
+# LaTeX
+*.fls
+*.fdb_latexmk
+*.aux
+*.log
+*.out
+*.synctex.gz
+
+# Archives
+*.tar.gz
+*.zip
+*.7z
+*.rar
+
+# Dev utilities output
+dev_utils/foldertree.txt
+
+# Telegram credentials (se presenti)
 telegram_credentials.py
-.vscode/settings.json
+
+# Specific EM Tools files
+em-blender-tools_updater/EM-blender-tools_updater_status.json
+# Generated manifest - ignore
+/blender_manifest.toml
+
+# Build directory - always ignore
+build/
+/build/
+**/build/
+
+blext/
+
+# Ignora i mapping JSON degli utenti ma mantieni la struttura
+user_mappings/*/*.json
+!user_mappings/*/README.txt

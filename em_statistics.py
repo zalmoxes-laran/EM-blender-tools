@@ -1,261 +1,248 @@
 import bpy
+import csv
+import os
 import bmesh
 import math
-from bpy.types import Operator
-from bpy.types import Menu, Panel, UIList, PropertyGroup
-import os
-
-import csv
 from bpy_extras.io_utils import ExportHelper
-from bpy.props import BoolProperty, PointerProperty
-from bpy.types import Operator
-from .functions import *
+from s3dgraphy import convert_shape2type
 
-# Operatore per esportare in CSV
-class EMExportCSV(Operator, ExportHelper):
+# Percorso del file CSV con materiali e densità
+CSV_FILE = os.path.join(os.path.dirname(__file__), "resources/materials", "ch_materials.csv")
+
+def load_materials():
+    """Carica le densità dei materiali dal file CSV."""
+    materials = {}
+    try:
+        with open(CSV_FILE, mode='r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                materials[row['material'].strip().lower()] = float(row['density_kg_m3'])
+    except FileNotFoundError:
+        print(f"File {CSV_FILE} non trovato.")
+    return materials
+
+def get_material_items(self, context):
+    """Restituisce l'elenco dei materiali come items per EnumProperty."""
+    materials = load_materials()
+    return [(mat, mat.title(), "") for mat in sorted(materials.keys())] if materials else [("none", "No material available", "")]
+
+
+def is_mesh_closed(bm):
+    """
+    Verifies if a bmesh is closed, with additional safety checks.
+    
+    Args:
+        bm (bmesh.types.BMesh): Bmesh to check
+    
+    Returns:
+        bool: True if mesh is closed, False otherwise
+    """
+    try:
+        # Check if all edges have exactly 2 faces
+        return all(len(edge.link_faces) == 2 for edge in bm.edges if edge.is_valid)
+    except Exception as e:
+        print(f"Mesh closure check error: {e}")
+        return False
+
+def calculate_object_metrics(obj, selected_material, materials):
+    """
+    Calculate volume, weight, and surface metrics for an object with improved error handling.
+    
+    Args:
+        obj (bpy.types.Object): Blender object to measure
+        selected_material (str): Selected material for weight calculation
+        materials (dict): Dictionary of material densities
+    
+    Returns:
+        tuple: (volume, weight, measurement_type, total_surface, vertical_surface)
+    """
+    if not obj or obj.type != 'MESH':
+        return None, None, None, None, None
+    
+    print(f"Processing object: {obj.name}")
+    
+    # Create a copy of the mesh to avoid modifying the original
+    mesh = obj.data.copy()
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.faces.ensure_lookup_table()
+    
+    # Reset bmesh to handle potential degenerate geometries
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    
+    # Check if mesh is valid
+    if not bm.faces or len(bm.faces) == 0:
+        bm.free()
+        return 0, 0, "Empty Mesh", 0, 0
+    
+    # Improved volume calculation with fallback
+    try:
+        if is_mesh_closed(bm):
+            measurement_type = "Closed Mesh"
+            volume = bm.calc_volume()
+        else:
+            measurement_type = "Open Mesh - Bounding Box"
+            dimensions = obj.dimensions
+            volume = max(0, dimensions.x * dimensions.y * dimensions.z)
+    except Exception as e:
+        print(f"Volume calculation error: {e}")
+        measurement_type = "Volume Calculation Failed"
+        volume = 0
+    
+    # Safe surface area calculation
+    try:
+        total_surface = sum(f.calc_area() for f in bm.faces if f.calc_area() > 0)
+    except Exception as e:
+        print(f"Total surface calculation error: {e}")
+        total_surface = 0
+    
+    # Improved vertical surface calculation with robust normal checking
+    def is_vertical_face(face):
+        try:
+            # Normalize the normal vector to handle potential zero-length vectors
+            normal = face.normal.normalized()
+            # Check if normal is close to vertical (between 85 and 95 degrees from Z-axis)
+            return 85 <= math.degrees(normal.angle((0, 0, 1))) <= 95
+        except Exception as e:
+            print(f"Vertical face calculation error: {e}")
+            return False
+    
+    try:
+        vertical_surface = sum(f.calc_area() for f in bm.faces if is_vertical_face(f))
+    except Exception as e:
+        print(f"Vertical surface calculation error: {e}")
+        vertical_surface = 0
+    
+    # Clean up
+    bm.free()
+    
+    # Weight calculation
+    try:
+        material_name = selected_material.strip().lower()
+        weight = volume * materials.get(material_name, 0) if volume and material_name in materials else 0
+    except Exception as e:
+        print(f"Weight calculation error: {e}")
+        weight = 0
+    
+    return volume, weight, measurement_type, total_surface, vertical_surface
+
+# Proprietà per la selezione delle opzioni di esportazione
+class EMSceneProperties(bpy.types.PropertyGroup):
+    export_volume: bpy.props.BoolProperty(name="Calculate Volume", default=True)
+    export_weight: bpy.props.BoolProperty(name="Calculate weight", default=False)
+    material_list: bpy.props.EnumProperty(name="Material", items=get_material_items)
+
+class EMExportCSV(bpy.types.Operator, ExportHelper):
+    """Esporta i dati degli oggetti selezionati in CSV"""
     bl_idname = "export_mesh.csv"
     bl_label = "Esporta dati Mesh in CSV"
-
-    # Specifica dell'estensione del file
     filename_ext = ".csv"
-
-    filter_glob: bpy.props.StringProperty(
-            default='*.csv',
-            options={'HIDDEN'},
-            maxlen=255,
-            ) # type: ignore
+    filter_glob: bpy.props.StringProperty(default="*.csv", options={'HIDDEN'})
 
     def execute(self, context):
-        # Accedi alle impostazioni della scena per vedere se esportare il CSV
-        #em_csv_settings = context.scene.em_csv_settings
-        #if em_csv_settings.export_csv:
-        self.esporta_in_csv(context.selected_objects, self.filepath)
-        self.report({'INFO'}, f"Dati esportati in {self.filepath}")
+        scene_props = context.scene.em_properties
+        materials = load_materials()
+
+        # Definisci esattamente i fieldnames come nel writer
+        fieldnames = [
+            "Nome", 
+            "Tipo_Nodo_EM", 
+            "Epoca", 
+            "Descrizione", 
+            "Volume_(m³)", 
+            "Tipo_Misurazione", 
+            "Peso_(kg)", 
+            "Superficie_Totale_(m²)", 
+            "Superficie_Verticale_(m²)"
+        ]
+
+        data = []
+        for obj in context.selected_objects:
+            if obj.type != 'MESH':
+                continue
+            
+            selected_material = scene_props.material_list
+            volume, weight, measurement_type, total_surface, vertical_surface = calculate_object_metrics(obj, selected_material, materials)
+            
+            epoca = description = emnode = "none"
+            strat = bpy.context.scene.em_tools.stratigraphy  # ✅ Nuovo
+            for i in strat.units:
+                if obj.name == i.name:
+                    epoca = i.epoch
+                    description = i.description
+                    emnode = convert_shape2type(i.shape, i.border_style)[0]
+                    break
+            
+            row = {
+                "Nome": obj.name,
+                "Tipo_Nodo_EM": emnode,
+                "Epoca": epoca,
+                "Descrizione": description,
+                "Volume_(m³)": format_decimal(volume) if scene_props.export_volume else "",
+                "Tipo_Misurazione": measurement_type,
+                "Peso_(kg)": format_decimal(weight) if scene_props.export_weight else "",
+                "Superficie_Totale_(m²)": format_decimal(total_surface),
+                "Superficie_Verticale_(m²)": format_decimal(vertical_surface)
+            }
+            data.append(row)
+
+        # Esportazione CSV con punto e virgola come separatore
+        with open(self.filepath, 'w', newline='', encoding='utf-8-sig') as file:
+            writer = csv.DictWriter(file, fieldnames=fieldnames, delimiter=';')
+            writer.writeheader()
+            writer.writerows(data)
+
+        self.report({'INFO'}, f"Esportato CSV in {self.filepath}")
         return {'FINISHED'}
 
-    def esporta_in_csv(self, objs, file_path):
-        with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
-            fieldnames = ['Name', 'EM node', 'Epoch', 'Description', 'Volume (m^3)', 'Measurement type', 'Total Surface (m^2)', 'Vertical surface (m^2)']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=';')
+def format_decimal(value):
+    """Converte un valore numerico con virgola come separatore decimale."""
+    try:
+        if isinstance(value, (int, float)):
+            return f"{value:.3f}".replace('.', ',')
+        return str(value)
+    except Exception:
+        return str(value)
 
-            writer.writeheader()
-            for obj in objs:
-                # Calcola le metriche per l'oggetto
-                misurazione = None
-                volume, misurazione = self.calcola_volume(obj)
-                superficie_totale = self.arrotonda_a_tre_decimali(self.calcola_superficie_totale(obj))
-                superficie_verticale =self.arrotonda_a_tre_decimali(self.calcola_superficie_verticale(obj))
-                epoca = None
-                description = None
-                emnode = ["none","none"]
 
-                for i in bpy.context.scene.em_list:
-                    if obj.name == i.name:
-                        epoca = i.epoch
-                        description = i.description
-                        emnode = convert_shape2type(i.shape)
-                        pass 
-                print(obj.name)
-                if emnode:
-                    # Scrivi le metriche nel CSV
-                    
-                    writer.writerow({
-                        'Name': obj.name,
-                        'EM node': emnode[0],
-                        'Epoch': epoca,
-                        'Description': description,
-                        'Volume (m^3)': self.arrotonda_a_tre_decimali(volume),
-                        'Measurement type': misurazione,
-                        'Total Surface (m^2)': superficie_totale,
-                        'Vertical surface (m^2)': superficie_verticale
-                    })
-
-    def calcola_volume(self, obj):
-        #obj = bpy.context.active_object
-        misurazione = None
-        if obj == None or obj.type != 'MESH':
-            print("Nessun oggetto mesh selezionato.")
-            return
-
-        # Verifica se il conteggio dei poligoni è zero
-        if len(obj.data.polygons) == 0:
-            return        
-
-        bpy.context.view_layer.update()
-
-        # Crea una copia dell'oggetto con i modificatori applicati
-        depsgraph = bpy.context.evaluated_depsgraph_get()
-        obj_evaluated = obj.evaluated_get(depsgraph)
-        mesh_copy = obj_evaluated.to_mesh()
-
-        bm = bmesh.new()
-        bm.from_mesh(mesh_copy)
-        bm.faces.ensure_lookup_table()
-
-        for edge in bm.edges:
-            # Se un bordo è condiviso da meno di 2 facce, la mesh è aperta
-            if len(edge.link_faces) < 2:
-                dimensions = obj.dimensions
-                volume = dimensions.x * dimensions.y * dimensions.z
-                misurazione = "Bounding box (open mesh)"
-                bm.free()
-                return volume, misurazione
-        try:
-            # Calcola il volume
-            volume = bm.calc_volume(signed=False)
-            misurazione = "Closed Mesh"
-        except ValueError:
-            volume = -10
-            misurazione = "Not possible to calculate"
-            #print("Impossibile calcolare il volume. Assicurati che la mesh sia chiusa.")
-        finally:
-            # Rilascia il BMesh e rimuovi la copia della mesh
-            bm.free()
-            obj_evaluated.to_mesh_clear()
-        return volume, misurazione
-
-    def calcola_superficie_totale(self, obj):
-        #obj = bpy.context.active_object
-        
-        if obj == None or obj.type != 'MESH':
-            print("Nessun oggetto mesh selezionato.")
-            return
-
-        # Verifica se il conteggio dei poligoni è zero
-        if len(obj.data.polygons) == 0:
-            return        
-
-        bpy.context.view_layer.update()
-        
-        bm = bmesh.new()
-        bm.from_mesh(obj.data)
-        bm.faces.ensure_lookup_table()
-
-        superficie = sum(f.calc_area() for f in bm.faces)
-        bm.free()
-
-        print(f"Superficie totale: {superficie} metri quadri")
-        return superficie
-
-    def calcola_superficie_verticale(self, obj, soglia_angolo=5):
-        #obj = bpy.context.active_object
-        print(obj.name)
-        if obj == None or obj.type != 'MESH':
-            print("Nessun oggetto mesh selezionato.")
-            return
-
-        # Verifica se il conteggio dei poligoni è zero
-        if len(obj.data.polygons) == 0:
-            return        
-
-        bpy.context.view_layer.update()
-        
-        bm = bmesh.new()
-        bm.from_mesh(obj.data)
-        bm.faces.ensure_lookup_table()
-
-        superficie_verticale = 0
-        for f in bm.faces:
-            # Controlla che la normale non sia un vettore di lunghezza zero
-            if f.normal.length > 0:  
-                # Calcolare l'angolo tra il vettore normale del poligono e l'asse Z
-                angolo = f.normal.angle([0,0,1])
-                
-                # Convertire l'angolo in gradi
-                angolo_gradi = math.degrees(angolo)
-
-                # Verificare se l'angolo è inferiore alla soglia_angolo
-                if 90 - soglia_angolo <= angolo_gradi <= 90 + soglia_angolo:
-                    superficie_verticale += f.calc_area()
-
-        print(f"Superficie verticale: {superficie_verticale} metri quadri")
-        return superficie_verticale
-
-    def arrotonda_a_tre_decimali(self, valore):
-        return round(valore, 2)
-
-class EM_statistics:
-    bl_label = "EM statistics"
+# Pannello per l'interfaccia utente
+class EM_PT_ExportPanel(bpy.types.Panel):
+    bl_label = "Export statistics (Experimental)"
+    bl_idname = "EM_PT_ExportPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
+    bl_category = 'EM Bridge'
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        # ✅ Show only if experimental features are enabled
+        return hasattr(context.scene, 'em_tools') and context.scene.em_tools.experimental_features
+
+    def draw_header(self, context):
+        self.layout.label(text="", icon='EXPERIMENTAL')
 
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
-        em_csv_settings = scene.em_csv_settings
-        obj = context.object
-        
-        if len(scene.em_list) > 0:
-            is_em_list = True
-        else:
-            is_em_list = False
-            
-        layout = self.layout
-        scene = context.scene
-        em_csv_settings = scene.em_csv_settings
-        
-        # Pulsante per esportare il CSV
-        #row = layout.row()
-        #row.prop(em_csv_settings, "export_csv", text="Esporta CSV")
+        scene_props = context.scene.em_properties
+        layout.prop(scene_props, "export_volume")
+        layout.prop(scene_props, "export_weight")
+        if scene_props.export_weight:
+            layout.prop(scene_props, "material_list")
+        layout.operator("export_mesh.csv")
 
-        # Pulsante che attiva l'operatore del file browser se il booleano è vero
-        #if em_csv_settings.export_csv:
-        row = layout.row()
-        row.label(text="Select proxies and export statistical data")
-        row = layout.row()
-        row.operator("export_mesh.csv", text="Export CSV")
-
-class VIEW3D_PT_Statistics(Panel, EM_statistics):
-    bl_category = "EM"
-    bl_idname = "VIEW3D_PT_Statistics"
-    bl_context = "objectmode"
-
-#SETUP MENU
-#####################################################################
-
-# Gruppo di proprietà
-class EMProperties(PropertyGroup):
-    export_csv: BoolProperty(
-        name="Esporta CSV",
-        description="Se attivato, esporterà i dati mesh selezionati in CSV",
-        default=False
-    ) # type: ignore
-
-classes = [
-    VIEW3D_PT_Statistics
-    ]
-
+# Registrazione delle classi
 def register():
+    bpy.utils.register_class(EMSceneProperties)
+    bpy.types.Scene.em_properties = bpy.props.PointerProperty(type=EMSceneProperties)
     bpy.utils.register_class(EMExportCSV)
-    #bpy.utils.register_class(EMPanel)
-    bpy.utils.register_class(EMProperties)
+    bpy.utils.register_class(EM_PT_ExportPanel)
 
-    bpy.types.Scene.em_csv_settings = PointerProperty(type=EMProperties)
-
-    for cls in classes:
-        bpy.utils.register_class(cls)
-'''
-    bpy.types.Scene.EMdb_file = StringProperty(
-        name = "EM db file",
-        default = "",
-        description = "Define the path to the EM db (sqlite) file",
-        subtype = 'FILE_PATH'
-    )   
-
-    bpy.types.Scene.EMDosCo_dir = StringProperty(
-        name = "EM DosCo folder",
-        default = "",
-        description = "Define the path to the EM DosCo folder",
-        subtype = 'DIR_PATH'
-    )   
-'''
 def unregister():
+    bpy.utils.unregister_class(EM_PT_ExportPanel)
     bpy.utils.unregister_class(EMExportCSV)
-    #bpy.utils.unregister_class(EMPanel)
-    bpy.utils.unregister_class(EMProperties)
-    del bpy.types.Scene.em_csv_settings
+    bpy.utils.unregister_class(EMSceneProperties)
+    del bpy.types.Scene.em_properties
 
-    for cls in classes:
-        bpy.utils.unregister_class(cls)
-    #del bpy.types.Scene.EMdb_file
-    #del bpy.types.Scene.EMDosCo_dir
+if __name__ == "__main__":
+    register()
