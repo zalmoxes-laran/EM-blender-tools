@@ -577,6 +577,37 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
         default=0
     )  # type: ignore
 
+    # Graph metadata (cached from s3dgraphy nodes)
+    graph_author: StringProperty(
+        name="Author",
+        description="Author name from the graph",
+        default=""
+    )  # type: ignore
+
+    graph_author_orcid: StringProperty(
+        name="Author ORCID",
+        description="ORCID URL for the graph author",
+        default=""
+    )  # type: ignore
+
+    graph_license: StringProperty(
+        name="License",
+        description="License type for the graph data",
+        default=""
+    )  # type: ignore
+
+    graph_license_url: StringProperty(
+        name="License URL",
+        description="URL to the license page",
+        default=""
+    )  # type: ignore
+
+    graph_embargo: StringProperty(
+        name="Embargo",
+        description="Embargo status for the graph data",
+        default=""
+    )  # type: ignore
+
     # Enrich GraphML section
     enrich_expanded: BoolProperty(
         name="Enrich GraphML",

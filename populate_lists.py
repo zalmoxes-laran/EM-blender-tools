@@ -335,6 +335,48 @@ def update_graph_statistics(context, graph, graphml_file_item):
     graphml_file_item.property_count = property_count
     graphml_file_item.document_count = document_count
 
+    # Graph metadata from header vocabulary (e.g. [ORCID:...; license:...; embargo:...])
+    graphml_file_item.graph_author = ""
+    graphml_file_item.graph_author_orcid = ""
+    graphml_file_item.graph_license = ""
+    graphml_file_item.graph_license_url = ""
+    graphml_file_item.graph_embargo = ""
+
+    attrs = graph.attributes
+
+    # Author
+    author_name = attrs.get("author_name", "")
+    author_surname = attrs.get("author_surname", "")
+    author_display = f"{author_name} {author_surname}".strip()
+    if author_display:
+        graphml_file_item.graph_author = author_display
+    orcid = attrs.get("ORCID", "")
+    if orcid:
+        graphml_file_item.graph_author_orcid = f"https://orcid.org/{orcid}"
+
+    # License
+    license_type = attrs.get("license", "")
+    if license_type:
+        graphml_file_item.graph_license = str(license_type)
+        # Build URL for common Creative Commons licenses
+        lt = str(license_type).upper()
+        if lt.startswith("CC-"):
+            slug = lt.replace("CC-", "").lower()
+            graphml_file_item.graph_license_url = f"https://creativecommons.org/licenses/{slug}/4.0/"
+
+    # Embargo
+    embargo_val = attrs.get("embargo", "")
+    if embargo_val:
+        from datetime import date
+        try:
+            embargo_date = date.fromisoformat(str(embargo_val))
+            if embargo_date >= date.today():
+                graphml_file_item.graph_embargo = f"Until {embargo_val}"
+            else:
+                graphml_file_item.graph_embargo = f"Expired ({embargo_val})"
+        except (ValueError, TypeError):
+            graphml_file_item.graph_embargo = str(embargo_val)
+
     print(f"✅ Graph statistics updated: {stratigraphic_count} stratigraphic, {epoch_count} epochs, {property_count} properties, {document_count} documents")
 
 

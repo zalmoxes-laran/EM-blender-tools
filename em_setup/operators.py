@@ -4,7 +4,7 @@ import bpy
 import os
 import json
 from bpy.types import Operator
-from bpy.props import EnumProperty, IntProperty
+from bpy.props import EnumProperty, IntProperty, StringProperty
 
 from s3dgraphy import get_graph, remove_graph, get_all_graph_ids
 
@@ -633,6 +633,32 @@ class AUXILIARY_OT_import_now(Operator):
             return {'CANCELLED'}
 
 
+class EM_OT_open_author_url(Operator):
+    """Open the author's ORCID page in the system browser"""
+    bl_idname = "em.open_author_url"
+    bl_label = "Open Author ORCID"
+
+    url: StringProperty()  # type: ignore
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open(self.url)
+        return {'FINISHED'}
+
+
+class EM_OT_open_license_url(Operator):
+    """Open the license page in the system browser"""
+    bl_idname = "em.open_license_url"
+    bl_label = "Open License Page"
+
+    url: StringProperty()  # type: ignore
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open(self.url)
+        return {'FINISHED'}
+
+
 # Registration
 classes = (
     EM_create_collection,
@@ -648,6 +674,8 @@ classes = (
     AUXILIARY_OT_context_menu_invoke,
     AUXILIARY_OT_reload_file,
     AUXILIARY_OT_import_now,
+    EM_OT_open_author_url,
+    EM_OT_open_license_url,
 )
 
 

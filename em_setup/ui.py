@@ -714,6 +714,40 @@ class EM_SetupPanel(bpy.types.Panel):
                 col.label(text="Documents")
                 col.label(text=str(active_file.document_count), icon='FILE_TEXT')
 
+                # Metadata row: Author, License, Embargo
+                has_meta = (active_file.graph_author or active_file.graph_license
+                            or active_file.graph_embargo)
+                if has_meta:
+                    box.separator(factor=0.3)
+                    meta_row = box.row(align=True)
+                    meta_split = meta_row.split()
+
+                    if active_file.graph_author:
+                        col = meta_split.column()
+                        col.label(text="Author")
+                        if active_file.graph_author_orcid:
+                            op = col.operator("em.open_author_url",
+                                              text=active_file.graph_author,
+                                              icon='USER')
+                            op.url = active_file.graph_author_orcid
+                        else:
+                            col.label(text=active_file.graph_author, icon='USER')
+
+                    if active_file.graph_license:
+                        col = meta_split.column()
+                        col.label(text="License")
+                        if active_file.graph_license_url:
+                            op = col.operator("em.open_license_url",
+                                              text=active_file.graph_license,
+                                              icon='COPY_ID')
+                            op.url = active_file.graph_license_url
+                        else:
+                            col.label(text=active_file.graph_license, icon='COPY_ID')
+
+                    if active_file.graph_embargo:
+                        col = meta_split.column()
+                        col.label(text="Embargo")
+                        col.label(text=active_file.graph_embargo, icon='LOCKED')
 
                 ####################################################
 
