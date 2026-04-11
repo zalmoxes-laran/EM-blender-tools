@@ -368,20 +368,26 @@ def register():
         default=0
     )
     
-    # Then register the classes
+    # Then register the classes (with reload safety)
     for cls in classes:
-        bpy.utils.register_class(cls)
+        try:
+            bpy.utils.register_class(cls)
+        except ValueError:
+            pass
 
 def unregister():
-    # Remove scene properties
-    del bpy.types.Scene.proxy_inflate_thickness
-    del bpy.types.Scene.proxy_inflate_offset
-    del bpy.types.Scene.proxy_auto_inflate_on_export
-    del bpy.types.Scene.proxy_inflate_stats
-    
-    # Unregister classes
+    # Remove only properties created by THIS module
+    # NOTE: proxy_inflate_thickness, proxy_inflate_offset, proxy_auto_inflate_on_export
+    # are managed by em_props.py under scene.em_tools
+    if hasattr(bpy.types.Scene, "proxy_inflate_stats"):
+        del bpy.types.Scene.proxy_inflate_stats
+
+    # Unregister classes (reverse order, with safety for reload)
     for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
+        try:
+            bpy.utils.unregister_class(cls)
+        except RuntimeError:
+            pass
 
 
 # Integration with export system

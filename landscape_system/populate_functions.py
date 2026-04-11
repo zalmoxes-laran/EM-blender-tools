@@ -102,7 +102,7 @@ def populate_stratigraphy_list_landscape(context, all_graphs):
         stratigraphic_nodes = [
             node for node in graph.nodes 
             if hasattr(node, 'node_type') and 
-            node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
+            node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
         ]
         
         strat = scene.em_tools.stratigraphy  # ✅ Nuovo

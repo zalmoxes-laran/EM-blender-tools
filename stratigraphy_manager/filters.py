@@ -40,7 +40,7 @@ class EM_filter_lists(Operator):
 
         all_strat_nodes = [node for node in graph.nodes
                            if hasattr(node, 'node_type') and
-                           node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
+                           node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
 
         filtered_items = self._apply_common_filters(scene, graph, all_strat_nodes)
 
@@ -94,7 +94,7 @@ class EM_filter_lists(Operator):
 
             all_strat_nodes = [node for node in graph.nodes
                                if hasattr(node, 'node_type') and
-                               node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
+                               node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
 
             filtered_items = self._apply_common_filters(scene, graph, all_strat_nodes)
 
@@ -238,7 +238,7 @@ class EM_reset_filters(Operator):
 
                     strat_nodes = [node for node in graph.nodes
                                    if hasattr(node, 'node_type') and
-                                   node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
+                                   node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
 
                     from ..populate_lists import build_instance_chains
                     instance_chains = build_instance_chains(graph)

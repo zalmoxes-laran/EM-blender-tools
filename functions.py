@@ -1467,7 +1467,7 @@ def check_material_presence(matname):
 
 
 def consolidate_EM_material_presence(overwrite_mats):
-    EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
+    EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
     for EM_mat_name in EM_mat_list:
         if not check_material_presence(EM_mat_name):
             EM_mat = bpy.data.materials.new(name=EM_mat_name)
@@ -1542,7 +1542,7 @@ def set_materials_using_EM_list(context):
             
             # Resto della logica invariata...
             if hasattr(current_ob_em_list, 'node_type') and current_ob_em_list.node_type:
-                if current_ob_em_list.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']:
+                if current_ob_em_list.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']:
                     ob_material_name = current_ob_em_list.node_type
             else:
                 # Fallback con shape/border

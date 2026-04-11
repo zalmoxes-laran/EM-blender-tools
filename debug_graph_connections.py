@@ -56,7 +56,7 @@ class EM_OT_debug_graph_connections(Operator):
         # Get all stratigraphic nodes
         strat_nodes = [node for node in graph.nodes
                        if hasattr(node, 'node_type') and
-                       node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD']]
+                       node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU']]
 
         if strat_nodes:
             # Test first 5 nodes

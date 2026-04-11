@@ -318,7 +318,7 @@ def update_graph_statistics(context, graph, graphml_file_item):
 
     # ✅ OPTIMIZATION: Use s3dgraphy indices directly for faster counting
     # Access indices.nodes_by_type which is already built by s3dgraphy
-    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
+    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
     stratigraphic_count = sum(
         len(graph.indices.nodes_by_type.get(node_type, []))
         for node_type in stratigraphic_types
@@ -400,7 +400,7 @@ def populate_blender_lists_from_graph(context, graph):
 
     # ✅ OPTIMIZED: Batch node filtering - 1 iteration instead of 14 queries
     # Get all nodes once and filter by type in a single pass - O(n) instead of O(14×n)
-    stratigraphic_types = {'US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs'}
+    stratigraphic_types = {'US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'serSU', 'serUSD', 'serUSVn', 'serUSVs'}
 
     stratigraphic_nodes = []
     document_nodes = []

@@ -280,7 +280,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             return list(graph.nodes)
         
         elif self.filter_mode == 'STRATIGRAPHIC':
-            stratigraphic_types = ['US', 'USVs', 'USVn', 'SF', 'VSF', 'USD']
+            stratigraphic_types = ['US', 'USVs', 'USVn', 'SF', 'VSF', 'USD', 'TSU']
             filtered = []
             for node_type in stratigraphic_types:
                 filtered.extend(graph.get_nodes_by_type(node_type))
