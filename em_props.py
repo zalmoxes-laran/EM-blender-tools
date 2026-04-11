@@ -47,6 +47,9 @@ from .em_base_props import EMviqListErrors, EDGESListItem, EMListParadata, EM_Ot
 # Import Tapestry integration
 from .tapestry_integration.properties import TapestryManagerProps, TapestryVisibleProxy
 
+# Import Surface Areale
+from .surface_areale.data import SurfaceArealeSettings
+
 
 # =====================================================
 # UPDATE CALLBACKS
@@ -582,6 +585,12 @@ class EM_Tools(PropertyGroup):
         type=TapestryManagerProps,
         name="Tapestry Integration",
         description="AI-powered photorealistic reconstruction"
+    )  # type: ignore
+
+    surface_areale: PointerProperty(
+        type=SurfaceArealeSettings,
+        name="Surface Areale",
+        description="Surface areale proxy creation settings"
     )  # type: ignore
 
     # ============================================
@@ -1230,6 +1239,7 @@ classes = (
     # to avoid circular imports (em_setup needs them, EM_Tools uses them)
     ProxyBoxSettings,
     TapestryVisibleProxy,  # Sub-PropertyGroup for Tapestry visible proxies
+    SurfaceArealeSettings,  # Surface Areale proxy creation
 
     # Manager aggregators SECOND
     # These use the Sub-PropertyGroups above

@@ -330,7 +330,8 @@ if DEPENDENCIES_LOADED:
             em_base_props,  # ← Base PropertyGroup classes
             em_props,
             debug_graph_connections,  # Debug operator
-            tapestry_integration  # Tapestry AI reconstruction
+            tapestry_integration,  # Tapestry AI reconstruction
+            surface_areale  # Surface Areale proxy creation
         )
 
         # Import base PropertyGroup classes into this namespace
@@ -683,6 +684,13 @@ def register_modules():
     except Exception as e:
         logger.error(f"Error registering tapestry integration: {e}")
 
+    # FASE 6: Surface Areale system
+    try:
+        surface_areale.register()
+        logger.debug(f"Registered surface areale system")
+    except Exception as e:
+        logger.error(f"Error registering surface areale: {e}")
+
     # Registra il keymap manager per ultimo
     if KEYMAP_MANAGER_LOADED:
         try:
@@ -729,6 +737,13 @@ def unregister_modules():
         except Exception as e:
             logger.error(f"Error unregistering keymap manager: {e}")
 
+
+    # FASE 0: Surface Areale (va rimosso per primo)
+    try:
+        surface_areale.unregister()
+        logger.debug(f"Unregistered surface areale")
+    except Exception as e:
+        logger.warning(f"Error unregistering surface areale: {e}")
 
     # FASE 1: Tapestry Integration (va rimosso per primo - experimental feature)
     try:

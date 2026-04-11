@@ -52,6 +52,14 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
 
 ### EM-tools for Blender
 
+- [ ] **Surface Areale System**
+  - Surface proxy creation from Grease Pencil contours on Representation Models
+  - Three generation strategies: projective (MVP), shrinkwrap, boolean
+  - Automatic complexity classification (A/B/C scenarios)
+  - Working Unit (UL) node type for toolmarks and surface treatments
+  - Integration with stratigraphic graph and paradata system
+  - Document-RM linking via extended has_representation_model connector
+
 - [ ] **3D GIS Mode**  
   - UI section for simple 3D GIS switching  
   - XLSX/CSV parser with JSON mapping schema  

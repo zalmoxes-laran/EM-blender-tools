@@ -259,6 +259,17 @@ class EMGraphTSUNode(EMGraphStratigraphicNode):
         self.use_custom_color = True
         self.color = color
 
+class EMGraphULNode(EMGraphStratigraphicNode):
+    """Wrapper per UL (Working Unit)"""
+    bl_idname = 'EMGraphULNodeType'
+    bl_label = 'UL'
+
+    def init(self, context):
+        super().init(context)
+        color = get_node_color_from_datamodel('UL') or (0.9, 0.6, 0.2)
+        self.use_custom_color = True
+        self.color = color
+
 class EMGraphBRNode(EMGraphStratigraphicNode):
     """Wrapper per BR (Continuity Node)"""
     bl_idname = 'EMGraphBRNodeType'
@@ -675,6 +686,7 @@ classes = (
     EMGraphSerUSVsNode,
     EMGraphSerUSVnNode,
     EMGraphTSUNode,
+    EMGraphULNode,
     EMGraphBRNode,
     EMGraphSENode,
 
