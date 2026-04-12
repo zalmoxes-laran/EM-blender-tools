@@ -371,16 +371,11 @@ def strategy_boolean(contour_points, contour_normals, whisker_point,
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     rm_copy.select_set(False)
 
-    # Optional LOD: decimate copy if very heavy
+    # LOD: disabled for now — use full resolution for accuracy
+    # TODO: make this a user option in settings (use_lod checkbox + lod_target)
     poly_count = len(rm_copy.data.polygons)
     used_lod = False
-    if poly_count > 200000:
-        mod = rm_copy.modifiers.new("LOD_Decimate", 'DECIMATE')
-        mod.ratio = min(200000 / poly_count, 1.0)
-        bpy.context.view_layer.objects.active = rm_copy
-        bpy.ops.object.modifier_apply(modifier=mod.name)
-        used_lod = True
-        print(f"[SurfaceAreale] Boolean LOD: {poly_count} → {len(rm_copy.data.polygons)} polys")
+    print(f"[SurfaceAreale] Boolean on full-res: {poly_count} polys")
 
     # ── Step 3: Boolean intersection ──────────────────────────────────
     bool_mod = rm_copy.modifiers.new("Boolean_Areale", 'BOOLEAN')

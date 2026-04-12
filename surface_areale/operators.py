@@ -30,27 +30,31 @@ def _get_gp_paint_mode():
 
 def _set_gp_material_color(mat, color):
     """Configure a material for GP v3 stroke color.
-    In Blender 5.x, GP uses regular materials. We set up a simple
-    Emission shader with the desired color for maximum visibility."""
+    Tries multiple approaches for maximum compatibility across Blender versions."""
+
+    # Approach 1: Set diffuse_color (viewport display) — works everywhere
+    mat.diffuse_color = (*color[:3], 1.0)
+
+    # Approach 2: GP-specific surface_color if available (Blender 5.x)
+    try:
+        mat.surface_color = (*color[:3], 1.0)
+    except AttributeError:
+        pass
+
+    # Approach 3: Node-based — Emission shader (bright, unlit)
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
     links = mat.node_tree.links
-
-    # Clear existing nodes
     nodes.clear()
-
-    # Create output + emission (bright, unlit color)
     output = nodes.new('ShaderNodeOutputMaterial')
     output.location = (200, 0)
-
     emission = nodes.new('ShaderNodeEmission')
     emission.location = (0, 0)
     emission.inputs['Color'].default_value = (*color[:3], 1.0)
-    emission.inputs['Strength'].default_value = 3.0  # Extra bright
-
+    emission.inputs['Strength'].default_value = 5.0
     links.new(emission.outputs['Emission'], output.inputs['Surface'])
 
-    # Also try the legacy GP-specific API (Blender 4.3-4.4)
+    # Approach 4: Legacy GP material API (Blender 4.3-4.4)
     try:
         if hasattr(mat, 'grease_pencil'):
             mat.grease_pencil.color = (*color[:3], 1.0)
@@ -373,6 +377,34 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
             gp_data.pixel_factor = 1.0
         except AttributeError:
             pass
+
+        # Set object viewport display color
+        gp_obj.color = (*color[:3], 1.0)
+
+        # Try ALL known ways to set the active GP brush color
+        try:
+            ts = context.scene.tool_settings
+            # Blender 5.x GP paint
+            for paint_attr in ['gpencil_paint', 'gpencil_v3_paint']:
+                if hasattr(ts, paint_attr):
+                    paint = getattr(ts, paint_attr)
+                    if paint and hasattr(paint, 'brush') and paint.brush:
+                        brush = paint.brush
+                        if hasattr(brush, 'color'):
+                            brush.color = color[:3]
+                        if hasattr(brush, 'secondary_color'):
+                            brush.secondary_color = color[:3]
+                        # Try gpencil_settings on the brush
+                        if hasattr(brush, 'gpencil_settings'):
+                            gs = brush.gpencil_settings
+                            if gs and hasattr(gs, 'vertex_color'):
+                                gs.vertex_color = (*color[:3], 1.0)
+                            if gs and hasattr(gs, 'vertex_color_factor'):
+                                gs.vertex_color_factor = 1.0
+                        print(f"[SurfaceAreale] Set brush color via {paint_attr}")
+                        break
+        except Exception as e:
+            print(f"[SurfaceAreale] Brush color setting failed: {e}")
 
         return gp_obj
 
