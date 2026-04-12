@@ -101,11 +101,31 @@ class SurfaceArealeSettings(PropertyGroup):
         name="Strategy",
         description="Generation strategy for the surface areale",
         items=[
-            ('PROJECTIVE', 'Projective', 'For nearly-planar surfaces (fast)'),
-            ('SHRINKWRAP', 'Shrinkwrap', 'For surfaces with edges/corners'),
-            ('BOOLEAN', 'Boolean', 'For fully 3D surfaces (slower, more accurate)'),
+            ('AUTO', 'Auto', 'Automatically classify surface complexity and choose best strategy'),
+            ('PROJECTIVE', 'Projective', 'For nearly-planar surfaces — fast (frescoes, slabs, floors)'),
+            ('SHRINKWRAP', 'Shrinkwrap', 'For surfaces with edges/corners — medium (architraves, cornices)'),
+            ('BOOLEAN', 'Boolean', 'For fully 3D surfaces — slower but most accurate (capitals, reliefs)'),
         ],
-        default='PROJECTIVE'
+        default='AUTO'
+    )
+
+    # ── Paradata (pre-filled, editable) ──────────────────────────────
+    extractor_name: StringProperty(
+        name="Extractor Method",
+        description="Method used to extract the geometry from the RM",
+        default="3D drawing on surface"
+    )
+
+    property_name: StringProperty(
+        name="Property Name",
+        description="Name of the property node linking US to its proxy geometry",
+        default="geometry"
+    )
+
+    show_chain_summary: BoolProperty(
+        name="Show Chain Summary",
+        description="Toggle the narrative summary of the graph chain to be created",
+        default=False
     )
 
     # ── Geometry Parameters ────────────────────────────────────────────

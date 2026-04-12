@@ -28,6 +28,38 @@ def _get_gp_paint_mode():
     return 'PAINT_GREASE_PENCIL'
 
 
+def _set_gp_material_color(mat, color):
+    """Configure a material for GP v3 stroke color.
+    In Blender 5.x, GP uses regular materials. We set up a simple
+    Emission shader with the desired color for maximum visibility."""
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+
+    # Clear existing nodes
+    nodes.clear()
+
+    # Create output + emission (bright, unlit color)
+    output = nodes.new('ShaderNodeOutputMaterial')
+    output.location = (200, 0)
+
+    emission = nodes.new('ShaderNodeEmission')
+    emission.location = (0, 0)
+    emission.inputs['Color'].default_value = (*color[:3], 1.0)
+    emission.inputs['Strength'].default_value = 3.0  # Extra bright
+
+    links.new(emission.outputs['Emission'], output.inputs['Surface'])
+
+    # Also try the legacy GP-specific API (Blender 4.3-4.4)
+    try:
+        if hasattr(mat, 'grease_pencil'):
+            mat.grease_pencil.color = (*color[:3], 1.0)
+            mat.grease_pencil.show_stroke = True
+            mat.grease_pencil.mode = 'LINE'
+    except (AttributeError, TypeError):
+        pass
+
+
 class EMTOOLS_OT_draw_surface_areale(Operator):
     """Draw a surface areale on a Representation Model"""
     bl_idname = "emtools.draw_surface_areale"
@@ -137,7 +169,7 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
                 resample_contour, reproject_on_surface,
                 create_bvh_from_object
             )
-            from .strategies import strategy_projective
+            from .strategies import generate_areale
             from .postprocess import (
                 apply_normal_offset, decimate_preserving_boundary,
                 assign_em_material, link_areale_to_graph
@@ -181,13 +213,16 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
             # ── Generate areale mesh ──────────────────────────────────
             self.report({'INFO'}, "Generating surface areale...")
 
-            areale_obj = strategy_projective(
+            areale_obj = generate_areale(
                 contour_points, contour_normals, whisker_point,
                 rm_obj, bvh_tree, settings
             )
 
             # ── Post-processing ───────────────────────────────────────
-            context.collection.objects.link(areale_obj)
+            # Link to scene if not already (Shrinkwrap/Boolean strategies
+            # may have already linked the object during creation)
+            if areale_obj.name not in context.collection.objects:
+                context.collection.objects.link(areale_obj)
 
             decimate_preserving_boundary(
                 areale_obj, settings.max_triangles,
@@ -199,15 +234,50 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
             alpha = getattr(context.scene.em_tools, 'proxy_display_alpha', 0.5)
             assign_em_material(areale_obj, settings.us_type, alpha)
 
-            # Graph linking
+            # Graph linking — creates the full paradata chain
             if settings.us_type != 'GENERIC':
+                print(f"[SurfaceAreale] Graph linking: RM={rm_obj.name}, US={settings.linked_us_name or settings.new_us_name}, Doc={settings.new_doc_name or settings.existing_document}")
+
                 try:
                     us_node, msg = link_areale_to_graph(
                         context, areale_obj, rm_obj, settings
                     )
-                    self.report({'INFO'}, msg)
+                    if us_node:
+                        self.report({'INFO'}, msg)
+                        print(f"[SurfaceAreale] SUCCESS: {msg}")
+                    else:
+                        self.report({'WARNING'}, f"Graph linking returned no US: {msg}")
+                        print(f"[SurfaceAreale] FAILED: {msg}")
                 except Exception as e:
                     self.report({'WARNING'}, f"Graph linking failed: {e}")
+                    print(f"[SurfaceAreale] EXCEPTION: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+            # Ensure proxy is named after the US with graph prefix
+            us_name = settings.new_us_name if settings.create_new_us else settings.linked_us_name
+            if us_name and (areale_obj.name.startswith("EM_SurfaceAreale") or
+                            areale_obj.name == us_name):
+                # Apply graph prefix
+                try:
+                    from ..operators.addon_prefix_helpers import add_graph_prefix
+                    from s3dgraphy import get_graph
+                    em_tools = context.scene.em_tools
+                    graph_info = em_tools.graphml_files[em_tools.active_file_index]
+                    graph = get_graph(graph_info.name)
+                    if graph:
+                        from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+                        prefixed_name = node_name_to_proxy_name(us_name, context, graph)
+                        areale_obj.name = prefixed_name
+                        areale_obj.data.name = prefixed_name
+                        print(f"[SurfaceAreale] Named proxy: {prefixed_name}")
+                    else:
+                        areale_obj.name = us_name
+                        areale_obj.data.name = us_name
+                except Exception as e:
+                    print(f"[SurfaceAreale] Naming fallback: {e}")
+                    areale_obj.name = us_name
+                    areale_obj.data.name = us_name
 
             # ── Cleanup ───────────────────────────────────────────────
             self._remove_temp_gp(context)
@@ -262,44 +332,45 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
         layer = gp_data.layers.new("Areale")
         layer.frames.new(context.scene.frame_current)
 
-        # Apply bright color and thickness from preferences
         color = settings.gp_stroke_color
         thickness = settings.gp_stroke_thickness
 
-        # Set layer color (GP v3 uses layer.color)
-        try:
-            layer.color = (*color, 1.0)
-        except (AttributeError, TypeError):
-            try:
-                layer.color = color[:3]
-            except Exception:
-                pass
+        # ── Configure GP stroke color and thickness ───────────────────
+        # In Blender 5.x (GP v3), strokes use regular Blender materials.
+        # The color comes from the material's surface color (Principled BSDF
+        # or Emission), and line thickness from the layer or brush settings.
 
-        # Create a material with the bright color for the GP strokes
         mat_name = "_EM_ArealeStroke"
         mat = bpy.data.materials.get(mat_name)
-        if not mat:
+        if mat:
+            # Update existing material color
+            _set_gp_material_color(mat, color)
+        else:
             mat = bpy.data.materials.new(name=mat_name)
-            mat.use_nodes = False
-        # GP material settings
-        try:
-            mat.grease_pencil.color = (*color, 1.0)
-            mat.grease_pencil.show_stroke = True
-            mat.grease_pencil.mode = 'LINE'
-        except AttributeError:
-            # GP v3 material handling differs
-            pass
+            _set_gp_material_color(mat, color)
 
-        # Assign material to GP object
+        # Assign material to GP data
         if gp_data.materials:
             gp_data.materials[0] = mat
         else:
             gp_data.materials.append(mat)
 
-        # Set line thickness on the GP object
+        # Set layer color (visual tint in the layer list)
+        try:
+            layer.color = (*color, 1.0)
+        except (TypeError, AttributeError):
+            try:
+                layer.color = tuple(color[:3])
+            except Exception:
+                pass
+
+        # Set stroke thickness via layer or data properties
+        try:
+            layer.line_change = thickness
+        except AttributeError:
+            pass
         try:
             gp_data.pixel_factor = 1.0
-            layer.line_change = thickness
         except AttributeError:
             pass
 
@@ -476,7 +547,7 @@ class EMTOOLS_OT_detect_rm_document(Operator):
 
     def execute(self, context):
         from s3dgraphy import get_graph
-        from .postprocess import _find_rm_document
+        from .postprocess import find_rm_document
 
         em_tools = context.scene.em_tools
         settings = em_tools.surface_areale
@@ -487,7 +558,7 @@ class EMTOOLS_OT_detect_rm_document(Operator):
             self.report({'ERROR'}, "Graph not loaded")
             return {'CANCELLED'}
 
-        doc_node = _find_rm_document(graph, settings.target_rm)
+        doc_node = find_rm_document(context.scene, graph, settings.target_rm)
         if doc_node:
             settings.linked_document = doc_node.name
             self.report({'INFO'}, f"Found document: {doc_node.name}")

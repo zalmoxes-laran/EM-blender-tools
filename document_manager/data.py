@@ -48,6 +48,22 @@ class DocItem(PropertyGroup):
         default="",
     )  # type: ignore
 
+    # --- Document typization ---
+    doc_type: EnumProperty(
+        name="Document Type",
+        description="Type of the source document",
+        items=[
+            ('IMAGE', 'Image', 'Photograph, drawing, scan'),
+            ('MODEL_3D', '3D Model', 'Photogrammetric or laser scan model'),
+            ('TEXT', 'Textual', 'Written document'),
+            ('PDF', 'PDF', 'PDF document'),
+            ('CAD', 'CAD', 'CAD drawing (DWG, DXF)'),
+            ('SHAPEFILE', 'Shapefile', 'GIS shapefile'),
+            ('OTHER', 'Other', 'Other document type'),
+        ],
+        default='IMAGE'
+    )  # type: ignore
+
     # --- 3D representation state ---
     has_quad: BoolProperty(
         name="Has Quad",

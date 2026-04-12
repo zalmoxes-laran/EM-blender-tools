@@ -1,16 +1,30 @@
 """
 UI panels for the Surface Areale system.
-Integrated into the EM Annotator sidebar tab.
+Organized under a parent 'RM to Proxy' panel in the EM Annotator tab.
+Uses a checklist pattern: all 5 requirements must be green before drawing.
 """
 
 import bpy
 from bpy.types import Panel
 
 
-class VIEW3D_PT_SurfaceAreale(Panel):
-    """Surface Areale creation panel"""
-    bl_label = "Surface Areale"
-    bl_idname = "VIEW3D_PT_SurfaceAreale"
+def _get_graph_safe(context):
+    """Get the active s3dgraphy graph, or None."""
+    em_tools = context.scene.em_tools
+    if em_tools.active_file_index < 0:
+        return None
+    try:
+        from s3dgraphy import get_graph
+        graph_info = em_tools.graphml_files[em_tools.active_file_index]
+        return get_graph(graph_info.name)
+    except Exception:
+        return None
+
+
+class VIEW3D_PT_RMToProxy(Panel):
+    """Parent panel for RM-to-Proxy tools"""
+    bl_label = "RM to Proxy"
+    bl_idname = "VIEW3D_PT_RMToProxy"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM Annotator"
@@ -18,97 +32,163 @@ class VIEW3D_PT_SurfaceAreale(Panel):
 
     def draw(self, context):
         layout = self.layout
+        em_tools = context.scene.em_tools
+        if em_tools.active_file_index < 0:
+            layout.label(text="Load a GraphML first", icon='ERROR')
+
+
+class VIEW3D_PT_SurfaceAreale(Panel):
+    """Surface Areale creation panel with requirement checklist"""
+    bl_label = "Surface Areale"
+    bl_idname = "VIEW3D_PT_SurfaceAreale"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "EM Annotator"
+    bl_parent_id = "VIEW3D_PT_RMToProxy"
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.em_tools.active_file_index >= 0
+
+    def draw(self, context):
+        layout = self.layout
         scene = context.scene
         em_tools = scene.em_tools
         settings = em_tools.surface_areale
-        has_graph = em_tools.active_file_index >= 0
+        graph = _get_graph_safe(context)
 
-        # ── Warning if no graph loaded ────────────────────────────────
-        if not has_graph:
-            box = layout.box()
-            box.alert = True
-            box.label(text="Load a GraphML first", icon='ERROR')
-            return
+        all_ok = True  # Track if all requirements are met
 
-        # ── Target RM ─────────────────────────────────────────────────
+        # ── Req 1: RM Status ─────────────────────────────────────────
+        from .postprocess import is_mesh_an_rm, find_rm_document
+
         box = layout.box()
-        box.label(text="Target RM", icon='MESH_DATA')
+        obj = settings.target_rm
+        is_rm, rm_item = is_mesh_an_rm(obj, scene) if obj else (False, None)
+
+        row = box.row()
+        row.label(text="1. Representation Model",
+                  icon='CHECKMARK' if is_rm else 'X')
         box.prop(settings, "target_rm", text="")
 
-        if settings.target_rm and settings.target_rm.type == 'MESH':
-            poly_count = len(settings.target_rm.data.polygons)
-            box.label(text=f"Polygons: {poly_count:,}", icon='INFO')
-            box.operator("emtools.detect_rm_document", icon='VIEWZOOM')
+        if obj and not is_rm:
+            box.label(text="Promote this mesh in the RM Manager", icon='INFO')
+            all_ok = False
+        elif not obj:
+            all_ok = False
 
-        # ── Document ──────────────────────────────────────────────────
+        # ── Req 2: Document linked to RM ──────────────────────────────
         box = layout.box()
-        box.label(text="Document", icon='FILE')
+        doc_node = None
+        has_doc = False
 
-        if not settings.target_rm:
-            box.label(text="Select a Target RM first")
-        elif settings.linked_document:
-            box.label(text=f"Linked: {settings.linked_document}", icon='CHECKMARK')
-        else:
-            box.label(text="No document linked to this RM", icon='ERROR')
+        if is_rm and graph:
+            doc_node = find_rm_document(scene, graph, obj)
+            has_doc = doc_node is not None
+
+        row = box.row()
+        row.label(text="2. Document",
+                  icon='CHECKMARK' if has_doc else 'X')
+
+        if has_doc:
+            box.label(text=f"{doc_node.name}", icon='FILE')
+        elif is_rm:
             box.prop(settings, "create_new_document", text="Create New Document")
-
             if settings.create_new_document:
                 row = box.row(align=True)
                 row.prop(settings, "new_doc_name", text="Name")
                 row.operator("emtools.suggest_next_doc", text="", icon='ADD')
                 box.prop(settings, "new_doc_date", text="Date")
+                has_doc = bool(settings.new_doc_name)
             else:
-                # Search among existing documents (same pattern as US search)
                 if hasattr(scene, 'doc_list') and scene.doc_list:
-                    box.prop_search(
-                        settings, "existing_document",
-                        scene, "doc_list",
-                        text="Document"
-                    )
+                    box.prop_search(settings, "existing_document",
+                                    scene, "doc_list", text="Document")
                 else:
-                    box.prop(settings, "existing_document", text="Document",
-                             icon='VIEWZOOM')
+                    box.prop(settings, "existing_document", text="Document")
+                has_doc = bool(settings.existing_document)
 
-        # ── US Type ───────────────────────────────────────────────────
+        if not has_doc:
+            all_ok = False
+
+        # ── Req 3: Extractor ──────────────────────────────────────────
         box = layout.box()
-        box.label(text="Stratigraphic Unit", icon='LAYER_ACTIVE')
+        has_extr = bool(settings.extractor_name)
+        row = box.row()
+        row.label(text="3. Extractor",
+                  icon='CHECKMARK' if has_extr else 'X')
+        box.prop(settings, "extractor_name", text="Method")
+        if not has_extr:
+            all_ok = False
+
+        # ── Req 4: Property ───────────────────────────────────────────
+        box = layout.box()
+        has_prop = bool(settings.property_name)
+        row = box.row()
+        row.label(text="4. Property",
+                  icon='CHECKMARK' if has_prop else 'X')
+        box.prop(settings, "property_name", text="Name")
+        if not has_prop:
+            all_ok = False
+
+        # ── Req 5: US Target ──────────────────────────────────────────
+        box = layout.box()
+        has_us = False
+
+        row = box.row()
         box.prop(settings, "us_type", text="Type")
 
-        if settings.us_type != 'GENERIC':
+        if settings.us_type == 'GENERIC':
+            has_us = True
+            row.label(text="5. Stratigraphic Unit",
+                      icon='CHECKMARK')
+        else:
             box.prop(settings, "create_new_us", text="Create New US")
-
             if settings.create_new_us:
-                row = box.row(align=True)
-                row.prop(settings, "new_us_name", text="Name")
-                row.operator("emtools.suggest_next_us", text="", icon='ADD')
+                r = box.row(align=True)
+                r.prop(settings, "new_us_name", text="Name")
+                r.operator("emtools.suggest_next_us", text="", icon='ADD')
+                has_us = bool(settings.new_us_name)
 
-                # Epoch search
                 if hasattr(em_tools, 'epochs') and em_tools.epochs.list:
-                    box.prop_search(
-                        settings, "new_us_epoch",
-                        em_tools.epochs, "list",
-                        text="Epoch"
-                    )
-                else:
-                    box.prop(settings, "new_us_epoch", text="Epoch")
-
-                # Optional stratigraphic link
+                    box.prop_search(settings, "new_us_epoch",
+                                    em_tools.epochs, "list", text="Epoch")
                 if hasattr(em_tools, 'stratigraphy') and em_tools.stratigraphy.units:
-                    box.prop_search(
-                        settings, "link_to_existing_us",
-                        em_tools.stratigraphy, "units",
-                        text="Link to US"
-                    )
+                    box.prop_search(settings, "link_to_existing_us",
+                                    em_tools.stratigraphy, "units", text="Link to")
             else:
-                # Search existing US
                 if hasattr(em_tools, 'stratigraphy') and em_tools.stratigraphy.units:
-                    box.prop_search(
-                        settings, "linked_us_name",
-                        em_tools.stratigraphy, "units",
-                        text="Existing US"
-                    )
+                    box.prop_search(settings, "linked_us_name",
+                                    em_tools.stratigraphy, "units", text="Existing US")
                 else:
                     box.prop(settings, "linked_us_name", text="US Name")
+                has_us = bool(settings.linked_us_name)
+
+            # Update icon retroactively
+            row.label(text="5. Stratigraphic Unit",
+                      icon='CHECKMARK' if has_us else 'X')
+
+        if not has_us:
+            all_ok = False
+
+        # ── Chain Summary (collapsed) ─────────────────────────────────
+        box = layout.box()
+        row = box.row()
+        row.prop(settings, "show_chain_summary",
+                 icon='TRIA_DOWN' if settings.show_chain_summary else 'TRIA_RIGHT',
+                 text="Chain Summary", emboss=False)
+
+        if settings.show_chain_summary:
+            us_name = settings.new_us_name if settings.create_new_us else settings.linked_us_name
+            doc_name = doc_node.name if doc_node else (settings.new_doc_name or settings.existing_document or "?")
+            rm_name = obj.name if obj else "?"
+
+            col = box.column(align=True)
+            col.scale_y = 0.8
+            col.label(text=f"{us_name or '?'} --has_property--> {settings.property_name}")
+            col.label(text=f"  --has_data_provenance--> {doc_name}.N")
+            col.label(text=f"  --extracted_from--> {doc_name}")
+            col.label(text=f"  --has_representation_model--> {rm_name}")
 
         # ── Draw Button ───────────────────────────────────────────────
         layout.separator()
@@ -117,13 +197,12 @@ class VIEW3D_PT_SurfaceAreale(Panel):
             row = layout.row(align=True)
             row.alert = True
             row.label(text="Drawing active...", icon='GREASEPENCIL')
-            row = layout.row()
-            row.label(text=f"Phase: {settings.drawing_phase}")
-            row = layout.row()
-            row.label(text="[B] Whisker | [Enter] Confirm | [Esc] Cancel")
+            layout.label(text=f"Phase: {settings.drawing_phase}")
+            layout.label(text="[B] Whisker | [Enter] Confirm | [Esc] Cancel")
         else:
             row = layout.row(align=True)
             row.scale_y = 1.5
+            row.enabled = all_ok
             row.operator("emtools.draw_surface_areale", icon='GREASEPENCIL')
 
 
@@ -141,7 +220,25 @@ class VIEW3D_PT_SurfaceAreale_Settings(Panel):
         layout = self.layout
         settings = context.scene.em_tools.surface_areale
 
+        # Strategy selection with time estimates
         layout.prop(settings, "strategy")
+
+        # Show time estimates if RM is selected
+        if settings.target_rm and settings.target_rm.type == 'MESH':
+            poly_count = len(settings.target_rm.data.polygons)
+            try:
+                from .benchmark import get_strategy_estimates
+                estimates = get_strategy_estimates(poly_count, 100)
+                box = layout.box()
+                box.scale_y = 0.8
+                box.label(text=f"RM: {poly_count:,} polys", icon='INFO')
+                for strat, (t, label) in estimates.items():
+                    icon = 'CHECKMARK' if strat == settings.strategy else 'DOT'
+                    if settings.strategy == 'AUTO':
+                        icon = 'DOT'
+                    box.label(text=f"  {strat}: {label}", icon=icon)
+            except Exception:
+                pass
 
         layout.separator()
         layout.label(text="Geometry:")
@@ -160,6 +257,7 @@ class VIEW3D_PT_SurfaceAreale_Settings(Panel):
 
 
 classes = [
+    VIEW3D_PT_RMToProxy,
     VIEW3D_PT_SurfaceAreale,
     VIEW3D_PT_SurfaceAreale_Settings,
 ]

@@ -86,8 +86,8 @@ class DOCMANAGER_UL_documents(UIList):
 
 
 class VIEW3D_PT_3DDocumentManager(Panel):
-    """3D Document Manager — manage documents as spatial-temporal entities."""
-    bl_label = "3D Document Manager"
+    """Document Manager — manage all documents in the graph as spatial-temporal entities."""
+    bl_label = "Document Manager"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "EM Annotator"
@@ -101,11 +101,11 @@ class VIEW3D_PT_3DDocumentManager(Panel):
 
     def draw_header(self, context):
         layout = self.layout
-        icon_id = icons_manager.get_icon_value("show_all_RMDoc")
+        icon_id = icons_manager.get_icon_value("document")
         if icon_id:
             layout.label(text="", icon_value=icon_id)
         else:
-            layout.label(text="", icon='FILE_IMAGE')
+            layout.label(text="", icon='FILE')
 
     def draw(self, context):
         layout = self.layout
@@ -118,6 +118,7 @@ class VIEW3D_PT_3DDocumentManager(Panel):
         sync_box = layout.box()
         row = sync_box.row(align=True)
         row.operator("em.docmanager_sync", text="Sync from Graph", icon="FILE_REFRESH")
+        row.operator("docmanager.create_document", text="", icon="ADD")
         row.label(text=f"{len(doc_list)} docs")
 
         # --- Summary bar ---

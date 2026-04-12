@@ -54,11 +54,13 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
 
 - [ ] **Surface Areale System**
   - Surface proxy creation from Grease Pencil contours on Representation Models
-  - Three generation strategies: projective (MVP), shrinkwrap, boolean
-  - Automatic complexity classification (A/B/C scenarios)
+  - Three generation strategies: projective, shrinkwrap adaptive, boolean + LOD
+  - Automatic complexity classification (Scenario A/B/C with PCA + normal analysis)
+  - Hardware-aware benchmark and time estimation per strategy
   - Working Unit (UL) node type for toolmarks and surface treatments
-  - Integration with stratigraphic graph and paradata system
+  - Full paradata chain: US → Property → Extractor → Document → RM
   - Document-RM linking via extended has_representation_model connector
+  - RM to Proxy parent panel for future annotation tools
 
 - [ ] **3D GIS Mode**  
   - UI section for simple 3D GIS switching  

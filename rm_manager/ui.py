@@ -431,8 +431,90 @@ class VIEW3D_PT_RM_Manager(Panel):
                             row.alert = True
                             row.label(text="Warning: File not found!", icon='ERROR')
 
+class VIEW3D_PT_RMDoc_Manager(Panel):
+    """RM Document Manager — shows only spatialized documents (RM-Doc, RM-SF)"""
+    bl_label = "RM Document"
+    bl_idname = "VIEW3D_PT_RMDoc_Manager"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'EM Annotator'
+    bl_parent_id = "VIEW3D_PT_RM_Manager"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw_header(self, context):
+        layout = self.layout
+        icon_id = icons_manager.get_icon_value("show_all_RMDoc")
+        if icon_id:
+            layout.label(text="", icon_value=icon_id)
+        else:
+            layout.label(text="", icon='FILE_IMAGE')
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+
+        if not hasattr(scene, 'doc_list') or not scene.doc_list:
+            layout.label(text="No documents loaded", icon='INFO')
+            return
+
+        # Collect documents that have been spatialized (have a quad or are in rm_list)
+        rm_docs = []
+        rm_sfs = []
+
+        # Check doc_list for items with 3D representation
+        for item in scene.doc_list:
+            if item.has_quad:
+                rm_docs.append(item)
+
+        # Also check graph for representation_model_doc and representation_model_sf nodes
+        try:
+            from s3dgraphy import get_graph
+            em_tools = scene.em_tools
+            if em_tools.active_file_index >= 0:
+                graph_info = em_tools.graphml_files[em_tools.active_file_index]
+                graph = get_graph(graph_info.name)
+                if graph:
+                    for node in graph.nodes:
+                        if not hasattr(node, 'node_type'):
+                            continue
+                        if node.node_type == 'representation_model_sf':
+                            rm_sfs.append(node)
+        except Exception:
+            pass
+
+        # Display RM-Doc items
+        if rm_docs:
+            box = layout.box()
+            box.label(text=f"Documents in 3D ({len(rm_docs)})", icon='FILE_IMAGE')
+            for item in rm_docs:
+                row = box.row(align=True)
+                # Certainty color icon
+                cert_icons = {
+                    'direct': 'COLLECTION_COLOR_01',
+                    'reconstructed': 'COLLECTION_COLOR_02',
+                    'hypothetical': 'COLLECTION_COLOR_03',
+                }
+                cert_icon = cert_icons.get(item.certainty_class, 'DOT')
+                row.label(text="", icon=cert_icon)
+                row.label(text=item.name)
+                if item.has_camera:
+                    row.label(text="", icon='CAMERA_DATA')
+        else:
+            layout.label(text="No spatialized documents", icon='INFO')
+
+        # Display RM-SF items
+        if rm_sfs:
+            box = layout.box()
+            box.label(text=f"Special Find RMs ({len(rm_sfs)})", icon='OBJECT_DATA')
+            for node in rm_sfs[:20]:
+                row = box.row()
+                row.label(text=node.name if hasattr(node, 'name') else str(node.node_id),
+                          icon='MESH_MONKEY')
+
+
 classes = [
     VIEW3D_PT_RM_Manager,
+    VIEW3D_PT_RMDoc_Manager,
     RM_UL_List,
     RM_UL_EpochList,
     RM_MT_epoch_selector,

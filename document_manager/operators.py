@@ -413,6 +413,112 @@ class DOCMANAGER_OT_rename_object(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class DOCMANAGER_OT_create_document(bpy.types.Operator):
+    """Create a new document node in the graph"""
+    bl_idname = "docmanager.create_document"
+    bl_label = "Create Document"
+    bl_description = "Create a new document node and add it to the graph"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    doc_name: bpy.props.StringProperty(
+        name="Name", description="Document name (e.g. D.15)", default=""
+    )  # type: ignore
+    doc_description: bpy.props.StringProperty(
+        name="Description", description="Brief description", default=""
+    )  # type: ignore
+    doc_date: bpy.props.StringProperty(
+        name="Date", description="Date of the document (e.g. 2016)", default=""
+    )  # type: ignore
+    doc_type: bpy.props.EnumProperty(
+        name="Type", description="Document type",
+        items=[
+            ('IMAGE', 'Image', 'Photograph, drawing, scan'),
+            ('MODEL_3D', '3D Model', 'Photogrammetric or laser scan model'),
+            ('TEXT', 'Textual', 'Written document'),
+            ('PDF', 'PDF', 'PDF document'),
+            ('CAD', 'CAD', 'CAD drawing (DWG, DXF)'),
+            ('SHAPEFILE', 'Shapefile', 'GIS shapefile'),
+            ('OTHER', 'Other', 'Other document type'),
+        ],
+        default='IMAGE'
+    )  # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.em_tools.active_file_index >= 0
+
+    def invoke(self, context, event):
+        # Auto-suggest next document number
+        from s3dgraphy import get_graph
+        em_tools = context.scene.em_tools
+        graph_info = em_tools.graphml_files[em_tools.active_file_index]
+        graph = get_graph(graph_info.name)
+        if graph:
+            max_num = 0
+            for node in graph.nodes:
+                if (hasattr(node, 'node_type') and node.node_type == 'document'
+                        and hasattr(node, 'name') and isinstance(node.name, str)):
+                    if node.name.startswith('D.'):
+                        try:
+                            num = int(node.name.split('.', 1)[1])
+                            max_num = max(max_num, num)
+                        except (ValueError, IndexError):
+                            pass
+            self.doc_name = f"D.{max_num + 1}"
+        return context.window_manager.invoke_props_dialog(self, width=350)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "doc_name")
+        layout.prop(self, "doc_description")
+        layout.prop(self, "doc_date")
+        layout.prop(self, "doc_type")
+
+    def execute(self, context):
+        if not self.doc_name:
+            self.report({'ERROR'}, "Document name is required")
+            return {'CANCELLED'}
+
+        import uuid
+        from s3dgraphy import get_graph
+        from s3dgraphy.nodes import DocumentNode
+
+        em_tools = context.scene.em_tools
+        graph_info = em_tools.graphml_files[em_tools.active_file_index]
+        graph = get_graph(graph_info.name)
+        if not graph:
+            self.report({'ERROR'}, "Graph not loaded")
+            return {'CANCELLED'}
+
+        # Check if document with this name already exists
+        for node in graph.nodes:
+            if (hasattr(node, 'node_type') and node.node_type == 'document'
+                    and hasattr(node, 'name') and node.name == self.doc_name):
+                self.report({'ERROR'}, f"Document '{self.doc_name}' already exists in the graph")
+                return {'CANCELLED'}
+
+        # Create document node
+        doc_node = DocumentNode(
+            node_id=str(uuid.uuid4()),
+            name=self.doc_name,
+            description=self.doc_description or self.doc_name
+        )
+        if self.doc_date:
+            doc_node.attributes['date'] = self.doc_date
+        doc_node.attributes['doc_type'] = self.doc_type
+        graph.add_node(doc_node)
+
+        # Refresh lists
+        from ..populate_lists import populate_document_node
+        idx = len(em_tools.em_sources_list)
+        populate_document_node(context.scene, doc_node, idx, graph=graph)
+
+        sync_doc_list(context.scene)
+
+        self.report({'INFO'}, f"Created document: {self.doc_name}")
+        return {'FINISHED'}
+
+
 # ============================================================================
 # REGISTRATION
 # ============================================================================
@@ -425,6 +531,7 @@ classes = (
     DOCMANAGER_OT_open_url,
     DOCMANAGER_OT_select_scene_object,
     DOCMANAGER_OT_rename_object,
+    DOCMANAGER_OT_create_document,
 )
 
 
