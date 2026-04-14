@@ -323,30 +323,31 @@ def _draw_graphml_wizard(layout, context, em_tools):
         icon='MODIFIER'
     )
 
-    # ── STEP 3: Export GraphML ──
-    step3_box = graphml_box.box()
-    step3_box.enabled = has_graph
-    row = step3_box.row(align=True)
-    row.label(text="Step 3: Export GraphML", icon='EXPORT')
-    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-    help_op.title = "Step 3 — Export GraphML"
-    help_op.text = (
-        "Save the in-memory graph as a GraphML file.\n"
-        "Then import it via File > Import EM file to\n"
-        "populate the Blender lists and scene."
-    )
-    help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
-    step3_box.prop(em_tools, "xlsx_wizard_output_path", text="Output Path")
+    # ── STEP 3: Export GraphML (experimental — write-back not production-ready) ──
+    if em_tools.experimental_features:
+        step3_box = graphml_box.box()
+        step3_box.enabled = has_graph
+        row = step3_box.row(align=True)
+        row.label(text="Step 3: Export GraphML", icon='EXPORT')
+        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Step 3 — Export GraphML"
+        help_op.text = (
+            "Save the in-memory graph as a GraphML file.\n"
+            "Then import it via File > Import EM file to\n"
+            "populate the Blender lists and scene."
+        )
+        help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
+        step3_box.prop(em_tools, "xlsx_wizard_output_path", text="Output Path")
 
-    can_export = has_graph and bool(em_tools.xlsx_wizard_output_path)
-    row = step3_box.row()
-    row.scale_y = 1.3
-    row.enabled = can_export
-    row.operator(
-        "xlsx_wizard.export_graphml",
-        text="Export GraphML",
-        icon='FILE_TICK'
-    )
+        can_export = has_graph and bool(em_tools.xlsx_wizard_output_path)
+        row = step3_box.row()
+        row.scale_y = 1.3
+        row.enabled = can_export
+        row.operator(
+            "xlsx_wizard.export_graphml",
+            text="Export GraphML",
+            icon='FILE_TICK'
+        )
 
     # ── Wizard Warnings ──
     if em_tools.xlsx_wizard_warnings:
@@ -638,11 +639,12 @@ class EM_SetupPanel(bpy.types.Panel):
             row.operator('em_tools.add_file', text="Add GraphML", icon="ADD")
             row.operator('em_tools.remove_file', text="Remove GraphML", icon="REMOVE")
 
-            # Save / Export / Merge buttons
-            row = layout.row(align=True)
-            row.operator('export.graphml_update', text="Save GraphML", icon="FILE_TICK")
-            row.operator('export.graphml_saveas', text="Save As...", icon="FILE_NEW")
-            row.operator('em.merge_xlsx_start', text="Merge XLSX...", icon="AUTOMERGE_ON")
+            # Save / Export / Merge buttons (experimental — GraphML write-back not production-ready)
+            if em_tools.experimental_features:
+                row = layout.row(align=True)
+                row.operator('export.graphml_update', text="Save GraphML", icon="FILE_TICK")
+                row.operator('export.graphml_saveas', text="Save As...", icon="FILE_NEW")
+                row.operator('em.merge_xlsx_start', text="Merge XLSX...", icon="AUTOMERGE_ON")
 
             # Multigraph Mode - inline with graph management
             loaded_graphs = []

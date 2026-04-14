@@ -155,7 +155,8 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
             from .strategies import generate_areale
             from .postprocess import (
                 apply_normal_offset, decimate_preserving_boundary,
-                assign_em_material, link_areale_to_graph
+                assign_em_material, link_areale_to_graph,
+                link_areale_simple
             )
 
             rm_obj = settings.target_rm
@@ -217,12 +218,21 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
             alpha = getattr(context.scene.em_tools, 'proxy_display_alpha', 0.5)
             assign_em_material(areale_obj, settings.us_type, alpha)
 
-            # Graph linking — creates the full paradata chain
+            # Graph linking
             if settings.us_type != 'GENERIC':
                 try:
-                    us_node, msg = link_areale_to_graph(
-                        context, areale_obj, rm_obj, settings
-                    )
+                    experimental = getattr(context.scene.em_tools,
+                                           'experimental_features', False)
+                    if experimental:
+                        # Full paradata chain (experimental / 1.6)
+                        us_node, msg = link_areale_to_graph(
+                            context, areale_obj, rm_obj, settings
+                        )
+                    else:
+                        # Simple mode (1.5): just name + parent to RM
+                        us_node, msg = link_areale_simple(
+                            context, areale_obj, rm_obj, settings
+                        )
                     if us_node:
                         self.report({'INFO'}, msg)
                     else:

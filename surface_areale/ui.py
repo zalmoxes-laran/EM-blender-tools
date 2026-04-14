@@ -56,6 +56,7 @@ class VIEW3D_PT_SurfaceAreale(Panel):
         em_tools = scene.em_tools
         settings = em_tools.surface_areale
         graph = _get_graph_safe(context)
+        experimental = getattr(em_tools, 'experimental_features', False)
 
         all_ok = True  # Track if all requirements are met
 
@@ -77,86 +78,101 @@ class VIEW3D_PT_SurfaceAreale(Panel):
         elif not obj:
             all_ok = False
 
-        # ── Req 2: Document linked to RM ──────────────────────────────
-        box = layout.box()
-        doc_node = None
-        has_doc = False
+        # ── Req 2-4: Document / Extractor / Property (experimental only) ─
+        if experimental:
+            # ── Req 2: Document linked to RM ──────────────────────────
+            box = layout.box()
+            doc_node = None
+            has_doc = False
 
-        if is_rm and graph:
-            doc_node = find_rm_document(scene, graph, obj)
-            has_doc = doc_node is not None
+            if is_rm and graph:
+                doc_node = find_rm_document(scene, graph, obj)
+                has_doc = doc_node is not None
 
-        row = box.row()
-        row.label(text="2. Document",
-                  icon='CHECKMARK' if has_doc else 'X')
+            row = box.row()
+            row.label(text="2. Document",
+                      icon='CHECKMARK' if has_doc else 'X')
 
-        if has_doc:
-            box.label(text=f"{doc_node.name}", icon='FILE')
-        elif is_rm:
-            box.prop(settings, "create_new_document", text="Create New Document")
-            if settings.create_new_document:
-                row = box.row(align=True)
-                row.prop(settings, "new_doc_name", text="Name")
-                row.operator("emtools.suggest_next_doc", text="", icon='ADD')
-                box.prop(settings, "new_doc_date", text="Date")
-                has_doc = bool(settings.new_doc_name)
-            else:
-                if hasattr(scene, 'doc_list') and scene.doc_list:
-                    box.prop_search(settings, "existing_document",
-                                    scene, "doc_list", text="Document")
+            if has_doc:
+                box.label(text=f"{doc_node.name}", icon='FILE')
+            elif is_rm:
+                box.prop(settings, "create_new_document", text="Create New Document")
+                if settings.create_new_document:
+                    row = box.row(align=True)
+                    row.prop(settings, "new_doc_name", text="Name")
+                    row.operator("emtools.suggest_next_doc", text="", icon='ADD')
+                    box.prop(settings, "new_doc_date", text="Date")
+                    has_doc = bool(settings.new_doc_name)
                 else:
-                    box.prop(settings, "existing_document", text="Document")
-                has_doc = bool(settings.existing_document)
+                    if hasattr(scene, 'doc_list') and scene.doc_list:
+                        box.prop_search(settings, "existing_document",
+                                        scene, "doc_list", text="Document")
+                    else:
+                        box.prop(settings, "existing_document", text="Document")
+                    has_doc = bool(settings.existing_document)
 
-        if not has_doc:
-            all_ok = False
+            if not has_doc:
+                all_ok = False
 
-        # ── Req 3: Extractor ──────────────────────────────────────────
-        box = layout.box()
-        has_extr = bool(settings.extractor_name)
-        row = box.row()
-        row.label(text="3. Extractor",
-                  icon='CHECKMARK' if has_extr else 'X')
-        box.prop(settings, "extractor_name", text="Method")
-        if not has_extr:
-            all_ok = False
+            # ── Req 3: Extractor ──────────────────────────────────────
+            box = layout.box()
+            has_extr = bool(settings.extractor_name)
+            row = box.row()
+            row.label(text="3. Extractor",
+                      icon='CHECKMARK' if has_extr else 'X')
+            box.prop(settings, "extractor_name", text="Method")
+            if not has_extr:
+                all_ok = False
 
-        # ── Req 4: Property ───────────────────────────────────────────
-        box = layout.box()
-        has_prop = bool(settings.property_name)
-        row = box.row()
-        row.label(text="4. Property",
-                  icon='CHECKMARK' if has_prop else 'X')
-        box.prop(settings, "property_name", text="Name")
-        if not has_prop:
-            all_ok = False
+            # ── Req 4: Property ───────────────────────────────────────
+            box = layout.box()
+            has_prop = bool(settings.property_name)
+            row = box.row()
+            row.label(text="4. Property",
+                      icon='CHECKMARK' if has_prop else 'X')
+            box.prop(settings, "property_name", text="Name")
+            if not has_prop:
+                all_ok = False
+        else:
+            doc_node = None  # Not used in simple mode
 
-        # ── Req 5: US Target ──────────────────────────────────────────
+        # ── US Target ─────────────────────────────────────────────────
         box = layout.box()
         has_us = False
 
         row = box.row()
+        req_num = "5" if experimental else "2"
         box.prop(settings, "us_type", text="Type")
 
         if settings.us_type == 'GENERIC':
             has_us = True
-            row.label(text="5. Stratigraphic Unit",
+            row.label(text=f"{req_num}. Stratigraphic Unit",
                       icon='CHECKMARK')
         else:
-            box.prop(settings, "create_new_us", text="Create New US")
-            if settings.create_new_us:
-                r = box.row(align=True)
-                r.prop(settings, "new_us_name", text="Name")
-                r.operator("emtools.suggest_next_us", text="", icon='ADD')
-                has_us = bool(settings.new_us_name)
+            # "Create New US" only in experimental mode
+            if experimental:
+                box.prop(settings, "create_new_us", text="Create New US")
+                if settings.create_new_us:
+                    r = box.row(align=True)
+                    r.prop(settings, "new_us_name", text="Name")
+                    r.operator("emtools.suggest_next_us", text="", icon='ADD')
+                    has_us = bool(settings.new_us_name)
 
-                if hasattr(em_tools, 'epochs') and em_tools.epochs.list:
-                    box.prop_search(settings, "new_us_epoch",
-                                    em_tools.epochs, "list", text="Epoch")
-                if hasattr(em_tools, 'stratigraphy') and em_tools.stratigraphy.units:
-                    box.prop_search(settings, "link_to_existing_us",
-                                    em_tools.stratigraphy, "units", text="Link to")
+                    if hasattr(em_tools, 'epochs') and em_tools.epochs.list:
+                        box.prop_search(settings, "new_us_epoch",
+                                        em_tools.epochs, "list", text="Epoch")
+                    if hasattr(em_tools, 'stratigraphy') and em_tools.stratigraphy.units:
+                        box.prop_search(settings, "link_to_existing_us",
+                                        em_tools.stratigraphy, "units", text="Link to")
+                else:
+                    if hasattr(em_tools, 'stratigraphy') and em_tools.stratigraphy.units:
+                        box.prop_search(settings, "linked_us_name",
+                                        em_tools.stratigraphy, "units", text="Existing US")
+                    else:
+                        box.prop(settings, "linked_us_name", text="US Name")
+                    has_us = bool(settings.linked_us_name)
             else:
+                # 1.5 mode: only existing US selection
                 if hasattr(em_tools, 'stratigraphy') and em_tools.stratigraphy.units:
                     box.prop_search(settings, "linked_us_name",
                                     em_tools.stratigraphy, "units", text="Existing US")
@@ -165,30 +181,31 @@ class VIEW3D_PT_SurfaceAreale(Panel):
                 has_us = bool(settings.linked_us_name)
 
             # Update icon retroactively
-            row.label(text="5. Stratigraphic Unit",
+            row.label(text=f"{req_num}. Stratigraphic Unit",
                       icon='CHECKMARK' if has_us else 'X')
 
         if not has_us:
             all_ok = False
 
-        # ── Chain Summary (collapsed) ─────────────────────────────────
-        box = layout.box()
-        row = box.row()
-        row.prop(settings, "show_chain_summary",
-                 icon='TRIA_DOWN' if settings.show_chain_summary else 'TRIA_RIGHT',
-                 text="Chain Summary", emboss=False)
+        # ── Chain Summary (collapsed) — experimental only ─────────────
+        if experimental:
+            box = layout.box()
+            row = box.row()
+            row.prop(settings, "show_chain_summary",
+                     icon='TRIA_DOWN' if settings.show_chain_summary else 'TRIA_RIGHT',
+                     text="Chain Summary", emboss=False)
 
-        if settings.show_chain_summary:
-            us_name = settings.new_us_name if settings.create_new_us else settings.linked_us_name
-            doc_name = doc_node.name if doc_node else (settings.new_doc_name or settings.existing_document or "?")
-            rm_name = obj.name if obj else "?"
+            if settings.show_chain_summary:
+                us_name = settings.new_us_name if settings.create_new_us else settings.linked_us_name
+                doc_name = doc_node.name if doc_node else (settings.new_doc_name or settings.existing_document or "?")
+                rm_name = obj.name if obj else "?"
 
-            col = box.column(align=True)
-            col.scale_y = 0.8
-            col.label(text=f"{us_name or '?'} --has_property--> {settings.property_name}")
-            col.label(text=f"  --has_data_provenance--> {doc_name}.N")
-            col.label(text=f"  --extracted_from--> {doc_name}")
-            col.label(text=f"  --has_representation_model--> {rm_name}")
+                col = box.column(align=True)
+                col.scale_y = 0.8
+                col.label(text=f"{us_name or '?'} --has_property--> {settings.property_name}")
+                col.label(text=f"  --has_data_provenance--> {doc_name}.N")
+                col.label(text=f"  --extracted_from--> {doc_name}")
+                col.label(text=f"  --has_representation_model--> {rm_name}")
 
         # ── Draw Button ───────────────────────────────────────────────
         layout.separator()

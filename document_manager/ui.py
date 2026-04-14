@@ -118,7 +118,9 @@ class VIEW3D_PT_3DDocumentManager(Panel):
         sync_box = layout.box()
         row = sync_box.row(align=True)
         row.operator("em.docmanager_sync", text="Sync from Graph", icon="FILE_REFRESH")
-        row.operator("docmanager.create_document", text="", icon="ADD")
+        # Create Document — experimental only (requires GraphML write-back for persistence)
+        if context.scene.em_tools.experimental_features:
+            row.operator("docmanager.create_document", text="", icon="ADD")
         row.label(text=f"{len(doc_list)} docs")
 
         # --- Summary bar ---

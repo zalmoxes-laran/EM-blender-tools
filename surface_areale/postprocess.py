@@ -241,7 +241,53 @@ def _find_node_by_name(graph, name, node_type=None):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# GRAPH CHAIN CREATION
+# SIMPLE LINKING (1.5 — no paradata, just naming + US association)
+# ══════════════════════════════════════════════════════════════════════
+
+def link_areale_simple(context, areale_obj, rm_obj, settings):
+    """
+    1.5 mode: link the areale proxy to an existing US node.
+    No paradata chain (Property/Extractor/Document) is created.
+    Only applies EM naming (graph prefix + US name) and parents to RM.
+
+    Returns: (us_node, message_string) or (None, error_string)
+    """
+    from s3dgraphy import get_graph
+
+    scene = context.scene
+    em_tools = scene.em_tools
+
+    if em_tools.active_file_index < 0:
+        return None, "No active graph file"
+
+    graph_info = em_tools.graphml_files[em_tools.active_file_index]
+    graph = get_graph(graph_info.name)
+    if not graph:
+        return None, "Graph not loaded"
+
+    if settings.us_type == 'GENERIC':
+        return None, "Generic proxy — link manually later"
+
+    # ── Find existing US node ─────────────────────────────────────────
+    us_node = None
+    if settings.linked_us_name:
+        us_node = _find_node_by_name(graph, settings.linked_us_name)
+
+    if not us_node:
+        return None, f"US node '{settings.linked_us_name}' not found in graph"
+
+    # ── Apply EM naming (rename proxy to prefixed US name) ────────────
+    assign_em_naming(areale_obj, graph, us_node.name, context)
+
+    # ── Parent to RM object ───────────────────────────────────────────
+    areale_obj.parent = rm_obj
+    areale_obj.matrix_parent_inverse = rm_obj.matrix_world.inverted()
+
+    return us_node, f"Proxy '{areale_obj.name}' linked to {us_node.name}"
+
+
+# ══════════════════════════════════════════════════════════════════════
+# FULL PARADATA CHAIN (experimental — future 1.6)
 # ══════════════════════════════════════════════════════════════════════
 
 def link_areale_to_graph(context, areale_obj, rm_obj, settings):

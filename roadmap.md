@@ -2,11 +2,13 @@
 
 This document outlines the development roadmap for EM Tools and the Extended Matrix Framework.
 
-## Version 1.5 (Current Development - Q1 2025)
+## Version 1.5 (Current Release - Q2 2025)
+
+**Philosophy**: Stratigraphic units and paradata are authored in yED/GraphML. Blender enriches the graph with auxiliary 3D properties (RM, RMSF, Surface Areale, spatial documents) that live in the s3dgraphy runtime graph and .blend file. These can be exported to Heriverse but do NOT modify the source GraphML.
 
 ### EM-tools for Blender
 
-#### ✅ Completed
+#### Completed
 
 - [x] Migration to Blender Extension format  
 - [x] Automatic dependency management via wheels  
@@ -20,7 +22,6 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
 - [x] Support for graph code prefixes in objects and nodes  
 - [x] Reduced UI overhead in Paradata Manager  
 - [x] Reorganization of "Utilities & Settings" section  
-
 - [x] Landscape/Multigraph system for managing multiple Extended Matrices simultaneously  
 - [x] Complete multigraph management with graph ID prefixes  
 - [x] CronoFilter (Horizons Manager) with chronological filtering and horizon-based visualization  
@@ -35,32 +36,77 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
   - [x] Remove Set unselectable  
   - [x] Remove Toggle reconstruction  
   - [x] Remove Soloing mode with new node-based approach  
+- [x] **Surface Areale System**
+  - [x] Surface proxy creation from Grease Pencil contours on Representation Models
+  - [x] Three generation strategies: projective, shrinkwrap adaptive, boolean + LOD
+  - [x] Automatic complexity classification (Scenario A/B/C with PCA + normal analysis)
+  - [x] Hardware-aware benchmark and time estimation per strategy
+  - [x] Working Unit (UL) node type for toolmarks and surface treatments
+  - [x] Full paradata chain: US -> Property -> Extractor -> Document -> RM
+  - [x] Document-RM linking via extended has_representation_model connector
 
-#### 🚧 In Progress
+#### In Progress
 
 - [ ] New labeling system for better visualization  
+- [ ] Gate experimental features behind `experimental_features` boolean
+  - [ ] Hide Save/Export GraphML buttons (write-back not production-ready)
+  - [ ] Hide Merge XLSX button
+  - [ ] Hide Create Document button (Document Manager)
+  - [ ] Hide Create New US option (Surface Areale)
 
-#### 📋 Planned
+#### Planned (1.5.x patches)
 
+- [ ] Surface Areale: LOD as user option in Boolean strategy
+- [ ] Surface Areale: annular shapes (contour with hole)
+- [ ] Surface Areale: overlapping areali with Z offset
+- [ ] RMDoc persistence: load handler reconstruction from graph (RMSF pattern)
 - [ ] Special Finds (SF) extended visualization panel  
   - [ ] File path entry in EMsetup panel  
   - [ ] Automatic XLSX loader at GraphML import  
   - [ ] Extended info panel integration  
   - [ ] Comprehensive testing  
 
-## Version 1.6 (Q3 2025)
+## Version 1.6 (Q4 2025)
+
+**Philosophy**: Full authoring in Blender — create documents, extractors, properties, and stratigraphic units directly in the 3D environment. Requires a fully functional GraphML export to persist new data back to the source file. The hybrid yED/Blender workflow evolves into Blender-first with GraphML as the interchange format.
+
+### Prerequisites (s3dgraphy)
+
+- [ ] **GraphML exporter: standalone node support**
+  - Export DocumentNode, ExtractorNode, PropertyNode as independent top-level nodes (not only as ParadataNodeGroup internals)
+  - Preserve original `node_id` for imported nodes (round-trip fidelity)
+  - Merge logic: distinguish new vs modified vs deleted nodes
+  - Preserve yED positions for unmodified nodes
 
 ### EM-tools for Blender
 
-- [ ] **Surface Areale System**
-  - Surface proxy creation from Grease Pencil contours on Representation Models
-  - Three generation strategies: projective, shrinkwrap adaptive, boolean + LOD
-  - Automatic complexity classification (Scenario A/B/C with PCA + normal analysis)
-  - Hardware-aware benchmark and time estimation per strategy
-  - Working Unit (UL) node type for toolmarks and surface treatments
-  - Full paradata chain: US → Property → Extractor → Document → RM
-  - Document-RM linking via extended has_representation_model connector
-  - RM to Proxy parent panel for future annotation tools
+- [ ] **Full GraphML round-trip**
+  - Import -> enrich in Blender -> export updated GraphML
+  - Save GraphML / Save As buttons enabled for production use
+  - Merge XLSX enabled for production use
+
+- [ ] **Create US from Blender**
+  - Operator already exists in Surface Areale (`_create_us_node()`)
+  - Needs GraphML persistence via updated exporter
+  - UI: un-gate "Create New US" from experimental
+
+- [ ] **Create Documents from Blender**
+  - Operator already exists (`DOCMANAGER_OT_create_document`)
+  - Needs GraphML persistence via updated exporter
+  - UI: un-gate "Create Document" from experimental
+
+- [ ] **Create Extractors and Properties from Blender**
+  - New operators to be implemented
+  - Full paradata chain authoring in Blender
+
+- [ ] **RMDoc Manager: advanced operations**
+  - Select, rename, remove operators
+  - Create RM from document (promote Doc to RM-Doc/RM-SF)
+
+- [ ] **Document Manager: DOSCo integration**
+  - Copy files to DOSCo folder with prefix
+  - Document type icons in UIList
+  - Content import for documents (OBJ, images, DOSCo links)
 
 - [ ] **3D GIS Mode**  
   - UI section for simple 3D GIS switching  
@@ -153,9 +199,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute to these roadmap it
 
 ## Tracking Progress
 
-- 🏷️ **GitHub Issues**: Each roadmap item has a corresponding issue  
-- 📊 **GitHub Projects**: Visual kanban board for current development  
-- 🔄 **Milestones**: Version-based milestones for release planning  
+- GitHub Issues: Each roadmap item has a corresponding issue  
+- GitHub Projects: Visual kanban board for current development  
+- Milestones: Version-based milestones for release planning  
 
 ---
 
