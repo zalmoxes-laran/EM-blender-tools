@@ -29,39 +29,18 @@ def _get_gp_paint_mode():
 
 
 def _set_gp_material_color(mat, color):
-    """Configure a material for GP v3 stroke color.
-    Tries multiple approaches for maximum compatibility across Blender versions."""
-
-    # Approach 1: Set diffuse_color (viewport display) — works everywhere
+    """Configure GP material stroke color (best-effort)."""
     mat.diffuse_color = (*color[:3], 1.0)
-
-    # Approach 2: GP-specific surface_color if available (Blender 5.x)
-    try:
-        mat.surface_color = (*color[:3], 1.0)
-    except AttributeError:
-        pass
-
-    # Approach 3: Node-based — Emission shader (bright, unlit)
-    mat.use_nodes = True
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-    nodes.clear()
-    output = nodes.new('ShaderNodeOutputMaterial')
-    output.location = (200, 0)
-    emission = nodes.new('ShaderNodeEmission')
-    emission.location = (0, 0)
-    emission.inputs['Color'].default_value = (*color[:3], 1.0)
-    emission.inputs['Strength'].default_value = 5.0
-    links.new(emission.outputs['Emission'], output.inputs['Surface'])
-
-    # Approach 4: Legacy GP material API (Blender 4.3-4.4)
-    try:
-        if hasattr(mat, 'grease_pencil'):
-            mat.grease_pencil.color = (*color[:3], 1.0)
-            mat.grease_pencil.show_stroke = True
-            mat.grease_pencil.mode = 'LINE'
-    except (AttributeError, TypeError):
-        pass
+    gp = getattr(mat, 'grease_pencil', None)
+    if gp is not None:
+        try:
+            gp.show_stroke = True
+            gp.mode = 'LINE'
+            gp.stroke_style = 'SOLID'
+            gp.color = (*color[:3], 1.0)
+            gp.show_fill = False
+        except (AttributeError, TypeError):
+            pass
 
 
 class EMTOOLS_OT_draw_surface_areale(Operator):
@@ -240,21 +219,16 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
 
             # Graph linking — creates the full paradata chain
             if settings.us_type != 'GENERIC':
-                print(f"[SurfaceAreale] Graph linking: RM={rm_obj.name}, US={settings.linked_us_name or settings.new_us_name}, Doc={settings.new_doc_name or settings.existing_document}")
-
                 try:
                     us_node, msg = link_areale_to_graph(
                         context, areale_obj, rm_obj, settings
                     )
                     if us_node:
                         self.report({'INFO'}, msg)
-                        print(f"[SurfaceAreale] SUCCESS: {msg}")
                     else:
                         self.report({'WARNING'}, f"Graph linking returned no US: {msg}")
-                        print(f"[SurfaceAreale] FAILED: {msg}")
                 except Exception as e:
                     self.report({'WARNING'}, f"Graph linking failed: {e}")
-                    print(f"[SurfaceAreale] EXCEPTION: {e}")
                     import traceback
                     traceback.print_exc()
 
@@ -274,12 +248,10 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
                         prefixed_name = node_name_to_proxy_name(us_name, context, graph)
                         areale_obj.name = prefixed_name
                         areale_obj.data.name = prefixed_name
-                        print(f"[SurfaceAreale] Named proxy: {prefixed_name}")
                     else:
                         areale_obj.name = us_name
                         areale_obj.data.name = us_name
-                except Exception as e:
-                    print(f"[SurfaceAreale] Naming fallback: {e}")
+                except Exception:
                     areale_obj.name = us_name
                     areale_obj.data.name = us_name
 
@@ -289,6 +261,18 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
             bpy.ops.object.select_all(action='DESELECT')
             areale_obj.select_set(True)
             context.view_layer.objects.active = areale_obj
+
+            # ── Refresh display materials ─────────────────────────────
+            # Re-apply the current display mode so the new proxy gets
+            # the correct material (same as switching mode in Viewer Manager)
+            try:
+                mode = context.scene.em_tools.proxy_display_mode
+                if mode == "EM":
+                    bpy.ops.emset.emmaterial()
+                elif mode in ("Epochs", "Horizons"):
+                    bpy.ops.emset.epochmaterial()
+            except Exception:
+                pass
 
             settings.is_drawing = False
             settings.drawing_phase = 'IDLE'
@@ -323,43 +307,27 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
         return {'CANCELLED'}
 
     def _create_temp_gp(self, context, rm_obj):
-        """Create a temporary Grease Pencil object for drawing with visible stroke."""
+        """Create a temporary Grease Pencil object for drawing."""
         settings = context.scene.em_tools.surface_areale
+        color = settings.gp_stroke_color
+        thickness = settings.gp_stroke_thickness
 
         gp_collection = _get_gp_collection()
         gp_data = gp_collection.new("_EM_TempArealeGP")
         gp_obj = bpy.data.objects.new("_EM_TempArealeGP", gp_data)
-
         context.collection.objects.link(gp_obj)
 
-        # Create a layer and initial frame
         layer = gp_data.layers.new("Areale")
         layer.frames.new(context.scene.frame_current)
 
-        color = settings.gp_stroke_color
-        thickness = settings.gp_stroke_thickness
+        # Material (GP stroke color requires manual "New" in Material panel)
+        mat = bpy.data.materials.get("_EM_ArealeStroke")
+        if not mat:
+            mat = bpy.data.materials.new(name="_EM_ArealeStroke")
+        _set_gp_material_color(mat, color)
+        gp_data.materials.append(mat)
 
-        # ── Configure GP stroke color and thickness ───────────────────
-        # In Blender 5.x (GP v3), strokes use regular Blender materials.
-        # The color comes from the material's surface color (Principled BSDF
-        # or Emission), and line thickness from the layer or brush settings.
-
-        mat_name = "_EM_ArealeStroke"
-        mat = bpy.data.materials.get(mat_name)
-        if mat:
-            # Update existing material color
-            _set_gp_material_color(mat, color)
-        else:
-            mat = bpy.data.materials.new(name=mat_name)
-            _set_gp_material_color(mat, color)
-
-        # Assign material to GP data
-        if gp_data.materials:
-            gp_data.materials[0] = mat
-        else:
-            gp_data.materials.append(mat)
-
-        # Set layer color (visual tint in the layer list)
+        # Layer settings
         try:
             layer.color = (*color, 1.0)
         except (TypeError, AttributeError):
@@ -367,8 +335,6 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
                 layer.color = tuple(color[:3])
             except Exception:
                 pass
-
-        # Set stroke thickness via layer or data properties
         try:
             layer.line_change = thickness
         except AttributeError:
@@ -378,33 +344,17 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
         except AttributeError:
             pass
 
-        # Set object viewport display color
         gp_obj.color = (*color[:3], 1.0)
 
-        # Try ALL known ways to set the active GP brush color
+        # Brush color
         try:
             ts = context.scene.tool_settings
-            # Blender 5.x GP paint
-            for paint_attr in ['gpencil_paint', 'gpencil_v3_paint']:
-                if hasattr(ts, paint_attr):
-                    paint = getattr(ts, paint_attr)
-                    if paint and hasattr(paint, 'brush') and paint.brush:
-                        brush = paint.brush
-                        if hasattr(brush, 'color'):
-                            brush.color = color[:3]
-                        if hasattr(brush, 'secondary_color'):
-                            brush.secondary_color = color[:3]
-                        # Try gpencil_settings on the brush
-                        if hasattr(brush, 'gpencil_settings'):
-                            gs = brush.gpencil_settings
-                            if gs and hasattr(gs, 'vertex_color'):
-                                gs.vertex_color = (*color[:3], 1.0)
-                            if gs and hasattr(gs, 'vertex_color_factor'):
-                                gs.vertex_color_factor = 1.0
-                        print(f"[SurfaceAreale] Set brush color via {paint_attr}")
-                        break
-        except Exception as e:
-            print(f"[SurfaceAreale] Brush color setting failed: {e}")
+            if hasattr(ts, 'gpencil_paint') and ts.gpencil_paint:
+                brush = ts.gpencil_paint.brush
+                if brush and hasattr(brush, 'color'):
+                    brush.color = color[:3]
+        except Exception:
+            pass
 
         return gp_obj
 

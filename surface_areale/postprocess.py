@@ -375,23 +375,6 @@ def link_areale_to_graph(context, areale_obj, rm_obj, settings):
     # Update PropertyNode value with the final proxy name
     prop_node.value = areale_obj.name
 
-    # ── DEBUG: Verify graph state ─────────────────────────────────────
-    print(f"[SurfaceAreale] === GRAPH VERIFICATION ===")
-    print(f"[SurfaceAreale] Graph has {len(graph.nodes)} nodes, {len(graph.edges)} edges")
-    print(f"[SurfaceAreale] US node: id={us_node.node_id}, name={us_node.name}, type={us_node.node_type}")
-    print(f"[SurfaceAreale] Property node: id={prop_node.node_id}, name={prop_node.name}, value={prop_node.value}")
-    print(f"[SurfaceAreale] Extractor node: id={extractor.node_id}, name={extractor.name}")
-    print(f"[SurfaceAreale] Document node: id={doc_node.node_id}, name={doc_node.name}, type={doc_node.node_type}")
-    print(f"[SurfaceAreale] RM node: id={rm_node.node_id}, name={rm_node.name}")
-    print(f"[SurfaceAreale] Proxy object: {areale_obj.name}")
-    # Verify edges
-    chain_edges = [e for e in graph.edges if e.edge_type in
-                   ('has_property', 'has_data_provenance', 'extracted_from')]
-    print(f"[SurfaceAreale] Chain edges created: {len(chain_edges)}")
-    for e in chain_edges:
-        print(f"[SurfaceAreale]   {e.edge_source[:8]}... --{e.edge_type}--> {e.edge_target[:8]}...")
-    print(f"[SurfaceAreale] === END VERIFICATION ===")
-
     # ── 8. Refresh UI lists ───────────────────────────────────────────
     _refresh_lists(context, graph, doc_node=doc_node, extractor_node=extractor,
                    us_node=us_node, prop_node=prop_node,
