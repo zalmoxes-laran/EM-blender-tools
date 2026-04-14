@@ -226,6 +226,11 @@ class DocManagerSettings(PropertyGroup):
         min=0.0,
         max=1.0,
     )  # type: ignore
+    is_piloting_camera: BoolProperty(
+        name="Pilot Camera",
+        description="Navigate inside camera view, moving camera and quad together",
+        default=False,
+    )  # type: ignore
 
 
 # ============================================================================

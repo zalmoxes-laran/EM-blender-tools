@@ -469,47 +469,46 @@ class VIEW3D_PT_3DDocumentManager(Panel):
 # and Anastylosis (scene objects → rmsf_list → Special Finds)
 
 class RMDOC_UL_documents(UIList):
-    """UIList for RMDoc: lists scene objects (quads) linked to documents.
+    """UIList for RMDoc: scene objects (quads) linked to documents.
 
-    Row layout: certainty color | object name | linked doc name | camera icon
+    Row: [RMDoc icon] obj_name | [search doc] doc_name | [select] [delete]
+    Follows RMSF (Anastylosis) row pattern.
     """
 
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         row = layout.row(align=True)
 
-        # 1. Certainty of positioning color
-        cert_icon = CERTAINTY_ICONS.get(item.certainty_class, "COLLECTION_COLOR_08")
-        row.label(text="", icon=cert_icon)
+        # 1. RMDoc icon (with object existence check)
+        rmdoc_icon = icons_manager.get_icon_value("show_all_RMDoc")
+        if item.object_exists:
+            if rmdoc_icon:
+                row.prop(item, "name", text="", emboss=False, icon_value=rmdoc_icon)
+            else:
+                row.prop(item, "name", text="", emboss=False, icon='FILE_IMAGE')
+        else:
+            row.prop(item, "name", text="", emboss=False, icon='ERROR')
 
-        # 2. Object name (this is the scene object)
-        name_col = row.row(align=True)
-        name_col.scale_x = 0.3
-        obj_icon = 'MESH_PLANE' if item.object_exists else 'ERROR'
-        name_col.label(text=item.name, icon=obj_icon)
+        # 2. Search document button
+        op = row.operator("em.rmdoc_search_document", text="", icon='VIEWZOOM', emboss=False)
+        op.rmdoc_index = index
 
         # 3. Linked document name
-        doc_col = row.row(align=True)
-        doc_col.scale_x = 0.3
-        doc_col.label(text=item.doc_name if item.doc_name else "[no doc]")
-
-        # 4. Description (truncated)
-        desc_col = row.row(align=True)
-        desc_col.scale_x = 0.25
-        desc_col.label(text=item.doc_description if item.doc_description else "")
-
-        # 5. Camera icon (or blank placeholder)
-        cam_col = row.row(align=True)
-        cam_col.scale_x = 0.08
-        if item.has_camera:
-            cam_col.label(text="", icon="CAMERA_DATA")
+        if item.doc_name:
+            doc_icon = icons_manager.get_icon_value("document")
+            if doc_icon:
+                row.label(text=item.doc_name, icon_value=doc_icon)
+            else:
+                row.label(text=item.doc_name, icon='FILE_TEXT')
         else:
-            cam_col.label(text="", icon="BLANK1")
+            row.label(text="[Not Connected]", icon='QUESTION')
 
-        # 6. Select object in viewport
-        op_col = row.row(align=True)
-        op_col.scale_x = 0.08
-        op = op_col.operator("em.rmdoc_select_object", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
+        # 4. Select object in viewport
+        op = row.operator("em.rmdoc_select_object", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
         op.object_name = item.name
+
+        # 5. Delete from list
+        op = row.operator("em.rmdoc_remove", text="", icon='TRASH', emboss=False)
+        op.rmdoc_index = index
 
     def filter_items(self, context, data, propname):
         """Sort by object name (natural numeric)."""
@@ -545,27 +544,40 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-
         rmdoc_list = scene.rmdoc_list
         total = len(rmdoc_list)
 
-        # --- Sync controls ---
-        sync_row = layout.row(align=True)
-        sync_row.operator("em.docmanager_sync", text="Sync", icon="FILE_REFRESH")
-        sync_row.label(text=f"{total} object{'s' if total != 1 else ''} in scene")
-
-        if total == 0:
-            layout.label(text="No spatialized documents in scene", icon='INFO')
-            layout.label(text="Use Document Manager to import images", icon='FORWARD')
-            return
-
-        # --- Summary ---
+        # --- Summary line ---
         with_camera = sum(1 for item in rmdoc_list if item.has_camera)
         summary_row = layout.row(align=True)
-        summary_row.label(text=f"Quads: {total}", icon="MESH_PLANE")
+        rmdoc_icon = icons_manager.get_icon_value("show_all_RMDoc")
+        if rmdoc_icon:
+            summary_row.label(text=f"{total} RMDoc", icon_value=rmdoc_icon)
+        else:
+            summary_row.label(text=f"{total} RMDoc", icon="FILE_IMAGE")
         summary_row.label(text=f"Cameras: {with_camera}", icon="CAMERA_DATA")
 
-        # --- UIList (object-centric: rmdoc_list) ---
+        # --- Action row (when objects selected) ---
+        selected_meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        if selected_meshes:
+            action_box = layout.box()
+            action_row = action_box.row(align=True)
+            action_row.label(text=f"{len(selected_meshes)} selected", icon='RESTRICT_SELECT_OFF')
+            action_row.operator("em.rmdoc_add_selected", text="Add Selected", icon='ADD')
+
+        # Create from document (uses active doc_list item)
+        if 0 <= scene.doc_list_index < len(scene.doc_list):
+            create_row = layout.row(align=True)
+            doc_item = scene.doc_list[scene.doc_list_index]
+            create_row.operator("em.rmdoc_create_from_document",
+                                text=f"Create from '{doc_item.name}'", icon='CAMERA_DATA')
+
+        if total == 0:
+            layout.label(text="No spatialized documents", icon='INFO')
+            layout.label(text="Add selected quads or create from Document Manager", icon='FORWARD')
+            return
+
+        # --- UIList ---
         row = layout.row()
         row.template_list(
             "RMDOC_UL_documents", "",
@@ -582,51 +594,90 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
             detail_box = layout.box()
             col = detail_box.column(align=True)
 
-            # Object + linked document
+            # Header: object → document
             header_row = col.row()
-            header_row.label(text=item.name, icon="MESH_PLANE")
+            if rmdoc_icon:
+                header_row.label(text=item.name, icon_value=rmdoc_icon)
+            else:
+                header_row.label(text=item.name, icon="FILE_IMAGE")
             if item.doc_name:
                 header_row.label(text=f"→ {item.doc_name}", icon="FILE_TEXT")
             else:
                 header_row.label(text="→ [unlinked]", icon="UNLINKED")
 
-            # Description
-            if item.doc_description:
-                col.label(text=item.doc_description, icon="TEXT")
+            # --- Alpha (transparency) ---
+            quad_obj = bpy.data.objects.get(item.name)
+            if quad_obj and quad_obj.data and quad_obj.data.materials:
+                mat = quad_obj.data.materials[0]
+                if mat and mat.use_nodes:
+                    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+                    if bsdf and 'Alpha' in bsdf.inputs:
+                        col.separator()
+                        col.prop(bsdf.inputs['Alpha'], "default_value", text="Alpha")
 
-            # Certainty of positioning
-            col.separator()
-            cert_icon = CERTAINTY_ICONS.get(item.certainty_class, "COLLECTION_COLOR_08")
-            cert_label = CERTAINTY_LABELS.get(item.certainty_class, "Unknown")
-            col.label(text=f"Positioning: {cert_label}", icon=cert_icon)
-
-            # Quad dimensions
-            col.separator()
-            dim_row = col.row(align=True)
-            dim_row.label(text=f"{item.quad_width:.2f} × {item.quad_height:.2f} m", icon="MESH_PLANE")
-            dim_row.label(text=f"({item.dimensions_type})")
-
-            # Camera info
+            # --- Camera section ---
             col.separator()
             if item.has_camera:
-                col.label(text=f"Camera: {item.camera_object_name}", icon="CAMERA_DATA")
                 cam_obj = bpy.data.objects.get(item.camera_object_name)
-                if cam_obj and cam_obj.type == 'CAMERA':
-                    col.prop(cam_obj.data, "lens", text="Focal Length")
-                op = col.operator("em.rmdoc_look_through", text="Look Through", icon="HIDE_OFF")
+                cam_data = cam_obj.data if cam_obj and cam_obj.type == 'CAMERA' else None
+
+                if cam_data:
+                    # Camera type + lens/ortho_scale
+                    lens_row = col.row(align=True)
+                    if cam_data.type == 'PERSP':
+                        lens_row.prop(cam_data, "lens", text="Focal")
+                    else:
+                        lens_row.prop(cam_data, "ortho_scale", text="Ortho Scale")
+                    # Toggle perspective/ortho
+                    ortho_icon = 'VIEW_ORTHO' if cam_data.type == 'PERSP' else 'VIEW_PERSPECTIVE'
+                    ortho_text = "Ortho" if cam_data.type == 'PERSP' else "Persp"
+                    op = lens_row.operator("em.rmdoc_toggle_ortho",
+                                           text=ortho_text, icon=ortho_icon)
+                    op.object_name = item.name
+
+                    # Clip distances + individual auto crop buttons
+                    clip_row = col.row(align=True)
+                    clip_row.prop(cam_data, "clip_start", text="Near")
+                    op = clip_row.operator("em.rmdoc_autocrop_near", text="", icon='TRACKING_REFINE_BACKWARDS')
+                    op.object_name = item.name
+                    clip_row.prop(cam_data, "clip_end", text="Far")
+                    op = clip_row.operator("em.rmdoc_autocrop_far", text="", icon='TRACKING_REFINE_FORWARDS')
+                    op.object_name = item.name
+
+                # Pilot + Look Through
+                cam_row = col.row(align=True)
+                doc_settings = scene.doc_settings
+                if doc_settings.is_piloting_camera:
+                    pilot_icon = 'LOCKED'
+                    pilot_text = "Piloting"
+                else:
+                    pilot_icon = 'DECORATE_UNLOCKED'
+                    pilot_text = "Pilot Camera"
+                op = cam_row.operator("em.rmdoc_pilot_camera",
+                                      text=pilot_text, icon=pilot_icon)
                 op.object_name = item.name
+                op = cam_row.operator("em.rmdoc_look_through",
+                                      text="Look Through", icon="HIDE_OFF")
+                op.object_name = item.name
+                cam_row.operator("em.rmdoc_fly", text="", icon="MOD_PARTICLE_INSTANCE")
             else:
-                op = col.operator("em.rmdoc_create_camera", text="Create Camera", icon="CAMERA_DATA")
+                op = col.operator("em.rmdoc_create_camera",
+                                  text="Create Camera", icon="CAMERA_DATA")
                 op.object_name = item.name
 
-            # Actions
+            # --- Actions ---
             col.separator()
             action_row = col.row(align=True)
-            op = action_row.operator("em.rmdoc_select_object", text="Select Quad", icon="RESTRICT_SELECT_OFF")
+            op = action_row.operator("em.rmdoc_select_object",
+                                     text="Select", icon="RESTRICT_SELECT_OFF")
             op.object_name = item.name
             if item.doc_node_id:
-                op = action_row.operator("em.rmdoc_open_document", text="Open File", icon="URL")
+                op = action_row.operator("em.rmdoc_open_document",
+                                         text="Open File", icon="URL")
                 op.doc_node_id = item.doc_node_id
+            op = action_row.operator("em.rmdoc_remove",
+                                     text="Delete", icon="TRASH")
+            op.rmdoc_index = idx
 
 
 classes = (

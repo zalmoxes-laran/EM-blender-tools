@@ -13,7 +13,7 @@ import os
 import math
 
 import bpy
-from bpy.props import StringProperty, FloatProperty, EnumProperty  # type: ignore
+from bpy.props import StringProperty, FloatProperty, EnumProperty, IntProperty, BoolProperty  # type: ignore
 
 from .data import sync_doc_list
 
@@ -215,7 +215,10 @@ class DOCMANAGER_OT_import_image(bpy.types.Operator):
         mat.node_tree.links.new(bsdf.inputs['Base Color'], tex_node.outputs['Color'])
         alpha = context.scene.doc_settings.default_alpha
         bsdf.inputs['Alpha'].default_value = alpha
-        mat.blend_method = 'BLEND'
+        try:
+            mat.blend_method = 'BLEND'
+        except AttributeError:
+            pass  # Blender 4.2+
 
         if obj.data.materials:
             obj.data.materials[0] = mat
@@ -821,6 +824,68 @@ def _get_active_rmdoc_item(context):
     return None
 
 
+def _get_or_create_dosco_collection():
+    """Get or create the DosCo collection for document quads."""
+    col = bpy.data.collections.get("DosCo")
+    if col is None:
+        col = bpy.data.collections.new(name="DosCo")
+        bpy.context.scene.collection.children.link(col)
+    return col
+
+
+def _find_rmdoc_camera(obj):
+    """Find camera for an RMDoc quad object. Returns camera object or None."""
+    cam_name = obj.get('em_camera_name', '')
+    if cam_name:
+        cam_obj = bpy.data.objects.get(cam_name)
+        if cam_obj and cam_obj.type == 'CAMERA':
+            return cam_obj
+    # Fallback: check children
+    for child in obj.children:
+        if child.type == 'CAMERA':
+            return child
+    return None
+
+
+def _camera_quad_distance(cam_obj, quad_obj):
+    """Calculate distance from camera to quad."""
+    if quad_obj.parent == cam_obj:
+        dist = abs(quad_obj.location.z)
+    else:
+        dist = (cam_obj.matrix_world.translation - quad_obj.matrix_world.translation).length
+    return max(dist, 0.2)
+
+
+def _ensure_accessible_and_select(operator, context, obj):
+    """Ensure object is accessible (unhide collections) then select it.
+    Returns True on success, False on failure."""
+    from ..epoch_manager.operators import _ensure_object_accessible_for_viewlayer
+
+    prep = _ensure_object_accessible_for_viewlayer(
+        context, obj, make_visible=True, make_selectable=True
+    )
+    if prep["activated_collections"]:
+        operator.report({'INFO'}, f"Enabled collections: {', '.join(prep['activated_collections'])}")
+    if prep["errors"]:
+        operator.report({'WARNING'}, "; ".join(prep["errors"]))
+        return False
+
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    context.view_layer.objects.active = obj
+
+    if context.scene.doc_settings.zoom_to_selected:
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                for region in area.regions:
+                    if region.type == 'WINDOW':
+                        with context.temp_override(area=area, region=region):
+                            bpy.ops.view3d.view_selected()
+                        break
+                break
+    return True
+
+
 class RMDOC_OT_select_object(bpy.types.Operator):
     """Select this RMDoc quad object in the viewport"""
     bl_idname = "em.rmdoc_select_object"
@@ -834,21 +899,454 @@ class RMDOC_OT_select_object(bpy.types.Operator):
             self.report({'WARNING'}, f"Object '{self.object_name}' not found")
             return {'CANCELLED'}
 
-        bpy.ops.object.select_all(action='DESELECT')
-        obj.select_set(True)
-        context.view_layer.objects.active = obj
+        if not _ensure_accessible_and_select(self, context, obj):
+            return {'CANCELLED'}
 
-        # Zoom if setting enabled
-        if context.scene.doc_settings.zoom_to_selected:
-            for area in context.screen.areas:
-                if area.type == 'VIEW_3D':
-                    for region in area.regions:
-                        if region.type == 'WINDOW':
-                            with context.temp_override(area=area, region=region):
-                                bpy.ops.view3d.view_selected()
-                            break
+        self.report({'INFO'}, f"Selected: {obj.name}")
+        return {'FINISHED'}
+
+
+class RMDOC_OT_add_selected(bpy.types.Operator):
+    """Add selected mesh objects to the RMDoc list"""
+    bl_idname = "em.rmdoc_add_selected"
+    bl_label = "Add Selected"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return any(obj.type == 'MESH' and obj.select_get() for obj in context.view_layer.objects)
+
+    def execute(self, context):
+        scene = context.scene
+        rmdoc_list = scene.rmdoc_list
+        existing_names = {item.name for item in rmdoc_list}
+
+        added = 0
+        for obj in context.selected_objects:
+            if obj.type != 'MESH':
+                continue
+            if obj.name in existing_names:
+                continue
+            item = rmdoc_list.add()
+            item.name = obj.name
+            item.object_exists = True
+            added += 1
+
+        if added > 0:
+            scene.rmdoc_list_index = len(rmdoc_list) - 1
+            self.report({'INFO'}, f"Added {added} object{'s' if added > 1 else ''} to RMDoc list")
+        else:
+            self.report({'INFO'}, "No new objects to add (already in list or not mesh)")
+        return {'FINISHED'}
+
+
+class RMDOC_OT_search_document(bpy.types.Operator):
+    """Search and select a document to link to this RMDoc object"""
+    bl_idname = "em.rmdoc_search_document"
+    bl_label = "Link to Document"
+    bl_description = "Search for a document to associate with this RMDoc object"
+    bl_options = {'REGISTER', 'INTERNAL'}
+
+    rmdoc_index: IntProperty(default=-1)  # type: ignore
+    search_query: StringProperty(name="Search", default="")  # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.em_tools.active_file_index >= 0
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=400)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "search_query", text="", icon='VIEWZOOM')
+        layout.separator()
+
+        em_tools = context.scene.em_tools
+        if em_tools.active_file_index < 0:
+            layout.label(text="No active graph", icon='ERROR')
+            return
+
+        try:
+            from s3dgraphy import get_graph
+            graph_info = em_tools.graphml_files[em_tools.active_file_index]
+            graph = get_graph(graph_info.name)
+        except Exception:
+            graph = None
+
+        if not graph:
+            layout.label(text="Graph not loaded", icon='ERROR')
+            return
+
+        # Build set of already-used doc_node_ids
+        used_doc_ids = {item.doc_node_id for item in context.scene.rmdoc_list if item.doc_node_id}
+
+        # Filter document nodes by search query
+        doc_nodes = []
+        for node in graph.nodes:
+            if not (hasattr(node, 'node_type') and node.node_type == 'document'):
+                continue
+            node_name = getattr(node, 'name', '')
+            node_desc = getattr(node, 'description', '')
+            search_lower = self.search_query.lower()
+            if (not self.search_query or
+                    search_lower in node_name.lower() or
+                    search_lower in node_desc.lower()):
+                doc_nodes.append(node)
+
+        doc_nodes.sort(key=lambda n: n.name)
+
+        if doc_nodes:
+            from .. import icons_manager
+            box = layout.box()
+            doc_icon = icons_manager.get_icon_value("document")
+            box.label(text=f"Found {len(doc_nodes)} documents:", icon_value=doc_icon if doc_icon else 0)
+
+            for node in doc_nodes[:20]:
+                row = box.row(align=True)
+                is_used = node.node_id in used_doc_ids
+                label = f"{node.name} — {node.description}" if node.description else node.name
+                if is_used:
+                    label = f"⚠ {label} (already linked)"
+
+                if doc_icon and not is_used:
+                    op = row.operator("em.rmdoc_assign_document",
+                                      text=label, icon_value=doc_icon)
+                elif is_used:
+                    op = row.operator("em.rmdoc_assign_document",
+                                      text=label, icon='ERROR')
+                else:
+                    op = row.operator("em.rmdoc_assign_document",
+                                      text=label, icon='FILE')
+                op.rmdoc_index = self.rmdoc_index
+                op.doc_node_id = node.node_id
+                op.doc_name = node.name
+
+            if len(doc_nodes) > 20:
+                box.label(text=f"...and {len(doc_nodes) - 20} more. Refine your search.",
+                          icon='INFO')
+        else:
+            layout.label(text="No documents found", icon='INFO')
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+
+class RMDOC_OT_assign_document(bpy.types.Operator):
+    """Assign a document to an RMDoc object"""
+    bl_idname = "em.rmdoc_assign_document"
+    bl_label = "Assign Document"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    rmdoc_index: IntProperty(default=-1)  # type: ignore
+    doc_node_id: StringProperty()  # type: ignore
+    doc_name: StringProperty()  # type: ignore
+
+    def execute(self, context):
+        scene = context.scene
+        rmdoc_list = scene.rmdoc_list
+
+        if self.rmdoc_index < 0 or self.rmdoc_index >= len(rmdoc_list):
+            self.report({'ERROR'}, "Invalid RMDoc index")
+            return {'CANCELLED'}
+
+        # Guard: check if document is already linked to another RMDoc
+        for i, item in enumerate(rmdoc_list):
+            if item.doc_node_id == self.doc_node_id and i != self.rmdoc_index:
+                self.report({'ERROR'},
+                            f"Document '{self.doc_name}' is already linked to '{item.name}'")
+                return {'CANCELLED'}
+
+        item = rmdoc_list[self.rmdoc_index]
+        item.doc_node_id = self.doc_node_id
+        item.doc_name = self.doc_name
+
+        # Set custom property on the scene object
+        obj = bpy.data.objects.get(item.name)
+        if obj:
+            obj['em_doc_node_id'] = self.doc_node_id
+
+        # Update description from doc_list
+        for doc_item in scene.doc_list:
+            if doc_item.node_id == self.doc_node_id:
+                item.doc_description = doc_item.description
+                item.certainty_class = doc_item.certainty_class
+                break
+
+        self.report({'INFO'}, f"Linked '{item.name}' → {self.doc_name}")
+        return {'FINISHED'}
+
+
+class RMDOC_OT_create_from_document(bpy.types.Operator):
+    """Create a quad+camera from a document, positioned at current viewport"""
+    bl_idname = "em.rmdoc_create_from_document"
+    bl_label = "Create from Document"
+    bl_description = "Create an image quad with camera from the active document"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    doc_node_id: StringProperty(default="")  # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        # Either doc_node_id will be passed, or use active doc_list item
+        if context.scene.em_tools.active_file_index < 0:
+            return False
+        idx = context.scene.doc_list_index
+        return 0 <= idx < len(context.scene.doc_list)
+
+    def execute(self, context):
+        scene = context.scene
+
+        # Resolve which document to use
+        doc_node_id = self.doc_node_id
+        doc_item = None
+        if doc_node_id:
+            for d in scene.doc_list:
+                if d.node_id == doc_node_id:
+                    doc_item = d
                     break
+        else:
+            idx = scene.doc_list_index
+            if 0 <= idx < len(scene.doc_list):
+                doc_item = scene.doc_list[idx]
+                doc_node_id = doc_item.node_id
 
+        if not doc_item:
+            self.report({'ERROR'}, "No document selected")
+            return {'CANCELLED'}
+
+        # Guard: check document doesn't already have an RMDoc
+        for item in scene.rmdoc_list:
+            if item.doc_node_id == doc_node_id:
+                self.report({'ERROR'},
+                            f"Document '{doc_item.name}' already has RMDoc '{item.name}'")
+                return {'CANCELLED'}
+
+        # Resolve image path
+        image_path = _resolve_doc_image_path(context, doc_item)
+        if not image_path:
+            self.report({'ERROR'},
+                        f"Cannot resolve image for '{doc_item.name}'. Check DosCo directory.")
+            return {'CANCELLED'}
+
+        # Load image
+        try:
+            img = bpy.data.images.load(image_path, check_existing=True)
+        except Exception as e:
+            self.report({'ERROR'}, f"Cannot load image: {e}")
+            return {'CANCELLED'}
+
+        # Get current viewport position
+        region_3d = None
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                region_3d = area.spaces[0].region_3d
+                break
+        if not region_3d:
+            self.report({'ERROR'}, "No 3D Viewport found")
+            return {'CANCELLED'}
+
+        view_matrix = region_3d.view_matrix.inverted()
+        focal = scene.doc_settings.default_focal_length
+        alpha = scene.doc_settings.default_alpha
+        depth = 2.0
+
+        # Get or create DosCo collection
+        dosco_col = _get_or_create_dosco_collection()
+
+        # --- Create camera ---
+        cam_data = bpy.data.cameras.new(name=f"Cam_Doc_{doc_item.name}")
+        cam_data.lens = focal
+        cam_obj = bpy.data.objects.new(name=f"Cam_Doc_{doc_item.name}",
+                                       object_data=cam_data)
+        dosco_col.objects.link(cam_obj)
+        cam_obj.matrix_world = view_matrix
+
+        # --- Create quad (plane) ---
+        # Use the graph prefix for naming
+        try:
+            from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+            from ..functions import is_graph_available
+            graph_ok, graph = is_graph_available(context)
+            quad_name = node_name_to_proxy_name(
+                doc_item.name, context=context, graph=graph if graph_ok else None)
+        except Exception:
+            quad_name = f"DocQuad_{doc_item.name}"
+
+        # --- Create quad using PhotogrTool pattern ---
+        # Use bpy.ops to create the plane exactly as PhotogrTool does
+        bpy.ops.mesh.primitive_plane_add()
+        quad_obj = bpy.context.active_object
+        quad_obj.name = quad_name
+
+        # Edit mode: resize to unit (0.5 scale), UV project, rotate 90° Z
+        bpy.ops.object.editmode_toggle()
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.transform.resize(value=(0.5, 0.5, 0.5))
+        bpy.ops.uv.smart_project(angle_limit=66, island_margin=0, area_weight=0)
+        bpy.ops.uv.select_all(action='SELECT')
+        bpy.ops.transform.rotate(value=1.5708, orient_axis='Z')
+        bpy.ops.object.editmode_toggle()
+
+        # Position at -depth from camera in local space, THEN parent
+        quad_obj.location = (0, 0, -depth)
+        quad_obj.parent = cam_obj
+
+        # Move to DosCo collection (remove from active collection)
+        for col in quad_obj.users_collection:
+            col.objects.unlink(quad_obj)
+        dosco_col.objects.link(quad_obj)
+
+        # --- Set up scale drivers (PhotogrTool pattern) ---
+        # Scale Y first (with aspect ratio), then Scale X (plain)
+        # — same order as PhotogrTool.SetupDriversForImagePlane
+        if img.size[0] > 0 and img.size[1] > 0:
+            aspect = img.size[1] / img.size[0]
+        else:
+            aspect = 1.0
+
+        def _setup_driver_vars(driver, quad, cam):
+            """Set up camAngle and depth variables on a driver."""
+            v_angle = driver.variables.new()
+            v_angle.name = 'camAngle'
+            v_angle.type = 'SINGLE_PROP'
+            v_angle.targets[0].id = cam
+            v_angle.targets[0].data_path = "data.angle"
+            v_depth = driver.variables.new()
+            v_depth.name = 'depth'
+            v_depth.type = 'TRANSFORMS'
+            v_depth.targets[0].id = quad
+            v_depth.targets[0].transform_type = 'LOC_Z'
+            v_depth.targets[0].transform_space = 'LOCAL_SPACE'
+
+        # Scale drivers: quad must FILL the camera frustum exactly.
+        # primitive_plane_add() → 2×2, resize(0.5) → 1×1 (vertices ±0.5).
+        # Camera frustum full width at distance d: 2 * d * tan(angle/2).
+        # Plane world width = 1 * scale_x → need scale_x = 2*d*tan(angle/2).
+        # depth variable = local Z = -d → d = -depth → scale = -2*depth*tan(angle/2).
+
+        # Scale Y (index 1) — includes image aspect ratio
+        drv_y = quad_obj.driver_add('scale', 1).driver
+        drv_y.type = 'SCRIPTED'
+        _setup_driver_vars(drv_y, quad_obj, cam_obj)
+        drv_y.expression = f"-2*depth*tan(camAngle/2)*{aspect}"
+
+        # Scale X (index 0) — fills horizontal FOV
+        drv_x = quad_obj.driver_add('scale', 0).driver
+        drv_x.type = 'SCRIPTED'
+        _setup_driver_vars(drv_x, quad_obj, cam_obj)
+        drv_x.expression = "-2*depth*tan(camAngle/2)"
+
+        bpy.context.view_layer.update()
+
+        # Autocrop: set camera clip to tightly frame the quad
+        cam_data.clip_start = max(0.01, depth - 0.1)
+        cam_data.clip_end = depth + 0.5
+
+        # --- Create material with image texture ---
+        mat = bpy.data.materials.new(name=f"M_Doc_{doc_item.name}")
+        mat.use_nodes = True
+        bsdf = mat.node_tree.nodes.get("Principled BSDF")
+        tex_node = mat.node_tree.nodes.new('ShaderNodeTexImage')
+        tex_node.image = img
+        tex_node.location = (-460, 90)
+        mat.node_tree.links.new(bsdf.inputs['Base Color'], tex_node.outputs['Color'])
+        mat.node_tree.links.new(bsdf.outputs['BSDF'],
+                                mat.node_tree.nodes.get("Material Output").inputs[0])
+        bsdf.inputs['Alpha'].default_value = alpha
+        try:
+            mat.blend_method = 'BLEND'
+        except AttributeError:
+            pass  # Blender 4.2+ auto-detects alpha
+        if quad_obj.data.materials:
+            quad_obj.data.materials[0] = mat
+        else:
+            quad_obj.data.materials.append(mat)
+
+        # Set render resolution to match image (perfect camera overlay)
+        scene.render.resolution_x = img.size[0]
+        scene.render.resolution_y = img.size[1]
+        scene.render.resolution_percentage = 100
+        scene.render.pixel_aspect_x = 1.0
+        scene.render.pixel_aspect_y = 1.0
+        cam_data.sensor_fit = 'HORIZONTAL'
+
+        # --- Tag the quad ---
+        quad_obj['em_doc_node_id'] = doc_node_id
+        quad_obj['em_dimensions_type'] = 'SYMBOLIC'
+        quad_obj['em_camera_name'] = cam_obj.name
+
+        # Re-sync to pick up the new quad
+        sync_doc_list(context.scene)
+
+        # Invalidate UI cache
+        from .ui import invalidate_doc_connection_cache
+        invalidate_doc_connection_cache()
+
+        self.report({'INFO'},
+                    f"Created RMDoc for {doc_item.name} (f={focal:.0f}mm, depth={depth}m)")
+        return {'FINISHED'}
+
+
+class RMDOC_OT_remove(bpy.types.Operator):
+    """Delete RMDoc: removes quad and camera objects from the scene"""
+    bl_idname = "em.rmdoc_remove"
+    bl_label = "Delete RMDoc"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    rmdoc_index: IntProperty(default=-1)  # type: ignore
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
+
+    def execute(self, context):
+        scene = context.scene
+        rmdoc_list = scene.rmdoc_list
+        idx = self.rmdoc_index
+
+        if idx < 0 or idx >= len(rmdoc_list):
+            self.report({'ERROR'}, "Invalid RMDoc index")
+            return {'CANCELLED'}
+
+        item = rmdoc_list[idx]
+        obj_name = item.name
+        deleted = []
+
+        obj = bpy.data.objects.get(obj_name)
+        if obj:
+            # Delete camera first (child or referenced)
+            cam_obj = _find_rmdoc_camera(obj)
+            if cam_obj:
+                cam_data = cam_obj.data
+                bpy.data.objects.remove(cam_obj, do_unlink=True)
+                # Clean up orphan camera data
+                if cam_data and cam_data.users == 0:
+                    bpy.data.cameras.remove(cam_data)
+                deleted.append("camera")
+
+            # Remove drivers before deleting (avoids Blender warnings)
+            try:
+                obj.driver_remove('scale', 0)
+                obj.driver_remove('scale', 1)
+            except Exception:
+                pass
+
+            # Delete the quad object
+            mesh_data = obj.data if obj.type == 'MESH' else None
+            bpy.data.objects.remove(obj, do_unlink=True)
+            if mesh_data and mesh_data.users == 0:
+                bpy.data.meshes.remove(mesh_data)
+            deleted.append("quad")
+
+        # Remove from list
+        rmdoc_list.remove(idx)
+
+        # Adjust index
+        if scene.rmdoc_list_index >= len(rmdoc_list):
+            scene.rmdoc_list_index = max(0, len(rmdoc_list) - 1)
+
+        parts = " + ".join(deleted) if deleted else "entry"
+        self.report({'INFO'}, f"Deleted {parts} for '{obj_name}'")
         return {'FINISHED'}
 
 
@@ -866,7 +1364,6 @@ class RMDOC_OT_create_camera(bpy.types.Operator):
             self.report({'ERROR'}, f"Object '{self.object_name}' not found")
             return {'CANCELLED'}
 
-        # Capture current 3D viewport position
         region_3d = None
         for area in context.screen.areas:
             if area.type == 'VIEW_3D':
@@ -881,21 +1378,27 @@ class RMDOC_OT_create_camera(bpy.types.Operator):
 
         cam_data = bpy.data.cameras.new(name=f"Cam_{self.object_name}")
         cam_data.lens = focal
-        cam_obj = bpy.data.objects.new(name=f"Cam_{self.object_name}", object_data=cam_data)
-        context.collection.objects.link(cam_obj)
+        cam_obj = bpy.data.objects.new(name=f"Cam_{self.object_name}",
+                                       object_data=cam_data)
+
+        # Link to same collection as the quad
+        for col in quad_obj.users_collection:
+            col.objects.link(cam_obj)
+            break
+        else:
+            context.collection.objects.link(cam_obj)
+
         cam_obj.matrix_world = view_matrix
         cam_obj.parent = quad_obj
         quad_obj['em_camera_name'] = cam_obj.name
 
-        # Re-sync rmdoc_list to pick up the camera
         sync_doc_list(context.scene)
-
         self.report({'INFO'}, f"Created camera for {self.object_name} (f={focal:.0f}mm)")
         return {'FINISHED'}
 
 
 class RMDOC_OT_look_through(bpy.types.Operator):
-    """Switch viewport to look through this RMDoc's camera"""
+    """Look through camera and fit render resolution to image dimensions"""
     bl_idname = "em.rmdoc_look_through"
     bl_label = "Look Through Camera"
 
@@ -906,19 +1409,22 @@ class RMDOC_OT_look_through(bpy.types.Operator):
         if not quad_obj:
             return {'CANCELLED'}
 
-        cam_name = quad_obj.get('em_camera_name', '')
-        cam_obj = bpy.data.objects.get(cam_name) if cam_name else None
-
-        # Fallback: check children
-        if not cam_obj or cam_obj.type != 'CAMERA':
-            for child in quad_obj.children:
-                if child.type == 'CAMERA':
-                    cam_obj = child
-                    break
-
-        if not cam_obj or cam_obj.type != 'CAMERA':
+        cam_obj = _find_rmdoc_camera(quad_obj)
+        if not cam_obj:
             self.report({'ERROR'}, "No camera found for this object")
             return {'CANCELLED'}
+
+        # Set render resolution from image pixels so camera frame matches exactly
+        img = self._get_quad_image(quad_obj)
+        if img and img.size[0] > 0 and img.size[1] > 0:
+            context.scene.render.resolution_x = img.size[0]
+            context.scene.render.resolution_y = img.size[1]
+            context.scene.render.resolution_percentage = 100
+            context.scene.render.pixel_aspect_x = 1.0
+            context.scene.render.pixel_aspect_y = 1.0
+            # Match camera sensor to image aspect for perfect overlay
+            cam_data = cam_obj.data
+            cam_data.sensor_fit = 'HORIZONTAL'
 
         context.scene.camera = cam_obj
         for area in context.screen.areas:
@@ -927,6 +1433,213 @@ class RMDOC_OT_look_through(bpy.types.Operator):
                 break
 
         return {'FINISHED'}
+
+    @staticmethod
+    def _get_quad_image(quad_obj):
+        """Extract the image from the quad's material, if any."""
+        if not quad_obj.data or not quad_obj.data.materials:
+            return None
+        mat = quad_obj.data.materials[0]
+        if not mat or not mat.use_nodes:
+            return None
+        for node in mat.node_tree.nodes:
+            if node.type == 'TEX_IMAGE' and node.image:
+                return node.image
+        return None
+
+
+class RMDOC_OT_pilot_camera(bpy.types.Operator):
+    """Toggle camera piloting — navigate inside camera view, moving camera and quad"""
+    bl_idname = "em.rmdoc_pilot_camera"
+    bl_label = "Pilot Camera"
+
+    object_name: StringProperty()  # type: ignore
+
+    def execute(self, context):
+        quad_obj = bpy.data.objects.get(self.object_name)
+        if not quad_obj:
+            return {'CANCELLED'}
+
+        cam_obj = _find_rmdoc_camera(quad_obj)
+        if not cam_obj:
+            self.report({'ERROR'}, "No camera found for this object")
+            return {'CANCELLED'}
+
+        doc_settings = context.scene.doc_settings
+        is_piloting = doc_settings.is_piloting_camera
+
+        # Find the 3D viewport
+        space = None
+        region_3d = None
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                space = area.spaces[0]
+                region_3d = space.region_3d
+                break
+
+        if not space or not region_3d:
+            self.report({'ERROR'}, "No 3D Viewport found")
+            return {'CANCELLED'}
+
+        if is_piloting:
+            # Turn OFF: exit camera view, unlock
+            space.lock_camera = False
+            region_3d.view_perspective = 'PERSP'
+            doc_settings.is_piloting_camera = False
+            self.report({'INFO'}, "Camera unlocked")
+        else:
+            # Turn ON: enter camera view, lock
+            context.scene.camera = cam_obj
+            region_3d.view_perspective = 'CAMERA'
+            space.lock_camera = True
+            doc_settings.is_piloting_camera = True
+            self.report({'INFO'}, "Piloting camera — navigate to reposition")
+
+        return {'FINISHED'}
+
+
+class RMDOC_OT_set_alpha(bpy.types.Operator):
+    """Set the transparency of the document quad image"""
+    bl_idname = "em.rmdoc_set_alpha"
+    bl_label = "Set Alpha"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    object_name: StringProperty()  # type: ignore
+    alpha: FloatProperty(
+        name="Alpha", default=0.5, min=0.0, max=1.0,
+        description="Image transparency (0 = fully transparent, 1 = opaque)"
+    )  # type: ignore
+
+    def execute(self, context):
+        obj = bpy.data.objects.get(self.object_name)
+        if not obj or not obj.data or not obj.data.materials:
+            self.report({'WARNING'}, "No material found on quad")
+            return {'CANCELLED'}
+
+        mat = obj.data.materials[0]
+        if mat and mat.use_nodes:
+            bsdf = mat.node_tree.nodes.get("Principled BSDF")
+            if bsdf:
+                bsdf.inputs['Alpha'].default_value = self.alpha
+                try:
+                    mat.blend_method = 'BLEND' if self.alpha < 1.0 else 'OPAQUE'
+                except AttributeError:
+                    pass  # Blender 4.2+
+        return {'FINISHED'}
+
+
+class RMDOC_OT_toggle_ortho(bpy.types.Operator):
+    """Toggle camera between perspective and orthographic mode"""
+    bl_idname = "em.rmdoc_toggle_ortho"
+    bl_label = "Toggle Ortho"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    object_name: StringProperty()  # type: ignore
+
+    def execute(self, context):
+        quad_obj = bpy.data.objects.get(self.object_name)
+        if not quad_obj:
+            return {'CANCELLED'}
+
+        cam_obj = _find_rmdoc_camera(quad_obj)
+        if not cam_obj:
+            self.report({'ERROR'}, "No camera found")
+            return {'CANCELLED'}
+
+        cam_data = cam_obj.data
+        if cam_data.type == 'PERSP':
+            # Switch to orthographic
+            cam_data.type = 'ORTHO'
+            # Compute ortho_scale from quad's apparent size at its depth
+            # The quad sits at local Z = -depth from camera
+            depth = abs(quad_obj.location.z) if quad_obj.parent == cam_obj else 2.0
+            # In perspective: apparent half-width = depth * tan(fov/2)
+            # ortho_scale = 2 * apparent half-width
+            fov = cam_data.angle  # radians
+            cam_data.ortho_scale = 2.0 * depth * math.tan(fov / 2.0)
+            # Set tight clip for isolating the quad view
+            cam_data.clip_start = max(0.001, depth - 0.5)
+            cam_data.clip_end = depth + 0.5
+            self.report({'INFO'}, f"Ortho mode (scale={cam_data.ortho_scale:.2f}m, clip={cam_data.clip_start:.2f}-{cam_data.clip_end:.2f})")
+        else:
+            # Switch back to perspective
+            cam_data.type = 'PERSP'
+            cam_data.clip_start = 0.1
+            cam_data.clip_end = 1000.0
+            self.report({'INFO'}, "Perspective mode")
+
+        return {'FINISHED'}
+
+
+class RMDOC_OT_autocrop_near(bpy.types.Operator):
+    """Set near clip just before the document quad"""
+    bl_idname = "em.rmdoc_autocrop_near"
+    bl_label = "Auto Near"
+    bl_description = "Set near clip just before the quad plane"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    object_name: StringProperty()  # type: ignore
+
+    def execute(self, context):
+        quad_obj = bpy.data.objects.get(self.object_name)
+        if not quad_obj:
+            return {'CANCELLED'}
+
+        cam_obj = _find_rmdoc_camera(quad_obj)
+        if not cam_obj:
+            self.report({'ERROR'}, "No camera found")
+            return {'CANCELLED'}
+
+        dist = _camera_quad_distance(cam_obj, quad_obj)
+        cam_data = cam_obj.data
+        cam_data.clip_start = max(0.01, dist - 0.1)
+
+        self.report({'INFO'}, f"Near clip: {cam_data.clip_start:.2f} (quad at {dist:.2f}m)")
+        return {'FINISHED'}
+
+
+class RMDOC_OT_autocrop_far(bpy.types.Operator):
+    """Set far clip just behind the document quad"""
+    bl_idname = "em.rmdoc_autocrop_far"
+    bl_label = "Auto Far"
+    bl_description = "Set far clip just behind the quad plane"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    object_name: StringProperty()  # type: ignore
+
+    def execute(self, context):
+        quad_obj = bpy.data.objects.get(self.object_name)
+        if not quad_obj:
+            return {'CANCELLED'}
+
+        cam_obj = _find_rmdoc_camera(quad_obj)
+        if not cam_obj:
+            self.report({'ERROR'}, "No camera found")
+            return {'CANCELLED'}
+
+        dist = _camera_quad_distance(cam_obj, quad_obj)
+        cam_data = cam_obj.data
+        cam_data.clip_end = dist + 0.5
+
+        self.report({'INFO'}, f"Far clip: {cam_data.clip_end:.2f} (quad at {dist:.2f}m)")
+        return {'FINISHED'}
+
+
+class RMDOC_OT_fly(bpy.types.Operator):
+    """Enter fly navigation mode in the 3D viewport"""
+    bl_idname = "em.rmdoc_fly"
+    bl_label = "Fly"
+    bl_description = "Enter fly navigation mode to move camera interactively"
+
+    def execute(self, context):
+        # Ensure we are in a 3D viewport context
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                with context.temp_override(area=area, region=area.regions[-1]):
+                    bpy.ops.view3d.fly('INVOKE_DEFAULT')
+                return {'FINISHED'}
+        self.report({'WARNING'}, "No 3D viewport found")
+        return {'CANCELLED'}
 
 
 class RMDOC_OT_open_document(bpy.types.Operator):
@@ -937,7 +1650,6 @@ class RMDOC_OT_open_document(bpy.types.Operator):
     doc_node_id: StringProperty()  # type: ignore
 
     def execute(self, context):
-        # Find the doc_list item by node_id to get the URL
         for doc_item in context.scene.doc_list:
             if doc_item.node_id == self.doc_node_id:
                 if doc_item.url:
@@ -985,8 +1697,19 @@ classes = (
     DOCMANAGER_OT_select_linked_entity,
     DOCMANAGER_OT_create_document,
     RMDOC_OT_select_object,
+    RMDOC_OT_add_selected,
+    RMDOC_OT_search_document,
+    RMDOC_OT_assign_document,
+    RMDOC_OT_create_from_document,
+    RMDOC_OT_remove,
     RMDOC_OT_create_camera,
     RMDOC_OT_look_through,
+    RMDOC_OT_pilot_camera,
+    RMDOC_OT_set_alpha,
+    RMDOC_OT_toggle_ortho,
+    RMDOC_OT_autocrop_near,
+    RMDOC_OT_autocrop_far,
+    RMDOC_OT_fly,
     RMDOC_OT_open_document,
 )
 
