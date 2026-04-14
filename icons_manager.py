@@ -46,6 +46,7 @@ def load_icons():
         "EMdb_logo": "EMdb_logo.png",
         "show_all_RMDoc": "show_all_RMDoc.png",
         "show_all_RMDoc_off": "show_all_RMDoc_off.png",
+        "RM2Proxy": "RM2Proxy.png",
     }
     
     # Carica ogni icona che esiste

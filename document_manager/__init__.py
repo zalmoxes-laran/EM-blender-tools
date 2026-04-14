@@ -2,6 +2,10 @@
 
 Placed in EM Annotator tab alongside RM Manager and Anastylosis Manager.
 Provides image import → textured quad → camera creation workflow.
+
+Note on persistence: doc_list is synced from em_sources_list at GraphML import
+time (see import_operators/importer_graphml.py), NOT via a load_post handler,
+because the s3dgraphy graph is not saved in the .blend file.
 """
 
 from .data import register_data, unregister_data

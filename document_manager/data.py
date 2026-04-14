@@ -114,6 +114,81 @@ class DocItem(PropertyGroup):
     )  # type: ignore
 
 
+class RMDocItem(PropertyGroup):
+    """A scene object (quad) representing a spatialized document.
+
+    Object-centric: each entry is a Blender object found in the scene
+    with the 'em_doc_node_id' custom property. Follows the same pattern
+    as RMItem (scene objects → epochs) and AnastylisisItem (scene objects → SF).
+    """
+
+    # --- Scene object identity ---
+    name: StringProperty(name="Object Name", default="")  # type: ignore
+    object_exists: BoolProperty(
+        name="Object Exists",
+        description="Whether the Blender object still exists in the scene",
+        default=True,
+    )  # type: ignore
+
+    # --- Linked document (from graph) ---
+    doc_node_id: StringProperty(
+        name="Document Node ID",
+        description="ID of the linked DocumentNode in the graph",
+        default="",
+    )  # type: ignore
+    doc_name: StringProperty(
+        name="Document Name",
+        description="Name of the linked document (e.g. D.05)",
+        default="",
+    )  # type: ignore
+    doc_description: StringProperty(
+        name="Document Description",
+        default="",
+    )  # type: ignore
+
+    # --- Certainty of spatial positioning ---
+    certainty_class: StringProperty(
+        name="Certainty Class",
+        description="Positioning methodology: direct (red), reconstructed (orange), hypothetical (yellow)",
+        default="",
+    )  # type: ignore
+
+    # --- Quad geometry ---
+    quad_width: FloatProperty(
+        name="Width",
+        description="Quad width in meters",
+        default=1.0,
+        min=0.001,
+        soft_max=10.0,
+        unit='LENGTH',
+    )  # type: ignore
+    quad_height: FloatProperty(
+        name="Height",
+        description="Quad height in meters",
+        default=1.0,
+        min=0.001,
+        soft_max=10.0,
+        unit='LENGTH',
+    )  # type: ignore
+    dimensions_type: EnumProperty(
+        name="Dimensions",
+        description="Whether quad dimensions are real metric or symbolic",
+        items=[
+            ('SYMBOLIC', "Symbolic", "Approximate/default dimensions"),
+            ('METRIC', "Metric", "Real measured dimensions of the document"),
+        ],
+        default='SYMBOLIC',
+    )  # type: ignore
+
+    # --- Camera ---
+    has_camera: BoolProperty(
+        name="Has Camera",
+        description="Whether a camera is associated with this quad",
+        default=False,
+    )  # type: ignore
+    camera_object_name: StringProperty(name="Camera Object", default="")  # type: ignore
+
+
 class DocManagerSettings(PropertyGroup):
     """Settings for the 3D Document Manager panel."""
 
@@ -244,6 +319,133 @@ def sync_doc_list(scene):
             item.has_camera = False
             item.camera_object_name = ""
 
+    # After doc_list sync, also sync the object-centric rmdoc_list
+    sync_rmdoc_list(scene)
+
+
+def sync_rmdoc_list(scene):
+    """Synchronize scene.rmdoc_list from scene objects representing documents.
+
+    Object-centric: each entry is a Blender object in the scene. Detection uses:
+    1. Primary: objects with 'em_doc_node_id' custom property (set by Import Image)
+    2. Fallback: objects whose name matches '{graph_code}.{doc_name}' or '{doc_name}'
+       where doc_name is a known document in doc_list. This catches objects created
+       by the old DosCo import or manually named.
+
+    Pattern mirrors rm_manager: scene objects → list → linked graph entity.
+    """
+    rmdoc_list = scene.rmdoc_list
+
+    # Build lookup of existing rmdoc_list items by object name
+    existing = {item.name: i for i, item in enumerate(rmdoc_list)}
+    seen_names = set()
+
+    # Build doc_list lookup by node_id AND by name for fallback matching
+    doc_by_node_id = {}
+    doc_by_name = {}
+    if hasattr(scene, 'doc_list'):
+        for doc_item in scene.doc_list:
+            if doc_item.node_id:
+                doc_by_node_id[doc_item.node_id] = doc_item
+            if doc_item.name:
+                doc_by_name[doc_item.name] = doc_item
+
+    # Determine active graph code for name matching
+    graph_code = ""
+    em_tools = scene.em_tools
+    if (hasattr(em_tools, 'graphml_files') and em_tools.graphml_files
+            and 0 <= em_tools.active_file_index < len(em_tools.graphml_files)):
+        gf = em_tools.graphml_files[em_tools.active_file_index]
+        graph_code = getattr(gf, 'graph_code', '') or ''
+
+    def _process_object(obj, doc_node_id, doc_item):
+        """Add or update an rmdoc_list entry for a scene object."""
+        seen_names.add(obj.name)
+
+        if obj.name in existing:
+            item = rmdoc_list[existing[obj.name]]
+        else:
+            item = rmdoc_list.add()
+
+        item.name = obj.name
+        item.object_exists = True
+        item.doc_node_id = doc_node_id or ""
+
+        if doc_item:
+            item.doc_name = doc_item.name
+            item.doc_description = doc_item.description
+            item.certainty_class = doc_item.certainty_class
+        else:
+            item.doc_name = ""
+            item.doc_description = ""
+            item.certainty_class = ""
+
+        # Quad dimensions from object bounding box
+        if obj.type == 'MESH' and obj.data:
+            bb = obj.bound_box
+            xs = [v[0] for v in bb]
+            ys = [v[1] for v in bb]
+            item.quad_width = (max(xs) - min(xs)) * obj.scale.x
+            item.quad_height = (max(ys) - min(ys)) * obj.scale.y
+        item.dimensions_type = obj.get('em_dimensions_type', 'SYMBOLIC')
+
+        # Camera detection
+        item.has_camera = False
+        item.camera_object_name = ""
+        cam_name = obj.get('em_camera_name', '')
+        if cam_name and cam_name in bpy.data.objects:
+            cam_obj = bpy.data.objects[cam_name]
+            if cam_obj.type == 'CAMERA':
+                item.has_camera = True
+                item.camera_object_name = cam_name
+        else:
+            for child in obj.children:
+                if child.type == 'CAMERA':
+                    item.has_camera = True
+                    item.camera_object_name = child.name
+                    break
+
+    # Pass 1: objects with em_doc_node_id (primary detection)
+    for obj in bpy.data.objects:
+        doc_node_id = obj.get('em_doc_node_id')
+        if not doc_node_id:
+            continue
+        doc_item = doc_by_node_id.get(doc_node_id)
+        _process_object(obj, doc_node_id, doc_item)
+
+    # Pass 2: fallback — match object names to known documents
+    # Patterns: "{graph_code}.{doc_name}" or just "{doc_name}"
+    for obj in bpy.data.objects:
+        if obj.name in seen_names:
+            continue  # Already matched in pass 1
+
+        obj_name = obj.name
+        matched_doc = None
+
+        # Try exact match: object name == document name
+        if obj_name in doc_by_name:
+            matched_doc = doc_by_name[obj_name]
+
+        # Try prefix match: "{graph_code}.{doc_name}"
+        if not matched_doc and graph_code:
+            prefix = f"{graph_code}."
+            if obj_name.startswith(prefix):
+                suffix = obj_name[len(prefix):]
+                if suffix in doc_by_name:
+                    matched_doc = doc_by_name[suffix]
+
+        if matched_doc:
+            # Set the custom property for future consistency
+            obj['em_doc_node_id'] = matched_doc.node_id
+            _process_object(obj, matched_doc.node_id, matched_doc)
+
+    # Remove orphaned entries (object no longer in scene)
+    i = len(rmdoc_list) - 1
+    while i >= 0:
+        if rmdoc_list[i].name not in seen_names:
+            rmdoc_list.remove(i)
+        i -= 1
+
 
 # ============================================================================
 # REGISTRATION
@@ -251,6 +453,7 @@ def sync_doc_list(scene):
 
 classes = (
     DocItem,
+    RMDocItem,
     DocManagerSettings,
 )
 
@@ -261,12 +464,18 @@ def register_data():
 
     bpy.types.Scene.doc_list = CollectionProperty(type=DocItem)
     bpy.types.Scene.doc_list_index = IntProperty(name="Active Document", default=0)
+    bpy.types.Scene.rmdoc_list = CollectionProperty(type=RMDocItem)
+    bpy.types.Scene.rmdoc_list_index = IntProperty(name="Active RMDoc", default=0)
     bpy.types.Scene.doc_settings = PointerProperty(type=DocManagerSettings)
 
 
 def unregister_data():
     if hasattr(bpy.types.Scene, 'doc_settings'):
         del bpy.types.Scene.doc_settings
+    if hasattr(bpy.types.Scene, 'rmdoc_list_index'):
+        del bpy.types.Scene.rmdoc_list_index
+    if hasattr(bpy.types.Scene, 'rmdoc_list'):
+        del bpy.types.Scene.rmdoc_list
     if hasattr(bpy.types.Scene, 'doc_list_index'):
         del bpy.types.Scene.doc_list_index
     if hasattr(bpy.types.Scene, 'doc_list'):

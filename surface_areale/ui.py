@@ -6,6 +6,7 @@ Uses a checklist pattern: all 5 requirements must be green before drawing.
 
 import bpy
 from bpy.types import Panel
+from .. import icons_manager
 
 
 def _get_graph_safe(context):
@@ -23,12 +24,20 @@ def _get_graph_safe(context):
 
 class VIEW3D_PT_RMToProxy(Panel):
     """Parent panel for RM-to-Proxy tools"""
-    bl_label = "RM to Proxy"
+    bl_label = "Representation Model to Proxy (RM2Proxy)"
     bl_idname = "VIEW3D_PT_RMToProxy"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM Annotator"
     bl_order = 5
+
+    def draw_header(self, context):
+        layout = self.layout
+        icon_id = icons_manager.get_icon_value("RM2Proxy")
+        if icon_id:
+            layout.label(text="", icon_value=icon_id)
+        else:
+            layout.label(text="", icon='MOD_SHRINKWRAP')
 
     def draw(self, context):
         layout = self.layout
