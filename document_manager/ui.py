@@ -412,10 +412,17 @@ class VIEW3D_PT_3DDocumentManager(Panel):
                             us_row.label(text=f"→ {us_name} ({us_type})", icon='OUTLINER_OB_ARMATURE')
                     else:
                         us_row.label(text=f"→ {us_name} ({us_type})", icon='MESH_CUBE')
-                    op = us_row.operator(
-                        "em.docmanager_select_linked_entity", text="",
-                        icon='RESTRICT_SELECT_OFF', emboss=False
-                    )
+                    _ps_icon = icons_manager.get_icon_value("proxies_select")
+                    if _ps_icon:
+                        op = us_row.operator(
+                            "em.docmanager_select_linked_entity", text="",
+                            icon_value=_ps_icon, emboss=False
+                        )
+                    else:
+                        op = us_row.operator(
+                            "em.docmanager_select_linked_entity", text="",
+                            icon='RESTRICT_SELECT_OFF', emboss=False
+                        )
                     op.node_id = us_node_id
                     op.entity_type = 'RMSF' if us_type in sf_types else 'US'
 

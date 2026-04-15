@@ -56,8 +56,17 @@ class EM_STRAT_UL_List(UIList):
         sub_col = col1.column(align=True)
         sub_col.enabled = is_in_scene
 
-        # Always use an operator, but the column enablement controls its functionality
-        op = sub_col.operator("select.fromlistitem", text="", icon=item.icon, emboss=False)
+        # Custom proxy icons: proxies_select when linked, proxies_off when not
+        if is_in_scene:
+            proxy_icon_id = icons_manager.get_icon_value("proxies_select")
+        else:
+            proxy_icon_id = icons_manager.get_icon_value("proxies_off")
+
+        if proxy_icon_id:
+            op = sub_col.operator("select.fromlistitem", text="", icon_value=proxy_icon_id, emboss=False)
+        else:
+            # Fallback to built-in icons if custom icons not available
+            op = sub_col.operator("select.fromlistitem", text="", icon=item.icon, emboss=False)
         if op:
             op.list_type = "em_list"
             op.specific_item = item.name
@@ -422,10 +431,14 @@ class EM_ToolsPanel:
             if op:
                 op.list_type = "em_list"
             
-            # Add button to select the row from 3D scene
+            # Add button to select the proxy in 3D scene
             split = row.split()
             col = split.column()
-            op = col.operator("select.listitem", text="", icon="RESTRICT_SELECT_OFF")
+            _proxy_sel_icon = icons_manager.get_icon_value("proxies_select")
+            if _proxy_sel_icon:
+                op = col.operator("select.listitem", text="", icon_value=_proxy_sel_icon)
+            else:
+                op = col.operator("select.listitem", text="", icon="RESTRICT_SELECT_OFF")
             if op:
                 op.list_type = "em_list"
 

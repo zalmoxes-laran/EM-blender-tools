@@ -47,6 +47,8 @@ def load_icons():
         "show_all_RMDoc": "show_all_RMDoc.png",
         "show_all_RMDoc_off": "show_all_RMDoc_off.png",
         "RM2Proxy": "RM2Proxy.png",
+        "proxies_select": "proxies_select.png",
+        "proxies_off": "proxies_off.png",
     }
     
     # Carica ogni icona che esiste

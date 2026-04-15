@@ -265,11 +265,19 @@ class EM_ParadataPanel:
 
                 strat = scene.em_tools.stratigraphy
                 if strat.units_index >= 0 and len(strat.units) > 0 and strat.units[strat.units_index].icon == "LINKED":
-                    op = btn_row.operator("select.fromlistitem", text="", icon="MESH_CUBE")
+                    _ps_icon = icons_manager.get_icon_value("proxies_select")
+                    if _ps_icon:
+                        op = btn_row.operator("select.fromlistitem", text="", icon_value=_ps_icon)
+                    else:
+                        op = btn_row.operator("select.fromlistitem", text="", icon="MESH_CUBE")
                     if op:
                         op.list_type = extractor_list_var
                 else:
-                    btn_row.label(text="", icon="MESH_CUBE")
+                    _po_icon = icons_manager.get_icon_value("proxies_off")
+                    if _po_icon:
+                        btn_row.label(text="", icon_value=_po_icon)
+                    else:
+                        btn_row.label(text="", icon="MESH_CUBE")
 
                 if obj and check_if_current_obj_has_brother_inlist(obj.name, extractor_list_var):
                     op = btn_row.operator("select.listitem", text="", icon="LONGDISPLAY")
@@ -335,11 +343,19 @@ class EM_ParadataPanel:
 
                 strat = scene.em_tools.stratigraphy
                 if strat.units_index >= 0 and len(strat.units) > 0 and strat.units[strat.units_index].icon == "LINKED":
-                    op = btn_row.operator("select.fromlistitem", text="", icon="MESH_CUBE")
+                    _ps_icon = icons_manager.get_icon_value("proxies_select")
+                    if _ps_icon:
+                        op = btn_row.operator("select.fromlistitem", text="", icon_value=_ps_icon)
+                    else:
+                        op = btn_row.operator("select.fromlistitem", text="", icon="MESH_CUBE")
                     if op:
                         op.list_type = source_list_var
                 else:
-                    btn_row.label(text="", icon="MESH_CUBE")
+                    _po_icon = icons_manager.get_icon_value("proxies_off")
+                    if _po_icon:
+                        btn_row.label(text="", icon_value=_po_icon)
+                    else:
+                        btn_row.label(text="", icon="MESH_CUBE")
 
                 if obj and check_if_current_obj_has_brother_inlist(obj.name, source_list_var):
                     op = btn_row.operator("select.listitem", text="", icon="LONGDISPLAY")
