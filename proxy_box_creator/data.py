@@ -132,17 +132,11 @@ def register():
     The problematic code that tried to dynamically attach to EMToolsSettings
     has been REMOVED.
     """
-    print("   [proxy_box/data.py] Starting registration...")
-    
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
-            print(f"   [proxy_box/data.py] ✓ Registered {cls.__name__}")
         except ValueError as e:
-            print(f"   [proxy_box/data.py] ⚠ Warning: Could not register {cls.__name__}: {e}")
-    
-    print("   [proxy_box/data.py] ✓ Data structures registration complete")
-    print("   [proxy_box/data.py] ℹ Property attachment handled by em_props.py")
+            print(f"[proxy_box/data] Warning: Could not register {cls.__name__}: {e}")
 
 
 def unregister():
@@ -152,17 +146,11 @@ def unregister():
     REFACTORED: This function now ONLY unregisters the PropertyGroup classes.
     The property removal from Scene happens in em_props.py centrally.
     """
-    print("   [proxy_box/data.py] Starting unregistration...")
-    
-    # Unregister classes in reverse order
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
-            print(f"   [proxy_box/data.py] ✓ Unregistered {cls.__name__}")
-        except RuntimeError as e:
-            print(f"   [proxy_box/data.py] ⚠ Warning: Could not unregister {cls.__name__}: {e}")
-    
-    print("   [proxy_box/data.py] ✓ Data structures unregistration complete")
+        except RuntimeError:
+            pass
 
 
 if __name__ == "__main__":

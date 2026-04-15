@@ -167,8 +167,6 @@ def register_data():
     REFACTORED: PropertyGroup classes are registered by em_props.py
     This function now ONLY handles Scene property attachment.
     """
-    print("Registering visual manager data...")
-    
     # ✅ SOLO Scene properties NON gestite da em_props
     # Setup collection properties and other scene properties if not yet existing
     if not hasattr(bpy.types.Scene, "property_values"):

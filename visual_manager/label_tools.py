@@ -22,13 +22,11 @@ def update_camera_list_safe(context):
         print("CAMS collection not found")
         return
     
-    print(f"Found CAMS collection with {len(cams_collection.objects)} objects")
     
     # Find cameras in CAMS collection
     cameras_found = 0
     for obj in cams_collection.objects:
         if obj.type == 'CAMERA':
-            print(f"Found camera: {obj.name}")
             # Add to camera list
             item = scene.camera_em_list.add()
             item.name = obj.name
@@ -43,7 +41,6 @@ def update_camera_list_safe(context):
             item.has_labels = label_count > 0
             cameras_found += 1
     
-    print(f"Added {cameras_found} cameras to camera_em_list")
     
     # Also check for cameras in the scene collection
     scene_cameras = []
@@ -52,7 +49,7 @@ def update_camera_list_safe(context):
             scene_cameras.append(obj.name)
     
     if scene_cameras:
-        print(f"Found {len(scene_cameras)} cameras outside CAMS collection: {scene_cameras}")
+        pass
 
 
 # ====================================================================
@@ -76,7 +73,6 @@ class VISUAL_OT_label_creation_safe(Operator):
             self.report({'ERROR'}, "No active camera found. Please set an active camera first.")
             return {'CANCELLED'}
         
-        print(f"Creating labels with camera: {cam.name}")
         
         # Switch to camera view
         try:
@@ -97,7 +93,6 @@ class VISUAL_OT_label_creation_safe(Operator):
         if not cams_collection:
             cams_collection = bpy.data.collections.new("CAMS")
             context.scene.collection.children.link(cams_collection)
-            print("Created CAMS collection")
         
         # Move camera to CAMS collection if auto_move_cameras is enabled
         if label_settings.auto_move_cameras:
@@ -109,7 +104,6 @@ class VISUAL_OT_label_creation_safe(Operator):
             # Add to CAMS if not already there
             if cam.name not in cams_collection.objects:
                 cams_collection.objects.link(cam)
-                print(f"Moved camera {cam.name} to CAMS collection")
         
         # Set up label collection name
         label_collection_name = f"generated_labels_{cam.name}"
@@ -120,7 +114,6 @@ class VISUAL_OT_label_creation_safe(Operator):
             label_collection = bpy.data.collections.new(label_collection_name)
             # Link to CAMS collection instead of scene collection
             cams_collection.children.link(label_collection)
-            print(f"Created label collection: {label_collection_name}")
         
         # Set active layer collection to the label collection
         try:
@@ -148,7 +141,6 @@ class VISUAL_OT_label_creation_safe(Operator):
         if not mat:
             mat = bpy.data.materials.new(name="_generated.Label")
             self.setup_label_material(mat, label_settings)
-            print("Created label material")
         else:
             # Update existing material with current settings
             self.setup_label_material(mat, label_settings)
@@ -160,7 +152,6 @@ class VISUAL_OT_label_creation_safe(Operator):
             self.report({'WARNING'}, "No valid objects selected. Cameras are excluded from label creation.")
             return {'CANCELLED'}
         
-        print(f"Creating labels for {len(selection)} objects")
         
         # ✅ OPTIMIZED: Use object cache for lookups
         from ..object_cache import get_object_cache
@@ -261,7 +252,6 @@ class VISUAL_OT_update_camera_list_safe(Operator):
 
     def execute(self, context):
         try:
-            print("Updating camera list...")
             update_camera_list_safe(context)
             
             scene = context.scene
@@ -407,7 +397,6 @@ def register_label_tools():
         VISUAL_OT_move_camera_to_cams_safe,
     ]
     
-    registered_count = 0
     for cls in classes:
         try:
             # Try to unregister first (in case of reload)
@@ -415,15 +404,11 @@ def register_label_tools():
                 bpy.utils.unregister_class(cls)
             except:
                 pass
-            
+
             # Register
             bpy.utils.register_class(cls)
-            registered_count += 1
-            print(f"✓ Registered safe label operator: {cls.__name__}")
         except Exception as e:
-            print(f"✗ Failed to register safe label operator {cls.__name__}: {e}")
-    
-    print(f"Registered {registered_count}/{len(classes)} safe label operators")
+            print(f"[LabelTools] Error: failed to register {cls.__name__}: {e}")
 
 
 def unregister_label_tools():
@@ -439,6 +424,5 @@ def unregister_label_tools():
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
-            print(f"✓ Unregistered safe label operator: {cls.__name__}")
-        except Exception as e:
-            print(f"✗ Failed to unregister safe label operator {cls.__name__}: {e}")
+        except RuntimeError:
+            pass

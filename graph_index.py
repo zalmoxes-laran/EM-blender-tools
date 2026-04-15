@@ -65,9 +65,6 @@ class GraphEdgeIndex:
 
             edge_count += 1
 
-        print(f"[GraphIndex] Built index for {edge_count} edges")
-        print(f"[GraphIndex]   - Source-type combinations: {len(self._index_by_source_type)}")
-        print(f"[GraphIndex]   - Target-type combinations: {len(self._index_by_target_type)}")
 
     def get_edges(self, source_id: Optional[str] = None,
                   target_id: Optional[str] = None,
@@ -199,7 +196,6 @@ class GraphEdgeIndex:
         self._index_by_source_type.clear()
         self._index_by_target_type.clear()
         self._build_index()
-        print(f"[GraphIndex] Index invalidated and rebuilt")
 
 
 # ============================================================================
@@ -228,7 +224,6 @@ def get_or_create_graph_index(graph) -> GraphEdgeIndex:
     graph_id = graph.graph_id if hasattr(graph, 'graph_id') else str(id(graph))
 
     if graph_id not in _graph_index_cache:
-        print(f"[GraphIndex] Creating new index for graph '{graph_id}'")
         _graph_index_cache[graph_id] = GraphEdgeIndex(graph)
 
     return _graph_index_cache[graph_id]
@@ -256,7 +251,6 @@ def invalidate_graph_index(graph):
     graph_id = graph.graph_id if hasattr(graph, 'graph_id') else str(id(graph))
 
     if graph_id in _graph_index_cache:
-        print(f"[GraphIndex] Invalidating index for graph '{graph_id}'")
         del _graph_index_cache[graph_id]
 
 
@@ -271,7 +265,6 @@ def clear_all_graph_indices():
     """
     count = len(_graph_index_cache)
     _graph_index_cache.clear()
-    print(f"[GraphIndex] Cleared {count} cached indices")
 
 
 def get_index_stats() -> Dict[str, int]:

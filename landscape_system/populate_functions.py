@@ -26,12 +26,12 @@ def populate_lists_landscape_mode(context):
     if not getattr(scene, 'landscape_mode_active', False):
         return
 
-    print("🌍 Populating lists in Landscape mode...")
+    print("[Landscape] Populating lists...")
 
     # Ottieni tutti i grafi caricati
     all_graphs = get_all_loaded_graphs(context)
     if not all_graphs:
-        print("❌ No graphs loaded for Landscape mode")
+        print("[Landscape] No graphs loaded")
         return
 
     # Calcola cronologia per ogni grafo (necessario per filtro temporale)
@@ -52,7 +52,7 @@ def populate_lists_landscape_mode(context):
     populate_combiners_list_landscape(context, all_graphs)
     populate_epochs_list_landscape(context, all_graphs)
 
-    print(f"✅ Landscape mode: populated lists from {len(all_graphs)} graphs")
+    print(f"[Landscape] Populated lists from {len(all_graphs)} graphs")
 
 def get_all_loaded_graphs(context):
     """Ottiene tutti i grafi effettivamente caricati nel sistema"""
@@ -73,7 +73,7 @@ def get_all_loaded_graphs(context):
                 loaded_graphs[graph_code] = graph
                 
         except Exception as e:
-            print(f"❌ Error loading graph {graph_file.name}: {e}")
+            print(f"[Landscape] Error loading graph {graph_file.name}: {e}")
     
     return loaded_graphs
 
@@ -329,9 +329,9 @@ def populate_lists_single_mode(context):
         graph_exists, active_graph = is_graph_available(context)
         if active_graph:
             populate_blender_lists_from_graph(context, active_graph)
-            print(f"✅ Single mode: populated from graph {active_graph.attributes.get('graph_code', 'UNKNOWN')}")
+            print(f"[Landscape] Populated from graph {active_graph.attributes.get('graph_code', 'UNKNOWN')}")
         else:
-            print("❌ No active graph found for single mode")
+            print("[Landscape] No active graph found for single mode")
             
     finally:
         # Ripristina lo stato Landscape se era attivo

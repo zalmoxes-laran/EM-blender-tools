@@ -53,7 +53,6 @@ __all__ = [
     "get_node_from_proxy"
 ]
 
-print("DEBUG operators/__init__.py: Imported help_popup module and added EM_help_popup to __all__")
 
 
 def register():
@@ -77,7 +76,6 @@ def register():
     xlsx_wizard.register()
     enrich_graphml.register()
     merge_conflict_ui.register()
-    print("DEBUG operators/__init__.py: All operators registered")
 
 
 def unregister():
@@ -101,4 +99,3 @@ def unregister():
     xlsx_to_graphml.unregister()
     help_popup.unregister()
     update_graph.unregister()
-    print("DEBUG operators/__init__.py: All operators unregistered")

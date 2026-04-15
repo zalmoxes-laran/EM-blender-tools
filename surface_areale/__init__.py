@@ -12,6 +12,12 @@ def register():
     data.register()
     operators.register()
     ui.register()
+    # Load benchmark calibration from disk (no-op if file doesn't exist)
+    try:
+        from .benchmark import load_calibration
+        load_calibration()
+    except Exception:
+        pass
 
 
 def unregister():

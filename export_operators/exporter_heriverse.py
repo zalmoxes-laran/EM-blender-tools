@@ -1901,7 +1901,7 @@ class EXPORT_OT_heriverse(Operator):
                             if graph:
                                 refined = graph.refine_generic_connections(verbose=True)
                                 if refined > 0:
-                                    print(f"  ✅ Graph '{graphml_item.name}': refined {refined} edges")
+                                    print(f"  Graph '{graphml_item.name}': refined {refined} edges")
                 except Exception as e:
                     print(f"Warning: Could not update graph: {e}")
                 # STEP 1 Export Cesium tilesets if requested

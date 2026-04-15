@@ -207,8 +207,12 @@ class EM_ToolsPanel:
 
         # ✅ PORTED: Use strat.units instead of scene.em_list
         is_filtered = scene.filter_by_epoch or scene.filter_by_activity or strat.filter_by_containment or strat.filter_by_instance_chain
+        _rows_icon = icons_manager.get_icon_value("proxies_rows")
         if not is_filtered:
-            row.label(text="Total Rows: " + str(len(strat.units)), icon='PRESET')
+            if _rows_icon:
+                row.label(text="Total Rows: " + str(len(strat.units)), icon_value=_rows_icon)
+            else:
+                row.label(text="Total Rows: " + str(len(strat.units)), icon='PRESET')
         else:
             row.label(text="Filtered Rows: " + str(len(strat.units)), icon='FILTER')
 
@@ -427,14 +431,20 @@ class EM_ToolsPanel:
             # link proxy and US
             split = row.split()
             col = split.column()
-            op = col.operator("listitem.toobj", icon="LINK_BLEND", text='')
+            _link_icon = icons_manager.get_icon_value("proxies_link")
+            if _link_icon:
+                op = col.operator("listitem.toobj", icon_value=_link_icon, text='')
+            else:
+                op = col.operator("listitem.toobj", icon="LINK_BLEND", text='')
             if op:
                 op.list_type = "em_list"
             
             # Add button to select the proxy in 3D scene
             split = row.split()
             col = split.column()
-            _proxy_sel_icon = icons_manager.get_icon_value("proxies_select")
+            _proxy_sel_icon = icons_manager.get_icon_value("proxies_select_rows")
+            if not _proxy_sel_icon:
+                _proxy_sel_icon = icons_manager.get_icon_value("proxies_select")
             if _proxy_sel_icon:
                 op = col.operator("select.listitem", text="", icon_value=_proxy_sel_icon)
             else:

@@ -5,6 +5,7 @@ import os
 import logging
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 # Dizionario globale per le icone
 icon_collections = {}
@@ -49,6 +50,9 @@ def load_icons():
         "RM2Proxy": "RM2Proxy.png",
         "proxies_select": "proxies_select.png",
         "proxies_off": "proxies_off.png",
+        "proxies_rows": "proxies_rows.png",
+        "proxies_link": "proxies_link.png",
+        "proxies_select_rows": "proxies_select_rows.png",
     }
     
     # Carica ogni icona che esiste

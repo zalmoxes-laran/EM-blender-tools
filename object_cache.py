@@ -287,7 +287,6 @@ def invalidate_object_cache():
           invalidation can be useful for immediate updates.
     """
     _object_cache.invalidate()
-    print("[ObjectCache] Cache invalidated (will rebuild on next use)")
 
 
 def clear_object_cache():
@@ -301,7 +300,6 @@ def clear_object_cache():
     """
     global _object_cache
     _object_cache = ObjectCache()
-    print("[ObjectCache] Cache cleared and reset")
 
 
 def get_cache_stats() -> Dict[str, int]:

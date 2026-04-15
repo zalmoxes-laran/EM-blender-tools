@@ -164,11 +164,7 @@ classes = (
 def register_data():
     """Register data classes"""
     for cls in classes:
-        try:
-            bpy.utils.register_class(cls)
-        except ValueError:
-            # Already registered
-            pass
+        bpy.utils.register_class(cls)
 
 def unregister_data():
     """Unregister data classes"""

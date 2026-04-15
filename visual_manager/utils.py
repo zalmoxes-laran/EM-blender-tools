@@ -315,15 +315,15 @@ def apply_materials_to_objects(context, property_mapping, materials_by_value):
                         obj.data.materials.append(mat)
                     
                     colored_count += 1
-                    print(f"  ✓ Applied material '{mat.name}' to object '{obj.name}' (value: '{property_value}')")
+                    print(f"  Applied material '{mat.name}' to object '{obj.name}' (value: '{property_value}')")
                     
                 else:
-                    print(f"  ⚠ Warning: No material found for value '{property_value}' on object '{node_name}'")
+                    print(f"  Warning: No material found for value '{property_value}' on object '{node_name}'")
             else:
                 # Oggetto non ha questa proprietà
                 pass  # Non loggare per evitare spam, ma potremmo volerlo colorare diversamente
     
-    print(f"\n✅ Applied materials to {colored_count} of {total_objects} mesh objects")
+    print(f"\nApplied materials to {colored_count} of {total_objects} mesh objects")
     return colored_count
 
 

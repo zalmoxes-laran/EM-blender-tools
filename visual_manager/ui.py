@@ -445,8 +445,8 @@ class VIEW3D_PT_visual_panel(Panel):
                 try:
                     bpy.ops.visual.update_camera_list_safe()
                 except:
-                    print("Could not auto-update camera list")
-            
+                    pass
+
             # Label creation section
             col = box.column(align=True)
             
@@ -611,9 +611,8 @@ def register_ui():
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
-            print(f"Successfully registered: {cls.__name__}")
         except ValueError as e:
-            print(f"Failed to register {cls.__name__}: {e}")
+            print(f"[VisualManagerUI] Error: failed to register {cls.__name__}: {e}")
 
 
 def unregister_ui():

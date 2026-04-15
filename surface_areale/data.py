@@ -178,6 +178,26 @@ class SurfaceArealeSettings(PropertyGroup):
         unit='LENGTH'
     )
 
+    # ── LOD for Boolean Strategy ──────────────────────────────────────
+    use_lod: BoolProperty(
+        name="Use LOD",
+        description=(
+            "Use a decimated copy of the RM for Boolean operation "
+            "(faster for high-poly meshes, result is re-projected onto full-res RM)"
+        ),
+        default=False
+    )
+
+    lod_factor: FloatProperty(
+        name="LOD Factor",
+        description="Decimation ratio for the LOD copy (0.1 = 10% of original polygons)",
+        default=0.3,
+        min=0.05,
+        max=1.0,
+        precision=2,
+        subtype='FACTOR'
+    )
+
     # ── GP Drawing Preferences ────────────────────────────────────────
     gp_stroke_color: FloatVectorProperty(
         name="Stroke Color",

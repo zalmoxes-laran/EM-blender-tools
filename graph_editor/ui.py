@@ -604,10 +604,7 @@ classes = (
 def register_ui():
     """Register all UI classes"""
     for cls in classes:
-        try:
-            bpy.utils.register_class(cls)
-        except ValueError:
-            pass
+        bpy.utils.register_class(cls)
 
 def unregister_ui():
     """Unregister all UI classes"""

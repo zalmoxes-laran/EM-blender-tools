@@ -150,7 +150,6 @@ class MaterialOverrideManager:
         self.temp_materials.clear()
         self.overrides.clear()
         
-        print("Cleared all material overrides")
     
     def get_override_count(self):
         """Get the number of active overrides."""

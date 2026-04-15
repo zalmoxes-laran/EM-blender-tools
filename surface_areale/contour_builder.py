@@ -7,6 +7,7 @@ projected onto the target RM surface.
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 import math
+import numpy as np
 
 
 def extract_gp_strokes(gp_obj):
@@ -307,6 +308,397 @@ def create_bvh_from_object(obj):
 
     return bvh
 
+
+# ══════════════════════════════════════════════════════════════════════
+# CONTOUR VALIDATION & AUTO-FIX
+# ══════════════════════════════════════════════════════════════════════
+
+def validate_contour(points, auto_fix=True):
+    """
+    Validate a closed contour and optionally auto-fix problems.
+
+    Checks: duplicate consecutive points, self-intersections, open contours,
+    minimum point count.
+
+    Args:
+        points: List of Vector (closed contour)
+        auto_fix: If True, attempt to repair issues
+
+    Returns:
+        Tuple (cleaned_points, warnings: list[str], is_valid: bool)
+    """
+    warnings = []
+    pts = [p.copy() for p in points]
+
+    # ── Check 1: Remove duplicate consecutive points ──────────────────
+    if auto_fix and len(pts) > 1:
+        cleaned = [pts[0]]
+        removed = 0
+        for i in range(1, len(pts)):
+            if (pts[i] - pts[i - 1]).length > 1e-6:
+                cleaned.append(pts[i])
+            else:
+                removed += 1
+        # Also check last-to-first wrap
+        if len(cleaned) > 1 and (cleaned[-1] - cleaned[0]).length < 1e-6:
+            cleaned.pop()
+            removed += 1
+        if removed > 0:
+            warnings.append(f"Removed {removed} duplicate consecutive point(s)")
+        pts = cleaned
+
+    # ── Check 2: Minimum point count (early) ─────────────────────────
+    if len(pts) < 3:
+        return pts, ["Contour has fewer than 3 points"], False
+
+    # ── Check 3: Detect and resolve self-intersections ────────────────
+    if auto_fix:
+        pts_2d, axes, centroid = _project_to_2d(pts)
+        intersections = _find_self_intersections(pts_2d)
+
+        if len(intersections) > 3:
+            warnings.append(
+                f"Contour has {len(intersections)} self-intersections "
+                f"(too complex to auto-fix, please redraw)")
+            # Still try to fix the first one
+            intersections = intersections[:1]
+
+        if intersections:
+            warnings.append(
+                f"Fixed {len(intersections)} self-intersection(s)")
+            pts_2d = _resolve_self_intersections(pts_2d, intersections)
+            # Convert back to 3D
+            pts = _unproject_from_2d(pts_2d, axes, centroid)
+
+    # ── Check 4: Warn about open contour ─────────────────────────────
+    if len(pts) >= 3:
+        gap = (pts[0] - pts[-1]).length
+        # Estimate average segment length for threshold
+        total_len = sum((pts[i + 1] - pts[i]).length for i in range(len(pts) - 1))
+        avg_seg = total_len / max(len(pts) - 1, 1)
+        if gap > avg_seg * 5:
+            warnings.append(
+                f"Contour appears open (gap={gap:.4f}m), auto-closed")
+
+    # ── Final check ──────────────────────────────────────────────────
+    if len(pts) < 3:
+        return pts, warnings + ["Contour degenerate after cleanup"], False
+
+    return pts, warnings, True
+
+
+def _project_to_2d(points):
+    """
+    Project 3D points onto their best-fit plane (PCA).
+
+    Returns:
+        Tuple (points_2d: list[Vector], axes: tuple, centroid: Vector)
+        axes = (axis_u, axis_v, normal) for unprojection
+    """
+    coords = np.array([(p.x, p.y, p.z) for p in points])
+    centroid_np = coords.mean(axis=0)
+    centered = coords - centroid_np
+    cov = np.cov(centered.T)
+    eigenvalues, eigenvectors = np.linalg.eigh(cov)
+    idx = eigenvalues.argsort()[::-1]
+    eigenvectors = eigenvectors[:, idx]
+
+    centroid = Vector(centroid_np)
+    axis_u = Vector(eigenvectors[:, 0]).normalized()
+    axis_v = Vector(eigenvectors[:, 1]).normalized()
+    normal = Vector(eigenvectors[:, 2]).normalized()
+
+    points_2d = []
+    for p in points:
+        d = p - centroid
+        points_2d.append(Vector((d.dot(axis_u), d.dot(axis_v))))
+
+    return points_2d, (axis_u, axis_v, normal), centroid
+
+
+def _unproject_from_2d(points_2d, axes, centroid):
+    """Convert 2D PCA-projected points back to 3D."""
+    axis_u, axis_v, normal = axes
+    result = []
+    for p2 in points_2d:
+        result.append(centroid + axis_u * p2.x + axis_v * p2.y)
+    return result
+
+
+def _find_self_intersections(points_2d):
+    """
+    Find self-intersection points in a 2D closed polygon.
+
+    Returns list of (seg_i, seg_j, intersection_point_2d) tuples.
+    Only checks non-adjacent segment pairs.
+    """
+    n = len(points_2d)
+    intersections = []
+
+    for i in range(n):
+        a1 = points_2d[i]
+        a2 = points_2d[(i + 1) % n]
+        # Start j from i+2 to skip adjacent segments
+        for j in range(i + 2, n):
+            # Skip if segments share an endpoint (adjacent wrap-around)
+            if j == (i - 1) % n or (i == 0 and j == n - 1):
+                continue
+            b1 = points_2d[j]
+            b2 = points_2d[(j + 1) % n]
+            pt = _segment_intersection_2d(a1, a2, b1, b2)
+            if pt is not None:
+                intersections.append((i, j, pt))
+
+    return intersections
+
+
+def _segment_intersection_2d(a1, a2, b1, b2):
+    """
+    Find intersection point of two 2D line segments.
+    Returns Vector or None if no intersection.
+    """
+    dx1 = a2.x - a1.x
+    dy1 = a2.y - a1.y
+    dx2 = b2.x - b1.x
+    dy2 = b2.y - b1.y
+
+    denom = dx1 * dy2 - dy1 * dx2
+    if abs(denom) < 1e-10:
+        return None  # Parallel or collinear
+
+    t = ((b1.x - a1.x) * dy2 - (b1.y - a1.y) * dx2) / denom
+    u = ((b1.x - a1.x) * dy1 - (b1.y - a1.y) * dx1) / denom
+
+    eps = 1e-6
+    if eps < t < 1.0 - eps and eps < u < 1.0 - eps:
+        ix = a1.x + t * dx1
+        iy = a1.y + t * dy1
+        return Vector((ix, iy))
+
+    return None
+
+
+def _resolve_self_intersections(points_2d, intersections):
+    """
+    Resolve self-intersections by keeping the larger loop.
+
+    For each intersection, splits the contour at the crossing point
+    and keeps the sub-loop with the larger signed area.
+    """
+    # Process only the first intersection (iterative for multiple would be complex)
+    if not intersections:
+        return points_2d
+
+    seg_i, seg_j, ix_pt = intersections[0]
+    n = len(points_2d)
+
+    # Insert intersection point, creating two loops:
+    # Loop A: ix_pt → points[seg_i+1..seg_j] → ix_pt
+    # Loop B: ix_pt → points[seg_j+1..seg_i] → ix_pt (wrapping around)
+
+    loop_a = [ix_pt]
+    idx = (seg_i + 1) % n
+    while idx != (seg_j + 1) % n:
+        loop_a.append(points_2d[idx])
+        idx = (idx + 1) % n
+
+    loop_b = [ix_pt]
+    idx = (seg_j + 1) % n
+    while idx != (seg_i + 1) % n:
+        loop_b.append(points_2d[idx])
+        idx = (idx + 1) % n
+
+    # Keep the loop with larger area
+    area_a = abs(_signed_area_2d(loop_a))
+    area_b = abs(_signed_area_2d(loop_b))
+
+    return loop_a if area_a >= area_b else loop_b
+
+
+def _signed_area_2d(points_2d):
+    """Compute signed area of a 2D polygon using the shoelace formula."""
+    n = len(points_2d)
+    if n < 3:
+        return 0.0
+    area = 0.0
+    for i in range(n):
+        j = (i + 1) % n
+        area += points_2d[i].x * points_2d[j].y
+        area -= points_2d[j].x * points_2d[i].y
+    return area / 2.0
+
+
+def _point_in_polygon_2d(point, polygon):
+    """
+    Winding number test for point-in-polygon (robust for concave polygons).
+
+    Args:
+        point: Vector (2D)
+        polygon: list of Vector (2D)
+
+    Returns: True if point is inside polygon
+    """
+    n = len(polygon)
+    winding = 0
+    for i in range(n):
+        y1 = polygon[i].y
+        y2 = polygon[(i + 1) % n].y
+        if y1 <= point.y:
+            if y2 > point.y:
+                # Upward crossing
+                if _is_left(polygon[i], polygon[(i + 1) % n], point) > 0:
+                    winding += 1
+        else:
+            if y2 <= point.y:
+                # Downward crossing
+                if _is_left(polygon[i], polygon[(i + 1) % n], point) < 0:
+                    winding -= 1
+    return winding != 0
+
+
+def _is_left(p0, p1, p2):
+    """Test if point p2 is left of the line from p0 to p1."""
+    return (p1.x - p0.x) * (p2.y - p0.y) - (p2.x - p0.x) * (p1.y - p0.y)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# MULTI-CONTOUR SUPPORT (annular shapes)
+# ══════════════════════════════════════════════════════════════════════
+
+def group_contour_strokes(strokes):
+    """
+    Group strokes into separate contours based on endpoint proximity.
+    Strokes that form closed loops are their own group. Open strokes
+    are merged greedily by closest endpoint.
+
+    Args:
+        strokes: List of strokes (each a list of Vector)
+
+    Returns:
+        List of contour groups, each group is a list of strokes
+    """
+    if not strokes:
+        return []
+    if len(strokes) == 1:
+        return [strokes]
+
+    # Separate closed loops from open strokes
+    closed_threshold = 0.01  # 1cm
+    closed_groups = []
+    open_strokes = []
+
+    for stroke in strokes:
+        if len(stroke) >= 3 and (stroke[0] - stroke[-1]).length < closed_threshold:
+            closed_groups.append([stroke])
+        else:
+            open_strokes.append(stroke)
+
+    if not open_strokes:
+        return closed_groups
+
+    # Group open strokes by endpoint proximity
+    # Use a greedy approach: build groups by merging strokes whose
+    # endpoints are close to each other
+    groups = []
+    remaining = list(open_strokes)
+
+    while remaining:
+        group = [remaining.pop(0)]
+        changed = True
+        while changed:
+            changed = False
+            for i in range(len(remaining) - 1, -1, -1):
+                stroke = remaining[i]
+                # Check if this stroke connects to any stroke in the group
+                group_start = group[0][0]
+                group_end = group[-1][-1]
+                merge_threshold = closed_threshold * 5  # 5cm
+
+                d_end_to_start = (group_end - stroke[0]).length
+                d_end_to_end = (group_end - stroke[-1]).length
+                d_start_to_end = (group_start - stroke[-1]).length
+                d_start_to_start = (group_start - stroke[0]).length
+
+                min_d = min(d_end_to_start, d_end_to_end,
+                            d_start_to_end, d_start_to_start)
+
+                if min_d < merge_threshold:
+                    remaining.pop(i)
+                    group.append(stroke)
+                    changed = True
+
+        groups.append(group)
+
+    return closed_groups + groups
+
+
+def classify_contours(processed_contours, whisker_point):
+    """
+    Classify multiple contour loops as outer boundary or inner holes.
+
+    The outer contour is the one whose 2D projection contains the whisker_point
+    and has the largest absolute area. All others are holes.
+
+    Args:
+        processed_contours: List of contour point lists (each already closed/resampled)
+        whisker_point: Vector, midpoint of the whisker stroke
+
+    Returns:
+        Tuple (outer_contour: list[Vector], holes: list[list[Vector]])
+    """
+    if len(processed_contours) == 1:
+        return processed_contours[0], []
+
+    # Project all contours + whisker onto a shared PCA plane
+    # Use the largest contour's points to define the plane
+    all_points = [p for c in processed_contours for p in c]
+    pts_2d_all, axes, centroid = _project_to_2d(all_points)
+
+    # Project whisker point
+    axis_u, axis_v, normal = axes
+    wd = whisker_point - centroid
+    whisker_2d = Vector((wd.dot(axis_u), wd.dot(axis_v)))
+
+    # Project each contour separately
+    contour_2d_list = []
+    offset = 0
+    for contour in processed_contours:
+        n = len(contour)
+        contour_2d = pts_2d_all[offset:offset + n]
+        contour_2d_list.append(contour_2d)
+        offset += n
+
+    # Find the outer contour: contains whisker + largest area
+    outer_idx = -1
+    outer_area = 0.0
+
+    for i, c2d in enumerate(contour_2d_list):
+        if _point_in_polygon_2d(whisker_2d, c2d):
+            area = abs(_signed_area_2d(c2d))
+            if area > outer_area:
+                outer_area = area
+                outer_idx = i
+
+    # Fallback: if whisker is not inside any contour, pick the largest
+    if outer_idx == -1:
+        for i, c2d in enumerate(contour_2d_list):
+            area = abs(_signed_area_2d(c2d))
+            if area > outer_area:
+                outer_area = area
+                outer_idx = i
+
+    if outer_idx == -1:
+        outer_idx = 0
+
+    outer = processed_contours[outer_idx]
+    holes = [c for i, c in enumerate(processed_contours) if i != outer_idx]
+
+    return outer, holes
+
+
+# ══════════════════════════════════════════════════════════════════════
+# INTERNAL HELPERS
+# ══════════════════════════════════════════════════════════════════════
 
 def _stroke_length(stroke):
     """Calculate total length of a stroke."""

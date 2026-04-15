@@ -127,7 +127,7 @@ class XLSX_WIZARD_OT_convert_stratigraphy(bpy.types.Operator):
             f"{len(graph.nodes)} total nodes, {len(graph.edges)} edges"
         )
 
-        print(f"✅ Wizard Step 1: Graph '{graph_id}' created")
+        print(f"Wizard Step 1: Graph '{graph_id}' created")
         print(f"   {len(strat_nodes)} stratigraphic units, {len(graph.nodes)} total nodes, {len(graph.edges)} edges")
 
         return {'FINISHED'}
@@ -202,7 +202,7 @@ class XLSX_WIZARD_OT_enrich_paradata(bpy.types.Operator):
             f"({len(graph.nodes)} total nodes, {len(graph.edges)} edges)"
         )
 
-        print(f"✅ Wizard Step 2: Paradata enriched graph '{graph_id}'")
+        print(f"Wizard Step 2: Paradata enriched graph '{graph_id}'")
         print(f"   +{nodes_added} nodes added, {len(graph.nodes)} total nodes, {len(graph.edges)} edges")
 
         return {'FINISHED'}
@@ -344,7 +344,7 @@ class XLSX_WIZARD_OT_copy_ai_prompt(bpy.types.Operator):
         # ── Report ──
         char_count = len(full_prompt)
         self.report({'INFO'}, f"AI prompt copied to clipboard ({char_count} characters)")
-        print(f"✅ AI extraction prompt copied to clipboard ({char_count} chars)")
+        print(f"AI extraction prompt copied to clipboard ({char_count} chars)")
 
         return {'FINISHED'}
 

@@ -111,7 +111,7 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
 
         # Header info
         context.area.header_text_set(
-            "Surface Areale: Draw CONTOUR strokes. "
+            "Surface Areale: Draw CONTOUR strokes (multiple for annular shapes). "
             "[B] Switch to Whisker | [Enter] Confirm | [Esc] Cancel"
         )
 
@@ -150,13 +150,14 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
                 extract_gp_strokes, identify_whisker,
                 concatenate_strokes, close_contour,
                 resample_contour, reproject_on_surface,
-                create_bvh_from_object
+                create_bvh_from_object, validate_contour,
+                group_contour_strokes, classify_contours
             )
-            from .strategies import generate_areale
+            from .strategies import generate_areale, generate_areale_with_holes
             from .postprocess import (
                 apply_normal_offset, decimate_preserving_boundary,
                 assign_em_material, link_areale_to_graph,
-                link_areale_simple
+                link_areale_simple, count_overlapping_areali
             )
 
             rm_obj = settings.target_rm
@@ -171,36 +172,102 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
             # ── Separate contour and whisker ──────────────────────────
             contour_strokes, whisker_point = identify_whisker(strokes)
 
-            # ── Build contour ─────────────────────────────────────────
-            contour = concatenate_strokes(contour_strokes)
-            contour = close_contour(contour)
-
-            # ── Resample ──────────────────────────────────────────────
-            contour = resample_contour(contour, settings.resample_distance)
-
-            if len(contour) < 3:
-                self.report({'ERROR'}, "Contour too small after resampling")
-                return self._cancel(context)
-
-            # ── Build BVH and reproject ───────────────────────────────
+            # ── Build BVH (needed for reprojection) ──────────────────
             bvh_tree = create_bvh_from_object(rm_obj)
-
-            projected = reproject_on_surface(contour, bvh_tree)
-            contour_points = [p[0] for p in projected]
-            contour_normals = [p[1] for p in projected]
 
             # Reproject whisker point
             wh_loc, wh_normal, _, _ = bvh_tree.find_nearest(whisker_point)
             if wh_loc:
                 whisker_point = wh_loc
 
-            # ── Generate areale mesh ──────────────────────────────────
-            self.report({'INFO'}, "Generating surface areale...")
+            # ── Group strokes into separate contours ─────────────────
+            contour_groups = group_contour_strokes(contour_strokes)
 
-            areale_obj = generate_areale(
-                contour_points, contour_normals, whisker_point,
-                rm_obj, bvh_tree, settings
-            )
+            if len(contour_groups) <= 1:
+                # ── Single contour: existing pipeline ────────────────
+                contour = concatenate_strokes(contour_strokes)
+                contour = close_contour(contour)
+                contour = resample_contour(contour, settings.resample_distance)
+
+                # Validate and auto-fix
+                contour, val_warnings, is_valid = validate_contour(
+                    contour, auto_fix=True)
+                for w in val_warnings:
+                    self.report({'WARNING'}, w)
+                if not is_valid:
+                    self.report({'ERROR'}, "Contour is degenerate after cleanup")
+                    return self._cancel(context)
+
+                if len(contour) < 3:
+                    self.report({'ERROR'}, "Contour too small after resampling")
+                    return self._cancel(context)
+
+                projected = reproject_on_surface(contour, bvh_tree)
+                contour_points = [p[0] for p in projected]
+                contour_normals = [p[1] for p in projected]
+
+                self.report({'INFO'}, "Generating surface areale...")
+                areale_obj = generate_areale(
+                    contour_points, contour_normals, whisker_point,
+                    rm_obj, bvh_tree, settings
+                )
+
+            else:
+                # ── Multi-contour: annular shape pipeline ────────────
+                processed_contours = []
+                for group in contour_groups:
+                    c = concatenate_strokes(group)
+                    c = close_contour(c)
+                    c = resample_contour(c, settings.resample_distance)
+                    c, val_warnings, is_valid = validate_contour(
+                        c, auto_fix=True)
+                    for w in val_warnings:
+                        self.report({'WARNING'}, w)
+                    if is_valid and len(c) >= 3:
+                        processed_contours.append(c)
+
+                if not processed_contours:
+                    self.report({'ERROR'}, "No valid contours after processing")
+                    return self._cancel(context)
+
+                if len(processed_contours) == 1:
+                    # All holes were invalid, fall back to single contour
+                    projected = reproject_on_surface(
+                        processed_contours[0], bvh_tree)
+                    contour_points = [p[0] for p in projected]
+                    contour_normals = [p[1] for p in projected]
+
+                    self.report({'INFO'}, "Generating surface areale...")
+                    areale_obj = generate_areale(
+                        contour_points, contour_normals, whisker_point,
+                        rm_obj, bvh_tree, settings
+                    )
+                else:
+                    # Classify outer vs holes
+                    outer, holes = classify_contours(
+                        processed_contours, whisker_point)
+
+                    # Reproject outer contour
+                    outer_proj = reproject_on_surface(outer, bvh_tree)
+                    contour_points = [p[0] for p in outer_proj]
+                    contour_normals = [p[1] for p in outer_proj]
+
+                    # Reproject holes
+                    hole_points_list = []
+                    hole_normals_list = []
+                    for hole in holes:
+                        h_proj = reproject_on_surface(hole, bvh_tree)
+                        hole_points_list.append([p[0] for p in h_proj])
+                        hole_normals_list.append([p[1] for p in h_proj])
+
+                    self.report({'INFO'},
+                                f"Generating annular areale "
+                                f"({len(holes)} hole(s))...")
+                    areale_obj = generate_areale_with_holes(
+                        contour_points, contour_normals, whisker_point,
+                        hole_points_list, hole_normals_list,
+                        rm_obj, bvh_tree, settings
+                    )
 
             # ── Post-processing ───────────────────────────────────────
             # Link to scene if not already (Shrinkwrap/Boolean strategies
@@ -213,7 +280,13 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
                 settings.conformity_threshold, bvh_tree
             )
 
-            apply_normal_offset(areale_obj, bvh_tree, settings.offset_distance)
+            overlap_count = count_overlapping_areali(areale_obj, rm_obj)
+            if overlap_count > 0:
+                self.report({'INFO'},
+                            f"Detected {overlap_count} overlapping areali, "
+                            f"adjusting offset")
+            apply_normal_offset(areale_obj, bvh_tree,
+                                settings.offset_distance, overlap_count)
 
             alpha = getattr(context.scene.em_tools, 'proxy_display_alpha', 0.5)
             assign_em_material(areale_obj, settings.us_type, alpha)
@@ -399,6 +472,20 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
             self._gp_obj = None
 
 
+class EMTOOLS_OT_calibrate_benchmark(Operator):
+    """Run a micro-benchmark to calibrate time estimates for your hardware"""
+    bl_idname = "emtools.calibrate_benchmark"
+    bl_label = "Calibrate Performance"
+    bl_description = "Run a micro-benchmark to calibrate time estimates for your hardware"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        from .benchmark import run_benchmark
+        run_benchmark()
+        self.report({'INFO'}, "Benchmark calibration complete")
+        return {'FINISHED'}
+
+
 class EMTOOLS_OT_confirm_areale(Operator):
     """Confirm and process the drawn surface areale"""
     bl_idname = "emtools.confirm_areale"
@@ -563,6 +650,7 @@ class EMTOOLS_OT_detect_rm_document(Operator):
 
 classes = [
     EMTOOLS_OT_draw_surface_areale,
+    EMTOOLS_OT_calibrate_benchmark,
     EMTOOLS_OT_confirm_areale,
     EMTOOLS_OT_suggest_next_doc,
     EMTOOLS_OT_suggest_next_us,

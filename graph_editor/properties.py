@@ -143,7 +143,6 @@ def initialize_edge_filters(context):
         else:
             item.category = 'OTHER'
     
-    print(f"✓ Initialized {len(settings.edge_filters)} edge type filters")
 
 
 classes = (
@@ -154,15 +153,11 @@ classes = (
 def register_properties():
     """Register property classes"""
     for cls in classes:
-        try:
-            bpy.utils.register_class(cls)
-        except ValueError:
-            pass
+        bpy.utils.register_class(cls)
     
     # Add to Scene
     bpy.types.Scene.graph_editor_settings = bpy.props.PointerProperty(type=GraphEditorSettings)
     
-    print("✓ Graph Viewer properties registered")
 
 def unregister_properties():
     """Unregister property classes"""

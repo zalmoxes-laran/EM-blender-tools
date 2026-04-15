@@ -127,30 +127,20 @@ classes = [
 
 def register():
     """Register all operator classes"""
-    print("   [proxy_box/operators.py] Starting registration...")
-
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
-            print(f"   [proxy_box/operators.py] ✓ Registered {cls.__name__}")
         except ValueError as e:
-            print(f"   [proxy_box/operators.py] ⚠ Warning: Could not register {cls.__name__}: {e}")
-
-    print("   [proxy_box/operators.py] ✓ Operators registration complete")
+            print(f"[proxy_box] Warning: Could not register {cls.__name__}: {e}")
 
 
 def unregister():
     """Unregister all operator classes"""
-    print("   [proxy_box/operators.py] Starting unregistration...")
-
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
-            print(f"   [proxy_box/operators.py] ✓ Unregistered {cls.__name__}")
-        except RuntimeError as e:
-            print(f"   [proxy_box/operators.py] ⚠ Warning: Could not unregister {cls.__name__}: {e}")
-
-    print("   [proxy_box/operators.py] ✓ Operators unregistration complete")
+        except RuntimeError:
+            pass
 
 
 if __name__ == "__main__":

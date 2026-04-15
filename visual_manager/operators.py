@@ -101,7 +101,7 @@ class VISUAL_OT_update_property_values(Operator):
                 if graph_name not in multi_graph_manager.graphs:
                     message = f"3D GIS graph '{graph_name}' not found. Please import data first."
                     self.report({'WARNING'}, message)
-                    print(f"❌ {message}")
+                    print(f"Error: {message}")
                     return {'FINISHED'}
                 
                 graph = get_graph(graph_name)
@@ -115,7 +115,7 @@ class VISUAL_OT_update_property_values(Operator):
                 else:
                     message = f"3D GIS graph '{graph_name}' not accessible"
                     self.report({'ERROR'}, message)
-                    print(f"❌ {message}")
+                    print(f"Error: {message}")
                     return {'FINISHED'}
                     
             else:  # Modalità Advanced EM
@@ -150,12 +150,12 @@ class VISUAL_OT_update_property_values(Operator):
                         else:
                             message = f"Graph '{active_file.name}' not found"
                             self.report({'ERROR'}, message)
-                            print(f"❌ {message}")
+                            print(f"Error: {message}")
                             return {'FINISHED'}
                     else:
                         message = "No active GraphML file selected"
                         self.report({'WARNING'}, message)
-                        print(f"❌ {message}")
+                        print(f"Error: {message}")
                         return {'FINISHED'}
             
             # Converti i valori in lista ordinata
@@ -193,7 +193,7 @@ class VISUAL_OT_update_property_values(Operator):
                 print(f"  {i+1}. '{value}' -> {item.color}")
             
             message = f"Found {len(unique_values)} unique values for {scene.selected_property}"
-            print(f"\n✅ {message}")
+            print(f"\n{message}")
             print(f"{'='*50}")
             self.report({'INFO'}, message)
             return {'FINISHED'}
@@ -274,11 +274,11 @@ class VISUAL_OT_apply_colors(Operator):
             # STEP 1: Crea il mapping property value -> object names
             # ADESSO USA LA STESSA FUNZIONE DI UPDATE_PROPERTY_VALUES
             property_mapping = create_property_value_mapping(graph, scene.selected_property)
-            print(f"\n✓ STEP 1: Created property mapping with {len(property_mapping)} entries")
+            print(f"\nSTEP 1: Created property mapping with {len(property_mapping)} entries")
             
             # STEP 2: Crea i materiali per tutti i valori presenti in scene.property_values
             materials_by_value = create_property_materials_for_scene_values(context)
-            print(f"✓ STEP 2: Created {len(materials_by_value)} materials")
+            print(f"STEP 2: Created {len(materials_by_value)} materials")
 
             # ✅ OPTIMIZATION: Invalidate material cache after creating new materials
             from ..material_cache import invalidate_material_cache
@@ -286,13 +286,13 @@ class VISUAL_OT_apply_colors(Operator):
 
             # STEP 3: Applica i materiali agli oggetti
             colored_count = apply_materials_to_objects(context, property_mapping, materials_by_value)
-            print(f"✓ STEP 3: Applied materials to objects")
+            print(f"STEP 3: Applied materials to objects")
             
             # Report risultato
             total_meshes = len([obj for obj in scene.objects if obj.type == 'MESH'])
             summary = f"Applied colors to {colored_count} of {total_meshes} mesh objects"
             print(f"\n{'='*50}")
-            print(f"✅ SUCCESS: {summary}")
+            print(f"SUCCESS: {summary}")
             print(f"{'='*50}")
             self.report({'INFO'}, summary)
             
@@ -302,7 +302,7 @@ class VISUAL_OT_apply_colors(Operator):
             import traceback
             error_msg = f"Error applying colors: {str(e)}"
             print(f"\n{'='*50}")
-            print(f"❌ ERROR: {error_msg}")
+            print(f"Error: ERROR: {error_msg}")
             print("Full traceback:")
             print(traceback.format_exc())
             print(f"{'='*50}")
@@ -388,7 +388,7 @@ class VISUAL_OT_select_proxies(Operator):
                         print(f"  Warning: Proxy not found or not mesh: {proxy_name}")
             
             message = f"Selected {selected_count} objects with value '{self.value}'"
-            print(f"✅ {message}")
+            print(f"{message}")
             self.report({'INFO'}, message)
             
             return {'FINISHED'}
@@ -396,7 +396,7 @@ class VISUAL_OT_select_proxies(Operator):
         except Exception as e:
             import traceback
             error_msg = f"Error selecting proxies: {str(e)}"
-            print(f"❌ {error_msg}")
+            print(f"Error: {error_msg}")
             print(traceback.format_exc())
             self.report({'ERROR'}, error_msg)
             return {'CANCELLED'}

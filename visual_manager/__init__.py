@@ -18,58 +18,33 @@ __all__ = ['register', 'unregister']
 
 def register():
     """Register Visual Manager - solo UI e operatori base."""
-    print("=== REGISTERING VISUAL MANAGER (UI + LABELS) ===")
-    
     try:
-        # 1. Register data first (properties, UI lists, etc.)
-        print("Registering visual manager data...")
         register_data()
-        
-        # 2. Register operators (property management, color schemes, etc.)
-        print("Registering visual manager operators...")
         register_operators()
-
-        # 2b. Register overlay operators
-        print("Registering visual manager overlay operators...")
         register_overlay_operators()
-
-        # 3. Register label tools (safe version)
-        print("Registering visual manager label tools (safe)...")
         register_label_tools()
-        
-        # 4. Register UI last (panels, lists, menus)
-        print("Registering visual manager UI...")
         register_ui()
-        
-        print("=== VISUAL MANAGER (UI + LABELS) REGISTRATION COMPLETE ===")
-        
+
         # Verifica se il pannello è stato registrato
-        if hasattr(bpy.types, 'VIEW3D_PT_visual_panel'):
-            print("✅ Visual Manager panel successfully registered!")
-        else:
-            print("❌ Visual Manager panel not found after registration")
-        
+        if not hasattr(bpy.types, 'VIEW3D_PT_visual_panel'):
+            print("[VisualManager] Error: panel not found after registration")
+
     except Exception as e:
-        print(f"❌ ERROR in Visual Manager UI registration: {e}")
+        print(f"[VisualManager] Error: registration failed: {e}")
         import traceback
         traceback.print_exc()
 
 def unregister():
     """Unregister Visual Manager - solo UI e operatori base."""
-    print("=== UNREGISTERING VISUAL MANAGER (UI + LABELS) ===")
-    
     try:
-        # Unregister in reverse order
         unregister_ui()
         unregister_label_tools()
         unregister_overlay_operators()
         unregister_operators()
         unregister_data()
-        
-        print("=== VISUAL MANAGER (UI + LABELS) UNREGISTRATION COMPLETE ===")
-        
+
     except Exception as e:
-        print(f"❌ ERROR in Visual Manager UI unregistration: {e}")
+        print(f"[VisualManager] Error: unregistration failed: {e}")
         import traceback
         traceback.print_exc()
 
@@ -106,10 +81,4 @@ def check_visual_manager_status():
 
 def print_visual_manager_status():
     """Stampa lo status del Visual Manager per debug."""
-    status = check_visual_manager_status()
-    
-    print("\n=== VISUAL MANAGER STATUS ===")
-    print(f"Panel Registered: {'✅' if status['panel_registered'] else '❌'}")
-    print(f"Operators Available ({len(status['operators_available'])}): {', '.join(status['operators_available'])}")
-    print(f"Properties Available ({len(status['properties_available'])}): {', '.join(status['properties_available'])}")
-    print("============================\n")
+    return check_visual_manager_status()

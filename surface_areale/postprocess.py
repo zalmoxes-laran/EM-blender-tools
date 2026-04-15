@@ -17,18 +17,89 @@ from mathutils import Vector
 # GEOMETRY POST-PROCESSING
 # ══════════════════════════════════════════════════════════════════════
 
-def apply_normal_offset(obj, bvh_tree, offset_distance):
-    """Offset each vertex along the RM surface normal (anti z-fighting)."""
+def apply_normal_offset(obj, bvh_tree, offset_distance, overlap_count=0):
+    """Offset each vertex along the RM surface normal (anti z-fighting).
+
+    If overlap_count > 0, the offset is multiplied to stack overlapping
+    areali at different heights. Capped at 5x to avoid excessive offset.
+    """
+    multiplier = min(overlap_count + 1, 5)
+    effective_offset = offset_distance * multiplier
     mesh = obj.data
     bm = bmesh.new()
     bm.from_mesh(mesh)
     for v in bm.verts:
         location, normal, index, dist = bvh_tree.find_nearest(v.co)
         if location is not None and normal is not None:
-            v.co = Vector(location) + Vector(normal) * offset_distance
+            v.co = Vector(location) + Vector(normal) * effective_offset
     bm.to_mesh(mesh)
     bm.free()
     mesh.update()
+
+
+def count_overlapping_areali(obj, rm_obj):
+    """
+    Count how many existing areale proxies overlap with the given object
+    on the same RM, using AABB overlap test on children of rm_obj.
+
+    Args:
+        obj: The new areale object (needs bounding box)
+        rm_obj: The parent RM object
+
+    Returns:
+        int: Number of overlapping areali (0 = no overlap)
+    """
+    if not rm_obj:
+        return 0
+
+    new_bb = _get_world_aabb(obj)
+    if not new_bb:
+        return 0
+
+    count = 0
+    for child in rm_obj.children:
+        if child == obj:
+            continue
+        if not _is_areale_proxy(child):
+            continue
+        child_bb = _get_world_aabb(child)
+        if child_bb and _aabb_overlap(new_bb, child_bb):
+            count += 1
+
+    return count
+
+
+def _get_world_aabb(obj):
+    """Get axis-aligned bounding box in world space as (min_corner, max_corner)."""
+    if not obj.bound_box:
+        return None
+    world_corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+    min_c = Vector((min(c.x for c in world_corners),
+                     min(c.y for c in world_corners),
+                     min(c.z for c in world_corners)))
+    max_c = Vector((max(c.x for c in world_corners),
+                     max(c.y for c in world_corners),
+                     max(c.z for c in world_corners)))
+    return (min_c, max_c)
+
+
+def _aabb_overlap(bb1, bb2):
+    """Test if two AABBs overlap."""
+    min1, max1 = bb1
+    min2, max2 = bb2
+    return (min1.x <= max2.x and max1.x >= min2.x and
+            min1.y <= max2.y and max1.y >= min2.y and
+            min1.z <= max2.z and max1.z >= min2.z)
+
+
+def _is_areale_proxy(obj):
+    """Heuristic: check if an object is a surface areale proxy."""
+    if obj.type != 'MESH':
+        return False
+    for mat_slot in obj.material_slots:
+        if mat_slot.material and mat_slot.material.name.startswith("M_Areale_"):
+            return True
+    return False
 
 
 def decimate_preserving_boundary(obj, max_triangles, max_error, bvh_tree):

@@ -59,7 +59,7 @@ def resolve_resource_folder(resource_folder_path: str, verbose: bool = False) ->
     if os.path.isabs(resource_folder_path) and not resource_folder_path.startswith("//"):
         result = os.path.normpath(resource_folder_path)
         if verbose:
-            print(f"✓ Path assoluto: {result}")
+            print(f"[Thumbs] Path assoluto: {result}")
         _resolved_paths_cache[resource_folder_path] = result
         return result
     
@@ -70,7 +70,7 @@ def resolve_resource_folder(resource_folder_path: str, verbose: bool = False) ->
         # SOLO ORA normalizza il risultato
         result = os.path.normpath(resolved)
         if verbose:
-            print(f"✓ Path relativo Blender: {resource_folder_path} → {result}")
+            print(f"[Thumbs] Path relativo Blender: {resource_folder_path} → {result}")
         
         # Verifica che il path esista
         if os.path.exists(result):
@@ -78,7 +78,7 @@ def resolve_resource_folder(resource_folder_path: str, verbose: bool = False) ->
             return result
         else:
             if verbose:
-                print(f"⚠️ Path risolto non esiste: {result}")
+                print(f"[Thumbs] Path risolto non esiste: {result}")
             _resolved_paths_cache[resource_folder_path] = None
             return None
     
@@ -86,7 +86,7 @@ def resolve_resource_folder(resource_folder_path: str, verbose: bool = False) ->
     blend_path = bpy.data.filepath
     if not blend_path:
         if verbose:
-            print("⚠️ File .blend non salvato, impossibile risolvere path relativi senza //")
+            print("[Thumbs] File .blend non salvato, impossibile risolvere path relativi senza //")
         return None
     
     blend_dir = os.path.dirname(blend_path)
@@ -94,7 +94,7 @@ def resolve_resource_folder(resource_folder_path: str, verbose: bool = False) ->
     absolute_path = os.path.join(blend_dir, resource_folder_path)
     result = os.path.normpath(absolute_path)
     if verbose:
-        print(f"✓ Path relativo: {resource_folder_path} → {result}")
+        print(f"[Thumbs] Path relativo: {resource_folder_path} → {result}")
     
     # Verifica che il path esista
     if os.path.exists(result):
@@ -102,7 +102,7 @@ def resolve_resource_folder(resource_folder_path: str, verbose: bool = False) ->
         return result
     else:
         if verbose:
-            print(f"⚠️ Path risolto non esiste: {result}")
+            print(f"[Thumbs] Path risolto non esiste: {result}")
         _resolved_paths_cache[resource_folder_path] = None
         return None
 
@@ -721,7 +721,7 @@ def reload_doc_previews_for_us(us_node_id: str) -> List[Tuple[str, str, str, int
                                 i += 1
 
                             except Exception as e:
-                                print(f"❌ Error loading thumbnail: {e}")
+                                print(f"[Thumbs] Error loading thumbnail: {e}")
 
             # ✅ SALVA IN CACHE
             _cached_us_thumbs[cache_key] = enum_items
@@ -745,14 +745,14 @@ def clear_us_thumbs_cache():
     """Pulisce la cache delle thumbnails US. Da chiamare quando si rigenera."""
     global _cached_us_thumbs
     _cached_us_thumbs.clear()
-    print("🗑️ Cache thumbnails US pulita")
+    print("[Thumbs] Cache thumbnails US pulita")
 
 # ✅ NUOVA FUNZIONE
 def clear_resolved_paths_cache():
     """Pulisce la cache dei path risolti. Da chiamare quando cambia il file .blend."""
     global _resolved_paths_cache
     _resolved_paths_cache.clear()
-    print("🗑️ Cache path risolti pulita")
+    print("[Thumbs] Cache path risolti pulita")
 
 # ✅ NUOVA FUNZIONE COMBO
 def clear_all_thumbs_caches():
@@ -775,7 +775,7 @@ def force_reload_thumbs_cache():
         strat = em_tools.stratigraphy  # ✅ NEW: Usa il path centralizzato
 
         if not strat.units or strat.units_index < 0:
-            print("⚠️ Nessuna US selezionata")
+            print("[Thumbs] Nessuna US selezionata")
             return False
 
         selected_us = strat.units[strat.units_index]
@@ -786,11 +786,11 @@ def force_reload_thumbs_cache():
         for key in keys_to_remove:
             del _cached_us_thumbs[key]
 
-        print(f"✅ Cache pulita per US: {selected_us.name} (id_node: {selected_us.id_node})")
+        print(f"[Thumbs] Cache pulita per US: {selected_us.name} (id_node: {selected_us.id_node})")
         return True
 
     except Exception as e:
-        print(f"❌ Errore durante pulizia cache: {e}")
+        print(f"[Thumbs] Errore durante pulizia cache: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -930,13 +930,13 @@ def get_src_path_from_doc_key(doc_key: str) -> Optional[str]:
             if os.path.exists(relative_src_path):
                 return relative_src_path
             else:
-                print(f"⚠️ Path assoluto non esiste più: {relative_src_path}")
+                print(f"[Thumbs] Path assoluto non esiste più: {relative_src_path}")
                 return None
         else:
             # Path relativo (nuovo formato) - ricostruisci assoluto dal .blend
             blend_path = bpy.data.filepath
             if not blend_path:
-                print(f"⚠️ File .blend non salvato, impossibile ricostruire path assoluto")
+                print(f"[Thumbs] File .blend non salvato, impossibile ricostruire path assoluto")
                 return None
             
             blend_dir = os.path.dirname(blend_path)
@@ -946,7 +946,7 @@ def get_src_path_from_doc_key(doc_key: str) -> Optional[str]:
             if os.path.exists(absolute_path):
                 return absolute_path
             else:
-                print(f"⚠️ File non trovato: {absolute_path}")
+                print(f"[Thumbs] File non trovato: {absolute_path}")
                 print(f"     Blend directory: {blend_dir}")
                 print(f"     Path relativo: {relative_src_path}")
                 return None

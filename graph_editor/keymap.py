@@ -14,7 +14,7 @@ def register_keymaps():
     kc = wm.keyconfigs.addon
     
     if not kc:
-        print("⚠️  Keyconfig addon non disponibile")
+        print("Warning: Keyconfig addon non disponibile")
         return
     
     # ========================================================================
@@ -31,7 +31,6 @@ def register_keymaps():
     )
     
     addon_keymaps.append((km, kmi))
-    print("✓ Registrata keymap: Shift+Alt+F in 3D View → Graph Viewer Sync")
     
     # ========================================================================
     # KEYMAP 2: Shift+Alt+F nel Node Editor
@@ -47,7 +46,6 @@ def register_keymaps():
     )
     
     addon_keymaps.append((km, kmi))
-    print("✓ Registrata keymap: Shift+Alt+F in Node Editor → Sync to 3D")
     
     # ========================================================================
     # KEYMAP 3: Shift+Alt+N per Neighborhood nel Node Editor
@@ -64,7 +62,6 @@ def register_keymaps():
     kmi.properties.depth = 1
     
     addon_keymaps.append((km, kmi))
-    print("✓ Registrata keymap: Shift+Alt+N in Node Editor → Draw Neighborhood")
 
 
 def unregister_keymaps():
@@ -76,4 +73,4 @@ def unregister_keymaps():
             pass
     
     addon_keymaps.clear()
-    print("✓ Tutte le keymap di Graph Viewer rimosse")
+    print("Tutte le keymap di Graph Viewer rimosse")

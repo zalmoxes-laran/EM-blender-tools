@@ -200,7 +200,7 @@ def update_resource_folder(self, context):
             # Aggiorna solo se è cambiato
             if path != self.resource_folder:
                 self.resource_folder = path
-                print(f"✅ Resource folder normalized: removed trailing slash")
+                print(f"[EMSetup] Resource folder normalized: removed trailing slash")
 
 
 def get_emdb_mappings(self=None, context=None):

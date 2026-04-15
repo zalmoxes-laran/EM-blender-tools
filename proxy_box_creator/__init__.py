@@ -13,30 +13,20 @@ from . import create_enhanced
 
 def register():
     """Register all components"""
-    print("   [proxy_box_creator] Starting registration...")
-
-    # Register in order
     data.register()
-    operators.register()           # NEW
+    operators.register()
     ui.register()
     document_picker.register()
     create_enhanced.register()
 
-    print("   [proxy_box_creator] ✓ Module registration complete")
-
 
 def unregister():
     """Unregister all components"""
-    print("   [proxy_box_creator] Starting unregistration...")
-
-    # Unregister in reverse order
     create_enhanced.unregister()
     document_picker.unregister()
     ui.unregister()
-    operators.unregister()         # NEW
+    operators.unregister()
     data.unregister()
-
-    print("   [proxy_box_creator] ✓ Module unregistration complete")
 
 
 __all__ = [

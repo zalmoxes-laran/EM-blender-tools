@@ -8,6 +8,8 @@ Results are saved in addon preferences for future sessions.
 import bpy
 import bmesh
 import time
+import json
+import os
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
@@ -144,6 +146,7 @@ def run_benchmark():
     bm.free()
 
     _benchmark_cache['calibrated'] = True
+    save_calibration()
     print(f"[SurfaceAreale] Benchmark complete: "
           f"proj={_benchmark_cache['proj_coeff']:.6f}s/pt, "
           f"bool={_benchmark_cache['bool_coeff']:.2f}s/Mpoly, "
@@ -163,3 +166,77 @@ def get_strategy_estimates(rm_poly_count, contour_point_count):
             label += " (est.)"
         estimates[strat] = (t, label)
     return estimates
+
+
+# ══════════════════════════════════════════════════════════════════════
+# CALIBRATION PERSISTENCE
+# ══════════════════════════════════════════════════════════════════════
+
+def _get_calibration_path():
+    """Return path to the benchmark calibration JSON file."""
+    config_dir = bpy.utils.user_resource('CONFIG')
+    em_dir = os.path.join(config_dir, "em_tools")
+    return os.path.join(em_dir, "surface_areale_benchmark.json")
+
+
+def save_calibration():
+    """Write benchmark cache to JSON file for persistence across sessions."""
+    if not _benchmark_cache['calibrated']:
+        return
+
+    path = _get_calibration_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    data = {
+        "version": 1,
+        "blender_version": ".".join(str(v) for v in bpy.app.version[:3]),
+        "bool_coeff": _benchmark_cache['bool_coeff'],
+        "proj_coeff": _benchmark_cache['proj_coeff'],
+        "shrink_coeff": _benchmark_cache['shrink_coeff'],
+    }
+
+    try:
+        with open(path, 'w') as f:
+            json.dump(data, f, indent=2)
+        print(f"[SurfaceAreale] Calibration saved to {path}")
+    except OSError as e:
+        print(f"[SurfaceAreale] Failed to save calibration: {e}")
+
+
+def load_calibration():
+    """
+    Load calibration from JSON. Returns True if valid data was loaded.
+    Invalidates if Blender version changed (different solver performance).
+    """
+    path = _get_calibration_path()
+    if not os.path.exists(path):
+        return False
+
+    try:
+        with open(path, 'r') as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"[SurfaceAreale] Failed to load calibration: {e}")
+        return False
+
+    if data.get("version") != 1:
+        return False
+
+    # Invalidate if Blender version changed
+    current_version = ".".join(str(v) for v in bpy.app.version[:3])
+    if data.get("blender_version") != current_version:
+        print(f"[SurfaceAreale] Calibration stale (Blender {data.get('blender_version')} "
+              f"vs {current_version}), re-calibration recommended")
+        return False
+
+    _benchmark_cache['bool_coeff'] = data['bool_coeff']
+    _benchmark_cache['proj_coeff'] = data['proj_coeff']
+    _benchmark_cache['shrink_coeff'] = data['shrink_coeff']
+    _benchmark_cache['calibrated'] = True
+
+    return True
+
+
+def is_calibrated():
+    """Check if calibration data is available (in-memory or on disk)."""
+    return _benchmark_cache['calibrated']

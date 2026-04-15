@@ -159,7 +159,6 @@ def get_all_node_types_from_datamodel(nodes_datamodel: Dict) -> List[Dict]:
     ]
     all_types.extend(lowercase_mappings)
 
-    print(f"\n✅ Extracted {len(all_types)} node types from datamodel (including lowercase variants)")
     return all_types
 
 
@@ -229,15 +228,11 @@ def generate_all_node_classes() -> List[Type]:
     """
     global _GENERATED_CLASSES, _NODE_TYPE_MAP
 
-    print("\n" + "="*60)
-    print("DYNAMIC NODE GENERATION")
-    print("="*60)
-
     # Load datamodels
     nodes_datamodel, connections_datamodel = load_datamodels()
 
     if not nodes_datamodel:
-        print("❌ Cannot generate nodes: datamodel not loaded")
+        print("[DynamicNodes] Error: cannot generate nodes: datamodel not loaded")
         return []
 
     # Extract all node types
@@ -254,17 +249,12 @@ def generate_all_node_classes() -> List[Type]:
             # Map node_type string → class for validation
             _NODE_TYPE_MAP[node_info['type']] = node_class
 
-            print(f"  ✓ Generated: {node_info['type']} ({node_class.bl_label})")
-
         except Exception as e:
-            print(f"  ✗ Error generating {node_info['type']}: {e}")
+            print(f"[DynamicNodes] Error: generating {node_info['type']}: {e}")
             import traceback
             traceback.print_exc()
 
     _GENERATED_CLASSES = generated_classes
-
-    print(f"\n✅ Successfully generated {len(generated_classes)} node classes")
-    print("="*60 + "\n")
 
     return generated_classes
 
@@ -408,9 +398,6 @@ def validate_graph_edges(graph, connections_datamodel: Dict, nodes_datamodel: Di
         connections_datamodel: JSON delle connessioni
         nodes_datamodel: JSON dei nodi
     """
-    print("\n" + "="*60)
-    print("EDGE VALIDATION")
-    print("="*60)
 
     # Build hierarchy
     node_hierarchy = build_node_hierarchy(nodes_datamodel)
@@ -446,18 +433,15 @@ def validate_graph_edges(graph, connections_datamodel: Dict, nodes_datamodel: Di
 
     # Report
     if invalid_edges:
-        print(f"\n⚠️  Found {len(invalid_edges)} invalid edges (out of {total_edges} total):\n")
+        print(f"\nWarning: Found {len(invalid_edges)} invalid edges (out of {total_edges} total):\n")
 
         for inv in invalid_edges:
             print(f"  ✗ {inv['source']} ({inv['source_type']}) "
                   f"--[{inv['edge_type']}]--> "
                   f"{inv['target']} ({inv['target_type']})")
 
-        print(f"\nThese edges cannot be represented in EMGraph due to datamodel rules.")
     else:
-        print(f"\n✅ All {total_edges} edges are valid according to datamodel rules.")
-
-    print("="*60 + "\n")
+        pass
 
     return invalid_edges
 
@@ -478,11 +462,10 @@ def register_dynamic_nodes():
     for cls in _GENERATED_CLASSES:
         try:
             bpy.utils.register_class(cls)
-        except ValueError as e:
-            # Already registered, skip
-            pass
+        except ValueError:
+            pass  # Already registered (e.g. during dev reload)
         except Exception as e:
-            print(f"Error registering {cls.__name__}: {e}")
+            print(f"[DynamicNodes] Error registering {cls.__name__}: {e}")
 
 
 def unregister_dynamic_nodes():

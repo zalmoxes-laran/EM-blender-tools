@@ -249,20 +249,37 @@ class VIEW3D_PT_SurfaceAreale_Settings(Panel):
         # Strategy selection with time estimates
         layout.prop(settings, "strategy")
 
+        # LOD controls (only for BOOLEAN or AUTO strategy)
+        if settings.strategy in ('BOOLEAN', 'AUTO'):
+            col = layout.column(align=True)
+            col.prop(settings, "use_lod")
+            if settings.use_lod:
+                col.prop(settings, "lod_factor")
+
         # Show time estimates if RM is selected
         if settings.target_rm and settings.target_rm.type == 'MESH':
             poly_count = len(settings.target_rm.data.polygons)
             try:
-                from .benchmark import get_strategy_estimates
-                estimates = get_strategy_estimates(poly_count, 100)
+                from .benchmark import get_strategy_estimates, is_calibrated
+                effective_count = poly_count
+                if settings.use_lod and settings.lod_factor < 1.0:
+                    effective_count = int(poly_count * settings.lod_factor)
+                estimates = get_strategy_estimates(effective_count, 100)
                 box = layout.box()
                 box.scale_y = 0.8
                 box.label(text=f"RM: {poly_count:,} polys", icon='INFO')
+                if settings.use_lod and settings.lod_factor < 1.0:
+                    box.label(text=f"  LOD: {effective_count:,} polys ({settings.lod_factor:.0%})")
                 for strat, (t, label) in estimates.items():
                     icon = 'CHECKMARK' if strat == settings.strategy else 'DOT'
                     if settings.strategy == 'AUTO':
                         icon = 'DOT'
                     box.label(text=f"  {strat}: {label}", icon=icon)
+                row = box.row()
+                if is_calibrated():
+                    row.label(text="Calibrated", icon='CHECKMARK')
+                else:
+                    row.operator("emtools.calibrate_benchmark", icon='TIME')
             except Exception:
                 pass
 

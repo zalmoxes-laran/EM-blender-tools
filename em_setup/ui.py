@@ -99,7 +99,7 @@ def validate_enum_value(obj, prop_name, get_items_func, context):
             else:
                 valid_items = get_items_func
         except Exception as e:
-            print(f"⚠️ Error getting valid items for {prop_name}: {e}")
+            print(f"[EMSetup] Error getting valid items for {prop_name}: {e}")
             return False
 
         # Estrai gli ID validi
@@ -107,7 +107,7 @@ def validate_enum_value(obj, prop_name, get_items_func, context):
 
         # Se il valore corrente non è nella lista, resetta
         if current_value not in valid_ids:
-            print(f"⚠️ Invalid {prop_name} value: '{current_value}' (not in {valid_ids}) - resetting to 'none'")
+            print(f"[EMSetup] Invalid {prop_name} value: '{current_value}' (not in {valid_ids}) - resetting to 'none'")
             setattr(obj, prop_name, 'none')
             return True  # Indica che c'è stata una modifica
 
@@ -129,7 +129,7 @@ def validate_all_mapping_enums(context):
 
     try:
         if not hasattr(context, 'scene') or not hasattr(context.scene, 'em_tools'):
-            print("⚠️ Cannot validate mappings: em_tools not found")
+            print("[EMSetup] Cannot validate mappings: em_tools not found")
             return
 
         em_tools = context.scene.em_tools
@@ -157,9 +157,9 @@ def validate_all_mapping_enums(context):
                             modified_count += 1
 
         if modified_count > 0:
-            print(f"✓ Mapping validation complete: {modified_count} invalid values reset")
+            print(f"[EMSetup] Mapping validation complete: {modified_count} invalid values reset")
         else:
-            print("✓ Mapping validation complete: all values valid")
+            print("[EMSetup] Mapping validation complete: all values valid")
 
     except Exception as e:
         print(f"Error in validate_all_mapping_enums: {e}")

@@ -118,7 +118,7 @@ def create_extractor_node(graph, parent_doc_id: str, extractor_number: int,
             edge_type="has_extractor"
         )
         
-        print(f"✓ Created extractor: {extractor_id}")
+        print(f"Created extractor: {extractor_id}")
         return extractor_id
         
     except Exception as e:
@@ -169,7 +169,7 @@ def create_combiner_node(graph, combiner_number: int, extractor_ids: List[str]) 
                 edge_type="has_combiner"
             )
         
-        print(f"✓ Created combiner: {combiner_id} with {len(extractor_ids)} extractors")
+        print(f"Created combiner: {combiner_id} with {len(extractor_ids)} extractors")
         return combiner_id
         
     except Exception as e:
@@ -210,7 +210,7 @@ def create_empty_extractor(context, extractor_id: str, position: Vector,
             collection.objects.unlink(empty)
         extractors_collection.objects.link(empty)
         
-        print(f"✓ Created empty extractor: {extractor_id}")
+        print(f"Created empty extractor: {extractor_id}")
         return empty
         
     except Exception as e:
@@ -353,7 +353,7 @@ def calculate_box_geometry(points: List[Vector]) -> Dict:
     # Calculate geometric center
     center = sum(vertices, Vector((0, 0, 0))) / len(vertices)
     
-    print(f"✅ HORIZONTAL BOX CREATED: Dimensions L×W×H = {length:.3f} × {thickness:.3f} × {height:.3f} m")
+    print(f"HORIZONTAL BOX CREATED: Dimensions L×W×H = {length:.3f} × {thickness:.3f} × {height:.3f} m")
     
     return {
         'vertices': vertices,

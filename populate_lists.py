@@ -377,7 +377,7 @@ def update_graph_statistics(context, graph, graphml_file_item):
         except (ValueError, TypeError):
             graphml_file_item.graph_embargo = str(embargo_val)
 
-    print(f"✅ Graph statistics updated: {stratigraphic_count} stratigraphic, {epoch_count} epochs, {property_count} properties, {document_count} documents")
+    print(f"Graph statistics updated: {stratigraphic_count} stratigraphic, {epoch_count} epochs, {property_count} properties, {document_count} documents")
 
 
 def populate_blender_lists_from_graph(context, graph):

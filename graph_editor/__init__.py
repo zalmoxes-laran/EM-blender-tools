@@ -18,8 +18,6 @@ __all__ = ['register', 'unregister']
 
 def register():
     """Register all Graph Viewer classes and properties"""
-    print("=== REGISTERING GRAPH EDITOR ===")
-
     # ✅ Initialize dynamic socket system FIRST
     socket_generator.initialize_socket_system()
 
@@ -38,12 +36,8 @@ def register():
     except:
         pass
 
-    print("=== GRAPH EDITOR REGISTRATION COMPLETE ===")
-
 def unregister():
     """Unregister all Graph Viewer classes and properties"""
-    print("=== UNREGISTERING GRAPH EDITOR ===")
-
     # Unregister in reverse order
     keymap.unregister_keymaps()
     ui.unregister_ui()
@@ -51,5 +45,3 @@ def unregister():
     properties.unregister_properties()
     dynamic_nodes.unregister_dynamic_nodes()  # ✅ Unregister dynamic nodes
     data.unregister_data()
-
-    print("=== GRAPH EDITOR UNREGISTRATION COMPLETE ===")

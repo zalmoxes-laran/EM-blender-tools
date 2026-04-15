@@ -112,14 +112,12 @@ def register_landscape_properties():
         default=""
     )
     
-    print("✅ Landscape properties registered")
 
 def on_landscape_mode_change(self, context):
     """Callback quando cambia la modalità Landscape"""
     scene = context.scene
     
     if scene.landscape_mode_active:
-        print("🌍 Switched to Landscape mode")
         # Salva il grafo attivo corrente
         if hasattr(scene, 'em_tools') and scene.em_tools.active_file_index >= 0:
             active_file = scene.em_tools.graphml_files[scene.em_tools.active_file_index]
@@ -129,7 +127,6 @@ def on_landscape_mode_change(self, context):
         from .populate_functions import populate_lists_landscape_mode
         populate_lists_landscape_mode(context)
     else:
-        print("📊 Switched to single graph mode")
         # Ricarica solo il grafo precedentemente attivo
         from .populate_functions import populate_lists_single_mode
         populate_lists_single_mode(context)
@@ -140,52 +137,44 @@ def on_landscape_mode_change(self, context):
 
 def register():
     """Registra il sistema Landscape"""
-    print("🌍 Registering Landscape system...")
-    
     # 1. Registra proprietà
     register_landscape_properties()
-    
+
     # 2. Registra operatori e menu
     classes = [
         EM_MT_LandscapeInfo,
         EM_OT_ToggleLandscapeMode,
     ]
-    
+
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
         except ValueError as e:
-            print(f"Warning: {cls.__name__} already registered: {e}")
-    
-    print("✅ Landscape system registered successfully!")
+            print(f"[Landscape] Error: {cls.__name__} already registered: {e}")
 
 def unregister():
     """Disregistra il sistema Landscape"""
-    print("🌍 Unregistering Landscape system...")
-    
     # 1. Disregistra operatori e menu
     classes = [
         EM_OT_ToggleLandscapeMode,
         EM_MT_LandscapeInfo,
     ]
-    
+
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
-        except Exception as e:
-            print(f"Error unregistering {cls.__name__}: {e}")
-    
+        except RuntimeError:
+            pass
+
     # 2. Rimuovi proprietà
     landscape_props = [
         'landscape_mode_active',
         'last_active_graph_code'
     ]
-    
+
     for prop_name in landscape_props:
         if hasattr(bpy.types.Scene, prop_name):
             delattr(bpy.types.Scene, prop_name)
-    
-    print("✅ Landscape system unregistered!")
 
 if __name__ == "__main__":
     register()

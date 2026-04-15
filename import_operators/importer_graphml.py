@@ -96,7 +96,7 @@ class EM_import_GraphML(bpy.types.Operator):
                     # Propagate import warnings from s3dgraphy to Blender UI property
                     if hasattr(graph_instance, 'warnings') and graph_instance.warnings:
                         graphml.import_warnings = "\n".join(graph_instance.warnings)
-                        print(f"\n⚠️  {len(graph_instance.warnings)} import warning(s) detected:")
+                        print(f"\nWarning: {len(graph_instance.warnings)} import warning(s) detected:")
                         for w in graph_instance.warnings:
                             print(f"  - {w}")
                     else:

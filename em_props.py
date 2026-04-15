@@ -1259,41 +1259,26 @@ classes = (
 
 def register():
     """Register all PropertyGroup classes and attach EM_Tools to Scene"""
-    print("[em_props] Starting registration...")
-
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
-            print(f"[em_props] ✓ Registered {cls.__name__}")
         except ValueError as e:
-            print(f"[em_props] ⚠ Warning: Could not register {cls.__name__}: {e}")
+            print(f"[em_props] Warning: Could not register {cls.__name__}: {e}")
 
-    # Attach to Scene
     bpy.types.Scene.em_tools = PointerProperty(
         type=EM_Tools,
         name="EM Tools",
         description="Extended Matrix Tools - Central property container"
     )
 
-    print("[em_props] ✓ Attached Scene.em_tools")
-    print("[em_props] ✓ Registration complete")
-
 
 def unregister():
     """Unregister all PropertyGroup classes and remove Scene.em_tools"""
-    print("[em_props] Starting unregistration...")
-    
-    # Remove from Scene first
     if hasattr(bpy.types.Scene, "em_tools"):
         del bpy.types.Scene.em_tools
-        print("[em_props] ✓ Removed Scene.em_tools")
-    
-    # Unregister classes in reverse order
+
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
-            print(f"[em_props] ✓ Unregistered {cls.__name__}")
         except RuntimeError as e:
-            print(f"[em_props] ⚠ Warning: Could not unregister {cls.__name__}: {e}")
-    
-    print("[em_props] ✓ Unregistration complete")
+            print(f"[em_props] Warning: Could not unregister {cls.__name__}: {e}")

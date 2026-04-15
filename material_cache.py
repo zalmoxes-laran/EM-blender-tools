@@ -106,7 +106,6 @@ class MaterialCache:
         self._dirty = False
         self._last_material_count = len(bpy.data.materials)
 
-        print(f"[MaterialCache] Rebuilt cache:")
         print(f"  - Total materials in scene: {len(bpy.data.materials)}")
         print(f"  - Property materials cached: {property_count}")
         print(f"  - Principled BSDF nodes cached: {principled_count}")
@@ -222,7 +221,6 @@ def invalidate_material_cache():
         invalidate_material_cache()
     """
     _material_cache.invalidate()
-    print("[MaterialCache] Cache invalidated (will rebuild on next use)")
 
 
 def clear_material_cache():
@@ -236,7 +234,6 @@ def clear_material_cache():
     """
     global _material_cache
     _material_cache = MaterialCache()
-    print("[MaterialCache] Cache cleared and reset")
 
 
 def get_cache_stats() -> Dict[str, int]:

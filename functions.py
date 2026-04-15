@@ -862,7 +862,7 @@ def EM_list_clear(context, list_type):
 
     else:
         # Legacy fallback - should not be reached
-        print(f"⚠️ WARNING: EM_list_clear called with unknown list_type: {list_type}")
+        print(f"Warning: WARNING: EM_list_clear called with unknown list_type: {list_type}")
 
     return
 
@@ -1242,17 +1242,17 @@ def check_objs_in_scene_and_provide_icon_for_list_element(node_name, graph=None,
 
     '''
     # 🔍 DEBUG: Stampa informazioni sul graph
-    print(f"\n🔍 DEBUG check_objs - node_name: {node_name}")
-    print(f"🔍 DEBUG check_objs - graph: {graph}")
-    print(f"🔍 DEBUG check_objs - graph type: {type(graph)}")
+    print(f"\nDEBUG check_objs - node_name: {node_name}")
+    print(f"DEBUG check_objs - graph: {graph}")
+    print(f"DEBUG check_objs - graph type: {type(graph)}")
     
     if graph:
-        print(f"🔍 DEBUG check_objs - hasattr 'attributes': {hasattr(graph, 'attributes')}")
+        print(f"DEBUG check_objs - hasattr 'attributes': {hasattr(graph, 'attributes')}")
         if hasattr(graph, 'attributes'):
-            print(f"🔍 DEBUG check_objs - graph.attributes: {graph.attributes}")
-            print(f"🔍 DEBUG check_objs - graph_code in attributes: {'graph_code' in graph.attributes}")
+            print(f"DEBUG check_objs - graph.attributes: {graph.attributes}")
+            print(f"DEBUG check_objs - graph_code in attributes: {'graph_code' in graph.attributes}")
             if 'graph_code' in graph.attributes:
-                print(f"🔍 DEBUG check_objs - graph_code value: '{graph.attributes['graph_code']}'")
+                print(f"DEBUG check_objs - graph_code value: '{graph.attributes['graph_code']}'")
     '''
 
     # ✅ Converti il nome del nodo nel nome del proxy (aggiunge prefisso se necessario)
@@ -1534,7 +1534,7 @@ def set_materials_using_EM_list(context):
             current_ob_scene = context.scene.objects.get(proxy_name)
             
             if not current_ob_scene:
-                print(f"⚠️ Warning: Object '{proxy_name}' not found")
+                print(f"Warning: Warning: Object '{proxy_name}' not found")
                 counter += 1
                 continue
             
@@ -1647,7 +1647,7 @@ def set_materials_using_epoch_list(context):
                         obj.data.materials.clear()
                         obj.data.materials.append(mat)
                     else:
-                        print(f"⚠️ Warning: Object '{proxy_name}' not found")
+                        print(f"Warning: Warning: Object '{proxy_name}' not found")
 
 
 

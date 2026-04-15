@@ -1314,12 +1314,8 @@ class EM_not_in_matrix(Operator):
                             notinmatrix_mat = bpy.data.materials[EM_mat_name]
                             ob.data.materials.append(notinmatrix_mat)
                             applied_count += 1
-                            print(f"✅ Applied 'NotInTheMatrix' material to {ob.name}")
 
         self.report({'INFO'}, f"Applied 'NotInTheMatrix' material to {applied_count} objects")
-        print(f"{'='*50}")
-        print(f"✅ Total objects marked as 'NotInTheMatrix': {applied_count}")
-        print(f"{'='*50}")
         
         return {'FINISHED'}
 
@@ -1384,11 +1380,10 @@ class SET_materials_using_em_list(Operator):
                     graph=active_graph
                 )
                 
-                # ✅ MODIFICATO: Usa get() invece di [] per evitare KeyError
+                # Use get() instead of [] to avoid KeyError
                 current_ob_scene = context.scene.objects.get(proxy_name)
                 
                 if not current_ob_scene:
-                    print(f"⚠️ Warning: Object '{proxy_name}' not found in scene (node: {current_ob_em_list.name})")
                     counter += 1
                     continue
                 
@@ -1424,22 +1419,14 @@ class SET_materials_using_em_list(Operator):
                     elif current_ob_em_list.shape == 'roundrectangle':
                         ob_material_name = 'USD'
                 
-                # ✅ AGGIUNTO: Controllo se il materiale esiste
                 if ob_material_name in bpy.data.materials:
                     mat = bpy.data.materials[ob_material_name]
                     current_ob_scene.data.materials.clear()
                     current_ob_scene.data.materials.append(mat)
                     applied_count += 1
-                    print(f"✅ Applied {ob_material_name} material to {proxy_name}")
-                else:
-                    print(f"⚠️ Warning: Material '{ob_material_name}' not found")
-                    
+
             counter += 1
-        
-        # ✅ AGGIUNTO: Report finale
-        print(f"\n{'='*50}")
-        print(f"✅ Applied EM materials to {applied_count} of {em_list_lenght} objects")
-        print(f"{'='*50}")
+
         self.report({'INFO'}, f"Applied EM materials to {applied_count} objects")
         
         return {'FINISHED'}

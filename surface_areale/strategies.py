@@ -314,48 +314,7 @@ def strategy_boolean(contour_points, contour_normals, whisker_point,
 
     # ── Step 1: Build cookie cutter in world space ────────────────────
     extrude_dist = _estimate_extrude_distance(contour_points, contour_normals)
-
-    bm_cutter = bmesh.new()
-
-    # Bottom ring (inward along normals) and top ring (outward)
-    bottom_verts = []
-    top_verts = []
-    for p, n in zip(contour_points, contour_normals):
-        bottom_verts.append(bm_cutter.verts.new(p - n * extrude_dist))
-        top_verts.append(bm_cutter.verts.new(p + n * extrude_dist))
-
-    bm_cutter.verts.ensure_lookup_table()
-
-    # Side faces
-    n_pts = len(contour_points)
-    for i in range(n_pts):
-        i_next = (i + 1) % n_pts
-        try:
-            bm_cutter.faces.new([
-                bottom_verts[i], bottom_verts[i_next],
-                top_verts[i_next], top_verts[i]
-            ])
-        except ValueError:
-            continue
-
-    # Caps
-    try:
-        bm_cutter.faces.new(bottom_verts)
-    except ValueError:
-        pass
-    try:
-        bm_cutter.faces.new(list(reversed(top_verts)))
-    except ValueError:
-        pass
-
-    bm_cutter.normal_update()
-
-    cutter_mesh = bpy.data.meshes.new("_cutter")
-    bm_cutter.to_mesh(cutter_mesh)
-    bm_cutter.free()
-    cutter_obj = bpy.data.objects.new("_cutter", cutter_mesh)
-    # Cutter is at origin with identity transform — vertices ARE world coords
-    bpy.context.collection.objects.link(cutter_obj)
+    cutter_obj = _build_cookie_cutter(contour_points, contour_normals, extrude_dist)
 
     # ── Step 2: Create RM copy with APPLIED transforms ────────────────
     # The RM may have a non-identity matrix_world. We need to apply all
@@ -371,11 +330,20 @@ def strategy_boolean(contour_points, contour_normals, whisker_point,
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     rm_copy.select_set(False)
 
-    # LOD: disabled for now — use full resolution for accuracy
-    # TODO: make this a user option in settings (use_lod checkbox + lod_target)
     poly_count = len(rm_copy.data.polygons)
     used_lod = False
-    print(f"[SurfaceAreale] Boolean on full-res: {poly_count} polys")
+
+    if settings.use_lod and settings.lod_factor < 1.0:
+        decimate_mod = rm_copy.modifiers.new("LOD_Decimate", 'DECIMATE')
+        decimate_mod.ratio = settings.lod_factor
+        bpy.context.view_layer.objects.active = rm_copy
+        bpy.ops.object.modifier_apply(modifier=decimate_mod.name)
+        lod_poly_count = len(rm_copy.data.polygons)
+        print(f"[SurfaceAreale] LOD: {poly_count} -> {lod_poly_count} polys "
+              f"(factor={settings.lod_factor:.2f})")
+        used_lod = True
+    else:
+        print(f"[SurfaceAreale] Boolean on full-res: {poly_count} polys")
 
     # ── Step 3: Boolean intersection ──────────────────────────────────
     bool_mod = rm_copy.modifiers.new("Boolean_Areale", 'BOOLEAN')
@@ -419,6 +387,124 @@ def strategy_boolean(contour_points, contour_normals, whisker_point,
     rm_copy.data.name = "EM_SurfaceAreale"
 
     return rm_copy
+
+
+# ══════════════════════════════════════════════════════════════════════
+# ANNULAR SHAPES — CONTOUR WITH HOLES
+# ══════════════════════════════════════════════════════════════════════
+
+def generate_areale_with_holes(contour_points, contour_normals, whisker_point,
+                                hole_points_list, hole_normals_list,
+                                rm_obj, bvh_tree, settings):
+    """
+    Generate an areale with holes using Boolean operations.
+
+    1. Generate outer areale via the selected strategy
+    2. For each hole: build a cookie cutter from the hole contour
+    3. Boolean DIFFERENCE: areale - hole_cutter
+
+    Args:
+        contour_points/normals: outer contour points and normals
+        hole_points_list: list of point lists for each hole
+        hole_normals_list: list of normal lists for each hole
+        rm_obj: the RM mesh object
+        bvh_tree: BVH tree of the RM
+        settings: SurfaceArealeSettings
+
+    Returns: bpy.types.Object (areale mesh with holes)
+    """
+    # Generate the outer areale via the standard pipeline
+    areale_obj = generate_areale(
+        contour_points, contour_normals, whisker_point,
+        rm_obj, bvh_tree, settings
+    )
+
+    # Cut holes via Boolean DIFFERENCE
+    for i, (hole_pts, hole_norms) in enumerate(
+            zip(hole_points_list, hole_normals_list)):
+        if len(hole_pts) < 3:
+            print(f"[SurfaceAreale] Hole {i} has <3 points, skipping")
+            continue
+
+        extrude_dist = _estimate_extrude_distance(hole_pts, hole_norms)
+        cutter_obj = _build_cookie_cutter(hole_pts, hole_norms, extrude_dist)
+
+        bool_mod = areale_obj.modifiers.new(f"Hole_{i}", 'BOOLEAN')
+        bool_mod.operation = 'DIFFERENCE'
+        bool_mod.object = cutter_obj
+        bool_mod.solver = 'EXACT'
+
+        bpy.context.view_layer.objects.active = areale_obj
+        try:
+            bpy.ops.object.modifier_apply(modifier=bool_mod.name)
+            print(f"[SurfaceAreale] Hole {i} cut successfully")
+        except RuntimeError as e:
+            print(f"[SurfaceAreale] Hole {i} boolean failed: {e}")
+            # Remove the modifier if it wasn't applied
+            if bool_mod.name in areale_obj.modifiers:
+                areale_obj.modifiers.remove(
+                    areale_obj.modifiers[bool_mod.name])
+
+        _cleanup_objects([cutter_obj])
+
+    return areale_obj
+
+
+def _build_cookie_cutter(contour_points, contour_normals, extrude_dist):
+    """
+    Build a closed tube mesh from a contour by extruding along normals.
+    Used for Boolean operations (both INTERSECT and DIFFERENCE).
+
+    The cutter is built in world space with identity matrix_world.
+
+    Args:
+        contour_points: list of Vector (world space)
+        contour_normals: list of Vector (surface normals)
+        extrude_dist: extrusion distance along normals
+
+    Returns: bpy.types.Object (the cutter mesh)
+    """
+    bm_cutter = bmesh.new()
+
+    bottom_verts = []
+    top_verts = []
+    for p, n in zip(contour_points, contour_normals):
+        bottom_verts.append(bm_cutter.verts.new(p - n * extrude_dist))
+        top_verts.append(bm_cutter.verts.new(p + n * extrude_dist))
+
+    bm_cutter.verts.ensure_lookup_table()
+
+    # Side faces
+    n_pts = len(contour_points)
+    for i in range(n_pts):
+        i_next = (i + 1) % n_pts
+        try:
+            bm_cutter.faces.new([
+                bottom_verts[i], bottom_verts[i_next],
+                top_verts[i_next], top_verts[i]
+            ])
+        except ValueError:
+            continue
+
+    # Caps
+    try:
+        bm_cutter.faces.new(bottom_verts)
+    except ValueError:
+        pass
+    try:
+        bm_cutter.faces.new(list(reversed(top_verts)))
+    except ValueError:
+        pass
+
+    bm_cutter.normal_update()
+
+    cutter_mesh = bpy.data.meshes.new("_hole_cutter")
+    bm_cutter.to_mesh(cutter_mesh)
+    bm_cutter.free()
+    cutter_obj = bpy.data.objects.new("_hole_cutter", cutter_mesh)
+    bpy.context.collection.objects.link(cutter_obj)
+
+    return cutter_obj
 
 
 # ══════════════════════════════════════════════════════════════════════

@@ -223,4 +223,3 @@ def register_delayed_initialization():
     
     # Use timer to delay initialization
     bpy.app.timers.register(delayed_init, first_interval=0.5)
-    print("CronoFilter: Delayed initialization registered")
