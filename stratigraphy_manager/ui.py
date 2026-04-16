@@ -269,19 +269,6 @@ class EM_ToolsPanel:
             epochs = scene.em_tools.epochs
 
             # === EPOCH / HORIZON FILTER ROW ===
-            epoch_header = filter_box.row(align=True)
-            epoch_header.label(text="Epoch Filter", icon='SORTTIME')
-            help_op = epoch_header.operator("em.help_popup", text="", icon='QUESTION')
-            help_op.title = "Epoch / Horizon Filter"
-            help_op.text = (
-                "Filter the stratigraphic list by the active\n"
-                "epoch (single-graph) or chronological horizon\n"
-                "(landscape mode). Combine with activity filter\n"
-                "for fine-grained slicing."
-            )
-            help_op.url = "panels/stratigraphy_manager.html#epoch-filter"
-            help_op.project = 'em_tools'
-
             epoch_row = filter_box.row(align=True)
             epoch_row.enabled = graph_available
 
@@ -318,19 +305,6 @@ class EM_ToolsPanel:
 
             # === ACTIVITY FILTER ROW (hidden in landscape mode) ===
             if not is_landscape:
-                activity_header = filter_box.row(align=True)
-                activity_header.label(text="Activity Filter", icon='NETWORK_DRIVE')
-                help_op = activity_header.operator("em.help_popup", text="", icon='QUESTION')
-                help_op.title = "Activity Filter"
-                help_op.text = (
-                    "Filter the stratigraphic list by the active\n"
-                    "activity (e.g. demolition, construction).\n"
-                    "Activities group related US into semantic\n"
-                    "phases independent from epochs."
-                )
-                help_op.url = "panels/stratigraphy_manager.html#activity-filter"
-                help_op.project = 'em_tools'
-
                 activity_row = filter_box.row(align=True)
                 activity_row.enabled = graph_available
 
