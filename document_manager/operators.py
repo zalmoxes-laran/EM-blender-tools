@@ -705,6 +705,113 @@ class DOCMANAGER_OT_select_linked_entity(bpy.types.Operator):
             return {'CANCELLED'}
 
 
+class DOCMANAGER_OT_select_all_linked_us(bpy.types.Operator):
+    """Select all US proxy objects linked to a document"""
+    bl_idname = "em.docmanager_select_all_linked_us"
+    bl_label = "Select All Linked US"
+    bl_description = "Select all US proxy objects linked to this document in the viewport"
+
+    doc_node_id: StringProperty()  # type: ignore
+
+    def _find_object_by_name(self, name, context):
+        """Try to find a scene object by exact name, then with graph prefix."""
+        obj = bpy.data.objects.get(name)
+        if obj:
+            return obj
+        try:
+            from ..operators.addon_prefix_helpers import node_name_to_proxy_name
+            from ..functions import is_graph_available
+            graph_exists, graph = is_graph_available(context)
+            if graph_exists and graph:
+                prefixed = node_name_to_proxy_name(name, context=context, graph=graph)
+                obj = bpy.data.objects.get(prefixed)
+                if obj:
+                    return obj
+        except Exception:
+            pass
+        return None
+
+    def execute(self, context):
+        from ..epoch_manager.operators import _ensure_object_accessible_for_viewlayer
+
+        if not self.doc_node_id:
+            return {'CANCELLED'}
+
+        # Build the doc cache to get linked US nodes
+        from .ui import _build_doc_cache
+        doc_cache = _build_doc_cache(context)
+        doc_info = doc_cache.get(self.doc_node_id, {})
+        us_nodes = doc_info.get('us_nodes', [])
+
+        # Filter out SF/VSF (same logic as the UI)
+        sf_types = {"SF", "VSF"}
+        regular_us = [u for u in us_nodes if u[2] not in sf_types]
+
+        if not regular_us:
+            self.report({'INFO'}, "No linked US found for this document")
+            return {'CANCELLED'}
+
+        # Get the graph to resolve node IDs to names
+        from s3dgraphy import get_graph
+        em_tools = context.scene.em_tools
+        if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            self.report({'WARNING'}, "No graph loaded")
+            return {'CANCELLED'}
+
+        graph_info = em_tools.graphml_files[em_tools.active_file_index]
+        graph = get_graph(graph_info.name)
+        if not graph:
+            self.report({'WARNING'}, "Graph not available")
+            return {'CANCELLED'}
+
+        # Collect all proxy objects
+        proxy_objects = []
+        for us_name, us_node_id, us_type in regular_us:
+            node = graph.find_node_by_id(us_node_id)
+            if node and hasattr(node, 'name'):
+                obj = self._find_object_by_name(node.name, context)
+                if obj:
+                    proxy_objects.append(obj)
+
+        if not proxy_objects:
+            self.report({'INFO'}, "No proxy objects found in scene for linked US")
+            return {'CANCELLED'}
+
+        # Ensure all objects are accessible and select them
+        bpy.ops.object.select_all(action='DESELECT')
+        selected_count = 0
+        for obj in proxy_objects:
+            prep = _ensure_object_accessible_for_viewlayer(
+                context, obj, make_visible=True, make_selectable=True
+            )
+            if not prep["errors"]:
+                try:
+                    obj.select_set(True)
+                    selected_count += 1
+                except RuntimeError:
+                    pass
+
+        # Set first selected as active
+        if selected_count > 0:
+            for obj in context.selected_objects:
+                context.view_layer.objects.active = obj
+                break
+
+            # Zoom to selection if enabled
+            if context.scene.doc_settings.zoom_to_selected:
+                for area in context.screen.areas:
+                    if area.type == 'VIEW_3D':
+                        for region in area.regions:
+                            if region.type == 'WINDOW':
+                                with context.temp_override(area=area, region=region):
+                                    bpy.ops.view3d.view_selected()
+                                break
+                        break
+
+        self.report({'INFO'}, f"Selected {selected_count} US prox{'y' if selected_count == 1 else 'ies'}")
+        return {'FINISHED'}
+
+
 class DOCMANAGER_OT_create_document(bpy.types.Operator):
     """Create a new document node in the graph"""
     bl_idname = "docmanager.create_document"
@@ -1695,6 +1802,7 @@ classes = (
     DOCMANAGER_OT_rename_object,
     DOCMANAGER_OT_select_linked,
     DOCMANAGER_OT_select_linked_entity,
+    DOCMANAGER_OT_select_all_linked_us,
     DOCMANAGER_OT_create_document,
     RMDOC_OT_select_object,
     RMDOC_OT_add_selected,

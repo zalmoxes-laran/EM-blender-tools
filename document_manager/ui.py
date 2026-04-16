@@ -216,16 +216,8 @@ class DOCMANAGER_UL_documents(UIList):
         regular_us = [u for u in us_nodes if u[2] not in sf_types]
         sf_us = [u for u in us_nodes if u[2] in sf_types]
 
-        # US proxy icon
-        if regular_us:
-            us_name, us_node_id, us_type = regular_us[0]
-            op = row.operator(
-                "em.docmanager_select_linked_entity", text="",
-                icon='MESH_CUBE', emboss=False
-            )
-            op.node_id = us_node_id
-            op.entity_type = 'US'
 
+            
         # RMSF icon (show_all_special_finds)
         if sf_us:
             sf_name, sf_node_id, sf_type = sf_us[0]
@@ -258,6 +250,15 @@ class DOCMANAGER_UL_documents(UIList):
                 )
             op.node_id = item.node_id
             op.entity_type = 'RMDoc'
+
+        # US proxy icon — selects ALL linked US in the scene
+        if regular_us:
+            us_icon = icons_manager.get_icon_value("proxies_select")
+            op = row.operator(
+                "em.docmanager_select_all_linked_us", text="",
+                icon_value=us_icon, emboss=False
+            )
+            op.doc_node_id = item.node_id
 
     def filter_items(self, context, data, propname):
         """Custom filtering and sorting — sort by name (natural numeric)."""
