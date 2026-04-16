@@ -124,7 +124,20 @@ class VIEW3D_PT_activity_manager(Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        # Controlla il valore del flag per decidere cosa mostrare
+
+        header_row = layout.row(align=True)
+        header_row.label(text="Activities", icon='NETWORK_DRIVE')
+        help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Activity Manager"
+        help_op.text = (
+            "Activities group semantically related US\n"
+            "(e.g. demolition, construction). The active\n"
+            "one feeds the Stratigraphy Manager's\n"
+            "Activity Filter."
+        )
+        help_op.url = "panels/activity_manager.html#_Activity_Manager"
+        help_op.project = 'em_tools'
+
         activity_manager = scene.activity_manager
         layout.template_list(
             "ACTIVITY_UL_list", "activity_list",

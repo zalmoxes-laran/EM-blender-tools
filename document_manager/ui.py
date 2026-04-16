@@ -695,7 +695,7 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
                     "Look Through: temporarily view through it\n"
                     "and fit render resolution to image size."
                 )
-                help_op.url = "panels/document_manager_3d.html#rmdoc-camera"
+                help_op.url = "panels/rmdoc_manager.html#rmdoc-camera"
                 help_op.project = 'em_tools'
 
                 # Camera type + lens/ortho_scale

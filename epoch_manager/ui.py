@@ -80,9 +80,22 @@ class EM_BasePanel:
         scene = context.scene
         em_tools = scene.em_tools
         epochs = em_tools.epochs
-        row = layout.row()
         ob = context.object
 
+        header_row = layout.row(align=True)
+        header_row.label(text="Epochs", icon='TIME')
+        help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Epochs Manager"
+        help_op.text = (
+            "List of epochs from the active graph. Pick one\n"
+            "to make it the Active Epoch (used by filters,\n"
+            "RM assignment, and visibility tools). Expand\n"
+            "details for time-span and custom HDR lighting."
+        )
+        help_op.url = "panels/epochs_manager.html#_Epochs_Manager"
+        help_op.project = 'em_tools'
+
+        row = layout.row()
         row.template_list(
             "EM_UL_named_epoch_managers", "", em_tools.epochs, "list", em_tools.epochs, "list_index")
 

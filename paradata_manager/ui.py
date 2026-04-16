@@ -71,6 +71,19 @@ class EM_ParadataPanel:
         scene = context.scene
         obj = context.object
 
+        header_row = layout.row(align=True)
+        header_row.label(text="Paradata", icon='PROPERTIES')
+        help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Paradata Manager"
+        help_op.text = (
+            "Browse Properties, Combiners, Extractors and\n"
+            "Sources for the selected stratigraphic unit.\n"
+            "Shows the provenance chain that supports\n"
+            "each reconstructed attribute."
+        )
+        help_op.url = "panels/paradata_manager.html#_Paradata_Manager"
+        help_op.project = 'em_tools'
+
         control_box = layout.box()
         row = control_box.row(align=True)
         row.prop(scene.em_tools, "paradata_auto_update", text="Auto Update")
