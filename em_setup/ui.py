@@ -526,10 +526,11 @@ class EMTOOLS_UL_files(bpy.types.UIList):
 
             # Disabilita il pulsante se l'icona è rossa (grafo non esistente)
             if is_graph_present:
-                # Pulsante per aprire nel Graph Viewer (accanto a import.em_graphml)
-                row = layout.row(align=True)
-                op = row.operator("graphedit.draw_graph", text="", icon='NODETREE', emboss=False)
-                op.graphml_index = index  # Passa l'indice del graphml
+                # Pulsante per aprire nel Graph Viewer (experimental only)
+                if hasattr(context.scene, 'em_tools') and context.scene.em_tools.experimental_features:
+                    row = layout.row(align=True)
+                    op = row.operator("graphedit.draw_graph", text="", icon='NODETREE', emboss=False)
+                    op.graphml_index = index  # Passa l'indice del graphml
 
                 # Pulsante per aggiornare le liste (con icona FILE_REFRESH)
                 row = layout.row(align=True)
@@ -720,7 +721,6 @@ class EM_SetupPanel(bpy.types.Panel):
                 has_meta = (active_file.graph_author or active_file.graph_license
                             or active_file.graph_embargo)
                 if has_meta:
-                    box.separator(factor=0.3)
                     meta_row = box.row(align=True)
                     meta_split = meta_row.split()
 

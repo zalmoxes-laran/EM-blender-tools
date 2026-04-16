@@ -31,7 +31,7 @@ class EM_MT_LandscapeInfo(Menu):
         layout.separator()
         layout.label(text="Requirements to activate:")
         layout.label(text="• Load 2+ Extended Matrices (GraphML)")
-        layout.label(text="• Both must be valid (green icon)")
+        layout.label(text="• Both must be loaded and valid (green icon)")
         layout.separator()
         layout.label(text="When active:")
         layout.label(text="• All lists show data from all matrices")

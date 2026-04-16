@@ -920,7 +920,8 @@ class EM_strat_activate_collections(Operator):
 
 class EM_listitem_OT_to3D(Operator):
     bl_idname = "listitem.toobj"
-    bl_label = "Use element's name from the list above to rename selected 3D object"
+    bl_label = "Link List Item to 3D Proxy"
+    bl_description = "Link the selected list item with the currently selected proxy object in the 3D View"
     bl_options = {"REGISTER", "UNDO"}
 
     list_type: StringProperty() # type: ignore
@@ -1034,7 +1035,8 @@ class EM_select_list_item(Operator):
 
 class EM_select_from_list_item(Operator):
     bl_idname = "select.fromlistitem"
-    bl_label = "Select 3D obj from the list above"
+    bl_label = "Select 3D Proxy from List Item"
+    bl_description = "Select the 3D object linked to the active list item"
     bl_options = {"REGISTER", "UNDO"}
 
     list_type: StringProperty() # type: ignore
