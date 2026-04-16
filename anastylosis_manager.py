@@ -1848,7 +1848,8 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
             "to keep source-based reconstruction objects aligned with the graph.\n"
             "See the documentation section for complete workflow guidance."
         )
-        help_op.url = "EMstructure.html#anastylosis-manager"
+        help_op.url = "panels/anastylosis_manager.html#anastylosis-manager"
+        help_op.project = 'em_tools'
 
         # List of anastylosis models
         row = layout.row()
@@ -1865,19 +1866,51 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
 
             if item.sf_node_id:
                 box = layout.box()
-                row = box.row()
+                row = box.row(align=True)
                 sf_icon = 'OUTLINER_OB_EMPTY' if item.is_virtual else 'MESH_ICOSPHERE'
                 row.label(text=f"Connected to: {item.sf_node_name}", icon=sf_icon)
+                help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                help_op.title = "Anastylosis Target"
+                help_op.text = (
+                    "The Special Find (SF) or Virtual SF (VSF)\n"
+                    "node this object represents. The connection\n"
+                    "is made via a has_representation_model edge\n"
+                    "in the graph."
+                )
+                help_op.url = "panels/anastylosis_manager.html#anastylosis-target"
+                help_op.project = 'em_tools'
             else:
                 box = layout.box()
-                row = box.row()
+                row = box.row(align=True)
                 row.label(text="Not connected to any SpecialFind", icon='INFO')
+                help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                help_op.title = "Anastylosis Target"
+                help_op.text = (
+                    "This object is not linked to any SF/VSF.\n"
+                    "Select it in the scene and use 'Link to SF'\n"
+                    "to create the connection."
+                )
+                help_op.url = "panels/anastylosis_manager.html#anastylosis-target"
+                help_op.project = 'em_tools'
 
             # LOD Management (if the selected item has LOD variants)
             lod_variants = detect_lod_variants(item.name)
 
             if len(lod_variants) >= 1:
                 box = layout.box()
+                lod_header = box.row(align=True)
+                lod_header.label(text="Anastylosis Fragments (LOD)", icon='MOD_DECIM')
+                help_op = lod_header.operator("em.help_popup", text="", icon='QUESTION')
+                help_op.title = "Anastylosis Fragments"
+                help_op.text = (
+                    "Switch between LOD variants of the\n"
+                    "anastylosis fragment. LOD0 is the coarsest,\n"
+                    "LOD3 the most detailed. Batch switches move\n"
+                    "all fragments up or down together."
+                )
+                help_op.url = "panels/anastylosis_manager.html#anastylosis-fragments"
+                help_op.project = 'em_tools'
+
                 row = box.row(align=True)
                 op = row.operator("anastylosis.open_linked_file", text="", icon='FILE_FOLDER')
                 op.anastylosis_index = anastylosis.list_index

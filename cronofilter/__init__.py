@@ -390,8 +390,17 @@ class CF_PT_CronoFilterPanel(Panel):
 
         # Header info
         box = layout.box()
-        row = box.row()
+        row = box.row(align=True)
         row.label(text="Chronological Horizons", icon='TIME')
+        help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "CronoFilter"
+        help_op.text = (
+            "Filter scene objects by chronological horizons\n"
+            "derived from the Epoch Manager. Useful for\n"
+            "landscape-scale multi-site temporal slicing."
+        )
+        help_op.url = "panels/cronofilter.html#_CronoFilter"
+        help_op.project = 'em_tools'
 
         # Auto + File operations
         ops_box = layout.box()

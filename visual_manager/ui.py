@@ -99,13 +99,27 @@ class VIEW3D_PT_visual_panel(Panel):
         current_proxy_display_mode = context.scene.em_tools.proxy_display_mode
         layout.alignment = 'LEFT'
 
+        # Header help button
+        header_row = layout.row(align=True)
+        header_row.label(text="Visual Manager", icon='COLOR')
+        help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Visual Manager"
+        help_op.text = (
+            "Control display modes (Proxy, Properties,\n"
+            "Epochs), shading overrides, label overlays\n"
+            "and quick show/hide for Proxies, RMs and\n"
+            "Special Finds."
+        )
+        help_op.url = "panels/visual_manager.html#visual-manager"
+        help_op.project = 'em_tools'
+
         # Display Mode Selection
         row = layout.row(align=True)
         split = row.split()
         col = split.column()
         col.label(text="Display mode")
         col = split.column(align=True)
-        
+
         col.menu(VISUAL_MT_display_mode_menu.bl_idname, text=current_proxy_display_mode, icon='COLOR')
     
         # Property-specific UI when in Properties mode
@@ -303,7 +317,8 @@ class VIEW3D_PT_visual_panel(Panel):
                     "- Third pair: Show/Hide all Special Finds\n\n"
                     "These buttons reset any active filters in the Stratigraphy Manager."
                 )
-                op.url = "EMtools_manual/docs/user_guide/Visual_Manager.html"
+                op.url = "panels/visual_manager.html#visual-manager"
+                op.project = 'em_tools'
             except:
                 pass
 

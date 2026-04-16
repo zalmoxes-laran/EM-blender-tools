@@ -11,6 +11,7 @@ import re
 import bpy
 from bpy.types import Panel, UIList
 from .. import icons_manager
+from .validators import check_rmdoc_item
 
 
 def _natural_sort_key(name):
@@ -322,6 +323,15 @@ class VIEW3D_PT_3DDocumentManager(Panel):
         # Create Document — experimental only (requires GraphML write-back for persistence)
         if context.scene.em_tools.experimental_features:
             row1.operator("docmanager.create_document", text="", icon="ADD")
+        help_op = row1.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Document Manager"
+        help_op.text = (
+            "Catalog of all document nodes from the graph.\n"
+            "Shows masters vs instances, reference counts,\n"
+            "and linked scene objects (RM, RMDoc, RMSF)."
+        )
+        help_op.url = "panels/document_manager_3d.html#document-manager-3d"
+        help_op.project = 'em_tools'
 
         # --- Summary line 2: RM, RMDoc, RMSF, direct US→Doc ---
         if total > 0:
@@ -564,6 +574,16 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
         else:
             summary_row.label(text=f"{total} RMDoc", icon="FILE_IMAGE")
         summary_row.label(text=f"Cameras: {with_camera}", icon="CAMERA_DATA")
+        help_op = summary_row.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "RMDoc — Spatialized Documents"
+        help_op.text = (
+            "Link 3D quads (mesh planes) to document nodes\n"
+            "to spatialize paradata in the scene. Each RMDoc\n"
+            "can have its own camera for authoring views\n"
+            "aligned to the source image."
+        )
+        help_op.url = "panels/rmdoc_manager.html#rmdoc-manager"
+        help_op.project = 'em_tools'
 
         # --- Action row (when objects selected) ---
         selected_meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
@@ -598,6 +618,7 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
         idx = scene.rmdoc_list_index
         if 0 <= idx < total:
             item = rmdoc_list[idx]
+            health = check_rmdoc_item(item)
 
             detail_box = layout.box()
             col = detail_box.column(align=True)
@@ -613,44 +634,91 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
             else:
                 header_row.label(text="→ [unlinked]", icon="UNLINKED")
 
-            # --- Alpha (transparency) ---
-            quad_obj = bpy.data.objects.get(item.name)
-            if quad_obj and quad_obj.data and quad_obj.data.materials:
+            # --- Orphan guard: quad è stato cancellato da Blender ---
+            if health.orphan:
+                col.separator()
+                warn_box = col.box()
+                warn_box.alert = True
+                warn_box.label(text=f"Quad '{item.name}' is missing", icon='ERROR')
+                warn_box.label(text="The mesh has been deleted outside the RMDoc system.")
+                repair_row = col.row(align=True)
+                op = repair_row.operator("em.rmdoc_repair",
+                                         text="Remove orphan item", icon='TRASH')
+                op.mode = 'REMOVE_ORPHAN'
+                op.rmdoc_index = idx
+                op = repair_row.operator("em.rmdoc_remove",
+                                         text="Delete from list", icon='X')
+                op.rmdoc_index = idx
+                return
+
+            # --- Alpha (transparency) — solo se il materiale è sano ---
+            if health.materials_ok:
+                quad_obj = bpy.data.objects.get(item.name)
                 mat = quad_obj.data.materials[0]
-                if mat and mat.use_nodes:
-                    bsdf = mat.node_tree.nodes.get("Principled BSDF")
-                    if bsdf and 'Alpha' in bsdf.inputs:
-                        col.separator()
-                        col.prop(bsdf.inputs['Alpha'], "default_value", text="Alpha")
+                bsdf = mat.node_tree.nodes.get("Principled BSDF")
+                col.separator()
+                alpha_row = col.row(align=True)
+                alpha_row.prop(bsdf.inputs['Alpha'], "default_value", text="Alpha")
+                help_op = alpha_row.operator("em.help_popup", text="", icon='QUESTION')
+                help_op.title = "RMDoc Quad Transparency"
+                help_op.text = (
+                    "Edits the Alpha input of the quad's\n"
+                    "Principled BSDF material. Lower values\n"
+                    "make the document image see-through."
+                )
+                help_op.url = "panels/rmdoc_manager.html#rmdoc-alpha"
+                help_op.project = 'em_tools'
 
             # --- Camera section ---
             col.separator()
-            if item.has_camera:
+            if health.camera_declared and not health.camera_ok:
+                # Flag stale: camera dichiarata ma oggetto inesistente
+                warn_box = col.box()
+                warn_box.alert = True
+                warn_box.label(text=f"Camera '{item.camera_object_name}' missing", icon='ERROR')
+                op = col.operator("em.rmdoc_repair",
+                                  text="Reset camera flag", icon='FILE_REFRESH')
+                op.mode = 'RESET_CAMERA_FLAG'
+                op.rmdoc_index = idx
+            elif health.camera_ok:
                 cam_obj = bpy.data.objects.get(item.camera_object_name)
-                cam_data = cam_obj.data if cam_obj and cam_obj.type == 'CAMERA' else None
+                cam_data = cam_obj.data
 
-                if cam_data:
-                    # Camera type + lens/ortho_scale
-                    lens_row = col.row(align=True)
-                    if cam_data.type == 'PERSP':
-                        lens_row.prop(cam_data, "lens", text="Focal")
-                    else:
-                        lens_row.prop(cam_data, "ortho_scale", text="Ortho Scale")
-                    # Toggle perspective/ortho
-                    ortho_icon = 'VIEW_ORTHO' if cam_data.type == 'PERSP' else 'VIEW_PERSPECTIVE'
-                    ortho_text = "Ortho" if cam_data.type == 'PERSP' else "Persp"
-                    op = lens_row.operator("em.rmdoc_toggle_ortho",
-                                           text=ortho_text, icon=ortho_icon)
-                    op.object_name = item.name
+                # Camera header + help
+                cam_header = col.row(align=True)
+                cam_header.label(text="Camera", icon='CAMERA_DATA')
+                help_op = cam_header.operator("em.help_popup", text="", icon='QUESTION')
+                help_op.title = "RMDoc Camera"
+                help_op.text = (
+                    "Manages a camera tied to this quad.\n"
+                    "Pilot: lock/unlock viewport to the camera.\n"
+                    "Look Through: temporarily view through it\n"
+                    "and fit render resolution to image size."
+                )
+                help_op.url = "panels/document_manager_3d.html#rmdoc-camera"
+                help_op.project = 'em_tools'
 
-                    # Clip distances + individual auto crop buttons
-                    clip_row = col.row(align=True)
-                    clip_row.prop(cam_data, "clip_start", text="Near")
-                    op = clip_row.operator("em.rmdoc_autocrop_near", text="", icon='TRACKING_REFINE_BACKWARDS')
-                    op.object_name = item.name
-                    clip_row.prop(cam_data, "clip_end", text="Far")
-                    op = clip_row.operator("em.rmdoc_autocrop_far", text="", icon='TRACKING_REFINE_FORWARDS')
-                    op.object_name = item.name
+                # Camera type + lens/ortho_scale
+                lens_row = col.row(align=True)
+                if cam_data.type == 'PERSP':
+                    lens_row.prop(cam_data, "lens", text="Focal")
+                else:
+                    lens_row.prop(cam_data, "ortho_scale", text="Ortho Scale")
+                # Toggle perspective/ortho
+                ortho_icon = 'VIEW_ORTHO' if cam_data.type == 'PERSP' else 'VIEW_PERSPECTIVE'
+                ortho_text = "Ortho" if cam_data.type == 'PERSP' else "Persp"
+                op = lens_row.operator("em.rmdoc_toggle_ortho",
+                                       text=ortho_text, icon=ortho_icon)
+                op.object_name = item.name
+
+                # Clip distances + individual auto crop buttons
+                clip_row = col.row(align=True)
+                clip_row.prop(cam_data, "clip_start", text="Near")
+                op = clip_row.operator("em.rmdoc_autocrop_near", text="", icon='TRACKING_REFINE_BACKWARDS')
+                op.object_name = item.name
+                clip_row.prop(cam_data, "clip_end", text="Far")
+                op = clip_row.operator("em.rmdoc_autocrop_far", text="", icon='TRACKING_REFINE_FORWARDS')
+                op.object_name = item.name
 
                 # Pilot + Look Through
                 cam_row = col.row(align=True)
@@ -669,9 +737,20 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
                 op.object_name = item.name
                 cam_row.operator("em.rmdoc_fly", text="", icon="MOD_PARTICLE_INSTANCE")
             else:
+                # No camera declared
                 op = col.operator("em.rmdoc_create_camera",
                                   text="Create Camera", icon="CAMERA_DATA")
                 op.object_name = item.name
+
+            # --- Unstuck Pilot (sempre disponibile se is_piloting è True) ---
+            doc_settings = scene.doc_settings
+            if doc_settings.is_piloting_camera:
+                col.separator()
+                unstuck_row = col.row(align=True)
+                unstuck_row.alert = True
+                op = unstuck_row.operator("em.rmdoc_repair",
+                                          text="Force Exit Pilot", icon='CANCEL')
+                op.mode = 'UNSTUCK_PILOT'
 
             # --- Actions ---
             col.separator()

@@ -42,7 +42,21 @@ class EM_ExportPanel:
         layout = self.layout
         scene = context.scene
         export_vars = context.window_manager.export_vars
- 
+
+        # Header help button
+        header_row = layout.row(align=True)
+        header_row.label(text="Export Manager", icon='EXPORT')
+        help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Export Manager"
+        help_op.text = (
+            "Export graphs, 3D data and paradata for\n"
+            "Heriverse deployment, ATON, EMviq, or as\n"
+            "tabular CSV. Each sub-section targets a\n"
+            "specific publication pipeline."
+        )
+        help_op.url = "panels/export_manager.html#export-manager"
+        help_op.project = 'em_tools'
+
         box = layout.box()
         row = box.row()
         row.prop(

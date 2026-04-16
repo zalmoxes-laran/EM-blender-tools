@@ -270,7 +270,8 @@ class VIEW3D_PT_RM_Manager(Panel):
                 "and Cesium tileset tools to keep reconstruction models consistent.\n"
                 "See the full manual section for workflow details."
             )
-            help_op.url = "EMstructure.html#rm-manager"
+            help_op.url = "panels/rm_manager.html#_RM_Manager"
+            help_op.project = 'em_tools'
         else:
             row = box.row(align=True)
             # Active graph indicator
@@ -290,7 +291,8 @@ class VIEW3D_PT_RM_Manager(Panel):
                 "and Cesium tileset tools to keep reconstruction models consistent.\n"
                 "See the full manual section for workflow details."
             )
-            help_op.url = "EMstructure.html#rm-manager"
+            help_op.url = "panels/rm_manager.html#_RM_Manager"
+            help_op.project = 'em_tools'
 
         # Main action buttons
         if has_active_epoch:
@@ -331,6 +333,19 @@ class VIEW3D_PT_RM_Manager(Panel):
             lod_variants = detect_lod_variants(item.name)
             if len(lod_variants) >= 1:
                 box = layout.box()
+                lod_header = box.row(align=True)
+                lod_header.label(text="Levels of Detail", icon='MOD_DECIM')
+                help_op = lod_header.operator("em.help_popup", text="", icon='QUESTION')
+                help_op.title = "RM Levels of Detail"
+                help_op.text = (
+                    "Switch between multiple LOD variants\n"
+                    "of the representation model. LOD0 is the\n"
+                    "coarsest, LOD3 the most detailed. Batch\n"
+                    "switch moves all RMs up or down together."
+                )
+                help_op.url = "panels/rm_manager.html#rm-lod"
+                help_op.project = 'em_tools'
+
                 row = box.row(align=True)
                 op = row.operator("rm.open_linked_file", text="", icon='FILE_FOLDER')
                 op.rm_index = scene.rm_list_index
@@ -356,8 +371,18 @@ class VIEW3D_PT_RM_Manager(Panel):
             
             # Show the list of associated epochs
             box = layout.box()
-            row = box.row()
-            row.label(text=f"Epochs for {item.name}:")
+            row = box.row(align=True)
+            row.label(text=f"Epochs for {item.name}:", icon='TIME')
+            help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+            help_op.title = "RM Epochs"
+            help_op.text = (
+                "Epochs the RM belongs to. One is marked\n"
+                "as 'first' (filled keyframe icon). Filters\n"
+                "in the Stratigraphy Manager use these to\n"
+                "decide which RMs to show at a given time."
+            )
+            help_op.url = "panels/rm_manager.html#rm-epochs"
+            help_op.project = 'em_tools'
             
             # Sublist of epochs
             row = box.row()

@@ -781,6 +781,20 @@ class EMTOOLS_PT_conflict_resolution(bpy.types.Panel):
         layout = self.layout
         em_tools = context.scene.em_tools
 
+        # Header help button
+        header_row = layout.row(align=True)
+        header_row.label(text="Conflict Resolution", icon='ERROR')
+        help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Merge Conflict Resolution"
+        help_op.text = (
+            "Resolve conflicts when merging a stratigraphy\n"
+            "XLSX with an existing graph: keep existing,\n"
+            "use incoming, or apply per-field choices. Also\n"
+            "shows epoch compatibility reports."
+        )
+        help_op.url = "panels/em_setup.html#graphml-merge-conflict"
+        help_op.project = 'em_tools'
+
         # ── Epoch Compatibility Report ──
         if em_tools.epoch_report_active and len(em_tools.epoch_report) > 0:
             self._draw_epoch_report(layout, em_tools)

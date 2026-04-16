@@ -16,6 +16,17 @@ import bpy
 from bpy.props import StringProperty, FloatProperty, EnumProperty, IntProperty, BoolProperty  # type: ignore
 
 from .data import sync_doc_list
+from .validators import check_rmdoc_item, disable_pilot
+
+
+def _find_rmdoc_item_by_name(scene, object_name):
+    """Trova un RMDocItem per nome del quad. Ritorna (item, index) o (None, -1)."""
+    if not hasattr(scene, 'rmdoc_list'):
+        return None, -1
+    for i, item in enumerate(scene.rmdoc_list):
+        if item.name == object_name:
+            return item, i
+    return None, -1
 
 
 def _get_active_doc_item(context):
@@ -1512,6 +1523,19 @@ class RMDOC_OT_look_through(bpy.types.Operator):
     object_name: StringProperty()  # type: ignore
 
     def execute(self, context):
+        item, _ = _find_rmdoc_item_by_name(context.scene, self.object_name)
+        if item:
+            health = check_rmdoc_item(item)
+            if health.orphan:
+                self.report({'ERROR'}, f"Quad '{self.object_name}' is missing — use Repair")
+                return {'CANCELLED'}
+            if health.needs_camera_repair:
+                item.has_camera = False
+                item.camera_object_name = ""
+                disable_pilot(context)
+                self.report({'WARNING'}, "Camera missing — flag reset. Please create camera again.")
+                return {'CANCELLED'}
+
         quad_obj = bpy.data.objects.get(self.object_name)
         if not quad_obj:
             return {'CANCELLED'}
@@ -1563,6 +1587,20 @@ class RMDOC_OT_pilot_camera(bpy.types.Operator):
     object_name: StringProperty()  # type: ignore
 
     def execute(self, context):
+        item, _ = _find_rmdoc_item_by_name(context.scene, self.object_name)
+        if item:
+            health = check_rmdoc_item(item)
+            if health.orphan:
+                self.report({'ERROR'}, f"Quad '{self.object_name}' is missing — use Repair")
+                disable_pilot(context)
+                return {'CANCELLED'}
+            if health.needs_camera_repair:
+                item.has_camera = False
+                item.camera_object_name = ""
+                disable_pilot(context)
+                self.report({'WARNING'}, "Camera missing — flag reset. Please create camera again.")
+                return {'CANCELLED'}
+
         quad_obj = bpy.data.objects.get(self.object_name)
         if not quad_obj:
             return {'CANCELLED'}
@@ -1589,10 +1627,7 @@ class RMDOC_OT_pilot_camera(bpy.types.Operator):
             return {'CANCELLED'}
 
         if is_piloting:
-            # Turn OFF: exit camera view, unlock
-            space.lock_camera = False
-            region_3d.view_perspective = 'PERSP'
-            doc_settings.is_piloting_camera = False
+            disable_pilot(context)
             self.report({'INFO'}, "Camera unlocked")
         else:
             # Turn ON: enter camera view, lock
@@ -1788,6 +1823,75 @@ class RMDOC_OT_open_document(bpy.types.Operator):
         return {'CANCELLED'}
 
 
+class RMDOC_OT_repair(bpy.types.Operator):
+    """Repair inconsistent RMDoc state (missing cameras, orphan items, stuck pilot)"""
+    bl_idname = "em.rmdoc_repair"
+    bl_label = "Repair RMDoc"
+    bl_description = "Fix inconsistent RMDoc state: reset stale flags, remove orphan items, force exit pilot"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    mode: EnumProperty(
+        items=[
+            ('RESET_CAMERA_FLAG', "Reset Camera Flag", "Clear has_camera flag for items whose camera object is missing"),
+            ('REMOVE_ORPHAN', "Remove Orphan Item", "Remove an RMDoc item whose quad object has been deleted"),
+            ('UNSTUCK_PILOT', "Force Exit Pilot", "Exit piloting mode even if camera/viewport state is inconsistent"),
+            ('FULL_SWEEP', "Full Sweep", "Run all repair operations on the whole RMDoc list"),
+        ],
+        default='FULL_SWEEP',
+    )  # type: ignore
+    rmdoc_index: IntProperty(default=-1)  # type: ignore
+
+    def execute(self, context):
+        scene = context.scene
+        fixed = 0
+
+        if self.mode in {'UNSTUCK_PILOT', 'FULL_SWEEP'}:
+            ds = getattr(scene, 'doc_settings', None)
+            if ds and ds.is_piloting_camera:
+                active_cam = scene.camera
+                if not active_cam or active_cam.type != 'CAMERA':
+                    disable_pilot(context)
+                    fixed += 1
+
+        if not hasattr(scene, 'rmdoc_list'):
+            self.report({'INFO'}, f"RMDoc repair: fixed {fixed} issue(s)")
+            return {'FINISHED'}
+
+        if self.mode in {'RESET_CAMERA_FLAG', 'FULL_SWEEP'}:
+            if 0 <= self.rmdoc_index < len(scene.rmdoc_list):
+                items = [scene.rmdoc_list[self.rmdoc_index]]
+            else:
+                items = list(scene.rmdoc_list)
+            for item in items:
+                h = check_rmdoc_item(item)
+                if h.needs_camera_repair:
+                    item.has_camera = False
+                    item.camera_object_name = ""
+                    fixed += 1
+
+        if self.mode in {'REMOVE_ORPHAN', 'FULL_SWEEP'}:
+            if 0 <= self.rmdoc_index < len(scene.rmdoc_list):
+                # Singolo item — rimuovi solo se orfano
+                item = scene.rmdoc_list[self.rmdoc_index]
+                if check_rmdoc_item(item).orphan:
+                    scene.rmdoc_list.remove(self.rmdoc_index)
+                    if scene.rmdoc_list_index >= len(scene.rmdoc_list):
+                        scene.rmdoc_list_index = max(0, len(scene.rmdoc_list) - 1)
+                    fixed += 1
+            else:
+                # Sweep totale
+                to_remove = [i for i, item in enumerate(scene.rmdoc_list)
+                             if check_rmdoc_item(item).orphan]
+                for i in reversed(to_remove):
+                    scene.rmdoc_list.remove(i)
+                    fixed += 1
+                if scene.rmdoc_list_index >= len(scene.rmdoc_list):
+                    scene.rmdoc_list_index = max(0, len(scene.rmdoc_list) - 1)
+
+        self.report({'INFO'}, f"RMDoc repair: fixed {fixed} issue(s)")
+        return {'FINISHED'}
+
+
 # ============================================================================
 # REGISTRATION
 # ============================================================================
@@ -1819,6 +1923,7 @@ classes = (
     RMDOC_OT_autocrop_far,
     RMDOC_OT_fly,
     RMDOC_OT_open_document,
+    RMDOC_OT_repair,
 )
 
 

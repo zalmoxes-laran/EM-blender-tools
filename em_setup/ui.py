@@ -546,9 +546,11 @@ class EMTOOLS_UL_files(bpy.types.UIList):
                     # Se la proprietà non esiste ancora, mostra un pulsante disabilitato
                     row.label(text="", icon='QUESTION')
             else:
-                row = layout.row()
-                row.enabled = False  # Disabilita il layout (grigio)
-                row.label(text="", icon='NODETREE')  # Draw graph disabilitato
+                # NODETREE placeholder: solo se experimental, per simmetria col bottone attivo (riga 530)
+                if hasattr(context.scene, 'em_tools') and context.scene.em_tools.experimental_features:
+                    row = layout.row()
+                    row.enabled = False
+                    row.label(text="", icon='NODETREE')
                 row = layout.row()
                 row.enabled = False  # Disabilita il layout (grigio)
                 row.label(text="", icon="SEQ_SEQUENCER")  # Usa un'icona per mostrare un pulsante disabilitato
@@ -797,14 +799,27 @@ class EM_SetupPanel(bpy.types.Panel):
                         emboss=False,
                     )
                     header_row.label(text="", icon='ERROR')
+                    help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
+                    help_op.title = "GraphML Warnings"
+                    help_op.text = (
+                        "Validation issues detected while importing\n"
+                        "this GraphML. Common causes:\n"
+                        "- Missing site ID in the swimlane header\n"
+                        "- Epochs with placeholder dates (xx)\n"
+                        "- Structural issues flagged by the importer\n"
+                        "Fix the .graphml in yEd, then reload."
+                    )
+                    help_op.url = "panels/em_setup.html#graphml-warnings"
+                    help_op.project = 'em_tools'
 
                     if active_file.show_warnings_section:
                         warning_col = warning_box.column(align=True)
                         for warning_msg in warning_messages:
                             _draw_wrapped_warning(warning_col, context, warning_msg)
 
-                        op = warning_box.operator("wm.url_open", text="Quick guide", icon="HELP")
-                        op.url = "https://docs.extendedmatrix.org/en/1.5.0dev/data_funnel.html#important-considerations"
+                        op = warning_box.operator("em.open_docs", text="Data Funnel guide", icon="URL")
+                        op.url = "data_funnel.html#important-considerations"
+                        op.project = 'em'
 
                 # DEPRECATED: DosCo is now integrated as an Auxiliary Resource type
                 # The legacy DosCo section has been removed. DosCo is now managed
@@ -957,8 +972,9 @@ class EM_SetupPanel(bpy.types.Panel):
                             row.prop(aux_file, "dosco_folder", text="Set Path")
 
                             # Help button
-                            op = row.operator("wm.url_open", text="", icon="HELP")
-                            op.url = "https://docs.extendedmatrix.org/projects/EM-tools/en/1.5.0/EMstructure.html#em-setup"
+                            op = row.operator("em.open_docs", text="", icon="HELP")
+                            op.url = "panels/em_setup.html#emsetup"
+                            op.project = 'em_tools'
 
                             # DosCo options
                             dosco_box = box.box()
@@ -1062,8 +1078,9 @@ class EM_SetupPanel(bpy.types.Panel):
                             # Thumbnail action buttons
                             thumb_row.operator("emtools.build_doc_thumbs", text="(Re)generate")
                             thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
-                            op = thumb_row.operator("wm.url_open", text="", icon="HELP")
-                            op.url = "https://docs.extendedmatrix.org/projects/EM-tools/en/1.5.0/EMstructure.html#setting-up-resource-folders"
+                            op = thumb_row.operator("em.open_docs", text="", icon="HELP")
+                            op.url = "panels/em_setup.html#setting-up-resource-folders"
+                            op.project = 'em_tools'
 
                             # Thumbnails path (collapsible)
                             path_box = box.box()
@@ -1149,7 +1166,7 @@ class EM_SetupPanel(bpy.types.Panel):
                         "Regenerates cached indices for faster lookups.\n"
                         "Useful after large edits to the GraphML."
                     )
-                    help_op.url = "EMstructure.html#em-setup"
+                    help_op.url = "panels/em_setup.html#emsetup"
 
                     row = exp_box.row(align=True)
                     row.scale_y = 0.9
@@ -1164,7 +1181,7 @@ class EM_SetupPanel(bpy.types.Panel):
                         "Runs internal performance checks for property\n"
                         "handlers. Expect temporary UI stalls during run."
                     )
-                    help_op.url = "EMstructure.html#em-setup"
+                    help_op.url = "panels/em_setup.html#emsetup"
                     info_row = exp_box.row(align=True)
                     info_row.label(text="GraphML Wizard moved to EM Bridge", icon='INFO')
 

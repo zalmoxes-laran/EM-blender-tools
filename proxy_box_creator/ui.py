@@ -48,7 +48,21 @@ class PROXYBOX_PT_main_panel(Panel):
     def draw(self, context):
         layout = self.layout
         settings = context.scene.em_tools.proxy_box
-        
+
+        # Header help button
+        header_row = layout.row(align=True)
+        header_row.label(text="Proxy Box Creator", icon='MESH_CUBE')
+        help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Proxy Box Creator"
+        help_op.text = (
+            "Build a proxy box from 7 measurement points\n"
+            "taken on the survey. Optionally link each\n"
+            "measurement to a source document to auto-\n"
+            "generate extractor nodes."
+        )
+        help_op.url = "panels/proxy_box_creator.html#_Proxy_Box_Creator"
+        help_op.project = 'em_tools'
+
         # ═══════════════════════════════════════════════════════
         # STATUS (always visible)
         # ═══════════════════════════════════════════════════════

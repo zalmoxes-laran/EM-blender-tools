@@ -258,7 +258,8 @@ class EM_ToolsPanel:
             "- For visibility controls (show/hide all),\n"
             "  see the Visual Manager panel above.\n"
         )
-        help1.url = "EMtools_manual/docs/user_guide/Stratigraphy_manager.html"
+        help1.url = "panels/stratigraphy_manager.html#_Stratigraphy_Manager"
+        help1.project = 'em_tools'
 
         # 2) Filter contents (only when open)
         # ✅ PORTED: Use strat.show_filter_system
@@ -268,6 +269,19 @@ class EM_ToolsPanel:
             epochs = scene.em_tools.epochs
 
             # === EPOCH / HORIZON FILTER ROW ===
+            epoch_header = filter_box.row(align=True)
+            epoch_header.label(text="Epoch Filter", icon='SORTTIME')
+            help_op = epoch_header.operator("em.help_popup", text="", icon='QUESTION')
+            help_op.title = "Epoch / Horizon Filter"
+            help_op.text = (
+                "Filter the stratigraphic list by the active\n"
+                "epoch (single-graph) or chronological horizon\n"
+                "(landscape mode). Combine with activity filter\n"
+                "for fine-grained slicing."
+            )
+            help_op.url = "panels/stratigraphy_manager.html#epoch-filter"
+            help_op.project = 'em_tools'
+
             epoch_row = filter_box.row(align=True)
             epoch_row.enabled = graph_available
 
@@ -304,6 +318,19 @@ class EM_ToolsPanel:
 
             # === ACTIVITY FILTER ROW (hidden in landscape mode) ===
             if not is_landscape:
+                activity_header = filter_box.row(align=True)
+                activity_header.label(text="Activity Filter", icon='NETWORK_DRIVE')
+                help_op = activity_header.operator("em.help_popup", text="", icon='QUESTION')
+                help_op.title = "Activity Filter"
+                help_op.text = (
+                    "Filter the stratigraphic list by the active\n"
+                    "activity (e.g. demolition, construction).\n"
+                    "Activities group related US into semantic\n"
+                    "phases independent from epochs."
+                )
+                help_op.url = "panels/stratigraphy_manager.html#activity-filter"
+                help_op.project = 'em_tools'
+
                 activity_row = filter_box.row(align=True)
                 activity_row.enabled = graph_available
 
@@ -377,7 +404,8 @@ class EM_ToolsPanel:
                     "- When enabled: Shows all units that exist in this epoch\n"
                     "- When disabled: Shows only units created in this epoch"
                 )
-                help1.url = "https://docs.extendedmatrix.org/survival-filter"
+                help1.url = "panels/stratigraphy_manager.html#survival-filter"
+                help1.project = 'em_tools'
 
                 sub_row.separator()
 
@@ -393,7 +421,8 @@ class EM_ToolsPanel:
                     "- When enabled: Shows reconstruction units\n"
                     "- When disabled: Hides reconstruction units"
                 )
-                help2.url = "https://docs.extendedmatrix.org/reconstruction-filter"
+                help2.url = "panels/stratigraphy_manager.html#reconstruction-filter"
+                help2.project = 'em_tools'
 
         # ==================
         # STRATIGRAPHY LIST
@@ -520,7 +549,8 @@ class EM_ToolsPanel:
             "This section shows documents linked to this stratigraphic unit.\n"
             "Click on thumbnail to preview, or use buttons to open files/folders."
         )
-        help_op.url = "EMtools_manual/docs/user_guide/Documents.html"
+        help_op.url = "panels/document_manager_3d.html#_Document_Manager_3D"
+        help_op.project = 'em_tools'
         
         # ✅ FIXED: Use reload_doc_previews_for_us() instead of inline code
         if strat.show_documents:

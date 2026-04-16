@@ -35,6 +35,7 @@ from .addon_prefix_helpers import (
 __all__ = [
     "EM_OT_update_graph",
     "EM_help_popup",
+    "EM_open_docs",
     "XLSX_OT_to_graphml",
     "EMTOOLS_OT_save_stratigraphy_template",
     "EMTOOLS_OT_save_em_paradata_template",
