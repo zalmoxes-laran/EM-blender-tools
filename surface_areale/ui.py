@@ -23,13 +23,20 @@ def _get_graph_safe(context):
 
 
 class VIEW3D_PT_RMToProxy(Panel):
-    """Parent panel for RM-to-Proxy tools"""
-    bl_label = "Representation Model to Proxy (RM2Proxy)"
+    """Parent panel for RM-to-Proxy tools (experimental — shipping in EM 1.6)."""
+    bl_label = "Representation Model to Proxy (Experimental)"
     bl_idname = "VIEW3D_PT_RMToProxy"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM Annotator"
     bl_order = 5
+
+    @classmethod
+    def poll(cls, context):
+        em_tools = getattr(context.scene, 'em_tools', None)
+        if em_tools is None:
+            return False
+        return getattr(em_tools, 'experimental_features', False)
 
     def draw_header(self, context):
         layout = self.layout
@@ -37,18 +44,25 @@ class VIEW3D_PT_RMToProxy(Panel):
         if icon_id:
             layout.label(text="", icon_value=icon_id)
         else:
-            layout.label(text="", icon='MOD_SHRINKWRAP')
+            layout.label(text="", icon='EXPERIMENTAL')
 
     def draw(self, context):
         layout = self.layout
         em_tools = context.scene.em_tools
+
+        # Red experimental header row (same pattern as Proxy Inflate Manager)
+        header = layout.row()
+        header.alert = True
+        header.label(text="Surface Areale / RM2Proxy is experimental — EM 1.6 preview",
+                     icon='EXPERIMENTAL')
+
         if em_tools.active_file_index < 0:
             layout.label(text="Load a GraphML first", icon='ERROR')
 
 
 class VIEW3D_PT_SurfaceAreale(Panel):
-    """Surface Areale creation panel with requirement checklist"""
-    bl_label = "Surface Areale"
+    """Surface Areale creation panel with requirement checklist (experimental)."""
+    bl_label = "Surface Areale (Experimental)"
     bl_idname = "VIEW3D_PT_SurfaceAreale"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
