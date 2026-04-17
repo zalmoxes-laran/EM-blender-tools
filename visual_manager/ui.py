@@ -339,20 +339,22 @@ class VIEW3D_PT_visual_panel(Panel):
         
         settings = scene.proxy_projection_settings
         
-        # Collapsible section for RM coloring
+        # Collapsible section for RM coloring (red header, same experimental style as Proxy Inflate Manager)
         box = layout.box()
         row = box.row()
-        
-        row.prop(settings, "show_advanced_settings", 
-                text="RM Coloring", 
+        row.alert = True
+
+        row.prop(settings, "show_advanced_settings",
+                text="RM Coloring (Experimental)",
                 icon='TRIA_DOWN' if settings.show_advanced_settings else 'TRIA_RIGHT',
                 emboss=False)
-        
+
         # Show status indicator in header
         if settings.projection_active:
             row.label(text="", icon='CHECKMARK')
         else:
             row.label(text="", icon='RADIOBUT_OFF')
+        row.label(text="", icon='EXPERIMENTAL')
 
         if settings.show_advanced_settings:
             # Check prerequisites
