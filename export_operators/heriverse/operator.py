@@ -1,107 +1,30 @@
-import bpy
-from bpy.props import BoolProperty, StringProperty, IntProperty # type: ignore
-from bpy.types import Operator, AddonPreferences, Panel # type: ignore
-from bpy_extras.io_utils import ExportHelper # type: ignore
-from s3dgraphy.exporter.json_exporter import JSONExporter
-from bpy_extras.io_utils import ExportHelper # type: ignore
+# export_operators/heriverse/operator.py
+"""Monolithic Heriverse export operator (EXPORT_OT_heriverse).
+
+This class is intentionally kept as a single large operator for now: its
+methods are tightly coupled via shared state. Splitting it further is a
+separate concern.
+"""
+
 import os
 import shutil
-
-from s3dgraphy import get_graph, get_all_graph_ids
-from ..functions import *
-from ..graph_updaters import *
-
-from s3dgraphy.nodes.link_node import LinkNode
-from s3dgraphy.nodes.representation_node import RepresentationModelDocNode
 import uuid
 
-def clean_filename(filename: str) -> str:
-    """
-    Clean filename from invalid characters and spaces.
-    
-    Args:
-        filename (str): Original filename
-        
-    Returns:
-        str: Cleaned filename safe for filesystem use
-    """
-    # Replace spaces with underscores
-    filename = filename.replace(' ', '_')
-    
-    # Remove invalid characters
-    invalid_chars = '<>:"/\\|?*'
-    for char in invalid_chars:
-        filename = filename.replace(char, '')
-        
-    # Remove any other non-ASCII characters
-    filename = ''.join(c for c in filename if c.isascii())
-        
-    return filename
+import bpy
+from bpy.props import BoolProperty, IntProperty, StringProperty
+from bpy.types import Operator
 
-class JSON_OT_exportEMformat(Operator, ExportHelper):
-    """Export project data in Heriverse JSON format"""
-    bl_idname = "export.heriversejson"
-    bl_label = "Export Heriverse JSON"
-    bl_options = {"REGISTER", "UNDO"}
+from s3dgraphy import get_graph, get_all_graph_ids
+from s3dgraphy.exporter.json_exporter import JSONExporter
+from s3dgraphy.nodes.link_node import LinkNode
+from s3dgraphy.nodes.representation_node import RepresentationModelDocNode
 
-    filename_ext = ".json"
+from ...functions import *
+from ...graph_updaters import *
 
-    use_file_dialog: BoolProperty(
-        name="Use File Dialog",
-        description="Use the file dialog to choose where to save the JSON",
-        default=True
-    ) # type: ignore
+from .utils import clean_filename, find_layer_collection, get_collection_for_object
+from .gltf import export_gltf_with_animation_support
 
-    filepath: StringProperty(
-        name="File Path",
-        description="Path to save the JSON file",
-        default=""
-    ) # type: ignore
-
-    def invoke(self, context, event):
-        if self.use_file_dialog:
-            return ExportHelper.invoke(self, context, event)
-        else:
-            return self.execute(context)
-
-    def execute(self, context):
-        print("\n=== Starting Heriverse JSON Export ===")
-        try:
-            # Crea l'esportatore con il percorso file specificato
-            from s3dgraphy.exporter.json_exporter import JSONExporter
-            exporter = JSONExporter(self.filepath)
-
-            print(f"Created JSONExporter for path: {self.filepath}")
-
-            # Get only publishable graph IDs from em_tools
-            em_tools = context.scene.em_tools
-            publishable_graph_ids = []
-
-            for graphml_item in em_tools.graphml_files:
-                # Check if the graph is publishable
-                is_publishable = getattr(graphml_item, 'is_publishable', True)
-                if is_publishable:
-                    publishable_graph_ids.append(graphml_item.name)
-
-            print(f"Exporting {len(publishable_graph_ids)} publishable graphs: {publishable_graph_ids}")
-
-            if not publishable_graph_ids:
-                self.report({'WARNING'}, "No publishable graphs found to export")
-                return {'CANCELLED'}
-
-            # Export only publishable graphs (not all graphs in memory)
-            exporter.export_graphs(graph_ids=publishable_graph_ids)
-            print("Graphs exported successfully")
-
-            self.report({'INFO'}, f"Heriverse data successfully exported to {self.filepath}")
-            return {'FINISHED'}
-
-        except Exception as e:
-            print(f"Error during JSON export: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
-            self.report({'ERROR'}, f"Error during export: {str(e)}")
-            return {'CANCELLED'}
 
 class EXPORT_OT_heriverse(Operator):
     """Export project in Heriverse format"""
@@ -1838,8 +1761,8 @@ class EXPORT_OT_heriverse(Operator):
         export_vars = context.window_manager.export_vars
 
         # Import utility functions from the main module
-        from ..functions import normalize_path, create_directory, check_export_path, check_graph_loaded, show_popup_message
-        from ..graph_updaters import update_graph_with_scene_data
+        from ...functions import normalize_path, create_directory, check_export_path, check_graph_loaded, show_popup_message
+        from ...graph_updaters import update_graph_with_scene_data
         import json
         
         try:
@@ -2114,119 +2037,17 @@ class EXPORT_OT_heriverse(Operator):
 
 
 
-def find_layer_collection(layer_collection, collection_name):
-    """Trova ricorsivamente un layer_collection dato il nome della collection"""
-    if layer_collection.name == collection_name:
-        return layer_collection
-    
-    for child in layer_collection.children:
-        found = find_layer_collection(child, collection_name)
-        if found:
-            return found
-    return None
 
-def get_collection_for_object(obj):
-    """Trova la collection principale di un oggetto"""
-    for collection in bpy.data.collections:
-        if obj.name in collection.objects:
-            return collection.name
-    return None
-
-class HERIVERSE_OT_make_collections_visible(Operator):
-    bl_idname = "heriverse.make_collections_visible"
-    bl_label = "Make Collections Visible"
-    bl_description = "Make all collections containing RM objects visible"
-    bl_options = {'REGISTER', 'UNDO'}
-    
-    def execute(self, context):
-        # Recupera tutti gli oggetti con EM_ep_belong_ob
-        rm_objects = [obj for obj in bpy.data.objects if len(obj.EM_ep_belong_ob) > 0]
-        
-        # Attiva tutte le collection che contengono questi oggetti
-        for obj in rm_objects:
-            for collection in bpy.data.collections:
-                if obj.name in collection.objects:
-                    layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
-                    if layer_collection:
-                        layer_collection.exclude = False
-        
-        self.report({'INFO'}, "All collections containing RM objects are now visible")
-        return {'FINISHED'}
-
-
-def export_gltf_with_animation_support(filepath, export_vars, scene, use_selection=True, 
-                                      export_extras=False, export_gpu_instances=False,
-                                      format_file="GLTF_SEPARATE"):
-
-    """
-    Template function per l'export glTF con supporto animazioni
-    Da usare per sostituire tutte le chiamate bpy.ops.export_scene.gltf()
-    """
-    
-    # Parametri base sempre presenti
-    export_params = {
-        'filepath': str(filepath),
-        'export_format': format_file.upper(),
-        'export_copyright': scene.em_tools.EMviq_model_author_name if hasattr(scene.em_tools, 'EMviq_model_author_name') else "",
-        'export_texcoords': True,
-        'export_normals': True,
-        'export_draco_mesh_compression_enable': export_vars.heriverse_use_draco,
-        'export_draco_mesh_compression_level': export_vars.heriverse_draco_level,
-        'export_materials': 'EXPORT',
-        'use_selection': use_selection,
-        'export_apply': True,
-        'export_image_format': 'AUTO',
-        'export_texture_dir': "",
-        'export_keep_originals': False,
-        'check_existing': False
-    }
-    
-    # Parametri opzionali 
-    if export_extras:
-        export_params['export_extras'] = True
-    if export_gpu_instances:
-        export_params['export_gpu_instances'] = True
-    
-    # Parametri per le animazioni
-    if export_vars.heriverse_export_animations:
-        # Abilita export di animazioni, armature e bones
-        export_params.update({
-            'export_animations': True,
-            'export_frame_range': export_vars.heriverse_animation_frame_range,
-            'export_frame_step': 1,
-            'export_force_sampling': True,
-            'export_nla_strips': export_vars.heriverse_export_all_animations,
-            'export_def_bones': True,
-            'export_current_frame': False,
-            'export_skins': True,
-            'export_all_influences': True,
-            'export_morph': True
-        })
-    else:
-        # Disabilita completamente l'export di animazioni
-        export_params.update({
-            'export_animations': False,
-            'export_frame_range': False,
-            'export_frame_step': 1,
-            'export_force_sampling': False,
-            'export_nla_strips': False,
-            'export_def_bones': False,
-            'export_current_frame': False,
-            'export_skins': False,
-            'export_all_influences': False,
-            'export_morph': False
-        })
-    
-    # Esegui l'export
-    bpy.ops.export_scene.gltf(**export_params)
+classes = (
+    EXPORT_OT_heriverse,
+)
 
 
 def register():
-    bpy.utils.register_class(EXPORT_OT_heriverse)
-    bpy.utils.register_class(JSON_OT_exportEMformat)  
-    bpy.utils.register_class(HERIVERSE_OT_make_collections_visible) 
-    
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+
 def unregister():
-    bpy.utils.unregister_class(EXPORT_OT_heriverse)
-    bpy.utils.unregister_class(JSON_OT_exportEMformat)  
-    bpy.utils.unregister_class(HERIVERSE_OT_make_collections_visible) 
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)

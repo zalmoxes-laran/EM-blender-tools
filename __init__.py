@@ -602,7 +602,7 @@ def register_modules():
     
     # Import statements
     from .import_operators import importer_graphml
-    from .export_operators import exporter_heriverse
+    from .export_operators import heriverse as exporter_heriverse
     from .export_operators import exporter_graphml
     from .import_operators import import_EMdb
     from .operators import graphml_converter
@@ -719,7 +719,7 @@ def unregister_modules():
         logger.warning("Skipping module unregistration - modules not loaded")
         return
     
-    from .export_operators import exporter_heriverse
+    from .export_operators import heriverse as exporter_heriverse
     from .export_operators import exporter_graphml
     from .import_operators import importer_graphml, import_EMdb
     from .operators import graphml_converter
