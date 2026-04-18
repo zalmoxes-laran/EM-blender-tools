@@ -508,16 +508,33 @@ def draw_propagative_metadata(layout, context, node_id, *,
                               include_license=True,
                               include_embargo=True,
                               title="Metadata"):
-    """Draw a uniform 'Metadata' subsection in a panel.
+    """Draw a collapsible 'Propagative metadata' subsection in a panel.
 
-    For each enabled property, shows the resolved value and the source
-    level tag (``[node]`` / ``[swimlane]`` / ``[graph]``) so the user
-    can see where the value is coming from. Works for EpochNode, US,
-    Document and any other node type that makes sense as a resolver
-    context.
+    The subsection is folded behind a TRIA_RIGHT/TRIA_DOWN toggle driven
+    by ``scene.em_tools.show_propagative_metadata`` (closed by default,
+    state shared across all EM panels). When expanded, for each enabled
+    property the box shows the resolved value and the source level tag
+    (``[node]`` / ``[swimlane]`` / ``[graph]``) so the user can see where
+    the value is coming from. Works for EpochNode, US, Document and any
+    other node type that makes sense as a resolver context.
     """
+    em_tools = getattr(context.scene, "em_tools", None)
+    expanded = bool(getattr(em_tools, "show_propagative_metadata", False)) if em_tools else False
+
     box = layout.box()
-    box.label(text=title, icon='INFO')
+    header = box.row(align=True)
+    if em_tools is not None:
+        header.prop(
+            em_tools, "show_propagative_metadata",
+            text=title,
+            icon='TRIA_DOWN' if expanded else 'TRIA_RIGHT',
+            emboss=False,
+        )
+    else:
+        header.label(text=title, icon='INFO')
+
+    if not expanded:
+        return
 
     rows = []
     if include_time:

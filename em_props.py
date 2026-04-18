@@ -637,6 +637,15 @@ class EM_Tools(PropertyGroup):
         default=False
     )  # type: ignore
 
+    show_propagative_metadata: BoolProperty(
+        name="Show Propagative Metadata",
+        description="Show/hide the propagative metadata subsection "
+                    "(author / license / embargo / chronology) resolved "
+                    "through the DP-32 3-level resolver. Shared across "
+                    "the Stratigraphy, Epoch and Document managers.",
+        default=False
+    )  # type: ignore
+
     exp_create_graphml_expanded: BoolProperty(
         name="GraphML Wizard",
         description="Expand the GraphML wizard section",
