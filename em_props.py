@@ -854,41 +854,70 @@ class EM_Tools(PropertyGroup):
         default=True
     )  # type: ignore
 
-    # AI Prompt Assembler section toggles (v4.1)
-    xlsx_wizard_prompt_part_a: BoolProperty(
-        name="Parte A – Stratigrafia",
-        description="Include Part A (stratigraphy extraction) in the AI prompt",
-        default=True
-    )  # type: ignore
-
-    xlsx_wizard_prompt_part_b: BoolProperty(
-        name="Parte B – Paradata",
-        description="Include Part B (paradata extraction) in the AI prompt",
-        default=True
-    )  # type: ignore
-
-    xlsx_wizard_prompt_part_c: BoolProperty(
-        name="Parte C – Epoche",
-        description="Include Part C (ParadataEpochs sheet) in the AI prompt",
-        default=False
-    )  # type: ignore
-
-    xlsx_wizard_prompt_part_d: BoolProperty(
-        name="Parte D – Fonti",
-        description="Include Part D (sources list) in the AI prompt",
-        default=False
-    )  # type: ignore
-
+    # StratiMiner prompt toggles (v5.0 — unified em_data.xlsx schema)
     xlsx_wizard_prompt_checklist: BoolProperty(
-        name="Parte E – Checklist",
-        description="Include Part E (end-of-session checklist) in the AI prompt",
+        name="End-of-session checklist",
+        description="Include the end-of-session checklist in the prompt",
         default=True
     )  # type: ignore
 
     xlsx_wizard_prompt_validation: BoolProperty(
-        name="Script Validazione",
-        description="Include embedded Python validation script and related checklist items",
+        name="Validation script",
+        description="Include the embedded Python validation script that "
+                    "checks cross-sheet referential integrity, duplicate "
+                    "triples, missing COMBINER_REASONING and stratigraphic "
+                    "cycles",
+        default=True
+    )  # type: ignore
+
+    xlsx_wizard_prompt_stratigraphy_only: BoolProperty(
+        name="Include stratigraphy-only mode",
+        description="Append the STRATIGRAPHY_ONLY section describing the "
+                    "minimal flow for pre-existing archaeological databases "
+                    "(curator as sole author, no paradata chain). Useful "
+                    "only for legacy dataset migration",
         default=False
+    )  # type: ignore
+
+    # Path to the folder of source PDFs (or equivalent). Optional but
+    # recommended for the fire-test on DosCo.
+    stratiminer_documents_folder: StringProperty(
+        name="Documents folder",
+        description="Folder containing the source PDFs the AI should read. "
+                    "Appended to the prompt so the AI enumerates the files "
+                    "automatically (e.g. the DosCo folder for Templu Mare)",
+        default="",
+        subtype='DIR_PATH',
+    )  # type: ignore
+
+    # StratiMiner Action A — import em_data.xlsx → graph → optional GraphML
+    stratiminer_input_xlsx: StringProperty(
+        name="em_data.xlsx",
+        description="Path to the unified em_data.xlsx produced by the AI",
+        default="",
+        subtype='FILE_PATH',
+    )  # type: ignore
+
+    stratiminer_output_graphml: StringProperty(
+        name="Output .graphml",
+        description="Destination path for the GraphML built from em_data.xlsx "
+                    "(used when 'Export on import' is enabled)",
+        default="",
+        subtype='FILE_PATH',
+    )  # type: ignore
+
+    stratiminer_export_on_import: BoolProperty(
+        name="Export on import",
+        description="Immediately write the imported graph to the output "
+                    "GraphML path in addition to keeping it in memory",
+        default=True,
+    )  # type: ignore
+
+    stratiminer_active_graph_id: StringProperty(
+        name="Active StratiMiner graph",
+        description="Internal: id of the latest graph built by "
+                    "stratiminer.import_em_data",
+        default="",
     )  # type: ignore
 
     # ============================================

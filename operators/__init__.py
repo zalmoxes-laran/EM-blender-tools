@@ -15,8 +15,12 @@ from .save_template import *
 # Import bake paradata operator
 from .bake_paradata import *
 
-# Import XLSX wizard operators (panel-based 3-step workflow)
+# Import XLSX wizard operators (legacy 3-step, kept for backward compat
+# while the new StratiMiner unified-schema flow replaces it)
 from .xlsx_wizard import *
+
+# Import StratiMiner operators (new unified em_data.xlsx flow)
+from .stratiminer import *
 
 # Import enrich GraphML operators (bake EM tables into loaded GraphML)
 from .enrich_graphml import *
@@ -65,6 +69,7 @@ def register():
     from . import save_template
     from . import bake_paradata
     from . import xlsx_wizard
+    from . import stratiminer
     from . import enrich_graphml
     from . import merge_conflict_ui
 
@@ -75,6 +80,7 @@ def register():
     save_template.register()
     bake_paradata.register()
     xlsx_wizard.register()
+    stratiminer.register()
     enrich_graphml.register()
     merge_conflict_ui.register()
 
@@ -88,12 +94,14 @@ def unregister():
     from . import save_template
     from . import bake_paradata
     from . import xlsx_wizard
+    from . import stratiminer
     from . import enrich_graphml
     from . import merge_conflict_ui
 
     # Unregister in reverse order
     merge_conflict_ui.unregister()
     enrich_graphml.unregister()
+    stratiminer.unregister()
     xlsx_wizard.unregister()
     bake_paradata.unregister()
     save_template.unregister()

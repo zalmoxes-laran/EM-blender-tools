@@ -476,6 +476,7 @@ class VIEW3D_PT_3DDocumentManager(Panel):
                     include_license=True,
                     include_embargo=True,
                     title="Propagative metadata",
+                    collapsible=False,        # inline, no triangle toggle
                 )
             except Exception as _e:
                 detail_box.label(text=f"(metadata unavailable: {_e})", icon='ERROR')

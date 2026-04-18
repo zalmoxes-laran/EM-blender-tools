@@ -343,18 +343,20 @@ def _export_epoch_report(xlsx_path, report_items):
 # ---------------------------------------------------------------------------
 
 class EM_OT_merge_xlsx_start(bpy.types.Operator):
-    """Start merge of XLSX stratigraphy data with active graph"""
+    """Merge an em_data.xlsx file with the active graph"""
     bl_idname = "em.merge_xlsx_start"
-    bl_label = "Merge XLSX Stratigraphy"
+    bl_label = "Merge em_data.xlsx into active graph"
     bl_description = (
-        "Import stratigraphy data from XLSX and compare with "
-        "the active graph. Shows conflicts for user resolution"
+        "Import an em_data.xlsx (5-sheet unified schema) and compare it "
+        "with the active graph. Per-claim differences are surfaced in the "
+        "Conflict Resolution panel for accept/reject. Falls back to the "
+        "legacy stratigraphy.xlsx format for backward compatibility"
     )
     bl_options = {'REGISTER', 'UNDO'}
 
     filepath: StringProperty(
         name="XLSX File",
-        description="Path to the stratigraphy XLSX file",
+        description="Path to the em_data.xlsx file",
         subtype='FILE_PATH'
     )
 
@@ -395,15 +397,41 @@ class EM_OT_merge_xlsx_start(bpy.types.Operator):
             self.report({'ERROR'}, "No active graph loaded")
             return {'CANCELLED'}
 
-        # Import XLSX into a temporary graph
+        # Import XLSX into a temporary graph. Two schemas are supported:
+        #   - Unified em_data.xlsx (5 sheets: Units/Epochs/Claims/Authors/Documents)
+        #   - Legacy stratigraphy.xlsx (24-column wide table on sheet 'Stratigraphy')
+        # The schema is auto-detected by sheet presence.
         try:
-            from s3dgraphy.importer.mapped_xlsx_importer import MappedXLSXImporter
+            import pandas as _pd
+            with _pd.ExcelFile(self.filepath, engine='openpyxl') as xl:
+                sheet_names = set(xl.sheet_names)
+            unified_required = {'Units', 'Epochs', 'Claims', 'Authors', 'Documents'}
 
-            importer = MappedXLSXImporter(
-                filepath=self.filepath,
-                mapping_name='excel_to_graphml_mapping'
-            )
-            temp_graph = importer.parse()
+            if unified_required.issubset(sheet_names):
+                from s3dgraphy.importer.unified_xlsx_importer import (
+                    UnifiedXLSXImporter)
+                importer = UnifiedXLSXImporter(
+                    filepath=self.filepath,
+                    graph_id=f"incoming_{os.path.basename(self.filepath)}",
+                )
+                temp_graph = importer.parse()
+            elif 'Stratigraphy' in sheet_names:
+                from s3dgraphy.importer.mapped_xlsx_importer import (
+                    MappedXLSXImporter)
+                importer = MappedXLSXImporter(
+                    filepath=self.filepath,
+                    mapping_name='excel_to_graphml_mapping'
+                )
+                temp_graph = importer.parse()
+            else:
+                self.report(
+                    {'ERROR'},
+                    "Unrecognised xlsx schema. Expected either the unified "
+                    "em_data.xlsx (5 sheets) or the legacy stratigraphy.xlsx "
+                    "(sheet 'Stratigraphy').",
+                )
+                return {'CANCELLED'}
+
             _incoming_graph = temp_graph
 
         except Exception as e:

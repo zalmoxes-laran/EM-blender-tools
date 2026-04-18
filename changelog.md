@@ -8,6 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **StratiMiner workflow panel in EM Bridge** (replaces the legacy
+  "GraphML Wizard" 3-step panel). The new panel lives at
+  ``VIEW3D_PT_stratiminer_bridge`` and exposes three stacked actions:
+  - **Prepare AI prompt** — copies the v5.0 extraction prompt to the
+    clipboard, with optional documents-folder path and toggles for
+    the validation script, the end-of-session checklist and the
+    stratigraphy-only appendix.
+  - **Action A — Import em_data.xlsx** — parses the unified 5-sheet
+    xlsx via ``UnifiedXLSXImporter`` into a fresh in-memory graph and
+    optionally writes out a ``.graphml`` in a single pass.
+  - **Action B — Merge into active graph** — delegates to the existing
+    ``em.merge_xlsx_start`` button (still present in the EM tree tab);
+    the operator was updated to auto-detect the unified schema by
+    sheet presence and fall back to the legacy ``stratigraphy.xlsx``
+    format for backward compatibility.
+  New scene properties to drive the panel:
+  ``stratiminer_documents_folder``, ``stratiminer_input_xlsx``,
+  ``stratiminer_output_graphml``, ``stratiminer_export_on_import``.
+  New operator ``emtools.save_em_data_template`` saves the unified
+  ``em_data_template.xlsx`` to a chosen directory. The obsolete 2-step
+  xlsx wizard (``xlsx_wizard.convert_stratigraphy`` +
+  ``xlsx_wizard.enrich_paradata``) is no longer surfaced in any panel;
+  its operators remain registered for external scripts.
+- **Propagative metadata section collapsed only in Stratigraphy
+  Manager**. The Epoch Manager and Document Manager now render the
+  section inline (no triangle toggle) — the information is compact
+  enough that hiding it adds no value. The shared
+  ``scene.em_tools.show_propagative_metadata`` property still drives
+  the Stratigraphy Manager's collapse.
+
 - **Propagative metadata (DP-32) in the EM panels**. Each of the three main panels now shows a "Propagative metadata" subsection for the selected context node, resolved through the s3Dgraphy 3-level resolver (node → swimlane → graph), with an inline source tag (`[node]` / `[swimlane]` / `[graph]`) so the user can tell where each value is coming from:
   - **Epochs Manager** — for the active epoch: author, license, embargo (start/end time already shown above, not duplicated).
   - **Stratigraphy Manager** — for the selected US: start time, end time, author, license, embargo.

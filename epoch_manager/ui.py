@@ -133,6 +133,7 @@ class EM_BasePanel:
                             include_license=True,
                             include_embargo=True,
                             title="Propagative metadata",
+                            collapsible=False,      # inline, no triangle toggle
                         )
                     except Exception as _e:
                         col.label(text=f"(metadata unavailable: {_e})", icon='ERROR')

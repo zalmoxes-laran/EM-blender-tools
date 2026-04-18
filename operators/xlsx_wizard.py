@@ -319,14 +319,14 @@ class XLSX_WIZARD_OT_copy_ai_prompt(bpy.types.Operator):
         language = em_tools.xlsx_wizard_prompt_language.strip()
 
         try:
+            folder = (em_tools.stratiminer_documents_folder or "").strip()
             full_prompt = get_ai_prompt(
                 language=language if language else None,
-                include_part_a=em_tools.xlsx_wizard_prompt_part_a,
-                include_part_b=em_tools.xlsx_wizard_prompt_part_b,
-                include_part_c=em_tools.xlsx_wizard_prompt_part_c,
-                include_part_d=em_tools.xlsx_wizard_prompt_part_d,
-                include_checklist=em_tools.xlsx_wizard_prompt_checklist,
                 include_validation=em_tools.xlsx_wizard_prompt_validation,
+                include_checklist=em_tools.xlsx_wizard_prompt_checklist,
+                include_stratigraphy_only=getattr(
+                    em_tools, "xlsx_wizard_prompt_stratigraphy_only", False),
+                documents_folder=folder if folder else None,
             )
         except FileNotFoundError as e:
             self.report({'ERROR'}, str(e))

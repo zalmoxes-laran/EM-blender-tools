@@ -507,34 +507,41 @@ def draw_propagative_metadata(layout, context, node_id, *,
                               include_author=True,
                               include_license=True,
                               include_embargo=True,
-                              title="Metadata"):
-    """Draw a collapsible 'Propagative metadata' subsection in a panel.
+                              title="Metadata",
+                              collapsible=True):
+    """Draw a 'Propagative metadata' subsection in a panel.
 
-    The subsection is folded behind a TRIA_RIGHT/TRIA_DOWN toggle driven
-    by ``scene.em_tools.show_propagative_metadata`` (closed by default,
-    state shared across all EM panels). When expanded, for each enabled
-    property the box shows the resolved value and the source level tag
-    (``[node]`` / ``[swimlane]`` / ``[graph]``) so the user can see where
-    the value is coming from. Works for EpochNode, US, Document and any
-    other node type that makes sense as a resolver context.
+    When ``collapsible=True`` (the default, used by the Stratigraphy
+    Manager) the section is folded behind a TRIA_RIGHT/TRIA_DOWN toggle
+    driven by ``scene.em_tools.show_propagative_metadata`` (closed by
+    default). The Epoch Manager and Document Manager pass
+    ``collapsible=False`` so the section renders inline without a toggle
+    — for those panels the subsection is always visible and the
+    information is compact enough that hiding it adds no value.
+
+    For each enabled property the box shows the resolved value and the
+    source level tag (``[node]`` / ``[swimlane]`` / ``[graph]``) so the
+    user can see where the value is coming from. Works for EpochNode,
+    US, Document and any other node type that makes sense as a resolver
+    context.
     """
     em_tools = getattr(context.scene, "em_tools", None)
-    expanded = bool(getattr(em_tools, "show_propagative_metadata", False)) if em_tools else False
 
     box = layout.box()
     header = box.row(align=True)
-    if em_tools is not None:
+
+    if collapsible and em_tools is not None:
+        expanded = bool(getattr(em_tools, "show_propagative_metadata", False))
         header.prop(
             em_tools, "show_propagative_metadata",
             text=title,
             icon='TRIA_DOWN' if expanded else 'TRIA_RIGHT',
             emboss=False,
         )
+        if not expanded:
+            return
     else:
         header.label(text=title, icon='INFO')
-
-    if not expanded:
-        return
 
     rows = []
     if include_time:
