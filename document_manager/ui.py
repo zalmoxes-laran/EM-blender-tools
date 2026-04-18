@@ -466,6 +466,20 @@ class VIEW3D_PT_3DDocumentManager(Panel):
                 col.separator()
                 col.operator("em.docmanager_open_url", text="Open File", icon="URL")
 
+            # DP-32 propagative metadata for this document node
+            try:
+                from ..functions import draw_propagative_metadata
+                draw_propagative_metadata(
+                    detail_box, context, item.node_id,
+                    include_time=False,       # chronology shown above
+                    include_author=True,
+                    include_license=True,
+                    include_embargo=True,
+                    title="Propagative metadata",
+                )
+            except Exception as _e:
+                detail_box.label(text=f"(metadata unavailable: {_e})", icon='ERROR')
+
         # --- Settings (collapsible) ---
         settings_header = layout.row()
         settings_header.prop(

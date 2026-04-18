@@ -103,14 +103,14 @@ class EM_BasePanel:
             # Add the subpanel with epoch details
             if epochs.list_index >= 0 and len(epochs.list) > 0:
                 epoch = epochs.list[epochs.list_index]
-                
+
                 # Collapsible box for epoch details
                 box = layout.box()
                 row = box.row()
-                row.prop(scene, "show_epoch_details", 
+                row.prop(scene, "show_epoch_details",
                         icon='TRIA_DOWN' if scene.show_epoch_details else 'TRIA_RIGHT',
                         emboss=False, text="Epoch details")
-                
+
                 # Show details only if the panel is expanded
                 if scene.show_epoch_details:
                     col = box.column(align=True)
@@ -120,6 +120,22 @@ class EM_BasePanel:
                     row = col.row(align=True)
                     row.prop(epoch, "start_time", text="Start")
                     row.prop(epoch, "end_time", text="End")
+
+                    # Propagative metadata for this swimlane (DP-32 resolver):
+                    # shows author / license / embargo as seen through the
+                    # 3-level cascade (node > swimlane > graph).
+                    try:
+                        from ..functions import draw_propagative_metadata
+                        draw_propagative_metadata(
+                            col, context, epoch.id,
+                            include_time=False,      # time is already above
+                            include_author=True,
+                            include_license=True,
+                            include_embargo=True,
+                            title="Propagative metadata",
+                        )
+                    except Exception as _e:
+                        col.label(text=f"(metadata unavailable: {_e})", icon='ERROR')
 
                 # --- Epoch Lighting section ---
                 box_light = layout.box()

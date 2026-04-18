@@ -458,6 +458,20 @@ class EM_ToolsPanel:
             row = box.row()
             row.prop(item, "description", text="", slider=True, emboss=True)
 
+            # DP-32 propagative metadata for the selected US
+            try:
+                from ..functions import draw_propagative_metadata
+                draw_propagative_metadata(
+                    box, context, item.id_node,
+                    include_time=True,
+                    include_author=True,
+                    include_license=True,
+                    include_embargo=True,
+                    title="Propagative metadata",
+                )
+            except Exception as _e:
+                box.label(text=f"(metadata unavailable: {_e})", icon='ERROR')
+
             # Proxy sync feature
             if scene.em_tools.settings.em_proxy_sync is True:
                 if obj is not None:

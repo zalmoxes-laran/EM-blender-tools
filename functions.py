@@ -471,6 +471,89 @@ def is_graph_available(context):
         print(f"Error accessing graph: {str(e)}")
         return False, None
 
+def resolve_propagative_property(context, node_id, rule_id, default=None):
+    """Resolve a DP-32 propagative property for a node on the active graph.
+
+    Returns ``(value, source_level)`` where ``source_level`` is one of
+    ``"node"``, ``"swimlane"``, ``"graph"`` or ``None`` (when the default
+    was used). Safe to call from any panel draw(): on failure returns
+    ``(default, None)`` without raising.
+
+    Args:
+        context: Blender context
+        node_id: s3Dgraphy node id (UUID string) to resolve against
+        rule_id: One of the registered rule ids ("author", "license",
+            "embargo", "absolute_time_start", "absolute_time_end").
+        default: Value to return when nothing resolves.
+    """
+    try:
+        ok, graph = is_graph_available(context)
+        if not ok or graph is None:
+            return default, None
+        node = graph.find_node_by_id(node_id)
+        if node is None:
+            return default, None
+        from s3dgraphy.resolvers import resolve_with_source, get_rule
+        value, source = resolve_with_source(
+            graph, node, get_rule(rule_id), default=default
+        )
+        return value, source
+    except Exception:
+        return default, None
+
+
+def draw_propagative_metadata(layout, context, node_id, *,
+                              include_time=True,
+                              include_author=True,
+                              include_license=True,
+                              include_embargo=True,
+                              title="Metadata"):
+    """Draw a uniform 'Metadata' subsection in a panel.
+
+    For each enabled property, shows the resolved value and the source
+    level tag (``[node]`` / ``[swimlane]`` / ``[graph]``) so the user
+    can see where the value is coming from. Works for EpochNode, US,
+    Document and any other node type that makes sense as a resolver
+    context.
+    """
+    box = layout.box()
+    box.label(text=title, icon='INFO')
+
+    rows = []
+    if include_time:
+        rows.append(("Start", "absolute_time_start"))
+        rows.append(("End",   "absolute_time_end"))
+    if include_author:
+        rows.append(("Author",  "author"))
+    if include_license:
+        rows.append(("License", "license"))
+    if include_embargo:
+        rows.append(("Embargo", "embargo"))
+
+    any_resolved = False
+    for caption, rule_id in rows:
+        value, source = resolve_propagative_property(context, node_id, rule_id)
+        r = box.row(align=True)
+        r.label(text=f"{caption}:")
+        if value is None:
+            r.label(text="—", icon='NONE')
+            continue
+        any_resolved = True
+        # Format numeric times without stray ".0"
+        if rule_id in ("absolute_time_start", "absolute_time_end") and isinstance(value, (int, float)):
+            text = str(int(value)) if float(value).is_integer() else str(value)
+        else:
+            text = str(value)
+        r.label(text=text)
+        if source:
+            tag = r.row()
+            tag.alignment = 'RIGHT'
+            tag.label(text=f"[{source}]")
+
+    if not any_resolved:
+        box.label(text="(no propagative metadata for this node)", icon='NONE')
+
+
 def get_us_document_nodes(graph, us_node_id):
     """
     Return all Document nodes connected to a given stratigraphic unit.
