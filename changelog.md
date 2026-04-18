@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Propagative metadata (DP-32) in the EM panels**. Each of the three main panels now shows a "Propagative metadata" subsection for the selected context node, resolved through the s3Dgraphy 3-level resolver (node → swimlane → graph), with an inline source tag (`[node]` / `[swimlane]` / `[graph]`) so the user can tell where each value is coming from:
+  - **Epochs Manager** — for the active epoch: author, license, embargo (start/end time already shown above, not duplicated).
+  - **Stratigraphy Manager** — for the selected US: start time, end time, author, license, embargo.
+  - **Document Manager** — for the selected document: author, license, embargo (document-specific chronology already shown).
+- Shared helpers in `functions.py`:
+  - `resolve_propagative_property(context, node_id, rule_id, default=None)` — safe wrapper around the s3Dgraphy resolver; returns `(value, source_level)` and never raises.
+  - `draw_propagative_metadata(layout, context, node_id, ...)` — renders the uniform metadata box, with per-rule toggles so each panel can hide properties it shows elsewhere.
 - **Landscape mode (multi-graph)**: manage 2+ archaeological graphs simultaneously in a single Blender scene
 - **CronoFilter**: chronological horizons manager for landscape mode — define custom time ranges with colours to filter and visualize across multiple graphs
 - **Horizon-based filtering**: Stratigraphy Manager filters nodes by temporal overlap between computed chronology (CALCUL_START_T / CALCUL_END_T) and CronoFilter horizons
