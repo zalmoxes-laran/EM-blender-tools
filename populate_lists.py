@@ -200,7 +200,7 @@ def populate_document_node(scene, node, index, graph=None):
             em_item.certainty_class = node.attributes.get('certainty_class', '')
             em_item.border_color = node.attributes.get('border_color', '#000000')
         if hasattr(node, 'data'):
-            em_item.absolute_start_date = node.data.get('absolute_start_date', '')
+            em_item.absolute_time_start = node.data.get('absolute_time_start', '')
             em_item.source_type = node.data.get('source_type', '')
 
         index += 1

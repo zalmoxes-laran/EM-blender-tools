@@ -41,7 +41,7 @@ class DocItem(PropertyGroup):
     )  # type: ignore
     border_color: StringProperty(name="Border Color", default="#000000")  # type: ignore
     epoch_name: StringProperty(name="Epoch", default="")  # type: ignore
-    absolute_start_date: StringProperty(name="Absolute Start Date", default="")  # type: ignore
+    absolute_time_start: StringProperty(name="Absolute Time Start", default="")  # type: ignore
     source_type: StringProperty(
         name="Source Type",
         description="analytical (from context) or comparative (from analogues)",
@@ -277,7 +277,7 @@ def sync_doc_list(scene):
         item.certainty_class = src.certainty_class
         item.border_color = src.border_color
         item.epoch_name = src.epoch_name
-        item.absolute_start_date = src.absolute_start_date
+        item.absolute_time_start = src.absolute_time_start
         item.source_type = src.source_type
 
     # Remove orphaned entries (no longer in em_sources_list)

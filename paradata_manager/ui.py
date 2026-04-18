@@ -436,8 +436,8 @@ class EM_UL_sources_managers(UIList):
             row.label(text="", icon=certainty_icon)
             split = row.split(factor=0.25, align=True)
             name_label = item.name
-            if item.absolute_start_date:
-                name_label = f"{item.name} ({item.absolute_start_date})"
+            if item.absolute_time_start:
+                name_label = f"{item.name} ({item.absolute_time_start})"
             split.label(text=name_label, icon=item.icon)
             split.label(text=item.description, icon=item.icon_url)
         else:

@@ -446,8 +446,8 @@ class VIEW3D_PT_3DDocumentManager(Panel):
                 col.separator()
                 chrono_row = col.row()
                 chrono_row.label(text="Chronology:", icon="TIME")
-                if item.absolute_start_date:
-                    chrono_row.label(text=item.absolute_start_date)
+                if item.absolute_time_start:
+                    chrono_row.label(text=item.absolute_time_start)
                 else:
                     chrono_row.label(text="not set", icon="ERROR")
                 if item.epoch_name:

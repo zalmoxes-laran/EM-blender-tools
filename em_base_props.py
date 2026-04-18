@@ -113,8 +113,8 @@ class EMListParadata(PropertyGroup):
         description="Epoch where this master document is placed",
         default=""
     )  # type: ignore
-    absolute_start_date: StringProperty(
-        name="Absolute Start Date",
+    absolute_time_start: StringProperty(
+        name="Absolute Time Start",
         description="Absolute start date of this document (e.g., year of creation)",
         default=""
     )  # type: ignore
