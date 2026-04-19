@@ -145,7 +145,9 @@ class STRATIMINER_OT_import_em_data(bpy.types.Operator):
         em_tools.xlsx_wizard_warnings = "\n".join(warnings)
         em_tools.xlsx_wizard_show_warnings = bool(warnings)
 
-        # Suggest an output .graphml path if empty
+        # Suggest an output .graphml path if empty. The extension is
+        # always appended here; if the user edits the field and omits
+        # the extension, the export step below will add it back.
         if not em_tools.stratiminer_output_graphml:
             em_tools.stratiminer_output_graphml = os.path.join(
                 os.path.dirname(xlsx_path), f"{base_name}.graphml")
@@ -158,6 +160,12 @@ class STRATIMINER_OT_import_em_data(bpy.types.Operator):
         # ── 3. Optional export ──
         out_path = normalize_path(em_tools.stratiminer_output_graphml)
         if em_tools.stratiminer_export_on_import and out_path:
+            # Force the .graphml extension so yEd / EMtools recognise
+            # the file (the Blender file-path field otherwise accepts a
+            # bare basename like "TempluMare_ai_v3").
+            if not out_path.lower().endswith('.graphml'):
+                out_path = out_path.rstrip('.') + '.graphml'
+                em_tools.stratiminer_output_graphml = out_path
             try:
                 from s3dgraphy.exporter.graphml.graphml_exporter import (
                     GraphMLExporter)
