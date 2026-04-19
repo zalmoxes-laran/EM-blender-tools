@@ -6,12 +6,48 @@ for writing graph changes back to GraphML files.
 """
 
 import os
+import shutil
 import bpy  # type: ignore
 from bpy.props import StringProperty  # type: ignore
 from bpy_extras.io_utils import ExportHelper  # type: ignore
 
 from s3dgraphy import get_graph
 from s3dgraphy.exporter.graphml import GraphMLPatcher
+
+
+def rotate_backups(filepath, max_backups):
+    """Create a rotating backup before overwriting filepath.
+
+    Naming: file.graphml.bak1 (newest) ... file.graphml.bakN (oldest).
+    Returns the newest backup path, or None when no backup was created.
+    """
+    if max_backups <= 0 or not os.path.exists(filepath):
+        return None
+
+    for i in range(max_backups, 0, -1):
+        bak_path = f"{filepath}.bak{i}"
+        if i == max_backups:
+            if os.path.exists(bak_path):
+                try:
+                    os.remove(bak_path)
+                except OSError as e:
+                    print(f"  Warning: Could not remove old backup {bak_path}: {e}")
+        else:
+            next_bak = f"{filepath}.bak{i + 1}"
+            if os.path.exists(bak_path):
+                try:
+                    os.rename(bak_path, next_bak)
+                except OSError as e:
+                    print(f"  Warning: Could not rotate backup {bak_path}: {e}")
+
+    bak1_path = f"{filepath}.bak1"
+    try:
+        shutil.copy2(filepath, bak1_path)
+        print(f"  Backup created: {os.path.basename(bak1_path)}")
+        return bak1_path
+    except OSError as e:
+        print(f"  Warning: Could not create backup: {e}")
+        return None
 
 
 class EM_export_GraphML(bpy.types.Operator):
@@ -53,7 +89,6 @@ class EM_export_GraphML(bpy.types.Operator):
 
         # Create rotating backup before saving
         try:
-            from ..operators.enrich_graphml import rotate_backups
             addon_prefs = context.preferences.addons.get(__package__.split('.')[0])
             max_backups = addon_prefs.preferences.graphml_backup_count if addon_prefs else 2
             backup_path = rotate_backups(filepath, max_backups)

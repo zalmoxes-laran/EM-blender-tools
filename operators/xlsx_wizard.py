@@ -134,82 +134,7 @@ class XLSX_WIZARD_OT_convert_stratigraphy(bpy.types.Operator):
 
 
 # ──────────────────────────────────────────────────────────────────────
-# STEP 2 — Enrich with Paradata
-# ──────────────────────────────────────────────────────────────────────
-
-class XLSX_WIZARD_OT_enrich_paradata(bpy.types.Operator):
-    """Enrich the in-memory graph with paradata provenance from em_paradata.xlsx"""
-    bl_idname = "xlsx_wizard.enrich_paradata"
-    bl_label = "Enrich Graph with Paradata"
-    bl_description = (
-        "Run QualiaImporter on the in-memory graph to add property nodes "
-        "with provenance chains (extractor → document)"
-    )
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        em_tools = context.scene.em_tools
-
-        # ── 1. Validate ──
-        graph_id = em_tools.xlsx_wizard_graph_id
-        if not graph_id:
-            self.report({'ERROR'}, "No graph to enrich. Run Step 1 first.")
-            return {'CANCELLED'}
-
-        paradata_file = normalize_path(em_tools.xlsx_wizard_paradata_file)
-        if not paradata_file or not os.path.exists(paradata_file):
-            self.report({'ERROR'}, f"Paradata file not found: {paradata_file}")
-            return {'CANCELLED'}
-
-        # ── 2. Get existing graph from memory ──
-        try:
-            from s3dgraphy import get_graph
-        except ImportError as e:
-            self.report({'ERROR'}, f"Failed to import s3dgraphy: {str(e)}")
-            return {'CANCELLED'}
-
-        graph = get_graph(graph_id)
-        if not graph:
-            self.report({'ERROR'}, f"Graph '{graph_id}' not found in memory. Re-run Step 1.")
-            return {'CANCELLED'}
-
-        nodes_before = len(graph.nodes)
-
-        # ── 3. Run QualiaImporter ──
-        try:
-            from s3dgraphy.importer.qualia_importer import QualiaImporter
-            qualia = QualiaImporter(
-                filepath=paradata_file,
-                existing_graph=graph,
-                overwrite=em_tools.xlsx_wizard_overwrite_properties
-            )
-            graph = qualia.parse()
-        except Exception as e:
-            self.report({'ERROR'}, f"Failed to import paradata: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return {'CANCELLED'}
-
-        # Collect accumulated warnings (Step 1 + Step 2)
-        all_warnings = list(getattr(graph, 'warnings', []) or [])
-        em_tools.xlsx_wizard_warnings = "\n".join(all_warnings)
-
-        # ── Report ──
-        nodes_added = len(graph.nodes) - nodes_before
-        self.report(
-            {'INFO'},
-            f"Paradata enriched: +{nodes_added} nodes added "
-            f"({len(graph.nodes)} total nodes, {len(graph.edges)} edges)"
-        )
-
-        print(f"Wizard Step 2: Paradata enriched graph '{graph_id}'")
-        print(f"   +{nodes_added} nodes added, {len(graph.nodes)} total nodes, {len(graph.edges)} edges")
-
-        return {'FINISHED'}
-
-
-# ──────────────────────────────────────────────────────────────────────
-# STEP 3 — Export GraphML
+# STEP 2 — Export GraphML
 # ──────────────────────────────────────────────────────────────────────
 
 class XLSX_WIZARD_OT_export_graphml(bpy.types.Operator):
@@ -371,7 +296,6 @@ class XLSX_WIZARD_OT_clear_warnings(bpy.types.Operator):
 
 classes = (
     XLSX_WIZARD_OT_convert_stratigraphy,
-    XLSX_WIZARD_OT_enrich_paradata,
     XLSX_WIZARD_OT_export_graphml,
     XLSX_WIZARD_OT_copy_ai_prompt,
     XLSX_WIZARD_OT_clear_warnings,

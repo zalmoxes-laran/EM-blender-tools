@@ -810,19 +810,6 @@ class EM_Tools(PropertyGroup):
         default="excel_to_graphml_mapping"
     )  # type: ignore
 
-    xlsx_wizard_paradata_file: StringProperty(
-        name="Paradata XLSX",
-        description="Path to em_paradata.xlsx (optional enrichment)",
-        subtype='FILE_PATH',
-        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
-    )  # type: ignore
-
-    xlsx_wizard_overwrite_properties: BoolProperty(
-        name="Overwrite Properties",
-        description="If ON: update duplicate properties. If OFF: skip duplicates",
-        default=False
-    )  # type: ignore
-
     xlsx_wizard_output_path: StringProperty(
         name="Output GraphML",
         description="Path where the GraphML file will be saved",
@@ -854,7 +841,7 @@ class EM_Tools(PropertyGroup):
         default=True
     )  # type: ignore
 
-    # StratiMiner prompt toggles (v5.0 — unified em_data.xlsx schema)
+    # StratiMiner prompt toggles (v5.3 — unified em_data.xlsx schema)
     xlsx_wizard_prompt_checklist: BoolProperty(
         name="End-of-session checklist",
         description="Include the end-of-session checklist in the prompt",

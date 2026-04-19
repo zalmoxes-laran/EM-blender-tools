@@ -22,9 +22,6 @@ from .xlsx_wizard import *
 # Import StratiMiner operators (new unified em_data.xlsx flow)
 from .stratiminer import *
 
-# Import enrich GraphML operators (bake EM tables into loaded GraphML)
-from .enrich_graphml import *
-
 from .addon_prefix_helpers import (
     get_active_graph_code,
     get_graph_code_from_graph,
@@ -45,10 +42,8 @@ __all__ = [
     "EMTOOLS_OT_save_em_paradata_template",
     "PARADATA_OT_bake",
     "XLSX_WIZARD_OT_convert_stratigraphy",
-    "XLSX_WIZARD_OT_enrich_paradata",
     "XLSX_WIZARD_OT_export_graphml",
     "XLSX_WIZARD_OT_copy_ai_prompt",
-    "ENRICH_OT_bake_paradata",
     "get_active_graph_code",
     "get_graph_code_from_graph",
     "node_name_to_proxy_name",
@@ -70,7 +65,6 @@ def register():
     from . import bake_paradata
     from . import xlsx_wizard
     from . import stratiminer
-    from . import enrich_graphml
     from . import merge_conflict_ui
 
     # Register each submodule
@@ -81,7 +75,6 @@ def register():
     bake_paradata.register()
     xlsx_wizard.register()
     stratiminer.register()
-    enrich_graphml.register()
     merge_conflict_ui.register()
 
 
@@ -95,12 +88,10 @@ def unregister():
     from . import bake_paradata
     from . import xlsx_wizard
     from . import stratiminer
-    from . import enrich_graphml
     from . import merge_conflict_ui
 
     # Unregister in reverse order
     merge_conflict_ui.unregister()
-    enrich_graphml.unregister()
     stratiminer.unregister()
     xlsx_wizard.unregister()
     bake_paradata.unregister()
