@@ -54,6 +54,14 @@ class STRATIMINER_OT_copy_prompt(bpy.types.Operator):
 
         language = (em_tools.xlsx_wizard_prompt_language or "").strip()
         folder = (em_tools.stratiminer_documents_folder or "").strip()
+        in_place = bool(getattr(em_tools, "stratiminer_dosco_in_place", True))
+        # When NOT in-place, the target folder takes precedence in what we
+        # report to the AI so it knows where the DosCo will end up.
+        if not in_place:
+            target = (em_tools.stratiminer_dosco_target_folder or "").strip()
+            reported_folder = target if target else folder
+        else:
+            reported_folder = folder
 
         try:
             prompt = get_ai_prompt(
@@ -62,7 +70,10 @@ class STRATIMINER_OT_copy_prompt(bpy.types.Operator):
                 include_checklist=em_tools.xlsx_wizard_prompt_checklist,
                 include_stratigraphy_only=getattr(
                     em_tools, "xlsx_wizard_prompt_stratigraphy_only", False),
-                documents_folder=folder if folder else None,
+                documents_folder=reported_folder if reported_folder else None,
+                dosco_in_place=in_place,
+                ai_has_filesystem_access=bool(getattr(
+                    em_tools, "stratiminer_ai_has_filesystem", True)),
             )
         except FileNotFoundError as e:
             self.report({'ERROR'}, str(e))
@@ -150,8 +161,8 @@ class STRATIMINER_OT_import_em_data(bpy.types.Operator):
             try:
                 from s3dgraphy.exporter.graphml.graphml_exporter import (
                     GraphMLExporter)
-                exporter = GraphMLExporter(graph, out_path)
-                exporter.export()
+                exporter = GraphMLExporter(graph)
+                exporter.export(out_path)
                 self.report({'INFO'}, f"GraphML exported: {out_path}")
             except Exception as e:
                 import traceback

@@ -890,6 +890,36 @@ class EM_Tools(PropertyGroup):
         subtype='DIR_PATH',
     )  # type: ignore
 
+    stratiminer_dosco_in_place: BoolProperty(
+        name="Use this folder as DosCo (in-place rename)",
+        description="ON (default): the Documents folder above IS the DosCo. "
+                    "Files may be renamed in place with the D.NN_ prefix; "
+                    "numbering fills gaps. Comparative / parallel sources "
+                    "start at D.1000. OFF: specify a target DosCo folder — "
+                    "files are copied there with the new prefix and the "
+                    "originals are left untouched",
+        default=True,
+    )  # type: ignore
+
+    stratiminer_dosco_target_folder: StringProperty(
+        name="Target DosCo folder",
+        description="Destination folder when 'Use this folder as DosCo' "
+                    "is OFF: files are copied here with D.NN_ prefixes",
+        default="",
+        subtype='DIR_PATH',
+    )  # type: ignore
+
+    stratiminer_ai_has_filesystem: BoolProperty(
+        name="AI can read local files",
+        description="ON (default): the AI model has filesystem access to the "
+                    "Documents folder (e.g. Claude Desktop, API-driven). "
+                    "OFF: the AI runs in a chat UI without filesystem access — "
+                    "the prompt instructs it to ask the user to upload the "
+                    "files directly into the conversation, with a data-"
+                    "sovereignty disclaimer",
+        default=True,
+    )  # type: ignore
+
     # StratiMiner Action A — import em_data.xlsx → graph → optional GraphML
     stratiminer_input_xlsx: StringProperty(
         name="em_data.xlsx",

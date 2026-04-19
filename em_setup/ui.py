@@ -274,9 +274,20 @@ def _draw_stratiminer_panel(layout, context, em_tools):
     # ── Option A: AI-assisted ──
     ai_box = create_box.box()
     ai_box.label(text="Option A — AI-assisted", icon='OUTLINER_OB_LIGHT')
-    ai_box.prop(em_tools, "xlsx_wizard_prompt_language", text="Language")
+    ai_box.prop(em_tools, "xlsx_wizard_prompt_language",
+                text="Output language")
     ai_box.prop(em_tools, "stratiminer_documents_folder",
                 text="Documents folder")
+
+    # DosCo in-place vs copy-to-target
+    ai_box.prop(em_tools, "stratiminer_dosco_in_place")
+    if not em_tools.stratiminer_dosco_in_place:
+        sub = ai_box.column(align=True)
+        sub.prop(em_tools, "stratiminer_dosco_target_folder",
+                 text="Target DosCo folder")
+
+    ai_box.prop(em_tools, "stratiminer_ai_has_filesystem")
+
     toggles = ai_box.column(align=True)
     toggles.prop(em_tools, "xlsx_wizard_prompt_validation")
     toggles.prop(em_tools, "xlsx_wizard_prompt_checklist")
