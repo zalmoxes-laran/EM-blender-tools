@@ -1880,30 +1880,52 @@ def identify_node(name):
 
 def inspect_load_dosco_files_on_graph(graph_instance, dosco_dir):
     """
-    Versione che aggiorna direttamente i nodi del grafo invece delle liste UI
+    Versione che aggiorna direttamente i nodi del grafo invece delle liste UI.
+
+    Hybrid-C Phase 1b: every attribute override (``node.url``) is
+    recorded via ``record_attribute_override`` and frozen with
+    ``freeze_aux_value``, and every enrichment child (LinkNode + its
+    ``has_linked_resource`` edge) is tagged with ``injected_by``. On a
+    subsequent volatile GraphML save the exporter can revert the URL
+    and strip the LinkNodes automatically; on bake they are promoted
+    to graph-native.
     """
     if not dosco_dir or not os.path.exists(dosco_dir):
         print(f"DosCo directory invalid: {dosco_dir}")
         return 0
-    
+
+    # Hybrid-C primitives (optional import: older s3dgraphy builds
+    # without transforms.aux_tracking keep the old behaviour).
+    try:
+        from s3dgraphy.transforms import (
+            record_attribute_override, freeze_aux_value, push_orphan)
+        _AUX_AVAILABLE = True
+        _INJECTOR_ID = f"DosCo:{dosco_dir}"
+    except ImportError:
+        _AUX_AVAILABLE = False
+        _INJECTOR_ID = None
+
     # Get graph code for prefix handling
     graph_code = None
     if hasattr(graph_instance, 'attributes') and 'graph_code' in graph_instance.attributes:
         graph_code = graph_instance.attributes['graph_code']
-    
+
     updated_count = 0
-    
+
     # Trova tutti i nodi documento/extractor/combiner nel grafo
     relevant_nodes = [
-        node for node in graph_instance.nodes 
+        node for node in graph_instance.nodes
         if hasattr(node, 'node_type') and node.node_type in ['document', 'extractor', 'combiner']
     ]
-    
+
     print(f"Found {len(relevant_nodes)} relevant nodes to process")
-    
+
+    # Track which DosCo files ended up matched; leftovers become orphans.
+    matched_files = set()
+
     for node in relevant_nodes:
         node_name = node.name
-        
+
         # CRITICAL FIX: Handle graph code prefix like the original function
         base_name = node_name
         if graph_code and (node_name.startswith(f"{graph_code}.") or node_name.startswith(f"{graph_code}_")):
@@ -1911,30 +1933,66 @@ def inspect_load_dosco_files_on_graph(graph_instance, dosco_dir):
                 base_name = node_name.split(f"{graph_code}.", 1)[1]
             elif f"{graph_code}_" in node_name:
                 base_name = node_name.split(f"{graph_code}_", 1)[1]
-        
+
         # Try finding the file with the prefixed name first
         file_path = find_file_in_dosco(dosco_dir, node_name)
-        
+
         # If not found and we have a different base name (prefix removed), try that
         if not file_path and base_name != node_name:
             file_path = find_file_in_dosco(dosco_dir, base_name)
-        
+
         if file_path:
             rel_path = os.path.relpath(file_path, dosco_dir)
+            matched_files.add(os.path.abspath(file_path))
+
+            # Hybrid-C: record the pre-aux url so volatile save can revert it.
+            if _AUX_AVAILABLE:
+                record_attribute_override(
+                    node, "url",
+                    injector_id=_INJECTOR_ID,
+                    original_value=getattr(node, "url", None))
             node.url = rel_path
-            
-            # ✅ AGGIUNTA: Crea il nodo link corrispondente
+            if _AUX_AVAILABLE:
+                freeze_aux_value(node, "url")
+
+            # Crea il nodo link corrispondente (tagged as injected inside
+            # update_or_create_link_node when an injector id is provided).
             try:
-                update_or_create_link_node(graph_instance, node, rel_path)
+                update_or_create_link_node(
+                    graph_instance, node, rel_path,
+                    injector_id=_INJECTOR_ID if _AUX_AVAILABLE else None)
                 print(f"Created/updated link node for {node.name}")
             except Exception as e:
                 print(f"Warning: Could not create link node for {node.name}: {e}")
-            
+
             updated_count += 1
             print(f"Updated URL for {node.name}: {rel_path}")
         else:
             print(f"No file found for {node.name} (also tried {base_name})")
-    
+
+    # Orphan files: anything physically in dosco_dir that was not matched
+    # to a host node. They do NOT grow the graph (per the Hybrid-C corrected
+    # mental model); they land in graph.attributes['aux_orphans'] so the
+    # UI can surface them for manual "create host node" actions.
+    if _AUX_AVAILABLE:
+        try:
+            for root, _dirs, files in os.walk(dosco_dir):
+                for fname in files:
+                    full = os.path.abspath(os.path.join(root, fname))
+                    if full in matched_files:
+                        continue
+                    if fname.startswith("."):
+                        continue  # skip .DS_Store etc.
+                    rel = os.path.relpath(full, dosco_dir)
+                    push_orphan(
+                        graph_instance,
+                        injector_id=_INJECTOR_ID,
+                        key_id=os.path.splitext(fname)[0],
+                        payload={"filename": fname, "rel_path": rel},
+                    )
+        except Exception as e:
+            print(f"Warning: orphan file scan failed: {e}")
+
     print(f"Updated {updated_count} node URLs in graph")
     return updated_count
 
@@ -1972,7 +2030,12 @@ def inspect_load_dosco_files():
     # Get graph instance for creating link nodes
     from s3dgraphy.s3dgmanager import get_graph
     graph_instance = get_graph(graphml.name)
-    
+
+    # Hybrid-C injector id for this DosCo registration — used to tag
+    # LinkNodes / has_linked_resource edges created below so a volatile
+    # GraphML save can strip them cleanly.
+    _dosco_injector_id = f"DosCo:{dosco_dir}"
+
     # Track updated nodes for reporting
     updated_count = 0
     skipped_web_urls = 0
@@ -2025,7 +2088,9 @@ def inspect_load_dosco_files():
                     
                     if graph_node:
                         try:
-                            update_or_create_link_node(graph_instance, graph_node, rel_path)
+                            update_or_create_link_node(
+                                graph_instance, graph_node, rel_path,
+                                injector_id=_dosco_injector_id)
                             print(f"Created/updated link node for {node.name}")
                         except Exception as e:
                             print(f"Warning: Could not create link node for {node.name}: {e}")
@@ -2095,19 +2160,24 @@ def find_file_in_dosco(dosco_dir, node_name):
     # No matches found
     return None
 
-def update_or_create_link_node(graph, source_node, url, preserve_existing=True):
+def update_or_create_link_node(graph, source_node, url, preserve_existing=True,
+                               injector_id=None):
     """
     Aggiorna un nodo link esistente o ne crea uno nuovo.
-    
+
     Args:
         graph: Il grafo s3dgraphy
         source_node: Il nodo sorgente (documento, estrattore o combiner)
         url: L'URL o percorso da assegnare
         preserve_existing: Se True, preserva i link esistenti con URL web
+        injector_id: Hybrid-C injector id (e.g. "DosCo:/path"). When
+            provided, the newly-created LinkNode and its
+            ``has_linked_resource`` edge are tagged as injected so a
+            volatile GraphML save can strip them cleanly.
     """
     link_node_id = f"{source_node.node_id}_link"
     existing_link = graph.find_node_by_id(link_node_id)
-    
+
     if existing_link:
         if preserve_existing and is_valid_url(existing_link.data.get("url", "")):
             return
@@ -2115,7 +2185,7 @@ def update_or_create_link_node(graph, source_node, url, preserve_existing=True):
         existing_link.url = url
     else:
         # Crea un nuovo nodo link
-        
+
         link_node = LinkNode(
             node_id=link_node_id,
             name=f"Link to {source_node.name}",
@@ -2123,9 +2193,10 @@ def update_or_create_link_node(graph, source_node, url, preserve_existing=True):
             url=url
         )
         graph.add_node(link_node)
-        
+
         # Crea l'edge
         edge_id = f"{source_node.node_id}_has_linked_resource_{link_node_id}"
+        edge_created = False
         if not graph.find_edge_by_id(edge_id):
             graph.add_edge(
                 edge_id=edge_id,
@@ -2133,6 +2204,21 @@ def update_or_create_link_node(graph, source_node, url, preserve_existing=True):
                 edge_target=link_node.node_id,
                 edge_type="has_linked_resource"
             )
+            edge_created = True
+
+        # Hybrid-C: tag enrichment child + edge as injected so the
+        # volatile save can strip them without touching the host.
+        if injector_id:
+            try:
+                from s3dgraphy.transforms import mark_as_injected
+                mark_as_injected(link_node, injector_id)
+                if edge_created:
+                    for e in graph.edges:
+                        if e.edge_id == edge_id:
+                            mark_as_injected(e, injector_id)
+                            break
+            except ImportError:
+                pass  # aux_tracking unavailable on this s3dgraphy build
 
 
 def update_visibility_icons(context, list_type="em_list"):
