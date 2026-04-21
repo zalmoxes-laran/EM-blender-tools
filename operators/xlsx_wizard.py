@@ -185,6 +185,12 @@ class XLSX_WIZARD_OT_export_graphml(bpy.types.Operator):
             return {'CANCELLED'}
 
         # ── 3. Export ──
+        # Write-lock pre-flight — abort if the target .graphml is
+        # held by another process.
+        from ..graphml_lock import abort_if_graphml_locked
+        if not abort_if_graphml_locked(self, output_path):
+            return {'CANCELLED'}
+
         try:
             exporter = GraphMLExporter(graph)
             exporter.export(output_path)

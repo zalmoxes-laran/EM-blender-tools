@@ -705,6 +705,10 @@ class EM_OT_apply_merge(bpy.types.Operator):
 
         # Save to GraphML using the patcher
         filepath = normalize_path(graphml_file.graphml_path)
+        # Write-lock pre-flight — the merge overwrites the target .graphml.
+        from ..graphml_lock import abort_if_graphml_locked
+        if not abort_if_graphml_locked(self, filepath):
+            return {'CANCELLED'}
         try:
             patcher = GraphMLPatcher(filepath, existing_graph)
             nodes_updated, nodes_added, edges_added, problems = patcher.patch()

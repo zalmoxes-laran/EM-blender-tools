@@ -116,6 +116,12 @@ class PARADATA_OT_bake(bpy.types.Operator, ImportHelper):
         # Step 3: Re-export GraphML (overwrites original)
         self.report({'INFO'}, f"Re-exporting GraphML: {os.path.basename(graphml_path)}")
 
+        # Write-lock pre-flight — overwriting an existing .graphml that
+        # is held by yEd would silently fail or corrupt the file.
+        from ..graphml_lock import abort_if_graphml_locked
+        if not abort_if_graphml_locked(self, graphml_path):
+            return {'CANCELLED'}
+
         try:
             from s3dgraphy.exporter.graphml import GraphMLExporter
             exporter = GraphMLExporter(graph)

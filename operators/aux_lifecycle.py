@@ -785,6 +785,10 @@ class AUX_OT_bake_to_graphml(bpy.types.Operator):
         if not graphml_path:
             self.report({'ERROR'}, "Active GraphML has no path")
             return {'CANCELLED'}
+        # Write-lock pre-flight — Bake overwrites the .graphml on disk.
+        from ..graphml_lock import abort_if_graphml_locked
+        if not abort_if_graphml_locked(self, graphml_path):
+            return {'CANCELLED'}
         try:
             from s3dgraphy.exporter.graphml import GraphMLExporter
         except ImportError as e:

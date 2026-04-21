@@ -73,10 +73,16 @@ class EM_export_GraphML(bpy.types.Operator):
     def execute(self, context):
         from ..functions import normalize_path
         from ..graph_updaters import update_graph_with_scene_data
+        from ..graphml_lock import abort_if_graphml_locked
 
         em_tools = context.scene.em_tools
         graphml_file = em_tools.graphml_files[em_tools.active_file_index]
         filepath = normalize_path(graphml_file.graphml_path)
+
+        # Write-lock pre-flight: fail fast with a clear message if the
+        # file is held by yEd or otherwise unwritable.
+        if not abort_if_graphml_locked(self, filepath):
+            return {'CANCELLED'}
 
         # Get the in-memory graph
         graph = get_graph(graphml_file.name)
@@ -155,10 +161,19 @@ class EM_export_GraphML_SaveAs(bpy.types.Operator, ExportHelper):
     def execute(self, context):
         from ..functions import normalize_path
         from ..graph_updaters import update_graph_with_scene_data
+        from ..graphml_lock import abort_if_graphml_locked
 
         em_tools = context.scene.em_tools
         graphml_file = em_tools.graphml_files[em_tools.active_file_index]
         source_filepath = normalize_path(graphml_file.graphml_path)
+
+        # The Save-As flow reads from source_filepath and writes to
+        # self.filepath. Both need to be writable: source because the
+        # patcher may touch it in place, target because we emit there.
+        if not abort_if_graphml_locked(self, source_filepath):
+            return {'CANCELLED'}
+        if not abort_if_graphml_locked(self, self.filepath):
+            return {'CANCELLED'}
 
         graph = get_graph(graphml_file.name)
         if graph is None:

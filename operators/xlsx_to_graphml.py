@@ -151,6 +151,12 @@ class XLSX_OT_to_graphml(bpy.types.Operator, ImportHelper):
         # Step 3: Export Graph → GraphML
         self.report({'INFO'}, f"Exporting to GraphML: {output_filename}")
 
+        # Write-lock pre-flight — fail fast if the target .graphml is
+        # held by another process (yEd typically on Windows).
+        from ..graphml_lock import abort_if_graphml_locked
+        if not abort_if_graphml_locked(self, output_path):
+            return {'CANCELLED'}
+
         try:
             exporter = GraphMLExporter(graph)
             exporter.export(output_path)

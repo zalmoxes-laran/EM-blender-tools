@@ -166,6 +166,11 @@ class STRATIMINER_OT_import_em_data(bpy.types.Operator):
             if not out_path.lower().endswith('.graphml'):
                 out_path = out_path.rstrip('.') + '.graphml'
                 em_tools.stratiminer_output_graphml = out_path
+            # Write-lock pre-flight — abort before rebuilding the graph
+            # structure if the target .graphml is held by another process.
+            from ..graphml_lock import abort_if_graphml_locked
+            if not abort_if_graphml_locked(self, out_path):
+                return {'CANCELLED'}
             try:
                 from s3dgraphy.exporter.graphml.graphml_exporter import (
                     GraphMLExporter)
