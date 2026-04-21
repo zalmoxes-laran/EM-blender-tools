@@ -69,6 +69,31 @@ class SurfaceArealeSettings(PropertyGroup):
         description="Optional: existing US to connect stratigraphically"
     )
 
+    add_stratigraphic_link: BoolProperty(
+        name="Add Stratigraphic Link",
+        description=(
+            "Optionally create a stratigraphic relation edge between "
+            "the new US and another existing US. Leave unchecked if "
+            "you don't want to declare a relation now."
+        ),
+        default=False
+    )
+
+    link_relation_type: EnumProperty(
+        name="Relation",
+        description=(
+            "Direction of the stratigraphic relation between the new "
+            "US (source) and the linked US (target)"
+        ),
+        items=[
+            ('is_after', 'is_after',
+             "The new US lies above / is more recent than the linked US"),
+            ('is_before', 'is_before',
+             "The new US lies below / is older than the linked US"),
+        ],
+        default='is_after'
+    )
+
     # ── Document ───────────────────────────────────────────────────────
     linked_document: StringProperty(
         name="Document",

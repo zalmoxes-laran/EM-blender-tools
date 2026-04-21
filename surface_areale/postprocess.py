@@ -419,8 +419,15 @@ def link_areale_to_graph(context, areale_obj, rm_obj, settings):
         messages.append(f"Created US: {us_node.name}")
         if settings.new_us_epoch:
             _link_us_to_epoch(graph, us_node, settings.new_us_epoch)
-        if settings.link_to_existing_us:
-            _link_us_stratigraphically(graph, us_node, settings.link_to_existing_us)
+        # Optional stratigraphic link. The UI toggle
+        # `add_stratigraphic_link` gates the edge; the direction
+        # (`is_after` / `is_before`) comes from the dropdown.
+        if (getattr(settings, 'add_stratigraphic_link', False)
+                and settings.link_to_existing_us):
+            _link_us_stratigraphically(
+                graph, us_node, settings.link_to_existing_us,
+                relation_type=getattr(
+                    settings, 'link_relation_type', 'is_after'))
     elif settings.linked_us_name:
         us_node = _find_node_by_name(graph, settings.linked_us_name)
 
@@ -574,11 +581,20 @@ def _link_us_to_epoch(graph, us_node, epoch_name):
     return False
 
 
-def _link_us_stratigraphically(graph, us_node, target_us_name):
-    """Create is_after relationship between two US nodes."""
+def _link_us_stratigraphically(graph, us_node, target_us_name,
+                                relation_type="is_after"):
+    """Create a stratigraphic relation edge between two US nodes.
+
+    ``relation_type`` is the canonical edge type — one of ``is_after``
+    (source lies above / is more recent) or ``is_before`` (source lies
+    below / is older). The caller selects the direction via the UI
+    dropdown; we don't silently force ``is_after`` anymore.
+    """
+    if relation_type not in ("is_after", "is_before"):
+        relation_type = "is_after"
     for node in graph.nodes:
         if hasattr(node, 'name') and node.name == target_us_name:
-            _ensure_edge(graph, us_node.node_id, node.node_id, "is_after")
+            _ensure_edge(graph, us_node.node_id, node.node_id, relation_type)
             return True
     return False
 
@@ -595,7 +611,7 @@ def _create_document_node(graph, settings):
     doc_node = DocumentNode(
         node_id=str(uuid.uuid4()),
         name=settings.new_doc_name,
-        description=f"Document created by Surface Areale tool"
+        description=f"Document created by Surface Areas tool"
     )
     if settings.new_doc_date:
         doc_node.attributes['date'] = settings.new_doc_date

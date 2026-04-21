@@ -53,7 +53,7 @@ class VIEW3D_PT_RMToProxy(Panel):
         # Red experimental header row (same pattern as Proxy Inflate Manager)
         header = layout.row()
         header.alert = True
-        header.label(text="Surface Areale / RM2Proxy is experimental — EM 1.6 preview",
+        header.label(text="Surface Areas / RM2Proxy is experimental — EM 1.6 preview",
                      icon='EXPERIMENTAL')
 
         if em_tools.active_file_index < 0:
@@ -61,8 +61,8 @@ class VIEW3D_PT_RMToProxy(Panel):
 
 
 class VIEW3D_PT_SurfaceAreale(Panel):
-    """Surface Areale creation panel with requirement checklist (experimental)."""
-    bl_label = "Surface Areale (Experimental)"
+    """Surface Areas creation panel with requirement checklist (experimental)."""
+    bl_label = "Surface Areas (Experimental)"
     bl_idname = "VIEW3D_PT_SurfaceAreale"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -165,17 +165,22 @@ class VIEW3D_PT_SurfaceAreale(Panel):
 
         row = box.row()
         req_num = "5" if experimental else "2"
-        box.prop(settings, "us_type", text="Type")
 
-        if settings.us_type == 'GENERIC':
-            has_us = True
-            row.label(text=f"{req_num}. Stratigraphic Unit",
-                      icon='CHECKMARK')
-        else:
-            # "Create New US" only in experimental mode
-            if experimental:
-                box.prop(settings, "create_new_us", text="Create New US")
-                if settings.create_new_us:
+        # When the user picks an existing US there is nothing to
+        # classify — the US already has its type. The ``us_type`` picker
+        # is only meaningful when the operator will create a new US, so
+        # it's shown only inside the Create-New branch below.
+
+        if experimental:
+            box.prop(settings, "create_new_us", text="Create New US")
+            if settings.create_new_us:
+                # Type picker is relevant only for NEW US creation.
+                box.prop(settings, "us_type", text="Type")
+                if settings.us_type == 'GENERIC':
+                    has_us = True
+                    row.label(text=f"{req_num}. Stratigraphic Unit",
+                              icon='CHECKMARK')
+                else:
                     r = box.row(align=True)
                     r.prop(settings, "new_us_name", text="Name")
                     r.operator("emtools.suggest_next_us", text="", icon='ADD')
@@ -184,28 +189,45 @@ class VIEW3D_PT_SurfaceAreale(Panel):
                     if hasattr(em_tools, 'epochs') and em_tools.epochs.list:
                         box.prop_search(settings, "new_us_epoch",
                                         em_tools.epochs, "list", text="Epoch")
-                    if hasattr(em_tools, 'stratigraphy') and em_tools.stratigraphy.units:
-                        box.prop_search(settings, "link_to_existing_us",
-                                        em_tools.stratigraphy, "units", text="Link to")
-                else:
-                    if hasattr(em_tools, 'stratigraphy') and em_tools.stratigraphy.units:
-                        box.prop_search(settings, "linked_us_name",
-                                        em_tools.stratigraphy, "units", text="Existing US")
-                    else:
-                        box.prop(settings, "linked_us_name", text="US Name")
-                    has_us = bool(settings.linked_us_name)
+
+                    # Optional stratigraphic link to an existing US.
+                    # When the toggle is on, the user picks direction
+                    # (is_after / is_before) and the target US.
+                    link_box = box.box()
+                    link_box.prop(settings, "add_stratigraphic_link",
+                                  text="Add stratigraphic link (optional)")
+                    if settings.add_stratigraphic_link:
+                        link_box.prop(settings, "link_relation_type",
+                                      text="Relation")
+                        if hasattr(em_tools, 'stratigraphy') \
+                                and em_tools.stratigraphy.units:
+                            link_box.prop_search(
+                                settings, "link_to_existing_us",
+                                em_tools.stratigraphy, "units",
+                                text="Target US")
+                        else:
+                            link_box.prop(settings, "link_to_existing_us",
+                                          text="Target US")
             else:
-                # 1.5 mode: only existing US selection
+                # Linking to an existing US — no Type picker.
                 if hasattr(em_tools, 'stratigraphy') and em_tools.stratigraphy.units:
                     box.prop_search(settings, "linked_us_name",
                                     em_tools.stratigraphy, "units", text="Existing US")
                 else:
                     box.prop(settings, "linked_us_name", text="US Name")
                 has_us = bool(settings.linked_us_name)
+        else:
+            # 1.5 baseline — always link to an existing US; no Type picker.
+            if hasattr(em_tools, 'stratigraphy') and em_tools.stratigraphy.units:
+                box.prop_search(settings, "linked_us_name",
+                                em_tools.stratigraphy, "units", text="Existing US")
+            else:
+                box.prop(settings, "linked_us_name", text="US Name")
+            has_us = bool(settings.linked_us_name)
 
-            # Update icon retroactively
-            row.label(text=f"{req_num}. Stratigraphic Unit",
-                      icon='CHECKMARK' if has_us else 'X')
+        # Update icon retroactively
+        row.label(text=f"{req_num}. Stratigraphic Unit",
+                  icon='CHECKMARK' if has_us else 'X')
 
         if not has_us:
             all_ok = False
@@ -247,7 +269,7 @@ class VIEW3D_PT_SurfaceAreale(Panel):
 
 
 class VIEW3D_PT_SurfaceAreale_Settings(Panel):
-    """Advanced settings for Surface Areale"""
+    """Advanced settings for Surface Areas"""
     bl_label = "Settings"
     bl_idname = "VIEW3D_PT_SurfaceAreale_Settings"
     bl_space_type = 'VIEW_3D'

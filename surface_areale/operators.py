@@ -46,7 +46,7 @@ def _set_gp_material_color(mat, color):
 class EMTOOLS_OT_draw_surface_areale(Operator):
     """Draw a surface areale on a Representation Model"""
     bl_idname = "emtools.draw_surface_areale"
-    bl_label = "Draw Surface Areale"
+    bl_label = "Draw Surface Area"
     bl_description = "Enter drawing mode to create a surface areale proxy on the selected RM"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -111,7 +111,7 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
 
         # Header info
         context.area.header_text_set(
-            "Surface Areale: Draw CONTOUR strokes (multiple for annular shapes). "
+            "Surface Area: Draw CONTOUR strokes (multiple for annular shapes). "
             "[B] Switch to Whisker | [Enter] Confirm | [Esc] Cancel"
         )
 
@@ -124,7 +124,7 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
             if settings.drawing_phase == 'CONTOUR':
                 settings.drawing_phase = 'WHISKER'
                 context.area.header_text_set(
-                    "Surface Areale: Draw WHISKER (short stroke inside the area). "
+                    "Surface Area: Draw WHISKER (short stroke inside the area). "
                     "[Enter] Confirm | [Esc] Cancel"
                 )
                 return {'RUNNING_MODAL'}
@@ -489,7 +489,7 @@ class EMTOOLS_OT_calibrate_benchmark(Operator):
 class EMTOOLS_OT_confirm_areale(Operator):
     """Confirm and process the drawn surface areale"""
     bl_idname = "emtools.confirm_areale"
-    bl_label = "Confirm Areale"
+    bl_label = "Confirm Area"
     bl_description = "Process the drawn contour and create the surface areale mesh"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -504,34 +504,45 @@ class EMTOOLS_OT_confirm_areale(Operator):
 
 
 def _get_next_numbered_name(graph, prefix, node_type_filter=None):
-    """
-    Find the next available numbered name in the graph.
-    Scans nodes for names like '{prefix}.1', '{prefix}.2', etc.
-    and returns the next free number.
+    """Find the next available numbered name in the graph for ``prefix``.
 
-    Args:
-        graph: s3dgraphy graph
-        prefix: Name prefix (e.g. 'D', 'US', 'UL')
-        node_type_filter: Optional node_type to filter by
+    Extracts the numeric suffix from every matching node, accepting
+    both dot-separated (``USM.400``) and concatenated (``USM400``)
+    styles so graphs that mix conventions are handled uniformly.
+    Returns the **smallest free number**: the first gap in the
+    sequence when there is one (e.g. 350 when 1..349 and 351..400
+    exist), or ``max + 1`` when the sequence is contiguous.
 
-    Returns:
-        String like '{prefix}.{next_number}'
+    The generated name reuses whichever separator is dominant in the
+    existing names. Absent prior nodes, the canonical dot-separated
+    form is used.
     """
-    max_num = 0
+    import re
+    pat = re.compile(rf'^{re.escape(prefix)}(\.)?(\d+)$')
+    used = set()
+    sep_votes = {".": 0, "": 0}
     for node in graph.nodes:
         if not hasattr(node, 'name') or not isinstance(node.name, str):
             continue
         if node_type_filter and hasattr(node, 'node_type'):
             if node.node_type != node_type_filter:
                 continue
-        name = node.name
-        if name.startswith(f'{prefix}.'):
-            try:
-                num = int(name.split('.', 1)[1])
-                max_num = max(max_num, num)
-            except (ValueError, IndexError):
-                continue
-    return f"{prefix}.{max_num + 1}"
+        m = pat.match(node.name)
+        if m:
+            used.add(int(m.group(2)))
+            sep_votes[m.group(1) or ""] += 1
+    sep = "." if sep_votes["."] >= sep_votes[""] else ""
+    if not used:
+        return f"{prefix}.1"
+    # Search for gaps only *within* the existing range: if the user's
+    # numbering starts at 398 (USM398..USM400), the next number is
+    # USM401 — not USM1. Gaps *inside* the range (e.g. 350 missing
+    # between 1 and 400) are preferred over appending past the max.
+    lo, hi = min(used), max(used)
+    for n in range(lo, hi + 1):
+        if n not in used:
+            return f"{prefix}{sep}{n}"
+    return f"{prefix}{sep}{hi + 1}"
 
 
 class EMTOOLS_OT_suggest_next_doc(Operator):
