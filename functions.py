@@ -1974,7 +1974,36 @@ def inspect_load_dosco_files_on_graph(graph_instance, dosco_dir):
     # to a host node. They do NOT grow the graph (per the Hybrid-C corrected
     # mental model); they land in graph.attributes['aux_orphans'] so the
     # UI can surface them for manual "create host node" actions.
+    #
+    # Filter rules (EM convention):
+    # - Skip files whose parsed id equals a Document/Extractor/Combiner
+    #   node name already in the graph (it's a matching-failure, not a
+    #   real orphan — the node exists, we just didn't wire a URL to it).
+    # - Skip files that look like extractor (``D.XX.YY``) or combiner
+    #   (``C.XX``) outputs: those belong to the paradata chain under a
+    #   parent Document and should never create an orphan-document entry.
+    #   They still surface as a warning so the user can investigate.
     if _AUX_AVAILABLE:
+        import re as _re
+        _ID_PREFIX = _re.compile(r'^(D\.\d+(?:\.\d+)?|C\.\d+)')
+
+        # Snapshot existing paradata-chain node names to short-circuit
+        # the orphan test — with and without the graph_code prefix,
+        # since files on disk are typically unprefixed.
+        _existing_ids = set()
+        for _n in graph_instance.nodes:
+            _nt = getattr(_n, 'node_type', None)
+            if _nt in ('document', 'extractor', 'combiner'):
+                _nm = getattr(_n, 'name', '') or ''
+                _existing_ids.add(_nm)
+                if graph_code:
+                    # Also index the de-prefixed form, so a node stored
+                    # as "GT26.D.11" matches a file "D.11.pdf".
+                    for _sep in (f"{graph_code}.", f"{graph_code}_"):
+                        if _nm.startswith(_sep):
+                            _existing_ids.add(_nm.split(_sep, 1)[1])
+                            break
+
         try:
             for root, _dirs, files in os.walk(dosco_dir):
                 for fname in files:
@@ -1983,11 +2012,37 @@ def inspect_load_dosco_files_on_graph(graph_instance, dosco_dir):
                         continue
                     if fname.startswith("."):
                         continue  # skip .DS_Store etc.
+
+                    stem = os.path.splitext(fname)[0].strip()
+                    _m = _ID_PREFIX.match(stem)
+                    short_id = _m.group(1) if _m else stem
+
+                    # Case A: node with this id exists — matching
+                    # failed elsewhere, but the node itself is fine.
+                    if short_id in _existing_ids:
+                        continue
+                    if graph_code and f"{graph_code}.{short_id}" in _existing_ids:
+                        continue
+
+                    # Case B: id looks like an extractor / combiner
+                    # entry — should never be surfaced as an orphan
+                    # document. Warn instead and move on.
+                    is_ext = short_id.startswith("D.") and short_id.count(".") == 2
+                    is_comb = short_id.startswith("C.")
+                    if is_ext or is_comb:
+                        kind = "extractor" if is_ext else "combiner"
+                        graph_instance.warnings.append(
+                            f"DosCo: file '{fname}' has {kind}-like id "
+                            f"'{short_id}' but no matching node is in the "
+                            f"graph — ignored (not surfaced as orphan)."
+                        )
+                        continue
+
                     rel = os.path.relpath(full, dosco_dir)
                     push_orphan(
                         graph_instance,
                         injector_id=_INJECTOR_ID,
-                        key_id=os.path.splitext(fname)[0],
+                        key_id=short_id,
                         payload={"filename": fname, "rel_path": rel},
                     )
         except Exception as e:

@@ -297,6 +297,16 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         default=False
     )  # type: ignore
 
+    show_aux_orphans: BoolProperty(
+        name="Show Orphan Rows",
+        description=(
+            "Expand to list orphan entries from this auxiliary (rows "
+            "whose key id could not be matched to any host node in the "
+            "active graph)."
+        ),
+        default=False,
+    )  # type: ignore
+
     # Resource Collection specific properties
     target_node_types: EnumProperty(
         name="Target Node Types",

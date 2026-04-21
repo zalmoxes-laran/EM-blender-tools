@@ -194,14 +194,21 @@ def populate_document_node(scene, node, index, graph=None):
         em_item.icon_url = "CHECKBOX_HLT" if node.url else "CHECKBOX_DEHLT"
         em_item.description = node.description
 
-        # Master document attributes (from import Phase 1-2)
+        # Master document attributes. Prefer the EM 1.5.4+ fields
+        # (attributes['em_master_document'] and data['role']) and fall
+        # back to legacy keys so older graphs still populate correctly.
         if hasattr(node, 'attributes'):
-            em_item.is_master = node.attributes.get('is_master', False)
+            em_item.is_master = bool(
+                node.attributes.get('is_master', False)
+                or node.attributes.get('em_master_document', False))
             em_item.certainty_class = node.attributes.get('certainty_class', '')
             em_item.border_color = node.attributes.get('border_color', '#000000')
         if hasattr(node, 'data'):
             em_item.absolute_time_start = node.data.get('absolute_time_start', '')
-            em_item.source_type = node.data.get('source_type', '')
+            em_item.source_type = (
+                node.data.get('source_type')
+                or node.data.get('role')
+                or '')
 
         index += 1
 

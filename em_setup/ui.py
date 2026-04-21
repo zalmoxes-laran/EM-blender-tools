@@ -793,6 +793,29 @@ class EM_SetupPanel(bpy.types.Panel):
                 row.operator('export.graphml_saveas', text="Save As...", icon="FILE_NEW")
                 row.operator('em.merge_xlsx_start', text="Merge XLSX...", icon="AUTOMERGE_ON")
 
+                # Hybrid-C Phase 4: Bake auxiliary → GraphML. Shown only
+                # when the active graph carries any injected content
+                # (nodes/edges tagged ``injected_by``, attribute
+                # overrides, or orphan entries). One-way op: the
+                # enrichment layer becomes graph-native in the file.
+                try:
+                    from ..operators.aux_lifecycle import has_injected_content
+                    from s3dgraphy import get_graph as _sg_get_graph
+                    _bake_available = False
+                    if em_tools.active_file_index >= 0 and em_tools.graphml_files:
+                        _gf = em_tools.graphml_files[em_tools.active_file_index]
+                        _g = _sg_get_graph(_gf.name)
+                        _bake_available = has_injected_content(_g)
+                except ImportError:
+                    _bake_available = False
+                if _bake_available:
+                    bake_row = layout.row(align=True)
+                    bake_row.alert = True
+                    bake_row.operator(
+                        'em.aux_bake_to_graphml',
+                        text="Bake Auxiliaries → GraphML",
+                        icon='FILE_TICK')
+
             # Multigraph Mode - inline with graph management
             loaded_graphs = []
             if em_tools.graphml_files:
@@ -1168,6 +1191,61 @@ class EM_SetupPanel(bpy.types.Panel):
                                 if not aux_file.custom_thumbs_path:
                                     info_row = path_col.row()
                                     info_row.label(text="Path will be auto-generated on first use", icon='INFO')
+
+                        # ── Hybrid-C lifecycle: attached count, orphan
+                        # list, revert-this-aux (Phase 2). Only shown
+                        # when there is live injector data on the graph
+                        # for this auxiliary file. ──
+                        try:
+                            from ..operators.aux_lifecycle import (
+                                compute_injector_id_for_aux,
+                                count_attached,
+                                iter_orphans_for,
+                            )
+                            from s3dgraphy import get_graph as _sg_get_graph
+                        except ImportError:
+                            compute_injector_id_for_aux = None
+
+                        if compute_injector_id_for_aux:
+                            injector_id = compute_injector_id_for_aux(aux_file)
+                            _graph = _sg_get_graph(active_file.name) if injector_id else None
+                            attached = count_attached(_graph, injector_id) if injector_id else 0
+                            orphan_entries = list(iter_orphans_for(_graph, injector_id)) \
+                                if injector_id else []
+                            if injector_id and (attached or orphan_entries):
+                                life_box = box.box()
+                                header_row = life_box.row(align=True)
+                                header_row.label(
+                                    text=(f"Lifecycle — "
+                                          f"{attached} attached"
+                                          f"{', ' + str(len(orphan_entries)) + ' orphans' if orphan_entries else ''}"),
+                                    icon='FILE_REFRESH')
+                                revert_op = header_row.operator(
+                                    "em.aux_revert_injector",
+                                    text="", icon='LOOP_BACK')
+                                revert_op.injector_id = injector_id
+
+                                if orphan_entries:
+                                    orph_row = life_box.row(align=True)
+                                    orph_icon = ('TRIA_DOWN'
+                                                 if aux_file.show_aux_orphans
+                                                 else 'TRIA_RIGHT')
+                                    orph_row.prop(
+                                        aux_file, "show_aux_orphans",
+                                        text=f"Orphan rows ({len(orphan_entries)})",
+                                        icon=orph_icon, emboss=False)
+                                    if aux_file.show_aux_orphans:
+                                        for entry in orphan_entries:
+                                            kid = str(entry.get("key_id", "?"))
+                                            entry_row = life_box.row(align=True)
+                                            entry_row.label(
+                                                text=kid, icon='ERROR')
+                                            create_op = entry_row.operator(
+                                                "em.aux_create_host_for_orphan",
+                                                text="Create host",
+                                                icon='ADD')
+                                            create_op.injector_id = injector_id
+                                            create_op.key_id = kid
 
             # Advanced Tools section
             box = layout.box()

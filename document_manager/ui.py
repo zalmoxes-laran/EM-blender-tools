@@ -27,6 +27,18 @@ CERTAINTY_ICONS = {
     "unknown": "COLLECTION_COLOR_08",         # gray
 }
 
+# Master-Document variant → UIList icon. Colors match the border colors
+# declared in s3dgraphy/JSON_config/em_visual_rules.json (photogrammetric
+# red, observable orange, asserted yellow, textual grey, comparative
+# green). Unclassified masters keep the legacy KEYTYPE_KEYFRAME_VEC icon.
+MASTERDOC_VARIANT_ICONS = {
+    "analytical.photogrammetric": "COLLECTION_COLOR_01",  # red
+    "analytical.observable":      "COLLECTION_COLOR_02",  # orange
+    "analytical.asserted":        "COLLECTION_COLOR_03",  # yellow
+    "analytical.textual":         "COLLECTION_COLOR_08",  # grey
+    "comparative":                "COLLECTION_COLOR_04",  # green
+}
+
 CERTAINTY_LABELS = {
     "direct": "Direct positioning",
     "reconstructed": "Reconstructed positioning",
@@ -162,11 +174,22 @@ def _build_doc_cache(context):
     cache = {}
     for doc_id in doc_ids:
         us_list = list(doc_to_us.get(doc_id, []))
+        # Look up the DocumentNode to extract its Master-Document
+        # classification (EM 1.5.4+). The variant key drives the
+        # coloured icon shown in the UIList.
+        variant_key = None
+        doc_node = graph.find_node_by_id(doc_id)
+        if doc_node is not None and hasattr(doc_node, 'variant_style_key'):
+            try:
+                variant_key = doc_node.variant_style_key()
+            except Exception:
+                variant_key = None
         cache[doc_id] = {
             'ref_count': ref_counts.get(doc_id, 0),
             'us_nodes': us_list,
             'has_rmdoc': doc_id in rmdoc_by_doc_id,
             'rmdoc_obj': rmdoc_by_doc_id.get(doc_id, ""),
+            'variant_key': variant_key,
         }
 
     _doc_cache = cache
@@ -197,9 +220,16 @@ class DOCMANAGER_UL_documents(UIList):
 
         row = layout.row(align=True)
 
-        # 1. Master/instance icon
+        # 1. Master/instance icon — masters get a variant-coloured dot
+        # (red / orange / yellow / grey / green) driven by the
+        # DocumentNode's role × spatial_confidence classification.
         if item.is_master:
-            row.label(text="", icon="KEYTYPE_KEYFRAME_VEC")
+            variant_key = doc_info.get('variant_key')
+            row.label(
+                text="",
+                icon=MASTERDOC_VARIANT_ICONS.get(
+                    variant_key, "KEYTYPE_KEYFRAME_VEC"),
+            )
         else:
             row.label(text="", icon="DOT")
 

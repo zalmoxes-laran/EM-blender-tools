@@ -22,6 +22,9 @@ from .xlsx_wizard import *
 # Import StratiMiner operators (new unified em_data.xlsx flow)
 from .stratiminer import *
 
+# Import Hybrid-C auxiliary-lifecycle operators (orphan list + bake)
+from .aux_lifecycle import *
+
 from .addon_prefix_helpers import (
     get_active_graph_code,
     get_graph_code_from_graph,
@@ -43,6 +46,9 @@ __all__ = [
     "PARADATA_OT_bake",
     "XLSX_WIZARD_OT_convert_stratigraphy",
     "XLSX_WIZARD_OT_export_graphml",
+    "AUX_OT_create_host_for_orphan",
+    "AUX_OT_revert_injector",
+    "AUX_OT_bake_to_graphml",
     "XLSX_WIZARD_OT_copy_ai_prompt",
     "get_active_graph_code",
     "get_graph_code_from_graph",
@@ -65,6 +71,7 @@ def register():
     from . import bake_paradata
     from . import xlsx_wizard
     from . import stratiminer
+    from . import aux_lifecycle
     from . import merge_conflict_ui
 
     # Register each submodule
@@ -75,6 +82,7 @@ def register():
     bake_paradata.register()
     xlsx_wizard.register()
     stratiminer.register()
+    aux_lifecycle.register()
     merge_conflict_ui.register()
 
 
@@ -88,10 +96,12 @@ def unregister():
     from . import bake_paradata
     from . import xlsx_wizard
     from . import stratiminer
+    from . import aux_lifecycle
     from . import merge_conflict_ui
 
     # Unregister in reverse order
     merge_conflict_ui.unregister()
+    aux_lifecycle.unregister()
     stratiminer.unregister()
     xlsx_wizard.unregister()
     bake_paradata.unregister()

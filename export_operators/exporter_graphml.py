@@ -132,7 +132,10 @@ class EM_export_GraphML_SaveAs(bpy.types.Operator, ExportHelper):
     bl_label = "Save GraphML As..."
     bl_description = (
         "Save the active graph to a new GraphML file. "
-        "Creates a copy of the original with all current changes applied"
+        "Creates a copy of the original with all current changes applied. "
+        "NOTE: volatile save — auxiliary enrichment (DosCo / em_paradata / "
+        "pyArchInit) is NOT written to disk. Use 'Bake Auxiliaries → "
+        "GraphML' first if you want to persist it."
     )
     bl_options = {'REGISTER'}
 
