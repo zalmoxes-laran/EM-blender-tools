@@ -184,12 +184,28 @@ def _build_doc_cache(context):
                 variant_key = doc_node.variant_style_key()
             except Exception:
                 variant_key = None
+        # DP-47 extension: RM containers that wrap this document.
+        # Each tuple is (container_label, [mesh_object_name, ...]).
+        rm_containers_for_doc = []
+        rm_mesh_total = 0
+        try:
+            for container in context.scene.rm_containers:
+                if container.doc_node_id == doc_id:
+                    members = [e.name for e in container.mesh_names]
+                    rm_containers_for_doc.append(
+                        (container.label or "(unnamed)", members))
+                    rm_mesh_total += len(members)
+        except Exception:
+            pass
+
         cache[doc_id] = {
             'ref_count': ref_counts.get(doc_id, 0),
             'us_nodes': us_list,
             'has_rmdoc': doc_id in rmdoc_by_doc_id,
             'rmdoc_obj': rmdoc_by_doc_id.get(doc_id, ""),
             'variant_key': variant_key,
+            'rm_containers': rm_containers_for_doc,
+            'rm_mesh_total': rm_mesh_total,
         }
 
     _doc_cache = cache
@@ -517,6 +533,40 @@ class VIEW3D_PT_3DDocumentManager(Panel):
                     text=f"  role: {role_str}   |   "
                          f"content: {nature_str}   |   "
                          f"geometry: {geom_str}")
+
+            # Linked RMs (DP-47 — document wraps a set of 3D meshes
+            # via one or more RM containers in the RM Manager).
+            rm_containers_for_doc = doc_info.get('rm_containers', [])
+            if rm_containers_for_doc:
+                col.separator()
+                rm_total = doc_info.get('rm_mesh_total', 0)
+                rm_hdr = col.row(align=True)
+                rm_hdr.label(
+                    text=f"Linked RMs: {rm_total} mesh(es) in "
+                         f"{len(rm_containers_for_doc)} container(s)",
+                    icon='OUTLINER_COLLECTION')
+                for cont_label, members in rm_containers_for_doc:
+                    cont_row = col.row()
+                    cont_row.label(
+                        text=f"  {cont_label}  ({len(members)})",
+                        icon='PACKAGE')
+                    # Show up to 8 mesh names per container, truncate
+                    # the rest to keep the detail panel compact.
+                    for mname in members[:8]:
+                        m_row = col.row(align=True)
+                        obj_exists = mname in bpy.data.objects
+                        m_row.label(
+                            text=f"    - {mname}",
+                            icon='OBJECT_DATA' if obj_exists else 'ERROR')
+                        if obj_exists:
+                            op = m_row.operator(
+                                "em.rmdoc_select_object",
+                                text="", icon='RESTRICT_SELECT_OFF',
+                                emboss=False)
+                            op.object_name = mname
+                    if len(members) > 8:
+                        col.label(
+                            text=f"    ... and {len(members) - 8} more")
 
             # URL
             if item.url:

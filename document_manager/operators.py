@@ -929,6 +929,280 @@ class DOCMANAGER_OT_create_document(bpy.types.Operator):
         return {'FINISHED'}
 
 
+# Module-level cache for the epoch-items EnumProperty callback — Blender
+# requires Python to retain references to the strings returned by a
+# dynamic items callback, otherwise the UI renders garbled labels.
+_MASTER_DOC_EPOCH_ITEMS_CACHE: list = []
+
+
+def _master_doc_epoch_items(self, context):
+    """EnumProperty items callback: epochs present in the active graph,
+    plus a ``__derive__`` sentinel that lets the operator resolve the
+    anchor from a provided year. Mirrors the DosCo Create Host flow so
+    the dialog feels identical to users coming from that entry point.
+    """
+    global _MASTER_DOC_EPOCH_ITEMS_CACHE
+    items = [("__derive__", "-- derive from year --",
+              "Derive the has_first_epoch anchor by looking up which "
+              "EpochNode range contains the year below")]
+    em_tools = context.scene.em_tools
+    if (em_tools.active_file_index >= 0
+            and em_tools.active_file_index < len(em_tools.graphml_files)):
+        try:
+            from s3dgraphy import get_graph
+            gi = em_tools.graphml_files[em_tools.active_file_index]
+            graph = get_graph(gi.name)
+        except Exception:
+            graph = None
+        if graph is not None:
+            for n in graph.nodes:
+                if type(n).__name__ == "EpochNode":
+                    start = getattr(n, "start_time", None)
+                    end = getattr(n, "end_time", None)
+                    range_hint = ""
+                    if start is not None and end is not None:
+                        range_hint = f" [{int(start)}..{int(end)}]"
+                    items.append((n.node_id,
+                                  (n.name or n.node_id) + range_hint,
+                                  f"Anchor has_first_epoch to {n.name}"))
+    _MASTER_DOC_EPOCH_ITEMS_CACHE = items
+    return items
+
+
+class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
+    """Create a Master Document with the full three-axis classification
+    (EM 1.6 — role / content_nature / geometry) and a temporal anchor.
+
+    Shared entry point for any EMtools flow that needs a new DP-07
+    Master Document: DosCo Create Host (for orphan promotion), the RM
+    Manager container creation (DP-47 extension), and any standalone
+    use case from the Document Manager panel. Thin operator wrapper
+    around :func:`master_document_helpers.create_master_document_node`.
+    """
+    bl_idname = "docmanager.create_master_document"
+    bl_label = "Create Master Document"
+    bl_description = (
+        "Create a new Master Document with three-axis classification "
+        "(role / content nature / geometry) and a temporal anchor. "
+        "Mirrors the DosCo Create Host dialog."
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    # Inputs shared with the DosCo Create Host dialog pattern.
+    new_name: bpy.props.StringProperty(name="Name", default="")  # type: ignore
+    new_description: bpy.props.StringProperty(
+        name="Description",
+        description="Free-text description (optional)",
+        default=""
+    )  # type: ignore
+    epoch_id: bpy.props.EnumProperty(
+        name="Anchor epoch",
+        description=(
+            "Epoch this document first appears in. Creates a "
+            "has_first_epoch edge. Leave on 'derive from year' to let "
+            "the operator pick the epoch whose range contains the "
+            "provided year."
+        ),
+        items=_master_doc_epoch_items,
+    )  # type: ignore
+    has_creation_year: bpy.props.BoolProperty(
+        name="Provide creation year",
+        default=False,
+    )  # type: ignore
+    creation_year: bpy.props.IntProperty(
+        name="Creation year",
+        description="Year of this document (negative = BCE)",
+        default=0,
+    )  # type: ignore
+    doc_role: bpy.props.EnumProperty(
+        name="Role",
+        items=[
+            ("analytical", "Analytical",
+             "Primary source about this context"),
+            ("comparative", "Comparative",
+             "External reference / analogy"),
+        ],
+        default="analytical",
+    )  # type: ignore
+    doc_content_nature: bpy.props.EnumProperty(
+        name="Content nature",
+        items=[
+            ("2d_object", "2D Object",
+             "Image, drawing, photograph, text"),
+            ("3d_object", "3D Object",
+             "Mesh, laser scan, photogrammetric model"),
+        ],
+        default="2d_object",
+    )  # type: ignore
+    doc_geometry: bpy.props.EnumProperty(
+        name="Geometry",
+        items=[
+            ("none", "No 3D spatialization",
+             "Document has no Representation Model"),
+            ("reality_based", "Reality-based (red)",
+             "Sensor / algorithmic positioning"),
+            ("observable", "Observable (orange)",
+             "Reconstructed from rigorous documentation"),
+            ("asserted", "Asserted (yellow)",
+             "Compositional positioning asserted by the operator"),
+        ],
+        default="none",
+    )  # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        em_tools = context.scene.em_tools
+        return em_tools.active_file_index >= 0
+
+    def invoke(self, context, event):
+        # Reset to defaults on every invocation — Blender persists
+        # operator property values across calls otherwise.
+        self.new_name = ""
+        self.new_description = ""
+        self.has_creation_year = False
+        self.creation_year = 0
+        self.doc_role = "analytical"
+        self.doc_content_nature = "2d_object"
+        self.doc_geometry = "none"
+        return context.window_manager.invoke_props_dialog(self, width=440)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="New Master Document", icon='FILE_TEXT')
+        layout.separator()
+        layout.prop(self, "new_name")
+        layout.prop(self, "new_description")
+
+        # Temporal anchor
+        anchor_box = layout.box()
+        anchor_box.label(text="Temporal anchor (required):", icon='TIME')
+        anchor_box.prop(self, "epoch_id", text="Epoch")
+        row = anchor_box.row(align=True)
+        row.prop(self, "has_creation_year", text="Year")
+        sub = row.row(align=True)
+        sub.enabled = self.has_creation_year
+        sub.prop(self, "creation_year", text="")
+
+        if self.epoch_id == "__derive__" and not self.has_creation_year:
+            warn = anchor_box.row()
+            warn.alert = True
+            warn.label(text="Choose an epoch OR tick Year with a date",
+                       icon='ERROR')
+        elif self.epoch_id == "__derive__" and self.has_creation_year:
+            em_tools = context.scene.em_tools
+            graph = None
+            if em_tools.active_file_index >= 0:
+                try:
+                    from s3dgraphy import get_graph
+                    gi = em_tools.graphml_files[em_tools.active_file_index]
+                    graph = get_graph(gi.name)
+                except Exception:
+                    graph = None
+            from ..master_document_helpers import resolve_epoch_from_year
+            resolved = resolve_epoch_from_year(graph, self.creation_year)
+            hint = anchor_box.row()
+            if resolved is None:
+                hint.alert = True
+                hint.label(
+                    text=f"No epoch covers year {self.creation_year}",
+                    icon='ERROR')
+            else:
+                hint.label(text=f"Will anchor to {resolved.name}",
+                           icon='CHECKMARK')
+
+        # Classification
+        cls_box = layout.box()
+        cls_box.label(text="Master Document classification:",
+                      icon='OUTLINER_DATA_LATTICE')
+        cls_box.prop(self, "doc_role", text="Role")
+        cls_box.prop(self, "doc_content_nature", text="Content")
+        cls_box.prop(self, "doc_geometry", text="Geometry")
+        hint = cls_box.row()
+        color_hint = {
+            "none":          "no RM -> no geometry node",
+            "reality_based": "border red",
+            "observable":    "border orange",
+            "asserted":      "border yellow",
+        }.get(self.doc_geometry, "--")
+        hint.label(text=color_hint, icon='CHECKMARK')
+
+    def execute(self, context):
+        em_tools = context.scene.em_tools
+        if em_tools.active_file_index < 0:
+            self.report({'ERROR'}, "No active graph")
+            return {'CANCELLED'}
+        name = (self.new_name or "").strip()
+        if not name:
+            self.report({'ERROR'}, "Name is required")
+            return {'CANCELLED'}
+
+        from s3dgraphy import get_graph
+        gi = em_tools.graphml_files[em_tools.active_file_index]
+        graph = get_graph(gi.name)
+        if graph is None:
+            self.report({'ERROR'}, "Graph not loaded")
+            return {'CANCELLED'}
+
+        # Resolve epoch: explicit pick wins; otherwise derive from year.
+        from ..master_document_helpers import (
+            create_master_document_node, refresh_document_lists,
+            resolve_epoch_from_year,
+        )
+        resolved_epoch = None
+        if self.epoch_id and self.epoch_id != "__derive__":
+            resolved_epoch = next(
+                (n for n in graph.nodes if n.node_id == self.epoch_id),
+                None)
+        elif self.has_creation_year:
+            resolved_epoch = resolve_epoch_from_year(
+                graph, self.creation_year)
+            if resolved_epoch is None:
+                self.report({'ERROR'},
+                            f"No epoch range contains year "
+                            f"{self.creation_year}. Pick an epoch "
+                            f"explicitly or adjust the year.")
+                return {'CANCELLED'}
+
+        if resolved_epoch is None:
+            self.report({'ERROR'},
+                        "Temporal anchor required: pick an epoch "
+                        "or tick Year with a valid date.")
+            return {'CANCELLED'}
+
+        _role = self.doc_role
+        _nature = self.doc_content_nature
+        _geom = (self.doc_geometry
+                 if self.doc_geometry != "none" else None)
+        desc = (self.new_description or "").strip()
+        node = create_master_document_node(
+            graph,
+            name=name,
+            description=desc or f"Master Document '{name}'",
+            resolved_epoch=resolved_epoch,
+            creation_year=(self.creation_year
+                           if self.has_creation_year else None),
+            role=_role,
+            content_nature=_nature,
+            geometry=_geom,
+            mark_as_master=True,
+        )
+        refresh_document_lists(context, node, graph)
+
+        # Expose the created doc_node_id in a volatile scene field so
+        # callers chaining this operator (e.g. RM Manager container
+        # creation) can consume it after the dialog closes.
+        em_tools["last_created_master_doc_id"] = node.node_id
+
+        msg_tail = f" @ {resolved_epoch.name}"
+        if self.has_creation_year:
+            msg_tail += f" ({self.creation_year})"
+        self.report({'INFO'},
+                    f"Created Master Document {name!r}{msg_tail}")
+        for area in context.screen.areas:
+            area.tag_redraw()
+        return {'FINISHED'}
+
+
 class DOCMANAGER_OT_edit_classification(bpy.types.Operator):
     """Edit the three-axis classification (EM 1.6) of an existing
     Master Document: role, content nature, geometry.
@@ -2037,6 +2311,7 @@ classes = (
     DOCMANAGER_OT_select_linked_entity,
     DOCMANAGER_OT_select_all_linked_us,
     DOCMANAGER_OT_create_document,
+    DOCMANAGER_OT_create_master_document,
     DOCMANAGER_OT_edit_classification,
     RMDOC_OT_select_object,
     RMDOC_OT_add_selected,

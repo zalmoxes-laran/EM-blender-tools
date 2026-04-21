@@ -532,29 +532,33 @@ class AUX_OT_create_host_for_orphan(bpy.types.Operator):
         kind = self.injector_id.split(":", 1)[0]
         is_document_kind = kind in ("DosCo", "sources_list")
         desc = (self.new_description or "").strip()
-        # Canonical node IDs are UUIDs (matching s3dgraphy's importers
-        # and create-document operator). Reuse the library helper.
-        from s3dgraphy.exporter.graphml.utils import generate_uuid
+
         if is_document_kind:
-            from s3dgraphy.nodes.document_node import DocumentNode
-            # Three orthogonal axes (EM 1.6). Comparative documents may
-            # carry any geometry value — no invariant on that combination.
-            # 'none' means the document has no RM and the geometry
-            # attribute is simply omitted.
+            # Delegate to the shared helper — keeps the DocumentNode
+            # shape (attributes + has_first_epoch + absolute_time_start
+            # chain) consistent with the Document Manager's standalone
+            # Create-Master-Document flow and the RM Manager container
+            # creation flow.
+            from ..master_document_helpers import create_master_document_node
             _role = self.doc_role
             _nature = self.doc_content_nature
             _geom = (self.doc_geometry
                      if self.doc_geometry != "none" else None)
-            node = DocumentNode(
-                node_id=generate_uuid(),
+            node = create_master_document_node(
+                graph,
                 name=name,
                 description=desc or (f"Master Document created from "
                                      f"{kind} orphan ({self.key_id})"),
+                resolved_epoch=resolved_epoch,
+                creation_year=(self.creation_year
+                               if self.has_creation_year else None),
                 role=_role,
                 content_nature=_nature,
                 geometry=_geom,
+                mark_as_master=True,
             )
         elif kind in ("emdb", "pyarchinit"):
+            from s3dgraphy.exporter.graphml.utils import generate_uuid
             from s3dgraphy.nodes.stratigraphic_node import StratigraphicUnit
             node = StratigraphicUnit(
                 node_id=generate_uuid(),
@@ -562,66 +566,18 @@ class AUX_OT_create_host_for_orphan(bpy.types.Operator):
                 description=desc or (f"Host created from {kind} orphan "
                                      f"({self.key_id})"),
             )
+            graph.add_node(node)
+            graph.add_edge(
+                edge_id=(f"{node.node_id}_has_first_epoch_"
+                         f"{resolved_epoch.node_id}"),
+                edge_source=node.node_id,
+                edge_target=resolved_epoch.node_id,
+                edge_type="has_first_epoch",
+            )
         else:
             self.report({'ERROR'},
                         f"Don't know how to create a host for {kind!r}")
             return {'CANCELLED'}
-
-        # Idempotency: bail if a node with this id is already present.
-        if graph.find_node_by_id(node.node_id) is not None:
-            self.report({'WARNING'},
-                        f"A node with id {node.node_id!r} already exists. "
-                        f"Choose a different name.")
-            return {'CANCELLED'}
-
-        # Explicit first-class marker: the GraphML patcher uses this
-        # to distinguish Master Documents (to be written) from legacy
-        # auxiliary-scan DocumentNodes (to be skipped).
-        if is_document_kind:
-            if not hasattr(node, "attributes") or node.attributes is None:
-                node.attributes = {}
-            node.attributes["em_master_document"] = True
-
-        graph.add_node(node)
-
-        # has_first_epoch anchor — always present (enforced above).
-        graph.add_edge(
-            edge_id=f"{node.node_id}_has_first_epoch_{resolved_epoch.node_id}",
-            edge_source=node.node_id,
-            edge_target=resolved_epoch.node_id,
-            edge_type="has_first_epoch",
-        )
-
-        # Absolute time: one single PropertyNode (start). End is
-        # intentionally not prompted — Master Documents have a
-        # creation date, not a range.
-        if self.has_creation_year:
-            from s3dgraphy.nodes.property_node import PropertyNode
-            pn_id = generate_uuid()
-            year_str = str(self.creation_year)
-            pn = PropertyNode(
-                node_id=pn_id,
-                name="absolute_time_start",
-                property_type="absolute_time_start",
-                value=year_str,
-                description=year_str,
-            )
-            graph.add_node(pn)
-            graph.add_edge(
-                edge_id=f"{node.node_id}_has_prop_{pn_id}",
-                edge_source=node.node_id,
-                edge_target=pn_id,
-                edge_type="has_property",
-            )
-            # Anchor the PropertyNode to the same epoch as its parent
-            # document — without this, the swimlane placer falls back
-            # to a default band and the node renders in the wrong row.
-            graph.add_edge(
-                edge_id=f"{pn_id}_has_first_epoch_{resolved_epoch.node_id}",
-                edge_source=pn_id,
-                edge_target=resolved_epoch.node_id,
-                edge_type="has_first_epoch",
-            )
 
         # Drop the matching orphan entry.
         attrs = getattr(graph, "attributes", None) or {}
@@ -636,25 +592,9 @@ class AUX_OT_create_host_for_orphan(bpy.types.Operator):
         # Refresh EMTools UI lists so the new host shows up in the
         # Document Manager / EM tree immediately, without requiring a
         # graphml reload.
-        em_tools = context.scene.em_tools
-        try:
-            if is_document_kind:
-                from ..populate_lists import populate_document_node
-                idx = len(em_tools.em_sources_list)
-                populate_document_node(
-                    context.scene, node, idx, graph=graph)
-                from ..document_manager.data import sync_doc_list
-                sync_doc_list(context.scene)
-                try:
-                    from ..document_manager.ui import (
-                        invalidate_doc_connection_cache,
-                    )
-                    invalidate_doc_connection_cache()
-                except Exception:
-                    pass
-        except Exception as e:
-            self.report({'WARNING'},
-                        f"Host created but UI refresh failed: {e}")
+        if is_document_kind:
+            from ..master_document_helpers import refresh_document_lists
+            refresh_document_lists(context, node, graph)
 
         # Optional: persist to disk via volatile Save.
         persisted = False
