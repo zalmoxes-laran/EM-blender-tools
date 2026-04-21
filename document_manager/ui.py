@@ -27,16 +27,16 @@ CERTAINTY_ICONS = {
     "unknown": "COLLECTION_COLOR_08",         # gray
 }
 
-# Master-Document variant → UIList icon. Colors match the border colors
-# declared in s3dgraphy/JSON_config/em_visual_rules.json (photogrammetric
-# red, observable orange, asserted yellow, textual grey, comparative
-# green). Unclassified masters keep the legacy KEYTYPE_KEYFRAME_VEC icon.
+# Master-Document variant → UIList icon (EM 1.6). In the three-axis
+# classification the border colour is driven by the `geometry` axis
+# alone; role and content_nature are metadata without a colour coding.
+# Colours match em_visual_rules.json → document_variant_styles:
+# reality_based red, observable orange, asserted yellow. Masters without
+# a geometry value (PDF articles etc.) keep the legacy marker.
 MASTERDOC_VARIANT_ICONS = {
-    "analytical.photogrammetric": "COLLECTION_COLOR_01",  # red
-    "analytical.observable":      "COLLECTION_COLOR_02",  # orange
-    "analytical.asserted":        "COLLECTION_COLOR_03",  # yellow
-    "analytical.textual":         "COLLECTION_COLOR_08",  # grey
-    "comparative":                "COLLECTION_COLOR_04",  # green
+    "reality_based": "COLLECTION_COLOR_01",  # red
+    "observable":    "COLLECTION_COLOR_02",  # orange
+    "asserted":      "COLLECTION_COLOR_03",  # yellow
 }
 
 CERTAINTY_LABELS = {
@@ -221,8 +221,8 @@ class DOCMANAGER_UL_documents(UIList):
         row = layout.row(align=True)
 
         # 1. Master/instance icon — masters get a variant-coloured dot
-        # (red / orange / yellow / grey / green) driven by the
-        # DocumentNode's role × spatial_confidence classification.
+        # driven by the DocumentNode's `geometry` axis (EM 1.6):
+        # red = reality_based, orange = observable, yellow = asserted.
         if item.is_master:
             variant_key = doc_info.get('variant_key')
             row.label(

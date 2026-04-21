@@ -346,46 +346,61 @@ class AUX_OT_create_host_for_orphan(bpy.types.Operator):
     doc_role: EnumProperty(
         name="Document role",
         description=(
-            "Two-axis Master-Document classification (EM 1.5.4+). "
-            "'analytical' = this document is about this context; "
-            "'comparative' = external reference / analogy (border "
-            "green)."
+            "Axis 1 of the three-axis Master-Document classification "
+            "(EM 1.6): how this document participates in the "
+            "reconstructive reasoning. 'analytical' = primary source "
+            "about this context; 'comparative' = external reference / "
+            "analogy from other sites, epochs, typologies."
         ),
         items=[
             ("analytical", "Analytical",
-             "The document is about this archaeological context"),
+             "Primary source for direct reasoning about this context"),
             ("comparative", "Comparative",
-             "External document used as reference / analogy"),
+             "External reference / analogy from other contexts"),
         ],
         default="analytical",
     )  # type: ignore
 
-    doc_spatial_confidence: EnumProperty(
-        name="Spatial confidence",
+    doc_content_nature: EnumProperty(
+        name="Content nature",
         description=(
-            "Only meaningful for analytical documents. Grades the "
-            "certainty of spatial positioning: photogrammetric (red) "
-            "= metrically verifiable; observable (orange) = placed "
-            "via landmarks internal to the document; asserted "
-            "(yellow) = operator attribution, position fluid; "
-            "textual (grey) = non-spatial reference, e.g. journal "
-            "article or bibliography with no spatial claim."
+            "Axis 2 of the three-axis Master-Document classification "
+            "(EM 1.6): the intrinsic nature of the document's content."
         ),
         items=[
-            ("photogrammetric", "Photogrammetric (red)",
-             "Metrically verifiable — camera-calibrated photo, "
-             "orthophoto, photogrammetric render"),
-            ("observable", "Observable (orange)",
-             "Positioned via landmarks observable inside the "
-             "document itself; residual uncertainty"),
-            ("asserted", "Asserted (yellow)",
-             "Operator-asserted; drawing not metrically correct, "
-             "position is fluid"),
-            ("textual", "Textual (grey)",
-             "Non-spatial document — journal article, bibliography, "
-             "textual reference. No spatial claim to grade."),
+            ("2d_object", "2D Object",
+             "Image, drawing, photograph, text"),
+            ("3d_object", "3D Object",
+             "Three-dimensional model (mesh, laser scan, "
+             "photogrammetric model)"),
         ],
-        default="observable",
+        default="2d_object",
+    )  # type: ignore
+
+    doc_geometry: EnumProperty(
+        name="Geometry (RM spatialization)",
+        description=(
+            "Axis 3 of the three-axis Master-Document classification "
+            "(EM 1.6): how the document's Representation Model is "
+            "spatialized in the 3D scene. Choose 'No 3D spatialization' "
+            "for documents without an RM (PDF articles, bibliographies) "
+            "— no geometry node is created."
+        ),
+        items=[
+            ("none", "No 3D spatialization",
+             "The document has no RM — no geometry node is created "
+             "in the graph (e.g. PDF article, bibliography)"),
+            ("reality_based", "Reality-based (red)",
+             "Robust sensor / algorithmic positioning: photogrammetric "
+             "model, calibrated photo, instrumentally-surveyed find"),
+            ("observable", "Observable (orange)",
+             "Reconstructed with approximation from rigorous "
+             "archaeological documentation (plans, sections)"),
+            ("asserted", "Asserted (yellow)",
+             "Compositional positioning asserted by the operator, "
+             "without claim of restitution"),
+        ],
+        default="none",
     )  # type: ignore
 
     def invoke(self, context, event):
@@ -445,31 +460,22 @@ class AUX_OT_create_host_for_orphan(bpy.types.Operator):
                     text=f"Will anchor to {resolved.name}",
                     icon='CHECKMARK')
 
-        # Master Document classification (only for DocumentNode kind).
+        # Master Document classification — three orthogonal axes (EM 1.6).
         if is_document_kind:
             cls_box = layout.box()
             cls_box.label(text="Master Document classification:",
                           icon='OUTLINER_DATA_LATTICE')
             cls_box.prop(self, "doc_role", text="Role")
-            sub = cls_box.row()
-            sub.enabled = (self.doc_role == "analytical")
-            sub.prop(self, "doc_spatial_confidence", text="Spatial")
+            cls_box.prop(self, "doc_content_nature", text="Content")
+            cls_box.prop(self, "doc_geometry", text="Geometry")
             hint = cls_box.row()
-            if self.doc_role == "comparative":
-                hint.label(
-                    text="Comparative -> green border, no spatial "
-                         "confidence applies",
-                    icon='CHECKMARK')
-            else:
-                color_hint = {
-                    "photogrammetric": "red",
-                    "observable":      "orange",
-                    "asserted":        "yellow",
-                    "textual":         "grey",
-                }.get(self.doc_spatial_confidence, "--")
-                hint.label(
-                    text=f"Analytical -> border {color_hint}",
-                    icon='CHECKMARK')
+            color_hint = {
+                "none":          "no RM -> no geometry node",
+                "reality_based": "border red",
+                "observable":    "border orange",
+                "asserted":      "border yellow",
+            }.get(self.doc_geometry, "--")
+            hint.label(text=color_hint, icon='CHECKMARK')
 
         # Persistence preference — boxed to distinguish from actions.
         persist_box = layout.box()
@@ -526,25 +532,32 @@ class AUX_OT_create_host_for_orphan(bpy.types.Operator):
         kind = self.injector_id.split(":", 1)[0]
         is_document_kind = kind in ("DosCo", "sources_list")
         desc = (self.new_description or "").strip()
+        # Canonical node IDs are UUIDs (matching s3dgraphy's importers
+        # and create-document operator). Reuse the library helper.
+        from s3dgraphy.exporter.graphml.utils import generate_uuid
         if is_document_kind:
             from s3dgraphy.nodes.document_node import DocumentNode
-            # Comparative documents never carry a spatial confidence;
-            # the DocumentNode constructor enforces this invariant.
+            # Three orthogonal axes (EM 1.6). Comparative documents may
+            # carry any geometry value — no invariant on that combination.
+            # 'none' means the document has no RM and the geometry
+            # attribute is simply omitted.
             _role = self.doc_role
-            _sc = (self.doc_spatial_confidence
-                   if _role == "analytical" else None)
+            _nature = self.doc_content_nature
+            _geom = (self.doc_geometry
+                     if self.doc_geometry != "none" else None)
             node = DocumentNode(
-                node_id=f"orphan_doc_{name}",
+                node_id=generate_uuid(),
                 name=name,
                 description=desc or (f"Master Document created from "
                                      f"{kind} orphan ({self.key_id})"),
                 role=_role,
-                spatial_confidence=_sc,
+                content_nature=_nature,
+                geometry=_geom,
             )
         elif kind in ("emdb", "pyarchinit"):
             from s3dgraphy.nodes.stratigraphic_node import StratigraphicUnit
             node = StratigraphicUnit(
-                node_id=f"orphan_us_{name}",
+                node_id=generate_uuid(),
                 name=name,
                 description=desc or (f"Host created from {kind} orphan "
                                      f"({self.key_id})"),
@@ -584,13 +597,14 @@ class AUX_OT_create_host_for_orphan(bpy.types.Operator):
         # creation date, not a range.
         if self.has_creation_year:
             from s3dgraphy.nodes.property_node import PropertyNode
-            pn_id = f"{node.node_id}_pn_absolute_time_start"
+            pn_id = generate_uuid()
+            year_str = str(self.creation_year)
             pn = PropertyNode(
                 node_id=pn_id,
                 name="absolute_time_start",
                 property_type="absolute_time_start",
-                value=str(self.creation_year),
-                description="",
+                value=year_str,
+                description=year_str,
             )
             graph.add_node(pn)
             graph.add_edge(
