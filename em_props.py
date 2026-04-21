@@ -841,7 +841,7 @@ class EM_Tools(PropertyGroup):
         default=True
     )  # type: ignore
 
-    # StratiMiner prompt toggles (v5.3 — unified em_data.xlsx schema)
+    # StratiMiner prompt toggles (v5.4 — unified em_data.xlsx schema)
     xlsx_wizard_prompt_checklist: BoolProperty(
         name="End-of-session checklist",
         description="Include the end-of-session checklist in the prompt",

@@ -483,13 +483,40 @@ class VIEW3D_PT_3DDocumentManager(Panel):
                 if item.epoch_name:
                     col.label(text=f"Epoch: {item.epoch_name}")
 
-            # Source type
-            if item.source_type:
+            # Three-axis classification (EM 1.6) — for Master Documents.
+            # Reads the live values from the graph DocumentNode via the
+            # doc_cache; an Edit button opens the classification dialog.
+            if item.is_master:
                 col.separator()
-                if item.source_type == "analytical":
-                    col.label(text="Analytical (from context)", icon="DOCUMENTS")
-                else:
-                    col.label(text="Comparative (from analogues)", icon="WORLD")
+                variant_key = doc_info.get('variant_key') or "default"
+                cls_row = col.row(align=True)
+                cls_row.label(text="Classification (role/content/geometry):",
+                              icon="OUTLINER_DATA_LATTICE")
+                op = cls_row.operator(
+                    "docmanager.edit_classification",
+                    text="Edit", icon='GREASEPENCIL')
+                op.doc_node_id = item.node_id
+                # Fetch the live axis values from the graph node
+                role_str = item.source_type or "--"
+                nature_str = "--"
+                geom_str = "none"
+                try:
+                    from s3dgraphy import get_graph
+                    em_tools = context.scene.em_tools
+                    gi = em_tools.graphml_files[em_tools.active_file_index]
+                    g = get_graph(gi.name)
+                    n = g.find_node_by_id(item.node_id) if g else None
+                    if n is not None:
+                        d = getattr(n, "data", None) or {}
+                        role_str = d.get("role") or role_str
+                        nature_str = d.get("content_nature") or "--"
+                        geom_str = d.get("geometry") or "none"
+                except Exception:
+                    pass
+                col.label(
+                    text=f"  role: {role_str}   |   "
+                         f"content: {nature_str}   |   "
+                         f"geometry: {geom_str}")
 
             # URL
             if item.url:
@@ -619,6 +646,9 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
         else:
             summary_row.label(text=f"{total} RMDoc", icon="FILE_IMAGE")
         summary_row.label(text=f"Cameras: {with_camera}", icon="CAMERA_DATA")
+        summary_row.prop(
+            scene.doc_settings, "rm_border_by_geometry",
+            text="", icon='COLORSET_03_VEC', toggle=True)
         help_op = summary_row.operator("em.help_popup", text="", icon='QUESTION')
         help_op.title = "RMDoc — Spatialized Documents"
         help_op.text = (

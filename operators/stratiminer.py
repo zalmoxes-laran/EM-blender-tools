@@ -5,7 +5,7 @@ Replaces the legacy two-step xlsx wizard (stratigraphy.xlsx +
 em_paradata.xlsx) with the unified ``em_data.xlsx`` flow:
 
 * :class:`STRATIMINER_OT_copy_prompt` — copies the StratiMiner
-  extraction prompt (v5.3, single file with 5 typed sheets) to the
+  extraction prompt (v5.4, single file with 5 typed sheets) to the
   clipboard. Accepts a documents folder and optional per-document
   catalog so the AI knows where the PDFs live.
 * :class:`STRATIMINER_OT_import_em_data` — Action A: parse an existing
@@ -31,11 +31,11 @@ from ..functions import normalize_path
 # ──────────────────────────────────────────────────────────────────────
 
 class STRATIMINER_OT_copy_prompt(bpy.types.Operator):
-    """Copy the StratiMiner extraction prompt (v5.3) to clipboard"""
+    """Copy the StratiMiner extraction prompt (v5.4) to clipboard"""
     bl_idname = "stratiminer.copy_prompt"
     bl_label = "Copy StratiMiner Prompt"
     bl_description = (
-        "Copy the StratiMiner extraction prompt (v5.3 unified schema) to "
+        "Copy the StratiMiner extraction prompt (v5.4 unified schema) to "
         "the clipboard. Paste it into Claude / ChatGPT / Gemini alongside "
         "the PDFs in the documents folder; the AI will return a single "
         "em_data.xlsx file with 5 typed sheets"

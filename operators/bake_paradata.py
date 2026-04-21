@@ -89,13 +89,17 @@ class PARADATA_OT_bake(bpy.types.Operator, ImportHelper):
         self.report({'INFO'}, f"Enriching with paradata: {os.path.basename(paradata_path)}")
 
         try:
-            from s3dgraphy.importer.qualia_importer import QualiaImporter
-            qualia = QualiaImporter(
-                filepath=paradata_path,
-                existing_graph=graph,
-                overwrite=self.overwrite_properties
+            # Use the Hybrid-C adapter so new nodes/edges get tagged
+            # with injector_id and orphans land on graph.attributes —
+            # this enables the Lifecycle UI and Bake flow.
+            from ..aux_import import import_qualia_as_auxiliary
+            report = import_qualia_as_auxiliary(
+                graph,
+                xlsx_path=paradata_path,
+                overwrite=self.overwrite_properties,
             )
-            graph = qualia.parse()
+            for w in report.get("warnings", []):
+                self.report({'WARNING'}, w)
         except Exception as e:
             self.report({'ERROR'}, f"Failed to import paradata: {str(e)}")
             import traceback

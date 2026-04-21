@@ -232,6 +232,112 @@ class DocManagerSettings(PropertyGroup):
         default=False,
     )  # type: ignore
 
+    rm_border_by_geometry: BoolProperty(
+        name="Colour RM by geometry",
+        description=(
+            "Sync each RMDoc quad's viewport object colour with the "
+            "linked DocumentNode's `geometry` axis (reality_based red, "
+            "observable orange, asserted yellow). Requires the viewport "
+            "shading to be set to Solid + Color: Object to visualise"
+        ),
+        default=False,
+        update=lambda self, context: _on_rm_border_by_geometry_toggle(
+            self, context),
+    )  # type: ignore
+
+
+# ============================================================================
+# RM viewport colour sync (EM 1.6 — document geometry axis)
+# ============================================================================
+
+_GEOMETRY_RGBA_CACHE = None
+
+
+def _load_geometry_rgba():
+    """Read hex border colours for each geometry value from
+    ``em_visual_rules.json`` and convert to RGBA tuples for Blender's
+    ``object.color``. Cached once per Python process.
+    """
+    global _GEOMETRY_RGBA_CACHE
+    if _GEOMETRY_RGBA_CACHE is not None:
+        return _GEOMETRY_RGBA_CACHE
+    out = {}
+    try:
+        from s3dgraphy.utils.utils import get_document_variant_style
+        for key in ("reality_based", "observable", "asserted"):
+            hex_c = get_document_variant_style(key).get(
+                "border_color", "#000000")
+            s = hex_c.lstrip("#")
+            if len(s) == 6:
+                r, g, b = (int(s[i:i + 2], 16) / 255.0
+                           for i in (0, 2, 4))
+                out[key] = (r, g, b, 1.0)
+    except Exception:
+        out = {
+            "reality_based": (0.608, 0.200, 0.200, 1.0),
+            "observable":    (0.847, 0.392, 0.000, 1.0),
+            "asserted":      (0.847, 0.741, 0.188, 1.0),
+        }
+    _GEOMETRY_RGBA_CACHE = out
+    return out
+
+
+def _resolve_doc_geometry(scene, doc_node_id):
+    """Return the ``geometry`` value on the DocumentNode identified by
+    ``doc_node_id``, or ``None`` when unset / lookup fails.
+    """
+    if not doc_node_id:
+        return None
+    try:
+        from s3dgraphy import get_graph
+        em_tools = scene.em_tools
+        if em_tools.active_file_index < 0:
+            return None
+        gi = em_tools.graphml_files[em_tools.active_file_index]
+        g = get_graph(gi.name)
+        if g is None:
+            return None
+        n = g.find_node_by_id(doc_node_id)
+        if n is None:
+            return None
+        return (getattr(n, "data", None) or {}).get("geometry")
+    except Exception:
+        return None
+
+
+def apply_rm_geometry_colors(scene, force_reset=False):
+    """Walk ``scene.rmdoc_list`` and set each quad's viewport object
+    colour from the linked DocumentNode's ``geometry`` axis. When
+    ``force_reset`` is True or the toggle is off, reset colours to
+    neutral white.
+    """
+    settings = getattr(scene, "doc_settings", None)
+    toggle_on = bool(
+        settings and getattr(settings, "rm_border_by_geometry", False))
+    rgba_map = _load_geometry_rgba()
+    neutral = (1.0, 1.0, 1.0, 1.0)
+    for item in getattr(scene, "rmdoc_list", []):
+        obj = bpy.data.objects.get(item.name)
+        if obj is None:
+            continue
+        if not toggle_on or force_reset:
+            obj.color = neutral
+            continue
+        geom = _resolve_doc_geometry(scene, item.doc_node_id)
+        obj.color = rgba_map.get(geom, neutral)
+
+
+def _on_rm_border_by_geometry_toggle(settings, context):
+    """Update callback: refresh colours immediately when the toggle
+    changes state, so the user sees the effect without waiting for a
+    sync pass.
+    """
+    try:
+        apply_rm_geometry_colors(context.scene,
+                                 force_reset=not settings.rm_border_by_geometry)
+    except Exception:
+        pass
+
 
 # ============================================================================
 # SYNC FUNCTION
@@ -326,6 +432,14 @@ def sync_doc_list(scene):
 
     # After doc_list sync, also sync the object-centric rmdoc_list
     sync_rmdoc_list(scene)
+
+    # EM 1.6: refresh RMDoc quad viewport colours if the user toggled
+    # "Colour RM by geometry". Runs after rmdoc_list is up to date so
+    # newly-added quads get coloured too.
+    try:
+        apply_rm_geometry_colors(scene)
+    except Exception:
+        pass
 
 
 def sync_rmdoc_list(scene):

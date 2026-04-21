@@ -929,6 +929,135 @@ class DOCMANAGER_OT_create_document(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class DOCMANAGER_OT_edit_classification(bpy.types.Operator):
+    """Edit the three-axis classification (EM 1.6) of an existing
+    Master Document: role, content nature, geometry.
+    """
+    bl_idname = "docmanager.edit_classification"
+    bl_label = "Edit classification"
+    bl_description = (
+        "Edit the three-axis Master-Document classification "
+        "(role / content nature / geometry) of the selected document"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    doc_node_id: bpy.props.StringProperty()  # type: ignore
+
+    doc_role: bpy.props.EnumProperty(
+        name="Role",
+        description="Axis 1 — how this document participates in the "
+                    "reconstructive reasoning",
+        items=[
+            ("analytical", "Analytical",
+             "Primary source about THIS context"),
+            ("comparative", "Comparative",
+             "External reference / analogy from other contexts"),
+        ],
+    )  # type: ignore
+
+    doc_content_nature: bpy.props.EnumProperty(
+        name="Content nature",
+        description="Axis 2 — what this document is",
+        items=[
+            ("2d_object", "2D Object",
+             "Image, drawing, photograph, text"),
+            ("3d_object", "3D Object",
+             "Mesh, laser scan, photogrammetric model"),
+        ],
+    )  # type: ignore
+
+    doc_geometry: bpy.props.EnumProperty(
+        name="Geometry",
+        description="Axis 3 — how the RM is spatialized in 3D. "
+                    "Choose 'No 3D spatialization' for documents "
+                    "without an RM (PDF article, bibliography)",
+        items=[
+            ("none", "No 3D spatialization",
+             "The document has no RM — no geometry value recorded"),
+            ("reality_based", "Reality-based (red)",
+             "Sensor / algorithmic positioning"),
+            ("observable", "Observable (orange)",
+             "Reconstructed from rigorous documentation"),
+            ("asserted", "Asserted (yellow)",
+             "Compositional positioning asserted by the operator"),
+        ],
+    )  # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.em_tools.active_file_index >= 0
+
+    def _resolve_node(self, context):
+        from s3dgraphy import get_graph
+        em_tools = context.scene.em_tools
+        if em_tools.active_file_index < 0:
+            return None
+        gi = em_tools.graphml_files[em_tools.active_file_index]
+        graph = get_graph(gi.name)
+        if graph is None or not self.doc_node_id:
+            return None
+        return graph.find_node_by_id(self.doc_node_id)
+
+    def invoke(self, context, event):
+        node = self._resolve_node(context)
+        if node is None:
+            self.report({'ERROR'}, "DocumentNode not found")
+            return {'CANCELLED'}
+        data = getattr(node, "data", None) or {}
+        self.doc_role = data.get("role") or "analytical"
+        self.doc_content_nature = data.get("content_nature") or "2d_object"
+        self.doc_geometry = data.get("geometry") or "none"
+        return context.window_manager.invoke_props_dialog(self, width=440)
+
+    def draw(self, context):
+        layout = self.layout
+        node = self._resolve_node(context)
+        name = node.name if node is not None else self.doc_node_id
+        layout.label(text=f"Editing: {name}", icon='FILE_TEXT')
+        layout.separator()
+        layout.prop(self, "doc_role")
+        layout.prop(self, "doc_content_nature")
+        layout.prop(self, "doc_geometry")
+        hint = layout.row()
+        color_hint = {
+            "none":          "no RM -> no geometry node",
+            "reality_based": "border red",
+            "observable":    "border orange",
+            "asserted":      "border yellow",
+        }.get(self.doc_geometry, "--")
+        hint.label(text=color_hint, icon='CHECKMARK')
+
+    def execute(self, context):
+        node = self._resolve_node(context)
+        if node is None:
+            self.report({'ERROR'}, "DocumentNode not found")
+            return {'CANCELLED'}
+        if not hasattr(node, "data") or node.data is None:
+            node.data = {}
+        node.data["role"] = self.doc_role
+        node.data["content_nature"] = self.doc_content_nature
+        if self.doc_geometry == "none":
+            node.data.pop("geometry", None)
+        else:
+            node.data["geometry"] = self.doc_geometry
+
+        # Refresh the Document Manager cache + UIList so the icon
+        # colour updates without requiring a graphml reload.
+        try:
+            from .ui import invalidate_doc_connection_cache
+            invalidate_doc_connection_cache()
+        except Exception:
+            pass
+        for area in context.screen.areas:
+            area.tag_redraw()
+        self.report(
+            {'INFO'},
+            f"Classification updated for {node.name}: "
+            f"role={self.doc_role}, content={self.doc_content_nature}, "
+            f"geometry={self.doc_geometry}")
+        return {'FINISHED'}
+
+
 # ============================================================================
 # RMDOC OPERATORS (object-centric — operate on scene quads, not doc_list)
 # ============================================================================
@@ -1908,6 +2037,7 @@ classes = (
     DOCMANAGER_OT_select_linked_entity,
     DOCMANAGER_OT_select_all_linked_us,
     DOCMANAGER_OT_create_document,
+    DOCMANAGER_OT_edit_classification,
     RMDOC_OT_select_object,
     RMDOC_OT_add_selected,
     RMDOC_OT_search_document,
