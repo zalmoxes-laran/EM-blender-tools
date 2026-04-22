@@ -188,6 +188,14 @@ class PROXYBOX_PT_main_panel(Panel):
             name_row.prop(settings, "new_us_name", text="Name")
             name_row.operator(
                 "proxybox.suggest_next_us", text="", icon='ADD')
+            # Toggle governs whether the "+ suggest next" button
+            # draws from a per-type sequence (default, e.g. SF.1
+            # is suggested even if US.1 exists) or from a shared
+            # pool across every stratigraphic type (globally unique
+            # numbering).
+            params_box.prop(
+                settings, "share_numbering_across_types",
+                text="Shared numbering across US types")
             # Epoch is mandatory — every US needs a first-epoch
             # anchor. Flag the row visually when still empty so the
             # user sees the requirement without reading the gate msg.

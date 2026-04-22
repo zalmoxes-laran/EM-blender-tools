@@ -466,15 +466,29 @@ class PROXYBOX_OT_suggest_next_us(Operator):
             self.report({'ERROR'}, "Graph not loaded")
             return {'CANCELLED'}
         from ..master_document_helpers import get_next_numbered_name
+        from ..us_types import US_PROPER_TYPES
         settings = context.scene.em_tools.proxy_box
-        # Canonical node_type doubles as naming prefix and node-type
-        # filter — e.g. node_type='USN' → names 'USN.1', 'USN.2', …
-        # filtered against existing USN-typed nodes only.
         node_type = settings.new_us_type
-        next_name = get_next_numbered_name(
-            graph, node_type, node_type_filter=node_type)
+
+        if settings.share_numbering_across_types:
+            # Shared pool: all other US types count as "used" — the
+            # suggested number is globally unique across every
+            # stratigraphic type. Filter by node_type is dropped so
+            # the scan covers every stratigraphic kind.
+            extras = sorted(US_PROPER_TYPES - {node_type})
+            next_name = get_next_numbered_name(
+                graph, node_type,
+                node_type_filter=None,
+                extra_aliases=extras)
+            self.report({'INFO'},
+                        f"Next US (shared pool): {next_name}")
+        else:
+            # Per-type: only nodes of ``node_type`` count — e.g.
+            # ``USN`` series is independent of ``US`` series.
+            next_name = get_next_numbered_name(
+                graph, node_type, node_type_filter=node_type)
+            self.report({'INFO'}, f"Next US: {next_name}")
         settings.new_us_name = next_name
-        self.report({'INFO'}, f"Next US: {next_name}")
         return {'FINISHED'}
 
 

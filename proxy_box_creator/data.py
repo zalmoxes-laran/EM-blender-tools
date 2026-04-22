@@ -273,6 +273,22 @@ class ProxyBoxSettings(PropertyGroup):
         default="",
     )  # type: ignore
 
+    # Numbering pool for the ``+ suggest next`` button.
+    # False (default): per-type — US has its own series, SF another,
+    # UL another, etc. ``SF.1`` is proposed even if ``US.1`` exists.
+    # True: shared — every stratigraphic type draws from the same
+    # numeric pool. If ``US.1``, ``US.2``, ``SF.1`` are used, the
+    # next SF suggestion is ``SF.3`` (first free number globally).
+    share_numbering_across_types: BoolProperty(
+        name="Shared numbering across US types",
+        description="Share the numeric pool across all stratigraphic "
+                    "types: if ``US.1`` / ``US.2`` already exist, "
+                    "the '+' button proposes ``SF.3`` instead of "
+                    "``SF.1``. Off (default) keeps each type on its "
+                    "own series.",
+        default=False,
+    )  # type: ignore
+
     # ── Combiner bookkeeping (auto-populated on Create) ──────────────
     combiner_id: StringProperty(
         name="Combiner ID",

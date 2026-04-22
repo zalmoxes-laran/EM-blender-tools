@@ -135,15 +135,20 @@ PREFIX_ALIASES = {
 
 
 def get_next_numbered_name(graph, prefix: str,
-                            node_type_filter: str = None) -> str:
+                            node_type_filter: str = None,
+                            extra_aliases=None) -> str:
     """Gap-aware next-number generator, shared across flows.
 
     Extracts the numeric suffix from every matching node, accepting
     both dot-separated (``D.41``) and concatenated (``D41``) styles.
-    The effective prefix set is the canonical one plus any entries in
-    :data:`PREFIX_ALIASES` — e.g. ``prefix="US"`` also counts
-    ``SU001``, ``SU.5``, … as occupied slots so the next name doesn't
-    accidentally collide with the Italian-style naming.
+    The effective prefix set is:
+
+    - the canonical one (``prefix``);
+    - the entries in :data:`PREFIX_ALIASES` for that prefix (legacy
+      variants — e.g. Italian ``SU`` for English ``US``);
+    - any ``extra_aliases`` passed by the caller (used by the
+      ProxyBox "shared numbering" toggle to include every other US
+      type so ``SF.N`` and ``US.N`` live in the same number pool).
 
     Returns the **smallest free number starting from 1**:
 
@@ -151,10 +156,11 @@ def get_next_numbered_name(graph, prefix: str,
     - ``used = {1, 2, 4, 5}`` → returns ``3``.
     - ``used = {1, 2, 3}`` → returns ``4`` (contiguous → max+1).
 
-    The generated name reuses whichever separator dominates the
-    existing names for the CANONICAL prefix (aliases don't vote for
-    separator style — they're legacy and shouldn't bias new names).
-    When the graph has no matching nodes, returns ``f"{prefix}.1"``.
+    When ``node_type_filter`` is set, only nodes of that ``node_type``
+    contribute to ``used`` — regardless of whether they match the
+    canonical or an alias prefix. Pass ``node_type_filter=None`` to
+    count across all node types (useful in shared-numbering mode
+    where we're pooling different stratigraphic types).
     """
     import re
     if graph is None:
@@ -163,7 +169,8 @@ def get_next_numbered_name(graph, prefix: str,
         rf'^{re.escape(prefix)}(\.)?(\d+)$')
     alias_pats = [
         re.compile(rf'^{re.escape(a)}(\.)?(\d+)$')
-        for a in PREFIX_ALIASES.get(prefix, ())
+        for a in (list(PREFIX_ALIASES.get(prefix, ()))
+                  + list(extra_aliases or ()))
     ]
     used: set = set()
     sep_votes = {".": 0, "": 0}
@@ -180,7 +187,7 @@ def get_next_numbered_name(graph, prefix: str,
                 used.add(int(m.group(2)))
                 sep_votes[m.group(1) or ""] += 1
                 continue
-            # Legacy aliases count as occupied but DON'T vote for the
+            # Alias matches count as occupied but DON'T vote for the
             # separator (we always emit the canonical prefix).
             for p in alias_pats:
                 m = p.match(node.name)
@@ -193,8 +200,6 @@ def get_next_numbered_name(graph, prefix: str,
     if not used:
         return f"{prefix}.1"
     hi = max(used)
-    # Scan from 1 upwards — any free slot below the current max is
-    # claimed before we append a new one at max+1.
     for n in range(1, hi + 2):
         if n not in used:
             return f"{prefix}{sep}{n}"
