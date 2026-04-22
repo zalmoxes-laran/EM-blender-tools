@@ -7,14 +7,15 @@ Modifica le liste esistenti invece di duplicarle
 import bpy
 from ..functions import check_objs_in_scene_and_provide_icon_for_list_element
 from ..populate_lists import (
-    get_connected_epoch_for_node, 
-    populate_stratigraphic_node, 
+    get_connected_epoch_for_node,
+    populate_stratigraphic_node,
     populate_document_node,
     populate_property_node,
     populate_extractor_node,
     populate_combiner_node,
     populate_epoch_node
 )
+from ..us_types import US_PROPER_TYPES
 
 def populate_lists_landscape_mode(context):
     """
@@ -100,9 +101,9 @@ def populate_stratigraphy_list_landscape(context, all_graphs):
     for graph_code, graph in all_graphs.items():
         # Trova tutti i nodi stratigrafici
         stratigraphic_nodes = [
-            node for node in graph.nodes 
-            if hasattr(node, 'node_type') and 
-            node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'UL', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
+            node for node in graph.nodes
+            if hasattr(node, 'node_type') and
+            node.node_type in US_PROPER_TYPES
         ]
         
         strat = scene.em_tools.stratigraphy  # ✅ Nuovo

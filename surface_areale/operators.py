@@ -291,29 +291,34 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
             alpha = getattr(context.scene.em_tools, 'proxy_display_alpha', 0.5)
             assign_em_material(areale_obj, settings.us_type, alpha)
 
-            # Graph linking
-            if settings.us_type != 'GENERIC':
-                try:
-                    experimental = getattr(context.scene.em_tools,
-                                           'experimental_features', False)
-                    if experimental:
-                        # Full paradata chain (experimental / 1.6)
-                        us_node, msg = link_areale_to_graph(
-                            context, areale_obj, rm_obj, settings
-                        )
-                    else:
-                        # Simple mode (1.5): just name + parent to RM
-                        us_node, msg = link_areale_simple(
-                            context, areale_obj, rm_obj, settings
-                        )
-                    if us_node:
-                        self.report({'INFO'}, msg)
-                    else:
-                        self.report({'WARNING'}, f"Graph linking returned no US: {msg}")
-                except Exception as e:
-                    self.report({'WARNING'}, f"Graph linking failed: {e}")
-                    import traceback
-                    traceback.print_exc()
+            # Graph linking — always runs now that the legacy GENERIC
+            # placeholder is gone (see us_types refactor). The two
+            # branches are still: full paradata chain when
+            # experimental features are on, otherwise simple rename +
+            # parent-to-RM.
+            try:
+                experimental = getattr(context.scene.em_tools,
+                                       'experimental_features', False)
+                if experimental:
+                    # Full paradata chain (experimental / 1.6)
+                    us_node, msg = link_areale_to_graph(
+                        context, areale_obj, rm_obj, settings
+                    )
+                else:
+                    # Simple mode (1.5): just name + parent to RM
+                    us_node, msg = link_areale_simple(
+                        context, areale_obj, rm_obj, settings
+                    )
+                if us_node:
+                    self.report({'INFO'}, msg)
+                else:
+                    self.report({'WARNING'},
+                                f"Graph linking returned no US: {msg}")
+            except Exception as e:
+                self.report({'WARNING'},
+                            f"Graph linking failed: {e}")
+                import traceback
+                traceback.print_exc()
 
             # Ensure proxy is named after the US with graph prefix
             us_name = settings.new_us_name if settings.create_new_us else settings.linked_us_name
@@ -514,31 +519,58 @@ def _get_next_numbered_name(graph, prefix, node_type_filter=None):
         graph, prefix=prefix, node_type_filter=node_type_filter)
 
 
-class EMTOOLS_OT_suggest_next_doc(Operator):
-    """Suggest the next available document number"""
-    bl_idname = "emtools.suggest_next_doc"
-    bl_label = "Next Doc Number"
-    bl_description = "Fill in the next available document number (e.g. D.15)"
+class EMTOOLS_OT_surface_areale_create_doc(Operator):
+    """Chain into the shared ``docmanager.create_master_document``
+    dialog and, on confirm, write the new document's name into
+    ``settings.existing_document`` so the Surface Areas form sees the
+    fresh document as already picked — no need for the user to re-type
+    it in the prop_search.
+
+    Mirrors the RM Container wrapper
+    :class:`RMCONTAINER_OT_create_and_link_new_document` but targets
+    the Surface Areas settings.
+    """
+    bl_idname = "emtools.surface_areale_create_doc"
+    bl_label = "Create + pick document (Surface Areas)"
+    bl_description = (
+        "Open the Master Document creation dialog. On confirm, the "
+        "newly-created document is auto-picked as the Surface Areas "
+        "document so you don't have to retype its name.")
+    bl_options = {'REGISTER'}
 
     @classmethod
     def poll(cls, context):
-        em_tools = context.scene.em_tools
-        return em_tools.active_file_index >= 0
+        return context.scene.em_tools.active_file_index >= 0
 
     def execute(self, context):
-        from s3dgraphy import get_graph
-
         em_tools = context.scene.em_tools
-        graph_info = em_tools.graphml_files[em_tools.active_file_index]
-        graph = get_graph(graph_info.name)
-
-        if not graph:
-            self.report({'ERROR'}, "Graph not loaded")
+        em_tools["last_created_master_doc_id"] = ""
+        result = bpy.ops.docmanager.create_master_document(
+            'INVOKE_DEFAULT')
+        if 'FINISHED' not in result:
             return {'CANCELLED'}
-
-        next_name = _get_next_numbered_name(graph, 'D', node_type_filter='document')
-        em_tools.surface_areale.new_doc_name = next_name
-        self.report({'INFO'}, f"Next document: {next_name}")
+        doc_id = em_tools.get("last_created_master_doc_id", "") or ""
+        if not doc_id:
+            self.report(
+                {'WARNING'},
+                "Document was not created (sentinel missing)")
+            return {'CANCELLED'}
+        try:
+            from s3dgraphy import get_graph
+            graph_info = em_tools.graphml_files[em_tools.active_file_index]
+            graph = get_graph(graph_info.name)
+            node = graph.find_node_by_id(doc_id) if graph else None
+            doc_display = getattr(node, "name", "") if node else ""
+        except Exception:
+            doc_display = ""
+        if not doc_display:
+            self.report(
+                {'WARNING'},
+                "Created document but could not resolve its name")
+            return {'CANCELLED'}
+        em_tools.surface_areale.existing_document = doc_display
+        self.report({'INFO'},
+                    f"Created + picked document: {doc_display}")
         return {'FINISHED'}
 
 
@@ -565,25 +597,14 @@ class EMTOOLS_OT_suggest_next_us(Operator):
             self.report({'ERROR'}, "Graph not loaded")
             return {'CANCELLED'}
 
-        # Map US type to prefix and node_type filter
-        type_to_prefix = {
-            'UL': 'UL',
-            'TSU': 'TSU',
-            'US_NEG': 'USN',
-            'US': 'US',
-        }
-
-        type_to_node_type = {
-            'UL': 'UL',
-            'TSU': 'TSU',
-            'US_NEG': 'US',
-            'US': 'US',
-        }
-
-        prefix = type_to_prefix.get(settings.us_type, 'US')
-        node_filter = type_to_node_type.get(settings.us_type)
-
-        next_name = _get_next_numbered_name(graph, prefix, node_type_filter=node_filter)
+        # The JSON datamodel is now the single source of truth (see
+        # us_types / s3dgraphy.classification). ``us_type`` is the
+        # canonical node_type, and doubles as both the naming prefix
+        # and the node_type filter — e.g. ``USN`` → ``USN.1``,
+        # ``USN.2``, … filtered against USN-typed nodes only.
+        node_type = settings.us_type
+        next_name = _get_next_numbered_name(
+            graph, node_type, node_type_filter=node_type)
         settings.new_us_name = next_name
         self.report({'INFO'}, f"Next US: {next_name}")
         return {'FINISHED'}
@@ -632,7 +653,7 @@ classes = [
     EMTOOLS_OT_draw_surface_areale,
     EMTOOLS_OT_calibrate_benchmark,
     EMTOOLS_OT_confirm_areale,
-    EMTOOLS_OT_suggest_next_doc,
+    EMTOOLS_OT_surface_areale_create_doc,
     EMTOOLS_OT_suggest_next_us,
     EMTOOLS_OT_detect_rm_document,
 ]

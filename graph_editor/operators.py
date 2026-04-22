@@ -18,6 +18,7 @@ from .utils import (
     get_model_edge_types
 )
 from .layout import calculate_hierarchical_layout, apply_layout_to_nodes
+from ..us_types import US_PROPER_TYPES
 
 
 def frame_selected_nodes(context):
@@ -279,9 +280,8 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             return list(graph.nodes)
         
         elif self.filter_mode == 'STRATIGRAPHIC':
-            stratigraphic_types = ['US', 'USVs', 'USVn', 'SF', 'VSF', 'USD', 'TSU']
             filtered = []
-            for node_type in stratigraphic_types:
+            for node_type in US_PROPER_TYPES:
                 filtered.extend(graph.get_nodes_by_type(node_type))
             return filtered
         

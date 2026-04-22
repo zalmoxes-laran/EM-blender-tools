@@ -11,6 +11,7 @@ from bpy.types import Operator # type: ignore
 from ..functions import is_reconstruction_us, EM_list_clear
 from .data import ensure_valid_index
 from ..populate_lists import populate_stratigraphic_node
+from ..us_types import US_PROPER_TYPES
 
 class EM_filter_lists(Operator):
     bl_idname = "em.filter_lists"
@@ -40,7 +41,7 @@ class EM_filter_lists(Operator):
 
         all_strat_nodes = [node for node in graph.nodes
                            if hasattr(node, 'node_type') and
-                           node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'UL', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
+                           node.node_type in US_PROPER_TYPES]
 
         filtered_items = self._apply_common_filters(scene, graph, all_strat_nodes)
 
@@ -94,7 +95,7 @@ class EM_filter_lists(Operator):
 
             all_strat_nodes = [node for node in graph.nodes
                                if hasattr(node, 'node_type') and
-                               node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'UL', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
+                               node.node_type in US_PROPER_TYPES]
 
             filtered_items = self._apply_common_filters(scene, graph, all_strat_nodes)
 
@@ -238,7 +239,7 @@ class EM_reset_filters(Operator):
 
                     strat_nodes = [node for node in graph.nodes
                                    if hasattr(node, 'node_type') and
-                                   node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'UL', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
+                                   node.node_type in US_PROPER_TYPES]
 
                     from ..populate_lists import build_instance_chains
                     instance_chains = build_instance_chains(graph)

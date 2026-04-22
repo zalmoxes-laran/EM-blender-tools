@@ -17,6 +17,21 @@ def _mesh_poll(self, obj):
     return obj.type == 'MESH'
 
 
+def _us_type_items():
+    """Thin wrapper around :func:`us_types.get_us_type_items` — the
+    datamodel JSON (via s3dgraphy's classification API) is the single
+    source of truth. Deferred import so PropertyGroup registration
+    never depends on module-level order.
+
+    Areale pickers include series types (same logic as ProxyBox —
+    an areale anchored on ``serSU`` works just like one anchored on
+    ``US``). Specials (BR/SE) stay out of creation pickers.
+    """
+    from ..us_types import get_us_type_items
+    return get_us_type_items(
+        include_series=True, include_special=False)
+
+
 class SurfaceArealeSettings(PropertyGroup):
     """Settings for the Surface Areale creation tool."""
 
@@ -29,17 +44,15 @@ class SurfaceArealeSettings(PropertyGroup):
     )
 
     # ── US Type ────────────────────────────────────────────────────────
+    # Items sourced dynamically from the JSON datamodel — see us_types.
+    # The legacy ``GENERIC`` option (associate-later placeholder) has
+    # been dropped: if the user doesn't want to commit to a US, they
+    # can use the existing-US branch with the picker left empty, or
+    # link the areale after the fact.
     us_type: EnumProperty(
         name="US Type",
         description="Type of stratigraphic unit for this areale",
-        items=[
-            ('UL', 'Working Unit (UL)', 'Traces of stone working, toolmarks, reworkings'),
-            ('TSU', 'Transformation (TSU)', 'Transformation unit: degradation, abrasion, cracks'),
-            ('US_NEG', 'US Negative', 'Lacunae, removals, negative stratigraphic unit'),
-            ('US', 'US Generic', 'Generic stratigraphic unit'),
-            ('GENERIC', 'Generic Proxy', 'Associate to a US later'),
-        ],
-        default='UL'
+        items=lambda self, context: _us_type_items(),
     )
 
     # ── US Linking ─────────────────────────────────────────────────────
@@ -95,30 +108,22 @@ class SurfaceArealeSettings(PropertyGroup):
     )
 
     # ── Document ───────────────────────────────────────────────────────
+    # DP-07 unified flow: documents are created via the shared
+    # Master-Document dialog (docmanager.create_master_document), not
+    # inline. The Surface Areas picker now uses
+    # ``draw_document_picker_with_create_button`` — it writes the chosen
+    # document's name into ``existing_document`` (also populated by the
+    # "+ Add New Document..." wrapper after a fresh create).
     linked_document: StringProperty(
         name="Document",
-        description="Document auto-detected from RM graph connections (read-only display)"
-    )
-
-    create_new_document: BoolProperty(
-        name="Create New Document",
-        description="Create a new document node for this RM",
-        default=True
+        description="Document auto-detected from RM graph connections "
+                    "(read-only display)"
     )
 
     existing_document: StringProperty(
-        name="Existing Document",
-        description="Name of an existing document node to associate with this RM"
-    )
-
-    new_doc_name: StringProperty(
-        name="Document Name",
-        description="Name for the new document (e.g. D.15)"
-    )
-
-    new_doc_date: StringProperty(
-        name="Date",
-        description="Date of the document (e.g., survey date like '2016')"
+        name="Document",
+        description="Name of the document node to associate with this "
+                    "RM (picked via the shared Document Manager picker)"
     )
 
     # ── Strategy ───────────────────────────────────────────────────────

@@ -20,6 +20,59 @@ from bpy.props import (  # type: ignore
 from bpy.types import PropertyGroup  # type: ignore
 
 
+def _us_type_items():
+    """Thin wrapper around :func:`us_types.get_us_type_items` that
+    keeps the import lazy — Blender evaluates the EnumProperty
+    ``items`` callback at UI draw time, not at module load, so
+    deferring the ``us_types`` import avoids circular-import snarls
+    during add-on registration.
+
+    The returned list is cached inside ``us_types`` (the macOS GC
+    protection the brief calls out); we just forward the reference.
+    """
+    from ..us_types import get_us_type_items
+    return get_us_type_items(
+        include_series=True, include_special=False)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# ``target_us_name`` is computed: it always reflects the Stratigraphy
+# Manager's currently-active unit, and writing to it updates
+# ``strat.units_index``. This gives us bidirectional sync between the
+# ProxyBox panel's ``prop_search`` and the Stratigraphy Manager UI
+# without any update callbacks or sentinels — prop_search reads via
+# the getter and writes via the setter, and changes made elsewhere
+# (Stratigraphy Manager UIList click, auto-selection on import, etc.)
+# are picked up on the next draw.
+# ══════════════════════════════════════════════════════════════════════
+
+
+def _get_target_us_name(self):
+    scene = self.id_data
+    try:
+        strat = scene.em_tools.stratigraphy
+        if strat.units and 0 <= strat.units_index < len(strat.units):
+            return strat.units[strat.units_index].name or ""
+    except Exception:
+        pass
+    return ""
+
+
+def _set_target_us_name(self, value):
+    scene = self.id_data
+    if not value:
+        return
+    try:
+        strat = scene.em_tools.stratigraphy
+        for i, u in enumerate(strat.units):
+            if u.name == value:
+                if strat.units_index != i:
+                    strat.units_index = i
+                return
+    except Exception:
+        pass
+
+
 class ProxyBoxPointSettings(PropertyGroup):
     """Per-point state for one of the seven measurement points."""
 
@@ -44,11 +97,27 @@ class ProxyBoxPointSettings(PropertyGroup):
     )  # type: ignore
 
     # Document and extractor bookkeeping (per-point override; populated
-    # automatically from ``ProxyBoxSettings.document_node_name`` on Record
-    # when ``propagate_doc_to_points`` is True).
+    # automatically from ``ProxyBoxSettings.document_node_{id,name}``
+    # on Record when ``propagate_doc_to_points`` is True).
+    #
+    # ``source_document_id`` is the authoritative UUID: Create uses it
+    # to resolve the exact anchor DocumentNode in the graph, avoiding
+    # name collisions when multiple documents share the same display
+    # name (e.g. a legacy "D.01" + a freshly-created "D.01" elsewhere
+    # in the paradata chain).
     source_document: StringProperty(
         name="Source Document",
-        description="Document NAME (e.g. D.10) this point was extracted from",
+        description="Document display name (e.g. D.10) — used for UI. "
+                    "The Create flow resolves the actual node via "
+                    "``source_document_id`` (UUID) instead to dodge "
+                    "name collisions.",
+        default="",
+    )  # type: ignore
+
+    source_document_id: StringProperty(
+        name="Source Document Node ID",
+        description="UUID of the DocumentNode this point was extracted "
+                    "from — authoritative for graph lookups.",
         default="",
     )  # type: ignore
 
@@ -60,8 +129,8 @@ class ProxyBoxPointSettings(PropertyGroup):
 
     extractor_id: StringProperty(
         name="Extractor Node ID",
-        description="ID of the extractor node created for this point "
-                    "(e.g., D.10.11)",
+        description="Display name of the extractor node created for "
+                    "this point (e.g., D.10.11).",
         default="",
     )  # type: ignore
 
@@ -130,15 +199,77 @@ class ProxyBoxSettings(PropertyGroup):
         default=True,
     )  # type: ignore
 
-    # Active US — picked via ``prop_search`` on
-    # ``em_tools.stratigraphy.units``. The Create flow resolves the
-    # target US by this name, and the proxy mesh takes the same name.
-    # When empty, the operator falls back to the Stratigraphy Manager's
-    # current ``units_index``.
+    # Persist the paradata chain to the .graphml immediately after
+    # Create. Default True because the Create operator produces a
+    # non-trivial chain (US + PropertyNode + up to 7 Extractors +
+    # Combiner + has_representation_model edge) and losing it to a
+    # Blender crash is expensive — the graphml write-lock guard has
+    # already checked that yEd isn't holding the file.
+    persist_after_create: BoolProperty(
+        name="Save GraphML immediately",
+        description="Persist the paradata chain to the .graphml file "
+                    "right after Create. Recommended: the proxy "
+                    "creates a lot of new nodes/edges and keeping "
+                    "them only in memory means a crash throws them "
+                    "away.",
+        default=True,
+    )  # type: ignore
+
+    show_chain_summary: BoolProperty(
+        name="Show Chain Summary",
+        description="Toggle the narrative summary of the paradata "
+                    "chain that will be created on Create.",
+        default=False,
+    )  # type: ignore
+
+    # Active US — bound bidirectionally to
+    # ``em_tools.stratigraphy.units_index`` via the module-level
+    # get/set callbacks. Reading always yields the currently-active
+    # unit's name (kept fresh whenever the Stratigraphy Manager
+    # changes selection); writing via ``prop_search`` picks the unit
+    # with the matching name and updates ``units_index`` in place. No
+    # drift: there is no backing storage here, so the panel is always
+    # showing the single authoritative value.
     target_us_name: StringProperty(
         name="Active US",
         description="Stratigraphic Unit this proxy belongs to; also "
-                    "used as the proxy mesh name",
+                    "used as the proxy mesh name. Bidirectionally "
+                    "linked to the Stratigraphy Manager's active US.",
+        get=_get_target_us_name,
+        set=_set_target_us_name,
+    )  # type: ignore
+
+    # ── Create-new-US branch (mirrors Surface Areas) ─────────────────
+    create_new_us: BoolProperty(
+        name="Create new US",
+        description="Create a fresh Stratigraphic Unit for this proxy "
+                    "instead of reusing the active one. The new US is "
+                    "created and becomes active before the proxy is "
+                    "built.",
+        default=False,
+    )  # type: ignore
+
+    # Items are sourced dynamically from the JSON datamodel via
+    # :mod:`us_types` so adding a new US type to s3dgraphy propagates
+    # here automatically. Series types are included — aggregates are
+    # legitimate creation targets (the proxy anchors the combiner to
+    # their PropertyNode in exactly the same way).
+    new_us_type: EnumProperty(
+        name="US Type",
+        description="Type of stratigraphic unit to create",
+        items=lambda self, context: _us_type_items(),
+    )  # type: ignore
+
+    new_us_name: StringProperty(
+        name="New US Name",
+        description="Name for the new stratigraphic unit "
+                    "(use the '+' button to auto-suggest)",
+        default="",
+    )  # type: ignore
+
+    new_us_epoch: StringProperty(
+        name="Epoch",
+        description="Epoch to assign the new US to",
         default="",
     )  # type: ignore
 

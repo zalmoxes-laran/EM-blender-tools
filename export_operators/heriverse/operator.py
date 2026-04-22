@@ -21,6 +21,7 @@ from s3dgraphy.nodes.representation_node import RepresentationModelDocNode
 
 from ...functions import *
 from ...graph_updaters import *
+from ...us_types import ALL_US_TYPES
 
 from .utils import clean_filename, find_layer_collection, get_collection_for_object
 from .gltf import export_gltf_with_animation_support
@@ -97,11 +98,11 @@ class EXPORT_OT_heriverse(Operator):
         stratigraphic_names = []
         
         # Tipi di nodi stratigrafici da cercare
-        stratigraphic_types = ['US', 'USVs', 'USVn', 'SF', 'VSF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs', 'TSU', 'UL', 'SE', 'BR']
-        
+        stratigraphic_types = ALL_US_TYPES
+
         # Usa gli indici per rapidità
         indices = graph.indices
-        
+
         for node_type in stratigraphic_types:
             if node_type in indices.nodes_by_type:
                 nodes = indices.nodes_by_type[node_type]

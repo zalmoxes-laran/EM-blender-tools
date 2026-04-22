@@ -115,8 +115,11 @@ def _next_extractor_for_doc(graph, doc_name: str,
 
     Scans extractor nodes matching ``{doc_name}.N`` in the graph and
     ``extractor_id`` values already staged on other proxy-box points.
-    Returns the smallest unused ``N`` — fills the first gap when one
-    exists, otherwise ``max + 1``.
+    Returns the smallest unused ``N`` **starting from 1** — so
+    ``used = {5, 6, 7}`` yields ``1`` (nothing below min is taken),
+    ``used = {1, 2, 4}`` yields ``3`` (first gap), and a contiguous
+    ``{1, 2, 3}`` yields ``4`` (max + 1). Matches the semantics of
+    :func:`master_document_helpers.get_next_numbered_name`.
     """
     if not doc_name:
         return ""
@@ -140,8 +143,10 @@ def _next_extractor_for_doc(graph, doc_name: str,
             used.add(int(m.group(1)))
     if not used:
         return f"{doc_name}.1"
-    lo, hi = min(used), max(used)
-    for n in range(lo, hi + 1):
+    hi = max(used)
+    # Scan from 1 upwards so free slots below ``min(used)`` are
+    # claimed before appending at ``max + 1``.
+    for n in range(1, hi + 2):
         if n not in used:
             return f"{doc_name}.{n}"
     return f"{doc_name}.{hi + 1}"
@@ -436,6 +441,43 @@ class PROXYBOX_OT_clear_document(Operator):
         return {'FINISHED'}
 
 
+class PROXYBOX_OT_suggest_next_us(Operator):
+    """Fill ``settings.new_us_name`` with the next free US number for
+    the currently-selected ``new_us_type``. Gap-aware.
+
+    Uses ``us_types`` (which delegates to s3dgraphy's JSON datamodel)
+    as the single source of truth for node_type — so ``USN`` gets
+    ``USN.N`` names, ``serSU`` gets ``serSU.N``, etc. No more
+    hand-maintained prefix/node_type lookup tables.
+    """
+    bl_idname = "proxybox.suggest_next_us"
+    bl_label = "Next US Number"
+    bl_description = (
+        "Fill in the next available US number for the selected "
+        "type (gap-aware).")
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.em_tools.active_file_index >= 0
+
+    def execute(self, context):
+        _gi, graph = _active_graph(context)
+        if graph is None:
+            self.report({'ERROR'}, "Graph not loaded")
+            return {'CANCELLED'}
+        from ..master_document_helpers import get_next_numbered_name
+        settings = context.scene.em_tools.proxy_box
+        # Canonical node_type doubles as naming prefix and node-type
+        # filter — e.g. node_type='USN' → names 'USN.1', 'USN.2', …
+        # filtered against existing USN-typed nodes only.
+        node_type = settings.new_us_type
+        next_name = get_next_numbered_name(
+            graph, node_type, node_type_filter=node_type)
+        settings.new_us_name = next_name
+        self.report({'INFO'}, f"Next US: {next_name}")
+        return {'FINISHED'}
+
+
 # ══════════════════════════════════════════════════════════════════════
 # STEP 2 — Measurement point operators
 # ══════════════════════════════════════════════════════════════════════
@@ -488,11 +530,17 @@ class PROXYBOX_OT_record_point(Operator):
             self.point_index, f"Point {self.point_index + 1}")
 
         propagate = (settings.propagate_doc_to_points
-                     and bool(settings.document_node_name))
+                     and bool(settings.document_node_id))
         if propagate:
             doc_name = settings.document_node_name
+            doc_id = settings.document_node_id
             point.source_document = doc_name
             point.source_document_name = doc_name
+            # Store the UUID as the authoritative reference — the
+            # Create flow resolves the graph node via this UUID, not
+            # the display name, to avoid matching the wrong D.X when
+            # multiple documents share the same label.
+            point.source_document_id = doc_id
             _gi, graph = _active_graph(context)
             existing = [
                 p.extractor_id for i, p in enumerate(settings.points[:7])
@@ -577,6 +625,7 @@ classes = [
     PROXYBOX_OT_link_selected_to_doc,
     PROXYBOX_OT_search_document,
     PROXYBOX_OT_clear_document,
+    PROXYBOX_OT_suggest_next_us,
     PROXYBOX_OT_record_point,
     PROXYBOX_OT_clear_point,
     PROXYBOX_OT_clear_all_points,

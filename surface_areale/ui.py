@@ -90,20 +90,23 @@ class VIEW3D_PT_SurfaceAreale(Panel):
             if has_doc:
                 box.label(text=f"{doc_node.name}", icon='FILE')
             elif is_rm:
-                box.prop(settings, "create_new_document", text="Create New Document")
-                if settings.create_new_document:
-                    row = box.row(align=True)
-                    row.prop(settings, "new_doc_name", text="Name")
-                    row.operator("emtools.suggest_next_doc", text="", icon='ADD')
-                    box.prop(settings, "new_doc_date", text="Date")
-                    has_doc = bool(settings.new_doc_name)
-                else:
-                    if hasattr(scene, 'doc_list') and scene.doc_list:
-                        box.prop_search(settings, "existing_document",
-                                        scene, "doc_list", text="Document")
-                    else:
-                        box.prop(settings, "existing_document", text="Document")
-                    has_doc = bool(settings.existing_document)
+                # Shared Document picker (search existing + create new
+                # via the standard Master Document dialog). The wrapper
+                # operator ``emtools.surface_areale_create_doc`` opens
+                # the create-master-doc dialog and, on confirm, writes
+                # the new doc name back into ``settings.existing_document``
+                # so the user doesn't have to re-pick it.
+                from ..master_document_helpers import (
+                    draw_document_picker_with_create_button)
+                draw_document_picker_with_create_button(
+                    box, scene,
+                    target_owner=settings,
+                    target_prop_name="existing_document",
+                    create_new_operator=(
+                        "emtools.surface_areale_create_doc"),
+                    create_new_label="+ Add New Document...",
+                )
+                has_doc = bool(settings.existing_document)
 
             if not has_doc:
                 all_ok = False
@@ -146,39 +149,36 @@ class VIEW3D_PT_SurfaceAreale(Panel):
             box.prop(settings, "create_new_us", text="Create New US")
             if settings.create_new_us:
                 # Type picker is relevant only for NEW US creation.
+                # GENERIC is gone — the picker now lists canonical
+                # s3dgraphy node_types (US / USN / USVs / serSU / ...).
                 box.prop(settings, "us_type", text="Type")
-                if settings.us_type == 'GENERIC':
-                    has_us = True
-                    row.label(text=f"{req_num}. Stratigraphic Unit",
-                              icon='CHECKMARK')
-                else:
-                    r = box.row(align=True)
-                    r.prop(settings, "new_us_name", text="Name")
-                    r.operator("emtools.suggest_next_us", text="", icon='ADD')
-                    has_us = bool(settings.new_us_name)
+                r = box.row(align=True)
+                r.prop(settings, "new_us_name", text="Name")
+                r.operator("emtools.suggest_next_us", text="", icon='ADD')
+                has_us = bool(settings.new_us_name)
 
-                    if hasattr(em_tools, 'epochs') and em_tools.epochs.list:
-                        box.prop_search(settings, "new_us_epoch",
-                                        em_tools.epochs, "list", text="Epoch")
+                if hasattr(em_tools, 'epochs') and em_tools.epochs.list:
+                    box.prop_search(settings, "new_us_epoch",
+                                    em_tools.epochs, "list", text="Epoch")
 
-                    # Optional stratigraphic link to an existing US.
-                    # When the toggle is on, the user picks direction
-                    # (is_after / is_before) and the target US.
-                    link_box = box.box()
-                    link_box.prop(settings, "add_stratigraphic_link",
-                                  text="Add stratigraphic link (optional)")
-                    if settings.add_stratigraphic_link:
-                        link_box.prop(settings, "link_relation_type",
-                                      text="Relation")
-                        if hasattr(em_tools, 'stratigraphy') \
-                                and em_tools.stratigraphy.units:
-                            link_box.prop_search(
-                                settings, "link_to_existing_us",
-                                em_tools.stratigraphy, "units",
-                                text="Target US")
-                        else:
-                            link_box.prop(settings, "link_to_existing_us",
-                                          text="Target US")
+                # Optional stratigraphic link to an existing US.
+                # When the toggle is on, the user picks direction
+                # (is_after / is_before) and the target US.
+                link_box = box.box()
+                link_box.prop(settings, "add_stratigraphic_link",
+                              text="Add stratigraphic link (optional)")
+                if settings.add_stratigraphic_link:
+                    link_box.prop(settings, "link_relation_type",
+                                  text="Relation")
+                    if hasattr(em_tools, 'stratigraphy') \
+                            and em_tools.stratigraphy.units:
+                        link_box.prop_search(
+                            settings, "link_to_existing_us",
+                            em_tools.stratigraphy, "units",
+                            text="Target US")
+                    else:
+                        link_box.prop(settings, "link_to_existing_us",
+                                      text="Target US")
             else:
                 # Linking to an existing US — no Type picker.
                 if hasattr(em_tools, 'stratigraphy') and em_tools.stratigraphy.units:
@@ -213,7 +213,7 @@ class VIEW3D_PT_SurfaceAreale(Panel):
 
             if settings.show_chain_summary:
                 us_name = settings.new_us_name if settings.create_new_us else settings.linked_us_name
-                doc_name = doc_node.name if doc_node else (settings.new_doc_name or settings.existing_document or "?")
+                doc_name = doc_node.name if doc_node else (settings.existing_document or "?")
                 rm_name = obj.name if obj else "?"
 
                 col = box.column(align=True)

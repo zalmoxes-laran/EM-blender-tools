@@ -15,6 +15,7 @@ from .functions import (
     check_objs_in_scene_and_provide_icon_for_list_element,
     clean_value_for_ui
 )
+from .us_types import US_PROPER_TYPES
 
 
 def get_connected_epoch_for_node(graph, node):
@@ -325,10 +326,9 @@ def update_graph_statistics(context, graph, graphml_file_item):
 
     # ✅ OPTIMIZATION: Use s3dgraphy indices directly for faster counting
     # Access indices.nodes_by_type which is already built by s3dgraphy
-    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'UL', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
     stratigraphic_count = sum(
         len(graph.indices.nodes_by_type.get(node_type, []))
-        for node_type in stratigraphic_types
+        for node_type in US_PROPER_TYPES
     )
 
     # Count other node types using indices (triggers index build if not already done)

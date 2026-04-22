@@ -11,6 +11,7 @@ from bpy.types import Operator
 
 from ..functions import check_material_presence, em_setup_mat_cycles, update_icons
 from ..functions import select_list_element_from_obj_proxy
+from ..us_types import US_PROPER_TYPES
 
 from s3dgraphy.utils.utils import manage_id_prefix, get_base_name, add_graph_prefix
 
@@ -44,7 +45,7 @@ def repopulate_list_without_sync(context):
     # Get all stratigraphic nodes
     strat_nodes = [node for node in graph.nodes
                    if hasattr(node, 'node_type') and
-                   node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'UL', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']]
+                   node.node_type in US_PROPER_TYPES]
 
     # Repopulate list
     from ..populate_lists import build_instance_chains
@@ -290,9 +291,8 @@ class EM_strat_sync_visibility(Operator):
             return  # Can't sync without graph
 
         # Get ALL stratigraphic node names from graph (not just filtered list)
-        stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'UL', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
         all_strat_node_names = set()
-        for node_type in stratigraphic_types:
+        for node_type in US_PROPER_TYPES:
             for node in graph.indices.nodes_by_type.get(node_type, []):
                 if hasattr(node, 'name'):
                     all_strat_node_names.add(node.name)
@@ -1261,7 +1261,7 @@ class EM_not_in_matrix(Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'UL', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
+        EM_mat_list = US_PROPER_TYPES
         EM_mat_name = "mat_NotInTheMatrix"
         R = 1.0
         G = 0.0
@@ -1393,7 +1393,7 @@ class SET_materials_using_em_list(Operator):
                 
                 # Check the node_type first (most reliable method)
                 if hasattr(current_ob_em_list, 'node_type') and current_ob_em_list.node_type:
-                    if current_ob_em_list.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'UL', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']:
+                    if current_ob_em_list.node_type in US_PROPER_TYPES:
                         ob_material_name = current_ob_em_list.node_type
                 else:
                     ob_material_name ='US'

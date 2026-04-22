@@ -11,6 +11,8 @@ import time
 from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
 from s3dgraphy import get_graph, get_all_graph_ids
 
+from ..us_types import US_PROPER_TYPES
+
 DEFAULT_COLOR = (0.5, 0.5, 0.5, 1.0)  # Grigio medio
 
 # Cache variables per get_available_properties
@@ -92,9 +94,8 @@ def create_property_value_mapping_direct(graph, property_name):
                 print(f"  -> {us_node.name}: '{value}'")
 
     # ✅ OPTIMIZATION: Iterate only stratigraphic node types instead of all graph.nodes
-    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'UL', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
     no_property_count = 0
-    for node_type in stratigraphic_types:
+    for node_type in US_PROPER_TYPES:
         for node in graph.indices.nodes_by_type.get(node_type, []):
             if (hasattr(node, 'node_id') and
                 node.node_id not in connected_strat_nodes and
@@ -147,9 +148,8 @@ def create_property_value_mapping_legacy(graph, property_name):
                     mapping[strat_node.name] = f"empty property {property_name} node"
 
     # ✅ OPTIMIZATION: Iterate only stratigraphic node types instead of all graph.nodes
-    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'UL', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
     no_property_count = 0
-    for node_type in stratigraphic_types:
+    for node_type in US_PROPER_TYPES:
         for node in graph.indices.nodes_by_type.get(node_type, []):
             if (hasattr(node, 'node_id') and
                 node.node_id not in connected_strat_nodes and

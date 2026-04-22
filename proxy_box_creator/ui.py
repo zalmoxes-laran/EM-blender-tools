@@ -22,21 +22,13 @@ from .operators import POINT_TYPE_LABELS
 
 
 def _active_us_name(context):
-    """Return the active Stratigraphic Unit's name, or ``""``.
+    """Return the active Stratigraphic Unit's name (empty when none).
 
-    Prefers ``settings.target_us_name`` when set (ProxyBox's own picker);
-    falls back to the Stratigraphy Manager's ``units[units_index]``
-    when it isn't.
+    ``settings.target_us_name`` is a computed property whose getter
+    already reads ``strat.units[strat.units_index].name`` — so the
+    two are always in sync and we can just delegate.
     """
-    settings = context.scene.em_tools.proxy_box
-    if settings.target_us_name:
-        return settings.target_us_name
-    strat = context.scene.em_tools.stratigraphy
-    if (not strat.units
-            or strat.units_index < 0
-            or strat.units_index >= len(strat.units)):
-        return ""
-    return strat.units[strat.units_index].name or ""
+    return context.scene.em_tools.proxy_box.target_us_name or ""
 
 
 class PROXYBOX_PT_main_panel(Panel):
@@ -177,37 +169,107 @@ class PROXYBOX_PT_main_panel(Panel):
         col = params_box.column(align=True)
         col.prop(settings, "pivot_location", text="Pivot")
         col.prop(settings, "use_proxy_collection")
+        col.prop(settings, "persist_after_create", icon='DISK_DRIVE')
 
-        # Active US — drives the proxy mesh name at Create time. The
-        # picker writes ``settings.target_us_name`` via ``prop_search``,
-        # matching the pattern Surface Areas uses for the same purpose.
-        # The active US in the Stratigraphy Manager acts as a fallback
-        # when nothing is picked here.
-        us_name = _active_us_name(context)
+        # Active US — two paths, mirroring Surface Areas:
+        # - Create new US: toggle on, choose type/name/epoch. A fresh
+        #   US is created at Create time and becomes the active one.
+        # - Pick existing: ``prop_search`` bound to
+        #   ``settings.target_us_name``, which is a computed property
+        #   bidirectionally synced with ``strat.units_index`` (picking
+        #   here moves the Stratigraphy Manager's active US and vice
+        #   versa).
+        params_box.prop(settings, "create_new_us")
         strat = em_tools.stratigraphy
-        if strat.units:
-            params_box.prop_search(
-                settings, "target_us_name",
-                strat, "units",
-                text="Active US",
-                icon='MOD_EXPLODE')
-            if settings.target_us_name:
-                params_box.label(
-                    text=f"Proxy name → {settings.target_us_name}",
-                    icon='OUTLINER_OB_MESH')
-            elif us_name:
-                params_box.label(
-                    text=f"Proxy name → {us_name}  "
-                         f"(from Stratigraphy Manager)",
-                    icon='OUTLINER_OB_MESH')
+
+        if settings.create_new_us:
+            params_box.prop(settings, "new_us_type", text="Type")
+            name_row = params_box.row(align=True)
+            name_row.prop(settings, "new_us_name", text="Name")
+            name_row.operator(
+                "proxybox.suggest_next_us", text="", icon='ADD')
+            # Epoch is mandatory — every US needs a first-epoch
+            # anchor. Flag the row visually when still empty so the
+            # user sees the requirement without reading the gate msg.
+            if hasattr(em_tools, 'epochs') and em_tools.epochs.list:
+                epoch_row = params_box.row(align=True)
+                epoch_row.alert = not bool(settings.new_us_epoch)
+                epoch_row.prop_search(
+                    settings, "new_us_epoch",
+                    em_tools.epochs, "list", text="Epoch *")
             else:
                 params_box.label(
-                    text="Pick an Active US — the proxy mesh will take "
-                         "its name.",
+                    text="No epochs defined — create one first.",
+                    icon='ERROR')
+            if settings.new_us_name and settings.new_us_epoch:
+                params_box.label(
+                    text=f"Proxy name → {settings.new_us_name}",
+                    icon='OUTLINER_OB_MESH')
+            elif not settings.new_us_name:
+                params_box.label(
+                    text="Give the new US a name — the proxy mesh "
+                         "will take it.",
+                    icon='ERROR')
+            else:
+                params_box.label(
+                    text="Pick the new US's first epoch (*).",
                     icon='ERROR')
         else:
-            params_box.label(
-                text="No stratigraphic units available.", icon='INFO')
+            us_name = _active_us_name(context)
+            if strat.units:
+                params_box.prop_search(
+                    settings, "target_us_name",
+                    strat, "units",
+                    text="Active US",
+                    icon='MOD_EXPLODE')
+                if us_name:
+                    params_box.label(
+                        text=f"Proxy name → {us_name}",
+                        icon='OUTLINER_OB_MESH')
+                else:
+                    params_box.label(
+                        text="Pick an Active US — the proxy mesh "
+                             "will take its name.",
+                        icon='ERROR')
+            else:
+                params_box.label(
+                    text="No stratigraphic units yet — toggle "
+                         "'Create new US' to add one.",
+                    icon='INFO')
+
+        # ── Chain Summary (collapsible) ──────────────────────────────
+        # Mirrors the Surface Areas panel's summary: shows the
+        # paradata chain that will be committed to the graph on
+        # Create, so the user can sanity-check node names and arrow
+        # directions without leaving the panel.
+        layout.separator()
+        summary_box = layout.box()
+        head = summary_box.row()
+        head.prop(
+            settings, "show_chain_summary",
+            icon=('TRIA_DOWN' if settings.show_chain_summary
+                  else 'TRIA_RIGHT'),
+            text="Chain Summary",
+            emboss=False,
+        )
+        if settings.show_chain_summary:
+            us_name_cs = _active_us_name(context) or "?"
+            doc_name_cs = (settings.document_node_name or "?")
+            ext_ids_cs = [p.extractor_id
+                          for p in settings.points[:7]
+                          if p.extractor_id]
+            ext_join = ", ".join(ext_ids_cs) if ext_ids_cs else "?"
+            col = summary_box.column(align=True)
+            col.scale_y = 0.85
+            col.label(
+                text=f"{us_name_cs}  --has_property-->  "
+                     f"{us_name_cs}_proxy_geometry")
+            col.label(
+                text=f"  --has_data_provenance-->  C.N (new)")
+            col.label(
+                text=f"  <--is_combined_in--  {ext_join}")
+            col.label(
+                text=f"  <--has_extractor--  {doc_name_cs}")
 
         # ── Create / Clear ───────────────────────────────────────────
         layout.separator()
@@ -218,10 +280,21 @@ class PROXYBOX_PT_main_panel(Panel):
         all_have_ext = all(
             bool(p.extractor_id) for p in settings.points[:7]) \
             if len(settings.points) >= 7 else False
+        # US gate: two paths.
+        # - Create-new: requires ``new_us_name`` AND ``new_us_epoch``
+        #   (every US must have a first-epoch anchor; no year needed,
+        #   but the epoch binding is part of the paradata contract).
+        # - Reuse-existing: just needs the currently-active US name.
+        if settings.create_new_us:
+            has_us = (bool(settings.new_us_name)
+                      and bool(settings.new_us_epoch))
+        else:
+            has_us = bool(_active_us_name(context))
+
         can_create = (all_recorded
                       and all_have_doc
                       and all_have_ext
-                      and bool(us_name))
+                      and has_us)
 
         row = layout.row()
         row.scale_y = 1.5
@@ -247,6 +320,16 @@ class PROXYBOX_PT_main_panel(Panel):
                     "proxybox.create_proxy_enhanced",
                     text="Missing extractor ids — re-record with "
                          "Propagate on",
+                    icon='ERROR')
+            elif settings.create_new_us and not settings.new_us_name:
+                row.operator(
+                    "proxybox.create_proxy_enhanced",
+                    text="Name the new US first",
+                    icon='ERROR')
+            elif settings.create_new_us and not settings.new_us_epoch:
+                row.operator(
+                    "proxybox.create_proxy_enhanced",
+                    text="Pick the new US's epoch",
                     icon='ERROR')
             else:
                 row.operator(

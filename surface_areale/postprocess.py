@@ -156,13 +156,20 @@ def assign_em_naming(obj, graph, us_node_name, context):
 
 
 def assign_em_material(obj, us_type, alpha=0.5):
-    """Create and assign a semi-transparent material based on the US type."""
-    colors = {
-        'UL': (0.9, 0.6, 0.2), 'TSU': (0.8, 0.2, 0.2),
-        'US_NEG': (0.3, 0.3, 0.3), 'US': (0.4, 0.6, 0.9),
-        'GENERIC': (0.7, 0.7, 0.7),
-    }
-    color = colors.get(us_type, (0.7, 0.7, 0.7))
+    """Create and assign a semi-transparent material based on the US type.
+
+    Colour sourced from ``em_visual_rules.json`` via
+    :func:`us_types.get_us_color` — the same source the Stratigraphy
+    Manager's ``emset.emmaterial`` operator uses. If the JSON has no
+    entry for ``us_type`` (shouldn't happen now that USN is registered
+    but keep a safety net) fall back to a neutral grey.
+    """
+    from ..us_types import get_us_color
+    rgba = get_us_color(us_type)
+    if rgba and len(rgba) >= 3:
+        color = tuple(rgba[:3])
+    else:
+        color = (0.7, 0.7, 0.7)
     mat_name = f"M_Areale_{us_type}"
     mat = bpy.data.materials.get(mat_name)
     if not mat:
@@ -336,9 +343,6 @@ def link_areale_simple(context, areale_obj, rm_obj, settings):
     if not graph:
         return None, "Graph not loaded"
 
-    if settings.us_type == 'GENERIC':
-        return None, "Generic proxy — link manually later"
-
     # ── Find existing US node ─────────────────────────────────────────
     us_node = None
     if settings.linked_us_name:
@@ -384,30 +388,25 @@ def link_areale_to_graph(context, areale_obj, rm_obj, settings):
 
     messages = []
 
-    if settings.us_type == 'GENERIC':
-        return None, "Generic proxy — link manually later"
-
     # ── 1. Find RepresentationModelNode (create if missing from graph) ─
     rm_node = find_rm_node_in_graph(scene, graph, rm_obj, create_if_missing=True)
     if not rm_node:
         return None, f"RM node not found and could not be created for {rm_obj.name}"
 
-    # ── 2. Find or create DocumentNode ────────────────────────────────
+    # ── 2. Find or link DocumentNode ──────────────────────────────────
+    # DP-07 unified flow: documents are always created via the shared
+    # Master-Document dialog (either the one the user had already open
+    # or the wrapper ``emtools.surface_areale_create_doc`` which
+    # auto-picks the result). So here we just resolve ``existing_document``
+    # — the inline "create doc" branch is gone.
     doc_node = find_rm_document(scene, graph, rm_obj)
-
-    if not doc_node:
-        if settings.create_new_document and settings.new_doc_name:
-            doc_node = _create_document_node(graph, settings)
-            # Edge: Document --has_representation_model--> RM
+    if not doc_node and settings.existing_document:
+        doc_node = _find_node_by_name(
+            graph, settings.existing_document, 'document')
+        if doc_node:
             _ensure_edge(graph, doc_node.node_id, rm_node.node_id,
                          "has_representation_model")
-            messages.append(f"Created document: {doc_node.name}")
-        elif not settings.create_new_document and settings.existing_document:
-            doc_node = _find_node_by_name(graph, settings.existing_document, 'document')
-            if doc_node:
-                _ensure_edge(graph, doc_node.node_id, rm_node.node_id,
-                             "has_representation_model")
-                messages.append(f"Linked document: {doc_node.name}")
+            messages.append(f"Linked document: {doc_node.name}")
 
     if not doc_node:
         return None, "No document — cannot create paradata chain"
@@ -556,18 +555,20 @@ def _get_next_extractor_name(graph, doc_name):
 
 
 def _create_us_node(graph, settings):
-    """Create a new stratigraphic node based on the selected US type."""
-    from s3dgraphy.nodes import (
-        StratigraphicUnit, TransformationStratigraphicUnit, WorkingUnit
-    )
-    type_map = {
-        'UL': WorkingUnit,
-        'TSU': TransformationStratigraphicUnit,
-        'US_NEG': StratigraphicUnit,
-        'US': StratigraphicUnit,
-    }
-    node_class = type_map.get(settings.us_type, StratigraphicUnit)
-    us_node = node_class(node_id=str(uuid.uuid4()), name=settings.new_us_name)
+    """Create a new stratigraphic node based on the selected US type.
+
+    Goes through :func:`us_types.get_us_class` so the factory is the
+    same one s3dgraphy uses internally (JSON datamodel → Python
+    class). No more hand-maintained type_map — adding a new US type
+    to the datamodel propagates here automatically.
+    """
+    from ..us_types import get_us_class
+    node_class = get_us_class(settings.us_type)
+    if node_class is None:
+        from s3dgraphy.nodes import StratigraphicUnit
+        node_class = StratigraphicUnit
+    us_node = node_class(
+        node_id=str(uuid.uuid4()), name=settings.new_us_name)
     graph.add_node(us_node)
     return us_node
 
@@ -597,26 +598,6 @@ def _link_us_stratigraphically(graph, us_node, target_us_name,
             _ensure_edge(graph, us_node.node_id, node.node_id, relation_type)
             return True
     return False
-
-
-def _create_document_node(graph, settings):
-    """Create a new DocumentNode. Returns existing node if name already taken."""
-    # Check if a document with this name already exists
-    existing = _find_node_by_name(graph, settings.new_doc_name, 'document')
-    if existing:
-        print(f"[SurfaceAreale] Document '{settings.new_doc_name}' already exists, reusing it")
-        return existing
-
-    from s3dgraphy.nodes import DocumentNode
-    doc_node = DocumentNode(
-        node_id=str(uuid.uuid4()),
-        name=settings.new_doc_name,
-        description=f"Document created by Surface Areas tool"
-    )
-    if settings.new_doc_date:
-        doc_node.attributes['date'] = settings.new_doc_date
-    graph.add_node(doc_node)
-    return doc_node
 
 
 def _refresh_lists(context, graph, doc_node=None, extractor_node=None,
