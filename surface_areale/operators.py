@@ -504,45 +504,14 @@ class EMTOOLS_OT_confirm_areale(Operator):
 
 
 def _get_next_numbered_name(graph, prefix, node_type_filter=None):
-    """Find the next available numbered name in the graph for ``prefix``.
-
-    Extracts the numeric suffix from every matching node, accepting
-    both dot-separated (``USM.400``) and concatenated (``USM400``)
-    styles so graphs that mix conventions are handled uniformly.
-    Returns the **smallest free number**: the first gap in the
-    sequence when there is one (e.g. 350 when 1..349 and 351..400
-    exist), or ``max + 1`` when the sequence is contiguous.
-
-    The generated name reuses whichever separator is dominant in the
-    existing names. Absent prior nodes, the canonical dot-separated
-    form is used.
+    """Thin wrapper — delegates to
+    :func:`master_document_helpers.get_next_numbered_name` so the
+    gap-aware numbering logic stays in one place. Kept as a local
+    name so existing call sites in this module don't need to change.
     """
-    import re
-    pat = re.compile(rf'^{re.escape(prefix)}(\.)?(\d+)$')
-    used = set()
-    sep_votes = {".": 0, "": 0}
-    for node in graph.nodes:
-        if not hasattr(node, 'name') or not isinstance(node.name, str):
-            continue
-        if node_type_filter and hasattr(node, 'node_type'):
-            if node.node_type != node_type_filter:
-                continue
-        m = pat.match(node.name)
-        if m:
-            used.add(int(m.group(2)))
-            sep_votes[m.group(1) or ""] += 1
-    sep = "." if sep_votes["."] >= sep_votes[""] else ""
-    if not used:
-        return f"{prefix}.1"
-    # Search for gaps only *within* the existing range: if the user's
-    # numbering starts at 398 (USM398..USM400), the next number is
-    # USM401 — not USM1. Gaps *inside* the range (e.g. 350 missing
-    # between 1 and 400) are preferred over appending past the max.
-    lo, hi = min(used), max(used)
-    for n in range(lo, hi + 1):
-        if n not in used:
-            return f"{prefix}{sep}{n}"
-    return f"{prefix}{sep}{hi + 1}"
+    from ..master_document_helpers import get_next_numbered_name
+    return get_next_numbered_name(
+        graph, prefix=prefix, node_type_filter=node_type_filter)
 
 
 class EMTOOLS_OT_suggest_next_doc(Operator):

@@ -21,9 +21,14 @@ POINT_TYPE_LABELS = {
 
 
 class PROXYBOX_PT_main_panel(Panel):
-    """Main panel for Proxy Box Creator"""
+    """Main panel for Proxy Box Creator.
+
+    Nested under the RM to Proxy Suite parent panel (see
+    ``rm_to_proxy_suite.py``) — sibling of Surface Areas.
+    """
     bl_label = "Proxy Box Creator"
     bl_idname = "PROXYBOX_PT_main_panel"
+    bl_parent_id = "VIEW3D_PT_RMToProxySuite"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM Annotator"

@@ -122,6 +122,111 @@ def refresh_document_lists(context, node, graph) -> None:
         pass
 
 
+def get_next_numbered_name(graph, prefix: str,
+                            node_type_filter: str = None) -> str:
+    """Gap-aware next-number generator, shared across flows.
+
+    Extracts the numeric suffix from every matching node, accepting
+    both dot-separated (``D.41``) and concatenated (``D41``) styles.
+    Returns the **smallest free number** within the existing range:
+    the first gap when one exists (e.g. 350 when 1..349 and 351..400
+    are used), or ``max + 1`` when the sequence is contiguous.
+
+    The generated name reuses whichever separator dominates the
+    existing names. When the graph has no matching nodes, returns
+    ``f"{prefix}.1"`` (canonical dot-separated form).
+
+    Used by both the Surface Areas operator and the Create Master
+    Document dialog's "+" button so numbering behaviour stays
+    consistent across flows.
+    """
+    import re
+    if graph is None:
+        return f"{prefix}.1"
+    pat = re.compile(rf'^{re.escape(prefix)}(\.)?(\d+)$')
+    used: set = set()
+    sep_votes = {".": 0, "": 0}
+    try:
+        for node in graph.nodes:
+            if not hasattr(node, 'name') \
+                    or not isinstance(node.name, str):
+                continue
+            if node_type_filter and hasattr(node, 'node_type'):
+                if node.node_type != node_type_filter:
+                    continue
+            m = pat.match(node.name)
+            if m:
+                used.add(int(m.group(2)))
+                sep_votes[m.group(1) or ""] += 1
+    except Exception:
+        pass
+    sep = "." if sep_votes["."] >= sep_votes[""] else ""
+    if not used:
+        return f"{prefix}.1"
+    lo, hi = min(used), max(used)
+    for n in range(lo, hi + 1):
+        if n not in used:
+            return f"{prefix}{sep}{n}"
+    return f"{prefix}{sep}{hi + 1}"
+
+
+def suggest_next_document_name(graph) -> str:
+    """Propose the next available Master-Document name (e.g. ``D.42``).
+
+    Thin wrapper over :func:`get_next_numbered_name` that pins the
+    prefix to ``D`` and filters by ``node_type == 'document'``. The
+    gap-aware logic is shared — if the graph has ``D.1..D.349`` plus
+    ``D.351..D.400`` then this returns ``D.350`` (first gap), not
+    ``D.401``.
+    """
+    return get_next_numbered_name(
+        graph, prefix="D", node_type_filter="document")
+
+
+def draw_document_picker_with_create_button(
+        layout,
+        scene,
+        target_owner,
+        target_prop_name: str,
+        create_new_operator: str = None,
+        create_new_label: str = "+ Add New Document...",
+        search_label: str = "Search",
+        search_icon: str = 'VIEWZOOM'):
+    """Draw a reusable Document picker block in ``layout``:
+
+    - When ``create_new_operator`` is provided, an ``ADD NEW`` button
+      is drawn first. The operator handle is returned so the caller
+      can set context-specific properties on it (e.g. a
+      ``container_index`` for the RM container flow).
+    - A ``prop_search`` over ``scene.doc_list`` follows, giving the
+      user type-to-filter access to existing documents. When
+      ``scene.doc_list`` is missing or empty, a neutral "(no
+      documents yet)" hint is shown instead.
+
+    Used by the RM Container link-or-create dialog. Can be reused by
+    any future flow that needs the same pick-or-create UX (Surface
+    Areas document step, Proxy Box Creator picker, etc.).
+    """
+    create_op = None
+    if create_new_operator:
+        add_row = layout.row()
+        add_row.scale_y = 1.1
+        create_op = add_row.operator(
+            create_new_operator, text=create_new_label, icon='FILE_NEW')
+        layout.separator()
+    layout.label(text="Or pick an existing document:", icon='FILE_TEXT')
+    if hasattr(scene, "doc_list") and len(scene.doc_list) > 0:
+        layout.prop_search(
+            target_owner, target_prop_name,
+            scene, "doc_list",
+            text=search_label, icon=search_icon)
+    else:
+        layout.label(
+            text="(no documents in the catalog yet)",
+            icon='INFO')
+    return create_op
+
+
 def resolve_epoch_from_year(graph, year: int):
     """Return the :class:`EpochNode` whose ``[start_time, end_time]``
     range contains ``year``, preferring the narrowest matching range

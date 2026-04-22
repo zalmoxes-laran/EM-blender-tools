@@ -29,6 +29,7 @@ from .containers import (
     add_mesh_to_container,
     bootstrap_legacy_container_if_needed,
     find_container_for_mesh,
+    is_rm_candidate,
     remove_mesh_from_container,
     sync_rm_containers,
     unregister_container,
@@ -273,17 +274,22 @@ class RMCONTAINER_OT_link_this_to_doc(Operator):
 
 class RMCONTAINER_OT_create_and_link_new_document(Operator):
     """Chain into the shared ``docmanager.create_master_document``
-    dialog. On success, wrap the newly-created DocumentNode in a fresh
-    container.
+    dialog. On success, either create a NEW container linked to the
+    resulting document (when ``container_index`` is -1, the default)
+    or link the EXISTING container at ``container_index`` to it.
     """
     bl_idname = "rmcontainer.create_and_link_new_document"
     bl_label = "Create new document + container"
     bl_description = (
-        "Open the Master Document creation dialog (name, description, "
-        "epoch anchor, three-axis classification) and create a new RM "
-        "container linked to the resulting document."
+        "Open the Master Document creation dialog and link the new "
+        "document to a container (either a new one, or the one "
+        "identified by container_index if given)."
     )
     bl_options = {'REGISTER'}
+
+    # When >= 0, link the new document to this existing container.
+    # When -1, create a fresh container for it.
+    container_index: IntProperty(default=-1)  # type: ignore
 
     @classmethod
     def poll(cls, context):
@@ -292,6 +298,7 @@ class RMCONTAINER_OT_create_and_link_new_document(Operator):
 
     def execute(self, context):
         em_tools = context.scene.em_tools
+        scene = context.scene
         # Reset the result sentinel before calling the inner operator
         # so we can detect whether it actually created a document.
         em_tools["last_created_master_doc_id"] = ""
@@ -312,15 +319,52 @@ class RMCONTAINER_OT_create_and_link_new_document(Operator):
                 doc_display = getattr(n, "name", "") if n else ""
             except Exception:
                 doc_display = ""
-        scene = context.scene
-        container = scene.rm_containers.add()
-        container.doc_node_id = doc_id
-        container.doc_name = doc_display
-        container.label = f"{doc_display}.container" \
-            if doc_display else "New container"
-        scene.rm_containers_index = len(scene.rm_containers) - 1
-        self.report({'INFO'},
-                    f"Container created and linked to {doc_display or doc_id}")
+
+        # Two paths: link to an existing container, or create a new one.
+        if (self.container_index >= 0
+                and self.container_index < len(scene.rm_containers)):
+            container = scene.rm_containers[self.container_index]
+            # Retrofit has_representation_model edges for every mesh
+            # already in the container (mirrors link_or_create_doc._link).
+            if graph is not None:
+                from .containers import _ensure_rm_node_for_mesh, _has_edge
+                for entry in container.mesh_names:
+                    mesh_obj = bpy.data.objects.get(entry.name)
+                    if mesh_obj is None:
+                        continue
+                    rm_id = _ensure_rm_node_for_mesh(scene, graph, mesh_obj)
+                    if rm_id and not _has_edge(
+                            graph, doc_id, rm_id,
+                            "has_representation_model"):
+                        try:
+                            graph.add_edge(
+                                edge_id=(f"{doc_id}_has_representation_model_"
+                                         f"{rm_id}"),
+                                edge_source=doc_id,
+                                edge_target=rm_id,
+                                edge_type="has_representation_model",
+                            )
+                        except Exception:
+                            pass
+                    mesh_obj["em_rm_container_doc_id"] = doc_id
+            container.doc_node_id = doc_id
+            container.doc_name = doc_display
+            scene.rm_containers_index = self.container_index
+            self.report(
+                {'INFO'},
+                f"Linked container {container.label!r} to new document "
+                f"{doc_display or doc_id}")
+        else:
+            container = scene.rm_containers.add()
+            container.doc_node_id = doc_id
+            container.doc_name = doc_display
+            container.label = f"{doc_display}.container" \
+                if doc_display else "New container"
+            scene.rm_containers_index = len(scene.rm_containers) - 1
+            self.report(
+                {'INFO'},
+                f"Container created and linked to "
+                f"{doc_display or doc_id}")
         return {'FINISHED'}
 
 
@@ -341,7 +385,7 @@ class RMCONTAINER_OT_add_selected_meshes(Operator):
     @classmethod
     def poll(cls, context):
         return (active_container(context.scene) is not None
-                and any(o.type == 'MESH'
+                and any(is_rm_candidate(o)
                         for o in context.selected_objects))
 
     def execute(self, context):
@@ -350,9 +394,11 @@ class RMCONTAINER_OT_add_selected_meshes(Operator):
             self.report({'ERROR'}, "No active container")
             return {'CANCELLED'}
         selected = [o for o in context.selected_objects
-                    if o.type == 'MESH']
+                    if is_rm_candidate(o)]
         if not selected:
-            self.report({'ERROR'}, "No mesh objects selected")
+            self.report({'ERROR'},
+                        "No RM-candidate objects selected "
+                        "(need MESH / CURVE / plain EMPTY)")
             return {'CANCELLED'}
 
         # Auto-promote to rm_list when an active epoch exists: any
@@ -404,6 +450,165 @@ class RMCONTAINER_OT_add_selected_meshes(Operator):
                     f"Added {added} mesh(es) to {container.label!r} "
                     f"(skipped {len(skipped)})")
         return {'FINISHED'}
+
+
+class RMCONTAINER_OT_link_or_create_doc(Operator):
+    """Unified link/create flow: pick a DocumentNode from the graph
+    via a prop_search (type-to-filter) or create a new Master
+    Document via the shared ``docmanager.create_master_document``
+    dialog. Invoked inline per-container row from
+    :class:`RMCONTAINER_UL_list`.
+    """
+    bl_idname = "rmcontainer.link_or_create_doc"
+    bl_label = "Link / create document"
+    bl_description = (
+        "Link this RM container to a Document from the catalog "
+        "(search by name) or create a new Master Document. "
+        "has_representation_model edges from the Document to the "
+        "container's meshes are added (or replaced when re-linking)."
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    container_index: IntProperty(default=-1)  # type: ignore
+    target_doc_name: StringProperty(
+        name="Document",
+        description="Name of the existing document to link to "
+                    "(type to filter)",
+        default="",
+    )  # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        return (len(context.scene.rm_containers) > 0
+                and context.scene.em_tools.active_file_index >= 0)
+
+    def invoke(self, context, event):
+        self.target_doc_name = ""
+        return context.window_manager.invoke_props_dialog(self, width=440)
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        idx = (self.container_index
+               if self.container_index >= 0 else scene.rm_containers_index)
+        if 0 <= idx < len(scene.rm_containers):
+            cont = scene.rm_containers[idx]
+            layout.label(text=f"Container: {cont.label!r}", icon='PACKAGE')
+            if cont.doc_node_id:
+                layout.label(
+                    text=f"Currently linked to {cont.doc_name or cont.doc_node_id} "
+                         "— picking another document replaces the link.",
+                    icon='INFO')
+        layout.separator()
+
+        # Shared Document picker widget (create-new + search existing).
+        # The returned ``add_op`` handle is configured with the current
+        # container_index so the create flow knows which container to
+        # link the new document to.
+        from ..master_document_helpers import \
+            draw_document_picker_with_create_button
+        add_op = draw_document_picker_with_create_button(
+            layout, scene,
+            target_owner=self,
+            target_prop_name="target_doc_name",
+            create_new_operator="rmcontainer.create_and_link_new_document",
+        )
+        if add_op is not None:
+            add_op.container_index = idx
+
+    def _link(self, context, container, doc_id):
+        scene = context.scene
+        graph = _active_graph(context)
+        if graph is None:
+            self.report({'ERROR'}, "No active graph")
+            return {'CANCELLED'}
+        doc_node = graph.find_node_by_id(doc_id)
+        if doc_node is None:
+            self.report({'ERROR'}, f"Document node {doc_id!r} not found")
+            return {'CANCELLED'}
+        doc_display = getattr(doc_node, "name", "") or doc_id
+
+        # If re-linking (different doc already attached), drop old
+        # has_representation_model edges so they don't dangle.
+        old_doc_id = container.doc_node_id
+        if old_doc_id and old_doc_id != doc_id:
+            for entry in container.mesh_names:
+                mesh_obj = bpy.data.objects.get(entry.name)
+                if mesh_obj is None:
+                    continue
+                rm_id = mesh_obj.get("em_rm_node_id", "")
+                if not rm_id:
+                    continue
+                for e in list(graph.edges):
+                    if (e.edge_source == old_doc_id
+                            and e.edge_target == rm_id
+                            and e.edge_type == "has_representation_model"):
+                        try:
+                            graph.remove_edge(e.edge_id)
+                        except Exception:
+                            pass
+                        break
+
+        from .containers import _ensure_rm_node_for_mesh, _has_edge
+        added = 0
+        for entry in container.mesh_names:
+            mesh_obj = bpy.data.objects.get(entry.name)
+            if mesh_obj is None:
+                continue
+            rm_id = _ensure_rm_node_for_mesh(scene, graph, mesh_obj)
+            if rm_id and not _has_edge(
+                    graph, doc_id, rm_id, "has_representation_model"):
+                try:
+                    graph.add_edge(
+                        edge_id=(f"{doc_id}_has_representation_model_"
+                                 f"{rm_id}"),
+                        edge_source=doc_id,
+                        edge_target=rm_id,
+                        edge_type="has_representation_model",
+                    )
+                    added += 1
+                except Exception:
+                    pass
+            mesh_obj["em_rm_container_doc_id"] = doc_id
+        container.doc_node_id = doc_id
+        container.doc_name = doc_display
+        self.report(
+            {'INFO'},
+            f"Linked container {container.label!r} to {doc_display} "
+            f"(+{added} edge(s))")
+        return {'FINISHED'}
+
+    def execute(self, context):
+        scene = context.scene
+        idx = (self.container_index
+               if self.container_index >= 0 else scene.rm_containers_index)
+        if not (0 <= idx < len(scene.rm_containers)):
+            self.report({'ERROR'}, "Invalid container index")
+            return {'CANCELLED'}
+        container = scene.rm_containers[idx]
+
+        if not self.target_doc_name:
+            self.report(
+                {'INFO'},
+                "No document picked — use '+ Add New Document...' to "
+                "create one, or type in the search field to filter "
+                "existing ones.")
+            return {'CANCELLED'}
+
+        # Look up the DocumentNode in the graph by its name (Blender's
+        # doc_list entries carry the same name as the graph node).
+        graph = _active_graph(context)
+        if graph is None:
+            self.report({'ERROR'}, "No active graph")
+            return {'CANCELLED'}
+        for node in graph.nodes:
+            if (getattr(node, "node_type", "") == "document"
+                    and getattr(node, "name", "") == self.target_doc_name):
+                return self._link(context, container, node.node_id)
+        self.report(
+            {'ERROR'},
+            f"Document {self.target_doc_name!r} not found in the graph")
+        return {'CANCELLED'}
 
 
 _MOVE_TARGET_ITEMS_CACHE: list = []
@@ -462,7 +667,8 @@ class RMCONTAINER_OT_move_selected_to_container(Operator):
 
     @classmethod
     def poll(cls, context):
-        return any(o.type == 'MESH' for o in context.selected_objects)
+        return any(is_rm_candidate(o)
+                   for o in context.selected_objects)
 
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self, width=420)
@@ -470,7 +676,7 @@ class RMCONTAINER_OT_move_selected_to_container(Operator):
     def draw(self, context):
         layout = self.layout
         sel_count = sum(1 for o in context.selected_objects
-                        if o.type == 'MESH')
+                        if is_rm_candidate(o))
         layout.label(
             text=f"Moving {sel_count} selected mesh(es)",
             icon='OBJECT_DATA')
@@ -494,9 +700,12 @@ class RMCONTAINER_OT_move_selected_to_container(Operator):
                 self.report({'ERROR'}, "Invalid target container index")
                 return {'CANCELLED'}
 
-        selected = [o for o in context.selected_objects if o.type == 'MESH']
+        selected = [o for o in context.selected_objects
+                    if is_rm_candidate(o)]
         if not selected:
-            self.report({'ERROR'}, "No mesh objects selected")
+            self.report({'ERROR'},
+                        "No RM-candidate objects selected "
+                        "(need MESH / CURVE / plain EMPTY)")
             return {'CANCELLED'}
 
         moved = 0
@@ -681,6 +890,7 @@ _CONTAINER_OPS = (
     RMCONTAINER_OT_create_empty,
     RMCONTAINER_OT_link_this_to_doc,
     RMCONTAINER_OT_create_and_link_new_document,
+    RMCONTAINER_OT_link_or_create_doc,
     RMCONTAINER_OT_add_selected_meshes,
     RMCONTAINER_OT_move_selected_to_container,
     RMCONTAINER_OT_remove_mesh_from_container,

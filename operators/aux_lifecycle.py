@@ -399,6 +399,10 @@ class AUX_OT_create_host_for_orphan(bpy.types.Operator):
             ("asserted", "Asserted (yellow)",
              "Compositional positioning asserted by the operator, "
              "without claim of restitution"),
+            ("em_based", "EM-based reconstruction (blue)",
+             "3D reconstruction produced via the Extended Matrix "
+             "methodology — typically a hypothesis model from "
+             "another EM graph"),
         ],
         default="none",
     )  # type: ignore
@@ -474,6 +478,7 @@ class AUX_OT_create_host_for_orphan(bpy.types.Operator):
                 "reality_based": "border red",
                 "observable":    "border orange",
                 "asserted":      "border yellow",
+                "em_based":      "border blue",
             }.get(self.doc_geometry, "--")
             hint.label(text=color_hint, icon='CHECKMARK')
 

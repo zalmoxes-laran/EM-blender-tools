@@ -37,6 +37,7 @@ MASTERDOC_VARIANT_ICONS = {
     "reality_based": "COLLECTION_COLOR_01",  # red
     "observable":    "COLLECTION_COLOR_02",  # orange
     "asserted":      "COLLECTION_COLOR_03",  # yellow
+    "em_based":      "COLLECTION_COLOR_05",  # blue
 }
 
 CERTAINTY_LABELS = {

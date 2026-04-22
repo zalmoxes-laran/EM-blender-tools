@@ -37,6 +37,24 @@ import bpy  # type: ignore
 LEGACY_CONTAINER_LABEL = "Legacy RMs"
 
 
+def is_rm_candidate(obj) -> bool:
+    """Return True when ``obj`` is a valid RM candidate: either a
+    MESH, a CURVE, or an EMPTY that is NOT a collection-instance
+    proxy. Cesium tilesets are stored on plain empties with a
+    ``tileset_path`` custom property, so the EMPTY case is required.
+    Matches the filter used by ``rm.promote_to_rm`` so a container
+    can hold exactly the same object types the existing RM pipeline
+    already handles.
+    """
+    if obj is None:
+        return False
+    if obj.type in ('MESH', 'CURVE'):
+        return True
+    if obj.type == 'EMPTY' and obj.instance_type != 'COLLECTION':
+        return True
+    return False
+
+
 def _active_graph(context):
     """Return (graph_info, graph) tuple, or (None, None) when there is
     no active graph (no graphml loaded).
@@ -152,8 +170,10 @@ def add_mesh_to_container(context, container, mesh_obj) -> Tuple[bool, str]:
     Skips (with reason) when the mesh is already in another container
     (Q_C: a mesh belongs to at most one container).
     """
-    if mesh_obj is None or mesh_obj.type != 'MESH':
-        return False, "Not a mesh"
+    if not is_rm_candidate(mesh_obj):
+        return False, (
+            f"Object {getattr(mesh_obj, 'name', '?')!r} is not an RM "
+            f"candidate (need MESH / CURVE / plain EMPTY)")
     scene = context.scene
     existing_idx = find_container_for_mesh(scene, mesh_obj.name)
     if existing_idx is not None:

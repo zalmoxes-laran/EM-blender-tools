@@ -969,6 +969,44 @@ def _master_doc_epoch_items(self, context):
     return items
 
 
+class DOCMANAGER_OT_suggest_next_doc_name_for_dialog(bpy.types.Operator):
+    """Fill the Name field of the open Create Master Document dialog
+    with the next available ``D.NNN``.
+
+    Implementation: the dialog's Name field is backed by the scene
+    property ``scene.em_pending_master_doc_name`` (a shared transient
+    buffer). This operator writes the next suggested value into that
+    property; on the next UI tick Blender redraws the dialog with the
+    fresh value. This avoids the fragile ``wm.operators`` stack walk
+    that was not reliable for dialogs still in their modal lifetime.
+    """
+    bl_idname = "docmanager.suggest_next_doc_name_for_dialog"
+    bl_label = "Suggest next D.NNN"
+    bl_description = (
+        "Fill Name with the next available D.NNN — uses the gap-aware "
+        "numbering (first free number in range, else max+1)"
+    )
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        em_tools = context.scene.em_tools
+        graph = None
+        try:
+            if em_tools.active_file_index >= 0:
+                from s3dgraphy import get_graph
+                gi = em_tools.graphml_files[em_tools.active_file_index]
+                graph = get_graph(gi.name)
+        except Exception:
+            graph = None
+        from ..master_document_helpers import suggest_next_document_name
+        proposed = suggest_next_document_name(graph)
+        # Write into the shared scene buffer — the open dialog's Name
+        # field reads from this property, so it updates on next tick.
+        context.scene.em_pending_master_doc_name = proposed
+        self.report({'INFO'}, f"Suggested next: {proposed}")
+        return {'FINISHED'}
+
+
 class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
     """Create a Master Document with the full three-axis classification
     (EM 1.6 — role / content_nature / geometry) and a temporal anchor.
@@ -989,11 +1027,25 @@ class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     # Inputs shared with the DosCo Create Host dialog pattern.
-    new_name: bpy.props.StringProperty(name="Name", default="")  # type: ignore
+    # Note: the Name field is backed by the scene-level
+    # ``em_pending_master_doc_name`` (see data.py) instead of an
+    # operator property, so the "+" suggest-next button can write
+    # into the open dialog without the fragile wm.operators dance.
     new_description: bpy.props.StringProperty(
         name="Description",
         description="Free-text description (optional)",
         default=""
+    )  # type: ignore
+    persist_after_create: bpy.props.BoolProperty(
+        name="Persist to GraphML after creation",
+        description=(
+            "Also save the GraphML right after creating the document, "
+            "so the new master survives a Blender close or graph "
+            "reload. Requires the .graphml file to be CLOSED in yEd "
+            "(yEd does not hold a filesystem lock on macOS/Linux, so "
+            "the user is responsible for closing it before saving)."
+        ),
+        default=True,
     )  # type: ignore
     epoch_id: bpy.props.EnumProperty(
         name="Anchor epoch",
@@ -1045,6 +1097,10 @@ class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
              "Reconstructed from rigorous documentation"),
             ("asserted", "Asserted (yellow)",
              "Compositional positioning asserted by the operator"),
+            ("em_based", "EM-based reconstruction (blue)",
+             "3D reconstruction produced via the Extended Matrix "
+             "methodology — typically a hypothesis model built from "
+             "another EM graph"),
         ],
         default="none",
     )  # type: ignore
@@ -1055,22 +1111,44 @@ class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
         return em_tools.active_file_index >= 0
 
     def invoke(self, context, event):
-        # Reset to defaults on every invocation — Blender persists
-        # operator property values across calls otherwise.
-        self.new_name = ""
+        # Reset to defaults on every invocation. Name is stored in a
+        # scene-level transient property so the "+" button can write
+        # to the open dialog (operator StringProperty can't be
+        # mutated from a sub-operator while the dialog is alive).
+        scene = context.scene
+        em_tools = scene.em_tools
+        graph = None
+        try:
+            if em_tools.active_file_index >= 0:
+                from s3dgraphy import get_graph
+                gi = em_tools.graphml_files[em_tools.active_file_index]
+                graph = get_graph(gi.name)
+        except Exception:
+            graph = None
+        from ..master_document_helpers import suggest_next_document_name
+        scene.em_pending_master_doc_name = suggest_next_document_name(graph)
         self.new_description = ""
         self.has_creation_year = False
         self.creation_year = 0
         self.doc_role = "analytical"
         self.doc_content_nature = "2d_object"
         self.doc_geometry = "none"
+        self.persist_after_create = True
         return context.window_manager.invoke_props_dialog(self, width=440)
 
     def draw(self, context):
         layout = self.layout
+        scene = context.scene
         layout.label(text="New Master Document", icon='FILE_TEXT')
         layout.separator()
-        layout.prop(self, "new_name")
+        # Name field with an inline "+" button that suggests the next
+        # available D.NNN. Bound to a scene property so the button can
+        # write into the open dialog.
+        name_row = layout.row(align=True)
+        name_row.prop(scene, "em_pending_master_doc_name", text="Name")
+        name_row.operator(
+            "docmanager.suggest_next_doc_name_for_dialog",
+            text="", icon='ADD')
         layout.prop(self, "new_description")
 
         # Temporal anchor
@@ -1123,15 +1201,36 @@ class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
             "reality_based": "border red",
             "observable":    "border orange",
             "asserted":      "border yellow",
+            "em_based":      "border blue",
         }.get(self.doc_geometry, "--")
         hint.label(text=color_hint, icon='CHECKMARK')
 
+        # Persistence — default ON so the master document reaches disk
+        # right away. The disclaimer makes the yEd-must-be-closed
+        # constraint visible to the user (yEd does not hold an OS
+        # file-lock on macOS/Linux, so the system cannot detect it
+        # automatically).
+        persist_box = layout.box()
+        persist_box.prop(self, "persist_after_create")
+        disclaimer = persist_box.row()
+        if self.persist_after_create:
+            disclaimer.alert = True
+            disclaimer.label(
+                text="Close the .graphml in yEd before saving "
+                     "— yEd doesn't hold a file lock.",
+                icon='ERROR')
+        else:
+            disclaimer.label(
+                text="In-memory only — lost on reload or Blender close.",
+                icon='MEMORY')
+
     def execute(self, context):
-        em_tools = context.scene.em_tools
+        scene = context.scene
+        em_tools = scene.em_tools
         if em_tools.active_file_index < 0:
             self.report({'ERROR'}, "No active graph")
             return {'CANCELLED'}
-        name = (self.new_name or "").strip()
+        name = (scene.em_pending_master_doc_name or "").strip()
         if not name:
             self.report({'ERROR'}, "Name is required")
             return {'CANCELLED'}
@@ -1193,9 +1292,26 @@ class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
         # creation) can consume it after the dialog closes.
         em_tools["last_created_master_doc_id"] = node.node_id
 
+        # Optional persistence — run Save GraphML so the new master
+        # document reaches disk. The write-lock guard (see
+        # graphml_lock.py) will fail fast with a clear message when
+        # yEd holds the file on Windows; on macOS/Linux yEd doesn't
+        # lock, so the disclaimer shown in the dialog makes the
+        # responsibility explicit.
+        persisted = False
+        if self.persist_after_create:
+            try:
+                result = bpy.ops.export.graphml_update()
+                persisted = 'FINISHED' in result
+            except Exception as e:
+                self.report({'WARNING'},
+                            f"Document created but Save GraphML failed: {e}")
+
         msg_tail = f" @ {resolved_epoch.name}"
         if self.has_creation_year:
             msg_tail += f" ({self.creation_year})"
+        if persisted:
+            msg_tail += " [persisted]"
         self.report({'INFO'},
                     f"Created Master Document {name!r}{msg_tail}")
         for area in context.screen.areas:
@@ -1254,6 +1370,10 @@ class DOCMANAGER_OT_edit_classification(bpy.types.Operator):
              "Reconstructed from rigorous documentation"),
             ("asserted", "Asserted (yellow)",
              "Compositional positioning asserted by the operator"),
+            ("em_based", "EM-based reconstruction (blue)",
+             "3D reconstruction produced via the Extended Matrix "
+             "methodology — typically a hypothesis model from "
+             "another EM graph"),
         ],
     )  # type: ignore
 
@@ -1298,6 +1418,7 @@ class DOCMANAGER_OT_edit_classification(bpy.types.Operator):
             "reality_based": "border red",
             "observable":    "border orange",
             "asserted":      "border yellow",
+            "em_based":      "border blue",
         }.get(self.doc_geometry, "--")
         hint.label(text=color_hint, icon='CHECKMARK')
 
@@ -2311,6 +2432,7 @@ classes = (
     DOCMANAGER_OT_select_linked_entity,
     DOCMANAGER_OT_select_all_linked_us,
     DOCMANAGER_OT_create_document,
+    DOCMANAGER_OT_suggest_next_doc_name_for_dialog,
     DOCMANAGER_OT_create_master_document,
     DOCMANAGER_OT_edit_classification,
     RMDOC_OT_select_object,

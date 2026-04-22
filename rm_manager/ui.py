@@ -31,6 +31,7 @@ _MASTERDOC_VARIANT_ICONS = {
     "reality_based": "COLLECTION_COLOR_01",  # red
     "observable":    "COLLECTION_COLOR_02",  # orange
     "asserted":      "COLLECTION_COLOR_03",  # yellow
+    "em_based":      "COLLECTION_COLOR_05",  # blue
 }
 
 
@@ -73,6 +74,12 @@ class RMCONTAINER_UL_list(UIList):
         row.prop(item, "label", text="", emboss=False)
         ref = item.doc_name if item.doc_name else "—"
         row.label(text=f"[{ref}]")
+        # Inline link/create icon — placed next to the document ref so
+        # the user always sees the document-link action near the doc
+        # name. FILE_TEXT echoes the document icon used elsewhere.
+        link_op = row.operator("rmcontainer.link_or_create_doc",
+                               text="", icon='FILE_TEXT', emboss=False)
+        link_op.container_index = index
         row.label(text=f"({len(item.mesh_names)})")
         op = row.operator("rmcontainer.unregister", text="",
                           icon='TRASH', emboss=False)
@@ -378,21 +385,16 @@ class VIEW3D_PT_RM_Manager(Panel):
         cont_box = layout.box()
         cont_box.label(text="RM Containers (wrapped by DocumentNodes)",
                        icon='OUTLINER_COLLECTION')
-        # Container-level commands ABOVE the UIList (dominating).
-        cmd_row1 = cont_box.row(align=True)
-        cmd_row1.operator("rmcontainer.create_empty",
-                          text="Empty", icon='ADD')
-        cmd_row1.operator("rmcontainer.link_existing_document",
-                          text="Link existing doc", icon='LINKED')
-        cmd_row1.operator("rmcontainer.create_and_link_new_document",
-                          text="New doc + container", icon='FILE_NEW')
-        cmd_row2 = cont_box.row(align=True)
-        # "Link this to doc" — active only when the active container
-        # is unlinked. The operator has its own poll().
-        cmd_row2.operator("rmcontainer.link_this_to_doc",
-                          text="Link active to doc", icon='LINK_BLEND')
-        cmd_row2.operator("rmcontainer.sync",
-                          text="Sync", icon='FILE_REFRESH')
+        # Container-level commands ABOVE the UIList (dominating the
+        # list). "Add RM container" creates an empty unlinked
+        # container; linking/creating documents is then handled by the
+        # inline link icon on each container row, which opens a search
+        # dropdown with "+ Add New Document..." as the first option.
+        cmd_row = cont_box.row(align=True)
+        cmd_row.operator("rmcontainer.create_empty",
+                         text="Add RM container", icon='ADD')
+        cmd_row.operator("rmcontainer.sync",
+                         text="Sync", icon='FILE_REFRESH')
         # Container UIList
         row = cont_box.row()
         row.template_list(

@@ -22,56 +22,27 @@ def _get_graph_safe(context):
         return None
 
 
-class VIEW3D_PT_RMToProxy(Panel):
-    """Parent panel for RM-to-Proxy tools (experimental — shipping in EM 1.6)."""
-    bl_label = "Representation Model to Proxy (Experimental)"
-    bl_idname = "VIEW3D_PT_RMToProxy"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = "EM Annotator"
-    bl_order = 5
-
-    @classmethod
-    def poll(cls, context):
-        em_tools = getattr(context.scene, 'em_tools', None)
-        if em_tools is None:
-            return False
-        return getattr(em_tools, 'experimental_features', False)
-
-    def draw_header(self, context):
-        layout = self.layout
-        icon_id = icons_manager.get_icon_value("RM2Proxy")
-        if icon_id:
-            layout.label(text="", icon_value=icon_id)
-        else:
-            layout.label(text="", icon='EXPERIMENTAL')
-
-    def draw(self, context):
-        layout = self.layout
-        em_tools = context.scene.em_tools
-
-        # Red experimental header row (same pattern as Proxy Inflate Manager)
-        header = layout.row()
-        header.alert = True
-        header.label(text="Surface Areas / RM2Proxy is experimental — EM 1.6 preview",
-                     icon='EXPERIMENTAL')
-
-        if em_tools.active_file_index < 0:
-            layout.label(text="Load a GraphML first", icon='ERROR')
-
-
 class VIEW3D_PT_SurfaceAreale(Panel):
-    """Surface Areas creation panel with requirement checklist (experimental)."""
+    """Surface Areas creation panel with requirement checklist (experimental).
+
+    Nested under the RM to Proxy Suite parent panel (see
+    ``rm_to_proxy_suite.py``) — sibling of the Proxy Box Creator.
+    """
     bl_label = "Surface Areas (Experimental)"
+    bl_parent_id = "VIEW3D_PT_RMToProxySuite"
     bl_idname = "VIEW3D_PT_SurfaceAreale"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM Annotator"
-    bl_parent_id = "VIEW3D_PT_RMToProxy"
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
         return context.scene.em_tools.active_file_index >= 0
+
+    def draw_header(self, context):
+        layout = self.layout
+        layout.label(text="", icon='MOD_TRIANGULATE')
 
     def draw(self, context):
         layout = self.layout
@@ -336,7 +307,6 @@ class VIEW3D_PT_SurfaceAreale_Settings(Panel):
 
 
 classes = [
-    VIEW3D_PT_RMToProxy,
     VIEW3D_PT_SurfaceAreale,
     VIEW3D_PT_SurfaceAreale_Settings,
 ]

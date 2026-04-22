@@ -586,9 +586,22 @@ def register_data():
     bpy.types.Scene.rmdoc_list = CollectionProperty(type=RMDocItem)
     bpy.types.Scene.rmdoc_list_index = IntProperty(name="Active RMDoc", default=0)
     bpy.types.Scene.doc_settings = PointerProperty(type=DocManagerSettings)
+    # Transient shared buffer backing the Name field of the Create
+    # Master Document dialog. The "+" suggest-next operator writes
+    # here so the open dialog sees the update on next tick — a
+    # dialog-internal operator property cannot be written from a
+    # sub-operator while the dialog is still alive.
+    bpy.types.Scene.em_pending_master_doc_name = StringProperty(
+        name="Pending Master Doc Name",
+        description="Transient buffer for the Create Master Document "
+                    "dialog's Name field.",
+        default="",
+    )
 
 
 def unregister_data():
+    if hasattr(bpy.types.Scene, 'em_pending_master_doc_name'):
+        del bpy.types.Scene.em_pending_master_doc_name
     if hasattr(bpy.types.Scene, 'doc_settings'):
         del bpy.types.Scene.doc_settings
     if hasattr(bpy.types.Scene, 'rmdoc_list_index'):
