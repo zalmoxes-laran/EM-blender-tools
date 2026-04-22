@@ -109,6 +109,48 @@ def _resolve_document_for_mesh(scene, graph, mesh_obj):
     return None, ""
 
 
+def _next_shared_us_number(graph, target_node_type: str,
+                            us_types_pool) -> str:
+    """Return the next free numbered name drawn from a **shared
+    pool** across every stratigraphic type in ``us_types_pool``.
+
+    Unlike :func:`master_document_helpers.get_next_numbered_name`,
+    which only counts nodes whose NAME matches the prefix pattern,
+    this helper scans every node whose ``node_type`` is in the pool
+    and extracts the trailing digits from the name. That way
+    ``SU001``, ``USV125``, ``SF.20102`` etc. all contribute to the
+    same ``used`` set — the prefix is irrelevant, only the integer
+    at the end matters.
+
+    Returns ``f"{target_node_type}.<n>"`` with ``n`` = smallest free
+    integer from 1.
+    """
+    import re
+    trailing = re.compile(r'(\d+)$')
+    used: set = set()
+    if graph is not None:
+        for node in graph.nodes:
+            nt = getattr(node, 'node_type', '') or ''
+            if nt not in us_types_pool:
+                continue
+            name = getattr(node, 'name', '') or ''
+            if not isinstance(name, str):
+                continue
+            m = trailing.search(name)
+            if m:
+                try:
+                    used.add(int(m.group(1)))
+                except ValueError:
+                    continue
+    if not used:
+        return f"{target_node_type}.1"
+    hi = max(used)
+    for n in range(1, hi + 2):
+        if n not in used:
+            return f"{target_node_type}.{n}"
+    return f"{target_node_type}.{hi + 1}"
+
+
 def _next_extractor_for_doc(graph, doc_name: str,
                              existing_in_settings) -> str:
     """Gap-aware next free extractor name for ``doc_name``.
@@ -471,15 +513,16 @@ class PROXYBOX_OT_suggest_next_us(Operator):
         node_type = settings.new_us_type
 
         if settings.share_numbering_across_types:
-            # Shared pool: all other US types count as "used" — the
-            # suggested number is globally unique across every
-            # stratigraphic type. Filter by node_type is dropped so
-            # the scan covers every stratigraphic kind.
-            extras = sorted(US_PROPER_TYPES - {node_type})
-            next_name = get_next_numbered_name(
-                graph, node_type,
-                node_type_filter=None,
-                extra_aliases=extras)
+            # Shared pool: ignore the prefix entirely — for every
+            # stratigraphic node (``node_type in US_PROPER_TYPES``)
+            # pull the trailing numeric suffix from its name and
+            # treat that integer as "used". ``SU001`` contributes 1,
+            # ``USV125`` contributes 125, ``US10101`` contributes
+            # 10101, etc. The suggested number is then the smallest
+            # free integer starting from 1 (gap-aware, consistent
+            # with the per-type mode).
+            next_name = _next_shared_us_number(
+                graph, node_type, US_PROPER_TYPES)
             self.report({'INFO'},
                         f"Next US (shared pool): {next_name}")
         else:
