@@ -58,6 +58,27 @@ class HERIVERSE_OT_export_json(Operator, ExportHelper):
                 self.report({'WARNING'}, "No publishable graphs found to export")
                 return {'CANCELLED'}
 
+            # DP-56: mirror scene georef state onto each graph's
+            # GeoPositionNode before serialization. In 1.6 the GeoNode is
+            # a passive reflection of scene state (scene.em_georef, BGIS,
+            # or 3DSC) — populated here so the Heriverse JSON carries the
+            # shift + EPSG for frontend consumption.
+            try:
+                from ...georef_manager import graph_sync
+                from s3dgraphy import get_graph
+                g = context.scene.em_georef
+                for graph_id in publishable_graph_ids:
+                    graph = get_graph(graph_id)
+                    if graph is None:
+                        continue
+                    graph_sync.push_to_geonode(
+                        graph,
+                        g.epsg or None,
+                        g.shift_x, g.shift_y, g.shift_z,
+                    )
+            except Exception as exc:
+                print(f"[DP-56] GeoPositionNode mirror skipped: {exc}")
+
             exporter.export_graphs(graph_ids=publishable_graph_ids)
             print("Graphs exported successfully")
 

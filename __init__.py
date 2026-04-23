@@ -332,7 +332,8 @@ if DEPENDENCIES_LOADED:
             em_props,
             debug_graph_connections,  # Debug operator
             tapestry_integration,  # Tapestry AI reconstruction
-            surface_areale  # Surface Areale proxy creation
+            surface_areale,  # Surface Areale proxy creation
+            georef_manager,  # DP-56: Georeferencing (shift + EPSG, BGIS/3DSC orchestration)
         )
 
         # Import base PropertyGroup classes into this namespace
@@ -702,6 +703,13 @@ def register_modules():
     except Exception as e:
         logger.error(f"Error registering surface areale: {e}")
 
+    # FASE 7: Georef Manager (DP-56)
+    try:
+        georef_manager.register()
+        logger.debug("Registered georef manager")
+    except Exception as e:
+        logger.error(f"Error registering georef manager: {e}")
+
     # Registra il keymap manager per ultimo
     if KEYMAP_MANAGER_LOADED:
         try:
@@ -748,6 +756,13 @@ def unregister_modules():
         except Exception as e:
             logger.error(f"Error unregistering keymap manager: {e}")
 
+
+    # FASE 0: Georef Manager (DP-56)
+    try:
+        georef_manager.unregister()
+        logger.debug("Unregistered georef manager")
+    except Exception as e:
+        logger.warning(f"Error unregistering georef manager: {e}")
 
     # FASE 0: Surface Areale (va rimosso per primo)
     try:

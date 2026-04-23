@@ -161,6 +161,17 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
   - Folder-based association  
   - Navigation interface with thumbnails  
 
+- [ ] **DP-56 Georeferencing Pipeline** (scope 1.6)
+  - Unified `Georeferencing` panel in the EM tab (EMTools becomes the entry point for shift + EPSG)
+  - Autonomous `shift.txt` parser (3DSC format) bundled in EMTools — no hard dep on 3DSC addon
+  - BlenderGIS adapter via `GeoScene.setOriginPrj(synch=False)` with `updObjLoc=False` — safe on populated scenes
+  - 3D Survey Collection adapter via `scene.BL_*` properties (lazy, optional)
+  - Traffic-light sync status lights (green/yellow/grey/red) for BGIS and 3DSC with integration tooltips when missing
+  - `GeoPositionNode.set_from_scene()` at save / Heriverse JSON export — keeps the s3Dgraphy graph node as a passive mirror of scene state
+  - Advanced toggles (default OFF): "Move objects on origin change", "Compute lat/lon (needs PyProj)"
+  - Upstream patch for 3DSC: replace `wm.geoscnProps` writes with `GeoScene` API (fixes the "objects get translated by thousands of km" regression on populated scenes)
+  - **Out of scope for 1.6** (deferred to Phase 2): cross-CRS reprojection, multigraph with heterogeneous CRS, bulk import of geometries into the graph
+
 
 ## Future Development (2026 and beyond)
 
