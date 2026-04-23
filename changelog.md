@@ -7,6 +7,142 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — US creation workflow unification (2026-04)
+
+- **Unified "Add Stratigraphic Unit" dialog** (`strat.add_us`):
+  single floating form used by the Stratigraphy Manager (new
+  `+ Add US` button under the list), the Proxy Box Creator (`+` next
+  to the Active US picker), and Surface Areas (`+` next to the
+  Existing US picker). Fields: Type, Name (+ gap-aware suggest-next
+  button), Description, Shared-numbering toggle (default ON — one
+  global numeric pool across every US type), Epoch (mandatory,
+  drives the Activity filter), Activity (optional → `is_in_activity`
+  edge), optional stratigraphic link (is_after / is_before). OK
+  optionally saves the graphml to disk and pins the new unit as
+  active so every panel picks it up via `target_us_name`.
+- **`us_helpers.create_us_node(...)` factory**: one entry point for
+  US creation (Stratigraphy Manager dialog, ProxyBox, Surface Areas
+  all delegate here). Writes the node, `has_first_epoch`, optional
+  `is_in_activity` (with a mirror on the PD nodegroup when the
+  ProxyBox creates one), optional stratigraphic relation, and
+  populates `scene.em_tools.stratigraphy.units` in a single pass.
+- **`us_types.py` facade**: JSON-driven US type registry derived
+  from s3Dgraphy's `s3Dgraphy_node_datamodel.json` v1.5.2 (patch) and its
+  new `classification` API. Exposes `get_us_type_items()` for
+  EnumProperty pickers (cached, macOS GC-safe), `US_PROPER_TYPES`,
+  `us_material_names()`, plus re-exports of `is_real / is_virtual /
+  is_series`.
+- **Activity picker filtered by epoch**:
+  `scene.activity_manager.filtered_activities` +
+  `ACTIVITY_OT_filter_by_epoch` operator +
+  `us_helpers.draw_activity_picker(..., epoch_name=…)` widget.
+  Direct populator invocation from update callbacks (no silent
+  `bpy.ops` failures), inline refresh icon, "no activities for
+  epoch" warning.
+- **ParadataNodeGroup per US** (`<US>_PD`): Proxy Box Creator now
+  wraps every new paradata chain (Document instance clone →
+  Extractors → Combiner → PropertyNode) inside a per-US
+  ParadataNodeGroup. When the US has an `is_in_activity` edge the
+  PD group inherits it, so both sit inside the Activity container
+  at save time.
+- **Document instance cloning**: Proxy Box Creator duplicates the
+  Step-1 anchor Document into a fresh instance (same display name,
+  new UUID, copied three-axis classification) for each run so the
+  new extractors never attach to a Document already wrapped inside
+  another PD group.
+- **Chain summary box** in Proxy Box Creator — collapsible
+  narrative of the paradata chain that will be written on Create.
+- **Save-after-create toggle** (`persist_after_create`, default ON)
+  on both the Add-US dialog and the Proxy Box Creator — the
+  paradata chain is persisted to .graphml via
+  `export.graphml_update` immediately after Create (write-lock
+  guard handles yEd conflict detection).
+- **Add-US button icon** (`proxies_rows_add`): visually distinct
+  from the `+` "suggest next number" button inside the dialog.
+- **Next-number gap-aware from 1**: `get_next_numbered_name` and
+  `_next_extractor_for_doc` fill the first gap starting at 1
+  (previously scanned `[min(used), max(used)]`, leaving `US.1..4`
+  unreachable when only `US.5+` existed). Shared-pool mode counts
+  trailing digits across every US type, so `SU001` ≡ `US.1` in the
+  numbering pool.
+- **Legacy prefix aliases** in the numbering helper: Italian `SU…`
+  treated as alias of English `US…` (and `USNEG` / `US_NEG` as
+  alias of `USN`), so the "+" button never proposes a name that
+  collides with legacy-style entries.
+- **Negative Stratigraphic Unit (USN)**: new canonical type in every
+  US picker (rendered with dashed border in yEd via
+  `em_visual_rules.json`). Replaces the ad-hoc `US_NEG` UI-only
+  placeholder with a proper s3dgraphy class.
+
+### Changed — US creation workflow unification (2026-04)
+
+- **US creation consolidated to one form**: the inline
+  `create_new_us` toggle in ProxyBox and Surface Areas is gone;
+  both now launch the shared `strat.add_us` dialog. Single
+  changepoint for future US creation rules.
+- **Proxy Box Creator edge direction/types**: extractors → Document
+  edge is now `extracted_from` (canonical, dashed) instead of the
+  non-canonical `has_extractor` (rendered as solid); Combiner →
+  Extractors is `combines` instead of `is_combined_in`.
+- **Proxy Box Creator PropertyNode** named after the canonical
+  qualia ("Proxy Geometry", `property_type="proxy_geometry"`, new
+  entry in `em_qualia_types_additions.json`) instead of
+  `<US>_proxy_geometry`. Per-US distinction comes from the
+  containing PD group, not from the PN name.
+- **Centralised hardcoded US-type lists**: 15 occurrences in
+  `functions.py`, `populate_lists.py`, `debug_graph_connections.py`,
+  `stratigraphy_manager/filters.py` (×3),
+  `stratigraphy_manager/operators.py` (×4),
+  `landscape_system/populate_functions.py`,
+  `visual_manager/utils.py` (×2), `graph_editor/operators.py`,
+  `export_operators/heriverse/operator.py` now import
+  `US_PROPER_TYPES` / `ALL_US_TYPES` from `us_types.py`. Three
+  were incomplete (missing UL + series types) — fixed
+  incidentally.
+
+### Removed — US creation workflow unification (2026-04)
+
+- `PROXYBOX_OT_suggest_next_us`, `EMTOOLS_OT_suggest_next_us`
+  operators; the `create_new_us` / `new_us_*` / `share_numbering_
+  across_types` fields on `ProxyBoxSettings`; the `create_new_us` /
+  `new_us_*` / `link_to_existing_us` / `add_stratigraphic_link` /
+  `link_relation_type` fields on `SurfaceArealeSettings`.
+- `_create_and_activate_new_us` (ProxyBox) and `_create_us_node` /
+  `_link_us_to_epoch` / `_link_us_stratigraphically` (Surface
+  Areas) — replaced by `us_helpers.create_us_node`.
+- `GENERIC` placeholder from the Surface Areas US type picker —
+  replaced by the proper typed flow backed by the JSON datamodel.
+
+### Fixed — US creation workflow unification (2026-04)
+
+- **Paradata chain edges rendered as solid lines** in yEd because
+  `has_extractor` / `is_in_combiner` weren't canonical edge types.
+  Now dashed and in the correct direction.
+- **Extractor / Combiner NodeLabel** positioned as Corner-NorthWest
+  (matches the reference TempluMare graphml); previously the
+  GraphMLPatcher left `modelName=Internal / modelPosition=Center`,
+  overlapping the SVG glyph.
+- **ParadataNodeGroup positioning**: new PD groups anchored to the
+  host US's epoch Y instead of (0,0) (fell outside any swimlane
+  row in yEd) and their paradata children nested inside the PD's
+  `<graph>`.
+- **ActivityNodeGroup containment**: children with `is_in_activity`
+  are nested inside the Activity's `<graph>` at save time — the US
+  and its PD visibly sit inside the right Activity yEd group.
+- **Document instance collisions**: Proxy Box Creator used to
+  attach extractors to whichever `D.XX` was encountered first in
+  the graph (often one already in another PD group). Now it
+  resolves the Step-1 anchor by UUID and clones it locally.
+- **Activity filter not refreshing silently**: epoch-change
+  callback invoked `bpy.ops.activity.filter_by_epoch` via the
+  operator layer, which Blender silently rejects inside property
+  update callbacks. Now calls the populator directly.
+- **Add-US "not on operator stack"** warning when clicking the
+  `+ next number` button: the operator stack is populated only
+  after a dialog FINISHES, so the cross-operator lookup always
+  failed. Replaced with a shared scene-level sentinel
+  (`scene.em_tools.stratigraphy.pending_us_name`).
+
 ### Added
 - **StratiMiner workflow panel in EM Bridge** (replaces the legacy
   "GraphML Wizard" 3-step panel). The new panel lives at
