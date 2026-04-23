@@ -862,21 +862,22 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
                                       text="Look Through", icon="HIDE_OFF")
                 op.object_name = item.name
                 cam_row.operator("em.rmdoc_fly", text="", icon="MOD_PARTICLE_INSTANCE")
+
+                # Re-align + Remove Camera (explicit; auto-realign was
+                # removed — user controls when to re-fit the pair).
+                align_row = col.row(align=True)
+                op = align_row.operator("em.rmdoc_realign",
+                                        text="Re-align", icon="CON_TRACKTO")
+                op.object_name = item.name
+                op = align_row.operator("em.rmdoc_remove_camera",
+                                        text="Remove Camera",
+                                        icon="X")
+                op.object_name = item.name
             else:
                 # No camera declared
                 op = col.operator("em.rmdoc_create_camera",
                                   text="Create Camera", icon="CAMERA_DATA")
                 op.object_name = item.name
-
-            # --- Unstuck Pilot (sempre disponibile se is_piloting è True) ---
-            doc_settings = scene.doc_settings
-            if doc_settings.is_piloting_camera:
-                col.separator()
-                unstuck_row = col.row(align=True)
-                unstuck_row.alert = True
-                op = unstuck_row.operator("em.rmdoc_repair",
-                                          text="Force Exit Pilot", icon='CANCEL')
-                op.mode = 'UNSTUCK_PILOT'
 
             # --- Actions ---
             col.separator()

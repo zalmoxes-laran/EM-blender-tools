@@ -188,6 +188,23 @@ class RMDocItem(PropertyGroup):
     )  # type: ignore
     camera_object_name: StringProperty(name="Camera Object", default="")  # type: ignore
 
+    # --- Quad ↔ Camera relationship (Phase 1 refactor) ---
+    drive_mode: EnumProperty(
+        name="Drive Mode",
+        description="Who drives whom in the quad↔camera relationship",
+        items=[
+            ('NO_CAMERA',     "No Camera",
+             "Only a quad exists in the scene"),
+            ('QUAD_DRIVEN',   "Quad-driven",
+             "Quad is authored freely; camera follows (camera is child of quad)"),
+            ('CAMERA_DRIVEN', "Camera-driven",
+             "Camera is authored; quad fills the frustum via drivers (legacy PhotogrTool)"),
+            ('UNLINKED',      "Unlinked",
+             "Quad and camera coexist but are independent (no parent, no drivers)"),
+        ],
+        default='NO_CAMERA',
+    )  # type: ignore
+
 
 class DocManagerSettings(PropertyGroup):
     """Settings for the 3D Document Manager panel."""
@@ -342,6 +359,9 @@ def _on_rm_border_by_geometry_toggle(settings, context):
 # ============================================================================
 # SYNC FUNCTION
 # ============================================================================
+
+from .drivers import has_scale_drivers as _quad_has_scale_drivers  # noqa: E402
+
 
 def sync_doc_list(scene):
     """Synchronize scene.doc_list from scene.em_tools.em_sources_list.
@@ -511,18 +531,57 @@ def sync_rmdoc_list(scene):
         # Camera detection
         item.has_camera = False
         item.camera_object_name = ""
+        cam_obj = None
         cam_name = obj.get('em_camera_name', '')
         if cam_name and cam_name in bpy.data.objects:
-            cam_obj = bpy.data.objects[cam_name]
-            if cam_obj.type == 'CAMERA':
+            candidate = bpy.data.objects[cam_name]
+            if candidate.type == 'CAMERA':
+                cam_obj = candidate
                 item.has_camera = True
                 item.camera_object_name = cam_name
-        else:
+        if cam_obj is None:
             for child in obj.children:
                 if child.type == 'CAMERA':
+                    cam_obj = child
                     item.has_camera = True
                     item.camera_object_name = child.name
+                    # Heal: populate em_camera_name for future consistency
+                    obj['em_camera_name'] = child.name
                     break
+        # Also scan for a camera that claims this quad as its target
+        # (covers the QUAD_DRIVEN case where camera is child of quad
+        # but also the reverse legacy pattern).
+        if cam_obj is None:
+            for candidate in bpy.data.objects:
+                if (candidate.type == 'CAMERA'
+                        and candidate.get('em_quad_name') == obj.name):
+                    cam_obj = candidate
+                    item.has_camera = True
+                    item.camera_object_name = candidate.name
+                    obj['em_camera_name'] = candidate.name
+                    break
+
+        # --- Drive mode inference (Phase 1 migration) ---
+        # Only set drive_mode when empty (first sync after upgrade) so we
+        # don't overwrite a user choice. Classification rules:
+        #   no camera                        → NO_CAMERA
+        #   quad has scale drivers           → CAMERA_DRIVEN (legacy PhotogrTool)
+        #   camera.parent == quad            → QUAD_DRIVEN
+        #   quad.parent == camera (no drv.)  → UNLINKED (legacy but frozen)
+        #   otherwise                        → UNLINKED
+        if not item.drive_mode:
+            if cam_obj is None:
+                item.drive_mode = 'NO_CAMERA'
+            elif _quad_has_scale_drivers(obj):
+                item.drive_mode = 'CAMERA_DRIVEN'
+            elif cam_obj.parent == obj:
+                item.drive_mode = 'QUAD_DRIVEN'
+            else:
+                item.drive_mode = 'UNLINKED'
+
+        # Install bidirectional pointer on the camera (idempotent)
+        if cam_obj is not None and cam_obj.get('em_quad_name') != obj.name:
+            cam_obj['em_quad_name'] = obj.name
 
     # Pass 1: objects with em_doc_node_id (primary detection)
     for obj in bpy.data.objects:

@@ -17,10 +17,33 @@ from bpy.app.handlers import persistent
 
 _last_object_count = {'n': -1}
 
+# Minimum usable ortho_scale for an RMDoc camera. Dragging below this
+# collapses the driven quad to near-zero dimensions and sends the
+# viewport into an unresponsive state. Applied in camera-driven mode
+# only (where drivers are active).
+_ORTHO_SCALE_MIN = 1e-3
+
 
 @persistent
 def rmdoc_self_heal(scene, depsgraph=None):
     """Pulizia difensiva dello stato RMDoc quando cambiano gli oggetti."""
+
+    # Safety clamp: keep ortho_scale of RMDoc cameras above the minimum
+    # so accidental ortho-zoom gestures cannot freeze the viewport. Runs
+    # every tick because ortho_scale changes via mousewheel/drag don't
+    # alter bpy.data.objects count.
+    rmdoc_list = getattr(scene, 'rmdoc_list', None)
+    if rmdoc_list:
+        for item in rmdoc_list:
+            if not item.has_camera or not item.camera_object_name:
+                continue
+            cam_obj = bpy.data.objects.get(item.camera_object_name)
+            if cam_obj is None or cam_obj.type != 'CAMERA':
+                continue
+            cd = cam_obj.data
+            if cd.type == 'ORTHO' and cd.ortho_scale < _ORTHO_SCALE_MIN:
+                cd.ortho_scale = _ORTHO_SCALE_MIN
+
     try:
         current_count = len(bpy.data.objects)
     except Exception:
