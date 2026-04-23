@@ -134,80 +134,32 @@ class VIEW3D_PT_SurfaceAreale(Panel):
             doc_node = None  # Not used in simple mode
 
         # ── US Target ─────────────────────────────────────────────────
+        # Always a single path: pick an existing US from the list, or
+        # click ``+`` to launch the shared ``strat.add_us`` dialog.
+        # The inline Create-new-US branch (us_type / name / epoch /
+        # activity / strat link) has been removed — the dialog owns
+        # all of that now, keeping the form identical across
+        # ProxyBox, Surface Areas and Stratigraphy Manager.
         box = layout.box()
-        has_us = False
-
-        row = box.row()
         req_num = "5" if experimental else "2"
+        row = box.row()
 
-        # When the user picks an existing US there is nothing to
-        # classify — the US already has its type. The ``us_type`` picker
-        # is only meaningful when the operator will create a new US, so
-        # it's shown only inside the Create-New branch below.
-
-        if experimental:
-            box.prop(settings, "create_new_us", text="Create New US")
-            if settings.create_new_us:
-                # Type picker is relevant only for NEW US creation.
-                # GENERIC is gone — the picker now lists canonical
-                # s3dgraphy node_types (US / USN / USVs / serSU / ...).
-                box.prop(settings, "us_type", text="Type")
-                r = box.row(align=True)
-                r.prop(settings, "new_us_name", text="Name")
-                r.operator("emtools.suggest_next_us", text="", icon='ADD')
-                has_us = bool(settings.new_us_name)
-
-                if hasattr(em_tools, 'epochs') and em_tools.epochs.list:
-                    box.prop_search(settings, "new_us_epoch",
-                                    em_tools.epochs, "list", text="Epoch")
-
-                # Optional Activity Group picker (shared helper).
-                from ..us_helpers import draw_activity_picker
-                draw_activity_picker(
-                    box, context.scene,
-                    settings, "new_us_activity",
-                    epoch_name=settings.new_us_epoch or None,
-                    text="Activity")
-
-                # Optional stratigraphic link to an existing US.
-                # When the toggle is on, the user picks direction
-                # (is_after / is_before) and the target US.
-                link_box = box.box()
-                link_box.prop(settings, "add_stratigraphic_link",
-                              text="Add stratigraphic link (optional)")
-                if settings.add_stratigraphic_link:
-                    link_box.prop(settings, "link_relation_type",
-                                  text="Relation")
-                    if hasattr(em_tools, 'stratigraphy') \
-                            and em_tools.stratigraphy.units:
-                        link_box.prop_search(
-                            settings, "link_to_existing_us",
-                            em_tools.stratigraphy, "units",
-                            text="Target US")
-                    else:
-                        link_box.prop(settings, "link_to_existing_us",
-                                      text="Target US")
-            else:
-                # Linking to an existing US — no Type picker.
-                if hasattr(em_tools, 'stratigraphy') and em_tools.stratigraphy.units:
-                    box.prop_search(settings, "linked_us_name",
-                                    em_tools.stratigraphy, "units", text="Existing US")
-                else:
-                    box.prop(settings, "linked_us_name", text="US Name")
-                has_us = bool(settings.linked_us_name)
+        from ..us_helpers import draw_add_us_button
+        us_picker_row = box.row(align=True)
+        if hasattr(em_tools, 'stratigraphy') \
+                and em_tools.stratigraphy.units:
+            us_picker_row.prop_search(
+                settings, "linked_us_name",
+                em_tools.stratigraphy, "units",
+                text="Existing US")
         else:
-            # 1.5 baseline — always link to an existing US; no Type picker.
-            if hasattr(em_tools, 'stratigraphy') and em_tools.stratigraphy.units:
-                box.prop_search(settings, "linked_us_name",
-                                em_tools.stratigraphy, "units", text="Existing US")
-            else:
-                box.prop(settings, "linked_us_name", text="US Name")
-            has_us = bool(settings.linked_us_name)
+            us_picker_row.prop(
+                settings, "linked_us_name", text="US Name")
+        draw_add_us_button(us_picker_row, text="")
 
-        # Update icon retroactively
+        has_us = bool(settings.linked_us_name)
         row.label(text=f"{req_num}. Stratigraphic Unit",
                   icon='CHECKMARK' if has_us else 'X')
-
         if not has_us:
             all_ok = False
 
@@ -220,7 +172,7 @@ class VIEW3D_PT_SurfaceAreale(Panel):
                      text="Chain Summary", emboss=False)
 
             if settings.show_chain_summary:
-                us_name = settings.new_us_name if settings.create_new_us else settings.linked_us_name
+                us_name = settings.linked_us_name
                 doc_name = doc_node.name if doc_node else (settings.existing_document or "?")
                 rm_name = obj.name if obj else "?"
 

@@ -265,6 +265,29 @@ def refresh_activity_list(context) -> bool:
 # UI widgets
 # ══════════════════════════════════════════════════════════════════
 
+def draw_add_us_button(layout, text: str = ""):
+    """Draw a button that launches the shared ``strat.add_us`` dialog.
+
+    Uses the custom ``proxies_rows_add`` icon when available so the
+    button is visually distinct from the generic ``ADD`` (``+``) used
+    by the "next number" suggestion inside the dialog itself. Falls
+    back to the built-in ``ADD`` icon when the custom icon is missing.
+
+    Returns the operator handle so callers can chain ``.property =
+    value`` if future parameters are added.
+    """
+    try:
+        from . import icons_manager
+    except ImportError:
+        import icons_manager  # running outside package
+    icon_id = icons_manager.get_custom_icon("proxies_rows_add")
+    if icon_id:
+        return layout.operator(
+            "strat.add_us", text=text, icon_value=icon_id)
+    return layout.operator(
+        "strat.add_us", text=text, icon='ADD')
+
+
 def update_activity_filter(self, context):
     """Update callback for epoch fields — re-runs the Activity
     filter so the Activity picker only lists units that belong to
@@ -272,18 +295,37 @@ def update_activity_filter(self, context):
 
     Works for every owner that exposes either ``new_us_epoch``
     (ProxyBox / Surface Areas settings) or ``epoch_name`` (Operator
-    transient props like ``STRAT_OT_add_us``). Best-effort: swallow
-    the exception when the activity_manager module isn't loaded yet
-    (e.g. during add-on registration).
+    transient props like ``STRAT_OT_add_us``).
+
+    Implementation note: we **do not** call ``bpy.ops`` from here.
+    Blender silently rejects operator invocations during property
+    update callbacks because the operator context isn't ready — the
+    symptom is "the filter never runs" even though no error
+    surfaces. We reach into the populator helper directly instead,
+    which only needs the ``activity_manager`` PropertyGroup.
     """
-    import bpy
     epoch = (getattr(self, 'new_us_epoch', '')
              or getattr(self, 'epoch_name', '')
              or '')
+    amgr = getattr(context.scene, 'activity_manager', None)
+    if amgr is None:
+        return
     try:
-        bpy.ops.activity.filter_by_epoch(epoch_name=epoch)
-    except Exception:
-        pass
+        from .activity_manager.operators import (
+            _populate_filtered_activities)
+    except ImportError:
+        try:
+            from activity_manager.operators import (
+                _populate_filtered_activities)
+        except Exception as e:
+            print(f"[us_helpers] Activity populator import failed: {e}")
+            return
+    try:
+        _populate_filtered_activities(amgr, epoch)
+    except Exception as e:
+        # Visible print — silent-fail was masking real bugs here.
+        print(f"[us_helpers] Activity filter failed "
+              f"(epoch={epoch!r}): {e}")
 
 
 def draw_activity_picker(layout, scene, target_owner,

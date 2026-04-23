@@ -20,31 +20,6 @@ from bpy.props import (  # type: ignore
 from bpy.types import PropertyGroup  # type: ignore
 
 
-def _us_type_items():
-    """Thin wrapper around :func:`us_types.get_us_type_items` that
-    keeps the import lazy — Blender evaluates the EnumProperty
-    ``items`` callback at UI draw time, not at module load, so
-    deferring the ``us_types`` import avoids circular-import snarls
-    during add-on registration.
-
-    The returned list is cached inside ``us_types`` (the macOS GC
-    protection the brief calls out); we just forward the reference.
-    """
-    from ..us_types import get_us_type_items
-    return get_us_type_items(
-        include_series=True, include_special=False)
-
-
-def _proxybox_activity_filter(self, context):
-    """Re-filter the Activity picker's backing collection whenever
-    the ProxyBox epoch field changes. Delegates to the shared
-    helper so every "new US" flow (ProxyBox, Surface Areas, Strat
-    Manager) reacts the same way.
-    """
-    from ..us_helpers import update_activity_filter
-    update_activity_filter(self, context)
-
-
 # ══════════════════════════════════════════════════════════════════════
 # ``target_us_name`` is computed: it always reflects the Stratigraphy
 # Manager's currently-active unit, and writing to it updates
@@ -249,71 +224,14 @@ class ProxyBoxSettings(PropertyGroup):
         set=_set_target_us_name,
     )  # type: ignore
 
-    # ── Create-new-US branch (mirrors Surface Areas) ─────────────────
-    create_new_us: BoolProperty(
-        name="Create new US",
-        description="Create a fresh Stratigraphic Unit for this proxy "
-                    "instead of reusing the active one. The new US is "
-                    "created and becomes active before the proxy is "
-                    "built.",
-        default=False,
-    )  # type: ignore
-
-    # Items are sourced dynamically from the JSON datamodel via
-    # :mod:`us_types` so adding a new US type to s3dgraphy propagates
-    # here automatically. Series types are included — aggregates are
-    # legitimate creation targets (the proxy anchors the combiner to
-    # their PropertyNode in exactly the same way).
-    new_us_type: EnumProperty(
-        name="US Type",
-        description="Type of stratigraphic unit to create",
-        items=lambda self, context: _us_type_items(),
-    )  # type: ignore
-
-    new_us_name: StringProperty(
-        name="New US Name",
-        description="Name for the new stratigraphic unit "
-                    "(use the '+' button to auto-suggest)",
-        default="",
-    )  # type: ignore
-
-    new_us_epoch: StringProperty(
-        name="Epoch",
-        description="Epoch to assign the new US to",
-        default="",
-        update=lambda self, ctx: _proxybox_activity_filter(self, ctx),
-    )  # type: ignore
-
-    # Optional Activity containment: when set, the new US is wired
-    # via ``is_in_activity`` to the named ActivityNodeGroup so the
-    # GraphMLPatcher places both the US and its PD group physically
-    # inside the Activity's yEd group at save time.
-    new_us_activity: StringProperty(
-        name="Activity",
-        description="ActivityNodeGroup this US belongs to (optional). "
-                    "Wires an is_in_activity edge and places the US "
-                    "(and its paradata nodegroup) inside the activity "
-                    "container in yEd.",
-        default="",
-    )  # type: ignore
-
-    # Numbering pool for the ``+ suggest next`` button.
-    # False (default): per-type — US has its own series, SF another,
-    # UL another, etc. ``SF.1`` is proposed even if ``US.1`` exists.
-    # True: shared — every stratigraphic type draws from the same
-    # numeric pool. If ``US.1``, ``US.2``, ``SF.1`` are used, the
-    # next SF suggestion is ``SF.3`` (first free number globally).
-    share_numbering_across_types: BoolProperty(
-        name="Shared numbering across US types",
-        description="Share the numeric pool across all stratigraphic "
-                    "types: if ``US.1`` / ``US.2`` already exist, "
-                    "the '+' button proposes ``SF.3`` instead of "
-                    "``SF.1``. Off (default) keeps each type on its "
-                    "own series.",
-        default=False,
-    )  # type: ignore
-
     # ── Combiner bookkeeping (auto-populated on Create) ──────────────
+    # The inline "Create new US" branch used to live here (``create_new_us``
+    # toggle + new_us_type / new_us_name / new_us_epoch / new_us_activity
+    # / share_numbering_across_types). It has been removed — the "+"
+    # button in the Active US row of ``proxy_box_creator/ui.py`` now
+    # launches the shared ``strat.add_us`` dialog instead, and the
+    # newly-created US becomes the active one automatically (via
+    # ``target_us_name``'s computed property).
     combiner_id: StringProperty(
         name="Combiner ID",
         description="ID of the combiner node that will be created "

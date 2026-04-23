@@ -402,8 +402,7 @@ class EM_ToolsPanel:
         # STRATIGRAPHY LIST
         # ==================
         # ✅ PORTED: Use template_list with strat PropertyGroup
-        row = layout.row()
-        row.template_list(
+        layout.template_list(
             "EM_STRAT_UL_List",  # UIList class name
             "EM nodes",           # unique identifier
             strat,                # data: StratigraphyManagerProps PropertyGroup
@@ -411,13 +410,17 @@ class EM_ToolsPanel:
             strat,                # active_data: same PropertyGroup
             "units_index"         # active property name (IntProperty)
         )
-        # Side toolbar — add US via the shared us_helpers factory
-        # (same creation logic as ProxyBox / Surface Areas). Only
-        # meaningful when a graph is loaded.
-        toolbar = row.column(align=True)
+        # Toolbar row UNDER the list — creates a new US via the
+        # shared us_helpers factory (same logic ProxyBox / Surface
+        # Areas use). Placed below the template_list instead of as a
+        # side column so the list itself keeps its full width.
+        # ``draw_add_us_button`` uses the ``proxies_rows_add`` custom
+        # icon so the button is visually distinct from the ``+ next
+        # number`` ADD icon that lives inside the dialog.
+        from ..us_helpers import draw_add_us_button
+        toolbar = layout.row(align=True)
         toolbar.enabled = context.scene.em_tools.active_file_index >= 0
-        toolbar.operator(
-            "strat.add_us", text="", icon='ADD')
+        draw_add_us_button(toolbar, text="Add US")
         
         # ==================
         # SELECTED ITEM DETAILS

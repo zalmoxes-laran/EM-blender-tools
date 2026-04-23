@@ -17,24 +17,15 @@ def _mesh_poll(self, obj):
     return obj.type == 'MESH'
 
 
-def _surface_areale_activity_filter(self, context):
-    """Re-filter ``scene.activity_manager.filtered_activities`` when
-    the Surface Areas epoch field changes — mirrors the ProxyBox
-    behaviour via the shared helper.
-    """
-    from ..us_helpers import update_activity_filter
-    update_activity_filter(self, context)
-
-
 def _us_type_items():
     """Thin wrapper around :func:`us_types.get_us_type_items` — the
     datamodel JSON (via s3dgraphy's classification API) is the single
     source of truth. Deferred import so PropertyGroup registration
     never depends on module-level order.
 
-    Areale pickers include series types (same logic as ProxyBox —
-    an areale anchored on ``serSU`` works just like one anchored on
-    ``US``). Specials (BR/SE) stay out of creation pickers.
+    Kept because ``us_type`` still drives the areale material colour
+    (``assign_em_material`` in postprocess). US creation itself has
+    moved to the shared ``strat.add_us`` dialog.
     """
     from ..us_types import get_us_type_items
     return get_us_type_items(
@@ -65,64 +56,15 @@ class SurfaceArealeSettings(PropertyGroup):
     )
 
     # ── US Linking ─────────────────────────────────────────────────────
+    # Single path: pick an existing US. Need a new one? The UI row
+    # includes a ``+`` button that launches the shared
+    # ``strat.add_us`` dialog — after the dialog closes the new unit
+    # is already the active one, so the user just picks it here.
     linked_us_name: StringProperty(
         name="Linked US",
-        description="Name of existing US to link this areale to (leave empty to create new)"
-    )
-
-    create_new_us: BoolProperty(
-        name="Create New US",
-        description="Create a new stratigraphic unit for this areale",
-        default=True
-    )
-
-    new_us_name: StringProperty(
-        name="New US Name",
-        description="Name for the new stratigraphic unit"
-    )
-
-    new_us_epoch: StringProperty(
-        name="Epoch",
-        description="Epoch to assign the new US to",
-        update=lambda self, ctx: _surface_areale_activity_filter(
-            self, ctx),
-    )
-
-    new_us_activity: StringProperty(
-        name="Activity",
-        description="Optional ActivityNodeGroup the new US belongs to. "
-                    "When set, the US (and its paradata chain) is "
-                    "nested inside the Activity's container in yEd."
-    )
-
-    link_to_existing_us: StringProperty(
-        name="Stratigraphic Link",
-        description="Optional: existing US to connect stratigraphically"
-    )
-
-    add_stratigraphic_link: BoolProperty(
-        name="Add Stratigraphic Link",
-        description=(
-            "Optionally create a stratigraphic relation edge between "
-            "the new US and another existing US. Leave unchecked if "
-            "you don't want to declare a relation now."
-        ),
-        default=False
-    )
-
-    link_relation_type: EnumProperty(
-        name="Relation",
-        description=(
-            "Direction of the stratigraphic relation between the new "
-            "US (source) and the linked US (target)"
-        ),
-        items=[
-            ('is_after', 'is_after',
-             "The new US lies above / is more recent than the linked US"),
-            ('is_before', 'is_before',
-             "The new US lies below / is older than the linked US"),
-        ],
-        default='is_after'
+        description="Name of the Stratigraphic Unit this areale "
+                    "belongs to. Use the ``+`` next to the picker to "
+                    "create a new one via the shared Add-US dialog."
     )
 
     # ── Document ───────────────────────────────────────────────────────

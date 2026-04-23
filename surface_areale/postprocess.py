@@ -411,41 +411,20 @@ def link_areale_to_graph(context, areale_obj, rm_obj, settings):
     if not doc_node:
         return None, "No document — cannot create paradata chain"
 
-    # ── 3. Find or create US node ─────────────────────────────────────
-    # Create-new flow delegates to the shared us_helpers factory —
-    # same logic that ProxyBox and (soon) the Stratigraphy Manager
-    # "+ Add US" use. The factory writes has_first_epoch, optional
-    # is_in_activity, optional stratigraphic relation, and populates
-    # the Stratigraphy Manager list in one shot.
+    # ── 3. Find the target US ─────────────────────────────────────────
+    # The Surface Areas panel only exposes the ``linked_us_name``
+    # picker (with a ``+`` button that launches the shared
+    # ``strat.add_us`` dialog). New-US creation happens upfront via
+    # that dialog — by the time we reach this postprocess step, the
+    # US already exists in the graph and the Stratigraphy Manager's
+    # list.
     us_node = None
-    if settings.create_new_us and settings.new_us_name:
-        strat_target = None
-        strat_rel = "is_after"
-        if (getattr(settings, 'add_stratigraphic_link', False)
-                and settings.link_to_existing_us):
-            strat_target = settings.link_to_existing_us
-            strat_rel = getattr(
-                settings, 'link_relation_type', 'is_after')
-        from ..us_helpers import create_us_node
-        ok, us_node, err = create_us_node(
-            scene=scene,
-            graph=graph,
-            us_type=settings.us_type,
-            name=settings.new_us_name,
-            epoch_name=settings.new_us_epoch,
-            activity_name=(
-                getattr(settings, 'new_us_activity', '') or None),
-            strat_link_target=strat_target,
-            strat_link_rel=strat_rel,
-        )
-        if not ok:
-            return None, f"Failed to create US: {err}"
-        messages.append(f"Created US: {us_node.name}")
-    elif settings.linked_us_name:
+    if settings.linked_us_name:
         us_node = _find_node_by_name(graph, settings.linked_us_name)
-
     if not us_node:
-        return None, "No US node created or found"
+        return None, (
+            "No US picked. Use the '+' next to the Existing US "
+            "picker to create a new one via the shared dialog.")
 
     # ── 4. Create PropertyNode ────────────────────────────────────────
     from s3dgraphy.nodes import PropertyNode
@@ -513,9 +492,13 @@ def link_areale_to_graph(context, areale_obj, rm_obj, settings):
     prop_node.value = areale_obj.name
 
     # ── 8. Refresh UI lists ───────────────────────────────────────────
+    # ``us_is_new=False`` is correct now: Surface Areas never creates
+    # a US inline — the user either picks an existing one or hits the
+    # "+" button which goes through the shared dialog (which populates
+    # the Stratigraphy Manager list itself).
     _refresh_lists(context, graph, doc_node=doc_node, extractor_node=extractor,
                    us_node=us_node, prop_node=prop_node,
-                   us_is_new=settings.create_new_us)
+                   us_is_new=False)
 
     return us_node, "; ".join(messages)
 
@@ -568,50 +551,11 @@ def _get_next_extractor_name(graph, doc_name):
     return f"{doc_name}.{max_num + 1}"
 
 
-def _create_us_node(graph, settings):
-    """Create a new stratigraphic node based on the selected US type.
-
-    Goes through :func:`us_types.get_us_class` so the factory is the
-    same one s3dgraphy uses internally (JSON datamodel → Python
-    class). No more hand-maintained type_map — adding a new US type
-    to the datamodel propagates here automatically.
-    """
-    from ..us_types import get_us_class
-    node_class = get_us_class(settings.us_type)
-    if node_class is None:
-        from s3dgraphy.nodes import StratigraphicUnit
-        node_class = StratigraphicUnit
-    us_node = node_class(
-        node_id=str(uuid.uuid4()), name=settings.new_us_name)
-    graph.add_node(us_node)
-    return us_node
-
-
-def _link_us_to_epoch(graph, us_node, epoch_name):
-    """Link US to an epoch via has_first_epoch."""
-    for node in graph.nodes:
-        if hasattr(node, 'name') and node.name == epoch_name:
-            _ensure_edge(graph, us_node.node_id, node.node_id, "has_first_epoch")
-            return True
-    return False
-
-
-def _link_us_stratigraphically(graph, us_node, target_us_name,
-                                relation_type="is_after"):
-    """Create a stratigraphic relation edge between two US nodes.
-
-    ``relation_type`` is the canonical edge type — one of ``is_after``
-    (source lies above / is more recent) or ``is_before`` (source lies
-    below / is older). The caller selects the direction via the UI
-    dropdown; we don't silently force ``is_after`` anymore.
-    """
-    if relation_type not in ("is_after", "is_before"):
-        relation_type = "is_after"
-    for node in graph.nodes:
-        if hasattr(node, 'name') and node.name == target_us_name:
-            _ensure_edge(graph, us_node.node_id, node.node_id, relation_type)
-            return True
-    return False
+# ``_create_us_node`` / ``_link_us_to_epoch`` /
+# ``_link_us_stratigraphically`` — gone. The Surface Areas flow no
+# longer creates US inline; the shared ``strat.add_us`` dialog
+# (which delegates to :func:`us_helpers.create_us_node`) owns all of
+# that.
 
 
 def _refresh_lists(context, graph, doc_node=None, extractor_node=None,

@@ -267,6 +267,24 @@ class StratigraphyManagerProps(PropertyGroup):
         name="Reused Units",
         description="List of stratigraphic units that are reused across epochs"
     )  # type: ignore
+
+    # ── Transient sentinel for the "+ Add US" floating dialog ──
+    # Shared location the dialog's Name field is bound to and the
+    # "+" suggest-next button writes into. Needed because the
+    # suggest-next operator can't peek at the dialog's own transient
+    # props (the dialog isn't on the operator stack until FINISHED).
+    # Same pattern Document Manager uses via
+    # ``scene.em_pending_master_doc_name``. The other dialog inputs
+    # (type, shared_numbering toggle) stay as transient props of the
+    # dialog — the "+" button receives them as explicit operator
+    # parameters, passed at click time from draw().
+    pending_us_name: StringProperty(
+        name="Name",
+        description="Display name for the new Stratigraphic Unit "
+                    "(e.g. US.5). Shared between the Add-US dialog "
+                    "and its '+' suggest-next button.",
+        default="",
+    )  # type: ignore
     
     show_filter_system: BoolProperty(
         name="Show Filter System",

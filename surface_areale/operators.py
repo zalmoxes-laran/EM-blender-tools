@@ -321,7 +321,7 @@ class EMTOOLS_OT_draw_surface_areale(Operator):
                 traceback.print_exc()
 
             # Ensure proxy is named after the US with graph prefix
-            us_name = settings.new_us_name if settings.create_new_us else settings.linked_us_name
+            us_name = settings.linked_us_name
             if us_name and (areale_obj.name.startswith("EM_SurfaceAreale") or
                             areale_obj.name == us_name):
                 # Apply graph prefix
@@ -574,40 +574,11 @@ class EMTOOLS_OT_surface_areale_create_doc(Operator):
         return {'FINISHED'}
 
 
-class EMTOOLS_OT_suggest_next_us(Operator):
-    """Suggest the next available US number based on the selected type"""
-    bl_idname = "emtools.suggest_next_us"
-    bl_label = "Next US Number"
-    bl_description = "Fill in the next available US number for the selected type"
-
-    @classmethod
-    def poll(cls, context):
-        em_tools = context.scene.em_tools
-        return em_tools.active_file_index >= 0
-
-    def execute(self, context):
-        from s3dgraphy import get_graph
-
-        em_tools = context.scene.em_tools
-        settings = em_tools.surface_areale
-        graph_info = em_tools.graphml_files[em_tools.active_file_index]
-        graph = get_graph(graph_info.name)
-
-        if not graph:
-            self.report({'ERROR'}, "Graph not loaded")
-            return {'CANCELLED'}
-
-        # The JSON datamodel is now the single source of truth (see
-        # us_types / s3dgraphy.classification). ``us_type`` is the
-        # canonical node_type, and doubles as both the naming prefix
-        # and the node_type filter — e.g. ``USN`` → ``USN.1``,
-        # ``USN.2``, … filtered against USN-typed nodes only.
-        node_type = settings.us_type
-        next_name = _get_next_numbered_name(
-            graph, node_type, node_type_filter=node_type)
-        settings.new_us_name = next_name
-        self.report({'INFO'}, f"Next US: {next_name}")
-        return {'FINISHED'}
+# ``EMTOOLS_OT_suggest_next_us`` has been removed. The inline
+# "Create new US" branch is gone — the Surface Areas panel now
+# launches the shared ``strat.add_us`` dialog, which owns its own
+# suggest-next button (writing to
+# ``scene.em_tools.stratigraphy.pending_us_name``).
 
 
 class EMTOOLS_OT_detect_rm_document(Operator):
@@ -654,7 +625,6 @@ classes = [
     EMTOOLS_OT_calibrate_benchmark,
     EMTOOLS_OT_confirm_areale,
     EMTOOLS_OT_surface_areale_create_doc,
-    EMTOOLS_OT_suggest_next_us,
     EMTOOLS_OT_detect_rm_document,
 ]
 

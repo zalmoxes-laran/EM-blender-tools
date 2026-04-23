@@ -80,21 +80,12 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
 
         graph_code = getattr(graph_info, "graph_code", "") or ""
 
-        # ── Optional: Create new US first ───────────────────────────
-        # When the Create-new-US toggle is on we materialise the new
-        # unit in the graph, populate the Stratigraphy Manager list,
-        # and pin it as active — so the subsequent ``_resolve_target_us``
-        # step just returns the one we just made.
-        if settings.create_new_us:
-            ok, msg = self._create_and_activate_new_us(scene, graph)
-            if not ok:
-                self.report({'ERROR'}, msg)
-                return {'CANCELLED'}
-            self.report({'INFO'}, msg)
-            # Leave the toggle off after a successful creation so the
-            # next Create run defaults to "reuse existing" instead of
-            # trying to make another duplicate.
-            settings.create_new_us = False
+        # NOTE: the previous inline "Create new US" branch is gone.
+        # The ProxyBox panel exposes a ``+`` button in the Active US
+        # row that launches the shared ``strat.add_us`` dialog — the
+        # same one the Stratigraphy Manager uses. After the dialog
+        # finishes the new unit is already the active one, so the
+        # resolution below picks it up without any extra branch.
 
         # ── Active US resolution ────────────────────────────────────
         us_item = _resolve_target_us(context)
@@ -250,36 +241,6 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
         tag = " [persisted]" if persisted else ""
         self.report({'INFO'}, f"Proxy created: {proxy_obj.name}{tag}")
         return {'FINISHED'}
-
-    def _create_and_activate_new_us(self, scene, graph):
-        """Materialise the US described by ``scene.em_tools.proxy_box.
-        {new_us_type, new_us_name, new_us_epoch, new_us_activity}``
-        via the shared :func:`us_helpers.create_us_node` factory.
-
-        Delegating here keeps the US creation logic aligned across
-        ProxyBox, Surface Areas, and the Stratigraphy Manager's
-        ``+ Add US`` button — a single changepoint for future rules
-        (e.g. default role classification, per-type validators).
-
-        Returns ``(ok, message)``.
-        """
-        settings = scene.em_tools.proxy_box
-        from ..us_helpers import create_us_node
-        ok, us_node, err = create_us_node(
-            scene=scene,
-            graph=graph,
-            us_type=settings.new_us_type,
-            name=settings.new_us_name,
-            epoch_name=settings.new_us_epoch,
-            activity_name=(settings.new_us_activity or None),
-        )
-        if not ok:
-            return False, err
-        suffix = f", activity: {settings.new_us_activity}" \
-            if settings.new_us_activity else ""
-        return True, (
-            f"Created new US {us_node.name} "
-            f"(epoch: {settings.new_us_epoch}{suffix})")
 
     def _refresh_display_after_create(self, context):
         """Mirror the post-link refresh done by ``listitem.toobj``:

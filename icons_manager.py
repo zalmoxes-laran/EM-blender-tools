@@ -53,6 +53,7 @@ def load_icons():
         "proxies_rows": "proxies_rows.png",
         "proxies_link": "proxies_link.png",
         "proxies_select_rows": "proxies_select_rows.png",
+        "proxies_rows_add": "proxies_rows_add.png",
     }
     
     # Carica ogni icona che esiste

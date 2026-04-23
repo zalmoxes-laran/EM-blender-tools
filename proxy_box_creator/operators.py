@@ -483,56 +483,11 @@ class PROXYBOX_OT_clear_document(Operator):
         return {'FINISHED'}
 
 
-class PROXYBOX_OT_suggest_next_us(Operator):
-    """Fill ``settings.new_us_name`` with the next free US number for
-    the currently-selected ``new_us_type``. Gap-aware.
-
-    Uses ``us_types`` (which delegates to s3dgraphy's JSON datamodel)
-    as the single source of truth for node_type — so ``USN`` gets
-    ``USN.N`` names, ``serSU`` gets ``serSU.N``, etc. No more
-    hand-maintained prefix/node_type lookup tables.
-    """
-    bl_idname = "proxybox.suggest_next_us"
-    bl_label = "Next US Number"
-    bl_description = (
-        "Fill in the next available US number for the selected "
-        "type (gap-aware).")
-
-    @classmethod
-    def poll(cls, context):
-        return context.scene.em_tools.active_file_index >= 0
-
-    def execute(self, context):
-        _gi, graph = _active_graph(context)
-        if graph is None:
-            self.report({'ERROR'}, "Graph not loaded")
-            return {'CANCELLED'}
-        from ..master_document_helpers import get_next_numbered_name
-        from ..us_types import US_PROPER_TYPES
-        settings = context.scene.em_tools.proxy_box
-        node_type = settings.new_us_type
-
-        if settings.share_numbering_across_types:
-            # Shared pool: ignore the prefix entirely — for every
-            # stratigraphic node (``node_type in US_PROPER_TYPES``)
-            # pull the trailing numeric suffix from its name and
-            # treat that integer as "used". ``SU001`` contributes 1,
-            # ``USV125`` contributes 125, ``US10101`` contributes
-            # 10101, etc. The suggested number is then the smallest
-            # free integer starting from 1 (gap-aware, consistent
-            # with the per-type mode).
-            next_name = _next_shared_us_number(
-                graph, node_type, US_PROPER_TYPES)
-            self.report({'INFO'},
-                        f"Next US (shared pool): {next_name}")
-        else:
-            # Per-type: only nodes of ``node_type`` count — e.g.
-            # ``USN`` series is independent of ``US`` series.
-            next_name = get_next_numbered_name(
-                graph, node_type, node_type_filter=node_type)
-            self.report({'INFO'}, f"Next US: {next_name}")
-        settings.new_us_name = next_name
-        return {'FINISHED'}
+# ``PROXYBOX_OT_suggest_next_us`` was removed — the inline "Create
+# new US" branch in the ProxyBox panel is gone. Use the shared
+# ``strat.add_us`` dialog (launched from the Active US row's ``+``)
+# instead; its own suggest-next button writes to the scene sentinel
+# ``scene.em_tools.stratigraphy.pending_us_name``.
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -682,7 +637,6 @@ classes = [
     PROXYBOX_OT_link_selected_to_doc,
     PROXYBOX_OT_search_document,
     PROXYBOX_OT_clear_document,
-    PROXYBOX_OT_suggest_next_us,
     PROXYBOX_OT_record_point,
     PROXYBOX_OT_clear_point,
     PROXYBOX_OT_clear_all_points,
