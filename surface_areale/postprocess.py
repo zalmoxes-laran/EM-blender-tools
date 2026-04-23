@@ -412,21 +412,35 @@ def link_areale_to_graph(context, areale_obj, rm_obj, settings):
         return None, "No document — cannot create paradata chain"
 
     # ── 3. Find or create US node ─────────────────────────────────────
+    # Create-new flow delegates to the shared us_helpers factory —
+    # same logic that ProxyBox and (soon) the Stratigraphy Manager
+    # "+ Add US" use. The factory writes has_first_epoch, optional
+    # is_in_activity, optional stratigraphic relation, and populates
+    # the Stratigraphy Manager list in one shot.
     us_node = None
     if settings.create_new_us and settings.new_us_name:
-        us_node = _create_us_node(graph, settings)
-        messages.append(f"Created US: {us_node.name}")
-        if settings.new_us_epoch:
-            _link_us_to_epoch(graph, us_node, settings.new_us_epoch)
-        # Optional stratigraphic link. The UI toggle
-        # `add_stratigraphic_link` gates the edge; the direction
-        # (`is_after` / `is_before`) comes from the dropdown.
+        strat_target = None
+        strat_rel = "is_after"
         if (getattr(settings, 'add_stratigraphic_link', False)
                 and settings.link_to_existing_us):
-            _link_us_stratigraphically(
-                graph, us_node, settings.link_to_existing_us,
-                relation_type=getattr(
-                    settings, 'link_relation_type', 'is_after'))
+            strat_target = settings.link_to_existing_us
+            strat_rel = getattr(
+                settings, 'link_relation_type', 'is_after')
+        from ..us_helpers import create_us_node
+        ok, us_node, err = create_us_node(
+            scene=scene,
+            graph=graph,
+            us_type=settings.us_type,
+            name=settings.new_us_name,
+            epoch_name=settings.new_us_epoch,
+            activity_name=(
+                getattr(settings, 'new_us_activity', '') or None),
+            strat_link_target=strat_target,
+            strat_link_rel=strat_rel,
+        )
+        if not ok:
+            return None, f"Failed to create US: {err}"
+        messages.append(f"Created US: {us_node.name}")
     elif settings.linked_us_name:
         us_node = _find_node_by_name(graph, settings.linked_us_name)
 

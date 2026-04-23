@@ -209,6 +209,16 @@ class PROXYBOX_PT_main_panel(Panel):
                 params_box.label(
                     text="No epochs defined — create one first.",
                     icon='ERROR')
+
+            # Activity picker (optional). Shared widget — also flags
+            # a warning when the picked Activity's epoch differs from
+            # the US's.
+            from ..us_helpers import draw_activity_picker
+            draw_activity_picker(
+                params_box, context.scene,
+                settings, "new_us_activity",
+                epoch_name=settings.new_us_epoch or None,
+                text="Activity")
             if settings.new_us_name and settings.new_us_epoch:
                 params_box.label(
                     text=f"Proxy name → {settings.new_us_name}",

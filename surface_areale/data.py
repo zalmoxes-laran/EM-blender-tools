@@ -17,6 +17,15 @@ def _mesh_poll(self, obj):
     return obj.type == 'MESH'
 
 
+def _surface_areale_activity_filter(self, context):
+    """Re-filter ``scene.activity_manager.filtered_activities`` when
+    the Surface Areas epoch field changes — mirrors the ProxyBox
+    behaviour via the shared helper.
+    """
+    from ..us_helpers import update_activity_filter
+    update_activity_filter(self, context)
+
+
 def _us_type_items():
     """Thin wrapper around :func:`us_types.get_us_type_items` — the
     datamodel JSON (via s3dgraphy's classification API) is the single
@@ -74,7 +83,16 @@ class SurfaceArealeSettings(PropertyGroup):
 
     new_us_epoch: StringProperty(
         name="Epoch",
-        description="Epoch to assign the new US to"
+        description="Epoch to assign the new US to",
+        update=lambda self, ctx: _surface_areale_activity_filter(
+            self, ctx),
+    )
+
+    new_us_activity: StringProperty(
+        name="Activity",
+        description="Optional ActivityNodeGroup the new US belongs to. "
+                    "When set, the US (and its paradata chain) is "
+                    "nested inside the Activity's container in yEd."
     )
 
     link_to_existing_us: StringProperty(

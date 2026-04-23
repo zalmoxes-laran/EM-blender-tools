@@ -35,6 +35,16 @@ def _us_type_items():
         include_series=True, include_special=False)
 
 
+def _proxybox_activity_filter(self, context):
+    """Re-filter the Activity picker's backing collection whenever
+    the ProxyBox epoch field changes. Delegates to the shared
+    helper so every "new US" flow (ProxyBox, Surface Areas, Strat
+    Manager) reacts the same way.
+    """
+    from ..us_helpers import update_activity_filter
+    update_activity_filter(self, context)
+
+
 # ══════════════════════════════════════════════════════════════════════
 # ``target_us_name`` is computed: it always reflects the Stratigraphy
 # Manager's currently-active unit, and writing to it updates
@@ -270,6 +280,20 @@ class ProxyBoxSettings(PropertyGroup):
     new_us_epoch: StringProperty(
         name="Epoch",
         description="Epoch to assign the new US to",
+        default="",
+        update=lambda self, ctx: _proxybox_activity_filter(self, ctx),
+    )  # type: ignore
+
+    # Optional Activity containment: when set, the new US is wired
+    # via ``is_in_activity`` to the named ActivityNodeGroup so the
+    # GraphMLPatcher places both the US and its PD group physically
+    # inside the Activity's yEd group at save time.
+    new_us_activity: StringProperty(
+        name="Activity",
+        description="ActivityNodeGroup this US belongs to (optional). "
+                    "Wires an is_in_activity edge and places the US "
+                    "(and its paradata nodegroup) inside the activity "
+                    "container in yEd.",
         default="",
     )  # type: ignore
 

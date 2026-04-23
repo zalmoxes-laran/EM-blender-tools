@@ -161,6 +161,14 @@ class VIEW3D_PT_SurfaceAreale(Panel):
                     box.prop_search(settings, "new_us_epoch",
                                     em_tools.epochs, "list", text="Epoch")
 
+                # Optional Activity Group picker (shared helper).
+                from ..us_helpers import draw_activity_picker
+                draw_activity_picker(
+                    box, context.scene,
+                    settings, "new_us_activity",
+                    epoch_name=settings.new_us_epoch or None,
+                    text="Activity")
+
                 # Optional stratigraphic link to an existing US.
                 # When the toggle is on, the user picks direction
                 # (is_after / is_before) and the target US.

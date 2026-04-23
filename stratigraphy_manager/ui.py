@@ -411,6 +411,13 @@ class EM_ToolsPanel:
             strat,                # active_data: same PropertyGroup
             "units_index"         # active property name (IntProperty)
         )
+        # Side toolbar — add US via the shared us_helpers factory
+        # (same creation logic as ProxyBox / Surface Areas). Only
+        # meaningful when a graph is loaded.
+        toolbar = row.column(align=True)
+        toolbar.enabled = context.scene.em_tools.active_file_index >= 0
+        toolbar.operator(
+            "strat.add_us", text="", icon='ADD')
         
         # ==================
         # SELECTED ITEM DETAILS

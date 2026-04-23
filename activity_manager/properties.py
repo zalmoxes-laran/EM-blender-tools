@@ -41,6 +41,13 @@ class ActivityManagerProperties(PropertyGroup):
         update=lambda self, context: update_activity_filtered_lists_if_needed(self, context)
     ) # type: ignore
 
+    # Transient collection repopulated by ``ACTIVITY_OT_filter_by_epoch``.
+    # The creation dialogs (ProxyBox / Surface Areas / Stratigraphy
+    # Manager "+ Add US") use this view instead of ``activities``
+    # directly so the Activity picker only lists units whose
+    # ``has_first_epoch`` matches the US's target epoch.
+    filtered_activities: CollectionProperty(type=ActivityItem) # type: ignore
+
 
 classes = (
     ActivityItem,

@@ -1806,6 +1806,255 @@ class STRAT_OT_open_document_folder(bpy.types.Operator):
         return {'FINISHED'}
 
 
+# ══════════════════════════════════════════════════════════════════
+# STRAT_OT_add_us — "+ Add US" button next to the Stratigraphy list
+# ══════════════════════════════════════════════════════════════════
+
+def _strat_add_us_type_items(self, context):
+    """Dynamic EnumProperty items for the Add-US dialog. Delegates to
+    ``us_types.get_us_type_items`` (the JSON datamodel is the source
+    of truth). A module-level cache is kept inside us_types to avoid
+    Blender's macOS string-GC issue.
+    """
+    from ..us_types import get_us_type_items
+    return get_us_type_items(
+        include_series=True, include_special=False)
+
+
+def _strat_add_us_epoch_update(self, context):
+    """Update callback for ``STRAT_OT_add_us.epoch_name`` — re-runs
+    the Activity filter so the Activity picker reflects the current
+    epoch selection.
+    """
+    from ..us_helpers import update_activity_filter
+    update_activity_filter(self, context)
+
+
+class STRAT_OT_add_us(Operator):
+    """Create a new Stratigraphic Unit from the Stratigraphy Manager.
+
+    Opens a modal dialog that mirrors the ProxyBox / Surface Areas
+    "Create new US" form (type, name, epoch, activity, optional
+    stratigraphic link), then delegates to the shared
+    :func:`us_helpers.create_us_node` factory. A single source of
+    truth for US creation — consistent defaults, consistent
+    validation, consistent population of the list.
+    """
+    bl_idname = "strat.add_us"
+    bl_label = "Add Stratigraphic Unit"
+    bl_description = (
+        "Open a dialog to create a new Stratigraphic Unit and add it "
+        "to the current graph. Uses the shared us_helpers factory "
+        "(same logic as ProxyBox and Surface Areas).")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    us_type: bpy.props.EnumProperty(
+        name="Type",
+        description="Canonical stratigraphic node_type",
+        items=_strat_add_us_type_items,
+    )  # type: ignore
+    us_name: bpy.props.StringProperty(
+        name="Name",
+        description="Display name for the new unit (e.g. US.7)",
+        default="",
+    )  # type: ignore
+    epoch_name: bpy.props.StringProperty(
+        name="Epoch",
+        description="Epoch this unit belongs to (mandatory)",
+        default="",
+        update=lambda self, ctx: _strat_add_us_epoch_update(self, ctx),
+    )  # type: ignore
+    activity_name: bpy.props.StringProperty(
+        name="Activity",
+        description="ActivityNodeGroup this unit is part of (optional)",
+        default="",
+    )  # type: ignore
+    description: bpy.props.StringProperty(
+        name="Description",
+        description="Freeform description (stored on the node)",
+        default="",
+    )  # type: ignore
+    add_strat_link: bpy.props.BoolProperty(
+        name="Add stratigraphic link",
+        description="Optionally relate the new US to an existing one "
+                    "via is_after / is_before",
+        default=False,
+    )  # type: ignore
+    strat_rel: bpy.props.EnumProperty(
+        name="Relation",
+        items=[
+            ('is_after', 'is_after',
+             'New US is more recent than (lies above) the target'),
+            ('is_before', 'is_before',
+             'New US is older than (lies below) the target'),
+        ],
+        default='is_after',
+    )  # type: ignore
+    strat_target: bpy.props.StringProperty(
+        name="Target US",
+        description="Existing US to relate the new one to",
+        default="",
+    )  # type: ignore
+    shared_numbering: bpy.props.BoolProperty(
+        name="Shared numbering across US types",
+        description="When filling Name via the '+' button, draw from "
+                    "the global numeric pool across every US type "
+                    "(otherwise per-type sequence).",
+        default=False,
+    )  # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.em_tools.active_file_index >= 0
+
+    def invoke(self, context, event):
+        self.us_name = ""
+        self.strat_target = ""
+        # Prime the Activity filter so the picker shows whatever is
+        # appropriate for the current epoch selection (may be empty
+        # on first open — the user will pick one and the update
+        # callback on ``epoch_name`` re-filters automatically).
+        try:
+            bpy.ops.activity.filter_by_epoch(
+                epoch_name=self.epoch_name or "")
+        except Exception:
+            pass
+        return context.window_manager.invoke_props_dialog(
+            self, width=460)
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        em_tools = scene.em_tools
+
+        layout.prop(self, "us_type")
+        name_row = layout.row(align=True)
+        name_row.prop(self, "us_name")
+        name_row.operator(
+            "strat.add_us_suggest_next", text="", icon='ADD')
+        layout.prop(self, "shared_numbering")
+
+        # Epoch — mandatory.
+        if hasattr(em_tools, 'epochs') and em_tools.epochs.list:
+            row = layout.row(align=True)
+            row.alert = not bool(self.epoch_name)
+            row.prop_search(self, "epoch_name",
+                             em_tools.epochs, "list", text="Epoch *")
+        else:
+            layout.label(text="No epochs defined — create one first.",
+                         icon='ERROR')
+
+        # Activity picker (optional).
+        from ..us_helpers import draw_activity_picker
+        draw_activity_picker(
+            layout, scene,
+            self, "activity_name",
+            epoch_name=self.epoch_name or None,
+            text="Activity")
+
+        layout.prop(self, "description")
+
+        # Optional stratigraphic link.
+        link_box = layout.box()
+        link_box.prop(self, "add_strat_link")
+        if self.add_strat_link:
+            link_box.prop(self, "strat_rel")
+            strat = em_tools.stratigraphy
+            if strat.units:
+                link_box.prop_search(self, "strat_target",
+                                      strat, "units",
+                                      text="Target US")
+            else:
+                link_box.prop(self, "strat_target", text="Target US")
+
+    def execute(self, context):
+        scene = context.scene
+        em_tools = scene.em_tools
+        from s3dgraphy import get_graph
+        gi = em_tools.graphml_files[em_tools.active_file_index]
+        graph = get_graph(gi.name)
+        if graph is None:
+            self.report({'ERROR'}, "Graph not loaded")
+            return {'CANCELLED'}
+
+        from ..us_helpers import create_us_node
+        ok, us_node, err = create_us_node(
+            scene=scene,
+            graph=graph,
+            us_type=self.us_type,
+            name=self.us_name,
+            epoch_name=self.epoch_name,
+            activity_name=(self.activity_name or None),
+            description=self.description,
+            strat_link_target=(
+                self.strat_target if self.add_strat_link else None),
+            strat_link_rel=self.strat_rel,
+        )
+        if not ok:
+            self.report({'ERROR'}, f"Failed to create US: {err}")
+            return {'CANCELLED'}
+        self.report(
+            {'INFO'},
+            f"Created {us_node.name} "
+            f"(epoch: {self.epoch_name}"
+            f"{', activity: ' + self.activity_name if self.activity_name else ''})")
+        return {'FINISHED'}
+
+
+class STRAT_OT_add_us_suggest_next(Operator):
+    """The "+ next number" button inside the Add-US dialog. Mirrors
+    ``proxybox.suggest_next_us`` but writes to the dialog operator's
+    transient ``us_name`` field.
+    """
+    bl_idname = "strat.add_us_suggest_next"
+    bl_label = "Next US Number"
+    bl_description = (
+        "Propose the next free number for the selected US type. "
+        "Respects the 'Shared numbering' toggle.")
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.em_tools.active_file_index >= 0
+
+    def execute(self, context):
+        # Reach the live STRAT_OT_add_us operator from the window
+        # manager's operator stack — the dialog keeps it there while
+        # the modal is open.
+        from s3dgraphy import get_graph
+        em_tools = context.scene.em_tools
+        gi = em_tools.graphml_files[em_tools.active_file_index]
+        graph = get_graph(gi.name)
+        if graph is None:
+            self.report({'ERROR'}, "Graph not loaded")
+            return {'CANCELLED'}
+        # ``context.window_manager.operators`` is a ``bpy_prop_collection``
+        # that doesn't support slice subscription — materialise it into
+        # a list first, then reverse. Pre-fix this raised a TypeError
+        # the moment the "+ next number" button was pressed.
+        add_op = None
+        for op in reversed(list(context.window_manager.operators)):
+            if op.bl_idname == "STRAT_OT_add_us":
+                add_op = op
+                break
+        if add_op is None:
+            self.report({'WARNING'},
+                        "Add-US dialog not on the operator stack")
+            return {'CANCELLED'}
+
+        if add_op.shared_numbering:
+            from ..us_types import US_PROPER_TYPES
+            from ..proxy_box_creator.operators import (
+                _next_shared_us_number)
+            add_op.us_name = _next_shared_us_number(
+                graph, add_op.us_type, US_PROPER_TYPES)
+        else:
+            from ..master_document_helpers import get_next_numbered_name
+            add_op.us_name = get_next_numbered_name(
+                graph, add_op.us_type, node_type_filter=add_op.us_type)
+        self.report({'INFO'}, f"Next: {add_op.us_name}")
+        return {'FINISHED'}
+
+
 def register_operators():
     """Register all operator classes."""
     operators = [
@@ -1835,6 +2084,8 @@ def register_operators():
         STRAT_OT_preview_document,
         STRAT_OT_open_document_file,
         STRAT_OT_open_document_folder,
+        STRAT_OT_add_us,
+        STRAT_OT_add_us_suggest_next,
     ]
     
     for cls in operators:

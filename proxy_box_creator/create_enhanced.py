@@ -252,103 +252,34 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
         return {'FINISHED'}
 
     def _create_and_activate_new_us(self, scene, graph):
-        """Create the new Stratigraphic Unit described by
-        ``scene.em_tools.proxy_box.{new_us_type, new_us_name,
-        new_us_epoch}``, wire it into the graph, populate the
-        Stratigraphy Manager list, and make it the active one.
+        """Materialise the US described by ``scene.em_tools.proxy_box.
+        {new_us_type, new_us_name, new_us_epoch, new_us_activity}``
+        via the shared :func:`us_helpers.create_us_node` factory.
 
-        Contract:
+        Delegating here keeps the US creation logic aligned across
+        ProxyBox, Surface Areas, and the Stratigraphy Manager's
+        ``+ Add US`` button — a single changepoint for future rules
+        (e.g. default role classification, per-type validators).
 
-        - ``new_us_name`` must be non-empty and must not collide with
-          an existing US in the Stratigraphy Manager.
-        - ``new_us_epoch`` MUST be non-empty — every US belongs to a
-          first epoch (no year needed, but the epoch anchor is part
-          of the paradata contract).
-        - The type factory goes through :func:`us_types.get_us_class`,
-          so adding a new node_type to s3dgraphy's JSON datamodel
-          propagates here automatically.
-
-        Returns ``(ok, message)``. On success the computed
-        ``target_us_name`` property reflects the new unit because
-        ``strat.units_index`` is pinned to it.
+        Returns ``(ok, message)``.
         """
         settings = scene.em_tools.proxy_box
-        strat = scene.em_tools.stratigraphy
-        new_name = (settings.new_us_name or "").strip()
-        if not new_name:
-            return False, "New US name is empty"
-        if not settings.new_us_epoch:
-            return False, (
-                "New US has no epoch — every Stratigraphic Unit needs "
-                "a first-epoch anchor (pick one from the 'Epoch' "
-                "dropdown before creating).")
-        # Duplicates — reject rather than silently reusing an existing
-        # node (the Create flow depends on the US being fresh + active).
-        for u in strat.units:
-            if u.name == new_name:
-                return False, (
-                    f"Stratigraphic Unit {new_name!r} already exists — "
-                    f"toggle off 'Create new US' and pick it from the "
-                    f"Active US dropdown instead.")
-
-        from ..us_types import get_us_class
-        node_class = get_us_class(settings.new_us_type)
-        if node_class is None:
-            return False, (
-                f"Unknown US type {settings.new_us_type!r} — check the "
-                f"datamodel JSON")
-        try:
-            import uuid
-            us_node = node_class(
-                node_id=str(uuid.uuid4()), name=new_name)
-            graph.add_node(us_node)
-        except Exception as e:
-            return False, f"Failed to create US node: {e}"
-
-        # Epoch anchoring — mandatory. We've already checked that the
-        # field is non-empty; here we fail hard if the named epoch
-        # doesn't exist in the graph (user picked from a stale list).
-        linked = False
-        for n in graph.nodes:
-            if (getattr(n, 'name', '') == settings.new_us_epoch
-                    and type(n).__name__ == 'EpochNode'):
-                edge_id = (f"{us_node.node_id}_has_first_epoch_"
-                           f"{n.node_id}")
-                if not any(e.edge_id == edge_id
-                           for e in graph.edges):
-                    try:
-                        graph.add_edge(
-                            edge_id=edge_id,
-                            edge_source=us_node.node_id,
-                            edge_target=n.node_id,
-                            edge_type="has_first_epoch",
-                        )
-                        linked = True
-                    except Exception:
-                        pass
-                else:
-                    linked = True
-                break
-        if not linked:
-            return False, (
-                f"Epoch {settings.new_us_epoch!r} not found in graph "
-                f"— refresh the epoch list and retry.")
-
-        # Populate the Stratigraphy Manager list and pin the new US as
-        # active so the computed ``target_us_name`` returns it.
-        try:
-            from ..populate_lists import (
-                populate_stratigraphic_node, build_instance_chains)
-            idx = len(strat.units)
-            chains = build_instance_chains(graph)
-            populate_stratigraphic_node(
-                scene, us_node, idx,
-                graph=graph, instance_chains=chains)
-            strat.units_index = idx
-        except Exception as e:
-            return False, f"Failed to populate US list: {e}"
-
-        return True, f"Created new US {new_name} (epoch: {settings.new_us_epoch})"
+        from ..us_helpers import create_us_node
+        ok, us_node, err = create_us_node(
+            scene=scene,
+            graph=graph,
+            us_type=settings.new_us_type,
+            name=settings.new_us_name,
+            epoch_name=settings.new_us_epoch,
+            activity_name=(settings.new_us_activity or None),
+        )
+        if not ok:
+            return False, err
+        suffix = f", activity: {settings.new_us_activity}" \
+            if settings.new_us_activity else ""
+        return True, (
+            f"Created new US {us_node.name} "
+            f"(epoch: {settings.new_us_epoch}{suffix})")
 
     def _refresh_display_after_create(self, context):
         """Mirror the post-link refresh done by ``listitem.toobj``:
@@ -774,6 +705,12 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
             edge_target=pd_group.node_id,
             edge_type="has_paradata_nodegroup",
         )
+        # Mirror the US's ``is_in_activity`` (if any) onto the new
+        # PD group so the GraphMLPatcher nests PD under the same
+        # Activity at save time — otherwise the US sits inside the
+        # Activity group while its paradata floats in the swimlane.
+        from ..us_helpers import propagate_us_activity_to_pd
+        propagate_us_activity_to_pd(graph, us_node_id, pd_group.node_id)
         return pd_group
 
     def _create_proxy_geometry(self, context, points, proxy_name,
