@@ -147,32 +147,42 @@ class PROXYBOX_PT_main_panel(Panel):
         pts_hdr.label(text=f"2. Points  ({recorded_count}/7)")
 
         for i in range(7):
-            row = points_box.row(align=True)
             label = POINT_TYPE_LABELS.get(i, f"Point {i + 1}")
-            # Keep the row compact — a single line per point.
-            if i < len(settings.points) and settings.points[i].is_recorded:
-                icon = 'CHECKMARK'
+            recorded = (i < len(settings.points)
+                        and settings.points[i].is_recorded)
+
+            # Row A: status + label + coord + Record button.
+            row = points_box.row(align=True)
+            if recorded:
                 pos = settings.points[i].position
                 coord = f"({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})"
+                row.label(text=label, icon='CHECKMARK')
             else:
-                icon = 'RADIOBUT_OFF'
                 coord = "—"
-            row.label(text=f"{label}", icon=icon)
+                row.label(text=label, icon='RADIOBUT_OFF')
             row.label(text=coord)
             op = row.operator(
                 "proxybox.record_point", text="", icon='MOUSE_LMB')
             op.point_index = i
 
-            # When the paradata is filled in (propagate on, anchor set),
-            # show the extractor id so the user can verify before Create.
-            if (i < len(settings.points)
-                    and settings.points[i].is_recorded
-                    and settings.points[i].extractor_id):
-                sub = points_box.row(align=True)
-                sub.scale_y = 0.85
-                sub.label(
-                    text=f"    → {settings.points[i].extractor_id}",
-                    icon='EMPTY_AXIS')
+            # Row B (recorded only): per-point document badge + swap
+            # button + editable extractor id. The user can override
+            # both: clicking the swap button opens the doc picker for
+            # this point alone, and the extractor field is a free text
+            # field so the auto-suggested next number can be tuned by
+            # hand if needed (e.g. to claim a specific D.X.N).
+            if recorded:
+                pt = settings.points[i]
+                pt_row = points_box.row(align=True)
+                pt_row.scale_y = 0.9
+                pt_row.label(text="    ↳")
+                doc_badge = pt.source_document or "no D."
+                pt_row.label(text=doc_badge, icon='FILE_TEXT')
+                op = pt_row.operator(
+                    "proxybox.search_point_document",
+                    text="", icon='VIEWZOOM')
+                op.point_index = i
+                pt_row.prop(pt, "extractor_id", text="")
 
         # Clear-all-points lives at the bottom of the Points box so it
         # stays scoped to its section.

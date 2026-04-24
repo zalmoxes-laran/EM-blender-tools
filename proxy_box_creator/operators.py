@@ -466,6 +466,108 @@ class PROXYBOX_OT_search_document(Operator):
         return {'CANCELLED'}
 
 
+class PROXYBOX_OT_search_point_document(Operator):
+    """Override the source document for one of the 7 measurement points.
+
+    Per-point counterpart of :class:`PROXYBOX_OT_search_document`:
+    opens the same shared picker dialog and, on confirm, writes the
+    new document into the target point. The ``extractor_id`` of that
+    point is then recomputed so it reflects the next available number
+    for the new document — without touching the other points.
+    """
+    bl_idname = "proxybox.search_point_document"
+    bl_label = "Override point document"
+    bl_description = (
+        "Override the source document for this point only. The "
+        "extractor id is recomputed to the next available number for "
+        "the picked document"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    point_index: IntProperty(
+        name="Point Index",
+        description="Index of the point to override (0-6)",
+        min=0, max=6, default=0,
+    )  # type: ignore
+
+    target_doc_name: StringProperty(
+        name="Document",
+        description="Existing document to assign to this point",
+        default="",
+    )  # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.em_tools.active_file_index >= 0
+
+    def invoke(self, context, event):
+        self.target_doc_name = ""
+        return context.window_manager.invoke_props_dialog(self, width=420)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(
+            text=f"Pick the document for point {self.point_index + 1}:",
+            icon='FILE_TEXT')
+        layout.separator()
+        from ..master_document_helpers import (
+            draw_document_picker_with_create_button)
+        draw_document_picker_with_create_button(
+            layout, context.scene,
+            target_owner=self,
+            target_prop_name="target_doc_name",
+            create_new_operator="docmanager.create_master_document",
+            create_new_label="+ Add New Document...",
+        )
+
+    def execute(self, context):
+        settings = context.scene.em_tools.proxy_box
+        if self.point_index >= len(settings.points):
+            self.report({'WARNING'},
+                        f"Point {self.point_index + 1} does not exist")
+            return {'CANCELLED'}
+        if not self.target_doc_name:
+            self.report({'INFO'}, "No document picked")
+            return {'CANCELLED'}
+        _gi, graph = _active_graph(context)
+        if graph is None:
+            self.report({'ERROR'}, "No active graph")
+            return {'CANCELLED'}
+
+        doc_node = None
+        for node in graph.nodes:
+            if (getattr(node, 'node_type', '') == 'document'
+                    and getattr(node, 'name', '') == self.target_doc_name):
+                doc_node = node
+                break
+        if doc_node is None:
+            self.report({'ERROR'},
+                        f"Document {self.target_doc_name!r} not found")
+            return {'CANCELLED'}
+
+        point = settings.points[self.point_index]
+        point.source_document = doc_node.name
+        point.source_document_name = doc_node.name
+        point.source_document_id = doc_node.node_id
+
+        # Recompute extractor for the new document — gap-aware, taking
+        # into account extractor ids already staged on the other 6
+        # points so we never collide.
+        existing = [
+            p.extractor_id for i, p in enumerate(settings.points[:7])
+            if i != self.point_index
+            and p.extractor_id
+            and p.source_document == doc_node.name]
+        point.extractor_id = _next_extractor_for_doc(
+            graph, doc_node.name, existing)
+
+        self.report(
+            {'INFO'},
+            f"Point {self.point_index + 1} → {doc_node.name} "
+            f"({point.extractor_id})")
+        return {'FINISHED'}
+
+
 class PROXYBOX_OT_clear_document(Operator):
     """Clear the Step-1 anchor document (leaves points untouched)."""
     bl_idname = "proxybox.clear_document"
@@ -546,21 +648,30 @@ class PROXYBOX_OT_record_point(Operator):
         if propagate:
             doc_name = settings.document_node_name
             doc_id = settings.document_node_id
-            point.source_document = doc_name
-            point.source_document_name = doc_name
-            # Store the UUID as the authoritative reference — the
-            # Create flow resolves the graph node via this UUID, not
-            # the display name, to avoid matching the wrong D.X when
-            # multiple documents share the same label.
-            point.source_document_id = doc_id
-            _gi, graph = _active_graph(context)
-            existing = [
-                p.extractor_id for i, p in enumerate(settings.points[:7])
-                if i != self.point_index
-                and p.extractor_id
-                and p.source_document == doc_name]
-            point.extractor_id = _next_extractor_for_doc(
-                graph, doc_name, existing)
+            # Preserve any per-point document override the user has
+            # set via PROXYBOX_OT_search_point_document — re-recording
+            # only updates the position. The point is overridden when
+            # its UUID points at a different DocumentNode than the
+            # anchor.
+            override = (point.source_document_id
+                        and point.source_document_id != doc_id)
+            if not override:
+                point.source_document = doc_name
+                point.source_document_name = doc_name
+                # Store the UUID as the authoritative reference — the
+                # Create flow resolves the graph node via this UUID,
+                # not the display name, to avoid matching the wrong
+                # D.X when multiple documents share the same label.
+                point.source_document_id = doc_id
+                _gi, graph = _active_graph(context)
+                existing = [
+                    p.extractor_id for i, p in enumerate(settings.points[:7])
+                    if i != self.point_index
+                    and p.extractor_id
+                    and p.source_document == doc_name]
+                if not point.extractor_id:
+                    point.extractor_id = _next_extractor_for_doc(
+                        graph, doc_name, existing)
 
         label = POINT_TYPE_LABELS.get(
             self.point_index, f"Point {self.point_index + 1}")
@@ -636,6 +747,7 @@ classes = [
     PROXYBOX_OT_pick_from_selected,
     PROXYBOX_OT_link_selected_to_doc,
     PROXYBOX_OT_search_document,
+    PROXYBOX_OT_search_point_document,
     PROXYBOX_OT_clear_document,
     PROXYBOX_OT_record_point,
     PROXYBOX_OT_clear_point,

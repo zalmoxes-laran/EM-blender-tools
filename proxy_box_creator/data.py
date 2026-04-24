@@ -60,6 +60,64 @@ def _on_target_mesh_update(self, context):
         return
     self.document_node_id = doc_node.node_id
     self.document_node_name = doc_node.name
+    _retro_propagate_anchor_to_points(self, context)
+
+
+def _retro_propagate_anchor_to_points(self, context):
+    """Fill ``source_document`` / ``source_document_id`` on every
+    already-recorded point that still has them empty, using the
+    Step-1 anchor. Also computes the per-point ``extractor_id`` for
+    those points so the user does not have to re-Record them after
+    the anchor is set.
+
+    No-ops when ``propagate_doc_to_points`` is off or no anchor is
+    set yet — both are user-controlled and we honour those choices.
+    """
+    if not getattr(self, "propagate_doc_to_points", False):
+        return
+    doc_id = (self.document_node_id or "").strip()
+    doc_name = (self.document_node_name or "").strip()
+    if not doc_id or not doc_name:
+        return
+    try:
+        from .operators import _next_extractor_for_doc, _active_graph
+    except Exception:
+        return
+    _gi, graph = _active_graph(context)
+    used_existing = [p.extractor_id for p in self.points[:7]
+                     if p.extractor_id
+                     and p.source_document == doc_name]
+    for p in self.points[:7]:
+        if not p.is_recorded:
+            continue
+        if p.source_document_id:
+            continue  # explicit per-point override — leave alone
+        p.source_document = doc_name
+        p.source_document_name = doc_name
+        p.source_document_id = doc_id
+        if not p.extractor_id:
+            ext = _next_extractor_for_doc(graph, doc_name, used_existing)
+            p.extractor_id = ext
+            used_existing.append(ext)
+
+
+def _on_propagate_toggle(self, context):
+    """When the user enables ``propagate_doc_to_points`` mid-flow,
+    backfill recorded points that are missing the document/extractor
+    paradata. Turning it off does *not* clear existing values — the
+    user might want to keep them for a partial run.
+    """
+    if self.propagate_doc_to_points:
+        _retro_propagate_anchor_to_points(self, context)
+
+
+def _on_anchor_doc_id_update(self, context):
+    """Update callback bound to ``document_node_id``. Retro-propagates
+    the new anchor onto recorded points missing it (subject to the
+    propagate toggle), so the Create gating doesn't refuse a run with
+    points that were recorded before the user set the anchor.
+    """
+    _retro_propagate_anchor_to_points(self, context)
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -195,6 +253,7 @@ class ProxyBoxSettings(PropertyGroup):
         name="Document node id",
         description="UUID of the DocumentNode chosen as the Step-1 anchor",
         default="",
+        update=lambda self, context: _on_anchor_doc_id_update(self, context),
     )  # type: ignore
 
     document_node_name: StringProperty(
@@ -210,6 +269,7 @@ class ProxyBoxSettings(PropertyGroup):
                     "extractor_id). When off, each point keeps its own "
                     "document picker.",
         default=True,
+        update=lambda self, context: _on_propagate_toggle(self, context),
     )  # type: ignore
 
     # Transient state for the Step 1 document picker dialog.
