@@ -291,6 +291,11 @@ class ANASTYLOSIS_OT_remove_from_list(Operator):
         default=-1
     )
 
+    def invoke(self, context, event):
+        # Destructive: unlinks the object from its SpecialFind node in
+        # the graph. Confirm before letting it through.
+        return context.window_manager.invoke_confirm(self, event)
+
     def execute(self, context):
         scene = context.scene
         anastylosis = scene.em_tools.anastylosis
@@ -417,6 +422,11 @@ class ANASTYLOSIS_OT_remove_selected(Operator):
     bl_idname = "anastylosis.remove_selected"
     bl_label = "Remove Selected from Anastylosis"
     bl_description = "Remove all selected objects from the anastylosis list and unlink from graph"
+
+    def invoke(self, context, event):
+        # Bulk destructive operation: confirm before unlinking every
+        # selected object from its SpecialFind.
+        return context.window_manager.invoke_confirm(self, event)
 
     def execute(self, context):
         scene = context.scene
