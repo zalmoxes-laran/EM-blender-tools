@@ -620,12 +620,91 @@ class EMTOOLS_OT_detect_rm_document(Operator):
         return {'FINISHED'}
 
 
+class EMTOOLS_OT_surface_areale_promote_to_rm(Operator):
+    """Add the Surface Areas target mesh to the active RM container.
+
+    Convenience wrapper used by the extraction-chain guidance row:
+    selects ``settings.target_rm`` in the scene and dispatches
+    ``rmcontainer.add_selected_meshes`` — which adds the mesh to the
+    currently-active RM container *and* auto-promotes it to
+    ``scene.rm_list`` under the active epoch. The user doesn't have
+    to switch panels.
+
+    Requires both:
+      • an active RM container in the RM Manager (otherwise the
+        underlying operator errors out with no target container);
+      • an active epoch (otherwise the mesh is added to the container
+        without an epoch anchor, which is a valid but partial state).
+    """
+    bl_idname = "emtools.surface_areale_promote_to_rm"
+    bl_label = "Promote Target to Active RM Container"
+    bl_description = (
+        "Add the Target mesh to the currently active RM container and "
+        "anchor it to the active epoch. Requires an active container "
+        "in the RM Manager"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        settings = context.scene.em_tools.surface_areale
+        return settings.target_rm is not None
+
+    def execute(self, context):
+        settings = context.scene.em_tools.surface_areale
+        obj = settings.target_rm
+        if obj is None:
+            self.report({'ERROR'}, "No target mesh selected")
+            return {'CANCELLED'}
+
+        # Bail early with a clear message if no container is active —
+        # rmcontainer.add_selected_meshes would silently refuse via
+        # its own poll and the user would be left wondering why the
+        # button did nothing.
+        try:
+            from ..rm_manager.containers import active_container
+            ac = active_container(context.scene)
+        except Exception:
+            ac = None
+        if ac is None:
+            self.report(
+                {'ERROR'},
+                "No active RM container. Select or create one in the "
+                "RM Manager first, then retry Promote.")
+            return {'CANCELLED'}
+
+        # Select just the target so rmcontainer.add_selected_meshes
+        # picks it up via context.selected_objects.
+        try:
+            bpy.ops.object.select_all(action='DESELECT')
+        except RuntimeError:
+            pass
+        obj.select_set(True)
+        context.view_layer.objects.active = obj
+
+        try:
+            bpy.ops.rmcontainer.add_selected_meshes('EXEC_DEFAULT')
+        except Exception as e:
+            self.report(
+                {'ERROR'},
+                f"Cannot promote '{obj.name}': {e}. "
+                "Check that an active epoch is set in the RM Manager.")
+            return {'CANCELLED'}
+
+        container_label = ac.label or ac.doc_name or "container"
+        self.report(
+            {'INFO'},
+            f"Promoted '{obj.name}' to container {container_label!r}")
+        return {'FINISHED'}
+
+
 classes = [
     EMTOOLS_OT_draw_surface_areale,
     EMTOOLS_OT_calibrate_benchmark,
     EMTOOLS_OT_confirm_areale,
     EMTOOLS_OT_surface_areale_create_doc,
     EMTOOLS_OT_detect_rm_document,
+    EMTOOLS_OT_surface_areale_promote_to_rm,
 ]
 
 

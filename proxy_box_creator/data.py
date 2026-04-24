@@ -16,8 +16,50 @@ from bpy.props import (  # type: ignore
     FloatVectorProperty,
     CollectionProperty,
     EnumProperty,
+    PointerProperty,
 )
 from bpy.types import PropertyGroup  # type: ignore
+
+
+def _on_target_mesh_update(self, context):
+    """Resolve the linked Document automatically when the user picks a
+    target mesh. Walks ``scene.rm_list`` → ``scene.rm_containers`` (or
+    the graph's ``has_representation_model`` edges) using the same
+    fallback chain as Surface Areas, so the Document badge in the UI
+    fills itself without an extra click.
+
+    Silently no-ops when the mesh isn't an RM or no Document is
+    linked — the user can still fall back to ``pick_from_selected`` /
+    ``search_document`` to set the anchor manually.
+    """
+    obj = self.target_mesh
+    scene = context.scene
+    if obj is None:
+        return
+    try:
+        from ..surface_areale.postprocess import (
+            is_mesh_an_rm, find_rm_document)
+        from s3dgraphy import get_graph
+    except Exception:
+        return
+
+    is_rm, _rm_item = is_mesh_an_rm(obj, scene)
+    if not is_rm:
+        return
+
+    em_tools = scene.em_tools
+    if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+        return
+    graph_info = em_tools.graphml_files[em_tools.active_file_index]
+    graph = get_graph(graph_info.name)
+    if graph is None:
+        return
+
+    doc_node = find_rm_document(scene, graph, obj)
+    if doc_node is None:
+        return
+    self.document_node_id = doc_node.node_id
+    self.document_node_name = doc_node.name
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -136,7 +178,19 @@ class ProxyBoxSettings(PropertyGroup):
         name="Measurement Points",
     )  # type: ignore
 
-    # ── Step 1: Document anchor ──────────────────────────────────────
+    # ── Step 1: Mesh → RM → Document chain ───────────────────────────
+    # Mirrors the Surface Areas flow: the user picks a target mesh
+    # and the linked Document is auto-resolved via the
+    # ``mesh → RM container → DocumentNode`` chain. The pick_from_selected
+    # / search_document operators remain available as fallbacks.
+    target_mesh: PointerProperty(
+        type=bpy.types.Object,
+        name="Target Mesh",
+        description="Mesh used to seed the extraction chain — the linked "
+                    "Document and RM are resolved automatically",
+        update=lambda self, context: _on_target_mesh_update(self, context),
+    )  # type: ignore
+
     document_node_id: StringProperty(
         name="Document node id",
         description="UUID of the DocumentNode chosen as the Step-1 anchor",

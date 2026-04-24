@@ -47,7 +47,11 @@ class VIEW3D_PT_SurfaceAreale(Panel):
 
     def draw_header(self, context):
         layout = self.layout
-        layout.label(text="", icon='MOD_TRIANGULATE')
+        sa_icon = icons_manager.get_icon_value("surface_area")
+        if sa_icon:
+            layout.label(text="", icon_value=sa_icon)
+        else:
+            layout.label(text="", icon='MOD_TRIANGULATE')
 
     def draw(self, context):
         layout = self.layout
@@ -56,65 +60,108 @@ class VIEW3D_PT_SurfaceAreale(Panel):
         settings = em_tools.surface_areale
         graph = _get_graph_safe(context)
 
-        # Header with help popup — matches the convention used by the
-        # other EM Annotator panels (RM, Anastylosis, RMDoc, Document,
-        # Proxy Box).
-        header_row = layout.row(align=True)
-        header_row.label(text="Surface Areas", icon='MOD_TRIANGULATE')
-        help_op = header_row.operator(
-            "em.help_popup", text="", icon='QUESTION')
+        # The help popup now lives at the end of the extraction-chain
+        # row (below) — no standalone header row in the body.
+        all_ok = True  # Track if all requirements are met
+
+        # ── Row 1: Mesh → RM → Document (single-line extraction chain)
+        # Walks the graph starting from the picked mesh and renders the
+        # whole chain inline: status icon + label + object picker +
+        # arrow + RM on/off indicator + arrow + document badge with
+        # code. Fix actions (promote to RM, pick a document) appear on
+        # follow-up rows inside the same box when needed.
+        from .postprocess import is_mesh_an_rm, find_rm_document
+
+        obj = settings.target_rm
+        is_rm, rm_item = is_mesh_an_rm(obj, scene) if obj else (False, None)
+        doc_node = None
+        has_doc = False
+        if is_rm and graph:
+            doc_node = find_rm_document(scene, graph, obj)
+            has_doc = doc_node is not None
+        if not has_doc and settings.existing_document:
+            has_doc = True
+
+        box = layout.box()
+        row = box.row(align=True)
+        row.label(text="", icon='CHECKMARK' if obj else 'X')
+        row.label(text="1. Mesh")
+        row.prop(settings, "target_rm", text="")
+
+        # RM on/off indicator — prefer dedicated RM_on/RM_off icons,
+        # fall back to the existing show_all_RMs family when those
+        # files aren't on disk yet.
+        if is_rm:
+            rm_badge = icons_manager.get_icon_value("RM_on") or \
+                       icons_manager.get_icon_value("show_all_RMs")
+        else:
+            rm_badge = icons_manager.get_icon_value("RM_off") or \
+                       icons_manager.get_icon_value("show_all_RMs_off")
+        if rm_badge:
+            row.label(text="", icon_value=rm_badge)
+        else:
+            row.label(text="", icon='MESH_CUBE' if is_rm else 'UNLINKED')
+
+        # Document badge: only show the code when the extraction chain
+        # actually found a document in the graph. The manually-picked
+        # ``existing_document`` is the fallback used by the chain
+        # summary further down; here we want an explicit "no D." so
+        # the user sees at a glance that no doc is linked yet.
+        doc_icon = icons_manager.get_icon_value("document")
+        doc_code = doc_node.name if doc_node else "no D."
+        if doc_icon:
+            row.label(text=doc_code, icon_value=doc_icon)
+        else:
+            row.label(text=doc_code, icon='FILE_TEXT')
+
+        # Help popup at the end of the chain row so the user finds it
+        # right where the flow starts.
+        help_op = row.operator(
+            "em.help_popup", text="", icon='QUESTION', emboss=False)
         help_op.title = "Surface Areas"
         help_op.text = (
-            "Five-step checklist for linking a drawn area on a\n"
+            "Four-step checklist to link a drawn area on a\n"
             "Representation Model to the extended matrix:\n"
-            "  1. pick the target RM mesh\n"
-            "  2. link a Document (existing or new)\n"
-            "  3. choose an Extractor method\n"
-            "  4. name the Property being measured\n"
-            "  5. assign the Stratigraphic Unit\n"
+            "  1. pick a mesh → confirm RM → link a Document\n"
+            "  2. choose an Extractor method\n"
+            "  3. name the Property being measured\n"
+            "  4. assign the Stratigraphic Unit\n"
             "Then click Draw to sketch the area on the RM."
         )
         help_op.url = "panels/surface_areale.html#surface-areas"
         help_op.project = 'em_tools'
 
-        all_ok = True  # Track if all requirements are met
-
-        # ── Req 1: RM Status ─────────────────────────────────────────
-        from .postprocess import is_mesh_an_rm, find_rm_document
-
-        box = layout.box()
-        obj = settings.target_rm
-        is_rm, rm_item = is_mesh_an_rm(obj, scene) if obj else (False, None)
-
-        row = box.row()
-        row.label(text="1. Representation Model",
-                  icon='CHECKMARK' if is_rm else 'X')
-        box.prop(settings, "target_rm", text="")
-
-        if obj and not is_rm:
-            box.label(text="Promote this mesh in the RM Manager", icon='INFO')
+        # Inline fix rows — only when a step is unmet. Kept inside the
+        # same box so the chain reads top-down.
+        if not obj:
+            hint = box.row()
+            hint.enabled = False
+            hint.label(
+                text="Pick a mesh object to start the extraction chain.",
+                icon='INFO')
             all_ok = False
-        elif not obj:
+        elif not is_rm:
+            # Hint + promote action on the same row. The promote
+            # operator registers the mesh in the active RM container.
+            fix = box.row(align=True)
+            fix.label(
+                text="Not an RM — promotes to active container:",
+                icon='INFO')
+            fix.operator(
+                "emtools.surface_areale_promote_to_rm",
+                text="Promote", icon='ADD')
             all_ok = False
-
-        # ── Req 2: Document linked to RM ────────────────────────────
-        box = layout.box()
-        doc_node = None
-        has_doc = False
-
-        if is_rm and graph:
-            doc_node = find_rm_document(scene, graph, obj)
-            has_doc = doc_node is not None
-
-        row = box.row()
-        row.label(text="2. Document",
-                  icon='CHECKMARK' if has_doc else 'X')
-
-        if has_doc:
-            box.label(text=f"{doc_node.name}", icon='FILE')
-        elif is_rm:
-            # Shared Document picker (search existing + create new via
-            # the standard Master Document dialog).
+        elif not has_doc:
+            hint = box.row()
+            hint.enabled = False
+            hint.label(
+                text="No Document linked to this RM in the graph.",
+                icon='INFO')
+            hint = box.row()
+            hint.enabled = False
+            hint.label(
+                text="Pick an existing one or create a new master.",
+                icon='BLANK1')
             from ..master_document_helpers import (
                 draw_document_picker_with_create_button)
             draw_document_picker_with_create_button(
@@ -130,53 +177,46 @@ class VIEW3D_PT_SurfaceAreale(Panel):
         if not has_doc:
             all_ok = False
 
-        # ── Req 3: Extractor ────────────────────────────────────────
-        box = layout.box()
+        # ── Req 2: Extractor ────────────────────────────────────────
+        # Compact one-line layout: status + number + prop field.
         has_extr = bool(settings.extractor_name)
-        row = box.row()
-        row.label(text="3. Extractor",
-                  icon='CHECKMARK' if has_extr else 'X')
-        box.prop(settings, "extractor_name", text="Method")
+        ext_box = layout.box()
+        ext_row = ext_box.row(align=True)
+        ext_row.label(text="", icon='CHECKMARK' if has_extr else 'X')
+        ext_row.label(text="2. Extractor")
+        ext_row.prop(settings, "extractor_name", text="")
         if not has_extr:
             all_ok = False
 
-        # ── Req 4: Property ─────────────────────────────────────────
-        box = layout.box()
+        # ── Req 3: Property ─────────────────────────────────────────
         has_prop = bool(settings.property_name)
-        row = box.row()
-        row.label(text="4. Property",
-                  icon='CHECKMARK' if has_prop else 'X')
-        box.prop(settings, "property_name", text="Name")
+        prop_box = layout.box()
+        prop_row = prop_box.row(align=True)
+        prop_row.label(text="", icon='CHECKMARK' if has_prop else 'X')
+        prop_row.label(text="3. Property")
+        prop_row.prop(settings, "property_name", text="")
         if not has_prop:
             all_ok = False
 
-        # ── US Target ─────────────────────────────────────────────────
+        # ── Req 4: Stratigraphic Unit ────────────────────────────────
         # Always a single path: pick an existing US from the list, or
         # click ``+`` to launch the shared ``strat.add_us`` dialog.
-        # The inline Create-new-US branch (us_type / name / epoch /
-        # activity / strat link) has been removed — the dialog owns
-        # all of that now, keeping the form identical across
-        # ProxyBox, Surface Areas and Stratigraphy Manager.
-        box = layout.box()
-        req_num = "5"
-        row = box.row()
-
+        has_us = bool(settings.linked_us_name)
+        us_box = layout.box()
+        us_row = us_box.row(align=True)
+        us_row.label(text="", icon='CHECKMARK' if has_us else 'X')
+        us_row.label(text="4. SU")
         from ..us_helpers import draw_add_us_button
-        us_picker_row = box.row(align=True)
         if hasattr(em_tools, 'stratigraphy') \
                 and em_tools.stratigraphy.units:
-            us_picker_row.prop_search(
+            us_row.prop_search(
                 settings, "linked_us_name",
                 em_tools.stratigraphy, "units",
-                text="Existing US")
+                text="")
         else:
-            us_picker_row.prop(
-                settings, "linked_us_name", text="US Name")
-        draw_add_us_button(us_picker_row, text="")
-
-        has_us = bool(settings.linked_us_name)
-        row.label(text=f"{req_num}. Stratigraphic Unit",
-                  icon='CHECKMARK' if has_us else 'X')
+            us_row.prop(
+                settings, "linked_us_name", text="")
+        draw_add_us_button(us_row, text="")
         if not has_us:
             all_ok = False
 

@@ -2651,6 +2651,35 @@ class RMDOC_OT_fly(bpy.types.Operator):
         return {'CANCELLED'}
 
 
+class RMDOC_OT_jump_to_document(bpy.types.Operator):
+    """Select the corresponding row in the Document Manager catalog."""
+    bl_idname = "em.rmdoc_jump_to_document"
+    bl_label = "Show in Document Manager"
+    bl_description = (
+        "Highlight this RMDoc's source document in the Document Manager "
+        "catalog — the paired navigation of the RMDoc selector icon in "
+        "the Doc Manager rows"
+    )
+
+    doc_node_id: StringProperty()  # type: ignore
+
+    def execute(self, context):
+        scene = context.scene
+        if not self.doc_node_id:
+            self.report({'WARNING'}, "No linked document")
+            return {'CANCELLED'}
+        doc_list = getattr(scene, 'doc_list', None)
+        if doc_list is None:
+            return {'CANCELLED'}
+        for i, item in enumerate(doc_list):
+            if item.node_id == self.doc_node_id:
+                scene.doc_list_index = i
+                self.report({'INFO'}, f"Jumped to document {item.name}")
+                return {'FINISHED'}
+        self.report({'WARNING'}, "Linked document not found in catalog")
+        return {'CANCELLED'}
+
+
 class RMDOC_OT_open_document(bpy.types.Operator):
     """Open the document file linked to this RMDoc object"""
     bl_idname = "em.rmdoc_open_document"
@@ -2976,6 +3005,7 @@ classes = (
     RMDOC_OT_autocrop_near,
     RMDOC_OT_autocrop_far,
     RMDOC_OT_fly,
+    RMDOC_OT_jump_to_document,
     RMDOC_OT_open_document,
     RMDOC_OT_repair,
 )

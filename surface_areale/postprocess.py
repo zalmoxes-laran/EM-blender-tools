@@ -293,17 +293,50 @@ def _create_rm_node_in_graph(graph, rm_item, scene):
 
 
 def find_rm_document(scene, graph, rm_obj):
-    """Find a DocumentNode connected to the RM via has_representation_model."""
+    """Find a DocumentNode linked to this RM.
+
+    Two linkage paths are supported:
+
+    1. **Graph edge** ``Document --has_representation_model--> RM``.
+       This is the canonical link used when the paradata chain has
+       been materialised in the graph.
+
+    2. **RM container** (``scene.rm_containers``) with
+       ``doc_node_id`` pointing at the document. Containers are the
+       DP-47 extension used by the RM Manager to group meshes under a
+       document without necessarily creating the ``has_representation_model``
+       edge up-front. Without this fallback the Surface Areas
+       extraction-chain UI would show "No Document linked" even when
+       the Document Manager catalog reports the link correctly.
+    """
     rm_node = find_rm_node_in_graph(scene, graph, rm_obj)
-    if not rm_node:
-        return None
-    # Document --has_representation_model--> RM (so RM is the target)
-    for edge in graph.edges:
-        if (edge.edge_target == rm_node.node_id and
-                edge.edge_type == "has_representation_model"):
-            source = graph.find_node_by_id(edge.edge_source)
-            if source and hasattr(source, 'node_type') and source.node_type == 'document':
-                return source
+    if rm_node:
+        for edge in graph.edges:
+            if (edge.edge_target == rm_node.node_id and
+                    edge.edge_type == "has_representation_model"):
+                source = graph.find_node_by_id(edge.edge_source)
+                if (source and hasattr(source, 'node_type')
+                        and source.node_type == 'document'):
+                    return source
+
+    # Fallback: scene.rm_containers — find any container that holds
+    # this mesh and resolve its doc_node_id back to a DocumentNode.
+    try:
+        rm_containers = getattr(scene, 'rm_containers', None)
+        if rm_containers:
+            rm_name = rm_obj.name
+            for container in rm_containers:
+                if not container.doc_node_id:
+                    continue
+                if not any(e.name == rm_name for e in container.mesh_names):
+                    continue
+                doc_node = graph.find_node_by_id(container.doc_node_id)
+                if (doc_node and hasattr(doc_node, 'node_type')
+                        and doc_node.node_type == 'document'):
+                    return doc_node
+    except Exception:
+        pass
+
     return None
 
 

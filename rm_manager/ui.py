@@ -460,6 +460,12 @@ class VIEW3D_PT_RM_Manager(Panel):
             row.operator("rm.select_all_from_active_epoch", text="", icon='SELECT_EXTEND')
             row.operator("rm.detect_orphaned_epochs", text="", icon='ORPHAN_DATA')
             row.operator("rm.cleanup_missing_objects", text="", icon='TRASH')
+            _tileset_add_icon = icons_manager.get_icon_value("tileset_add")
+            if _tileset_add_icon:
+                row.operator("rm.add_tileset", text="",
+                             icon_value=_tileset_add_icon)
+            else:
+                row.operator("rm.add_tileset", text="", icon='ORIENTATION_GLOBAL')
             help_op = row.operator("em.help_popup", text="", icon='QUESTION')
             help_op.title = "RM Manager"
             help_op.text = (
@@ -481,6 +487,12 @@ class VIEW3D_PT_RM_Manager(Panel):
             row.label(text="No active epoch selected", icon='INFO')
             row.operator("rm.detect_orphaned_epochs", text="", icon='ORPHAN_DATA')
             row.operator("rm.cleanup_missing_objects", text="", icon='TRASH')
+            _tileset_add_icon = icons_manager.get_icon_value("tileset_add")
+            if _tileset_add_icon:
+                row.operator("rm.add_tileset", text="",
+                             icon_value=_tileset_add_icon)
+            else:
+                row.operator("rm.add_tileset", text="", icon='ORIENTATION_GLOBAL')
             help_op = row.operator("em.help_popup", text="", icon='QUESTION')
             help_op.title = "RM Manager"
             help_op.text = (
@@ -617,53 +629,40 @@ class VIEW3D_PT_RM_Manager(Panel):
                     row.operator("rm.resolve_mismatches", text="Use Graph Epochs", icon='NODE_MATERIAL').use_graph_epochs = True
                 row.operator("rm.resolve_mismatches", text="Use Scene Epochs", icon='OBJECT_DATA').use_graph_epochs = False
         
-        # Cesium Tilesets management — shown before Settings so the
-        # per-row tileset properties appear right underneath the mesh
-        # list. A single icon-only "+" button adds a new tileset; the
-        # path editor sits inside a collapsible that is closed by
-        # default (show_tileset_properties).
-        if has_active_epoch:
-            box = layout.box()
-            header = box.row(align=True)
-            tileset_hdr_icon = icons_manager.get_icon_value("tileset")
-            if tileset_hdr_icon:
-                header.label(text="Cesium Tilesets",
-                             icon_value=tileset_hdr_icon)
-            else:
-                header.label(text="Cesium Tilesets",
-                             icon='ORIENTATION_GLOBAL')
-            add_icon = icons_manager.get_icon_value("tileset_add")
-            if add_icon:
-                header.operator("rm.add_tileset", text="",
-                                icon_value=add_icon)
-            else:
-                header.operator("rm.add_tileset", text="", icon='ADD')
+        # Tileset properties — collapsible per-row panel shown only
+        # when the active row is a tileset. The "Add Tileset" action
+        # lives in the top header row (next to cleanup); no section
+        # header is drawn here to keep the sidebar tidy.
+        if has_active_epoch and 0 <= scene.rm_list_index < len(scene.rm_list):
+            rm_item = scene.rm_list[scene.rm_list_index]
+            obj = get_object_cache().get_object(rm_item.name)
+            if obj and "tileset_path" in obj:
+                box = layout.box()
+                row = box.row()
+                row.prop(
+                    scene.rm_settings, "show_tileset_properties",
+                    icon="TRIA_DOWN" if scene.rm_settings.show_tileset_properties else "TRIA_RIGHT",
+                    text=f"Tileset: {rm_item.name}",
+                    emboss=False,
+                )
 
-            # Collapsible tileset properties for the active row, only
-            # when that row is actually a tileset.
-            if 0 <= scene.rm_list_index < len(scene.rm_list):
-                rm_item = scene.rm_list[scene.rm_list_index]
-                obj = get_object_cache().get_object(rm_item.name)
-                if obj and "tileset_path" in obj:
-                    row = box.row()
-                    row.prop(
-                        scene.rm_settings, "show_tileset_properties",
-                        icon="TRIA_DOWN" if scene.rm_settings.show_tileset_properties else "TRIA_RIGHT",
-                        text=f"Tileset: {rm_item.name}",
-                        emboss=False,
-                    )
+                if scene.rm_settings.show_tileset_properties:
+                    row = box.row(align=True)
+                    tileset_icon = icons_manager.get_icon_value("tileset")
+                    if tileset_icon:
+                        row.label(text="", icon_value=tileset_icon)
+                    else:
+                        row.label(text="", icon='ORIENTATION_GLOBAL')
+                    row.prop(obj, '["tileset_path"]', text="")
+                    op = row.operator("rm.set_tileset_path", text="",
+                                      icon='FILEBROWSER')
+                    op.object_name = obj.name
 
-                    if scene.rm_settings.show_tileset_properties:
-                        row = box.row(align=True)
-                        row.prop(obj, '["tileset_path"]', text="Path")
-                        op = row.operator("rm.set_tileset_path", text="", icon='FILEBROWSER')
-                        op.object_name = obj.name
-
-                        path = obj.get("tileset_path", "")
-                        if path and not os.path.exists(bpy.path.abspath(path)):
-                            row = box.row()
-                            row.alert = True
-                            row.label(text="Warning: File not found!", icon='ERROR')
+                    path = obj.get("tileset_path", "")
+                    if path and not os.path.exists(bpy.path.abspath(path)):
+                        row = box.row()
+                        row.alert = True
+                        row.label(text="Warning: File not found!", icon='ERROR')
 
         # Settings (collapsible) — kept at the bottom so routine per-row
         # editing (tilesets, epochs) stays above the fold.

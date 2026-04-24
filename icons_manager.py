@@ -64,6 +64,13 @@ def load_icons():
         "tileset_select": "tileset_select.png",
         "container_off": "container_off.png",
         "container_on": "container_on.png",
+        "surface_area": "surface_area.png",
+        # RM presence indicator (loaded lazily — filenames provided by
+        # the user as RM_on.png / RM_off.png). load_icons() skips any
+        # missing file, so if they aren't on disk yet the code falls
+        # back to the existing show_all_RMs / show_all_RMs_off icons.
+        "RM_on": "RM_on.png",
+        "RM_off": "RM_off.png",
     }
     
     # Carica ogni icona che esiste

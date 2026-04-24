@@ -341,6 +341,44 @@ class DOCMANAGER_UL_documents(UIList):
         return filter_flags, order
 
 
+class DOCMANAGER_UL_linked_rms(UIList):
+    """UIList for the Linked-RMs list in the Document Manager detail
+    view. Backed by ``scene.doc_detail_linked_meshes`` so Blender's
+    native scrollbar handles overflow automatically.
+
+    Two row kinds, flagged by ``item.is_header``:
+      • header  → container name + mesh count, no selector
+      • mesh    → indented mesh name + RM_select icon button
+    """
+
+    def draw_item(self, context, layout, data, item, icon, active_data,
+                  active_propname, index):
+        row = layout.row(align=True)
+        if item.is_header:
+            row.label(
+                text=f"{item.container_label}  ({item.member_count})",
+                icon='PACKAGE')
+            return
+        obj_exists = item.name in bpy.data.objects
+        if not obj_exists:
+            row.label(text=f"    - {item.name}", icon='ERROR')
+            return
+        row.label(text=f"    - {item.name}")
+        rm_icon = icons_manager.get_icon_value("RM_select")
+        if rm_icon:
+            op = row.operator("em.rmdoc_select_object", text="",
+                              icon_value=rm_icon, emboss=False)
+        else:
+            op = row.operator("em.rmdoc_select_object", text="",
+                              icon='RESTRICT_SELECT_OFF', emboss=False)
+        op.object_name = item.name
+
+    def filter_items(self, context, data, propname):
+        items = getattr(data, propname)
+        filter_flags = [self.bitflag_filter_item] * len(items)
+        return filter_flags, []
+
+
 class VIEW3D_PT_3DDocumentManager(Panel):
     """Document Manager — catalog of all documents from the graph."""
     bl_label = "Document Manager"
@@ -463,23 +501,22 @@ class VIEW3D_PT_3DDocumentManager(Panel):
             detail_box = layout.box()
             col = detail_box.column(align=True)
 
-            # Header: name + master/instance badge
-            header = col.row()
+            # Header: name + master/instance badge + reference count
+            # on a single row so the identity strip stays compact.
+            ref_count = doc_info.get('ref_count', 0)
+            ref_text = f"Ref x{ref_count}" if ref_count else "Ref x0"
+            header = col.row(align=True)
             header.label(text=item.name, icon="FILE_TEXT")
             if item.is_master:
                 header.label(text="Master", icon="KEYTYPE_KEYFRAME_VEC")
             else:
                 header.label(text="Instance", icon="DOT")
+            header.label(text=ref_text, icon="LINKED")
 
             # Description
             if item.description:
                 col.separator()
                 col.label(text=item.description, icon="TEXT")
-
-            # Reference count
-            ref_count = doc_info.get('ref_count', 0)
-            col.separator()
-            col.label(text=f"Referenced {ref_count} time{'s' if ref_count != 1 else ''}", icon="LINKED")
 
             # Linked US nodes — single selector icon per row, no
             # redundant "entity-type" icon on the left.
@@ -561,10 +598,9 @@ class VIEW3D_PT_3DDocumentManager(Panel):
                          f"geometry: {geom_str}")
 
             # Linked RMs (DP-47 — document wraps a set of 3D meshes via
-            # one or more RM containers in the RM Manager). Each mesh row
-            # has a single selector icon (RM_select) and no redundant
-            # entity icon. Missing objects still show an ERROR icon as
-            # the selector has nothing to act on.
+            # one or more RM containers in the RM Manager). Rendered
+            # via a template_list backed by scene.doc_detail_linked_meshes
+            # so the native scrollbar handles overflow.
             rm_containers_for_doc = doc_info.get('rm_containers', [])
             if rm_containers_for_doc:
                 col.separator()
@@ -574,35 +610,13 @@ class VIEW3D_PT_3DDocumentManager(Panel):
                     text=f"Linked RMs: {rm_total} mesh(es) in "
                          f"{len(rm_containers_for_doc)} container(s)",
                     icon='OUTLINER_COLLECTION')
-                rm_select_icon = icons_manager.get_icon_value("RM_select")
-                for cont_label, members in rm_containers_for_doc:
-                    cont_row = col.row()
-                    cont_row.label(
-                        text=f"  {cont_label}  ({len(members)})",
-                        icon='PACKAGE')
-                    # Show up to 8 mesh names per container, truncate
-                    # the rest to keep the detail panel compact.
-                    for mname in members[:8]:
-                        m_row = col.row(align=True)
-                        obj_exists = mname in bpy.data.objects
-                        if not obj_exists:
-                            m_row.label(text=f"    - {mname}", icon='ERROR')
-                            continue
-                        m_row.label(text=f"    - {mname}")
-                        if rm_select_icon:
-                            op = m_row.operator(
-                                "em.rmdoc_select_object",
-                                text="", icon_value=rm_select_icon,
-                                emboss=False)
-                        else:
-                            op = m_row.operator(
-                                "em.rmdoc_select_object",
-                                text="", icon='RESTRICT_SELECT_OFF',
-                                emboss=False)
-                        op.object_name = mname
-                    if len(members) > 8:
-                        col.label(
-                            text=f"    ... and {len(members) - 8} more")
+                list_row = col.row()
+                list_row.template_list(
+                    "DOCMANAGER_UL_linked_rms", "",
+                    scene, "doc_detail_linked_meshes",
+                    scene, "doc_detail_linked_meshes_index",
+                    rows=6, maxrows=14,
+                )
 
             # URL
             if item.url:
@@ -792,6 +806,13 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
                 header_row.label(text=item.name, icon="FILE_IMAGE")
             if item.doc_name:
                 header_row.label(text=f"→ {item.doc_name}", icon="FILE_TEXT")
+                # Jump-to-Document Manager mirror of the RMDoc_select
+                # icon in the Doc Manager UIList.
+                if item.doc_node_id:
+                    op = header_row.operator(
+                        "em.rmdoc_jump_to_document",
+                        text="", icon='ZOOM_SELECTED', emboss=False)
+                    op.doc_node_id = item.doc_node_id
             else:
                 header_row.label(text="→ [unlinked]", icon="UNLINKED")
 
@@ -898,6 +919,29 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
                 op.object_name = item.name
                 cam_row.operator("em.rmdoc_fly", text="", icon="MOD_PARTICLE_INSTANCE")
 
+                # Drive-mode selector — the power-user switch between
+                # Quad-driven, Camera-driven, and Unlinked. Each button
+                # calls em.rmdoc_set_drive_mode which handles the
+                # reparenting, driver install/freeze, and any needed
+                # confirmation (e.g. before dropping the camera).
+                mode_row = col.row(align=True)
+                mode_row.label(text="Mode:", icon='CON_PIVOT')
+                current_mode = item.drive_mode
+                _MODE_DEFS = (
+                    ('QUAD_DRIVEN',   "Quad",   'MESH_PLANE'),
+                    ('CAMERA_DRIVEN', "Camera", 'CAMERA_DATA'),
+                    ('UNLINKED',      "Free",   'UNLINKED'),
+                )
+                for mode_id, mode_label, mode_icon in _MODE_DEFS:
+                    btn = mode_row.row(align=True)
+                    btn.active = (current_mode != mode_id)
+                    op = btn.operator(
+                        "em.rmdoc_set_drive_mode",
+                        text=mode_label, icon=mode_icon,
+                        depress=(current_mode == mode_id))
+                    op.object_name = item.name
+                    op.mode = mode_id
+
                 # Re-align + Remove Camera (explicit; auto-realign was
                 # removed — user controls when to re-fit the pair).
                 align_row = col.row(align=True)
@@ -931,6 +975,7 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
 
 classes = (
     DOCMANAGER_UL_documents,
+    DOCMANAGER_UL_linked_rms,
     RMDOC_UL_documents,
     VIEW3D_PT_3DDocumentManager,
     VIEW3D_PT_RMDoc_Manager,

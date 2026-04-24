@@ -70,71 +70,81 @@ class PROXYBOX_PT_main_panel(Panel):
         em_tools = scene.em_tools
         settings = em_tools.proxy_box
 
-        # Help button (keeps the panel approachable without inflating the UI).
-        header_row = layout.row(align=True)
-        header_row.label(text="Proxy Box", icon='MESH_CUBE')
-        help_op = header_row.operator(
-            "em.help_popup", text="", icon='QUESTION')
-        help_op.title = "Proxy Box"
-        help_op.text = (
-            "Step 1: pick an anchor Document from the selected mesh\n"
-            "or the catalog. Step 2: record the 7 measurement points\n"
-            "(Record per row). The proxy name comes from the active\n"
-            "Stratigraphic Unit."
-        )
-        help_op.url = "panels/proxy_box_creator.html#_Proxy_Box_Creator"
-        help_op.project = 'em_tools'
-
+        # The panel header already shows "Proxy Box" + its icon via
+        # draw_header/bl_label — no extra title row in the body.
         if em_tools.active_file_index < 0:
             layout.label(text="Load a GraphML first.", icon='ERROR')
             return
 
-        # ── Step 1: Document anchor ──────────────────────────────────
-        box = layout.box()
-        has_doc = bool(settings.document_node_id)
-        row = box.row()
-        row.label(
-            text="1. Anchor Document",
-            icon='CHECKMARK' if has_doc else 'RADIOBUT_OFF')
+        # ── Row 1: Mesh → RM → Document (compact, mirrors Surface Areas)
+        # status + "1. Mesh" + mesh picker + RM_on/off badge +
+        # document badge + help popup. The Document is auto-resolved
+        # from the picked mesh via its RM container; pick_from_selected
+        # / search_document remain available below as fallbacks when
+        # no chain is present (e.g. mesh not yet promoted to RM).
+        from ..surface_areale.postprocess import is_mesh_an_rm
 
-        if has_doc:
-            info_row = box.row(align=True)
-            info_row.label(
-                text=settings.document_node_name
-                     or settings.document_node_id,
-                icon='FILE_TEXT')
-            info_row.operator(
-                "proxybox.pick_from_selected", text="", icon='EYEDROPPER')
-            info_row.operator(
-                "proxybox.search_document", text="", icon='VIEWZOOM')
-            info_row.operator(
-                "proxybox.clear_document", text="", icon='X')
-            box.prop(settings, "propagate_doc_to_points")
+        obj = settings.target_mesh
+        is_rm, _rm_item = is_mesh_an_rm(obj, scene) if obj else (False, None)
+        has_doc = bool(settings.document_node_id)
+        doc_icon = icons_manager.get_icon_value("document")
+        doc_code = (settings.document_node_name
+                    or settings.document_node_id) if has_doc else "no D."
+
+        anchor_box = layout.box()
+        row = anchor_box.row(align=True)
+        row.label(text="", icon='CHECKMARK' if has_doc else 'X')
+        row.label(text="1. Mesh")
+        row.prop(settings, "target_mesh", text="")
+
+        # RM on/off — same fallback ladder used by Surface Areas.
+        if is_rm:
+            rm_badge = (icons_manager.get_icon_value("RM_on")
+                        or icons_manager.get_icon_value("show_all_RMs"))
         else:
-            pick_row = box.row(align=True)
-            pick_row.scale_y = 1.1
-            pick_row.operator(
-                "proxybox.pick_from_selected",
-                text="Pick from selected",
-                icon='EYEDROPPER')
-            pick_row.operator(
-                "proxybox.search_document",
-                text="Search...",
-                icon='VIEWZOOM')
-            box.label(
-                text="Selecting a mesh that's already linked to a "
-                     "DocumentNode auto-resolves the anchor.",
-                icon='INFO')
+            rm_badge = (icons_manager.get_icon_value("RM_off")
+                        or icons_manager.get_icon_value("show_all_RMs_off"))
+        if rm_badge:
+            row.label(text="", icon_value=rm_badge)
+        else:
+            row.label(text="", icon='MESH_CUBE' if is_rm else 'UNLINKED')
+
+        if doc_icon:
+            row.label(text=doc_code, icon_value=doc_icon)
+        else:
+            row.label(text=doc_code, icon='FILE_TEXT')
+
+        help_op = row.operator(
+            "em.help_popup", text="", icon='QUESTION', emboss=False)
+        help_op.title = "Proxy Box"
+        help_op.text = (
+            "Step 1: pick the target mesh — the linked Document is\n"
+            "resolved automatically via the RM container. Use\n"
+            "'pick from selected' / 'search' below as fallbacks if\n"
+            "the chain isn't set up yet.\n"
+            "Step 2: record the 7 measurement points (Record per row).\n"
+            "The proxy name comes from the active Stratigraphic Unit."
+        )
+        help_op.url = "panels/proxy_box_creator.html#_Proxy_Box_Creator"
+        help_op.project = 'em_tools'
+
+        # Propagate-to-all-points toggle stays on its own row inside
+        # the same box. Pick-from-selected / search-document /
+        # clear-document have been retired: the target_mesh picker
+        # already resolves the chain automatically and the user can
+        # change the mesh to swap anchor.
+        if has_doc:
+            anchor_box.prop(settings, "propagate_doc_to_points")
 
         # ── Step 2: 7 measurement points ─────────────────────────────
-        layout.separator()
-        points_box = layout.box()
         recorded_count = sum(1 for p in settings.points[:7]
                              if p.is_recorded)
-        header = points_box.row()
-        header.label(
-            text=f"2. Measurement Points   ({recorded_count}/7)",
-            icon='CHECKMARK' if recorded_count == 7 else 'RADIOBUT_OFF')
+        points_box = layout.box()
+        pts_hdr = points_box.row(align=True)
+        pts_hdr.label(
+            text="",
+            icon='CHECKMARK' if recorded_count == 7 else 'X')
+        pts_hdr.label(text=f"2. Points  ({recorded_count}/7)")
 
         for i in range(7):
             row = points_box.row(align=True)
@@ -164,51 +174,79 @@ class PROXYBOX_PT_main_panel(Panel):
                     text=f"    → {settings.points[i].extractor_id}",
                     icon='EMPTY_AXIS')
 
-        # ── Parameters ───────────────────────────────────────────────
-        layout.separator()
-        params_box = layout.box()
-        params_box.label(text="Parameters", icon='SETTINGS')
+        # Clear-all-points lives at the bottom of the Points box so it
+        # stays scoped to its section.
+        points_box.separator()
+        points_box.operator(
+            "proxybox.clear_all_points",
+            text="Clear All Points", icon='X')
 
-        col = params_box.column(align=True)
-        col.prop(settings, "pivot_location", text="Pivot")
-        col.prop(settings, "use_proxy_collection")
-        col.prop(settings, "persist_after_create")
-
-        # Active US — ``prop_search`` bound to
-        # ``settings.target_us_name``, a computed property
-        # bidirectionally synced with ``strat.units_index`` (picking
-        # here moves the Stratigraphy Manager's active US and vice
-        # versa). Need a new US? The ``+ Create new US`` button below
-        # opens the shared ``strat.add_us`` dialog — the same one the
-        # Stratigraphy Manager exposes. Once the dialog finishes the
-        # new unit is automatically active, so the picker immediately
-        # reflects it. Zero duplicate form.
+        # ── Step 3: Active US (compact one-line like Surface Areas SU)
         strat = em_tools.stratigraphy
         us_name = _active_us_name(context)
+        has_us = bool(us_name)
         from ..us_helpers import draw_add_us_button
+
+        us_box = layout.box()
+        us_row = us_box.row(align=True)
+        us_row.label(text="", icon='CHECKMARK' if has_us else 'X')
+        us_row.label(text="3. SU")
         if strat.units:
-            us_row = params_box.row(align=True)
             us_row.prop_search(
                 settings, "target_us_name",
                 strat, "units",
-                text="Active US",
-                icon='MOD_EXPLODE')
+                text="")
             draw_add_us_button(us_row, text="")
-            if us_name:
-                params_box.label(
-                    text=f"Proxy name → {us_name}",
-                    icon='OUTLINER_OB_MESH')
-            else:
-                params_box.label(
-                    text="Pick an Active US (or click the Add-US "
-                         "button to create one).",
-                    icon='ERROR')
         else:
-            row = params_box.row(align=True)
-            row.label(
-                text="No stratigraphic units yet.",
-                icon='INFO')
-            draw_add_us_button(row, text="Create US")
+            us_row.label(text="No units yet", icon='INFO')
+            draw_add_us_button(us_row, text="")
+
+        # ── Create + box settings (pivot / collection / persistence)
+        # Create Proxy lives at the top of this box so the action sits
+        # right next to the parameters that govern it. Below it: pivot,
+        # collection toggle, persist-on-create.
+        all_recorded = recorded_count == 7
+        all_have_doc = all(
+            bool(p.source_document) for p in settings.points[:7]) \
+            if len(settings.points) >= 7 else False
+        all_have_ext = all(
+            bool(p.extractor_id) for p in settings.points[:7]) \
+            if len(settings.points) >= 7 else False
+        can_create = (all_recorded
+                      and all_have_doc
+                      and all_have_ext
+                      and has_us)
+
+        opts_box = layout.box()
+        create_row = opts_box.row(align=True)
+        create_icon = icons_manager.get_icon_value("surface_area")
+        if can_create:
+            if create_icon:
+                create_row.operator(
+                    "proxybox.create_proxy_enhanced",
+                    text="Create Proxy", icon_value=create_icon)
+            else:
+                create_row.operator(
+                    "proxybox.create_proxy_enhanced",
+                    text="Create Proxy", icon='ADD')
+        else:
+            create_row.enabled = False
+            if not all_recorded:
+                msg = "Record all 7 points first"
+            elif not all_have_doc:
+                msg = "Set the anchor document (Step 1)"
+            elif not all_have_ext:
+                msg = "Missing extractor ids — re-record with Propagate on"
+            else:
+                msg = "Select the Active US first"
+            create_row.operator(
+                "proxybox.create_proxy_enhanced",
+                text=msg, icon='ERROR')
+
+        opts_col = opts_box.column(align=True)
+        opts_col.prop(settings, "pivot_location", text="Pivot")
+        opts_col.prop(settings, "use_proxy_collection")
+        opts_col.prop(settings, "persist_after_create")
 
         # ── Chain Summary (collapsible) ──────────────────────────────
         # Mirrors the Surface Areas panel's summary: shows the
@@ -244,58 +282,9 @@ class PROXYBOX_PT_main_panel(Panel):
             col.label(
                 text=f"  <--has_extractor--  {doc_name_cs}")
 
-        # ── Create / Clear ───────────────────────────────────────────
-        layout.separator()
-        all_recorded = recorded_count == 7
-        all_have_doc = all(
-            bool(p.source_document) for p in settings.points[:7]) \
-            if len(settings.points) >= 7 else False
-        all_have_ext = all(
-            bool(p.extractor_id) for p in settings.points[:7]) \
-            if len(settings.points) >= 7 else False
-        # US gate: the "Active US" picker (or the ``+`` that launches
-        # the shared Add-US dialog) is the only path to populate it.
-        has_us = bool(_active_us_name(context))
-
-        can_create = (all_recorded
-                      and all_have_doc
-                      and all_have_ext
-                      and has_us)
-
-        row = layout.row()
-        row.scale_y = 1.5
-        if can_create:
-            row.operator(
-                "proxybox.create_proxy_enhanced",
-                text="Create Proxy",
-                icon='ADD')
-        else:
-            row.enabled = False
-            if not all_recorded:
-                row.operator(
-                    "proxybox.create_proxy_enhanced",
-                    text="Record all 7 points first",
-                    icon='ERROR')
-            elif not all_have_doc:
-                row.operator(
-                    "proxybox.create_proxy_enhanced",
-                    text="Set the anchor document (Step 1)",
-                    icon='ERROR')
-            elif not all_have_ext:
-                row.operator(
-                    "proxybox.create_proxy_enhanced",
-                    text="Missing extractor ids — re-record with "
-                         "Propagate on",
-                    icon='ERROR')
-            else:
-                row.operator(
-                    "proxybox.create_proxy_enhanced",
-                    text="Select the Active US first",
-                    icon='ERROR')
-
-        layout.operator(
-            "proxybox.clear_all_points",
-            text="Clear All Points", icon='X')
+        # Create button + Clear-all-points relocated: Create lives in
+        # the opts_box (above the Pivot prop) and Clear-all-points sits
+        # at the bottom of the Step 2 Points box.
 
 
 classes = [PROXYBOX_PT_main_panel]
