@@ -66,13 +66,13 @@ def node_name_to_proxy_name(node_name, context=None, graph=None):
         >>> node_name_to_proxy_name('US001')
         'VDL16.US001'  # If active graph code is VDL16
     """
-    # Get graph code
+    # Get graph code — try graph attributes first, then active Blender property
     graph_code = None
     if graph:
         graph_code = get_graph_code_from_graph(graph)
-    else:
+    if not graph_code:
         graph_code = get_active_graph_code(context)
-    
+
     # Add prefix only if we have a graph code
     if graph_code:
         return add_graph_prefix(node_name, graph_code)

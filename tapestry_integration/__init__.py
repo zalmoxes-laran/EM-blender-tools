@@ -22,7 +22,7 @@ import bpy
 
 # Import submodules
 from . import properties
-from . import ui_panel
+from . import ui
 from . import operators
 
 # Version info
@@ -41,7 +41,7 @@ bl_info = {
 modules = (
     properties,  # Property groups (registered via em_props.py too)
     operators,   # Operators
-    ui_panel,    # UI panels
+    ui,          # UI panels
 )
 
 
@@ -51,18 +51,12 @@ def register():
     for module in modules:
         module.register()
 
-    print("Tapestry Integration registered")
-    print("  Properties accessible via: scene.em_tools.tapestry")
-    print("  Panel visible when: scene.em_tools.experimental_features = True")
-
 
 def unregister():
     """Unregister Tapestry integration"""
     # Unregister modules in reverse order
     for module in reversed(modules):
         module.unregister()
-
-    print("Tapestry Integration unregistered")
 
 
 if __name__ == "__main__":

@@ -200,7 +200,7 @@ def update_resource_folder(self, context):
             # Aggiorna solo se è cambiato
             if path != self.resource_folder:
                 self.resource_folder = path
-                print(f"✅ Resource folder normalized: removed trailing slash")
+                print(f"[EMSetup] Resource folder normalized: removed trailing slash")
 
 
 def get_emdb_mappings(self=None, context=None):
@@ -295,6 +295,16 @@ class AuxiliaryFileProperties(bpy.types.PropertyGroup):
         name="Show Mapping Info",
         description="Expand to see details for the selected pyArchInit mapping",
         default=False
+    )  # type: ignore
+
+    show_aux_orphans: BoolProperty(
+        name="Show Orphan Rows",
+        description=(
+            "Expand to list orphan entries from this auxiliary (rows "
+            "whose key id could not be matched to any host node in the "
+            "active graph)."
+        ),
+        default=False,
     )  # type: ignore
 
     # Resource Collection specific properties
@@ -577,25 +587,35 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
         default=0
     )  # type: ignore
 
-    # Enrich GraphML section
-    enrich_expanded: BoolProperty(
-        name="Enrich GraphML",
-        description="Show/hide tools to enrich this GraphML with EM Tables",
-        default=False
+    # Graph metadata (cached from s3dgraphy nodes)
+    graph_author: StringProperty(
+        name="Author",
+        description="Author name from the graph",
+        default=""
     )  # type: ignore
 
-    enrich_paradata_file: StringProperty(
-        name="EM Paradata Table",
-        description="Path to em_paradata.xlsx (long-table format with deep provenance chains)",
-        subtype='FILE_PATH',
-        default="",
-        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+    graph_author_orcid: StringProperty(
+        name="Author ORCID",
+        description="ORCID URL for the graph author",
+        default=""
     )  # type: ignore
 
-    enrich_paradata_overwrite: BoolProperty(
-        name="Overwrite Existing Properties",
-        description="If ON: replace existing properties with new ones. If OFF: skip duplicates",
-        default=False
+    graph_license: StringProperty(
+        name="License",
+        description="License type for the graph data",
+        default=""
+    )  # type: ignore
+
+    graph_license_url: StringProperty(
+        name="License URL",
+        description="URL to the license page",
+        default=""
+    )  # type: ignore
+
+    graph_embargo: StringProperty(
+        name="Embargo",
+        description="Embargo status for the graph data",
+        default=""
     )  # type: ignore
 
 

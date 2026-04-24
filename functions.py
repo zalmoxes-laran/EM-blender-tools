@@ -30,6 +30,8 @@ from .operators.addon_prefix_helpers import (
     get_active_graph_code
 )
 
+from .us_types import US_PROPER_TYPES
+
 # ============================
 # LOGGING UTILITIES
 # ============================
@@ -471,6 +473,113 @@ def is_graph_available(context):
         print(f"Error accessing graph: {str(e)}")
         return False, None
 
+def resolve_propagative_property(context, node_id, rule_id, default=None):
+    """Resolve a DP-32 propagative property for a node on the active graph.
+
+    Returns ``(value, source_level)`` where ``source_level`` is one of
+    ``"node"``, ``"swimlane"``, ``"graph"`` or ``None`` (when the default
+    was used). Safe to call from any panel draw(): on failure returns
+    ``(default, None)`` without raising.
+
+    Args:
+        context: Blender context
+        node_id: s3Dgraphy node id (UUID string) to resolve against
+        rule_id: One of the registered rule ids ("author", "license",
+            "embargo", "absolute_time_start", "absolute_time_end").
+        default: Value to return when nothing resolves.
+    """
+    try:
+        ok, graph = is_graph_available(context)
+        if not ok or graph is None:
+            return default, None
+        node = graph.find_node_by_id(node_id)
+        if node is None:
+            return default, None
+        from s3dgraphy.resolvers import resolve_with_source, get_rule
+        value, source = resolve_with_source(
+            graph, node, get_rule(rule_id), default=default
+        )
+        return value, source
+    except Exception:
+        return default, None
+
+
+def draw_propagative_metadata(layout, context, node_id, *,
+                              include_time=True,
+                              include_author=True,
+                              include_license=True,
+                              include_embargo=True,
+                              title="Metadata",
+                              collapsible=True):
+    """Draw a 'Propagative metadata' subsection in a panel.
+
+    When ``collapsible=True`` (the default, used by the Stratigraphy
+    Manager) the section is folded behind a TRIA_RIGHT/TRIA_DOWN toggle
+    driven by ``scene.em_tools.show_propagative_metadata`` (closed by
+    default). The Epoch Manager and Document Manager pass
+    ``collapsible=False`` so the section renders inline without a toggle
+    — for those panels the subsection is always visible and the
+    information is compact enough that hiding it adds no value.
+
+    For each enabled property the box shows the resolved value and the
+    source level tag (``[node]`` / ``[swimlane]`` / ``[graph]``) so the
+    user can see where the value is coming from. Works for EpochNode,
+    US, Document and any other node type that makes sense as a resolver
+    context.
+    """
+    em_tools = getattr(context.scene, "em_tools", None)
+
+    box = layout.box()
+    header = box.row(align=True)
+
+    if collapsible and em_tools is not None:
+        expanded = bool(getattr(em_tools, "show_propagative_metadata", False))
+        header.prop(
+            em_tools, "show_propagative_metadata",
+            text=title,
+            icon='TRIA_DOWN' if expanded else 'TRIA_RIGHT',
+            emboss=False,
+        )
+        if not expanded:
+            return
+    else:
+        header.label(text=title, icon='INFO')
+
+    rows = []
+    if include_time:
+        rows.append(("Start", "absolute_time_start"))
+        rows.append(("End",   "absolute_time_end"))
+    if include_author:
+        rows.append(("Author",  "author"))
+    if include_license:
+        rows.append(("License", "license"))
+    if include_embargo:
+        rows.append(("Embargo", "embargo"))
+
+    any_resolved = False
+    for caption, rule_id in rows:
+        value, source = resolve_propagative_property(context, node_id, rule_id)
+        r = box.row(align=True)
+        r.label(text=f"{caption}:")
+        if value is None:
+            r.label(text="—", icon='NONE')
+            continue
+        any_resolved = True
+        # Format numeric times without stray ".0"
+        if rule_id in ("absolute_time_start", "absolute_time_end") and isinstance(value, (int, float)):
+            text = str(int(value)) if float(value).is_integer() else str(value)
+        else:
+            text = str(value)
+        r.label(text=text)
+        if source:
+            tag = r.row()
+            tag.alignment = 'RIGHT'
+            tag.label(text=f"[{source}]")
+
+    if not any_resolved:
+        box.label(text="(no propagative metadata for this node)", icon='NONE')
+
+
 def get_us_document_nodes(graph, us_node_id):
     """
     Return all Document nodes connected to a given stratigraphic unit.
@@ -862,7 +971,7 @@ def EM_list_clear(context, list_type):
 
     else:
         # Legacy fallback - should not be reached
-        print(f"⚠️ WARNING: EM_list_clear called with unknown list_type: {list_type}")
+        print(f"Warning: WARNING: EM_list_clear called with unknown list_type: {list_type}")
 
     return
 
@@ -1242,17 +1351,17 @@ def check_objs_in_scene_and_provide_icon_for_list_element(node_name, graph=None,
 
     '''
     # 🔍 DEBUG: Stampa informazioni sul graph
-    print(f"\n🔍 DEBUG check_objs - node_name: {node_name}")
-    print(f"🔍 DEBUG check_objs - graph: {graph}")
-    print(f"🔍 DEBUG check_objs - graph type: {type(graph)}")
+    print(f"\nDEBUG check_objs - node_name: {node_name}")
+    print(f"DEBUG check_objs - graph: {graph}")
+    print(f"DEBUG check_objs - graph type: {type(graph)}")
     
     if graph:
-        print(f"🔍 DEBUG check_objs - hasattr 'attributes': {hasattr(graph, 'attributes')}")
+        print(f"DEBUG check_objs - hasattr 'attributes': {hasattr(graph, 'attributes')}")
         if hasattr(graph, 'attributes'):
-            print(f"🔍 DEBUG check_objs - graph.attributes: {graph.attributes}")
-            print(f"🔍 DEBUG check_objs - graph_code in attributes: {'graph_code' in graph.attributes}")
+            print(f"DEBUG check_objs - graph.attributes: {graph.attributes}")
+            print(f"DEBUG check_objs - graph_code in attributes: {'graph_code' in graph.attributes}")
             if 'graph_code' in graph.attributes:
-                print(f"🔍 DEBUG check_objs - graph_code value: '{graph.attributes['graph_code']}'")
+                print(f"DEBUG check_objs - graph_code value: '{graph.attributes['graph_code']}'")
     '''
 
     # ✅ Converti il nome del nodo nel nome del proxy (aggiunge prefisso se necessario)
@@ -1467,7 +1576,7 @@ def check_material_presence(matname):
 
 
 def consolidate_EM_material_presence(overwrite_mats):
-    EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
+    EM_mat_list = US_PROPER_TYPES
     for EM_mat_name in EM_mat_list:
         if not check_material_presence(EM_mat_name):
             EM_mat = bpy.data.materials.new(name=EM_mat_name)
@@ -1534,7 +1643,7 @@ def set_materials_using_EM_list(context):
             current_ob_scene = context.scene.objects.get(proxy_name)
             
             if not current_ob_scene:
-                print(f"⚠️ Warning: Object '{proxy_name}' not found")
+                print(f"Warning: Warning: Object '{proxy_name}' not found")
                 counter += 1
                 continue
             
@@ -1542,7 +1651,7 @@ def set_materials_using_EM_list(context):
             
             # Resto della logica invariata...
             if hasattr(current_ob_em_list, 'node_type') and current_ob_em_list.node_type:
-                if current_ob_em_list.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']:
+                if current_ob_em_list.node_type in US_PROPER_TYPES:
                     ob_material_name = current_ob_em_list.node_type
             else:
                 # Fallback con shape/border
@@ -1647,7 +1756,7 @@ def set_materials_using_epoch_list(context):
                         obj.data.materials.clear()
                         obj.data.materials.append(mat)
                     else:
-                        print(f"⚠️ Warning: Object '{proxy_name}' not found")
+                        print(f"Warning: Warning: Object '{proxy_name}' not found")
 
 
 
@@ -1773,30 +1882,52 @@ def identify_node(name):
 
 def inspect_load_dosco_files_on_graph(graph_instance, dosco_dir):
     """
-    Versione che aggiorna direttamente i nodi del grafo invece delle liste UI
+    Versione che aggiorna direttamente i nodi del grafo invece delle liste UI.
+
+    Hybrid-C Phase 1b: every attribute override (``node.url``) is
+    recorded via ``record_attribute_override`` and frozen with
+    ``freeze_aux_value``, and every enrichment child (LinkNode + its
+    ``has_linked_resource`` edge) is tagged with ``injected_by``. On a
+    subsequent volatile GraphML save the exporter can revert the URL
+    and strip the LinkNodes automatically; on bake they are promoted
+    to graph-native.
     """
     if not dosco_dir or not os.path.exists(dosco_dir):
         print(f"DosCo directory invalid: {dosco_dir}")
         return 0
-    
+
+    # Hybrid-C primitives (optional import: older s3dgraphy builds
+    # without transforms.aux_tracking keep the old behaviour).
+    try:
+        from s3dgraphy.transforms import (
+            record_attribute_override, freeze_aux_value, push_orphan)
+        _AUX_AVAILABLE = True
+        _INJECTOR_ID = f"DosCo:{dosco_dir}"
+    except ImportError:
+        _AUX_AVAILABLE = False
+        _INJECTOR_ID = None
+
     # Get graph code for prefix handling
     graph_code = None
     if hasattr(graph_instance, 'attributes') and 'graph_code' in graph_instance.attributes:
         graph_code = graph_instance.attributes['graph_code']
-    
+
     updated_count = 0
-    
+
     # Trova tutti i nodi documento/extractor/combiner nel grafo
     relevant_nodes = [
-        node for node in graph_instance.nodes 
+        node for node in graph_instance.nodes
         if hasattr(node, 'node_type') and node.node_type in ['document', 'extractor', 'combiner']
     ]
-    
+
     print(f"Found {len(relevant_nodes)} relevant nodes to process")
-    
+
+    # Track which DosCo files ended up matched; leftovers become orphans.
+    matched_files = set()
+
     for node in relevant_nodes:
         node_name = node.name
-        
+
         # CRITICAL FIX: Handle graph code prefix like the original function
         base_name = node_name
         if graph_code and (node_name.startswith(f"{graph_code}.") or node_name.startswith(f"{graph_code}_")):
@@ -1804,30 +1935,121 @@ def inspect_load_dosco_files_on_graph(graph_instance, dosco_dir):
                 base_name = node_name.split(f"{graph_code}.", 1)[1]
             elif f"{graph_code}_" in node_name:
                 base_name = node_name.split(f"{graph_code}_", 1)[1]
-        
+
         # Try finding the file with the prefixed name first
         file_path = find_file_in_dosco(dosco_dir, node_name)
-        
+
         # If not found and we have a different base name (prefix removed), try that
         if not file_path and base_name != node_name:
             file_path = find_file_in_dosco(dosco_dir, base_name)
-        
+
         if file_path:
             rel_path = os.path.relpath(file_path, dosco_dir)
+            matched_files.add(os.path.abspath(file_path))
+
+            # Hybrid-C: record the pre-aux url so volatile save can revert it.
+            if _AUX_AVAILABLE:
+                record_attribute_override(
+                    node, "url",
+                    injector_id=_INJECTOR_ID,
+                    original_value=getattr(node, "url", None))
             node.url = rel_path
-            
-            # ✅ AGGIUNTA: Crea il nodo link corrispondente
+            if _AUX_AVAILABLE:
+                freeze_aux_value(node, "url")
+
+            # Crea il nodo link corrispondente (tagged as injected inside
+            # update_or_create_link_node when an injector id is provided).
             try:
-                update_or_create_link_node(graph_instance, node, rel_path)
+                update_or_create_link_node(
+                    graph_instance, node, rel_path,
+                    injector_id=_INJECTOR_ID if _AUX_AVAILABLE else None)
                 print(f"Created/updated link node for {node.name}")
             except Exception as e:
                 print(f"Warning: Could not create link node for {node.name}: {e}")
-            
+
             updated_count += 1
             print(f"Updated URL for {node.name}: {rel_path}")
         else:
             print(f"No file found for {node.name} (also tried {base_name})")
-    
+
+    # Orphan files: anything physically in dosco_dir that was not matched
+    # to a host node. They do NOT grow the graph (per the Hybrid-C corrected
+    # mental model); they land in graph.attributes['aux_orphans'] so the
+    # UI can surface them for manual "create host node" actions.
+    #
+    # Filter rules (EM convention):
+    # - Skip files whose parsed id equals a Document/Extractor/Combiner
+    #   node name already in the graph (it's a matching-failure, not a
+    #   real orphan — the node exists, we just didn't wire a URL to it).
+    # - Skip files that look like extractor (``D.XX.YY``) or combiner
+    #   (``C.XX``) outputs: those belong to the paradata chain under a
+    #   parent Document and should never create an orphan-document entry.
+    #   They still surface as a warning so the user can investigate.
+    if _AUX_AVAILABLE:
+        import re as _re
+        _ID_PREFIX = _re.compile(r'^(D\.\d+(?:\.\d+)?|C\.\d+)')
+
+        # Snapshot existing paradata-chain node names to short-circuit
+        # the orphan test — with and without the graph_code prefix,
+        # since files on disk are typically unprefixed.
+        _existing_ids = set()
+        for _n in graph_instance.nodes:
+            _nt = getattr(_n, 'node_type', None)
+            if _nt in ('document', 'extractor', 'combiner'):
+                _nm = getattr(_n, 'name', '') or ''
+                _existing_ids.add(_nm)
+                if graph_code:
+                    # Also index the de-prefixed form, so a node stored
+                    # as "GT26.D.11" matches a file "D.11.pdf".
+                    for _sep in (f"{graph_code}.", f"{graph_code}_"):
+                        if _nm.startswith(_sep):
+                            _existing_ids.add(_nm.split(_sep, 1)[1])
+                            break
+
+        try:
+            for root, _dirs, files in os.walk(dosco_dir):
+                for fname in files:
+                    full = os.path.abspath(os.path.join(root, fname))
+                    if full in matched_files:
+                        continue
+                    if fname.startswith("."):
+                        continue  # skip .DS_Store etc.
+
+                    stem = os.path.splitext(fname)[0].strip()
+                    _m = _ID_PREFIX.match(stem)
+                    short_id = _m.group(1) if _m else stem
+
+                    # Case A: node with this id exists — matching
+                    # failed elsewhere, but the node itself is fine.
+                    if short_id in _existing_ids:
+                        continue
+                    if graph_code and f"{graph_code}.{short_id}" in _existing_ids:
+                        continue
+
+                    # Case B: id looks like an extractor / combiner
+                    # entry — should never be surfaced as an orphan
+                    # document. Warn instead and move on.
+                    is_ext = short_id.startswith("D.") and short_id.count(".") == 2
+                    is_comb = short_id.startswith("C.")
+                    if is_ext or is_comb:
+                        kind = "extractor" if is_ext else "combiner"
+                        graph_instance.warnings.append(
+                            f"DosCo: file '{fname}' has {kind}-like id "
+                            f"'{short_id}' but no matching node is in the "
+                            f"graph — ignored (not surfaced as orphan)."
+                        )
+                        continue
+
+                    rel = os.path.relpath(full, dosco_dir)
+                    push_orphan(
+                        graph_instance,
+                        injector_id=_INJECTOR_ID,
+                        key_id=short_id,
+                        payload={"filename": fname, "rel_path": rel},
+                    )
+        except Exception as e:
+            print(f"Warning: orphan file scan failed: {e}")
+
     print(f"Updated {updated_count} node URLs in graph")
     return updated_count
 
@@ -1865,7 +2087,12 @@ def inspect_load_dosco_files():
     # Get graph instance for creating link nodes
     from s3dgraphy.s3dgmanager import get_graph
     graph_instance = get_graph(graphml.name)
-    
+
+    # Hybrid-C injector id for this DosCo registration — used to tag
+    # LinkNodes / has_linked_resource edges created below so a volatile
+    # GraphML save can strip them cleanly.
+    _dosco_injector_id = f"DosCo:{dosco_dir}"
+
     # Track updated nodes for reporting
     updated_count = 0
     skipped_web_urls = 0
@@ -1918,7 +2145,9 @@ def inspect_load_dosco_files():
                     
                     if graph_node:
                         try:
-                            update_or_create_link_node(graph_instance, graph_node, rel_path)
+                            update_or_create_link_node(
+                                graph_instance, graph_node, rel_path,
+                                injector_id=_dosco_injector_id)
                             print(f"Created/updated link node for {node.name}")
                         except Exception as e:
                             print(f"Warning: Could not create link node for {node.name}: {e}")
@@ -1988,19 +2217,24 @@ def find_file_in_dosco(dosco_dir, node_name):
     # No matches found
     return None
 
-def update_or_create_link_node(graph, source_node, url, preserve_existing=True):
+def update_or_create_link_node(graph, source_node, url, preserve_existing=True,
+                               injector_id=None):
     """
     Aggiorna un nodo link esistente o ne crea uno nuovo.
-    
+
     Args:
         graph: Il grafo s3dgraphy
         source_node: Il nodo sorgente (documento, estrattore o combiner)
         url: L'URL o percorso da assegnare
         preserve_existing: Se True, preserva i link esistenti con URL web
+        injector_id: Hybrid-C injector id (e.g. "DosCo:/path"). When
+            provided, the newly-created LinkNode and its
+            ``has_linked_resource`` edge are tagged as injected so a
+            volatile GraphML save can strip them cleanly.
     """
     link_node_id = f"{source_node.node_id}_link"
     existing_link = graph.find_node_by_id(link_node_id)
-    
+
     if existing_link:
         if preserve_existing and is_valid_url(existing_link.data.get("url", "")):
             return
@@ -2008,7 +2242,7 @@ def update_or_create_link_node(graph, source_node, url, preserve_existing=True):
         existing_link.url = url
     else:
         # Crea un nuovo nodo link
-        
+
         link_node = LinkNode(
             node_id=link_node_id,
             name=f"Link to {source_node.name}",
@@ -2016,9 +2250,10 @@ def update_or_create_link_node(graph, source_node, url, preserve_existing=True):
             url=url
         )
         graph.add_node(link_node)
-        
+
         # Crea l'edge
         edge_id = f"{source_node.node_id}_has_linked_resource_{link_node_id}"
+        edge_created = False
         if not graph.find_edge_by_id(edge_id):
             graph.add_edge(
                 edge_id=edge_id,
@@ -2026,6 +2261,21 @@ def update_or_create_link_node(graph, source_node, url, preserve_existing=True):
                 edge_target=link_node.node_id,
                 edge_type="has_linked_resource"
             )
+            edge_created = True
+
+        # Hybrid-C: tag enrichment child + edge as injected so the
+        # volatile save can strip them without touching the host.
+        if injector_id:
+            try:
+                from s3dgraphy.transforms import mark_as_injected
+                mark_as_injected(link_node, injector_id)
+                if edge_created:
+                    for e in graph.edges:
+                        if e.edge_id == edge_id:
+                            mark_as_injected(e, injector_id)
+                            break
+            except ImportError:
+                pass  # aux_tracking unavailable on this s3dgraphy build
 
 
 def update_visibility_icons(context, list_type="em_list"):

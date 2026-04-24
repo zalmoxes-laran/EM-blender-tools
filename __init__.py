@@ -36,9 +36,10 @@ from . import icons_manager
 
 from .thumb_utils import cleanup_preview_collections
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging — only warnings and errors during normal operation
+logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger("EMTools")
+logger.setLevel(logging.WARNING)
 
 # Constants for reuse 
 VERSION = "1.5.0"
@@ -330,7 +331,9 @@ if DEPENDENCIES_LOADED:
             em_base_props,  # ← Base PropertyGroup classes
             em_props,
             debug_graph_connections,  # Debug operator
-            tapestry_integration  # Tapestry AI reconstruction
+            tapestry_integration,  # Tapestry AI reconstruction
+            surface_areale,  # Surface Areale proxy creation
+            georef_manager,  # DP-56: Georeferencing (shift + EPSG, BGIS/3DSC orchestration)
         )
 
         # Import base PropertyGroup classes into this namespace
@@ -600,7 +603,7 @@ def register_modules():
     
     # Import statements
     from .import_operators import importer_graphml
-    from .export_operators import exporter_heriverse
+    from .export_operators import heriverse as exporter_heriverse
     from .export_operators import exporter_graphml
     from .import_operators import import_EMdb
     from .operators import graphml_converter
@@ -683,6 +686,30 @@ def register_modules():
     except Exception as e:
         logger.error(f"Error registering tapestry integration: {e}")
 
+    # FASE 5.5: RM to Proxy Suite — parent panel that must exist
+    # BEFORE surface_areale and proxy_box_creator register so their
+    # sub-panels can nest under it via bl_parent_id.
+    try:
+        from . import rm_to_proxy_suite
+        rm_to_proxy_suite.register()
+        logger.debug("Registered RM to Proxy Suite parent panel")
+    except Exception as e:
+        logger.error(f"Error registering RM to Proxy Suite: {e}")
+
+    # FASE 6: Surface Areale system
+    try:
+        surface_areale.register()
+        logger.debug(f"Registered surface areale system")
+    except Exception as e:
+        logger.error(f"Error registering surface areale: {e}")
+
+    # FASE 7: Georef Manager (DP-56)
+    try:
+        georef_manager.register()
+        logger.debug("Registered georef manager")
+    except Exception as e:
+        logger.error(f"Error registering georef manager: {e}")
+
     # Registra il keymap manager per ultimo
     if KEYMAP_MANAGER_LOADED:
         try:
@@ -710,7 +737,7 @@ def unregister_modules():
         logger.warning("Skipping module unregistration - modules not loaded")
         return
     
-    from .export_operators import exporter_heriverse
+    from .export_operators import heriverse as exporter_heriverse
     from .export_operators import exporter_graphml
     from .import_operators import importer_graphml, import_EMdb
     from .operators import graphml_converter
@@ -729,6 +756,30 @@ def unregister_modules():
         except Exception as e:
             logger.error(f"Error unregistering keymap manager: {e}")
 
+
+    # FASE 0: Georef Manager (DP-56)
+    try:
+        georef_manager.unregister()
+        logger.debug("Unregistered georef manager")
+    except Exception as e:
+        logger.warning(f"Error unregistering georef manager: {e}")
+
+    # FASE 0: Surface Areale (va rimosso per primo)
+    try:
+        surface_areale.unregister()
+        logger.debug(f"Unregistered surface areale")
+    except Exception as e:
+        logger.warning(f"Error unregistering surface areale: {e}")
+
+    # FASE 0.5: RM to Proxy Suite parent panel — removed AFTER its
+    # children (surface_areale above, proxy_box_creator via register
+    # order) so no child panel is left orphaned mid-unregister.
+    try:
+        from . import rm_to_proxy_suite
+        rm_to_proxy_suite.unregister()
+        logger.debug("Unregistered RM to Proxy Suite parent panel")
+    except Exception as e:
+        logger.warning(f"Error unregistering RM to Proxy Suite: {e}")
 
     # FASE 1: Tapestry Integration (va rimosso per primo - experimental feature)
     try:
@@ -793,7 +844,6 @@ def unregister_modules():
         stratigraphy_manager,
         activity_manager,
         EMdb_excel,
-        em_setup,
         icons_manager,
 
     ]
@@ -821,9 +871,9 @@ def register():
     if MODULE_IMPORT_SUCCESS:
         try:
             em_base_props.register()
-            logger.info("✓ Registered em_base_props (base PropertyGroup classes)")
+            logger.info("Registered em_base_props (base PropertyGroup classes)")
         except Exception as e:
-            logger.error(f"✗ Error registering em_base_props: {e}")
+            logger.error(f"Error registering em_base_props: {e}")
             import traceback
             traceback.print_exc()
 
@@ -844,9 +894,9 @@ def register():
     if MODULE_IMPORT_SUCCESS:
         try:
             em_setup.register()
-            logger.info("✓ Registered em_setup (AuxiliaryFileProperties, GraphMLFileItem, etc.)")
+            logger.info("Registered em_setup (AuxiliaryFileProperties, GraphMLFileItem, etc.)")
         except Exception as e:
-            logger.error(f"✗ Error registering em_setup: {e}")
+            logger.error(f"Error registering em_setup: {e}")
             import traceback
             traceback.print_exc()
 
@@ -854,9 +904,9 @@ def register():
     if MODULE_IMPORT_SUCCESS:
         try:
             em_props.register()
-            logger.info("✓ Registered em_props (PropertyGroup classes + Scene.em_tools)")
+            logger.info("Registered em_props (PropertyGroup classes + Scene.em_tools)")
         except Exception as e:
-            logger.error(f"✗ Error registering em_props: {e}")
+            logger.error(f"Error registering em_props: {e}")
             import traceback
             traceback.print_exc()
 
@@ -882,16 +932,16 @@ def register():
         try:
             from . import thumb_async
             thumb_async.start_thumbnail_loader()
-            logger.info("✓ Started async thumbnail loader")
+            logger.info("Started async thumbnail loader")
         except Exception as e:
-            logger.warning(f"✗ Could not start thumbnail loader: {e}")
+            logger.warning(f"Could not start thumbnail loader: {e}")
 
         try:
             # Pre-warm caches for faster first access
             from . import graph_index, material_cache, object_cache
-            logger.info("✓ Loaded optimization modules (graph_index, material_cache, object_cache)")
+            logger.info("Loaded optimization modules (graph_index, material_cache, object_cache)")
         except Exception as e:
-            logger.warning(f"✗ Could not load optimization modules: {e}")
+            logger.warning(f"Could not load optimization modules: {e}")
 
     logger.info("EM Tools registration complete")
 
@@ -922,18 +972,18 @@ def unregister():
     if MODULE_IMPORT_SUCCESS:
         try:
             em_props.unregister()
-            logger.info("✓ Unregistered em_props")
+            logger.info("Unregistered em_props")
         except Exception as e:
-            logger.warning(f"✗ Error unregistering em_props: {e}")
+            logger.warning(f"Error unregistering em_props: {e}")
 
     # 5. ✅ OPTIMIZATION: Stop performance optimization services
     if MODULE_IMPORT_SUCCESS:
         try:
             from . import thumb_async
             thumb_async.stop_thumbnail_loader()
-            logger.info("✓ Stopped async thumbnail loader")
+            logger.info("Stopped async thumbnail loader")
         except Exception as e:
-            logger.warning(f"✗ Could not stop thumbnail loader: {e}")
+            logger.warning(f"Could not stop thumbnail loader: {e}")
 
         try:
             # Clear all caches
@@ -942,17 +992,17 @@ def unregister():
             material_cache.clear_material_cache()
             object_cache.clear_object_cache()
             debounce.clear_debouncers()
-            logger.info("✓ Cleared all optimization caches")
+            logger.info("Cleared all optimization caches")
         except Exception as e:
-            logger.warning(f"✗ Could not clear optimization caches: {e}")
+            logger.warning(f"Could not clear optimization caches: {e}")
 
     # 6. Unregister em_setup LAST (after em_props since EM_Tools depends on GraphMLFileItem)
     if MODULE_IMPORT_SUCCESS:
         try:
             em_setup.unregister()
-            logger.info("✓ Unregistered em_setup")
+            logger.info("Unregistered em_setup")
         except Exception as e:
-            logger.warning(f"✗ Error unregistering em_setup: {e}")
+            logger.warning(f"Error unregistering em_setup: {e}")
     
     # 5. Remove properties (utilizza il codice che hai già implementato)
     # Remove graph reference
@@ -1095,9 +1145,9 @@ def unregister():
     if MODULE_IMPORT_SUCCESS:
         try:
             em_base_props.unregister()
-            logger.info("✓ Unregistered em_base_props")
+            logger.info("Unregistered em_base_props")
         except Exception as e:
-            logger.warning(f"✗ Error unregistering em_base_props: {e}")
+            logger.warning(f"Error unregistering em_base_props: {e}")
 
     logger.info("EM Tools unregistration complete")
 

@@ -11,6 +11,8 @@ import time
 from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
 from s3dgraphy import get_graph, get_all_graph_ids
 
+from ..us_types import US_PROPER_TYPES
+
 DEFAULT_COLOR = (0.5, 0.5, 0.5, 1.0)  # Grigio medio
 
 # Cache variables per get_available_properties
@@ -92,9 +94,8 @@ def create_property_value_mapping_direct(graph, property_name):
                 print(f"  -> {us_node.name}: '{value}'")
 
     # ✅ OPTIMIZATION: Iterate only stratigraphic node types instead of all graph.nodes
-    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
     no_property_count = 0
-    for node_type in stratigraphic_types:
+    for node_type in US_PROPER_TYPES:
         for node in graph.indices.nodes_by_type.get(node_type, []):
             if (hasattr(node, 'node_id') and
                 node.node_id not in connected_strat_nodes and
@@ -147,9 +148,8 @@ def create_property_value_mapping_legacy(graph, property_name):
                     mapping[strat_node.name] = f"empty property {property_name} node"
 
     # ✅ OPTIMIZATION: Iterate only stratigraphic node types instead of all graph.nodes
-    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
     no_property_count = 0
-    for node_type in stratigraphic_types:
+    for node_type in US_PROPER_TYPES:
         for node in graph.indices.nodes_by_type.get(node_type, []):
             if (hasattr(node, 'node_id') and
                 node.node_id not in connected_strat_nodes and
@@ -315,15 +315,15 @@ def apply_materials_to_objects(context, property_mapping, materials_by_value):
                         obj.data.materials.append(mat)
                     
                     colored_count += 1
-                    print(f"  ✓ Applied material '{mat.name}' to object '{obj.name}' (value: '{property_value}')")
+                    print(f"  Applied material '{mat.name}' to object '{obj.name}' (value: '{property_value}')")
                     
                 else:
-                    print(f"  ⚠ Warning: No material found for value '{property_value}' on object '{node_name}'")
+                    print(f"  Warning: No material found for value '{property_value}' on object '{node_name}'")
             else:
                 # Oggetto non ha questa proprietà
                 pass  # Non loggare per evitare spam, ma potremmo volerlo colorare diversamente
     
-    print(f"\n✅ Applied materials to {colored_count} of {total_objects} mesh objects")
+    print(f"\nApplied materials to {colored_count} of {total_objects} mesh objects")
     return colored_count
 
 

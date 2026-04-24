@@ -18,6 +18,7 @@ from .utils import (
     get_model_edge_types
 )
 from .layout import calculate_hierarchical_layout, apply_layout_to_nodes
+from ..us_types import US_PROPER_TYPES
 
 
 def frame_selected_nodes(context):
@@ -29,7 +30,7 @@ def frame_selected_nodes(context):
         override['region'] = context.region
         with context.temp_override(**override):
             bpy.ops.node.view_selected()
-            print("   ✓ Frame Selected applied")
+            print("   Frame Selected applied")
 
 
 def frame_all_nodes(context):
@@ -41,7 +42,7 @@ def frame_all_nodes(context):
         override['region'] = context.region
         with context.temp_override(**override):
             bpy.ops.node.view_all()
-            print("   ✓ Frame All applied")
+            print("   Frame All applied")
 
 
 class GRAPHEDIT_OT_draw_graph(Operator):
@@ -90,13 +91,13 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         # ✅ Disabilita neighborhood mode quando si attivano altri filtri
         if self.filter_mode != 'NEIGHBORHOOD' and settings.neighborhood_mode_enabled:
             settings.neighborhood_mode_enabled = False
-            print(f"   ✓ Neighborhood mode disabled (filter changed to {self.filter_mode})")
+            print(f"   Neighborhood mode disabled (filter changed to {self.filter_mode})")
 
         # Se è stato specificato un graphml_index, aggiorna l'active_file_index (solo EM Advanced)
         if self.graphml_index >= 0 and em_tools.mode_em_advanced:
             em_tools.active_file_index = self.graphml_index
             # Chiama populate_lists per aggiornare le liste
-            print(f"✓ Setting active GraphML index to {self.graphml_index}")
+            print(f"Setting active GraphML index to {self.graphml_index}")
             bpy.ops.em_tools.populate_lists(graphml_index=self.graphml_index)
 
         # ✅ Usa la funzione centralizzata per ottenere il grafo
@@ -107,10 +108,9 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             self.report({'ERROR'}, f"No active graph found in {mode} mode")
             return {'CANCELLED'}
         
-        print(f"\n✅ Found graph: {graph_id}")
-        print(f"   Total nodes: {len(graph.nodes)}")
-        print(f"   Total edges: {len(graph.edges)}")
-        print(f"   Filter mode: {self.filter_mode}")
+        print(f"[GraphEditor] Found graph: {graph_id} "
+              f"({len(graph.nodes)} nodes, {len(graph.edges)} edges, "
+              f"filter={self.filter_mode})")
 
         # ✅ Trova o crea il node tree con nome appropriato
         graph_code = get_active_graph_code(context)
@@ -168,7 +168,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                     if node.node_id == active_node_id:
                         node.select = True
                         tree.nodes.active = node
-                        print(f"   ✓ Selected central node: {node.label}")
+                        print(f"   Selected central node: {node.label}")
                         break
             # Applica Frame All per vedere tutto il vicinato
             self.apply_zoom_for_graph_editor(context, 'FRAME_ALL')
@@ -183,7 +183,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                 if node.node_id == active_node_id:
                     tree.nodes.active = node
                     # Non selezionare, solo imposta come active
-                    print(f"   ✓ Restored active node: {node.label}")
+                    print(f"   Restored active node: {node.label}")
                     break
 
         self.report({'INFO'}, f"Loaded: {node_count} nodes, {edge_count} edges")
@@ -210,7 +210,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                                     break
 
                             if not region:
-                                print(f"   ⚠️  No WINDOW region found in Node Editor")
+                                print(f"   Warning: No WINDOW region found in Node Editor")
                                 return None
 
                             # Forza un redraw dell'area prima dello zoom
@@ -229,7 +229,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                                 try:
                                     if zoom_type == 'FRAME_SELECTED':
                                         result = bpy.ops.node.view_selected()
-                                        print(f"   ✓ Frame Selected applied: {result}")
+                                        print(f"   Frame Selected applied: {result}")
                                     else:
                                         # FRAME_ALL: salva la selezione corrente, seleziona tutti, zoom, ripristina selezione
                                         if space.node_tree and len(space.node_tree.nodes) > 0:
@@ -246,7 +246,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
 
                                             # Applica Frame Selected (che ora include tutti i nodi)
                                             result = bpy.ops.node.view_selected()
-                                            print(f"   ✓ Frame All applied via view_selected: {result}")
+                                            print(f"   Frame All applied via view_selected: {result}")
 
                                             # Ripristina la selezione originale
                                             for node in space.node_tree.nodes:
@@ -257,14 +257,14 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                                             if original_active:
                                                 space.node_tree.nodes.active = original_active
 
-                                            print(f"   ✓ Restored original selection state")
+                                            print(f"   Restored original selection state")
 
                                             # Forza redraw
                                             area.tag_redraw()
                                         else:
-                                            print("   ⚠️  No nodes to frame")
+                                            print("   Warning: No nodes to frame")
                                 except Exception as e:
-                                    print(f"   ⚠️  Zoom failed: {e}")
+                                    print(f"   Warning: Zoom failed: {e}")
                                     import traceback
                                     traceback.print_exc()
                             return None  # Rimuovi il timer
@@ -280,9 +280,8 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             return list(graph.nodes)
         
         elif self.filter_mode == 'STRATIGRAPHIC':
-            stratigraphic_types = ['US', 'USVs', 'USVn', 'SF', 'VSF', 'USD']
             filtered = []
-            for node_type in stratigraphic_types:
+            for node_type in US_PROPER_TYPES:
                 filtered.extend(graph.get_nodes_by_type(node_type))
             return filtered
         
@@ -308,7 +307,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         em_list = get_em_list_items(context)
         
         if not em_list or len(em_list) == 0:
-            print("   ⚠️  UIList is empty")
+            print("   Warning: UIList is empty")
             return []
         
         # ✅ Raccogli i NOMI (human-readable) dalla UIList
@@ -320,7 +319,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         print(f"   UIList contains {len(ui_names)} items")
         
         if not ui_names:
-            print("   ⚠️  No valid names in UIList")
+            print("   Warning: No valid names in UIList")
             return []
         
         # ✅ Filtra il grafo per node.name (non node.node_id!)
@@ -340,7 +339,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         selected_node_id = None
         if '_temp_neighborhood_node_id' in context.scene:
             selected_node_id = context.scene['_temp_neighborhood_node_id']
-            print(f"   ✅ Using saved node_id from neighborhood operator: {selected_node_id}")
+            print(f"   Using saved node_id from neighborhood operator: {selected_node_id}")
             # Rimuovi dopo l'uso
             del context.scene['_temp_neighborhood_node_id']
         else:
@@ -348,7 +347,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             selected_node_id = self.get_selected_node_id(context)
 
         if not selected_node_id:
-            print("   ⚠️  No node selected for neighborhood filter")
+            print("   Warning: No node selected for neighborhood filter")
             print("   Please select a node in the Graph Viewer, 3D view, or UIList")
             return []
 
@@ -356,7 +355,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
 
         center_node = graph.find_node_by_id(selected_node_id)
         if not center_node:
-            print(f"   ⚠️  Node not found: {selected_node_id}")
+            print(f"   Warning: Node not found: {selected_node_id}")
             return []
 
         # Mostra info sul nodo centrale
@@ -400,7 +399,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                 selected_node_id = context.active_node.node_id
             
             if not selected_node_id:
-                print("   ⚠️  No node selected for context view")
+                print("   Warning: No node selected for context view")
                 return []
         
         center_node = graph.find_node_by_id(selected_node_id)
@@ -453,7 +452,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         ]
         
         if not enabled_edge_types:
-            print("   ⚠️  No edge types enabled")
+            print("   Warning: No edge types enabled")
             return []
         
         print(f"   Filtering by {len(enabled_edge_types)} edge types")
@@ -524,15 +523,14 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             bl_idname = node_class.bl_idname
             node_type_map[node_type] = bl_idname
 
-        print(f"\n📊 Creating {len(filtered_nodes)} nodes...")
-        print(f"   Available node types: {len(node_type_map)}")
+        print(f"[GraphEditor] Creating {len(filtered_nodes)} nodes ({len(node_type_map)} types available)...")
 
         for i, s3d_node in enumerate(filtered_nodes):
             # ✅ Use dynamic mapping with fallback to generic node
             node_type_id = node_type_map.get(s3d_node.node_type)
 
             if not node_type_id:
-                print(f"⚠️  Unknown node type '{s3d_node.node_type}' for node {s3d_node.name}, skipping")
+                print(f"Warning: Unknown node type '{s3d_node.node_type}' for node {s3d_node.name}, skipping")
                 continue
 
             try:
@@ -561,12 +559,9 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                 node_map[s3d_node.node_id] = bl_node
 
             except Exception as e:
-                print(f"❌ Error creating node {s3d_node.node_id}: {e}")
+                print(f"Error: Error creating node {s3d_node.node_id}: {e}")
 
-        print(f"✅ Created {len(node_map)} nodes")
-        
-        # Crea edges
-        print(f"\n🔗 Creating edges...")
+        print(f"[GraphEditor] Created {len(node_map)} nodes")
         for edge in graph.edges:
             try:
                 if edge.edge_source in filtered_node_ids and edge.edge_target in filtered_node_ids:
@@ -576,18 +571,12 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             except:
                 pass
 
-        print(f"✅ Created {edge_count} edges")
+        print(f"[GraphEditor] Created {edge_count} edges")
 
-        # ✅ Hide unused sockets (default behavior)
-        print(f"\n🔌 Hiding unused sockets...")
         self.hide_unused_sockets(node_map)
-        print(f"✅ Unused sockets hidden\n")
 
-        # ✅ Calcola e applica layout gerarchico
-        print(f"\n📐 Calculating hierarchical layout...")
         positions = calculate_hierarchical_layout(node_map, graph, filtered_node_ids)
         apply_layout_to_nodes(node_map, positions)
-        print(f"✅ Layout applied\n")
 
         return len(node_map), edge_count
 
@@ -721,7 +710,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                 if output.name == 'generic_connection':
                     source_socket = output
                     if edge_type:
-                        print(f"   ⚠️  No matching output socket for '{output_socket_name}' (edge: '{edge_type}') on {source_node.bl_label}")
+                        print(f"   Warning: No matching output socket for '{output_socket_name}' (edge: '{edge_type}') on {source_node.bl_label}")
                         print(f"       Using 'generic_connection' fallback socket")
                         print(f"       Available outputs: {[s.name for s in source_node.outputs]}")
                     break
@@ -729,7 +718,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             # If no generic_connection socket, use first available (last resort)
             if not source_socket and len(source_node.outputs) > 0:
                 if edge_type:
-                    print(f"   ⚠️  No matching output socket for '{output_socket_name}' (edge: '{edge_type}') on {source_node.bl_label}")
+                    print(f"   Warning: No matching output socket for '{output_socket_name}' (edge: '{edge_type}') on {source_node.bl_label}")
                     print(f"       No 'generic_connection' socket found, using first available")
                     print(f"       Available outputs: {[s.name for s in source_node.outputs]}")
                 source_socket = source_node.outputs[0]
@@ -740,7 +729,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                 if input_socket.name == 'generic_connection':
                     target_socket = input_socket
                     if edge_type:
-                        print(f"   ⚠️  No matching input socket for '{input_socket_name}' (edge: '{edge_type}') on {target_node.bl_label}")
+                        print(f"   Warning: No matching input socket for '{input_socket_name}' (edge: '{edge_type}') on {target_node.bl_label}")
                         print(f"       Using 'generic_connection' fallback socket")
                         print(f"       Available inputs: {[s.name for s in target_node.inputs]}")
                     break
@@ -748,7 +737,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             # If no generic_connection socket, use first available (last resort)
             if not target_socket and len(target_node.inputs) > 0:
                 if edge_type:
-                    print(f"   ⚠️  No matching input socket for '{input_socket_name}' (edge: '{edge_type}') on {target_node.bl_label}")
+                    print(f"   Warning: No matching input socket for '{input_socket_name}' (edge: '{edge_type}') on {target_node.bl_label}")
                     print(f"       No 'generic_connection' socket found, using first available")
                     print(f"       Available inputs: {[s.name for s in target_node.inputs]}")
                 target_socket = target_node.inputs[0]
@@ -759,7 +748,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                 tree.links.new(source_socket, target_socket)
                 return True
             except Exception as e:
-                print(f"   ❌ Failed to create link: {e}")
+                print(f"   Error: Failed to create link: {e}")
                 return False
 
         return False
@@ -787,11 +776,11 @@ class GRAPHEDIT_OT_draw_graph(Operator):
                     if hasattr(space, 'tree_type') and space.tree_type == 'EMGraphNodeTreeType':
                         # Finestra già esistente, aggiorna il tree
                         space.node_tree = tree
-                        print("✓ Updated existing EMGraph editor window")
+                        print("Updated existing EMGraph editor window")
                         return
 
         # Nessuna finestra EMGraph trovata, creane una nuova
-        print("✓ Creating new EMGraph editor window")
+        print("Creating new EMGraph editor window")
         bpy.ops.wm.window_new()
 
         # Ottieni la nuova finestra (è l'ultima creata)
@@ -803,7 +792,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             space = area.spaces[0]
             space.tree_type = 'EMGraphNodeTreeType'
             space.node_tree = tree
-            print(f"✓ New window created with EMGraph: {tree.name}")
+            print(f"New window created with EMGraph: {tree.name}")
             break
 
 
@@ -841,13 +830,13 @@ class GRAPHEDIT_OT_sync_selection(Operator):
             return {'CANCELLED'}
 
         human_name = node.label
-        print(f"🔗 Syncing from graph editor: label='{human_name}'")
+        print(f"Syncing from graph editor: label='{human_name}'")
 
         # ✅ Controlla se la modalità neighborhood è attiva
         settings = context.scene.graph_editor_settings
         if settings.neighborhood_mode_enabled and hasattr(node, 'node_id'):
             # Modalità neighborhood attiva: mostra il vicinato invece del singolo nodo
-            print(f"   🎯 Neighborhood mode active (depth {settings.neighborhood_depth})")
+            print(f"   Neighborhood mode active (depth {settings.neighborhood_depth})")
             context.scene['_temp_neighborhood_node_id'] = node.node_id
 
             # Sincronizza 3D e UIList prima
@@ -864,7 +853,7 @@ class GRAPHEDIT_OT_sync_selection(Operator):
                 bpy.ops.object.select_all(action='DESELECT')
                 proxy.select_set(True)
                 context.view_layer.objects.active = proxy
-                print(f"   ✓ Selected 3D proxy: {proxy.name}")
+                print(f"   Selected 3D proxy: {proxy.name}")
 
             sync_ui_list(context, human_name)
 
@@ -893,7 +882,7 @@ class GRAPHEDIT_OT_sync_selection(Operator):
             bpy.ops.object.select_all(action='DESELECT')
             proxy.select_set(True)
             context.view_layer.objects.active = proxy
-            print(f"   ✓ Selected 3D proxy: {proxy.name}")
+            print(f"   Selected 3D proxy: {proxy.name}")
         else:
             print(f"   ✗ Proxy not found: '{prefixed_name}'")
 
@@ -919,7 +908,7 @@ class GRAPHEDIT_OT_sync_selection(Operator):
         from .utils import remove_graph_prefix
         human_name = remove_graph_prefix(obj.name, context)
 
-        print(f"🔗 Syncing from 3D: '{obj.name}' → human name: '{human_name}'")
+        print(f"Syncing from 3D: '{obj.name}' → human name: '{human_name}'")
 
         # ✅ Controlla se la modalità neighborhood è attiva
         settings = context.scene.graph_editor_settings
@@ -929,7 +918,7 @@ class GRAPHEDIT_OT_sync_selection(Operator):
             node_id = find_node_id_from_proxy(obj, context)
 
             if node_id:
-                print(f"   🎯 Neighborhood mode active (depth {settings.neighborhood_depth})")
+                print(f"   Neighborhood mode active (depth {settings.neighborhood_depth})")
                 context.scene['_temp_neighborhood_node_id'] = node_id
 
                 # Sincronizza UIList prima
@@ -978,7 +967,7 @@ class GRAPHEDIT_OT_sync_selection(Operator):
                                 n.select = True
                                 tree.nodes.active = n
                                 graph_synced = True
-                                print(f"   ✓ Selected graph node by label: '{n.label}'")
+                                print(f"   Selected graph node by label: '{n.label}'")
                                 break
 
                         if graph_synced:
@@ -988,7 +977,7 @@ class GRAPHEDIT_OT_sync_selection(Operator):
                 break
 
         if not graph_synced:
-            print(f"   ⚠️  Node '{human_name}' not found in Graph Viewer")
+            print(f"   Warning: Node '{human_name}' not found in Graph Viewer")
             print(f"      (may be filtered out or not loaded)")
 
         # ✅ Sincronizza UIList usando human name
@@ -1018,7 +1007,7 @@ class GRAPHEDIT_OT_sync_selection(Operator):
                                     break
 
                             if not region:
-                                print(f"   ⚠️  No WINDOW region found in Node Editor")
+                                print(f"   Warning: No WINDOW region found in Node Editor")
                                 return None
 
                             override = {
@@ -1032,9 +1021,9 @@ class GRAPHEDIT_OT_sync_selection(Operator):
                             with context.temp_override(**override):
                                 try:
                                     bpy.ops.node.view_selected()
-                                    print("   ✓ Frame Selected applied on sync")
+                                    print("   Frame Selected applied on sync")
                                 except Exception as e:
-                                    print(f"   ⚠️  Frame Selected failed: {e}")
+                                    print(f"   Warning: Frame Selected failed: {e}")
                             return None
             return None
 
@@ -1056,7 +1045,7 @@ class GRAPHEDIT_OT_sync_selection(Operator):
                         if hasattr(node, 'node_id') and node.node_id == node_id:
                             node.select = True
                             tree.nodes.active = node
-                            print(f"   ✓ Selected graph node: {node.label}")
+                            print(f"   Selected graph node: {node.label}")
                             return True
         
         return False
@@ -1084,7 +1073,7 @@ class GRAPHEDIT_OT_draw_neighborhood(Operator):
             self.report({'WARNING'}, "No node selected. Select a node in Graph Viewer, 3D view, or UIList")
             return {'CANCELLED'}
 
-        print(f"\n🎯 Neighborhood request for node: {selected_node_id}")
+        print(f"\nNeighborhood request for node: {selected_node_id}")
 
         # Salva temporaneamente il node_id in una proprietà di scena
         context.scene['_temp_neighborhood_node_id'] = selected_node_id
@@ -1173,10 +1162,7 @@ classes = (
 
 def register_operators():
     for cls in classes:
-        try:
-            bpy.utils.register_class(cls)
-        except ValueError:
-            pass
+        bpy.utils.register_class(cls)
 
 def unregister_operators():
     for cls in reversed(classes):

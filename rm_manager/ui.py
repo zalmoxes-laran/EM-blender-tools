@@ -16,6 +16,7 @@ from ..object_cache import get_object_cache
 __all__ = [
     'RM_UL_List',
     'RM_UL_EpochList',
+    'RMCONTAINER_UL_list',
     'RM_MT_epoch_selector',
     'RM_MT_batch_lod_selected',
     'VIEW3D_PT_RM_Manager',
@@ -24,7 +25,98 @@ __all__ = [
 ]
 
 
+# Master-Document variant → UIList icon (EM 1.6). Mirrors the Document
+# Manager colour coding so containers and documents look consistent.
+_MASTERDOC_VARIANT_ICONS = {
+    "reality_based": "COLLECTION_COLOR_01",  # red
+    "observable":    "COLLECTION_COLOR_02",  # orange
+    "asserted":      "COLLECTION_COLOR_03",  # yellow
+    "em_based":      "COLLECTION_COLOR_05",  # blue
+}
+
+
+def _container_icon(scene, container):
+    """Pick the right icon for a container based on its document's
+    geometry axis (variant_style_key). Fallback to a neutral icon for
+    un-linked Legacy containers.
+    """
+    if not container.doc_node_id:
+        return "PACKAGE"  # Legacy / unlinked
+    try:
+        from s3dgraphy import get_graph
+        em_tools = scene.em_tools
+        if em_tools.active_file_index < 0:
+            return "PACKAGE"
+        gi = em_tools.graphml_files[em_tools.active_file_index]
+        graph = get_graph(gi.name)
+        if graph is None:
+            return "PACKAGE"
+        n = graph.find_node_by_id(container.doc_node_id)
+        if n is not None and hasattr(n, 'variant_style_key'):
+            key = n.variant_style_key()
+            return _MASTERDOC_VARIANT_ICONS.get(key, "KEYTYPE_KEYFRAME_VEC")
+    except Exception:
+        pass
+    return "KEYTYPE_KEYFRAME_VEC"
+
+
+class RMCONTAINER_UL_list(UIList):
+    """UIList of RM Containers (top-level). Each row shows the
+    variant icon driven by the linked DocumentNode's geometry axis,
+    the user-visible label, the document reference code, and the
+    mesh count.
+    """
+
+    def draw_item(self, context, layout, data, item, icon, active_data,
+                  active_propname, index):
+        row = layout.row(align=True)
+        row.label(text="", icon=_container_icon(context.scene, item))
+        row.prop(item, "label", text="", emboss=False)
+        ref = item.doc_name if item.doc_name else "—"
+        row.label(text=f"[{ref}]")
+        # Inline link/create icon — placed next to the document ref so
+        # the user always sees the document-link action near the doc
+        # name. FILE_TEXT echoes the document icon used elsewhere.
+        link_op = row.operator("rmcontainer.link_or_create_doc",
+                               text="", icon='FILE_TEXT', emboss=False)
+        link_op.container_index = index
+        row.label(text=f"({len(item.mesh_names)})")
+        op = row.operator("rmcontainer.unregister", text="",
+                          icon='TRASH', emboss=False)
+        op.container_index = index
+
+
 class RM_UL_List(UIList):
+    def filter_items(self, context, data, propname):
+        """Filter the mesh list by the active RM container.
+
+        - No active container (``rm_containers`` empty or invalid
+          index) → show every mesh in ``rm_list`` (fallback, matches
+          historical behaviour before DP-47).
+        - Active container present → filter strictly by its
+          ``mesh_names`` membership. An empty container shows an
+          empty list — NOT the full rm_list — so the user can see at
+          a glance that the container is empty and populate it via
+          "Add selected" or "Move selected".
+        """
+        try:
+            from .containers import active_container
+        except Exception:
+            active_container = None  # type: ignore
+        items = getattr(data, propname)
+        filter_flags = [self.bitflag_filter_item] * len(items)
+        order: list = []
+        if active_container is None:
+            return filter_flags, order
+        ac = active_container(context.scene)
+        if ac is None:
+            return filter_flags, order
+        allowed = {e.name for e in ac.mesh_names}
+        for i, item in enumerate(items):
+            if item.name not in allowed:
+                filter_flags[i] = 0
+        return filter_flags, order
+
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         try:
             if self.layout_type in {'DEFAULT', 'COMPACT'}:
@@ -160,11 +252,12 @@ class RM_MT_batch_lod_selected(Menu):
             op.target_lod = level
 
 class VIEW3D_PT_RM_Manager(Panel):
-    bl_label = "RM Manager"
+    bl_label = "Representation Model (RM)"
     bl_idname = "VIEW3D_PT_RM_Manager"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'EM Annotator'
+    bl_order = 1
     bl_options = {'DEFAULT_CLOSED'}
         
     @classmethod
@@ -239,6 +332,92 @@ class VIEW3D_PT_RM_Manager(Panel):
             apply_row.scale_y = 1.5
             apply_row.operator("rm.apply_epoch_mapping", text="Apply Mapping", icon='CHECKMARK')
 
+        # ═══════════════════════════════════════════════════════════════
+        # SECTION 1 (TOP) — RM Containers (DP-47 extension)
+        # Container-level commands are at the TOP of the section,
+        # followed by the container UIList and an active-container
+        # summary. Mesh-level controls live in SECTION 2 below (between
+        # the two UILists) because they operate on the content of the
+        # selected container.
+        #
+        # Note: we can't write to Scene data during draw() (Blender
+        # restriction on ID writes). The Legacy bootstrap and the full
+        # sanitisation both run via explicit operators — we just
+        # *detect* when a bootstrap is needed and show a one-click
+        # button.
+        # ═══════════════════════════════════════════════════════════════
+        from .containers import active_container
+
+        # Bootstrap notice — visible only when there are legacy RMs
+        # and no containers yet.
+        if len(scene.rm_containers) == 0 and len(scene.rm_list) > 0:
+            boot_box = layout.box()
+            boot_row = boot_box.row(align=True)
+            boot_row.label(
+                text=f"{len(scene.rm_list)} legacy RM(s) "
+                     f"not yet grouped into a container",
+                icon='INFO')
+            boot_row.operator("rmcontainer.bootstrap_legacy",
+                              text="Bootstrap", icon='PACKAGE')
+
+        # Warnings banner (orphan meshes removed by the sync pass).
+        if len(scene.rm_container_warnings) > 0:
+            warn_box = layout.box()
+            warn_box.alert = True
+            wrow = warn_box.row(align=True)
+            wrow.label(
+                text=f"{len(scene.rm_container_warnings)} missing mesh(es) "
+                     f"removed from containers",
+                icon='ERROR')
+            wrow.operator("rmcontainer.acknowledge_warnings",
+                          text="Acknowledge", icon='CHECKMARK')
+            col = warn_box.column(align=True)
+            col.scale_y = 0.8
+            for w in list(scene.rm_container_warnings)[:6]:
+                col.label(
+                    text=f"  • {w.mesh_name}  (from {w.container_label})",
+                    icon='DOT')
+            if len(scene.rm_container_warnings) > 6:
+                col.label(
+                    text=f"  • ... and {len(scene.rm_container_warnings) - 6} "
+                         f"more")
+
+        cont_box = layout.box()
+        cont_box.label(text="RM Containers (wrapped by DocumentNodes)",
+                       icon='OUTLINER_COLLECTION')
+        # Container-level commands ABOVE the UIList (dominating the
+        # list). "Add RM container" creates an empty unlinked
+        # container; linking/creating documents is then handled by the
+        # inline link icon on each container row, which opens a search
+        # dropdown with "+ Add New Document..." as the first option.
+        cmd_row = cont_box.row(align=True)
+        cmd_row.operator("rmcontainer.create_empty",
+                         text="Add RM container", icon='ADD')
+        cmd_row.operator("rmcontainer.sync",
+                         text="Sync", icon='FILE_REFRESH')
+        # Container UIList
+        row = cont_box.row()
+        row.template_list(
+            "RMCONTAINER_UL_list", "rm_containers",
+            scene, "rm_containers",
+            scene, "rm_containers_index",
+            rows=4,
+        )
+        ac = active_container(scene)
+        if ac is not None:
+            cont_box.label(
+                text=f"Active: {ac.label!r}  |  "
+                     f"{len(ac.mesh_names)} mesh(es)  |  "
+                     f"doc: {ac.doc_name or '—'}")
+
+        # ═══════════════════════════════════════════════════════════════
+        # SECTION 2 (MIDDLE) — Mesh-level controls between the two
+        # UILists. These operate on the content of the ACTIVE container:
+        # the Active Epoch selector picks which epoch the
+        # promote/remove-epoch buttons will target, and the "Sel: N
+        # objs" row carries the batch mesh operations.
+        # ═══════════════════════════════════════════════════════════════
+
         # Show active epoch
         has_active_epoch = False
         epochs = em_tools.epochs
@@ -269,7 +448,8 @@ class VIEW3D_PT_RM_Manager(Panel):
                 "and Cesium tileset tools to keep reconstruction models consistent.\n"
                 "See the full manual section for workflow details."
             )
-            help_op.url = "EMstructure.html#rm-manager"
+            help_op.url = "panels/rm_manager.html#_RM_Manager"
+            help_op.project = 'em_tools'
         else:
             row = box.row(align=True)
             # Active graph indicator
@@ -289,9 +469,12 @@ class VIEW3D_PT_RM_Manager(Panel):
                 "and Cesium tileset tools to keep reconstruction models consistent.\n"
                 "See the full manual section for workflow details."
             )
-            help_op.url = "EMstructure.html#rm-manager"
+            help_op.url = "panels/rm_manager.html#_RM_Manager"
+            help_op.project = 'em_tools'
 
-        # Main action buttons
+        # Main action buttons — operate on selected mesh objects.
+        # The "+ to container" button is placed here so mesh-level
+        # controls stay grouped.
         if has_active_epoch:
             selected_objects = context.selected_objects
             if selected_objects:
@@ -310,11 +493,21 @@ class VIEW3D_PT_RM_Manager(Panel):
                 if has_lod_objects:
                     sub = row.row(align=True)
                     sub.menu("RM_MT_batch_lod_selected", text="", icon='MOD_DECIM')
+                # Container-scoped ops: add selected meshes to the
+                # active container, or move them between containers.
+                # Each enabled by its own poll().
+                row.separator()
+                row.operator("rmcontainer.add_selected_meshes",
+                             text="", icon='IMPORT')
+                row.operator("rmcontainer.move_selected_to_container",
+                             text="", icon='EXPORT')
         else:
             box = layout.box()
             box.label(text="Select an epoch to manage RM objects", icon='INFO')
 
-        # List of RM models
+        # ═══════════════════════════════════════════════════════════════
+        # SECTION 3 (BOTTOM) — Mesh list, filtered by active container.
+        # ═══════════════════════════════════════════════════════════════
         row = layout.row()
         row.template_list(
             "RM_UL_List", "rm_list",
@@ -330,6 +523,19 @@ class VIEW3D_PT_RM_Manager(Panel):
             lod_variants = detect_lod_variants(item.name)
             if len(lod_variants) >= 1:
                 box = layout.box()
+                lod_header = box.row(align=True)
+                lod_header.label(text="Levels of Detail", icon='MOD_DECIM')
+                help_op = lod_header.operator("em.help_popup", text="", icon='QUESTION')
+                help_op.title = "RM Levels of Detail"
+                help_op.text = (
+                    "Switch between multiple LOD variants\n"
+                    "of the representation model. LOD0 is the\n"
+                    "coarsest, LOD3 the most detailed. Batch\n"
+                    "switch moves all RMs up or down together."
+                )
+                help_op.url = "panels/rm_manager.html#rm-lod"
+                help_op.project = 'em_tools'
+
                 row = box.row(align=True)
                 op = row.operator("rm.open_linked_file", text="", icon='FILE_FOLDER')
                 op.rm_index = scene.rm_list_index
@@ -355,8 +561,18 @@ class VIEW3D_PT_RM_Manager(Panel):
             
             # Show the list of associated epochs
             box = layout.box()
-            row = box.row()
-            row.label(text=f"Epochs for {item.name}:")
+            row = box.row(align=True)
+            row.label(text=f"Epochs for {item.name}:", icon='TIME')
+            help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+            help_op.title = "RM Epochs"
+            help_op.text = (
+                "Epochs the RM belongs to. One is marked\n"
+                "as 'first' (filled keyframe icon). Filters\n"
+                "in the Stratigraphy Manager use these to\n"
+                "decide which RMs to show at a given time."
+            )
+            help_op.url = "panels/rm_manager.html#rm-epochs"
+            help_op.project = 'em_tools'
             
             # Sublist of epochs
             row = box.row()
@@ -431,10 +647,14 @@ class VIEW3D_PT_RM_Manager(Panel):
                             row.alert = True
                             row.label(text="Warning: File not found!", icon='ERROR')
 
+# NOTE: VIEW3D_PT_RMDoc_Manager has been moved to document_manager/ui.py
+# as a standalone panel (bl_order=3) rather than a sub-panel of RM Manager.
+
 classes = [
     VIEW3D_PT_RM_Manager,
     RM_UL_List,
     RM_UL_EpochList,
+    RMCONTAINER_UL_list,
     RM_MT_epoch_selector,
     RM_MT_batch_lod_selected,
 ]

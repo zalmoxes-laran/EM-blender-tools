@@ -542,7 +542,7 @@ class EMTOOLS_OT_reload_custom_mappings(Operator):
             
             # Re-inizializza i percorsi built-in (rilegge il filesystem)
             mapping_registry._initialize_builtin_paths()
-            print("   ✓ Registry reset complete")
+            print("   Registry reset complete")
             
             loaded = []
             
@@ -556,7 +556,7 @@ class EMTOOLS_OT_reload_custom_mappings(Operator):
                 count = len([f for f in os.listdir(emdb_path) if f.endswith('.json')])
                 is_default = (emdb_path == get_default_user_mappings_path('emdb'))
                 loaded.append(f"EMdb: {count} {'(default)' if is_default else '(custom)'}")
-                print(f"   ✓ EMdb: {count} files from {emdb_path}")
+                print(f"   EMdb: {count} files from {emdb_path}")
             
             # Carica pyArchInit
             pyarch_path = get_mapping_path(prefs, 'pyarchinit')
@@ -565,14 +565,14 @@ class EMTOOLS_OT_reload_custom_mappings(Operator):
                 count = len([f for f in os.listdir(pyarch_path) if f.endswith('.json')])
                 is_default = (pyarch_path == get_default_user_mappings_path('pyarchinit'))
                 loaded.append(f"pyArchInit: {count} {'(default)' if is_default else '(custom)'}")
-                print(f"   ✓ pyArchInit: {count} files from {pyarch_path}")
+                print(f"   pyArchInit: {count} files from {pyarch_path}")
             
             # ✅ STEP 3: Ottieni lista valida DOPO il reset
             print("\n3. Getting valid mapping IDs...")
             valid_emdb = [m[0] for m in mapping_registry.list_available_mappings('emdb')]
             valid_pyarch = [m[0] for m in mapping_registry.list_available_mappings('pyarchinit')]
-            print(f"   ✓ Valid EMdb IDs: {valid_emdb}")
-            print(f"   ✓ Valid pyArchInit IDs: {valid_pyarch}")
+            print(f"   Valid EMdb IDs: {valid_emdb}")
+            print(f"   Valid pyArchInit IDs: {valid_pyarch}")
             
             # ✅ STEP 4: FORZA il reset dei valori negli auxiliary files
             print("\n4. Forcing reset of invalid values in auxiliary files...")
@@ -600,7 +600,7 @@ class EMTOOLS_OT_reload_custom_mappings(Operator):
                                     aux_file.pyarchinit_mapping = 'none'
                                     cleaned_count += 1
             
-            print(f"   ✓ Cleaned {cleaned_count} obsolete references")
+            print(f"   Cleaned {cleaned_count} obsolete references")
             
             # ✅ STEP 5: Forza il refresh dell'UI
             print("\n5. Forcing UI refresh...")

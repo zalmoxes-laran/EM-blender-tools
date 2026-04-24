@@ -117,7 +117,7 @@ def migrate_legacy_dosco_to_auxiliary(context):
 
         if has_dosco_aux:
             # Already migrated, just clear legacy property
-            print(f"ℹ️ DosCo already migrated for '{graphml.name}', clearing legacy property")
+            print(f"[EMSetup] DosCo already migrated for '{graphml.name}', clearing legacy property")
             graphml.dosco_dir = ""
             continue
 
@@ -136,9 +136,9 @@ def migrate_legacy_dosco_to_auxiliary(context):
         graphml.dosco_dir = ""
 
         migrated_count += 1
-        print(f"✅ Migrated DosCo configuration to Auxiliary Resources")
+        print(f"[EMSetup] Migrated DosCo configuration to Auxiliary Resources")
 
     if migrated_count > 0:
-        print(f"\n✅ DosCo migration completed: {migrated_count} GraphML file(s) migrated")
+        print(f"\n[EMSetup] DosCo migration completed: {migrated_count} GraphML file(s) migrated")
 
     return migrated_count

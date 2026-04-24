@@ -113,8 +113,8 @@ class EMListParadata(PropertyGroup):
         description="Epoch where this master document is placed",
         default=""
     )  # type: ignore
-    absolute_start_date: StringProperty(
-        name="Absolute Start Date",
+    absolute_time_start: StringProperty(
+        name="Absolute Time Start",
         description="Absolute start date of this document (e.g., year of creation)",
         default=""
     )  # type: ignore
@@ -166,23 +166,17 @@ BASE_PROPERTY_CLASSES = [
 
 def register():
     """Register base PropertyGroup classes"""
-    print("[em_base_props] Registering base PropertyGroup classes...")
     for cls in BASE_PROPERTY_CLASSES:
         try:
             bpy.utils.register_class(cls)
-            print(f"[em_base_props] ✓ Registered {cls.__name__}")
         except ValueError as e:
-            print(f"[em_base_props] ⚠ Warning: Could not register {cls.__name__}: {e}")
-    print("[em_base_props] ✓ Registration complete")
+            print(f"[em_base_props] Warning: Could not register {cls.__name__}: {e}")
 
 
 def unregister():
     """Unregister base PropertyGroup classes"""
-    print("[em_base_props] Unregistering base PropertyGroup classes...")
     for cls in reversed(BASE_PROPERTY_CLASSES):
         try:
             bpy.utils.unregister_class(cls)
-            print(f"[em_base_props] ✓ Unregistered {cls.__name__}")
         except RuntimeError as e:
-            print(f"[em_base_props] ⚠ Warning: Could not unregister {cls.__name__}: {e}")
-    print("[em_base_props] ✓ Unregistration complete")
+            print(f"[em_base_props] Warning: Could not unregister {cls.__name__}: {e}")

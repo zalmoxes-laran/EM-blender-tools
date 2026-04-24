@@ -89,13 +89,17 @@ class PARADATA_OT_bake(bpy.types.Operator, ImportHelper):
         self.report({'INFO'}, f"Enriching with paradata: {os.path.basename(paradata_path)}")
 
         try:
-            from s3dgraphy.importer.qualia_importer import QualiaImporter
-            qualia = QualiaImporter(
-                filepath=paradata_path,
-                existing_graph=graph,
-                overwrite=self.overwrite_properties
+            # Use the Hybrid-C adapter so new nodes/edges get tagged
+            # with injector_id and orphans land on graph.attributes —
+            # this enables the Lifecycle UI and Bake flow.
+            from ..aux_import import import_qualia_as_auxiliary
+            report = import_qualia_as_auxiliary(
+                graph,
+                xlsx_path=paradata_path,
+                overwrite=self.overwrite_properties,
             )
-            graph = qualia.parse()
+            for w in report.get("warnings", []):
+                self.report({'WARNING'}, w)
         except Exception as e:
             self.report({'ERROR'}, f"Failed to import paradata: {str(e)}")
             import traceback
@@ -111,6 +115,12 @@ class PARADATA_OT_bake(bpy.types.Operator, ImportHelper):
 
         # Step 3: Re-export GraphML (overwrites original)
         self.report({'INFO'}, f"Re-exporting GraphML: {os.path.basename(graphml_path)}")
+
+        # Write-lock pre-flight — overwriting an existing .graphml that
+        # is held by yEd would silently fail or corrupt the file.
+        from ..graphml_lock import abort_if_graphml_locked
+        if not abort_if_graphml_locked(self, graphml_path):
+            return {'CANCELLED'}
 
         try:
             from s3dgraphy.exporter.graphml import GraphMLExporter

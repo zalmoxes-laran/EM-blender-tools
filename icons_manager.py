@@ -5,6 +5,7 @@ import os
 import logging
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 # Dizionario globale per le icone
 icon_collections = {}
@@ -46,6 +47,13 @@ def load_icons():
         "EMdb_logo": "EMdb_logo.png",
         "show_all_RMDoc": "show_all_RMDoc.png",
         "show_all_RMDoc_off": "show_all_RMDoc_off.png",
+        "RM2Proxy": "RM2Proxy.png",
+        "proxies_select": "proxies_select.png",
+        "proxies_off": "proxies_off.png",
+        "proxies_rows": "proxies_rows.png",
+        "proxies_link": "proxies_link.png",
+        "proxies_select_rows": "proxies_select_rows.png",
+        "proxies_rows_add": "proxies_rows_add.png",
     }
     
     # Carica ogni icona che esiste

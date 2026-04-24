@@ -1,168 +1,264 @@
-"""
-Data structures for the Proxy Box Creator
-This module contains all PropertyGroup definitions and data structures.
+"""Data structures for the Proxy Box Creator (DP-47 / DP-07 flow).
 
-REFACTORED: No longer attempts to dynamically attach properties to EMToolsSettings.
-The ProxyBoxSettings class is now referenced in em_props.py centrally.
+The ProxyBox Creator is anchored on a DocumentNode (Step 1); the seven
+measurement points (Step 2) then inherit that document by default, so
+the extractors end up chained to a single source. The proxy name is
+derived from the active Stratigraphic Unit at Create time — it is not
+stored on the settings.
+
+PropertyGroup registration lives in :mod:`em_props`.
 """
 
-import bpy # type: ignore
-from bpy.props import ( # type: ignore
+import bpy  # type: ignore
+from bpy.props import (  # type: ignore
     StringProperty,
     BoolProperty,
     FloatVectorProperty,
-    IntProperty,
     CollectionProperty,
-    EnumProperty
+    EnumProperty,
 )
-from bpy.types import PropertyGroup # type: ignore
+from bpy.types import PropertyGroup  # type: ignore
+
+
+# ══════════════════════════════════════════════════════════════════════
+# ``target_us_name`` is computed: it always reflects the Stratigraphy
+# Manager's currently-active unit, and writing to it updates
+# ``strat.units_index``. This gives us bidirectional sync between the
+# ProxyBox panel's ``prop_search`` and the Stratigraphy Manager UI
+# without any update callbacks or sentinels — prop_search reads via
+# the getter and writes via the setter, and changes made elsewhere
+# (Stratigraphy Manager UIList click, auto-selection on import, etc.)
+# are picked up on the next draw.
+# ══════════════════════════════════════════════════════════════════════
+
+
+def _get_target_us_name(self):
+    scene = self.id_data
+    try:
+        strat = scene.em_tools.stratigraphy
+        if strat.units and 0 <= strat.units_index < len(strat.units):
+            return strat.units[strat.units_index].name or ""
+    except Exception:
+        pass
+    return ""
+
+
+def _set_target_us_name(self, value):
+    scene = self.id_data
+    if not value:
+        return
+    try:
+        strat = scene.em_tools.stratigraphy
+        for i, u in enumerate(strat.units):
+            if u.name == value:
+                if strat.units_index != i:
+                    strat.units_index = i
+                return
+    except Exception:
+        pass
 
 
 class ProxyBoxPointSettings(PropertyGroup):
-    """Settings for a single measurement point"""
-    
+    """Per-point state for one of the seven measurement points."""
+
     position: FloatVectorProperty(
         name="Position",
         description="3D coordinates of this point",
         subtype='XYZ',
         default=(0.0, 0.0, 0.0),
-        precision=4
+        precision=4,
     )  # type: ignore
-    
-    source_document: StringProperty(
-        name="Source Document ID",
-        description="ID of the document node this point was extracted from",
-        default=""
-    )  # type: ignore
-    
-    source_document_name: StringProperty(
-        name="Source Document Name",
-        description="Display name of the source document",
-        default=""
-    )  # type: ignore
-    
-    extractor_id: StringProperty(
-        name="Extractor Node ID",
-        description="ID of the extractor node created for this point (e.g., D10.11)",
-        default=""
-    )  # type: ignore
-    
+
     is_recorded: BoolProperty(
         name="Is Recorded",
         description="Whether this point has been recorded",
-        default=False
+        default=False,
     )  # type: ignore
-    
+
     point_type: StringProperty(
         name="Point Type",
         description="Semantic type of this point",
-        default=""
+        default="",
+    )  # type: ignore
+
+    # Document and extractor bookkeeping (per-point override; populated
+    # automatically from ``ProxyBoxSettings.document_node_{id,name}``
+    # on Record when ``propagate_doc_to_points`` is True).
+    #
+    # ``source_document_id`` is the authoritative UUID: Create uses it
+    # to resolve the exact anchor DocumentNode in the graph, avoiding
+    # name collisions when multiple documents share the same display
+    # name (e.g. a legacy "D.01" + a freshly-created "D.01" elsewhere
+    # in the paradata chain).
+    source_document: StringProperty(
+        name="Source Document",
+        description="Document display name (e.g. D.10) — used for UI. "
+                    "The Create flow resolves the actual node via "
+                    "``source_document_id`` (UUID) instead to dodge "
+                    "name collisions.",
+        default="",
+    )  # type: ignore
+
+    source_document_id: StringProperty(
+        name="Source Document Node ID",
+        description="UUID of the DocumentNode this point was extracted "
+                    "from — authoritative for graph lookups.",
+        default="",
+    )  # type: ignore
+
+    source_document_name: StringProperty(
+        name="Source Document Name",
+        description="Display name of the source document",
+        default="",
+    )  # type: ignore
+
+    extractor_id: StringProperty(
+        name="Extractor Node ID",
+        description="Display name of the extractor node created for "
+                    "this point (e.g., D.10.11).",
+        default="",
     )  # type: ignore
 
 
 class ProxyBoxSettings(PropertyGroup):
-    """Main settings for the Proxy Box Creator"""
-    
-    # Collection of 7 points
+    """Top-level Proxy Box Creator state.
+
+    Organised around the two-step flow:
+
+    - Step 1 anchor Document → ``document_node_id`` / ``document_node_name``,
+      optionally propagated to each point via ``propagate_doc_to_points``.
+    - Step 2 measurement points → :class:`ProxyBoxPointSettings` collection.
+    """
+
+    # ── Step 2: 7 measurement points ─────────────────────────────────
     points: CollectionProperty(
         type=ProxyBoxPointSettings,
-        name="Measurement Points"
+        name="Measurement Points",
     )  # type: ignore
-    
-    # Mode toggle
-    create_extractors: BoolProperty(
-        name="ctivate Paradata Enrichment",
-        description="Create extractor and combiner nodes in the graph (annotation mode). If disabled, only creates the geometry",
-        default=False
+
+    # ── Step 1: Document anchor ──────────────────────────────────────
+    document_node_id: StringProperty(
+        name="Document node id",
+        description="UUID of the DocumentNode chosen as the Step-1 anchor",
+        default="",
     )  # type: ignore
-    
-    # Proxy settings
-    proxy_name: StringProperty(
-        name="Proxy Name",
-        description="Name for the created proxy object",
-        default="Wall_Proxy"
+
+    document_node_name: StringProperty(
+        name="Document name",
+        description="Display name (e.g. D.10) of the Step-1 anchor document",
+        default="",
     )  # type: ignore
-    
+
+    propagate_doc_to_points: BoolProperty(
+        name="Propagate to all 7 points",
+        description="Automatically inherit the Step-1 document on every "
+                    "recorded point (Record fills source_document and "
+                    "extractor_id). When off, each point keeps its own "
+                    "document picker.",
+        default=True,
+    )  # type: ignore
+
+    # Transient state for the Step 1 document picker dialog.
+    pending_doc_search: StringProperty(
+        name="Document",
+        description="Document chosen in the Step-1 picker dialog",
+        default="",
+    )  # type: ignore
+
+    # ── Parameters ───────────────────────────────────────────────────
     pivot_location: EnumProperty(
         name="Pivot Location",
-        description="Location of the object pivot point",
+        description="Location of the proxy mesh's pivot point",
         items=[
-            ('TOP', "Top", "Pivot at the top face (max Z)"),
-            ('CENTER', "Center", "Pivot at geometric center"),
             ('BOTTOM', "Bottom", "Pivot at the bottom face (min Z)"),
+            ('CENTER', "Center", "Pivot at geometric center"),
+            ('TOP', "Top", "Pivot at the top face (max Z)"),
         ],
-        default='CENTER'
+        default='BOTTOM',
     )  # type: ignore
-    
+
     use_proxy_collection: BoolProperty(
         name="Use Proxy Collection",
-        description="Place the created proxy in the 'Proxy' collection. If disabled, uses active collection",
-        default=True
+        description="Place the created proxy in the 'Proxy' collection. "
+                    "If disabled, uses the active collection.",
+        default=True,
     )  # type: ignore
-    
-    # Combiner info (auto-generated)
+
+    # Persist the paradata chain to the .graphml immediately after
+    # Create. Default True because the Create operator produces a
+    # non-trivial chain (US + PropertyNode + up to 7 Extractors +
+    # Combiner + has_representation_model edge) and losing it to a
+    # Blender crash is expensive — the graphml write-lock guard has
+    # already checked that yEd isn't holding the file.
+    persist_after_create: BoolProperty(
+        name="Save GraphML immediately",
+        description="Persist the paradata chain to the .graphml file "
+                    "right after Create. Recommended: the proxy "
+                    "creates a lot of new nodes/edges and keeping "
+                    "them only in memory means a crash throws them "
+                    "away.",
+        default=True,
+    )  # type: ignore
+
+    show_chain_summary: BoolProperty(
+        name="Show Chain Summary",
+        description="Toggle the narrative summary of the paradata "
+                    "chain that will be created on Create.",
+        default=False,
+    )  # type: ignore
+
+    # Active US — bound bidirectionally to
+    # ``em_tools.stratigraphy.units_index`` via the module-level
+    # get/set callbacks. Reading always yields the currently-active
+    # unit's name (kept fresh whenever the Stratigraphy Manager
+    # changes selection); writing via ``prop_search`` picks the unit
+    # with the matching name and updates ``units_index`` in place. No
+    # drift: there is no backing storage here, so the panel is always
+    # showing the single authoritative value.
+    target_us_name: StringProperty(
+        name="Active US",
+        description="Stratigraphic Unit this proxy belongs to; also "
+                    "used as the proxy mesh name. Bidirectionally "
+                    "linked to the Stratigraphy Manager's active US.",
+        get=_get_target_us_name,
+        set=_set_target_us_name,
+    )  # type: ignore
+
+    # ── Combiner bookkeeping (auto-populated on Create) ──────────────
+    # The inline "Create new US" branch used to live here (``create_new_us``
+    # toggle + new_us_type / new_us_name / new_us_epoch / new_us_activity
+    # / share_numbering_across_types). It has been removed — the "+"
+    # button in the Active US row of ``proxy_box_creator/ui.py`` now
+    # launches the shared ``strat.add_us`` dialog instead, and the
+    # newly-created US becomes the active one automatically (via
+    # ``target_us_name``'s computed property).
     combiner_id: StringProperty(
         name="Combiner ID",
-        description="ID of the combiner node that will be created (e.g., C.10)",
-        default=""
-    )  # type: ignore
-    
-    # UI state
-    show_point_details: BoolProperty(
-        name="Show Point Details",
-        description="Show detailed information for each point",
-        default=False
+        description="ID of the combiner node that will be created "
+                    "(e.g., C.10)",
+        default="",
     )  # type: ignore
 
 
-# List of classes to register
-classes = [
-    #ProxyBoxPointSettings,
-    #ProxyBoxSettings,
-]
+# PropertyGroup registration is handled centrally in :mod:`em_props`.
+classes: list = []
 
 
-def register():
-    """
-    Register all PropertyGroup classes.
-    
-    REFACTORED: This function now ONLY registers the PropertyGroup classes.
-    The property attachment to Scene happens in em_props.py centrally.
-    
-    The problematic code that tried to dynamically attach to EMToolsSettings
-    has been REMOVED.
-    """
-    print("   [proxy_box/data.py] Starting registration...")
-    
+def register() -> None:
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
-            print(f"   [proxy_box/data.py] ✓ Registered {cls.__name__}")
         except ValueError as e:
-            print(f"   [proxy_box/data.py] ⚠ Warning: Could not register {cls.__name__}: {e}")
-    
-    print("   [proxy_box/data.py] ✓ Data structures registration complete")
-    print("   [proxy_box/data.py] ℹ Property attachment handled by em_props.py")
+            print(f"[proxy_box/data] Warning: Could not register "
+                  f"{cls.__name__}: {e}")
 
 
-def unregister():
-    """
-    Unregister all PropertyGroup classes.
-    
-    REFACTORED: This function now ONLY unregisters the PropertyGroup classes.
-    The property removal from Scene happens in em_props.py centrally.
-    """
-    print("   [proxy_box/data.py] Starting unregistration...")
-    
-    # Unregister classes in reverse order
+def unregister() -> None:
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
-            print(f"   [proxy_box/data.py] ✓ Unregistered {cls.__name__}")
-        except RuntimeError as e:
-            print(f"   [proxy_box/data.py] ⚠ Warning: Could not unregister {cls.__name__}: {e}")
-    
-    print("   [proxy_box/data.py] ✓ Data structures unregistration complete")
+        except RuntimeError:
+            pass
 
 
 if __name__ == "__main__":

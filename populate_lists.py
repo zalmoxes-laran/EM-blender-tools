@@ -15,6 +15,7 @@ from .functions import (
     check_objs_in_scene_and_provide_icon_for_list_element,
     clean_value_for_ui
 )
+from .us_types import US_PROPER_TYPES
 
 
 def get_connected_epoch_for_node(graph, node):
@@ -194,14 +195,21 @@ def populate_document_node(scene, node, index, graph=None):
         em_item.icon_url = "CHECKBOX_HLT" if node.url else "CHECKBOX_DEHLT"
         em_item.description = node.description
 
-        # Master document attributes (from import Phase 1-2)
+        # Master document attributes. Prefer the EM 1.5.4+ fields
+        # (attributes['em_master_document'] and data['role']) and fall
+        # back to legacy keys so older graphs still populate correctly.
         if hasattr(node, 'attributes'):
-            em_item.is_master = node.attributes.get('is_master', False)
+            em_item.is_master = bool(
+                node.attributes.get('is_master', False)
+                or node.attributes.get('em_master_document', False))
             em_item.certainty_class = node.attributes.get('certainty_class', '')
             em_item.border_color = node.attributes.get('border_color', '#000000')
         if hasattr(node, 'data'):
-            em_item.absolute_start_date = node.data.get('absolute_start_date', '')
-            em_item.source_type = node.data.get('source_type', '')
+            em_item.absolute_time_start = node.data.get('absolute_time_start', '')
+            em_item.source_type = (
+                node.data.get('source_type')
+                or node.data.get('role')
+                or '')
 
         index += 1
 
@@ -318,10 +326,9 @@ def update_graph_statistics(context, graph, graphml_file_item):
 
     # ✅ OPTIMIZATION: Use s3dgraphy indices directly for faster counting
     # Access indices.nodes_by_type which is already built by s3dgraphy
-    stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
     stratigraphic_count = sum(
         len(graph.indices.nodes_by_type.get(node_type, []))
-        for node_type in stratigraphic_types
+        for node_type in US_PROPER_TYPES
     )
 
     # Count other node types using indices (triggers index build if not already done)
@@ -335,7 +342,49 @@ def update_graph_statistics(context, graph, graphml_file_item):
     graphml_file_item.property_count = property_count
     graphml_file_item.document_count = document_count
 
-    print(f"✅ Graph statistics updated: {stratigraphic_count} stratigraphic, {epoch_count} epochs, {property_count} properties, {document_count} documents")
+    # Graph metadata from header vocabulary (e.g. [ORCID:...; license:...; embargo:...])
+    graphml_file_item.graph_author = ""
+    graphml_file_item.graph_author_orcid = ""
+    graphml_file_item.graph_license = ""
+    graphml_file_item.graph_license_url = ""
+    graphml_file_item.graph_embargo = ""
+
+    attrs = graph.attributes
+
+    # Author
+    author_name = attrs.get("author_name", "")
+    author_surname = attrs.get("author_surname", "")
+    author_display = f"{author_name} {author_surname}".strip()
+    if author_display:
+        graphml_file_item.graph_author = author_display
+    orcid = attrs.get("ORCID", "")
+    if orcid:
+        graphml_file_item.graph_author_orcid = f"https://orcid.org/{orcid}"
+
+    # License
+    license_type = attrs.get("license", "")
+    if license_type:
+        graphml_file_item.graph_license = str(license_type)
+        # Build URL for common Creative Commons licenses
+        lt = str(license_type).upper()
+        if lt.startswith("CC-"):
+            slug = lt.replace("CC-", "").lower()
+            graphml_file_item.graph_license_url = f"https://creativecommons.org/licenses/{slug}/4.0/"
+
+    # Embargo
+    embargo_val = attrs.get("embargo", "")
+    if embargo_val:
+        from datetime import date
+        try:
+            embargo_date = date.fromisoformat(str(embargo_val))
+            if embargo_date >= date.today():
+                graphml_file_item.graph_embargo = f"Until {embargo_val}"
+            else:
+                graphml_file_item.graph_embargo = f"Expired ({embargo_val})"
+        except (ValueError, TypeError):
+            graphml_file_item.graph_embargo = str(embargo_val)
+
+    print(f"Graph statistics updated: {stratigraphic_count} stratigraphic, {epoch_count} epochs, {property_count} properties, {document_count} documents")
 
 
 def populate_blender_lists_from_graph(context, graph):
@@ -358,7 +407,7 @@ def populate_blender_lists_from_graph(context, graph):
 
     # ✅ OPTIMIZED: Batch node filtering - 1 iteration instead of 14 queries
     # Get all nodes once and filter by type in a single pass - O(n) instead of O(14×n)
-    stratigraphic_types = {'US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs'}
+    stratigraphic_types = {'US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'UL', 'serSU', 'serUSD', 'serUSVn', 'serUSVs'}
 
     stratigraphic_nodes = []
     document_nodes = []

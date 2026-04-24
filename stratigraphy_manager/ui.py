@@ -56,8 +56,17 @@ class EM_STRAT_UL_List(UIList):
         sub_col = col1.column(align=True)
         sub_col.enabled = is_in_scene
 
-        # Always use an operator, but the column enablement controls its functionality
-        op = sub_col.operator("select.fromlistitem", text="", icon=item.icon, emboss=False)
+        # Custom proxy icons: proxies_select when linked, proxies_off when not
+        if is_in_scene:
+            proxy_icon_id = icons_manager.get_icon_value("proxies_select")
+        else:
+            proxy_icon_id = icons_manager.get_icon_value("proxies_off")
+
+        if proxy_icon_id:
+            op = sub_col.operator("select.fromlistitem", text="", icon_value=proxy_icon_id, emboss=False)
+        else:
+            # Fallback to built-in icons if custom icons not available
+            op = sub_col.operator("select.fromlistitem", text="", icon=item.icon, emboss=False)
         if op:
             op.list_type = "em_list"
             op.specific_item = item.name
@@ -198,8 +207,12 @@ class EM_ToolsPanel:
 
         # ✅ PORTED: Use strat.units instead of scene.em_list
         is_filtered = scene.filter_by_epoch or scene.filter_by_activity or strat.filter_by_containment or strat.filter_by_instance_chain
+        _rows_icon = icons_manager.get_icon_value("proxies_rows")
         if not is_filtered:
-            row.label(text="Total Rows: " + str(len(strat.units)), icon='PRESET')
+            if _rows_icon:
+                row.label(text="Total Rows: " + str(len(strat.units)), icon_value=_rows_icon)
+            else:
+                row.label(text="Total Rows: " + str(len(strat.units)), icon='PRESET')
         else:
             row.label(text="Filtered Rows: " + str(len(strat.units)), icon='FILTER')
 
@@ -245,7 +258,8 @@ class EM_ToolsPanel:
             "- For visibility controls (show/hide all),\n"
             "  see the Visual Manager panel above.\n"
         )
-        help1.url = "EMtools_manual/docs/user_guide/Stratigraphy_manager.html"
+        help1.url = "panels/stratigraphy_manager.html#_Stratigraphy_Manager"
+        help1.project = 'em_tools'
 
         # 2) Filter contents (only when open)
         # ✅ PORTED: Use strat.show_filter_system
@@ -364,7 +378,8 @@ class EM_ToolsPanel:
                     "- When enabled: Shows all units that exist in this epoch\n"
                     "- When disabled: Shows only units created in this epoch"
                 )
-                help1.url = "https://docs.extendedmatrix.org/survival-filter"
+                help1.url = "panels/stratigraphy_manager.html#survival-filter"
+                help1.project = 'em_tools'
 
                 sub_row.separator()
 
@@ -380,14 +395,14 @@ class EM_ToolsPanel:
                     "- When enabled: Shows reconstruction units\n"
                     "- When disabled: Hides reconstruction units"
                 )
-                help2.url = "https://docs.extendedmatrix.org/reconstruction-filter"
+                help2.url = "panels/stratigraphy_manager.html#reconstruction-filter"
+                help2.project = 'em_tools'
 
         # ==================
         # STRATIGRAPHY LIST
         # ==================
         # ✅ PORTED: Use template_list with strat PropertyGroup
-        row = layout.row()
-        row.template_list(
+        layout.template_list(
             "EM_STRAT_UL_List",  # UIList class name
             "EM nodes",           # unique identifier
             strat,                # data: StratigraphyManagerProps PropertyGroup
@@ -395,6 +410,17 @@ class EM_ToolsPanel:
             strat,                # active_data: same PropertyGroup
             "units_index"         # active property name (IntProperty)
         )
+        # Toolbar row UNDER the list — creates a new US via the
+        # shared us_helpers factory (same logic ProxyBox / Surface
+        # Areas use). Placed below the template_list instead of as a
+        # side column so the list itself keeps its full width.
+        # ``draw_add_us_button`` uses the ``proxies_rows_add`` custom
+        # icon so the button is visually distinct from the ``+ next
+        # number`` ADD icon that lives inside the dialog.
+        from ..us_helpers import draw_add_us_button
+        toolbar = layout.row(align=True)
+        toolbar.enabled = context.scene.em_tools.active_file_index >= 0
+        draw_add_us_button(toolbar, text="Add US")
         
         # ==================
         # SELECTED ITEM DETAILS
@@ -418,19 +444,43 @@ class EM_ToolsPanel:
             # link proxy and US
             split = row.split()
             col = split.column()
-            op = col.operator("listitem.toobj", icon="LINK_BLEND", text='')
+            _link_icon = icons_manager.get_icon_value("proxies_link")
+            if _link_icon:
+                op = col.operator("listitem.toobj", icon_value=_link_icon, text='')
+            else:
+                op = col.operator("listitem.toobj", icon="LINK_BLEND", text='')
             if op:
                 op.list_type = "em_list"
             
-            # Add button to select the row from 3D scene
+            # Add button to select the proxy in 3D scene
             split = row.split()
             col = split.column()
-            op = col.operator("select.listitem", text="", icon="RESTRICT_SELECT_OFF")
+            _proxy_sel_icon = icons_manager.get_icon_value("proxies_select_rows")
+            if not _proxy_sel_icon:
+                _proxy_sel_icon = icons_manager.get_icon_value("proxies_select")
+            if _proxy_sel_icon:
+                op = col.operator("select.listitem", text="", icon_value=_proxy_sel_icon)
+            else:
+                op = col.operator("select.listitem", text="", icon="RESTRICT_SELECT_OFF")
             if op:
                 op.list_type = "em_list"
 
             row = box.row()
             row.prop(item, "description", text="", slider=True, emboss=True)
+
+            # DP-32 propagative metadata for the selected US
+            try:
+                from ..functions import draw_propagative_metadata
+                draw_propagative_metadata(
+                    box, context, item.id_node,
+                    include_time=True,
+                    include_author=True,
+                    include_license=True,
+                    include_embargo=True,
+                    title="Propagative metadata",
+                )
+            except Exception as _e:
+                box.label(text=f"(metadata unavailable: {_e})", icon='ERROR')
 
             # Proxy sync feature
             if scene.em_tools.settings.em_proxy_sync is True:
@@ -497,7 +547,8 @@ class EM_ToolsPanel:
             "This section shows documents linked to this stratigraphic unit.\n"
             "Click on thumbnail to preview, or use buttons to open files/folders."
         )
-        help_op.url = "EMtools_manual/docs/user_guide/Documents.html"
+        help_op.url = "panels/document_manager_3d.html#_Document_Manager_3D"
+        help_op.project = 'em_tools'
         
         # ✅ FIXED: Use reload_doc_previews_for_us() instead of inline code
         if strat.show_documents:

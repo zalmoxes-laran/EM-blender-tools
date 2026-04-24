@@ -47,7 +47,21 @@ class GRAPHEDIT_PT_main_panel(Panel):
     def draw(self, context):
         layout = self.layout
         settings = context.scene.graph_editor_settings
-        
+
+        # Header help button
+        header_row = layout.row(align=True)
+        header_row.label(text="EMGraph Tools", icon='NODETREE')
+        help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Graph Editor"
+        help_op.text = (
+            "Interactive node-based viewer for the\n"
+            "stratigraphic graph. Filter by edge type,\n"
+            "toggle node categories, apply color schemes\n"
+            "and inspect selected nodes."
+        )
+        help_op.url = "panels/graph_editor.html#graph-editor"
+        help_op.project = 'em_tools'
+
         # Quick Load Section
         box = layout.box()
         box.label(text="Quick Load", icon='NODETREE')
@@ -604,10 +618,7 @@ classes = (
 def register_ui():
     """Register all UI classes"""
     for cls in classes:
-        try:
-            bpy.utils.register_class(cls)
-        except ValueError:
-            pass
+        bpy.utils.register_class(cls)
 
 def unregister_ui():
     """Unregister all UI classes"""

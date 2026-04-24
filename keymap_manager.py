@@ -8,6 +8,7 @@ from bpy.types import KeyMapItem
 import logging
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)
 
 # Lista globale per tenere traccia delle keymaps registrate
 addon_keymaps = []

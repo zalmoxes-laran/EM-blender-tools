@@ -343,18 +343,20 @@ def _export_epoch_report(xlsx_path, report_items):
 # ---------------------------------------------------------------------------
 
 class EM_OT_merge_xlsx_start(bpy.types.Operator):
-    """Start merge of XLSX stratigraphy data with active graph"""
+    """Merge an em_data.xlsx file with the active graph"""
     bl_idname = "em.merge_xlsx_start"
-    bl_label = "Merge XLSX Stratigraphy"
+    bl_label = "Merge em_data.xlsx into active graph"
     bl_description = (
-        "Import stratigraphy data from XLSX and compare with "
-        "the active graph. Shows conflicts for user resolution"
+        "Import an em_data.xlsx (5-sheet unified schema) and compare it "
+        "with the active graph. Per-claim differences are surfaced in the "
+        "Conflict Resolution panel for accept/reject. Falls back to the "
+        "legacy stratigraphy.xlsx format for backward compatibility"
     )
     bl_options = {'REGISTER', 'UNDO'}
 
     filepath: StringProperty(
         name="XLSX File",
-        description="Path to the stratigraphy XLSX file",
+        description="Path to the em_data.xlsx file",
         subtype='FILE_PATH'
     )
 
@@ -395,15 +397,41 @@ class EM_OT_merge_xlsx_start(bpy.types.Operator):
             self.report({'ERROR'}, "No active graph loaded")
             return {'CANCELLED'}
 
-        # Import XLSX into a temporary graph
+        # Import XLSX into a temporary graph. Two schemas are supported:
+        #   - Unified em_data.xlsx (5 sheets: Units/Epochs/Claims/Authors/Documents)
+        #   - Legacy stratigraphy.xlsx (24-column wide table on sheet 'Stratigraphy')
+        # The schema is auto-detected by sheet presence.
         try:
-            from s3dgraphy.importer.mapped_xlsx_importer import MappedXLSXImporter
+            import pandas as _pd
+            with _pd.ExcelFile(self.filepath, engine='openpyxl') as xl:
+                sheet_names = set(xl.sheet_names)
+            unified_required = {'Units', 'Epochs', 'Claims', 'Authors', 'Documents'}
 
-            importer = MappedXLSXImporter(
-                filepath=self.filepath,
-                mapping_name='excel_to_graphml_mapping'
-            )
-            temp_graph = importer.parse()
+            if unified_required.issubset(sheet_names):
+                from s3dgraphy.importer.unified_xlsx_importer import (
+                    UnifiedXLSXImporter)
+                importer = UnifiedXLSXImporter(
+                    filepath=self.filepath,
+                    graph_id=f"incoming_{os.path.basename(self.filepath)}",
+                )
+                temp_graph = importer.parse()
+            elif 'Stratigraphy' in sheet_names:
+                from s3dgraphy.importer.mapped_xlsx_importer import (
+                    MappedXLSXImporter)
+                importer = MappedXLSXImporter(
+                    filepath=self.filepath,
+                    mapping_name='excel_to_graphml_mapping'
+                )
+                temp_graph = importer.parse()
+            else:
+                self.report(
+                    {'ERROR'},
+                    "Unrecognised xlsx schema. Expected either the unified "
+                    "em_data.xlsx (5 sheets) or the legacy stratigraphy.xlsx "
+                    "(sheet 'Stratigraphy').",
+                )
+                return {'CANCELLED'}
+
             _incoming_graph = temp_graph
 
         except Exception as e:
@@ -677,6 +705,10 @@ class EM_OT_apply_merge(bpy.types.Operator):
 
         # Save to GraphML using the patcher
         filepath = normalize_path(graphml_file.graphml_path)
+        # Write-lock pre-flight — the merge overwrites the target .graphml.
+        from ..graphml_lock import abort_if_graphml_locked
+        if not abort_if_graphml_locked(self, filepath):
+            return {'CANCELLED'}
         try:
             patcher = GraphMLPatcher(filepath, existing_graph)
             nodes_updated, nodes_added, edges_added, problems = patcher.patch()
@@ -780,6 +812,20 @@ class EMTOOLS_PT_conflict_resolution(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         em_tools = context.scene.em_tools
+
+        # Header help button
+        header_row = layout.row(align=True)
+        header_row.label(text="Conflict Resolution", icon='ERROR')
+        help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Merge Conflict Resolution"
+        help_op.text = (
+            "Resolve conflicts when merging a stratigraphy\n"
+            "XLSX with an existing graph: keep existing,\n"
+            "use incoming, or apply per-field choices. Also\n"
+            "shows epoch compatibility reports."
+        )
+        help_op.url = "panels/em_setup.html#graphml-merge-conflict"
+        help_op.project = 'em_tools'
 
         # ── Epoch Compatibility Report ──
         if em_tools.epoch_report_active and len(em_tools.epoch_report) > 0:

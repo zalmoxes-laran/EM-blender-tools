@@ -99,7 +99,7 @@ def resolve_dosco_dir(graphml):
 # All stratigraphic node types recognized by the system
 STRATIGRAPHIC_NODE_TYPES = [
     'US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD',
-    'serUSVn', 'serUSVs', 'TSU', 'SE', 'BR', 'unknown'
+    'serUSVn', 'serUSVs', 'TSU', 'UL', 'SE', 'BR', 'unknown'
 ]
 
 

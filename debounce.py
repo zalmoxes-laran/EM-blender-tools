@@ -148,7 +148,6 @@ def clear_debouncers():
     """
     global _debouncers
     _debouncers.clear()
-    print("[Debounce] Cleared all debouncers")
 
 
 # ============================================================================

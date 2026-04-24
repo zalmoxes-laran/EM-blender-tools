@@ -161,11 +161,11 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
                                     # Se file_path e blend_dir sono su drive diversi (Windows)
                                     # usa il path assoluto come fallback
                                     relative_src_path = file_path
-                                    print(f"⚠️  Unable to calculate relative path for {filename}, using absolute path instead.")
+                                    print(f"[Thumbs] Unable to calculate relative path for {filename}, using absolute path instead.")
                             else:
                                 # File blend non salvato - usa path assoluto
                                 relative_src_path = file_path
-                                print(f"⚠️  Un-saved .blend file, use absolute path for {filename}")
+                                print(f"[Thumbs] Un-saved .blend file, use absolute path for {filename}")
                             
                             # Salva nell'indice con path relativo
                             thumb_rel_path = thumb_path.relative_to(thumbs_root)
@@ -178,7 +178,7 @@ class EMTOOLS_OT_build_doc_thumbs(Operator):
                                 "filename": filename
                             }
                             
-                            print(f"✓ Generata: {filename}")
+                            print(f"[Thumbs] Generata: {filename}")
                             
                             if thumbs_generated % 10 == 0:  # Log ogni 10
                                 print(f"Generate {thumbs_generated} thumbnails...")
@@ -354,7 +354,7 @@ class EMTOOLS_OT_debug_thumbs_check(Operator):
 
         print("="*60)
         if result:
-            print("✓ Thumbnails detected successfully")
+            print("[Thumbs] Thumbnails detected successfully")
             self.report({'INFO'}, "Thumbnails detected! Check console for details.")
         else:
             print("✗ Thumbnails NOT detected - see details above")

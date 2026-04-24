@@ -47,6 +47,9 @@ from .em_base_props import EMviqListErrors, EDGESListItem, EMListParadata, EM_Ot
 # Import Tapestry integration
 from .tapestry_integration.properties import TapestryManagerProps, TapestryVisibleProxy
 
+# Import Surface Areale
+from .surface_areale.data import SurfaceArealeSettings
+
 
 # =====================================================
 # UPDATE CALLBACKS
@@ -263,6 +266,24 @@ class StratigraphyManagerProps(PropertyGroup):
         type=EMreusedUS,
         name="Reused Units",
         description="List of stratigraphic units that are reused across epochs"
+    )  # type: ignore
+
+    # ── Transient sentinel for the "+ Add US" floating dialog ──
+    # Shared location the dialog's Name field is bound to and the
+    # "+" suggest-next button writes into. Needed because the
+    # suggest-next operator can't peek at the dialog's own transient
+    # props (the dialog isn't on the operator stack until FINISHED).
+    # Same pattern Document Manager uses via
+    # ``scene.em_pending_master_doc_name``. The other dialog inputs
+    # (type, shared_numbering toggle) stay as transient props of the
+    # dialog — the "+" button receives them as explicit operator
+    # parameters, passed at click time from draw().
+    pending_us_name: StringProperty(
+        name="Name",
+        description="Display name for the new Stratigraphic Unit "
+                    "(e.g. US.5). Shared between the Add-US dialog "
+                    "and its '+' suggest-next button.",
+        default="",
     )  # type: ignore
     
     show_filter_system: BoolProperty(
@@ -584,6 +605,12 @@ class EM_Tools(PropertyGroup):
         description="AI-powered photorealistic reconstruction"
     )  # type: ignore
 
+    surface_areale: PointerProperty(
+        type=SurfaceArealeSettings,
+        name="Surface Areale",
+        description="Surface areale proxy creation settings"
+    )  # type: ignore
+
     # ============================================
     # GRAPHML FILE MANAGEMENT
     # ============================================
@@ -625,6 +652,15 @@ class EM_Tools(PropertyGroup):
     experimental_features: BoolProperty(
         name="Experimental Features",
         description="Enable experimental and debug features",
+        default=False
+    )  # type: ignore
+
+    show_propagative_metadata: BoolProperty(
+        name="Show Propagative Metadata",
+        description="Show/hide the propagative metadata subsection "
+                    "(author / license / embargo / chronology) resolved "
+                    "through the DP-32 3-level resolver. Shared across "
+                    "the Stratigraphy, Epoch and Document managers.",
         default=False
     )  # type: ignore
 
@@ -792,19 +828,6 @@ class EM_Tools(PropertyGroup):
         default="excel_to_graphml_mapping"
     )  # type: ignore
 
-    xlsx_wizard_paradata_file: StringProperty(
-        name="Paradata XLSX",
-        description="Path to em_paradata.xlsx (optional enrichment)",
-        subtype='FILE_PATH',
-        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
-    )  # type: ignore
-
-    xlsx_wizard_overwrite_properties: BoolProperty(
-        name="Overwrite Properties",
-        description="If ON: update duplicate properties. If OFF: skip duplicates",
-        default=False
-    )  # type: ignore
-
     xlsx_wizard_output_path: StringProperty(
         name="Output GraphML",
         description="Path where the GraphML file will be saved",
@@ -836,41 +859,100 @@ class EM_Tools(PropertyGroup):
         default=True
     )  # type: ignore
 
-    # AI Prompt Assembler section toggles (v4.1)
-    xlsx_wizard_prompt_part_a: BoolProperty(
-        name="Parte A – Stratigrafia",
-        description="Include Part A (stratigraphy extraction) in the AI prompt",
-        default=True
-    )  # type: ignore
-
-    xlsx_wizard_prompt_part_b: BoolProperty(
-        name="Parte B – Paradata",
-        description="Include Part B (paradata extraction) in the AI prompt",
-        default=True
-    )  # type: ignore
-
-    xlsx_wizard_prompt_part_c: BoolProperty(
-        name="Parte C – Epoche",
-        description="Include Part C (ParadataEpochs sheet) in the AI prompt",
-        default=False
-    )  # type: ignore
-
-    xlsx_wizard_prompt_part_d: BoolProperty(
-        name="Parte D – Fonti",
-        description="Include Part D (sources list) in the AI prompt",
-        default=False
-    )  # type: ignore
-
+    # StratiMiner prompt toggles (v5.4 — unified em_data.xlsx schema)
     xlsx_wizard_prompt_checklist: BoolProperty(
-        name="Parte E – Checklist",
-        description="Include Part E (end-of-session checklist) in the AI prompt",
+        name="End-of-session checklist",
+        description="Include the end-of-session checklist in the prompt",
         default=True
     )  # type: ignore
 
     xlsx_wizard_prompt_validation: BoolProperty(
-        name="Script Validazione",
-        description="Include embedded Python validation script and related checklist items",
+        name="Validation script",
+        description="Include the embedded Python validation script that "
+                    "checks cross-sheet referential integrity, duplicate "
+                    "triples, missing COMBINER_REASONING and stratigraphic "
+                    "cycles",
+        default=True
+    )  # type: ignore
+
+    xlsx_wizard_prompt_stratigraphy_only: BoolProperty(
+        name="Include stratigraphy-only mode",
+        description="Append the STRATIGRAPHY_ONLY section describing the "
+                    "minimal flow for pre-existing archaeological databases "
+                    "(curator as sole author, no paradata chain). Useful "
+                    "only for legacy dataset migration",
         default=False
+    )  # type: ignore
+
+    # Path to the folder of source PDFs (or equivalent). Optional but
+    # recommended for the fire-test on DosCo.
+    stratiminer_documents_folder: StringProperty(
+        name="Documents folder",
+        description="Folder containing the source PDFs the AI should read. "
+                    "Appended to the prompt so the AI enumerates the files "
+                    "automatically (e.g. the DosCo folder for Templu Mare)",
+        default="",
+        subtype='DIR_PATH',
+    )  # type: ignore
+
+    stratiminer_dosco_in_place: BoolProperty(
+        name="Use this folder as DosCo (in-place rename)",
+        description="ON (default): the Documents folder above IS the DosCo. "
+                    "Files may be renamed in place with the D.NN_ prefix; "
+                    "numbering fills gaps. Comparative / parallel sources "
+                    "start at D.1000. OFF: specify a target DosCo folder — "
+                    "files are copied there with the new prefix and the "
+                    "originals are left untouched",
+        default=True,
+    )  # type: ignore
+
+    stratiminer_dosco_target_folder: StringProperty(
+        name="Target DosCo folder",
+        description="Destination folder when 'Use this folder as DosCo' "
+                    "is OFF: files are copied here with D.NN_ prefixes",
+        default="",
+        subtype='DIR_PATH',
+    )  # type: ignore
+
+    stratiminer_ai_has_filesystem: BoolProperty(
+        name="AI can read local files",
+        description="ON (default): the AI model has filesystem access to the "
+                    "Documents folder (e.g. Claude Desktop, API-driven). "
+                    "OFF: the AI runs in a chat UI without filesystem access — "
+                    "the prompt instructs it to ask the user to upload the "
+                    "files directly into the conversation, with a data-"
+                    "sovereignty disclaimer",
+        default=True,
+    )  # type: ignore
+
+    # StratiMiner Action A — import em_data.xlsx → graph → optional GraphML
+    stratiminer_input_xlsx: StringProperty(
+        name="em_data.xlsx",
+        description="Path to the unified em_data.xlsx produced by the AI",
+        default="",
+        subtype='FILE_PATH',
+    )  # type: ignore
+
+    stratiminer_output_graphml: StringProperty(
+        name="Output .graphml",
+        description="Destination path for the GraphML built from em_data.xlsx "
+                    "(used when 'Export on import' is enabled)",
+        default="",
+        subtype='FILE_PATH',
+    )  # type: ignore
+
+    stratiminer_export_on_import: BoolProperty(
+        name="Export on import",
+        description="Immediately write the imported graph to the output "
+                    "GraphML path in addition to keeping it in memory",
+        default=True,
+    )  # type: ignore
+
+    stratiminer_active_graph_id: StringProperty(
+        name="Active StratiMiner graph",
+        description="Internal: id of the latest graph built by "
+                    "stratiminer.import_em_data",
+        default="",
     )  # type: ignore
 
     # ============================================
@@ -1230,6 +1312,7 @@ classes = (
     # to avoid circular imports (em_setup needs them, EM_Tools uses them)
     ProxyBoxSettings,
     TapestryVisibleProxy,  # Sub-PropertyGroup for Tapestry visible proxies
+    SurfaceArealeSettings,  # Surface Areale proxy creation
 
     # Manager aggregators SECOND
     # These use the Sub-PropertyGroups above
@@ -1249,41 +1332,26 @@ classes = (
 
 def register():
     """Register all PropertyGroup classes and attach EM_Tools to Scene"""
-    print("[em_props] Starting registration...")
-
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
-            print(f"[em_props] ✓ Registered {cls.__name__}")
         except ValueError as e:
-            print(f"[em_props] ⚠ Warning: Could not register {cls.__name__}: {e}")
+            print(f"[em_props] Warning: Could not register {cls.__name__}: {e}")
 
-    # Attach to Scene
     bpy.types.Scene.em_tools = PointerProperty(
         type=EM_Tools,
         name="EM Tools",
         description="Extended Matrix Tools - Central property container"
     )
 
-    print("[em_props] ✓ Attached Scene.em_tools")
-    print("[em_props] ✓ Registration complete")
-
 
 def unregister():
     """Unregister all PropertyGroup classes and remove Scene.em_tools"""
-    print("[em_props] Starting unregistration...")
-    
-    # Remove from Scene first
     if hasattr(bpy.types.Scene, "em_tools"):
         del bpy.types.Scene.em_tools
-        print("[em_props] ✓ Removed Scene.em_tools")
-    
-    # Unregister classes in reverse order
+
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
-            print(f"[em_props] ✓ Unregistered {cls.__name__}")
         except RuntimeError as e:
-            print(f"[em_props] ⚠ Warning: Could not unregister {cls.__name__}: {e}")
-    
-    print("[em_props] ✓ Unregistration complete")
+            print(f"[em_props] Warning: Could not unregister {cls.__name__}: {e}")

@@ -27,7 +27,7 @@ def sync_ui_list(context, human_name):
     for i, item in enumerate(em_list):
         if item.name == human_name:
             set_em_list_active_index(context, i)
-            print(f"   ✓ Selected UIList item: {item.name} (index {i})")
+            print(f"   Selected UIList item: {item.name} (index {i})")
             return True
     
     print(f"   ✗ Item not found in UIList with name: '{human_name}'")
@@ -55,7 +55,7 @@ def get_active_graph(context):
         if graph:
             return graph, graph_name
         else:
-            print(f"⚠️  3D GIS graph '{graph_name}' not found")
+            print(f"Warning: 3D GIS graph '{graph_name}' not found")
             return None, None
 
     # ✅ Modalità EM Advanced: usa grafo attivo
@@ -65,7 +65,7 @@ def get_active_graph(context):
         if graph:
             return graph, graphml.name
         else:
-            print(f"⚠️  Graph '{graphml.name}' not found")
+            print(f"Warning: Graph '{graphml.name}' not found")
             return None, None
 
     return None, None
@@ -109,13 +109,13 @@ def find_proxy_by_node_id(node_id, context):
     # Cerca negli oggetti della scena
     for obj in bpy.data.objects:
         if obj.name == prefixed_name:
-            print(f"   ✓ Found proxy by name: {obj.name}")
+            print(f"   Found proxy by name: {obj.name}")
             return obj
     
     # Fallback: controlla anche la proprietà node_id (senza prefisso)
     for obj in bpy.data.objects:
         if obj.get('node_id') == node_id:
-            print(f"   ✓ Found proxy by node_id property: {obj.name}")
+            print(f"   Found proxy by node_id property: {obj.name}")
             return obj
     
     print(f"   ✗ Proxy not found for node_id: {node_id}")
@@ -149,7 +149,7 @@ def find_node_id_from_proxy(proxy_obj, context, verbose=False):
     # ✅ Controlla cache
     if human_name in _node_cache:
         if verbose:
-            print(f"   ✓ Found in cache: '{human_name}' → '{_node_cache[human_name]}'")
+            print(f"   Found in cache: '{human_name}' → '{_node_cache[human_name]}'")
         return _node_cache[human_name]
 
     # Cerca nel grafo (graph già caricato sopra)
@@ -160,7 +160,7 @@ def find_node_id_from_proxy(proxy_obj, context, verbose=False):
             _node_cache[human_name] = node.node_id
             
             if verbose:
-                print(f"   ✓ Found node: name='{node.name}', UUID='{node.node_id}' (cached)")
+                print(f"   Found node: name='{node.name}', UUID='{node.node_id}' (cached)")
             
             return node.node_id
     
@@ -191,7 +191,7 @@ def get_connection_rules():
         from s3dgraphy.graph import connection_rules
         return connection_rules
     except ImportError as e:
-        print(f"⚠️  Could not import connection_rules from s3dgraphy: {e}")
+        print(f"Warning: Could not import connection_rules from s3dgraphy: {e}")
         return []
 
 def get_edge_types():

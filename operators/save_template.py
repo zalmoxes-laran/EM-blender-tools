@@ -181,9 +181,57 @@ class EMTOOLS_OT_save_em_paradata_template(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class EMTOOLS_OT_save_em_data_template(bpy.types.Operator):
+    """Save the unified em_data.xlsx template to disk"""
+    bl_idname = "emtools.save_em_data_template"
+    bl_label = "Save em_data.xlsx Template"
+    bl_description = (
+        "Save the StratiMiner unified Excel template "
+        "(em_data_template.xlsx — 5 typed sheets: Units, Epochs, Claims, "
+        "Authors, Documents) to a chosen directory. Fill it by hand or "
+        "use it as reference for the AI-extracted output"
+    )
+    bl_options = {'REGISTER'}
+
+    directory: bpy.props.StringProperty(
+        subtype='DIR_PATH',
+        description="Directory to save the template"
+    )  # type: ignore
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        if not self.directory:
+            self.report({'ERROR'}, "No directory selected")
+            return {'CANCELLED'}
+
+        # The unified template lives inside s3dgraphy at
+        # s3dgraphy/templates/em_data_template.xlsx (shipped with the
+        # library, not regenerated here).
+        try:
+            import s3dgraphy
+            pkg_dir = os.path.dirname(s3dgraphy.__file__)
+            src = os.path.join(pkg_dir, "templates", "em_data_template.xlsx")
+            if not os.path.exists(src):
+                self.report({'ERROR'},
+                            f"Template not found at {src}. "
+                            "Ensure s3dgraphy is installed correctly.")
+                return {'CANCELLED'}
+            dest = os.path.join(self.directory, "em_data_template.xlsx")
+            shutil.copy2(src, dest)
+            self.report({'INFO'}, f"Template saved to: {dest}")
+            return {'FINISHED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to save template: {e}")
+            return {'CANCELLED'}
+
+
 classes = (
     EMTOOLS_OT_save_stratigraphy_template,
     EMTOOLS_OT_save_em_paradata_template,
+    EMTOOLS_OT_save_em_data_template,
 )
 
 

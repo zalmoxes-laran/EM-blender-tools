@@ -169,8 +169,8 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             if settings['mode'] == '3DGIS':
                 graph.graph_id = "3dgis_graph"
                 multi_graph_manager.graphs["3dgis_graph"] = graph
-                print(f"✅ EM-tools: Registered graph '3dgis_graph' after import")
-                print(f"✅ Nodes in graph: {len(graph.nodes)}")
+                print(f"EM-tools: Registered graph '3dgis_graph' after import")
+                print(f"Nodes in graph: {len(graph.nodes)}")
             
             # 8. METADATA
             self._set_graph_metadata(settings, graph)
@@ -209,7 +209,7 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
         
         if hardcoded_name in multi_graph_manager.graphs:
             multi_graph_manager.remove_graph(hardcoded_name)
-            print(f"🗑️ EM-tools: Removed existing 3D GIS graph '{hardcoded_name}'")
+            print(f"EM-tools: Removed existing 3D GIS graph '{hardcoded_name}'")
         
         clear_lists(context)
         print("🧹 EM-tools: Cleared Blender lists for clean 3D GIS import")
@@ -229,11 +229,11 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             if not existing_graph:
                 self.report({'ERROR'}, f"GraphML graph '{graphml.name}' not found")
                 return None
-            print(f"✅ EM-tools: Using existing graph '{graphml.name}' for EM_ADVANCED")
+            print(f"EM-tools: Using existing graph '{graphml.name}' for EM_ADVANCED")
             return existing_graph
         else:
             # 3DGIS: ritorna None, l'importer creerà il grafo
-            print(f"✅ EM-tools: Importer will create new graph for 3DGIS")
+            print(f"EM-tools: Importer will create new graph for 3DGIS")
             return None
     
     def _create_importer(self, settings, graph_to_use):
@@ -271,7 +271,7 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
         graph.attributes['source_file'] = str(settings['filepath'])
         graph.attributes['import_type'] = settings['import_type']
         
-        print(f"✅ EM-tools: Set metadata on graph '{graph.graph_id}'")
+        print(f"EM-tools: Set metadata on graph '{graph.graph_id}'")
     
     def _handle_import_results(self, context, settings, graph):
         """Handle post-import processing"""

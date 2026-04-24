@@ -2,10 +2,20 @@
   "major": 1,
   "minor": 5,
   "patch": 0,
-  "dev_build": 139,
+  "dev_build": 144,
   "rc_build": 1,
   "mode": "dev",
   "description": "Version configuration for EM Tools",
+  "docs": {
+    "em_tools": {
+      "version": "1.5.0",
+      "url_base": "https://docs.extendedmatrix.org/projects/EM-tools/en/"
+    },
+    "em": {
+      "version": "1.5",
+      "url_base": "https://docs.extendedmatrix.org/en/"
+    }
+  },
   "changelog": {
     "1.5.0-dev.xxx": [
       "xxx",

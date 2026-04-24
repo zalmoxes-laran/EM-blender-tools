@@ -1,0 +1,2054 @@
+# export_operators/heriverse/operator.py
+"""Monolithic Heriverse export operator (EXPORT_OT_heriverse).
+
+This class is intentionally kept as a single large operator for now: its
+methods are tightly coupled via shared state. Splitting it further is a
+separate concern.
+"""
+
+import os
+import shutil
+import uuid
+
+import bpy
+from bpy.props import BoolProperty, IntProperty, StringProperty
+from bpy.types import Operator
+
+from s3dgraphy import get_graph, get_all_graph_ids
+from s3dgraphy.exporter.json_exporter import JSONExporter
+from s3dgraphy.nodes.link_node import LinkNode
+from s3dgraphy.nodes.representation_node import RepresentationModelDocNode
+
+from ...functions import *
+from ...graph_updaters import *
+from ...us_types import ALL_US_TYPES
+
+from .utils import clean_filename, find_layer_collection, get_collection_for_object
+from .gltf import export_gltf_with_animation_support
+
+
+class EXPORT_OT_heriverse(Operator):
+    """Export project in Heriverse format"""
+    bl_idname = "export.heriverse"
+    bl_label = "Export Heriverse Project"
+    bl_description = "Export project in Heriverse format with models, proxies and documentation"
+    bl_options = {'REGISTER', 'UNDO'}
+
+
+    def get_stratigraphic_names_from_graphs(self, context, export_all_graphs=False):
+        """
+        Ottiene i nomi di tutti i nodi stratigrafici dai grafi caricati.
+        Considera solo i grafi pubblicabili se export_all_graphs è True.
+        
+        Args:
+            context: Blender context
+            export_all_graphs: Se True, esporta da tutti i grafi pubblicabili, altrimenti solo da quello attivo
+            
+        Returns:
+            set: Set di nomi di nodi stratigrafici
+        """
+        from s3dgraphy import get_graph, get_all_graph_ids
+        
+        stratigraphic_names = set()
+        
+        if export_all_graphs:
+            # Itera su tutti i grafi caricati, ma considera solo quelli pubblicabili
+            em_tools = context.scene.em_tools
+            
+            published_graph_ids = []
+            for graphml_item in em_tools.graphml_files:
+                # Controlla se il grafo è pubblicabile
+                is_publishable = getattr(graphml_item, 'is_publishable', True)  # Default True se proprietà mancante
+                if is_publishable:
+                    published_graph_ids.append(graphml_item.name)
+            
+            print(f"Found {len(published_graph_ids)} publishable graphs: {published_graph_ids}")
+            
+            for graph_id in published_graph_ids:
+                graph = get_graph(graph_id)
+                if graph:
+                    names = self._extract_stratigraphic_names_from_graph(graph)
+                    stratigraphic_names.update(names)
+                    print(f"Graph '{graph_id}': found {len(names)} stratigraphic nodes")
+        else:
+            # Solo il grafo attivo
+            em_tools = context.scene.em_tools
+            if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
+                graphml = em_tools.graphml_files[em_tools.active_file_index]
+                graph = get_graph(graphml.name)
+                if graph:
+                    names = self._extract_stratigraphic_names_from_graph(graph)
+                    stratigraphic_names.update(names)
+                    print(f"Active graph '{graphml.name}': found {len(names)} stratigraphic nodes")
+            else:
+                print("No active graph found")
+        
+        return stratigraphic_names
+
+    def _extract_stratigraphic_names_from_graph(self, graph):
+        """
+        Estrae i nomi dei nodi stratigrafici da un singolo grafo usando gli indici.
+        
+        Args:
+            graph: Il grafo s3dgraphy
+            
+        Returns:
+            list: Lista di nomi di nodi stratigrafici
+        """
+        stratigraphic_names = []
+        
+        # Tipi di nodi stratigrafici da cercare
+        stratigraphic_types = ALL_US_TYPES
+
+        # Usa gli indici per rapidità
+        indices = graph.indices
+
+        for node_type in stratigraphic_types:
+            if node_type in indices.nodes_by_type:
+                nodes = indices.nodes_by_type[node_type]
+                for node in nodes:
+                    stratigraphic_names.append(node.name)
+        
+        return stratigraphic_names
+
+
+    def export_proxies(self, context, export_folder):
+        """Export proxy models"""
+        scene = context.scene
+        export_vars = context.window_manager.export_vars
+
+        # Get the active graph
+        graph = None
+        em_tools = context.scene.em_tools
+        if em_tools.active_file_index >= 0 and len(em_tools.graphml_files) > 0:
+            graphml = em_tools.graphml_files[em_tools.active_file_index]
+            graph = get_graph(graphml.name)
+
+        # Store original collection states
+        collection_states = {}
+        for collection in bpy.data.collections:
+            layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+            if layer_collection:
+                collection_states[collection.name] = {
+                    'exclude': layer_collection.exclude,
+                    'hide_viewport': collection.hide_viewport
+                }
+
+        # Store original object states
+        object_states = {}
+        for ob in bpy.data.objects:
+            if ob.type == 'MESH':
+                object_states[ob.name] = {
+                    'hide_viewport': ob.hide_viewport,
+                    'hide_select': ob.hide_select
+                }
+
+        try:
+            # Make all collections visible
+            for collection in bpy.data.collections:
+                layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+                if layer_collection:
+                    layer_collection.exclude = False
+                collection.hide_viewport = False
+
+            # Make all objects visible and selectable
+            for ob in bpy.data.objects:
+                if ob.type == 'MESH':
+                    ob.hide_viewport = False
+                    ob.hide_select = False
+
+            # Deseleziona tutto prima di iniziare
+            bpy.ops.object.select_all(action='DESELECT')
+
+            # ⭐ MODIFICA PRINCIPALE: Usa i nomi dai grafi invece di em_list
+            has_multiple_graphs = len(em_tools.graphml_files) > 1
+
+            stratigraphic_names = self.get_stratigraphic_names_from_graphs(
+                context,
+                has_multiple_graphs  # True se multigrafo, False se singolo grafo
+            )
+
+            print(f"Found {len(stratigraphic_names)} stratigraphic nodes across graphs")
+            
+            exported_count = 0
+            skipped_count = 0
+
+            # Debug: Lista tutti gli oggetti mesh disponibili
+            all_mesh_objects = [obj.name for obj in bpy.data.objects if obj.type == 'MESH']
+            print(f"Available mesh objects in scene: {len(all_mesh_objects)}")
+
+            # ✅ OPTIMIZATION: Add progress bar for long export operations
+            wm = context.window_manager
+            total_proxies = len(stratigraphic_names)
+            wm.progress_begin(0, total_proxies)
+            print(f"\n[EXPORT] Starting export of {total_proxies} proxies with progress bar...")
+
+            for idx, name in enumerate(stratigraphic_names):
+                # Update progress bar (shows current/total in status bar)
+                wm.progress_update(idx)
+                print(f"\n[{idx+1}/{total_proxies}] Processing: {name}")
+                # Try exact match first
+                proxy = bpy.data.objects.get(name)
+
+                # If not found, try finding object with name ending with ".{stratigraphic_name}"
+                # This handles cases where proxy has graph prefix (e.g., "DEMO25.US02")
+                if not proxy:
+                    suffix = f".{name}"
+                    matching_objects = [obj for obj in bpy.data.objects
+                                       if obj.type == 'MESH' and obj.name.endswith(suffix)]
+
+                    if matching_objects:
+                        # If multiple matches, take the first one
+                        proxy = matching_objects[0]
+                        if len(matching_objects) > 1:
+                            print(f"  Warning: Multiple proxies found for '{name}': {[o.name for o in matching_objects]}")
+                            print(f"           Using: {proxy.name}")
+
+                # Debug dettagliato
+                if not proxy:
+                    print(f"  Proxy '{name}': NOT FOUND in scene (tried exact match and '*.{name}')")
+                    skipped_count += 1
+                    continue
+
+                if proxy.type != 'MESH':
+                    print(f"  Proxy '{proxy.name}': Found but not a MESH (type: {proxy.type})")
+                    skipped_count += 1
+                    continue
+
+                # Verifica se il proxy è pubblicabile (usa il nome reale dell'oggetto)
+                is_publishable = True
+                if hasattr(context.scene, 'rm_list'):
+                    for rm_item in context.scene.rm_list:
+                        if rm_item.name == proxy.name:  # Use actual object name, not stratigraphic name
+                            is_publishable = rm_item.is_publishable
+                            break
+
+                if not is_publishable:
+                    print(f"  Proxy '{proxy.name}': Not publishable, skipping")
+                    skipped_count += 1
+                    continue
+
+                print(f"  Proxy '{proxy.name}': Found and ready to export (strat node: '{name}')")
+
+                proxy.select_set(True)
+                # Use stratigraphic name for export filename (without graph prefix)
+                clean_name = clean_filename(name)
+                export_file = os.path.join(export_folder, clean_name)
+
+                try:
+                    export_gltf_with_animation_support(
+                        filepath=export_file,
+                        export_vars=export_vars,
+                        scene=scene,
+                        use_selection=True,
+                        format_file='GLB'
+                    )
+                    exported_count += 1
+                    print(f"  Successfully exported proxy: {clean_name}.glb")
+
+                    # Update SemanticShapeNode URL and create LinkNode in the graph
+                    # (SemanticShapeNode should already exist from update_graph_with_scene_data)
+                    if graph:
+                        from s3dgraphy.nodes.semantic_shape_node import SemanticShapeNode
+
+                        # Find the existing SemanticShapeNode
+                        shape_node_id = f"{name}_shape"
+                        shape_node = graph.find_node_by_id(shape_node_id)
+
+                        if shape_node:
+                            # Update URL (should already be set, but update to be sure)
+                            shape_node.set_url(f"proxies/{clean_name}.glb")
+                            print(f"    Updated SemanticShape URL: {shape_node_id}")
+
+                            # Create LinkNode for the proxy (this is created only at export)
+                            link_node_id = f"{shape_node_id}_link"
+                            link_node = graph.find_node_by_id(link_node_id)
+
+                            if not link_node:
+                                link_node = LinkNode(
+                                    node_id=link_node_id,
+                                    name=f"Proxy Link for {name}",
+                                    description=f"Link to exported proxy for {name}",
+                                    url=f"proxies/{clean_name}.glb",
+                                    url_type="3d_model"
+                                )
+                                graph.add_node(link_node)
+                                print(f"    Created Link node: {link_node_id}")
+                            else:
+                                link_node.url = f"proxies/{clean_name}.glb"
+                                print(f"    Updated Link node: {link_node_id}")
+
+                            # Create edge between semantic shape and link node
+                            edge_id = str(uuid.uuid4())
+                            if not graph.find_edge_by_id(edge_id):
+                                graph.add_edge(
+                                    edge_id=edge_id,
+                                    edge_source=shape_node_id,
+                                    edge_target=link_node_id,
+                                    edge_type="has_linked_resource"
+                                )
+                                print(f"    Created edge: {shape_node_id} -> {link_node_id}")
+                        else:
+                            print(f"    Warning: SemanticShape node '{shape_node_id}' not found (should have been created by update_graph_with_scene_data)")
+
+                except Exception as e:
+                    print(f"  Failed to export proxy {name}: {str(e)}")
+                    self.report({'WARNING'}, f"Failed to export proxy {name}: {str(e)}")
+
+                proxy.select_set(False)
+
+            # ✅ End progress bar
+            wm.progress_end()
+
+            print(f"\nProxy export summary:")
+            print(f"  - Total stratigraphic nodes: {len(stratigraphic_names)}")
+            print(f"  - Successfully exported: {exported_count}")
+            print(f"  - Skipped: {skipped_count}")
+
+            self.report({'INFO'}, f"Exported {exported_count} proxies")
+            return exported_count > 0
+            
+        finally:
+            # Restore original collection states
+            for collection_name, state in collection_states.items():
+                collection = bpy.data.collections.get(collection_name)
+                if collection:
+                    layer_collection = find_layer_collection(context.view_layer.layer_collection, collection_name)
+                    if layer_collection:
+                        layer_collection.exclude = state['exclude']
+                    collection.hide_viewport = state['hide_viewport']
+            
+            # Restore original object states
+            for object_name, state in object_states.items():
+                obj = bpy.data.objects.get(object_name)
+                if obj:
+                    obj.hide_viewport = state['hide_viewport']
+                    obj.hide_select = state['hide_select']
+
+    # Function to export tilesets
+    def export_tilesets(self, context, export_folder):
+        """Export Cesium tileset files"""
+        print("\n--- Exporting Cesium Tilesets ---")
+        
+        # Create tilesets directory if it doesn't exist
+        os.makedirs(export_folder, exist_ok=True)
+        
+        # Get export variables
+        export_vars = context.window_manager.export_vars
+        
+        # Ottieni il grafo attivo
+        graph = None
+        if hasattr(context.scene, 'em_tools') and context.scene.em_tools.active_file_index >= 0:
+            graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+            graph = get_graph(graphml.name)
+        
+        # Find all tileset objects
+        tileset_objects = [obj for obj in bpy.data.objects if "tileset_path" in obj]
+        
+        # If no tilesets, return early
+        if not tileset_objects:
+            print("No tileset objects found in scene")
+            return 0
+        
+        exported_count = 0
+        skipped_count = 0
+        
+        # Process each tileset
+        for obj in tileset_objects:
+            # Verifica se l'oggetto è pubblicabile
+            is_publishable = True
+            for rm_item in context.scene.rm_list:
+                if rm_item.name == obj.name:
+                    is_publishable = rm_item.is_publishable
+                    break
+            
+            if not is_publishable:
+                print(f"Skipping tileset {obj.name} (not publishable)")
+                continue
+                
+            try:
+                tileset_path = obj["tileset_path"]
+                if not tileset_path:
+                    print(f"Skipping tileset {obj.name} (empty path)")
+                    continue
+                    
+                # Percorso assoluto
+                abs_path = bpy.path.abspath(tileset_path)
+                
+                if not os.path.exists(abs_path):
+                    self.report({'WARNING'}, f"Tileset file not found: {abs_path}")
+                    continue
+                    
+                # Nome del file senza estensione
+                filename = os.path.basename(abs_path)
+                tileset_name = os.path.splitext(filename)[0]
+                
+                # Crea directory per questo tileset
+                tileset_dir = os.path.join(export_folder, tileset_name)
+                os.makedirs(tileset_dir, exist_ok=True)
+                
+                # Verifica se il tileset è già stato estratto
+                tileset_json_path = os.path.join(tileset_dir, "tileset.json")
+                tileset_extracted = False
+                
+                if export_vars.heriverse_skip_extracted_tilesets and os.path.exists(tileset_json_path):
+                    print(f"Skipping extraction of tileset '{filename}' (already extracted)")
+                    skipped_count += 1
+                    tileset_extracted = True
+                else:
+                    # Estrai il file ZIP
+                    print(f"Extracting tileset '{filename}' - this may take some time...")
+                    import zipfile
+                    with zipfile.ZipFile(abs_path, 'r') as zip_ref:
+                        zip_ref.extractall(tileset_dir)
+                    print(f"Extracted tileset: {obj.name} -> {tileset_dir}")
+                    exported_count += 1
+                    tileset_extracted = True
+                
+                # Se il tileset è stato estratto correttamente (o era già estratto),
+                # aggiorna o crea il nodo Link nel grafo
+                if tileset_extracted and graph:
+                    model_node_id = f"{obj.name}_model"
+                    model_node = graph.find_node_by_id(model_node_id)
+                    
+                    if model_node:
+                        # Percorso relativo al tileset.json
+                        relative_tileset_path = f"tilesets/{tileset_name}/tileset.json"
+                        
+                        # Aggiorna l'URL nel nodo RM
+                        model_node.url = relative_tileset_path
+                        
+                        # Assicurati che ci sia la trasformazione per orientare correttamente il tileset
+                        if not hasattr(model_node, 'data'):
+                            model_node.data = {}
+
+                        model_node.transform = model_node.data.get('transform', {})
+                        model_node.transform['rotation'] = ["-1.57079632679", "0.0", "0.0"]
+                        model_node.data['transform'] = model_node.transform
+                        
+                        # Crea o aggiorna il nodo Link
+                        link_node_id = str(uuid.uuid4())
+                        link_node = LinkNode(
+                            node_id=link_node_id,
+                            name=f"Tileset Link for {obj.name}",
+                            description=f"Link to Cesium tileset for {obj.name}",
+                            url=relative_tileset_path,
+                            url_type="3d_model"
+                        )
+                        
+                        # Aggiungi o aggiorna il nodo nel grafo
+                        existing_link = graph.find_node_by_id(link_node_id)
+                        if existing_link:
+                            existing_link.url = relative_tileset_path
+                            print(f"Updated existing link node for tileset: {obj.name}")
+                        else:
+                            graph.add_node(link_node)
+                            print(f"Created new link node for tileset: {obj.name}")
+                            
+                            # Crea l'edge tra il nodo RM e il LinkNode
+                            edge_id =  str(uuid.uuid4())
+                            if not graph.find_edge_by_id(edge_id):
+                                graph.add_edge(
+                                    edge_id=edge_id,
+                                    edge_source=model_node_id,
+                                    edge_target=link_node_id,
+                                    edge_type="has_linked_resource"
+                                )
+                        
+            except Exception as e:
+                self.report({'WARNING'}, f"Failed to export tileset {obj.name}: {str(e)}")
+                import traceback
+                traceback.print_exc()
+
+        # Mostra un resoconto
+        if exported_count > 0 or skipped_count > 0:
+            self.report({'INFO'}, f"Tilesets: {exported_count} extracted, {skipped_count} skipped (already extracted)")
+        
+        return exported_count + skipped_count
+
+    # Miglioramento della funzione export_panorama
+    def export_panorama(self, context, project_path):
+        """Export default panorama (defsky.jpg) to the project"""
+        scene = context.scene
+        
+        if not scene.heriverse_export_panorama:
+            return False
+            
+        try:
+            # Create panorama directory
+            panorama_path = os.path.join(project_path, "panorama")
+            os.makedirs(panorama_path, exist_ok=True)
+            
+            # Get addon path to find resources
+            addon_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            resources_path = os.path.join(addon_path, "resources")
+            
+            # Cerca in diversi percorsi possibili per trovare defsky.jpg
+            possible_paths = [
+                os.path.join(resources_path, "panorama", "defsky.jpg"),
+                os.path.join(resources_path, "defsky.jpg"),
+                os.path.join(addon_path, "panorama", "defsky.jpg"),
+                os.path.join(addon_path, "defsky.jpg")
+            ]
+            
+            source_file = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    source_file = path
+                    break
+                    
+            if not source_file:
+                # Se non troviamo il file, creiamo un'immagine di segnaposto
+                self.report({'WARNING'}, "Default panorama file not found, creating placeholder")
+                
+                # Crea un'immagine vuota
+                img = bpy.data.images.new("defsky", 1024, 512)
+                img.filepath = os.path.join(panorama_path, "defsky.jpg")
+                img.file_format = 'JPEG'
+                img.save()
+                
+                return True
+                
+            # Copy the file
+            dest_file = os.path.join(panorama_path, "defsky.jpg")
+            shutil.copy2(source_file, dest_file)
+            print(f"Copied default panorama from {source_file} to {dest_file}")
+            return True
+            
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to export panorama: {str(e)}")
+            return False
+
+    def export_epoch_panoramas(self, context, project_path):
+        """Copy per-epoch HDR/panorama files into the project panorama folder.
+
+        Returns a dict mapping epoch name -> relative panorama path (e.g.
+        "panorama/my_hdr.hdr") for epochs that have custom lighting with a
+        valid file.  Epochs without custom lighting are not included.
+        """
+        scene = context.scene
+        epochs = scene.em_tools.epochs.list
+        panorama_dir = os.path.join(project_path, "panorama")
+        os.makedirs(panorama_dir, exist_ok=True)
+
+        epoch_pano_map = {}
+        for epoch in epochs:
+            if not epoch.epoch_lighting_enabled or not epoch.epoch_hdr_path:
+                continue
+            abs_path = bpy.path.abspath(epoch.epoch_hdr_path)
+            if not os.path.isfile(abs_path):
+                self.report({'WARNING'},
+                            f"Epoch '{epoch.name}': HDR file not found, skipping: {abs_path}")
+                continue
+            filename = os.path.basename(abs_path)
+            dest = os.path.join(panorama_dir, filename)
+            if not os.path.isfile(dest) or not os.path.samefile(abs_path, dest):
+                shutil.copy2(abs_path, dest)
+                print(f"Copied epoch panorama '{filename}' for epoch '{epoch.name}'")
+            epoch_pano_map[epoch.name] = f"panorama/{filename}"
+        return epoch_pano_map
+
+    def update_json_with_epoch_lighting(self, json_data, context):
+        """Inject per-epoch panorama/lighting data into the exported JSON.
+
+        For each epoch node in the JSON that has custom lighting configured in
+        Blender, adds panorama, panorama_rotation, and panorama_intensity
+        to its data dict.  Epochs without custom lighting are left untouched
+        (the consumer falls back to defaults.panorama).
+        """
+        scene = context.scene
+        epochs_bl = scene.em_tools.epochs.list
+
+        # Build lookup: epoch name -> Blender epoch item
+        bl_lookup = {ep.name: ep for ep in epochs_bl}
+
+        if 'graphs' not in json_data:
+            return json_data
+
+        for graph_id, graph_data in json_data['graphs'].items():
+            epoch_nodes = (graph_data.get('nodes') or {}).get('epochs')
+            if not epoch_nodes:
+                continue
+            for node_id, node_data in epoch_nodes.items():
+                node_name = node_data.get('name', '')
+                bl_epoch = bl_lookup.get(node_name)
+                if bl_epoch is None:
+                    continue
+                if not bl_epoch.epoch_lighting_enabled or not bl_epoch.epoch_hdr_path:
+                    continue
+                # Resolve relative path for the JSON
+                abs_path = bpy.path.abspath(bl_epoch.epoch_hdr_path)
+                if not os.path.isfile(abs_path):
+                    continue
+                filename = os.path.basename(abs_path)
+                if 'data' not in node_data:
+                    node_data['data'] = {}
+                node_data['data']['panorama'] = f"panorama/{filename}"
+                node_data['data']['panorama_rotation'] = bl_epoch.epoch_hdr_rotation
+                node_data['data']['panorama_intensity'] = bl_epoch.epoch_hdr_intensity
+
+        return json_data
+
+    def compress_textures_in_folder(self, folder_path, scene):
+        """
+        Compresses all textures in a folder and its subfolders in a single pass.
+        
+        Args:
+            folder_path (str): Path to the folder containing textures to compress
+            scene (bpy.types.Scene): Blender scene containing compression settings
+        """
+        if not scene.heriverse_enable_compression:
+            return
+            
+        # Import required libraries
+        import os
+        
+        try:
+            # Import Pillow
+            from PIL import Image
+            
+            print(f"\n=== Compressing all textures in {folder_path} ===")
+            
+            # Settings
+            max_res = scene.heriverse_texture_max_res
+            quality = scene.heriverse_texture_quality
+            
+            # Track statistics
+            total_processed = 0
+            total_resized = 0
+            total_size_before = 0
+            total_size_after = 0
+            
+            # Process all image files in the directory and subdirectories
+            for root, dirs, files in os.walk(folder_path):
+                for filename in files:
+                    if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.tga')):
+                        file_path = os.path.join(root, filename)
+                        
+                        try:
+                            # Get original file size
+                            file_size_before = os.path.getsize(file_path)
+                            total_size_before += file_size_before
+                            
+                            # Open the image with Pillow
+                            img = Image.open(file_path)
+                            
+                            # Check if resizing is needed
+                            width, height = img.size
+                            needs_resize = max(width, height) > max_res
+                            
+                            if needs_resize:
+                                # Calculate new dimensions while preserving aspect ratio
+                                if width > height:
+                                    new_width = max_res
+                                    new_height = int(height * (max_res / width))
+                                else:
+                                    new_height = max_res
+                                    new_width = int(width * (max_res / height))
+                                    
+                                # Use high-quality resampling
+                                img = img.resize((new_width, new_height), Image.LANCZOS)
+                                total_resized += 1
+                            
+                            # Save with appropriate format and compression
+                            if img.mode == 'RGBA' and filename.lower().endswith('.png'):
+                                # Save as PNG with compression for transparency
+                                img.save(file_path, 'PNG', optimize=True)
+                            else:
+                                # Convert to RGB if needed and save as JPEG
+                                if img.mode != 'RGB':
+                                    img = img.convert('RGB')
+                                img.save(file_path, 'JPEG', quality=quality, optimize=True)
+                            
+                            # Get new file size
+                            file_size_after = os.path.getsize(file_path)
+                            total_size_after += file_size_after
+                            
+                            total_processed += 1
+                            
+                        except Exception as e:
+                            print(f"Error processing {filename}: {str(e)}")
+            
+            # Calculate size reduction
+            size_reduction_mb = (total_size_before - total_size_after) / (1024 * 1024)
+            percentage_reduction = ((total_size_before - total_size_after) / total_size_before * 100) if total_size_before > 0 else 0
+            
+            print(f"Texture compression summary:")
+            print(f"- Total textures processed: {total_processed}")
+            print(f"- Textures resized: {total_resized}")
+            print(f"- Size before: {total_size_before / (1024 * 1024):.2f} MB")
+            print(f"- Size after: {total_size_after / (1024 * 1024):.2f} MB")
+            print(f"- Size reduction: {size_reduction_mb:.2f} MB ({percentage_reduction:.1f}%)")
+            
+            return total_processed
+            
+        except ImportError:
+            print("PIL (Pillow) library not available, skipping texture compression")
+            return 0
+        except Exception as e:
+            print(f"Error during texture compression: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return 0
+
+    # Modifica alla funzione export_rm per supportare GPU instances
+    def export_rm(self, context, export_folder):
+        """Export representation models with GPU instancing support"""
+        scene = context.scene
+        export_vars = context.window_manager.export_vars
+        
+        # Raggruppa gli oggetti per mesh condivisa
+        mesh_groups = {}
+        self.instanced_objects = set()
+        self.exported_models = {}
+
+        # Store original collection states
+        collection_states = {}
+        for collection in bpy.data.collections:
+            layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+            if layer_collection:
+                collection_states[collection.name] = {
+                    'exclude': layer_collection.exclude,
+                    'hide_viewport': collection.hide_viewport
+                }
+
+        # Store original object states
+        object_states = {}
+        for obj in bpy.data.objects:
+            if obj.type == 'MESH':
+                object_states[obj.name] = {
+                    'hide_viewport': obj.hide_viewport,
+                    'hide_select': obj.hide_select
+                }
+
+        try:
+            # Make all collections visible
+            for collection in bpy.data.collections:
+                layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+                if layer_collection:
+                    layer_collection.exclude = False
+                collection.hide_viewport = False
+
+            # Make all objects visible and selectable
+            for obj in bpy.data.objects:
+                if obj.type == 'MESH':
+                    obj.hide_viewport = False
+                    obj.hide_select = False
+
+            # Deseleziona tutto prima di iniziare
+            bpy.ops.object.select_all(action='DESELECT')
+
+            # Step 1: Raccogli tutti gli oggetti RM pubblicabili
+            publishable_rm_objects = []
+            for obj in bpy.data.objects:
+                # Skip oggetti che non sono mesh o non hanno epoche
+                if not (obj.type == 'MESH' and hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0):
+                    continue
+                    
+                # Skip se oggetto è un tileset
+                if "tileset_path" in obj:
+                    continue
+                    
+                # Skip se oggetto non è pubblicabile
+                is_publishable = True
+                for rm_item in scene.rm_list:
+                    if rm_item.name == obj.name:
+                        is_publishable = rm_item.is_publishable
+                        break
+                        
+                if not is_publishable:
+                    continue
+                    
+                publishable_rm_objects.append(obj)
+
+            # Step 2: Raggruppa per mesh condivisa (solo se GPU instancing è abilitato)
+            if export_vars.heriverse_use_gpu_instancing:
+                for obj in publishable_rm_objects:
+                    if obj.data:
+                        mesh_name = obj.data.name
+                        if mesh_name not in mesh_groups:
+                            mesh_groups[mesh_name] = []
+                        mesh_groups[mesh_name].append(obj)
+            else:
+                # Se GPU instancing è disabilitato, ogni oggetto va da solo
+                for obj in publishable_rm_objects:
+                    mesh_name = f"{obj.name}_unique"
+                    mesh_groups[mesh_name] = [obj]
+
+            print(f"Found {len(mesh_groups)} different meshes in {len(publishable_rm_objects)} publishable RM objects")
+
+            # Ottieni il grafo attivo
+            graph = None
+            if context.scene.em_tools.active_file_index >= 0:
+                graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+                graph = get_graph(graphml.name)
+
+            exported_count = 0
+
+            # Step 3: Process each group
+            for mesh_name, objects in mesh_groups.items():
+                if len(objects) == 1 or not export_vars.heriverse_use_gpu_instancing:
+                    # Single object, export normally
+                    obj = objects[0]
+                    try:
+                        # Ora non è più necessario gestire was_hidden perché tutti gli oggetti sono già visibili e selezionabili
+                        obj.select_set(True)
+                        export_file = os.path.join(export_folder, clean_filename(obj.name))
+
+                        export_gltf_with_animation_support(
+                            filepath=export_file,
+                            export_vars=export_vars,
+                            scene=scene,
+                            use_selection=True
+                        )
+
+                        # Crea o aggiorna il nodo Link
+                        if graph:
+                            model_node_id = f"{obj.name}_model"
+                            model_node = graph.find_node_by_id(model_node_id)
+                            
+                            if model_node:
+                                # Percorso relativo per l'export
+                                gltf_path = f"models/{clean_filename(obj.name)}.gltf"
+                                
+                                # Crea un nuovo LinkNode
+                                link_node_id = str(uuid.uuid4())
+                                link_node = LinkNode(
+                                    node_id=link_node_id,
+                                    name=f"GLTF Link for {obj.name}",
+                                    description=f"Link to exported GLTF for {obj.name}",
+                                    url=gltf_path,
+                                    url_type="3d_model"
+                                )
+                                
+                                # Aggiungi o aggiorna il nodo nel grafo
+                                existing_link = graph.find_node_by_id(link_node_id)
+                                if existing_link:
+                                    existing_link.url = gltf_path
+                                else:
+                                    graph.add_node(link_node)
+                                    
+                                    # Crea l'edge tra il nodo RM e il LinkNode
+                                    edge_id = str(uuid.uuid4())
+                                    if not graph.find_edge_by_id(edge_id):
+                                        graph.add_edge(
+                                            edge_id=edge_id,
+                                            edge_source=model_node_id,
+                                            edge_target=link_node_id,
+                                            edge_type="has_linked_resource"
+                                        )
+
+                        # Deselect object
+                        obj.select_set(False)
+                        
+                        exported_count += 1
+                        print(f"Exported RM: {obj.name}")
+                        
+                    except Exception as e:
+                        self.report({'WARNING'}, f"Failed to export RM {obj.name}: {str(e)}")
+                        obj.select_set(False)
+
+                elif len(objects) > 1 and export_vars.heriverse_use_gpu_instancing:
+                    # Multiple objects with same mesh - instancing enabled
+                    try:
+                        # Step 3.1: Deselect all
+                        bpy.ops.object.select_all(action='DESELECT')
+                        
+                        # Step 3.2: Find most suitable primary object for this group
+                        # Preferisci oggetti con nomi più corti o senza numeri alla fine
+                        sorted_objects = sorted(objects, key=lambda obj: (len(obj.name), obj.name))
+                        primary_obj = sorted_objects[0]
+                        
+                        # Step 3.3: Non è più necessario gestire hide_viewport perché tutti gli oggetti sono già visibili
+                        
+                        # Step 3.4: Seleziona e imposta active l'oggetto primario
+                        primary_obj.select_set(True)
+                        bpy.context.view_layer.objects.active = primary_obj
+                        
+                        # Step 3.5: Seleziona gli altri oggetti nel gruppo
+                        for obj in objects:
+                            if obj != primary_obj:
+                                obj.select_set(True)
+                                # Aggiungi alla lista di oggetti istanziati
+                                self.instanced_objects.add(obj.name)
+                        
+                        # Step 3.6: Prepara il nome del file
+                        export_file = os.path.join(export_folder, clean_filename(primary_obj.name))
+                        
+                        # Step 3.7: Export with instancing enabled
+                        export_gltf_with_animation_support(
+                            filepath=export_file,
+                            export_vars=export_vars,
+                            scene=scene,
+                            use_selection=True,
+                            export_extras=True,
+                            export_gpu_instances=True
+                        )
+
+                        # Crea o aggiorna il nodo Link per l'oggetto primario
+                        if graph:
+                            model_node_id = f"{primary_obj.name}_model"
+                            model_node = graph.find_node_by_id(model_node_id)
+                            
+                            if model_node:
+                                # Percorso relativo per l'export
+                                gltf_path = f"models/{clean_filename(primary_obj.name)}.gltf"
+                                
+                                # Crea un nuovo LinkNode
+                                link_node_id = str(uuid.uuid4())
+                                link_node = LinkNode(
+                                    node_id=link_node_id,
+                                    name=f"GLTF Link for {primary_obj.name}",
+                                    description=f"Link to exported GLTF for {primary_obj.name}",
+                                    url=gltf_path,
+                                    url_type="3d_model"
+                                )
+                                
+                                # Aggiungi o aggiorna il nodo nel grafo
+                                existing_link = graph.find_node_by_id(link_node_id)
+                                if existing_link:
+                                    existing_link.url = gltf_path
+                                else:
+                                    graph.add_node(link_node)
+                                    
+                                    # Crea l'edge tra il nodo RM e il LinkNode
+                                    edge_id = str(uuid.uuid4())
+                                    if not graph.find_edge_by_id(edge_id):
+                                        graph.add_edge(
+                                            edge_id=edge_id,
+                                            edge_source=model_node_id,
+                                            edge_target=link_node_id,
+                                            edge_type="has_linked_resource"
+                                        )
+                        
+                        # Step 3.8: Registra il gruppo di istanze per l'esportazione JSON
+                        self.exported_models[primary_obj.name] = [obj.name for obj in objects]
+                        
+                        print(f"Exported instanced group: {primary_obj.name} with {len(objects)} instances")
+                        exported_count += 1
+                        
+                    except Exception as e:
+                        self.report({'WARNING'}, f"Failed to export instanced group {mesh_name}: {str(e)}")
+                        import traceback
+                        traceback.print_exc()
+                    
+                    finally:
+                        # Deselect all objects in group
+                        for obj in objects:
+                            obj.select_set(False)
+
+            # Compress textures if enabled
+            if exported_count > 0 and scene.heriverse_enable_compression:
+                self.compress_textures_in_folder(export_folder, scene)
+                print(f"Compressed textures for {exported_count} RM models")
+
+            self.report({'INFO'}, f"Exported {exported_count} RM models")
+            return exported_count > 0
+
+        finally:
+            # Restore original collection states
+            for collection_name, state in collection_states.items():
+                collection = bpy.data.collections.get(collection_name)
+                if collection:
+                    layer_collection = find_layer_collection(context.view_layer.layer_collection, collection_name)
+                    if layer_collection:
+                        layer_collection.exclude = state['exclude']
+                    collection.hide_viewport = state['hide_viewport']
+
+            # Restore original object states
+            for object_name, state in object_states.items():
+                obj = bpy.data.objects.get(object_name)
+                if obj:
+                    obj.hide_viewport = state['hide_viewport']
+                    obj.hide_select = state['hide_select']
+
+    def get_y_up_transform():
+        """Returns the standard transform for converting z-up to y-up models"""
+        return {
+            "position": ["0.0", "0.0", "0.0"],
+            "rotation": ["-1.57079632679", "0.0", "0.0"],  # -90 degrees in radians around X axis
+            "scale": ["1.0", "1.0", "1.0"]
+        }
+
+    def export_paradata_objects(self, context, export_folder):
+        """Export paradata objects (documents, extractors, combiners) as RMDoc"""
+        scene = context.scene
+        export_vars = context.window_manager.export_vars
+        
+        # Se l'export degli RMDoc non è abilitato, esci
+        if not export_vars.heriverse_export_rmdoc:
+            return 0
+        
+        # Store original collection states
+        collection_states = {}
+        for collection in bpy.data.collections:
+            # Get the layer collection
+            layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+            if layer_collection:
+                collection_states[collection.name] = {
+                    'exclude': layer_collection.exclude,
+                    'hide_viewport': collection.hide_viewport
+                }
+        
+        # Store original object states
+        object_states = {}
+        for ob in bpy.data.objects:
+            if ob.type == 'MESH':
+                object_states[ob.name] = {
+                    'hide_viewport': ob.hide_viewport,
+                    'hide_select': ob.hide_select
+                }
+        
+        try:
+            # Make all collections visible
+            for collection in bpy.data.collections:
+                layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+                if layer_collection:
+                    layer_collection.exclude = False
+                collection.hide_viewport = False
+            
+            # Make all objects visible and selectable
+            for ob in bpy.data.objects:
+                if ob.type == 'MESH':
+                    ob.hide_viewport = False
+                    ob.hide_select = False
+        
+            # Ottieni il grafo attivo
+            graph = None
+            if context.scene.em_tools.active_file_index >= 0:
+                graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+                graph = get_graph(graphml.name)
+            
+            if not graph:
+                return 0
+            
+            # Deseleziona tutto prima di iniziare
+            bpy.ops.object.select_all(action='DESELECT')
+            
+            # Conta elementi esportati
+            exported_count = 0
+            
+            # Lista di nodi paradata da controllare
+            paradata_nodes = []
+            # ✅ OPTIMIZATION: Use s3dgraphy indices instead of iterating graph.nodes 3 times
+            # Single lookup for each type using indices (O(1) per type)
+            paradata_nodes.extend(graph.indices.nodes_by_type.get('document', []))
+            paradata_nodes.extend(graph.indices.nodes_by_type.get('extractor', []))
+            paradata_nodes.extend(graph.indices.nodes_by_type.get('combiner', []))
+            
+            # Memorizza oggetto attivo originale
+            original_active = context.view_layer.objects.active
+            
+            # Per ogni nodo paradata, controlla se esiste un oggetto corrispondente
+            for paradata_node in paradata_nodes:
+                obj = bpy.data.objects.get(paradata_node.name)
+                
+                if obj and obj.type == 'MESH':
+                    try:
+                        # Salva lo stato dell'oggetto
+                        was_hidden = obj.hide_viewport
+                        was_select = obj.hide_select
+                        
+                        # Assicurati che l'oggetto sia visibile e selezionabile
+                        obj.hide_viewport = False
+                        obj.hide_select = False
+                        
+                        # Salva la trasformazione originale
+                        original_location = obj.location.copy()
+                        original_rotation = obj.rotation_euler.copy() if obj.rotation_mode == 'XYZ' else obj.rotation_quaternion.copy()
+                        original_rotation_mode = obj.rotation_mode
+                        original_scale = obj.scale.copy()
+                        
+                        # Seleziona l'oggetto e rendilo attivo
+                        obj.select_set(True)
+                        context.view_layer.objects.active = obj
+                        
+                        # Salva la trasformazione per il nodo RMDoc
+                        # Converti in stringhe per memorizzazione nel nodo
+                        transform = {
+                            "position": [f"{original_location.x}", f"{original_location.y}", f"{original_location.z}"],
+                            "rotation": [],
+                            "scale": [f"{original_scale.x}", f"{original_scale.y}", f"{original_scale.z}"]
+                        }
+                        
+                        # Gestisci la rotazione in base alla modalità
+                        if original_rotation_mode == 'XYZ':
+                            transform["rotation"] = [f"{original_rotation.x}", f"{original_rotation.y}", f"{original_rotation.z}"]
+                        else:
+                            # Converti quaternione in euler per il nodo
+                            euler = original_rotation.to_euler('XYZ')
+                            transform["rotation"] = [f"{euler.x}", f"{euler.y}", f"{euler.z}"]
+                        
+                        # Azzera le trasformazioni per l'esportazione
+                        obj.location = (0, 0, 0)
+                        if obj.rotation_mode == 'XYZ':
+                            obj.rotation_euler = (0, 0, 0)
+                        else:
+                            obj.rotation_quaternion = (1, 0, 0, 0)
+                        obj.scale = (1, 1, 1)
+                        
+                        # Applica la trasformazione per sicurezza
+                        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+                        
+                        # Prepara il nome file
+                        export_file = os.path.join(export_folder, clean_filename(obj.name))
+                        
+                        # Convert any non-Principled BSDF materials before export
+                        materials_converted = []
+                        for mat_slot in obj.material_slots:
+                            if mat_slot.material:
+                                if convert_material_to_principled(mat_slot.material):
+                                    materials_converted.append(mat_slot.material.name)
+                                    
+                        if materials_converted:
+                            print(f"Converted materials to Principled BSDF for {obj.name}: {', '.join(materials_converted)}")
+
+                        # Esporta come GLTF
+                        
+                        export_gltf_with_animation_support(
+                            filepath=export_file,
+                            export_vars=export_vars,
+                            scene=scene,
+                            use_selection=True
+                        )
+
+                        # Crea nodo RMDoc e LinkNode se il grafo è disponibile
+                        if graph:
+
+                            # Percorso relativo per l'export
+                            gltf_path = f"models_docs/{clean_filename(obj.name)}.gltf"
+                            
+                            # ID del nodo RMDoc
+                            rmdoc_node_id = str(uuid.uuid4())
+                            
+                            # Verifica se il nodo RMDoc esiste già
+                            rmdoc_node = graph.find_node_by_id(rmdoc_node_id)
+                            if not rmdoc_node:
+                                # Crea il nodo RMDoc con la trasformazione salvata
+                                rmdoc_node = RepresentationModelDocNode(
+                                    node_id=rmdoc_node_id,
+                                    name=f"RM for {paradata_node.name}",
+                                    type="RM",
+                                    transform=transform,
+                                    description=f"Representation model for {paradata_node.node_type} {paradata_node.name}"
+                                )
+                                
+                                # Imposta l'URL nel dizionario data
+                                rmdoc_node.data["url"] = gltf_path
+                                
+                                # Aggiungi al grafo
+                                graph.add_node(rmdoc_node)
+                                
+                                # Collega il nodo RMDoc al nodo paradata
+                                edge_id = str(uuid.uuid4())
+                                if not graph.find_edge_by_id(edge_id):
+                                    graph.add_edge(
+                                        edge_id=edge_id,
+                                        edge_source=paradata_node.node_id,
+                                        edge_target=rmdoc_node_id,
+                                        edge_type="has_representation_model_doc"
+                                    )
+                            else:
+                                # Aggiorna il nodo esistente
+                                rmdoc_node.transform = transform
+                                rmdoc_node.data["transform"] = transform
+                                rmdoc_node.data["url"] = gltf_path
+                            
+                            # Crea o aggiorna il nodo Link
+                            link_node_id = f"{rmdoc_node_id}_link"
+                            link_node = LinkNode(
+                                node_id=link_node_id,
+                                name=f"GLTF Link for {paradata_node.name}",
+                                description=f"Link to exported GLTF for {paradata_node.node_type} {paradata_node.name}",
+                                url=gltf_path,
+                                url_type="3d_model"
+                            )
+                            
+                            # Aggiungi o aggiorna il nodo nel grafo
+                            existing_link = graph.find_node_by_id(link_node_id)
+                            if existing_link:
+                                existing_link.url = gltf_path
+                            else:
+                                graph.add_node(link_node)
+                                
+                                # Crea l'edge tra il nodo RMDoc e il LinkNode
+                                edge_id =  str(uuid.uuid4())
+                                if not graph.find_edge_by_id(edge_id):
+                                    graph.add_edge(
+                                        edge_id=edge_id,
+                                        edge_source=rmdoc_node_id,
+                                        edge_target=link_node_id,
+                                        edge_type="has_linked_resource"
+                                    )
+                        
+                        # Ripristina la trasformazione originale
+                        obj.location = original_location
+                        if original_rotation_mode == 'XYZ':
+                            obj.rotation_euler = original_rotation
+                        else:
+                            obj.rotation_mode = original_rotation_mode
+                            obj.rotation_quaternion = original_rotation
+                        obj.scale = original_scale
+                        
+                        # Ripristina lo stato dell'oggetto
+                        obj.hide_viewport = was_hidden
+                        obj.hide_select = was_select
+                        obj.select_set(False)
+                        
+                        exported_count += 1
+                        print(f"Exported Paradata RM: {obj.name}")
+                        
+                    except Exception as e:
+                        self.report({'WARNING'}, f"Failed to export Paradata RM {obj.name}: {str(e)}")
+                        import traceback
+                        traceback.print_exc()
+                        
+                        # Tenta di ripristinare l'oggetto in caso di errore
+                        try:
+                            obj.location = original_location
+                            if original_rotation_mode == 'XYZ':
+                                obj.rotation_euler = original_rotation
+                            else:
+                                obj.rotation_mode = original_rotation_mode
+                                obj.rotation_quaternion = original_rotation
+                            obj.scale = original_scale
+                        except:
+                            pass
+                        
+                        # Deseleziona l'oggetto in caso di errore
+                        obj.select_set(False)
+            
+            # Ripristina oggetto attivo originale
+            context.view_layer.objects.active = original_active
+            
+            # Compressione texture
+            if exported_count > 0:
+                self.compress_paradata_textures(export_folder, scene)
+            
+            return exported_count
+            
+        finally:
+            # Restore original collection states
+            for collection_name, state in collection_states.items():
+                collection = bpy.data.collections.get(collection_name)
+                if collection:
+                    layer_collection = find_layer_collection(context.view_layer.layer_collection, collection_name)
+                    if layer_collection:
+                        layer_collection.exclude = state['exclude']
+                    collection.hide_viewport = state['hide_viewport']
+            
+            # Restore original object states
+            for object_name, state in object_states.items():
+                obj = bpy.data.objects.get(object_name)
+                if obj:
+                    obj.hide_viewport = state['hide_viewport']
+                    obj.hide_select = state['hide_select']
+
+    def compress_paradata_textures(self, folder_path, scene):
+        """
+        Comprime le texture degli oggetti ParaData
+        
+        Args:
+            folder_path (str): Percorso della cartella contenente i modelli ParaData
+            scene (bpy.types.Scene): Scena Blender con le impostazioni
+        """
+        # Verifica se PIL è disponibile
+        try:
+            from PIL import Image
+            pil_available = True
+        except ImportError:
+            self.report({'WARNING'}, "PIL (Pillow) library not available, skipping ParaData texture compression")
+            return
+        
+        max_res = scene.heriverse_rmdoc_texture_max_res
+        quality = scene.heriverse_rmdoc_texture_quality
+        
+        # Trova tutti i file texture nella cartella
+        processed_count = 0
+        total_size_before = 0
+        total_size_after = 0
+        
+        # Percorri i file nella cartella cercando texture
+        for root, dirs, files in os.walk(folder_path):
+            for filename in files:
+                if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    file_path = os.path.join(root, filename)
+                    
+                    try:
+                        # Dimensione originale
+                        file_size_before = os.path.getsize(file_path)
+                        total_size_before += file_size_before
+                        
+                        # Apri l'immagine con PIL
+                        img = Image.open(file_path)
+                        width, height = img.size
+                        
+                        # Verifica se è necessario ridimensionare
+                        needs_resize = max(width, height) > max_res
+                        
+                        if needs_resize:
+                            # Mantieni proporzioni durante il ridimensionamento
+                            if width > height:
+                                new_width = max_res
+                                new_height = int(height * (max_res / width))
+                            else:
+                                new_height = max_res
+                                new_width = int(width * (max_res / height))
+                            
+                            # Ridimensiona con alta qualità
+                            img = img.resize((new_width, new_height), Image.LANCZOS)
+                        
+                        # Salva con il livello di qualità specificato
+                        if img.mode in ['RGBA', 'LA'] or (img.mode == 'P' and 'transparency' in img.info):
+                            # Salva PNG per immagini con trasparenza
+                            img.save(file_path, 'PNG', optimize=True)
+                        else:
+                            # Converti in RGB se necessario e salva come JPEG
+                            if img.mode != 'RGB':
+                                img = img.convert('RGB')
+                            img.save(file_path, 'JPEG', quality=quality, optimize=True)
+                        
+                        # Dimensione dopo la compressione
+                        file_size_after = os.path.getsize(file_path)
+                        total_size_after += file_size_after
+                        
+                        processed_count += 1
+                        
+                    except Exception as e:
+                        print(f"Error processing texture {filename}: {str(e)}")
+        
+        # Calcola statistiche
+        if processed_count > 0:
+            size_reduction_mb = (total_size_before - total_size_after) / (1024 * 1024)
+            reduction_percent = (total_size_before - total_size_after) / total_size_before * 100 if total_size_before > 0 else 0
+            
+            print(f"ParaData texture compression: processed {processed_count} files")
+            print(f"Size before: {total_size_before / (1024 * 1024):.2f} MB")
+            print(f"Size after: {total_size_after / (1024 * 1024):.2f} MB")
+            print(f"Reduction: {size_reduction_mb:.2f} MB ({reduction_percent:.1f}%)")
+
+    def update_json_for_instancing(self, json_data):
+        """
+        Aggiorna i dati JSON per riflettere le relazioni di instancing.
+        Da chiamare dopo l'esportazione del JSON principale.
+        """
+        # Verifica se abbiamo dati di istanziazione
+        if not hasattr(self, 'instanced_objects') or not hasattr(self, 'exported_models'):
+            return json_data
+        
+        if len(self.instanced_objects) == 0:
+            return json_data
+        
+        # Itera attraverso tutti i grafi nel JSON
+        if 'graphs' in json_data:
+            for graph_id, graph_data in json_data['graphs'].items():
+                # Modifica i nodi RM per riflettere l'instancing
+                if 'nodes' in graph_data and 'representation_models' in graph_data['nodes']:
+                    rm_nodes = graph_data['nodes']['representation_models']
+
+                    # Per ogni modello primario, aggiungi informazioni sulle istanze
+                    for primary_name, instances in self.exported_models.items():
+                        if primary_name in rm_nodes:
+                            primary_node = rm_nodes[primary_name]
+                            
+                            # Aggiungi informazioni sulle istanze
+                            if 'data' not in primary_node:
+                                primary_node['data'] = {}
+                            
+                            primary_node['data']['instances'] = instances
+                            primary_node['data']['is_instance_group'] = True
+                    
+                    for rm_name, rm_node in rm_nodes.items():
+                        if 'data' in rm_node and 'url' in rm_node['data']:
+                            url = rm_node['data']['url']
+                            if url and 'tileset.json' in url:
+                                if 'transform' not in rm_node['data']:
+                                    rm_node['data']['transform'] = {
+                                        'rotation': ["-1.57079632679", "0.0", "0.0"]
+                                    }
+                    # Rimuovi i nodi assorbiti come istanze
+                    for rm_name in list(rm_nodes.keys()):
+                        if rm_name in self.instanced_objects:
+                            del rm_nodes[rm_name]
+
+                if 'edges' in graph_data:
+                    for edge_type in graph_data['edges']:
+                        # Lavora su una copia della lista per poterla modificare durante l'iterazione
+                        edges_to_keep = []
+                        for edge in graph_data['edges'][edge_type]:
+                            # Mantieni l'edge solo se né from né to sono nei nodi saltati
+                            if (edge['from'] not in self.instanced_objects and 
+                                edge['to'] not in self.instanced_objects):
+                                edges_to_keep.append(edge)
+                        
+                        # Sostituisci con la lista filtrata
+                        graph_data['edges'][edge_type] = edges_to_keep
+
+        return json_data
+
+    def export_textures(self, obj, textures_dir, context):
+        """Export textures for an object with optional compression"""
+        scene = context.scene
+        
+        for mat_slot in obj.material_slots:
+            if mat_slot.material and mat_slot.material.use_nodes:
+                for node in mat_slot.material.node_tree.nodes:
+                    if node.type == 'TEX_IMAGE' and node.image:
+                        try:
+                            image = node.image
+                            if image.packed_file:
+                                image_path = os.path.join(textures_dir, clean_filename(image.name))
+                                print(f"Exporting packed texture: {image.name}")
+                                
+                                # If compression is enabled
+                                if scene.heriverse_enable_compression:
+                                    # Store original settings
+                                    original_format = scene.render.image_settings.file_format
+                                    original_quality = scene.render.image_settings.quality
+                                    
+                                    # Apply compression settings
+                                    scene.render.image_settings.file_format = 'JPEG'
+                                    scene.render.image_settings.quality = scene.heriverse_texture_quality
+                                    
+                                    # If image needs scaling
+                                    needs_scaling = (image.size[0] > scene.heriverse_texture_max_res or 
+                                                    image.size[1] > scene.heriverse_texture_max_res)
+                                    
+                                    if needs_scaling:
+                                        # Create a temporary copy and scale it
+                                        temp_image = image.copy()
+                                        max_dim = max(temp_image.size[0], temp_image.size[1])
+                                        scale_factor = scene.heriverse_texture_max_res / max_dim
+                                        new_width = int(temp_image.size[0] * scale_factor)
+                                        new_height = int(temp_image.size[1] * scale_factor)
+                                        temp_image.scale(new_width, new_height)
+                                        temp_image.save_render(image_path)
+                                        bpy.data.images.remove(temp_image)
+                                    else:
+                                        # Just save with compression settings
+                                        image.save_render(image_path)
+                                        
+                                    # Restore original settings
+                                    scene.render.image_settings.file_format = original_format
+                                    scene.render.image_settings.quality = original_quality
+                                else:
+                                    # Export without compression
+                                    image.save_render(image_path)
+                            elif image.filepath:
+                                src_path = bpy.path.abspath(image.filepath)
+                                if os.path.exists(src_path):
+                                    dst_path = os.path.join(textures_dir, clean_filename(os.path.basename(image.filepath)))
+                                    print(f"Copying external texture: {os.path.basename(image.filepath)}")
+                                    
+                                    # If compression is enabled, load and process the image
+                                    if scene.heriverse_enable_compression:
+                                        # Create a temporary image
+                                        temp_image = bpy.data.images.load(src_path)
+                                        
+                                        # Store original settings
+                                        original_format = scene.render.image_settings.file_format
+                                        original_quality = scene.render.image_settings.quality
+                                        
+                                        # Apply compression settings
+                                        scene.render.image_settings.file_format = 'JPEG'
+                                        scene.render.image_settings.quality = scene.heriverse_texture_quality
+                                        
+                                        # Check if scaling is needed
+                                        needs_scaling = (temp_image.size[0] > scene.heriverse_texture_max_res or 
+                                                        temp_image.size[1] > scene.heriverse_texture_max_res)
+                                        
+                                        if needs_scaling:
+                                            max_dim = max(temp_image.size[0], temp_image.size[1])
+                                            scale_factor = scene.heriverse_texture_max_res / max_dim
+                                            new_width = int(temp_image.size[0] * scale_factor)
+                                            new_height = int(temp_image.size[1] * scale_factor)
+                                            temp_image.scale(new_width, new_height)
+                                        
+                                        # Save with compression
+                                        temp_image.save_render(dst_path)
+                                        
+                                        # Clean up
+                                        bpy.data.images.remove(temp_image)
+                                        
+                                        # Restore original settings
+                                        scene.render.image_settings.file_format = original_format
+                                        scene.render.image_settings.quality = original_quality
+                                    else:
+                                        # Simple copy without compression
+                                        shutil.copy2(src_path, dst_path)
+                        except Exception as e:
+                            self.report({'WARNING'}, f"Failed to export texture for {obj.name}: {str(e)}")
+
+    def export_dosco(self, context, graph_id, dosco_path):
+        """Export DosCo files for a graph"""
+        em_tools = context.scene.em_tools
+        
+        # Se non è specificato un graph_id, usa il file attivo
+        if not graph_id and em_tools.active_file_index >= 0:
+            graphml = em_tools.graphml_files[em_tools.active_file_index]
+        else:
+            # Trova il file GraphML corrispondente al graph_id
+            graphml = None
+            for gfile in em_tools.graphml_files:
+                if gfile.name == graph_id:
+                    graphml = gfile
+                    break
+        
+        if not graphml or not graphml.dosco_dir:
+            self.report({'WARNING'}, "No DosCo directory specified")
+            return False
+        
+        src_path = bpy.path.abspath(graphml.dosco_dir)
+        if not os.path.exists(src_path):
+            self.report({'WARNING'}, f"DosCo path does not exist: {src_path}")
+            return False
+        
+        try:
+            shutil.copytree(src_path, dosco_path, dirs_exist_ok=True)
+            print(f"Copied DosCo files from {src_path} to {dosco_path}")
+            return True
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to copy DosCo files: {str(e)}")
+            return False
+
+    def create_project_zip(self, project_path: str, zip_name: str = None):
+        """Creates a ZIP archive of the exported project"""
+        if zip_name is None:
+            zip_name = os.path.basename(project_path)
+            
+        zip_path = os.path.join(os.path.dirname(project_path), f"{zip_name}.zip")
+        
+        if os.path.exists(zip_path):
+            os.remove(zip_path)
+            
+        shutil.make_archive(
+            os.path.splitext(zip_path)[0],
+            'zip',
+            project_path
+        )
+        
+        return zip_path
+
+    def export_rmsf_models(self, context, export_folder):
+        """Export Special Find models (RMSF)"""
+        scene = context.scene
+        export_vars = context.window_manager.export_vars
+        
+        # Store original collection states
+        collection_states = {}
+        for collection in bpy.data.collections:
+            # Get the layer collection
+            layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+            if layer_collection:
+                collection_states[collection.name] = {
+                    'exclude': layer_collection.exclude,
+                    'hide_viewport': collection.hide_viewport
+                }
+        
+        # Store original object states
+        object_states = {}
+        for ob in bpy.data.objects:
+            if ob.type == 'MESH':
+                object_states[ob.name] = {
+                    'hide_viewport': ob.hide_viewport,
+                    'hide_select': ob.hide_select
+                }
+        
+        try:
+            # Make all collections visible
+            for collection in bpy.data.collections:
+                layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+                if layer_collection:
+                    layer_collection.exclude = False
+                collection.hide_viewport = False
+            
+            # Make all objects visible and selectable
+            for ob in bpy.data.objects:
+                if ob.type == 'MESH':
+                    ob.hide_viewport = False
+                    ob.hide_select = False
+            
+            # Deselect all objects first
+            bpy.ops.object.select_all(action='DESELECT')
+            
+            # Get publishable anastylosis models
+            publishable_models = [item for item in scene.em_tools.anastylosis.list if item.is_publishable]
+            
+            if not publishable_models:
+                self.report({'INFO'}, "No publishable anastylosis models found")
+                return False
+            
+            # Get the graph
+            graph = None
+            if context.scene.em_tools.active_file_index >= 0:
+                graphml = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+                graph = get_graph(graphml.name)
+                
+            if not graph:
+                self.report({'ERROR'}, "No active graph available")
+                return False
+            
+            # Export each model
+            exported_count = 0
+            
+            for item in publishable_models:
+                # Important: Use item.name which refers to the actual 3D object
+                obj = bpy.data.objects.get(item.name)
+                if not obj:
+                    print(f"Object '{item.name}' not found in scene, skipping export")
+                    continue
+                
+                print(f"Processing object '{item.name}' linked to SF/VSF '{item.sf_node_name}'")
+                    
+                # Select object and make it active
+                try:
+                    obj.select_set(True)
+                    context.view_layer.objects.active = obj
+                except Exception as e:
+                    print(f"Could not select object '{item.name}': {str(e)}")
+                    continue
+                
+                # Save original object transform data
+                original_location = obj.location.copy()
+                original_rotation = obj.rotation_euler.copy() if obj.rotation_mode == 'XYZ' else obj.rotation_quaternion.copy()
+                original_rotation_mode = obj.rotation_mode
+                original_scale = obj.scale.copy()
+                
+                # Create the transform dictionary (like in RMDoc)
+                transform = {
+                    "position": [f"{original_location.x}", f"{original_location.y}", f"{original_location.z}"],
+                    "scale": [f"{original_scale.x}", f"{original_scale.y}", f"{original_scale.z}"]
+                }
+                
+                # Handle rotation based on mode
+                if original_rotation_mode == 'XYZ':
+                    transform["rotation"] = [f"{original_rotation.x}", f"{original_rotation.y}", f"{original_rotation.z}"]
+                else:
+                    # Convert quaternion to euler for the node
+                    euler = original_rotation.to_euler('XYZ')
+                    transform["rotation"] = [f"{euler.x}", f"{euler.y}", f"{euler.z}"]
+                
+                # Prepare file path
+                export_file = os.path.join(export_folder, clean_filename(obj.name))
+                
+                # Export as GLTF
+                try:
+                    export_gltf_with_animation_support(
+                        filepath=export_file,
+                        export_vars=export_vars,
+                        scene=scene,
+                        use_selection=True
+                    )
+
+                    # Create/update nodes and edges in the graph
+                    if graph:
+                        # Get SF or VSF node if it's linked
+                        sf_node = None
+                        if item.sf_node_id:
+                            sf_node = graph.find_node_by_id(item.sf_node_id)
+                        
+                        # Create or update RMSF node
+                        rmsf_node_id = f"{item.name}_rmsf"
+                        rmsf_node = graph.find_node_by_id(rmsf_node_id)
+                        
+                        if not rmsf_node:
+                            # Create RepresentationModelSpecialFindNode
+                            from s3dgraphy.nodes.representation_node import RepresentationModelSpecialFindNode
+                            rmsf_node = RepresentationModelSpecialFindNode(
+                                node_id=rmsf_node_id,
+                                name=f"RMSF for {item.name}",
+                                type="RM",
+                                transform=transform,
+                                description=f"Representation model for {item.sf_node_name or 'Special Find'}"
+                            )
+                            graph.add_node(rmsf_node)
+                            print(f"Created RMSF node: {rmsf_node_id}")
+                        else:
+                            # Update existing node
+                            rmsf_node.transform = transform
+                            if hasattr(rmsf_node, 'data'):
+                                rmsf_node.data["transform"] = transform
+                            print(f"Updated RMSF node: {rmsf_node_id}")
+                        
+                        # Connect SF node to RMSF node if SF node exists
+                        if sf_node:
+                            edge_id =  str(uuid.uuid4())
+                            if not graph.find_edge_by_id(edge_id):
+                                graph.add_edge(
+                                    edge_id=edge_id,
+                                    edge_source=sf_node.node_id,
+                                    edge_target=rmsf_node_id,
+                                    edge_type="has_representation_model"
+                                )
+                                print(f"Created edge: {sf_node.node_id} -> {rmsf_node_id}")
+                        
+                        # Create or update Link node
+                        link_node_id = f"{rmsf_node_id}_link"
+                        gltf_path = f"models_sf/{clean_filename(obj.name)}.gltf"
+                        
+                        from s3dgraphy.nodes.link_node import LinkNode
+                        link_node = graph.find_node_by_id(link_node_id)
+                        
+                        if not link_node:
+                            # Create new LinkNode
+                            link_node = LinkNode(
+                                node_id=link_node_id,
+                                name=f"GLTF Link for {item.name}",
+                                description=f"Link to exported GLTF for {item.sf_node_name or 'Special Find'}",
+                                url=gltf_path,
+                                url_type="3d_model"
+                            )
+                            graph.add_node(link_node)
+                            print(f"Created Link node: {link_node_id}")
+                        else:
+                            # Update existing node
+                            link_node.url = gltf_path
+                            print(f"Updated Link node URL to {gltf_path}")
+                        
+                        # Create edge between RMSF and Link if not exists
+                        edge_id =  str(uuid.uuid4())
+                        if not graph.find_edge_by_id(edge_id):
+                            graph.add_edge(
+                                edge_id=edge_id,
+                                edge_source=rmsf_node_id,
+                                edge_target=link_node_id,
+                                edge_type="has_linked_resource"
+                            )
+                            print(f"Created edge: {rmsf_node_id} -> {link_node_id}")
+                    
+                    exported_count += 1
+                    print(f"Successfully exported anastylosis model: {obj.name}")
+                    
+                except Exception as e:
+                    self.report({'WARNING'}, f"Failed to export anastylosis model {obj.name}: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+                    
+                # Deselect object
+                obj.select_set(False)
+            
+            # Compress textures if enabled
+            if exported_count > 0 and scene.heriverse_enable_compression:
+                self.compress_textures_in_folder(export_folder, scene)
+                print(f"Compressed textures for {exported_count} anastylosis models")
+            
+            self.report({'INFO'}, f"Exported {exported_count} anastylosis models")
+            return exported_count > 0
+            
+        finally:
+            # Restore original collection states
+            for collection_name, state in collection_states.items():
+                collection = bpy.data.collections.get(collection_name)
+                if collection:
+                    layer_collection = find_layer_collection(context.view_layer.layer_collection, collection_name)
+                    if layer_collection:
+                        layer_collection.exclude = state['exclude']
+                    collection.hide_viewport = state['hide_viewport']
+            
+            # Restore original object states
+            for object_name, state in object_states.items():
+                obj = bpy.data.objects.get(object_name)
+                if obj:
+                    obj.hide_viewport = state['hide_viewport']
+                    obj.hide_select = state['hide_select']
+
+    def execute(self, context):
+        """Main export function"""
+        self.instanced_objects = set()
+        self.exported_models = {}
+        self.stato_collezioni = {}
+        
+        scene = context.scene
+        export_vars = context.window_manager.export_vars
+
+        # Import utility functions from the main module
+        from ...functions import normalize_path, create_directory, check_export_path, check_graph_loaded, show_popup_message
+        from ...graph_updaters import update_graph_with_scene_data
+        import json
+        
+        try:
+            print("\n=== Starting Heriverse Export ===")
+            
+            # Check if at least one graph is loaded
+            if not check_graph_loaded(context):
+                return {'CANCELLED'}
+            
+            # Check if export path is valid
+            if not check_export_path(context):
+                return {'CANCELLED'}
+            
+            print(f"Export path: {scene.heriverse_export_path}")
+                
+            # Setup dei percorsi (con normalizzazione)
+            output_dir = normalize_path(scene.heriverse_export_path)
+            project_name = scene.heriverse_project_name or os.path.splitext(os.path.basename(bpy.data.filepath))[0]
+            project_name = f"{project_name}_multigraph"
+            project_path = os.path.join(output_dir, project_name)
+            
+            print(f"Project path: {project_path}")
+            print(f"Project name: {project_name}")
+            print(f"Using GPU instancing: {export_vars.heriverse_use_gpu_instancing}")
+            
+            # Crea la directory del progetto
+            try:
+                os.makedirs(project_path, exist_ok=True)
+                print("Created project directory")
+            except Exception as e:
+                show_popup_message(context, "Directory Error", f"Failed to create project directory: {str(e)}", 'ERROR')
+                return {'CANCELLED'}
+
+            # Salva lo stato delle collezioni
+            collection_states = {}
+            for collection in bpy.data.collections:
+                layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
+                if layer_collection:
+                    collection_states[collection.name] = layer_collection.exclude
+
+            try:
+                # Update the graph(s) before exporting
+                try:
+                    # Always update all publishable graphs with scene data
+                    # This ensures that SemanticShape, RM, RMSF nodes are created/updated
+                    # before we add LinkNodes during the export process
+                    print("Updating all publishable graphs with scene data...")
+                    update_graph_with_scene_data(update_all_graphs=True, context=context)
+
+                    # Refine generic_connection edges to semantic types
+                    # This transforms placeholder edges into proper semantic edges
+                    # (e.g., generic_connection -> has_documentation for US -> DocumentNode)
+                    from s3dgraphy import get_graph
+                    em_tools = context.scene.em_tools
+                    for graphml_item in em_tools.graphml_files:
+                        is_publishable = getattr(graphml_item, 'is_publishable', True)
+                        if is_publishable:
+                            graph = get_graph(graphml_item.name)
+                            if graph:
+                                refined = graph.refine_generic_connections(verbose=True)
+                                if refined > 0:
+                                    print(f"  Graph '{graphml_item.name}': refined {refined} edges")
+                except Exception as e:
+                    print(f"Warning: Could not update graph: {e}")
+                # STEP 1 Export Cesium tilesets if requested
+                tilesets_exported = False
+                if export_vars.heriverse_export_rm:
+                    print("\n--- Starting Tileset Export ---")
+                    tilesets_path = os.path.join(project_path, "tilesets")
+                    os.makedirs(tilesets_path, exist_ok=True)
+                    
+                    count = self.export_tilesets(context, tilesets_path)
+                    tilesets_exported = count > 0
+                    if tilesets_exported:
+                        print(f"Exported {count} tileset files")
+                    else:
+                        print("No tilesets were exported")
+
+                # STEP 2: Esporta i proxy se richiesto
+                if export_vars.heriverse_export_proxies:
+                    print("\n--- Starting Proxy Export ---")
+                    proxy_path = os.path.join(project_path, "proxies")
+                    os.makedirs(proxy_path, exist_ok=True)
+                    
+                    result = self.export_proxies(context, proxy_path)
+                    if result:
+                        print("Proxy export completed successfully")
+                    else:
+                        print("No proxies were exported")
+
+                # STEP 3: Esporta i modelli RM se richiesto
+                models_exported = False
+                models_path = None
+                models_docs_path = None
+                if export_vars.heriverse_export_rm:
+                    print("\n--- Starting RM Export ---")
+                    models_path = os.path.join(project_path, "models")
+                    os.makedirs(models_path, exist_ok=True)
+                    
+                    # Make sure all collections containing RM objects are visible
+                    rm_objects = [obj for obj in bpy.data.objects 
+                                if hasattr(obj, "EM_ep_belong_ob") and len(obj.EM_ep_belong_ob) > 0]
+                    
+                    # Get all collections containing RM objects
+                    rm_collections = set()
+                    for obj in rm_objects:
+                        for collection in bpy.data.collections:
+                            if obj.name in collection.objects:
+                                rm_collections.add(collection.name)
+                    
+                    # Make them all visible for export
+                    for col_name in rm_collections:
+                        layer_collection = find_layer_collection(context.view_layer.layer_collection, col_name)
+                        if layer_collection:
+                            layer_collection.exclude = False
+                    
+                    result = self.export_rm(context, models_path)
+                    models_exported = result
+                    if result:
+                        print("RM export completed successfully")
+                    else:
+                        print("No RM models were exported")
+
+                # STEP 3.1: Esporta i modelli RMDoc se richiesto
+                if export_vars.heriverse_export_rmdoc:
+                    print("\n--- Starting RM Export ---")
+                    models_docs_path = os.path.join(project_path, "models_docs")
+                    os.makedirs(models_docs_path, exist_ok=True)
+
+                    # Aggiungi l'export degli oggetti ParaData
+                    print("\n--- Starting ParaData Objects Export ---")
+                    paradata_count = self.export_paradata_objects(context, models_docs_path)
+                    if paradata_count > 0:
+                        print(f"Exported {paradata_count} ParaData objects")
+                    else:
+                        print("No ParaData objects were exported")
+
+                # STEP 3.2: Export SF models if requested
+                sf_models_exported = False
+                if export_vars.heriverse_export_rmsf:
+                    print("\n--- Starting Special Finds Models Export ---")
+                    sf_models_path = os.path.join(project_path, "models_sf")
+                    os.makedirs(sf_models_path, exist_ok=True)
+                    
+                    sf_models_exported = self.export_rmsf_models(context, sf_models_path)
+                    if sf_models_exported:
+                        print("Special Finds models export completed successfully")
+                    else:
+                        print("No Special Finds models were exported")
+
+                # STEP 4: Esporta i file DosCo se richiesto
+                if export_vars.heriverse_export_dosco:
+                    print("\n--- Starting DosCo Export ---")
+                    active_graph_id = None
+                    if not (len(context.scene.em_tools.graphml_files) > 1) and context.scene.em_tools.active_file_index >= 0:
+                        active_file = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
+                        active_graph_id = active_file.name
+
+                    dosco_path = os.path.join(project_path, "dosco")
+                    result = self.export_dosco(context, active_graph_id, dosco_path)
+                    if result:
+                        print("DosCo export completed successfully")
+                    else:
+                        print("DosCo export failed or was skipped")
+                
+                # STEP 5: Export panorama if requested
+                if scene.heriverse_export_panorama:
+                    print("\n--- Exporting Panorama ---")
+                    result = self.export_panorama(context, project_path)
+                    if result:
+                        print("Panorama export completed successfully")
+                    else:
+                        print("Panorama export failed or was skipped")
+
+                # STEP 5b: Export per-epoch panoramas (always runs — copies epoch HDR files)
+                epoch_pano_map = self.export_epoch_panoramas(context, project_path)
+                if epoch_pano_map:
+                    print(f"Exported {len(epoch_pano_map)} per-epoch panorama(s)")
+
+                # STEP 6: Compress all textures at once if texture compression is enabled and RM models were exported
+                if scene.heriverse_enable_compression and models_exported and models_path:
+                    print("\n--- Starting Texture Compression ---")
+                    self.compress_textures_in_folder(models_path, scene)
+
+                # STEP 7: Export JSON
+                if export_vars.heriverse_overwrite_json:
+                    # NOTE: Do NOT call update_graph_with_scene_data() again here!
+                    # It was already called at the beginning and would erase LinkNodes created during export
+
+                    # Esporta il JSON direttamente usando il nuovo JSONExporter
+                    json_path = os.path.join(project_path, "project.json")
+                    print(f"Exporting JSON to: {json_path}")
+                    
+                    # Verifica che esista almeno un grafo valido
+                    if not check_graph_loaded(context):
+                        show_popup_message(context, "Export Error", "No valid graph found. Please load a GraphML file first.")
+                        return {'CANCELLED'}
+                    
+                    # Usa l'operatore JSON con i parametri corretti
+                    result = bpy.ops.export.heriversejson(
+                        filepath=json_path,
+                        use_file_dialog=False
+                    )
+                    
+                    if result == {'FINISHED'}:
+                        print("JSON export completed successfully")
+
+                        # Post-process JSON: instancing + per-epoch lighting
+                        needs_rewrite = False
+
+                        with open(json_path, 'r') as f:
+                            json_data = json.load(f)
+
+                        if hasattr(self, 'instanced_objects') and len(self.instanced_objects) > 0:
+                            json_data = self.update_json_for_instancing(json_data)
+                            print(f"Updated JSON with instancing information for {len(self.instanced_objects)} objects")
+                            needs_rewrite = True
+
+                        # Inject per-epoch panorama/lighting data
+                        json_data = self.update_json_with_epoch_lighting(json_data, context)
+                        needs_rewrite = True
+
+                        if needs_rewrite:
+                            with open(json_path, 'w') as f:
+                                json.dump(json_data, f, indent=4)
+
+                    else:
+                        self.report({'ERROR'}, "JSON export failed")
+                        return {'CANCELLED'}
+
+            finally:
+                # Ripristina lo stato delle collezioni
+                for collection_name, was_excluded in collection_states.items():
+                    layer_collection = find_layer_collection(context.view_layer.layer_collection, collection_name)
+                    if layer_collection:
+                        layer_collection.exclude = was_excluded
+
+
+            # STEP 8: Crea ZIP se richiesto
+            if export_vars.heriverse_create_zip:
+                print("\n--- Creating ZIP Archive ---")
+                zip_path = self.create_project_zip(project_path)
+                print(f"ZIP archive created at: {zip_path}")
+                
+                # Verifica che lo ZIP sia stato creato correttamente prima di cancellare
+                if os.path.exists(zip_path) and os.path.getsize(zip_path) > 0:
+                    try:
+                        import shutil
+                        shutil.rmtree(project_path)
+                        print(f"Original folder deleted: {project_path}")
+                        self.report({'INFO'}, f"Export completed. ZIP created and original folder cleaned up.")
+                    except Exception as e:
+                        print(f"Warning: Could not delete original folder: {e}")
+                        self.report({'WARNING'}, f"ZIP created but could not delete original folder: {str(e)}")
+                else:
+                    print("Warning: ZIP file not created properly, keeping original folder")
+                    self.report({'WARNING'}, "ZIP creation failed, original folder preserved")
+
+
+            print("\n=== Export Completed Successfully ===")
+            self.report({'INFO'}, f"Export completed to {project_path}")
+            
+            return {'FINISHED'}
+                
+        except Exception as e:
+            print(f"\n!!! Export Failed !!!")
+            print(f"Error: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            self.report({'ERROR'}, f"Export failed: {str(e)}")
+            return {'CANCELLED'}
+
+
+
+
+classes = (
+    EXPORT_OT_heriverse,
+)
+
+
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+
+def unregister():
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)

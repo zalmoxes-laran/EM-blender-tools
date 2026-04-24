@@ -62,11 +62,11 @@ def load_datamodels() -> Tuple[Optional[Dict], Optional[Dict]]:
     config_path = get_s3dgraphy_config_path()
 
     if not config_path:
-        print("⚠️  s3dgraphy JSON config path not found")
+        print("[SocketGen] s3dgraphy JSON config path not found")
         return None, None
 
     # Nota: il file dei nodi ha uno spazio nel nome!
-    nodes_file = config_path / "s3Dgraphy_node_datamodel .json"
+    nodes_file = config_path / "s3Dgraphy_node_datamodel.json"
     connections_file = config_path / "s3Dgraphy_connections_datamodel.json"
 
     nodes_data = None
@@ -76,21 +76,19 @@ def load_datamodels() -> Tuple[Optional[Dict], Optional[Dict]]:
         if nodes_file.exists():
             with open(nodes_file, 'r', encoding='utf-8') as f:
                 nodes_data = json.load(f)
-            print(f"✅ Loaded node datamodel from {nodes_file}")
         else:
-            print(f"⚠️  Node datamodel not found: {nodes_file}")
+            print(f"[SocketGen] Error: node datamodel not found: {nodes_file}")
     except Exception as e:
-        print(f"❌ Error loading node datamodel: {e}")
+        print(f"[SocketGen] Error: loading node datamodel: {e}")
 
     try:
         if connections_file.exists():
             with open(connections_file, 'r', encoding='utf-8') as f:
                 connections_data = json.load(f)
-            print(f"✅ Loaded connections datamodel from {connections_file}")
         else:
-            print(f"⚠️  Connections datamodel not found: {connections_file}")
+            print(f"[SocketGen] Error: connections datamodel not found: {connections_file}")
     except Exception as e:
-        print(f"❌ Error loading connections datamodel: {e}")
+        print(f"[SocketGen] Error: loading connections datamodel: {e}")
 
     return nodes_data, connections_data
 
@@ -363,9 +361,6 @@ def build_socket_map(connections_datamodel: Dict, type_family_map: Dict[str, str
             if output_socket not in socket_map[source_type]['outputs']:
                 socket_map[source_type]['outputs'].append(output_socket)
 
-                # DEBUG: Log socket additions for specific nodes
-                if source_type in ['StratigraphicNode', 'US', 'DocumentNode', 'document']:
-                    print(f"  🔍 Added OUTPUT socket '{output_edge_name}' to {source_type} (from edge '{edge_type_name}')")
 
         # ✅ FIXED: Espandi RICORSIVAMENTE i target types per includere tutti i sottotipi
         expanded_targets = set()
@@ -385,9 +380,6 @@ def build_socket_map(connections_datamodel: Dict, type_family_map: Dict[str, str
             if input_socket not in socket_map[target_type]['inputs']:
                 socket_map[target_type]['inputs'].append(input_socket)
 
-                # DEBUG: Log socket additions for specific nodes
-                if target_type in ['EpochNode', 'Epoch', 'DocumentNode', 'document']:
-                    print(f"  🔍 Added INPUT socket '{input_edge_name}' to {target_type} (from edge '{edge_type_name}')")
 
     return socket_map
 
@@ -472,13 +464,11 @@ def initialize_socket_system():
     """
     global _NODES_DATAMODEL, _CONNECTIONS_DATAMODEL, _SOCKET_MAP, _TYPE_FAMILY_MAP
 
-    print("\n🔌 Initializing dynamic socket system...")
-
     # Carica i JSON
     _NODES_DATAMODEL, _CONNECTIONS_DATAMODEL = load_datamodels()
 
     if not _CONNECTIONS_DATAMODEL:
-        print("⚠️  Warning: Could not load s3dgraphy datamodels. Socket generation will be limited.")
+        print("[SocketGen] Error: could not load s3dgraphy datamodels. Socket generation will be limited.")
         _SOCKET_MAP = {}
         _TYPE_FAMILY_MAP = {}
         return
@@ -486,27 +476,6 @@ def initialize_socket_system():
     # Costruisci le mappe
     _TYPE_FAMILY_MAP = build_node_type_family_map(_NODES_DATAMODEL)
     _SOCKET_MAP = build_socket_map(_CONNECTIONS_DATAMODEL, _TYPE_FAMILY_MAP)
-
-    print(f"✅ Socket system initialized:")
-    print(f"   - {len(_TYPE_FAMILY_MAP)} node type mappings")
-    print(f"   - {len(_SOCKET_MAP)} node families with sockets")
-
-    # Debug: mostra alcuni esempi con le label v1.5.3
-    if _SOCKET_MAP:
-        print("\n📊 Socket map examples (v1.5.3 canonical/reverse pattern):")
-        for family in ['StratigraphicNode', 'PropertyNode', 'EpochNode']:
-            if family in _SOCKET_MAP:
-                inputs_count = len(_SOCKET_MAP[family]['inputs'])
-                outputs_count = len(_SOCKET_MAP[family]['outputs'])
-                print(f"   - {family}: {inputs_count} inputs, {outputs_count} outputs")
-
-                # Mostra qualche esempio di socket con le loro label
-                if inputs_count > 0:
-                    example_input = _SOCKET_MAP[family]['inputs'][0]
-                    print(f"     Example input: {example_input[0]} → \"{example_input[1]}\"")
-                if outputs_count > 0:
-                    example_output = _SOCKET_MAP[family]['outputs'][0]
-                    print(f"     Example output: {example_output[0]} → \"{example_output[1]}\"")
 
 
 def get_socket_map() -> Dict:
@@ -550,7 +519,7 @@ def generate_sockets(bl_node, node_type: str):
     type_family_map = get_type_family_map()
 
     if not socket_map or not type_family_map:
-        print(f"⚠️  Socket system not initialized, using fallback for {node_type}")
+        print(f"[SocketGen] Socket system not initialized, using fallback for {node_type}")
         return
 
     generate_sockets_for_node(bl_node, node_type, socket_map, type_family_map)

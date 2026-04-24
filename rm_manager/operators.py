@@ -987,6 +987,22 @@ class RM_OT_demote_from_rm_list(Operator):
             model_node_id = rm_item.node_id if getattr(rm_item, "node_id", "") else f"{rm_item.name}_model"
             _remove_rm_node_and_edges(graph, model_node_id)
 
+        # Also remove from any RM container membership. This keeps the
+        # container's mesh_names list coherent with rm_list — otherwise
+        # demoting a mesh leaves a ghost entry that only the manual
+        # Sync button can clean up (DP-47 extension).
+        try:
+            from .containers import find_container_for_mesh
+            container_idx = find_container_for_mesh(scene, rm_item.name)
+            if container_idx is not None:
+                container = scene.rm_containers[container_idx]
+                for i, entry in enumerate(container.mesh_names):
+                    if entry.name == rm_item.name:
+                        container.mesh_names.remove(i)
+                        break
+        except Exception:
+            pass
+
         # Remove from the list
         scene.rm_list.remove(self.rm_index)
         

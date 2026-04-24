@@ -1,42 +1,29 @@
-"""
-Proxy Box Creator Module
-Enhanced with paradata support
+"""Proxy Box Creator — two-step flow (DP-47 / DP-07).
+
+Step 1 anchors the proxy chain on a DocumentNode; Step 2 records the
+seven measurement points that define the box and auto-generate
+extractors under that document.
 """
 
 from . import data
-from . import operators            # NEW
+from . import operators
 from . import ui
 from . import utils
-from . import document_picker
 from . import create_enhanced
 
 
 def register():
-    """Register all components"""
-    print("   [proxy_box_creator] Starting registration...")
-
-    # Register in order
     data.register()
-    operators.register()           # NEW
+    operators.register()
     ui.register()
-    document_picker.register()
     create_enhanced.register()
-
-    print("   [proxy_box_creator] ✓ Module registration complete")
 
 
 def unregister():
-    """Unregister all components"""
-    print("   [proxy_box_creator] Starting unregistration...")
-
-    # Unregister in reverse order
     create_enhanced.unregister()
-    document_picker.unregister()
     ui.unregister()
-    operators.unregister()         # NEW
+    operators.unregister()
     data.unregister()
-
-    print("   [proxy_box_creator] ✓ Module unregistration complete")
 
 
 __all__ = [
@@ -44,6 +31,5 @@ __all__ = [
     'operators',
     'ui',
     'utils',
-    'document_picker',
     'create_enhanced',
 ]

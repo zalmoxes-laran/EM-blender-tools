@@ -71,6 +71,19 @@ class EM_ParadataPanel:
         scene = context.scene
         obj = context.object
 
+        header_row = layout.row(align=True)
+        header_row.label(text="Paradata", icon='PROPERTIES')
+        help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Paradata Manager"
+        help_op.text = (
+            "Browse Properties, Combiners, Extractors and\n"
+            "Sources for the selected stratigraphic unit.\n"
+            "Shows the provenance chain that supports\n"
+            "each reconstructed attribute."
+        )
+        help_op.url = "panels/paradata_manager.html#_Paradata_Manager"
+        help_op.project = 'em_tools'
+
         control_box = layout.box()
         row = control_box.row(align=True)
         row.prop(scene.em_tools, "paradata_auto_update", text="Auto Update")
@@ -265,11 +278,19 @@ class EM_ParadataPanel:
 
                 strat = scene.em_tools.stratigraphy
                 if strat.units_index >= 0 and len(strat.units) > 0 and strat.units[strat.units_index].icon == "LINKED":
-                    op = btn_row.operator("select.fromlistitem", text="", icon="MESH_CUBE")
+                    _ps_icon = icons_manager.get_icon_value("proxies_select")
+                    if _ps_icon:
+                        op = btn_row.operator("select.fromlistitem", text="", icon_value=_ps_icon)
+                    else:
+                        op = btn_row.operator("select.fromlistitem", text="", icon="MESH_CUBE")
                     if op:
                         op.list_type = extractor_list_var
                 else:
-                    btn_row.label(text="", icon="MESH_CUBE")
+                    _po_icon = icons_manager.get_icon_value("proxies_off")
+                    if _po_icon:
+                        btn_row.label(text="", icon_value=_po_icon)
+                    else:
+                        btn_row.label(text="", icon="MESH_CUBE")
 
                 if obj and check_if_current_obj_has_brother_inlist(obj.name, extractor_list_var):
                     op = btn_row.operator("select.listitem", text="", icon="LONGDISPLAY")
@@ -335,11 +356,19 @@ class EM_ParadataPanel:
 
                 strat = scene.em_tools.stratigraphy
                 if strat.units_index >= 0 and len(strat.units) > 0 and strat.units[strat.units_index].icon == "LINKED":
-                    op = btn_row.operator("select.fromlistitem", text="", icon="MESH_CUBE")
+                    _ps_icon = icons_manager.get_icon_value("proxies_select")
+                    if _ps_icon:
+                        op = btn_row.operator("select.fromlistitem", text="", icon_value=_ps_icon)
+                    else:
+                        op = btn_row.operator("select.fromlistitem", text="", icon="MESH_CUBE")
                     if op:
                         op.list_type = source_list_var
                 else:
-                    btn_row.label(text="", icon="MESH_CUBE")
+                    _po_icon = icons_manager.get_icon_value("proxies_off")
+                    if _po_icon:
+                        btn_row.label(text="", icon_value=_po_icon)
+                    else:
+                        btn_row.label(text="", icon="MESH_CUBE")
 
                 if obj and check_if_current_obj_has_brother_inlist(obj.name, source_list_var):
                     op = btn_row.operator("select.listitem", text="", icon="LONGDISPLAY")
@@ -407,8 +436,8 @@ class EM_UL_sources_managers(UIList):
             row.label(text="", icon=certainty_icon)
             split = row.split(factor=0.25, align=True)
             name_label = item.name
-            if item.absolute_start_date:
-                name_label = f"{item.name} ({item.absolute_start_date})"
+            if item.absolute_time_start:
+                name_label = f"{item.name} ({item.absolute_time_start})"
             split.label(text=name_label, icon=item.icon)
             split.label(text=item.description, icon=item.icon_url)
         else:

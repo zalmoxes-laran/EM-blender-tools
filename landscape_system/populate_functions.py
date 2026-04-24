@@ -7,14 +7,15 @@ Modifica le liste esistenti invece di duplicarle
 import bpy
 from ..functions import check_objs_in_scene_and_provide_icon_for_list_element
 from ..populate_lists import (
-    get_connected_epoch_for_node, 
-    populate_stratigraphic_node, 
+    get_connected_epoch_for_node,
+    populate_stratigraphic_node,
     populate_document_node,
     populate_property_node,
     populate_extractor_node,
     populate_combiner_node,
     populate_epoch_node
 )
+from ..us_types import US_PROPER_TYPES
 
 def populate_lists_landscape_mode(context):
     """
@@ -26,12 +27,12 @@ def populate_lists_landscape_mode(context):
     if not getattr(scene, 'landscape_mode_active', False):
         return
 
-    print("🌍 Populating lists in Landscape mode...")
+    print("[Landscape] Populating lists...")
 
     # Ottieni tutti i grafi caricati
     all_graphs = get_all_loaded_graphs(context)
     if not all_graphs:
-        print("❌ No graphs loaded for Landscape mode")
+        print("[Landscape] No graphs loaded")
         return
 
     # Calcola cronologia per ogni grafo (necessario per filtro temporale)
@@ -52,7 +53,7 @@ def populate_lists_landscape_mode(context):
     populate_combiners_list_landscape(context, all_graphs)
     populate_epochs_list_landscape(context, all_graphs)
 
-    print(f"✅ Landscape mode: populated lists from {len(all_graphs)} graphs")
+    print(f"[Landscape] Populated lists from {len(all_graphs)} graphs")
 
 def get_all_loaded_graphs(context):
     """Ottiene tutti i grafi effettivamente caricati nel sistema"""
@@ -73,7 +74,7 @@ def get_all_loaded_graphs(context):
                 loaded_graphs[graph_code] = graph
                 
         except Exception as e:
-            print(f"❌ Error loading graph {graph_file.name}: {e}")
+            print(f"[Landscape] Error loading graph {graph_file.name}: {e}")
     
     return loaded_graphs
 
@@ -100,9 +101,9 @@ def populate_stratigraphy_list_landscape(context, all_graphs):
     for graph_code, graph in all_graphs.items():
         # Trova tutti i nodi stratigrafici
         stratigraphic_nodes = [
-            node for node in graph.nodes 
-            if hasattr(node, 'node_type') and 
-            node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
+            node for node in graph.nodes
+            if hasattr(node, 'node_type') and
+            node.node_type in US_PROPER_TYPES
         ]
         
         strat = scene.em_tools.stratigraphy  # ✅ Nuovo
@@ -329,9 +330,9 @@ def populate_lists_single_mode(context):
         graph_exists, active_graph = is_graph_available(context)
         if active_graph:
             populate_blender_lists_from_graph(context, active_graph)
-            print(f"✅ Single mode: populated from graph {active_graph.attributes.get('graph_code', 'UNKNOWN')}")
+            print(f"[Landscape] Populated from graph {active_graph.attributes.get('graph_code', 'UNKNOWN')}")
         else:
-            print("❌ No active graph found for single mode")
+            print("[Landscape] No active graph found for single mode")
             
     finally:
         # Ripristina lo stato Landscape se era attivo

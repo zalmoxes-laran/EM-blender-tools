@@ -15,11 +15,15 @@ from .save_template import *
 # Import bake paradata operator
 from .bake_paradata import *
 
-# Import XLSX wizard operators (panel-based 3-step workflow)
+# Import XLSX wizard operators (legacy 3-step, kept for backward compat
+# while the new StratiMiner unified-schema flow replaces it)
 from .xlsx_wizard import *
 
-# Import enrich GraphML operators (bake EM tables into loaded GraphML)
-from .enrich_graphml import *
+# Import StratiMiner operators (new unified em_data.xlsx flow)
+from .stratiminer import *
+
+# Import Hybrid-C auxiliary-lifecycle operators (orphan list + bake)
+from .aux_lifecycle import *
 
 from .addon_prefix_helpers import (
     get_active_graph_code,
@@ -35,15 +39,17 @@ from .addon_prefix_helpers import (
 __all__ = [
     "EM_OT_update_graph",
     "EM_help_popup",
+    "EM_open_docs",
     "XLSX_OT_to_graphml",
     "EMTOOLS_OT_save_stratigraphy_template",
     "EMTOOLS_OT_save_em_paradata_template",
     "PARADATA_OT_bake",
     "XLSX_WIZARD_OT_convert_stratigraphy",
-    "XLSX_WIZARD_OT_enrich_paradata",
     "XLSX_WIZARD_OT_export_graphml",
+    "AUX_OT_create_host_for_orphan",
+    "AUX_OT_revert_injector",
+    "AUX_OT_bake_to_graphml",
     "XLSX_WIZARD_OT_copy_ai_prompt",
-    "ENRICH_OT_bake_paradata",
     "get_active_graph_code",
     "get_graph_code_from_graph",
     "node_name_to_proxy_name",
@@ -53,7 +59,6 @@ __all__ = [
     "get_node_from_proxy"
 ]
 
-print("DEBUG operators/__init__.py: Imported help_popup module and added EM_help_popup to __all__")
 
 
 def register():
@@ -65,7 +70,8 @@ def register():
     from . import save_template
     from . import bake_paradata
     from . import xlsx_wizard
-    from . import enrich_graphml
+    from . import stratiminer
+    from . import aux_lifecycle
     from . import merge_conflict_ui
 
     # Register each submodule
@@ -75,9 +81,9 @@ def register():
     save_template.register()
     bake_paradata.register()
     xlsx_wizard.register()
-    enrich_graphml.register()
+    stratiminer.register()
+    aux_lifecycle.register()
     merge_conflict_ui.register()
-    print("DEBUG operators/__init__.py: All operators registered")
 
 
 def unregister():
@@ -89,16 +95,17 @@ def unregister():
     from . import save_template
     from . import bake_paradata
     from . import xlsx_wizard
-    from . import enrich_graphml
+    from . import stratiminer
+    from . import aux_lifecycle
     from . import merge_conflict_ui
 
     # Unregister in reverse order
     merge_conflict_ui.unregister()
-    enrich_graphml.unregister()
+    aux_lifecycle.unregister()
+    stratiminer.unregister()
     xlsx_wizard.unregister()
     bake_paradata.unregister()
     save_template.unregister()
     xlsx_to_graphml.unregister()
     help_popup.unregister()
     update_graph.unregister()
-    print("DEBUG operators/__init__.py: All operators unregistered")

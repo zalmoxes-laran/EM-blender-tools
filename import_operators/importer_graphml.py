@@ -96,7 +96,7 @@ class EM_import_GraphML(bpy.types.Operator):
                     # Propagate import warnings from s3dgraphy to Blender UI property
                     if hasattr(graph_instance, 'warnings') and graph_instance.warnings:
                         graphml.import_warnings = "\n".join(graph_instance.warnings)
-                        print(f"\n⚠️  {len(graph_instance.warnings)} import warning(s) detected:")
+                        print(f"\nWarning: {len(graph_instance.warnings)} import warning(s) detected:")
                         for w in graph_instance.warnings:
                             print(f"  - {w}")
                     else:
@@ -188,6 +188,14 @@ class EM_import_GraphML(bpy.types.Operator):
                 bpy.ops.epoch_manager.update_us_list
 
                 bpy.ops.activity.refresh_list(graphml_index=self.graphml_index)
+
+                # Sync Document Manager list from em_sources_list
+                try:
+                    from ..document_manager.data import sync_doc_list
+                    sync_doc_list(scene)
+                except Exception as e:
+                    print(f"[GraphML Import] doc_list sync: {e}")
+
                 wm.progress_update(100)
 
                 # ✅ End progress bar

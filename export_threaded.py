@@ -339,7 +339,7 @@ def export_proxy_threaded(task: ExportTask, context, export_vars, scene) -> None
     # The actual implementation will be integrated into exporter_heriverse.py
 
     # Import here to avoid circular dependencies
-    from .export_operators.exporter_heriverse import export_gltf_with_animation_support
+    from .export_operators.heriverse import export_gltf_with_animation_support
 
     # Find proxy object (read-only operation, thread-safe)
     proxy = bpy.data.objects.get(task.proxy_name)

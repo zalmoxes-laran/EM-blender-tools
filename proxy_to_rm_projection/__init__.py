@@ -58,10 +58,8 @@ def integrate_with_existing_callbacks():
         
         # Replace the callback (this is a bit hacky but necessary for integration)
         # Note: This would need to be done more carefully in a production system
-        print("Integrated proxy projection with epoch manager")
-        
     except Exception as e:
-        print(f"Could not integrate with epoch manager: {e}")
+        print(f"[ProxyProjection] Error: could not integrate with epoch manager: {e}")
     
     # Hook into stratigraphy filter callbacks
     try:
@@ -83,19 +81,16 @@ def integrate_with_existing_callbacks():
             
             return result
         
-        print("Integrated proxy projection with stratigraphy manager")
-        
     except Exception as e:
-        print(f"Could not integrate with stratigraphy manager: {e}")
+        print(f"[ProxyProjection] Error: could not integrate with stratigraphy manager: {e}")
     
     # Hook into visual manager property changes
     try:
         # This would hook into visual manager property updates
         # when proxy colors change
-        print("Integration with visual manager proxy colors - manual trigger required")
-        
+        pass
     except Exception as e:
-        print(f"Could not integrate with visual manager: {e}")
+        print(f"[ProxyProjection] Error: could not integrate with visual manager: {e}")
 
 
 def setup_scene_properties():
@@ -119,81 +114,43 @@ def cleanup_scene_properties():
 
 def register():
     """Register the Proxy to RM Projection system."""
-    print("=== REGISTERING PROXY TO RM PROJECTION SYSTEM ===")
-    
     try:
-        # 1. Register data structures first
-        print("Registering proxy projection data...")
         register_data()
-        
-        # 2. Register material override system
-        print("Registering material override system...")
         register_material_override()
-        
-        # 3. Register operators
-        print("Registering proxy projection operators...")
         register_operators()
-        
-        # 4. Setup additional scene properties
-        print("Setting up scene properties...")
         setup_scene_properties()
-        
-        # 5. Integrate with existing systems
-        print("Integrating with existing EM Tools systems...")
         integrate_with_existing_callbacks()
-        
-        print("=== PROXY TO RM PROJECTION SYSTEM REGISTRATION COMPLETE ===")
-        
+
         # Verify registration
-        if hasattr(bpy.types.Scene, 'proxy_projection_settings'):
-            print("✅ Proxy projection settings successfully registered!")
-        else:
-            print("❌ Proxy projection settings not found after registration")
-        
-        # Check if operators are available
-        if hasattr(bpy.ops, 'proxy_projection'):
-            ops_count = len([attr for attr in dir(bpy.ops.proxy_projection) if not attr.startswith('_')])
-            print(f"✅ {ops_count} proxy projection operators registered!")
-        else:
-            print("❌ Proxy projection operators not found after registration")
-        
+        if not hasattr(bpy.types.Scene, 'proxy_projection_settings'):
+            print("[ProxyProjection] Error: settings not found after registration")
+
+        if not hasattr(bpy.ops, 'proxy_projection'):
+            print("[ProxyProjection] Error: operators not found after registration")
+
     except Exception as e:
-        print(f"❌ ERROR in Proxy Projection registration: {e}")
+        print(f"[ProxyProjection] Error: registration failed: {e}")
         import traceback
         traceback.print_exc()
 
 
 def unregister():
     """Unregister the Proxy to RM Projection system."""
-    print("=== UNREGISTERING PROXY TO RM PROJECTION SYSTEM ===")
-    
     try:
-        # 1. Clear any active projections first
-        print("Clearing active projections...")
+        # Clear any active projections first
         try:
             from .material_override import clear_all_material_overrides
             clear_all_material_overrides()
         except Exception as e:
-            print(f"Error clearing projections: {e}")
-        
-        # 2. Cleanup scene properties
-        print("Cleaning up scene properties...")
+            print(f"[ProxyProjection] Error: clearing projections: {e}")
+
         cleanup_scene_properties()
-        
-        # 3. Unregister in reverse order
-        print("Unregistering operators...")
         unregister_operators()
-        
-        print("Unregistering material override system...")
         unregister_material_override()
-        
-        print("Unregistering data structures...")
         unregister_data()
-        
-        print("=== PROXY TO RM PROJECTION SYSTEM UNREGISTRATION COMPLETE ===")
-        
+
     except Exception as e:
-        print(f"❌ ERROR in Proxy Projection unregistration: {e}")
+        print(f"[ProxyProjection] Error: unregistration failed: {e}")
         import traceback
         traceback.print_exc()
 
@@ -256,17 +213,8 @@ def get_system_status():
 
 
 def print_system_status():
-    """Print system status to console for debugging."""
-    
-    status = get_system_status()
-    
-    print("\n=== PROXY TO RM PROJECTION SYSTEM STATUS ===")
-    print(f"System Available: {'✅' if status['available'] else '❌'} {status['message']}")
-    print(f"Settings Registered: {'✅' if status['settings_registered'] else '❌'}")
-    print(f"Operators Registered: {'✅' if status['operators_registered'] else '❌'}")
-    print(f"Projection Active: {'✅' if status['projection_active'] else '❌'}")
-    print(f"Material Overrides: {'✅' if status['material_override_active'] else '❌'} ({status.get('override_count', 0)})")
-    print("=" * 50)
+    """Return system status for debugging."""
+    return get_system_status()
 
 
 # Integration helper functions
@@ -280,17 +228,10 @@ def trigger_projection_update(reason="manual"):
     try:
         if bpy.context.scene and hasattr(bpy.context.scene, 'proxy_projection_settings'):
             settings = bpy.context.scene.proxy_projection_settings
-            
             if settings.projection_active and settings.auto_update_enabled:
-                print(f"Triggering projection update: {reason}")
                 bpy.ops.proxy_projection.update()
-            else:
-                print(f"Projection update skipped ({reason}): projection not active or auto-update disabled")
-        else:
-            print(f"Projection update skipped ({reason}): settings not available")
-            
     except Exception as e:
-        print(f"Error triggering projection update ({reason}): {e}")
+        print(f"[ProxyProjection] Error triggering update ({reason}): {e}")
 
 
 def check_prerequisites():

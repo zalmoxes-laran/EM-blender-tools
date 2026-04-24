@@ -5,6 +5,9 @@ Debug operator to inspect graph connections for survive_in_epoch edges
 import bpy
 from bpy.types import Operator
 
+from .us_types import US_PROPER_TYPES
+
+
 class EM_OT_debug_graph_connections(Operator):
     """Debug: Inspect graph connections for survive_in_epoch"""
     bl_idname = "em.debug_graph_connections"
@@ -56,7 +59,7 @@ class EM_OT_debug_graph_connections(Operator):
         # Get all stratigraphic nodes
         strat_nodes = [node for node in graph.nodes
                        if hasattr(node, 'node_type') and
-                       node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD']]
+                       node.node_type in US_PROPER_TYPES]
 
         if strat_nodes:
             # Test first 5 nodes

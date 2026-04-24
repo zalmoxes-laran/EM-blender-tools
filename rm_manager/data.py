@@ -14,6 +14,9 @@ __all__ = [
     "RMItem",
     "RMSettings",
     "OrphanedEpochItem",
+    "RMContainerMeshItem",
+    "RMContainerItem",
+    "RMContainerWarning",
     "register_data",
     "unregister_data",
 ]
@@ -132,6 +135,79 @@ class OrphanedEpochItem(PropertyGroup):
     )  # type: ignore
 
 
+class RMContainerMeshItem(PropertyGroup):
+    """One mesh object name inside an :class:`RMContainerItem`."""
+
+    name: StringProperty(
+        name="Object Name",
+        description="Blender object name of the mesh held by this container",
+        default="",
+    )  # type: ignore
+
+
+class RMContainerItem(PropertyGroup):
+    """A group of meshes wrapped by a single DocumentNode (DP-07 / DP-47
+    extension). The Document is the graph-side wrapper; the container
+    is the EMTools-side PropertyGroup that tracks which mesh objects
+    belong to it. A mesh can belong to at most ONE container at a time.
+
+    The Blender Collection is NOT the source of truth — users are free
+    to keep meshes in whatever collection structure they prefer. The
+    authoritative storage is ``mesh_names`` on this PropertyGroup.
+    """
+
+    label: StringProperty(
+        name="Label",
+        description=(
+            "User-visible label for the container (free text). "
+            "Typically starts with the linked document code "
+            "(e.g. 'D.01.Photogrammetric Survey 2015')."
+        ),
+        default="",
+    )  # type: ignore
+    doc_node_id: StringProperty(
+        name="Document Node ID",
+        description=(
+            "node_id of the DocumentNode this container wraps. Empty "
+            "for the automatic Legacy container that gathers un-linked "
+            "pre-existing RMs."
+        ),
+        default="",
+    )  # type: ignore
+    doc_name: StringProperty(
+        name="Document Name",
+        description="Cached display name of the linked document (e.g. D.01)",
+        default="",
+    )  # type: ignore
+    mesh_names: CollectionProperty(
+        type=RMContainerMeshItem,
+        name="Mesh Members",
+    )  # type: ignore
+    mesh_names_index: IntProperty(
+        name="Active Mesh Index",
+        default=0,
+    )  # type: ignore
+
+
+class RMContainerWarning(PropertyGroup):
+    """A sanitisation warning raised during RM container sync — e.g.
+    a mesh referenced by a container was deleted from the scene. The
+    warning stays until the user acknowledges it, so deletions are
+    never silent.
+    """
+
+    container_label: StringProperty(
+        name="Container",
+        description="Label of the container where the warning was raised",
+        default="",
+    )  # type: ignore
+    mesh_name: StringProperty(
+        name="Mesh Name",
+        description="Blender object name that was removed from scene",
+        default="",
+    )  # type: ignore
+
+
 class RMSettings(PropertyGroup):
     zoom_to_selected: BoolProperty(
         name="Zoom to Selected",
@@ -188,7 +264,11 @@ def _register_class_once(cls):
 
 
 def register_data():
-    for cls in (RMEpochItem, RMItem, OrphanedEpochItem, RMSettings):
+    # RMContainerMeshItem must be registered before RMContainerItem
+    # because the latter holds a CollectionProperty(type=RMContainerMeshItem).
+    for cls in (RMEpochItem, RMItem, OrphanedEpochItem,
+                RMContainerMeshItem, RMContainerItem, RMContainerWarning,
+                RMSettings):
         _register_class_once(cls)
 
     if not hasattr(bpy.types.Scene, "rm_list"):
@@ -197,9 +277,24 @@ def register_data():
         bpy.types.Scene.rm_list_index = IntProperty(name="Index for RM list", default=0)
     if not hasattr(bpy.types.Scene, "rm_settings"):
         bpy.types.Scene.rm_settings = PointerProperty(type=RMSettings)
+    # DP-47 extension: containers linked to DocumentNodes.
+    if not hasattr(bpy.types.Scene, "rm_containers"):
+        bpy.types.Scene.rm_containers = CollectionProperty(type=RMContainerItem)
+    if not hasattr(bpy.types.Scene, "rm_containers_index"):
+        bpy.types.Scene.rm_containers_index = IntProperty(
+            name="Index for RM containers list", default=0)
+    if not hasattr(bpy.types.Scene, "rm_container_warnings"):
+        bpy.types.Scene.rm_container_warnings = CollectionProperty(
+            type=RMContainerWarning)
 
 
 def unregister_data():
+    if hasattr(bpy.types.Scene, "rm_container_warnings"):
+        del bpy.types.Scene.rm_container_warnings
+    if hasattr(bpy.types.Scene, "rm_containers_index"):
+        del bpy.types.Scene.rm_containers_index
+    if hasattr(bpy.types.Scene, "rm_containers"):
+        del bpy.types.Scene.rm_containers
     if hasattr(bpy.types.Scene, "rm_settings"):
         del bpy.types.Scene.rm_settings
     if hasattr(bpy.types.Scene, "rm_list_index"):
@@ -207,7 +302,9 @@ def unregister_data():
     if hasattr(bpy.types.Scene, "rm_list"):
         del bpy.types.Scene.rm_list
 
-    for cls in reversed((RMSettings, OrphanedEpochItem, RMItem, RMEpochItem)):
+    for cls in reversed((RMSettings, RMContainerWarning, RMContainerItem,
+                         RMContainerMeshItem, OrphanedEpochItem, RMItem,
+                         RMEpochItem)):
         try:
             bpy.utils.unregister_class(cls)
         except Exception:

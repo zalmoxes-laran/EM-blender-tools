@@ -49,8 +49,6 @@ __all__ = [
 
 def register():
     """Register all EM Setup classes and properties."""
-    print("📦 Registering EM Setup module...")
-
     # Register in proper dependency order
     # Properties first (PropertyGroups)
     properties.register()
@@ -62,17 +60,11 @@ def register():
     # Finally UI (which may depend on properties and operators)
     ui.register()
 
-    print("✅ EM Setup module registered successfully")
-
 
 def unregister():
     """Unregister all EM Setup classes and properties."""
-    print("📦 Unregistering EM Setup module...")
-
     # Unregister in reverse order
     ui.unregister()
     resource_operators.unregister()
     operators.unregister()
     properties.unregister()
-
-    print("✅ EM Setup module unregistered successfully")

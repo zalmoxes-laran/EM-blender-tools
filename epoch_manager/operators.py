@@ -155,7 +155,7 @@ class EM_toggle_select(Operator):
                     except RuntimeError as e:
                         failed_objects.append(f"{proxy_name}: {e}")
                 else:
-                    print(f"⚠️ Warning: Object '{proxy_name}' not found")
+                    print(f"Warning: Warning: Object '{proxy_name}' not found")
                     missing_objects.append(proxy_name)
 
         _report_bulk_result(
@@ -238,7 +238,7 @@ class EM_toggle_visibility(Operator):
                     object_to_set_visibility.hide_viewport = current_e_manager.use_toggle
                     object_to_set_visibility.hide_render = current_e_manager.use_toggle
                 else:
-                    print(f"⚠️ Warning: Object '{proxy_name}' not found")
+                    print(f"Warning: Warning: Object '{proxy_name}' not found")
                     missing_objects.append(proxy_name)
 
         current_e_manager.use_toggle = not current_e_manager.use_toggle
@@ -311,7 +311,7 @@ class EM_toggle_selectable(Operator):
                     except Exception as e:
                         failed_objects.append(f"{proxy_name}: {e}")
                 else:
-                    print(f"⚠️ Warning: Object '{proxy_name}' not found")
+                    print(f"Warning: Warning: Object '{proxy_name}' not found")
                     missing_objects.append(proxy_name)
                             
         current_e_manager.is_locked = not current_e_manager.is_locked

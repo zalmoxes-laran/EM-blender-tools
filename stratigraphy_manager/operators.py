@@ -11,6 +11,7 @@ from bpy.types import Operator
 
 from ..functions import check_material_presence, em_setup_mat_cycles, update_icons
 from ..functions import select_list_element_from_obj_proxy
+from ..us_types import US_PROPER_TYPES
 
 from s3dgraphy.utils.utils import manage_id_prefix, get_base_name, add_graph_prefix
 
@@ -44,7 +45,7 @@ def repopulate_list_without_sync(context):
     # Get all stratigraphic nodes
     strat_nodes = [node for node in graph.nodes
                    if hasattr(node, 'node_type') and
-                   node.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSVn', 'serUSVs']]
+                   node.node_type in US_PROPER_TYPES]
 
     # Repopulate list
     from ..populate_lists import build_instance_chains
@@ -290,9 +291,8 @@ class EM_strat_sync_visibility(Operator):
             return  # Can't sync without graph
 
         # Get ALL stratigraphic node names from graph (not just filtered list)
-        stratigraphic_types = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
         all_strat_node_names = set()
-        for node_type in stratigraphic_types:
+        for node_type in US_PROPER_TYPES:
             for node in graph.indices.nodes_by_type.get(node_type, []):
                 if hasattr(node, 'name'):
                     all_strat_node_names.add(node.name)
@@ -920,7 +920,8 @@ class EM_strat_activate_collections(Operator):
 
 class EM_listitem_OT_to3D(Operator):
     bl_idname = "listitem.toobj"
-    bl_label = "Use element's name from the list above to rename selected 3D object"
+    bl_label = "Link List Item to 3D Proxy"
+    bl_description = "Link the selected list item with the currently selected proxy object in the 3D View"
     bl_options = {"REGISTER", "UNDO"}
 
     list_type: StringProperty() # type: ignore
@@ -1034,7 +1035,8 @@ class EM_select_list_item(Operator):
 
 class EM_select_from_list_item(Operator):
     bl_idname = "select.fromlistitem"
-    bl_label = "Select 3D obj from the list above"
+    bl_label = "Select 3D Proxy from List Item"
+    bl_description = "Select the 3D object linked to the active list item"
     bl_options = {"REGISTER", "UNDO"}
 
     list_type: StringProperty() # type: ignore
@@ -1259,7 +1261,7 @@ class EM_not_in_matrix(Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        EM_mat_list = ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']
+        EM_mat_list = US_PROPER_TYPES
         EM_mat_name = "mat_NotInTheMatrix"
         R = 1.0
         G = 0.0
@@ -1314,12 +1316,8 @@ class EM_not_in_matrix(Operator):
                             notinmatrix_mat = bpy.data.materials[EM_mat_name]
                             ob.data.materials.append(notinmatrix_mat)
                             applied_count += 1
-                            print(f"✅ Applied 'NotInTheMatrix' material to {ob.name}")
 
         self.report({'INFO'}, f"Applied 'NotInTheMatrix' material to {applied_count} objects")
-        print(f"{'='*50}")
-        print(f"✅ Total objects marked as 'NotInTheMatrix': {applied_count}")
-        print(f"{'='*50}")
         
         return {'FINISHED'}
 
@@ -1384,11 +1382,10 @@ class SET_materials_using_em_list(Operator):
                     graph=active_graph
                 )
                 
-                # ✅ MODIFICATO: Usa get() invece di [] per evitare KeyError
+                # Use get() instead of [] to avoid KeyError
                 current_ob_scene = context.scene.objects.get(proxy_name)
                 
                 if not current_ob_scene:
-                    print(f"⚠️ Warning: Object '{proxy_name}' not found in scene (node: {current_ob_em_list.name})")
                     counter += 1
                     continue
                 
@@ -1396,7 +1393,7 @@ class SET_materials_using_em_list(Operator):
                 
                 # Check the node_type first (most reliable method)
                 if hasattr(current_ob_em_list, 'node_type') and current_ob_em_list.node_type:
-                    if current_ob_em_list.node_type in ['US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'serSU', 'serUSD', 'serUSVn', 'serUSVs']:
+                    if current_ob_em_list.node_type in US_PROPER_TYPES:
                         ob_material_name = current_ob_em_list.node_type
                 else:
                     ob_material_name ='US'
@@ -1424,22 +1421,14 @@ class SET_materials_using_em_list(Operator):
                     elif current_ob_em_list.shape == 'roundrectangle':
                         ob_material_name = 'USD'
                 
-                # ✅ AGGIUNTO: Controllo se il materiale esiste
                 if ob_material_name in bpy.data.materials:
                     mat = bpy.data.materials[ob_material_name]
                     current_ob_scene.data.materials.clear()
                     current_ob_scene.data.materials.append(mat)
                     applied_count += 1
-                    print(f"✅ Applied {ob_material_name} material to {proxy_name}")
-                else:
-                    print(f"⚠️ Warning: Material '{ob_material_name}' not found")
-                    
+
             counter += 1
-        
-        # ✅ AGGIUNTO: Report finale
-        print(f"\n{'='*50}")
-        print(f"✅ Applied EM materials to {applied_count} of {em_list_lenght} objects")
-        print(f"{'='*50}")
+
         self.report({'INFO'}, f"Applied EM materials to {applied_count} objects")
         
         return {'FINISHED'}
@@ -1817,6 +1806,298 @@ class STRAT_OT_open_document_folder(bpy.types.Operator):
         return {'FINISHED'}
 
 
+# ══════════════════════════════════════════════════════════════════
+# STRAT_OT_add_us — "+ Add US" button next to the Stratigraphy list
+# ══════════════════════════════════════════════════════════════════
+
+def _strat_add_us_type_items(self, context):
+    """Dynamic EnumProperty items for the Add-US dialog. Delegates to
+    ``us_types.get_us_type_items`` (the JSON datamodel is the source
+    of truth). A module-level cache is kept inside us_types to avoid
+    Blender's macOS string-GC issue.
+    """
+    from ..us_types import get_us_type_items
+    return get_us_type_items(
+        include_series=True, include_special=False)
+
+
+def _strat_add_us_epoch_update(self, context):
+    """Update callback for ``STRAT_OT_add_us.epoch_name`` — re-runs
+    the Activity filter so the Activity picker reflects the current
+    epoch selection.
+    """
+    from ..us_helpers import update_activity_filter
+    update_activity_filter(self, context)
+
+
+class STRAT_OT_add_us(Operator):
+    """Create a new Stratigraphic Unit from the Stratigraphy Manager.
+
+    Opens a modal dialog that mirrors the ProxyBox / Surface Areas
+    "Create new US" form (type, name, epoch, activity, optional
+    stratigraphic link), then delegates to the shared
+    :func:`us_helpers.create_us_node` factory. A single source of
+    truth for US creation — consistent defaults, consistent
+    validation, consistent population of the list.
+    """
+    bl_idname = "strat.add_us"
+    bl_label = "Add Stratigraphic Unit"
+    bl_description = (
+        "Open a dialog to create a new Stratigraphic Unit and add it "
+        "to the current graph. Uses the shared us_helpers factory "
+        "(same logic as ProxyBox and Surface Areas).")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    us_type: bpy.props.EnumProperty(
+        name="Type",
+        description="Canonical stratigraphic node_type",
+        items=_strat_add_us_type_items,
+    )  # type: ignore
+    # ``us_name`` is kept OFF the operator on purpose: the Name field
+    # binds to ``scene.em_tools.stratigraphy.pending_us_name`` (a
+    # scene-level sentinel) so the "+" suggest-next button — which
+    # runs as a separate operator and therefore can't reach this
+    # operator's transient props — has a shared place to write the
+    # proposed value into.
+    epoch_name: bpy.props.StringProperty(
+        name="Epoch",
+        description="Epoch this unit belongs to (mandatory)",
+        default="",
+        update=lambda self, ctx: _strat_add_us_epoch_update(self, ctx),
+    )  # type: ignore
+    activity_name: bpy.props.StringProperty(
+        name="Activity",
+        description="ActivityNodeGroup this unit is part of (optional)",
+        default="",
+    )  # type: ignore
+    description: bpy.props.StringProperty(
+        name="Description",
+        description="Freeform description (stored on the node)",
+        default="",
+    )  # type: ignore
+    add_strat_link: bpy.props.BoolProperty(
+        name="Add stratigraphic link",
+        description="Optionally relate the new US to an existing one "
+                    "via is_after / is_before",
+        default=False,
+    )  # type: ignore
+    strat_rel: bpy.props.EnumProperty(
+        name="Relation",
+        items=[
+            ('is_after', 'is_after',
+             'New US is more recent than (lies above) the target'),
+            ('is_before', 'is_before',
+             'New US is older than (lies below) the target'),
+        ],
+        default='is_after',
+    )  # type: ignore
+    strat_target: bpy.props.StringProperty(
+        name="Target US",
+        description="Existing US to relate the new one to",
+        default="",
+    )  # type: ignore
+    shared_numbering: bpy.props.BoolProperty(
+        name="Shared numbering across US types",
+        description="When filling Name via the '+' button, draw from "
+                    "the global numeric pool across every US type. "
+                    "Recommended (default): keeps every stratigraphic "
+                    "id globally unique across US / USVs / SF / …",
+        default=True,
+    )  # type: ignore
+    persist_after_create: bpy.props.BoolProperty(
+        name="Save GraphML immediately after create",
+        description="Persist the new US + its edges to the .graphml "
+                    "file right after Create. Recommended — keeps "
+                    "the on-disk graphml in sync with the in-memory "
+                    "state (a Blender crash otherwise loses the US).",
+        default=True,
+    )  # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.em_tools.active_file_index >= 0
+
+    def invoke(self, context, event):
+        # Reset the scene-level Name sentinel so the dialog opens
+        # blank (otherwise a previous invocation's name would leak).
+        context.scene.em_tools.stratigraphy.pending_us_name = ""
+        self.strat_target = ""
+        # Prime the Activity filter. We populate the filtered list
+        # directly (not via bpy.ops) — from inside invoke the
+        # operator context is unreliable.
+        try:
+            from ..activity_manager.operators import (
+                _populate_filtered_activities)
+            _populate_filtered_activities(
+                context.scene.activity_manager, self.epoch_name or "")
+        except Exception as e:
+            print(f"[strat.add_us] invoke filter priming failed: {e}")
+        return context.window_manager.invoke_props_dialog(
+            self, width=460)
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        em_tools = scene.em_tools
+        strat = em_tools.stratigraphy
+
+        # ── Identity: Type → Name → Description (read top-to-bottom
+        #    like a label on the unit). "+ suggest next" receives
+        #    ``us_type`` and ``shared_numbering`` as explicit params
+        #    at click time, so it doesn't have to reach into this
+        #    operator's transient props.
+        layout.prop(self, "us_type")
+        name_row = layout.row(align=True)
+        name_row.prop(strat, "pending_us_name", text="Name")
+        op = name_row.operator(
+            "strat.add_us_suggest_next", text="", icon='ADD')
+        op.us_type = self.us_type
+        op.shared_numbering = self.shared_numbering
+        layout.prop(self, "description")
+        layout.prop(self, "shared_numbering")
+
+        # ── Context: which epoch + which activity (both drive
+        #    placement in the yEd swimlane).
+        if hasattr(em_tools, 'epochs') and em_tools.epochs.list:
+            row = layout.row(align=True)
+            row.alert = not bool(self.epoch_name)
+            row.prop_search(self, "epoch_name",
+                             em_tools.epochs, "list", text="Epoch *")
+        else:
+            layout.label(text="No epochs defined — create one first.",
+                         icon='ERROR')
+
+        from ..us_helpers import draw_activity_picker
+        draw_activity_picker(
+            layout, scene,
+            self, "activity_name",
+            epoch_name=self.epoch_name or None,
+            text="Activity")
+
+        # ── Optional stratigraphic link.
+        link_box = layout.box()
+        link_box.prop(self, "add_strat_link")
+        if self.add_strat_link:
+            link_box.prop(self, "strat_rel")
+            if strat.units:
+                link_box.prop_search(self, "strat_target",
+                                      strat, "units",
+                                      text="Target US")
+            else:
+                link_box.prop(self, "strat_target", text="Target US")
+
+        # ── Persist-to-disk toggle. Plain checkbox (no prominent
+        #    icon) so it reads as "option" not "big-action button".
+        layout.separator()
+        layout.prop(self, "persist_after_create")
+
+    def execute(self, context):
+        scene = context.scene
+        em_tools = scene.em_tools
+        from s3dgraphy import get_graph
+        gi = em_tools.graphml_files[em_tools.active_file_index]
+        graph = get_graph(gi.name)
+        if graph is None:
+            self.report({'ERROR'}, "Graph not loaded")
+            return {'CANCELLED'}
+
+        # Read Name from the scene-level sentinel (see field comment).
+        us_name = (scene.em_tools.stratigraphy.pending_us_name
+                   or "").strip()
+
+        from ..us_helpers import create_us_node
+        ok, us_node, err = create_us_node(
+            scene=scene,
+            graph=graph,
+            us_type=self.us_type,
+            name=us_name,
+            epoch_name=self.epoch_name,
+            activity_name=(self.activity_name or None),
+            description=self.description,
+            strat_link_target=(
+                self.strat_target if self.add_strat_link else None),
+            strat_link_rel=self.strat_rel,
+        )
+        if not ok:
+            self.report({'ERROR'}, f"Failed to create US: {err}")
+            return {'CANCELLED'}
+
+        # ── Persist to disk (mirror ProxyBox "salvataggio virtuoso") ─
+        persisted = False
+        if self.persist_after_create:
+            try:
+                result = bpy.ops.export.graphml_update()
+                persisted = 'FINISHED' in result
+            except Exception as e:
+                self.report({'WARNING'},
+                            f"Auto-save failed: {e}. Save manually "
+                            f"via Export > Update GraphML.")
+
+        tag = " [persisted]" if persisted else ""
+        self.report(
+            {'INFO'},
+            f"Created {us_node.name} "
+            f"(epoch: {self.epoch_name}"
+            f"{', activity: ' + self.activity_name if self.activity_name else ''})"
+            f"{tag}")
+        return {'FINISHED'}
+
+
+class STRAT_OT_add_us_suggest_next(Operator):
+    """The "+ next number" button inside the Add-US dialog. Receives
+    ``us_type`` and ``shared_numbering`` as explicit parameters from
+    the dialog's ``draw()`` and writes the proposed name into the
+    scene-level sentinel ``scene.em_tools.stratigraphy.pending_us_name``.
+
+    No operator-stack lookup — the dialog passes everything needed.
+    """
+    bl_idname = "strat.add_us_suggest_next"
+    bl_label = "Next US Number"
+    bl_description = (
+        "Propose the next free number for the selected US type. "
+        "Respects the 'Shared numbering' toggle.")
+
+    us_type: bpy.props.StringProperty(
+        name="US Type",
+        description="Canonical stratigraphic node_type forwarded from "
+                    "the Add-US dialog",
+        default="US",
+    )  # type: ignore
+    shared_numbering: bpy.props.BoolProperty(
+        name="Shared Numbering",
+        description="Forwarded from the Add-US dialog's toggle",
+        default=False,
+    )  # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.em_tools.active_file_index >= 0
+
+    def execute(self, context):
+        from s3dgraphy import get_graph
+        em_tools = context.scene.em_tools
+        gi = em_tools.graphml_files[em_tools.active_file_index]
+        graph = get_graph(gi.name)
+        if graph is None:
+            self.report({'ERROR'}, "Graph not loaded")
+            return {'CANCELLED'}
+        strat = em_tools.stratigraphy
+
+        if self.shared_numbering:
+            from ..us_types import US_PROPER_TYPES
+            from ..proxy_box_creator.operators import (
+                _next_shared_us_number)
+            proposed = _next_shared_us_number(
+                graph, self.us_type, US_PROPER_TYPES)
+        else:
+            from ..master_document_helpers import get_next_numbered_name
+            proposed = get_next_numbered_name(
+                graph, self.us_type, node_type_filter=self.us_type)
+        strat.pending_us_name = proposed
+        self.report({'INFO'}, f"Next: {proposed}")
+        return {'FINISHED'}
+
+
 def register_operators():
     """Register all operator classes."""
     operators = [
@@ -1846,6 +2127,8 @@ def register_operators():
         STRAT_OT_preview_document,
         STRAT_OT_open_document_file,
         STRAT_OT_open_document_folder,
+        STRAT_OT_add_us,
+        STRAT_OT_add_us_suggest_next,
     ]
     
     for cls in operators:

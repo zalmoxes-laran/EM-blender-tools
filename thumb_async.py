@@ -99,7 +99,6 @@ class ThumbnailLoader:
             name="ThumbnailLoader"
         )
         self._worker_thread.start()
-        print("[ThumbnailLoader] Started background worker")
 
     def stop(self):
         """Stop background worker thread"""
@@ -113,7 +112,6 @@ class ThumbnailLoader:
             self._worker_thread.join(timeout=2.0)
             self._worker_thread = None
 
-        print("[ThumbnailLoader] Stopped background worker")
 
     def request_thumbnails(self, us_node_id: str, aux_files: List,
                           callback: Optional[Callable] = None) -> List[Tuple]:
@@ -172,8 +170,6 @@ class ThumbnailLoader:
 
     def _worker(self):
         """Background worker thread"""
-        print("[ThumbnailLoader] Worker thread started")
-
         while not self._stop_event.is_set():
             try:
                 # Get task from queue (timeout to check stop_event)
@@ -204,7 +200,6 @@ class ThumbnailLoader:
                 import traceback
                 traceback.print_exc()
 
-        print("[ThumbnailLoader] Worker thread stopped")
 
     def _cache_result(self, us_node_id: str, thumbnails: List[Tuple]):
         """
@@ -343,7 +338,6 @@ def start_thumbnail_loader():
     loader = get_thumbnail_loader()
     if not loader._running:
         loader.start()
-    print("[ThumbnailLoader] Service started")
 
 
 def stop_thumbnail_loader():
@@ -358,7 +352,6 @@ def stop_thumbnail_loader():
         _thumbnail_loader.stop()
         _thumbnail_loader = None
 
-    print("[ThumbnailLoader] Service stopped")
 
 
 def clear_thumbnail_cache():
