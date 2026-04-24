@@ -30,17 +30,31 @@ _SHIFT_TOLERANCE = 1e-3
 
 
 def _compare_state(ref: dict, state: dict | None) -> str:
-    '''Ritorna lo stato semaforico confrontando EMTools vs addon.'''
+    '''Ritorna lo stato semaforico confrontando EMTools vs addon.
+
+    Stati:
+      grey   : addon non installato
+      yellow : addon installato ma senza dati (nessun CRS / origin non set)
+      red    : addon installato con dati divergenti da EMTools
+      green  : addon installato e dati coincidenti con EMTools
+    '''
     if state is None:
         return 'grey'
 
-    epsg_ref = (ref.get('epsg') or '').strip()
     epsg_state = (state.get('epsg') or '').strip() if state.get('epsg') else ''
+    has_origin_state = any(
+        state.get(k) is not None for k in ('shift_x', 'shift_y', 'shift_z')
+    )
 
+    if not epsg_state and not has_origin_state:
+        return 'yellow'
+
+    epsg_ref = (ref.get('epsg') or '').strip()
+
+    if epsg_ref and epsg_state and epsg_state != epsg_ref:
+        return 'red'
     if epsg_ref and not epsg_state:
         return 'red'
-    if epsg_state and epsg_ref and epsg_state != epsg_ref:
-        return 'yellow'
 
     for key in ('shift_x', 'shift_y', 'shift_z'):
         r = ref.get(key)
@@ -48,19 +62,16 @@ def _compare_state(ref: dict, state: dict | None) -> str:
         if r is None or s is None:
             continue
         if abs(float(r) - float(s)) > _SHIFT_TOLERANCE:
-            return 'yellow'
+            return 'red'
 
-    if not epsg_ref and not epsg_state:
-        # Entrambi vuoti / default: ok ma nothing-to-sync.
-        return 'grey'
     return 'green'
 
 
 _DOT_ICON = {
-    'green': 'RADIOBUT_ON',
-    'yellow': 'DOT',
-    'red': 'ERROR',
-    'grey': 'RADIOBUT_OFF',
+    'green': 'NODE_SOCKET_SHADER',
+    'yellow': 'NODE_SOCKET_RGBA',
+    'red': 'NODE_SOCKET_MATRIX',
+    'grey': 'NODE_SOCKET_MENU',
 }
 
 _TOOLTIP_BGIS_MISSING = (
@@ -163,9 +174,26 @@ class EM_PT_georef(Panel):
         row.operator("em.georef_import_shift_txt", text="Import shift.txt", icon='IMPORT')
         row.operator("em.georef_export_shift_txt", text="Export shift.txt", icon='EXPORT')
 
+        # Propagate: push EMTools → installed addons
+        has_any_addon = (bgis_state is not None) or (dsc_state is not None)
+        row = layout.row()
+        row.enabled = has_any_addon
+        row.operator(
+            "em.georef_sync_all",
+            text="Propagate coordinates",
+            icon='FORWARD',
+        )
+
+        # Pull: two dedicated buttons, each active only if that addon is present
         row = layout.row(align=True)
-        row.operator("em.georef_sync_all", text="Sync all", icon='FILE_REFRESH')
-        row.operator("em.georef_pull", text="Pull", icon='TRIA_DOWN_BAR')
+        sub = row.row()
+        sub.enabled = bgis_state is not None
+        op = sub.operator("em.georef_pull", text="Pull from BGIS", icon='TRIA_DOWN_BAR')
+        op.source = 'bgis'
+        sub = row.row()
+        sub.enabled = dsc_state is not None
+        op = sub.operator("em.georef_pull", text="Pull from 3DSC", icon='TRIA_DOWN_BAR')
+        op.source = 'dsc'
 
         row = layout.row()
         row.enabled = graph is not None

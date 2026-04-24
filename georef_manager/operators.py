@@ -91,8 +91,8 @@ class EM_OT_georef_export_shift_txt(Operator, ExportHelper):
 
 class EM_OT_georef_sync_all(Operator):
     bl_idname = "em.georef_sync_all"
-    bl_label = "Sync all"
-    bl_description = "Force-push current EMTools georef values to BlenderGIS and 3DSC (when installed)"
+    bl_label = "Propagate coordinates"
+    bl_description = "Propagate current EMTools georef values to BlenderGIS and 3D Survey Collection (when installed). EMTools is the source; installed addons receive the update"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
