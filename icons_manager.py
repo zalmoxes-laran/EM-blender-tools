@@ -54,6 +54,16 @@ def load_icons():
         "proxies_link": "proxies_link.png",
         "proxies_select_rows": "proxies_select_rows.png",
         "proxies_rows_add": "proxies_rows_add.png",
+        # EM Annotator — selector icons used inline in UIList rows
+        # to jump to the linked RM / RMDoc / tileset.
+        "RM_select": "RM_select.png",
+        "RM_add": "RM_add.png",
+        "RMDoc_select": "RMDoc_select.png",
+        "tileset": "tileset.png",
+        "tileset_add": "tileset_add.png",
+        "tileset_select": "tileset_select.png",
+        "container_off": "container_off.png",
+        "container_on": "container_on.png",
     }
     
     # Carica ogni icona che esiste

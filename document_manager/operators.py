@@ -561,7 +561,7 @@ class DOCMANAGER_OT_select_linked_entity(bpy.types.Operator):
     bl_description = "Select the linked object in the viewport and highlight its row in the target panel"
 
     node_id: StringProperty()  # type: ignore
-    entity_type: StringProperty()  # 'US', 'RMSF', 'RMDoc'  # type: ignore
+    entity_type: StringProperty()  # 'US', 'RMSF', 'RMDoc', 'RM'  # type: ignore
 
     def _select_object(self, context, obj):
         """Deselect all, ensure object is accessible, select and activate, optionally zoom."""
@@ -718,9 +718,60 @@ class DOCMANAGER_OT_select_linked_entity(bpy.types.Operator):
             return self._handle_rmsf(context)
         elif self.entity_type == 'RMDoc':
             return self._handle_rmdoc(context)
+        elif self.entity_type == 'RM':
+            return self._handle_rm(context)
         else:
             self.report({'WARNING'}, f"Unknown entity type: {self.entity_type}")
             return {'CANCELLED'}
+
+    def _handle_rm(self, context):
+        """Select all RM meshes linked to the given document via
+        ``scene.rm_containers``. When multiple meshes are linked, they
+        are all selected and the first one is made active.
+        """
+        scene = context.scene
+        containers = getattr(scene, 'rm_containers', None)
+        if containers is None:
+            self.report({'WARNING'}, "No RM containers in this scene")
+            return {'CANCELLED'}
+
+        # Collect all meshes referenced by containers bound to this doc.
+        mesh_names = []
+        for container in containers:
+            if container.doc_node_id != self.node_id:
+                continue
+            for entry in container.mesh_names:
+                mesh_names.append(entry.name)
+        if not mesh_names:
+            self.report({'WARNING'}, "No RM meshes linked to this document")
+            return {'CANCELLED'}
+
+        objs = [self._find_object_by_name(n, context) for n in mesh_names]
+        objs = [o for o in objs if o is not None]
+        if not objs:
+            self.report({'WARNING'}, "Linked RM meshes are missing from the scene")
+            return {'CANCELLED'}
+
+        # Ensure the first one is accessible and active, then add the rest
+        # to the selection.
+        if not self._select_object(context, objs[0]):
+            return {'CANCELLED'}
+        for obj in objs[1:]:
+            obj.select_set(True)
+
+        # Try to highlight the matching row in the RM Manager panel.
+        try:
+            for i, container in enumerate(containers):
+                if container.doc_node_id == self.node_id:
+                    scene.rm_containers_index = i
+                    break
+        except Exception:
+            pass
+
+        self.report(
+            {'INFO'},
+            f"Selected {len(objs)} RM mesh(es) linked to {self.node_id}")
+        return {'FINISHED'}
 
 
 class DOCMANAGER_OT_select_all_linked_us(bpy.types.Operator):

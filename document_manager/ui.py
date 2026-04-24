@@ -264,9 +264,40 @@ class DOCMANAGER_UL_documents(UIList):
         regular_us = [u for u in us_nodes if u[2] not in sf_types]
         sf_us = [u for u in us_nodes if u[2] in sf_types]
 
+        # RM selector — the document wraps one or more RM containers
+        # of 3D meshes. Clicking jumps to those meshes in the scene.
+        if doc_info.get('rm_containers'):
+            rm_icon = icons_manager.get_icon_value("RM_select")
+            if rm_icon:
+                op = row.operator(
+                    "em.docmanager_select_linked_entity", text="",
+                    icon_value=rm_icon, emboss=False
+                )
+            else:
+                op = row.operator(
+                    "em.docmanager_select_linked_entity", text="",
+                    icon='MESH_CUBE', emboss=False
+                )
+            op.node_id = item.node_id
+            op.entity_type = 'RM'
 
-            
-        # RMSF icon (show_all_special_finds)
+        # RMDoc selector — the spatialized document quad in the scene.
+        if doc_info.get('has_rmdoc'):
+            rmdoc_icon = icons_manager.get_icon_value("RMDoc_select")
+            if rmdoc_icon:
+                op = row.operator(
+                    "em.docmanager_select_linked_entity", text="",
+                    icon_value=rmdoc_icon, emboss=False
+                )
+            else:
+                op = row.operator(
+                    "em.docmanager_select_linked_entity", text="",
+                    icon='FILE_IMAGE', emboss=False
+                )
+            op.node_id = item.node_id
+            op.entity_type = 'RMDoc'
+
+        # RMSF selector — special finds referenced by this doc.
         if sf_us:
             sf_name, sf_node_id, sf_type = sf_us[0]
             sf_icon = icons_manager.get_icon_value("show_all_special_finds")
@@ -283,23 +314,7 @@ class DOCMANAGER_UL_documents(UIList):
             op.node_id = sf_node_id
             op.entity_type = 'RMSF'
 
-        # RMDoc icon (spatialized document quad)
-        if doc_info.get('has_rmdoc'):
-            rmdoc_icon = icons_manager.get_icon_value("show_all_RMDoc")
-            if rmdoc_icon:
-                op = row.operator(
-                    "em.docmanager_select_linked_entity", text="",
-                    icon_value=rmdoc_icon, emboss=False
-                )
-            else:
-                op = row.operator(
-                    "em.docmanager_select_linked_entity", text="",
-                    icon='FILE_IMAGE', emboss=False
-                )
-            op.node_id = item.node_id
-            op.entity_type = 'RMDoc'
-
-        # US proxy icon — selects ALL linked US in the scene
+        # US proxy selector — selects ALL linked US in the scene.
         if regular_us:
             us_icon = icons_manager.get_icon_value("proxies_select")
             op = row.operator(
@@ -428,12 +443,15 @@ class VIEW3D_PT_3DDocumentManager(Panel):
         filter_row.prop(doc_settings, "filter_with_3d", toggle=True)
 
         # --- Document list ---
+        # rows=8 is the minimum visible; maxrows lets the UIList grow
+        # taller when the sidebar has space, with the native scrollbar
+        # always available for the overflow.
         row = layout.row()
         row.template_list(
             "DOCMANAGER_UL_documents", "",
             scene, "doc_list",
             scene, "doc_list_index",
-            rows=8,
+            rows=8, maxrows=20,
         )
 
         # --- Detail panel for selected document ---
@@ -463,32 +481,31 @@ class VIEW3D_PT_3DDocumentManager(Panel):
             col.separator()
             col.label(text=f"Referenced {ref_count} time{'s' if ref_count != 1 else ''}", icon="LINKED")
 
-            # Linked US nodes
+            # Linked US nodes — single selector icon per row, no
+            # redundant "entity-type" icon on the left.
             us_nodes = doc_info.get('us_nodes', [])
             if us_nodes:
                 col.separator()
                 sf_types = {"SF", "VSF"}
                 for us_name, us_node_id, us_type in us_nodes:
                     us_row = col.row(align=True)
+                    us_row.label(text=f"→ {us_name} ({us_type})")
                     if us_type in sf_types:
-                        sf_icon_val = icons_manager.get_icon_value("show_all_special_finds")
-                        if sf_icon_val:
-                            us_row.label(text=f"→ {us_name} ({us_type})", icon_value=sf_icon_val)
-                        else:
-                            us_row.label(text=f"→ {us_name} ({us_type})", icon='OUTLINER_OB_ARMATURE')
+                        sel_icon_val = icons_manager.get_icon_value(
+                            "show_all_special_finds")
+                        sel_fallback = 'OUTLINER_OB_ARMATURE'
                     else:
-                        us_row.label(text=f"→ {us_name} ({us_type})", icon='MESH_CUBE')
-                    _ps_icon = icons_manager.get_icon_value("proxies_select")
-                    if _ps_icon:
+                        sel_icon_val = icons_manager.get_icon_value(
+                            "proxies_select")
+                        sel_fallback = 'RESTRICT_SELECT_OFF'
+                    if sel_icon_val:
                         op = us_row.operator(
                             "em.docmanager_select_linked_entity", text="",
-                            icon_value=_ps_icon, emboss=False
-                        )
+                            icon_value=sel_icon_val, emboss=False)
                     else:
                         op = us_row.operator(
                             "em.docmanager_select_linked_entity", text="",
-                            icon='RESTRICT_SELECT_OFF', emboss=False
-                        )
+                            icon=sel_fallback, emboss=False)
                     op.node_id = us_node_id
                     op.entity_type = 'RMSF' if us_type in sf_types else 'US'
 
@@ -543,8 +560,11 @@ class VIEW3D_PT_3DDocumentManager(Panel):
                          f"content: {nature_str}   |   "
                          f"geometry: {geom_str}")
 
-            # Linked RMs (DP-47 — document wraps a set of 3D meshes
-            # via one or more RM containers in the RM Manager).
+            # Linked RMs (DP-47 — document wraps a set of 3D meshes via
+            # one or more RM containers in the RM Manager). Each mesh row
+            # has a single selector icon (RM_select) and no redundant
+            # entity icon. Missing objects still show an ERROR icon as
+            # the selector has nothing to act on.
             rm_containers_for_doc = doc_info.get('rm_containers', [])
             if rm_containers_for_doc:
                 col.separator()
@@ -554,6 +574,7 @@ class VIEW3D_PT_3DDocumentManager(Panel):
                     text=f"Linked RMs: {rm_total} mesh(es) in "
                          f"{len(rm_containers_for_doc)} container(s)",
                     icon='OUTLINER_COLLECTION')
+                rm_select_icon = icons_manager.get_icon_value("RM_select")
                 for cont_label, members in rm_containers_for_doc:
                     cont_row = col.row()
                     cont_row.label(
@@ -564,15 +585,21 @@ class VIEW3D_PT_3DDocumentManager(Panel):
                     for mname in members[:8]:
                         m_row = col.row(align=True)
                         obj_exists = mname in bpy.data.objects
-                        m_row.label(
-                            text=f"    - {mname}",
-                            icon='OBJECT_DATA' if obj_exists else 'ERROR')
-                        if obj_exists:
+                        if not obj_exists:
+                            m_row.label(text=f"    - {mname}", icon='ERROR')
+                            continue
+                        m_row.label(text=f"    - {mname}")
+                        if rm_select_icon:
+                            op = m_row.operator(
+                                "em.rmdoc_select_object",
+                                text="", icon_value=rm_select_icon,
+                                emboss=False)
+                        else:
                             op = m_row.operator(
                                 "em.rmdoc_select_object",
                                 text="", icon='RESTRICT_SELECT_OFF',
                                 emboss=False)
-                            op.object_name = mname
+                        op.object_name = mname
                     if len(members) > 8:
                         col.label(
                             text=f"    ... and {len(members) - 8} more")

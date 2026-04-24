@@ -61,16 +61,23 @@ def _container_icon(scene, container):
 
 
 class RMCONTAINER_UL_list(UIList):
-    """UIList of RM Containers (top-level). Each row shows the
-    variant icon driven by the linked DocumentNode's geometry axis,
-    the user-visible label, the document reference code, and the
-    mesh count.
+    """UIList of RM Containers (top-level). Each row shows an
+    on/off container icon (empty vs populated), the user-visible
+    label, the document reference code, and the mesh count.
     """
 
     def draw_item(self, context, layout, data, item, icon, active_data,
                   active_propname, index):
         row = layout.row(align=True)
-        row.label(text="", icon=_container_icon(context.scene, item))
+
+        # Container fill indicator: on = has meshes, off = empty.
+        fill_icon = icons_manager.get_icon_value(
+            "container_on" if len(item.mesh_names) > 0 else "container_off")
+        if fill_icon:
+            row.label(text="", icon_value=fill_icon)
+        else:
+            row.label(text="", icon='PACKAGE')
+
         row.prop(item, "label", text="", emboss=False)
         ref = item.doc_name if item.doc_name else "—"
         row.label(text=f"[{ref}]")
@@ -120,22 +127,22 @@ class RM_UL_List(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         try:
             if self.layout_type in {'DEFAULT', 'COMPACT'}:
-                # Get the object to check if it's a tileset
+                # Get the object to check if it's a tileset — the
+                # selector icon at the end of the row distinguishes
+                # tileset rows from plain mesh rows, so no extra
+                # icon is needed on the name field.
                 obj = get_object_cache().get_object(item.name)
-                is_tileset = obj and "tileset_path" in obj
-                
-                # Determine the appropriate icon
-                if is_tileset:
-                    obj_icon = 'ORIENTATION_GLOBAL'  # Global icon for tileset
-                elif hasattr(item, 'object_exists') and item.object_exists:
-                    obj_icon = 'OBJECT_DATA'
-                else:
-                    obj_icon = 'ERROR'
-                
-                # Show warning icon if there's a mismatch
+                is_tileset = bool(obj and "tileset_path" in obj)
+
+                # Error markers get their own icon on the name prop so
+                # problems stay visible at a glance. In the healthy
+                # case we leave the name icon blank.
+                has_error = False
+                if not (hasattr(item, 'object_exists') and item.object_exists):
+                    has_error = True
                 if hasattr(item, 'epoch_mismatch') and item.epoch_mismatch:
-                    obj_icon = 'ERROR'
-                
+                    has_error = True
+
                 # Main row
                 row = layout.row(align=True)
 
@@ -149,8 +156,12 @@ class RM_UL_List(UIList):
                 else:
                     sub.label(text="X", icon='MOD_DECIM')
 
-                # Name of the RM model
-                row.prop(item, "name", text="", emboss=False, icon=obj_icon)
+                # Name of the RM model — blank icon unless there's an
+                # error state to flag.
+                if has_error:
+                    row.prop(item, "name", text="", emboss=False, icon='ERROR')
+                else:
+                    row.prop(item, "name", text="", emboss=False, icon='BLANK1')
 
                 # Epoch of belonging
                 if hasattr(item, 'first_epoch'):
@@ -165,8 +176,17 @@ class RM_UL_List(UIList):
                 op = row.operator("rm.promote_to_rm", text="", icon='ADD', emboss=False)
                 op.mode = 'RM_LIST'
 
-                # Selection object (inline)
-                op = row.operator("rm.select_from_list", text="", icon='RESTRICT_SELECT_OFF', emboss=False)
+                # Selection — tileset_select for tileset rows,
+                # RM_select for plain meshes. This is also the visual
+                # cue that distinguishes the two row types.
+                sel_key = "tileset_select" if is_tileset else "RM_select"
+                sel_icon = icons_manager.get_icon_value(sel_key)
+                if sel_icon:
+                    op = row.operator("rm.select_from_list", text="",
+                                      icon_value=sel_icon, emboss=False)
+                else:
+                    op = row.operator("rm.select_from_list", text="",
+                                      icon='RESTRICT_SELECT_OFF', emboss=False)
                 op.rm_index = index
 
                 # Flag pubblicabile (custom icons)
@@ -597,7 +617,56 @@ class VIEW3D_PT_RM_Manager(Panel):
                     row.operator("rm.resolve_mismatches", text="Use Graph Epochs", icon='NODE_MATERIAL').use_graph_epochs = True
                 row.operator("rm.resolve_mismatches", text="Use Scene Epochs", icon='OBJECT_DATA').use_graph_epochs = False
         
-        # Settings (collapsible)
+        # Cesium Tilesets management — shown before Settings so the
+        # per-row tileset properties appear right underneath the mesh
+        # list. A single icon-only "+" button adds a new tileset; the
+        # path editor sits inside a collapsible that is closed by
+        # default (show_tileset_properties).
+        if has_active_epoch:
+            box = layout.box()
+            header = box.row(align=True)
+            tileset_hdr_icon = icons_manager.get_icon_value("tileset")
+            if tileset_hdr_icon:
+                header.label(text="Cesium Tilesets",
+                             icon_value=tileset_hdr_icon)
+            else:
+                header.label(text="Cesium Tilesets",
+                             icon='ORIENTATION_GLOBAL')
+            add_icon = icons_manager.get_icon_value("tileset_add")
+            if add_icon:
+                header.operator("rm.add_tileset", text="",
+                                icon_value=add_icon)
+            else:
+                header.operator("rm.add_tileset", text="", icon='ADD')
+
+            # Collapsible tileset properties for the active row, only
+            # when that row is actually a tileset.
+            if 0 <= scene.rm_list_index < len(scene.rm_list):
+                rm_item = scene.rm_list[scene.rm_list_index]
+                obj = get_object_cache().get_object(rm_item.name)
+                if obj and "tileset_path" in obj:
+                    row = box.row()
+                    row.prop(
+                        scene.rm_settings, "show_tileset_properties",
+                        icon="TRIA_DOWN" if scene.rm_settings.show_tileset_properties else "TRIA_RIGHT",
+                        text=f"Tileset: {rm_item.name}",
+                        emboss=False,
+                    )
+
+                    if scene.rm_settings.show_tileset_properties:
+                        row = box.row(align=True)
+                        row.prop(obj, '["tileset_path"]', text="Path")
+                        op = row.operator("rm.set_tileset_path", text="", icon='FILEBROWSER')
+                        op.object_name = obj.name
+
+                        path = obj.get("tileset_path", "")
+                        if path and not os.path.exists(bpy.path.abspath(path)):
+                            row = box.row()
+                            row.alert = True
+                            row.label(text="Warning: File not found!", icon='ERROR')
+
+        # Settings (collapsible) — kept at the bottom so routine per-row
+        # editing (tilesets, epochs) stays above the fold.
         box = layout.box()
         row = box.row()
         row.prop(scene.rm_settings, "show_settings",
@@ -614,38 +683,6 @@ class VIEW3D_PT_RM_Manager(Panel):
                 row.prop(scene.rm_settings, "show_mismatches")
                 row = box.row()
                 row.prop(scene.rm_settings, "auto_update_on_load")
-
-        # Cesium Tilesets management
-        if has_active_epoch:
-            box = layout.box()
-            box.label(text="Cesium Tilesets:", icon='ORIENTATION_GLOBAL')
-            row = box.row()
-            row.operator("rm.add_tileset", text="Add New Cesium Tileset", icon='ADD')
-
-            # Inline tileset properties (replaces the old subpanel)
-            if scene.rm_list_index >= 0 and scene.rm_list_index < len(scene.rm_list):
-                rm_item = scene.rm_list[scene.rm_list_index]
-                obj = get_object_cache().get_object(rm_item.name)
-                if obj and "tileset_path" in obj:
-                    row = box.row()
-                    row.prop(
-                        scene.rm_settings, "show_tileset_properties",
-                        icon="TRIA_DOWN" if scene.rm_settings.show_tileset_properties else "TRIA_RIGHT",
-                        text=f"Tileset Properties: {rm_item.name}",
-                        emboss=False,
-                    )
-
-                    if scene.rm_settings.show_tileset_properties:
-                        row = box.row(align=True)
-                        row.prop(obj, '["tileset_path"]', text="Path")
-                        op = row.operator("rm.set_tileset_path", text="", icon='FILEBROWSER')
-                        op.object_name = obj.name
-
-                        path = obj.get("tileset_path", "")
-                        if path and not os.path.exists(bpy.path.abspath(path)):
-                            row = box.row()
-                            row.alert = True
-                            row.label(text="Warning: File not found!", icon='ERROR')
 
 # NOTE: VIEW3D_PT_RMDoc_Manager has been moved to document_manager/ui.py
 # as a standalone panel (bl_order=3) rather than a sub-panel of RM Manager.
