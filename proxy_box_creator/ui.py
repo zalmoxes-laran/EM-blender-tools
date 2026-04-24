@@ -32,24 +32,27 @@ def _active_us_name(context):
 
 
 class PROXYBOX_PT_main_panel(Panel):
-    """Main panel for the Proxy Box Creator.
+    """Main panel for Proxy Box.
 
-    Nested under the RM to Proxy Suite parent panel (see
-    ``rm_to_proxy_suite.py``) — sibling of Surface Areas.
+    Top-level panel in the EM Annotator tab (promoted from the former
+    RM to Proxy Suite wrapper). Sibling of Surface Areas.
     """
-    bl_label = "Proxy Box Creator"
+    bl_label = "Proxy Box"
     bl_idname = "PROXYBOX_PT_main_panel"
-    bl_parent_id = "VIEW3D_PT_RMToProxySuite"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM Annotator"
+    bl_order = 5
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
-        if not hasattr(context.scene, 'em_tools'):
+        em_tools = getattr(context.scene, 'em_tools', None)
+        if em_tools is None:
             return False
         if getattr(context.scene, 'landscape_mode_active', False):
+            return False
+        if not getattr(em_tools, 'mode_em_advanced', False):
             return False
         return True
 
@@ -69,10 +72,10 @@ class PROXYBOX_PT_main_panel(Panel):
 
         # Help button (keeps the panel approachable without inflating the UI).
         header_row = layout.row(align=True)
-        header_row.label(text="Proxy Box Creator", icon='MESH_CUBE')
+        header_row.label(text="Proxy Box", icon='MESH_CUBE')
         help_op = header_row.operator(
             "em.help_popup", text="", icon='QUESTION')
-        help_op.title = "Proxy Box Creator"
+        help_op.title = "Proxy Box"
         help_op.text = (
             "Step 1: pick an anchor Document from the selected mesh\n"
             "or the catalog. Step 2: record the 7 measurement points\n"

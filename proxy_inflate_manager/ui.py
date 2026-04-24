@@ -31,6 +31,22 @@ class VIEW3D_PT_ProxyInflatePanel(Panel):
         layout = self.layout
         scene = context.scene
 
+        # Header with help popup.
+        header_row = layout.row(align=True)
+        header_row.label(text="Proxy Inflate", icon='MOD_SOLIDIFY')
+        help_op = header_row.operator(
+            "em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Proxy Inflate Manager"
+        help_op.text = (
+            "Give flat proxies (boxes, shapes) visible thickness by\n"
+            "extruding them via a Solidify modifier.\n"
+            "  • Add / Activate / Deactivate / Remove per selection\n"
+            "  • Inflate All applies inflation to every proxy at once\n"
+            "  • Auto-Inflate on Export runs it as part of the pipeline."
+        )
+        help_op.url = "panels/proxy_inflate_manager.html#proxy-inflate"
+        help_op.project = 'em_tools'
+
         # Inflation settings
         box = layout.box()
         box.row().label(text="Inflation Settings:")

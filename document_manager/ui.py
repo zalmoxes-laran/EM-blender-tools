@@ -334,7 +334,7 @@ class VIEW3D_PT_3DDocumentManager(Panel):
     bl_category = "EM Annotator"
     bl_idname = "VIEW3D_PT_3DDocumentManager"
     bl_context = "objectmode"
-    bl_order = 4
+    bl_order = 1
     bl_options = {"DEFAULT_CLOSED"}
 
     @classmethod
@@ -357,6 +357,14 @@ class VIEW3D_PT_3DDocumentManager(Panel):
         idx = scene.doc_list_index
 
         total = len(doc_list)
+
+        # Tab descriptor — shown only at the top of the first panel to
+        # orient new users when they click into the EM Annotator tab.
+        descriptor = layout.row()
+        descriptor.enabled = False  # dimmed
+        descriptor.label(
+            text="EM Annotator — link 3D objects to the extended matrix",
+            icon='INFO')
 
         # --- Summary line 1: total documents + masters ---
         row1 = layout.row(align=True)
@@ -666,7 +674,7 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'EM Annotator'
-    bl_order = 3
+    bl_order = 4
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod

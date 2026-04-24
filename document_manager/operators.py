@@ -86,6 +86,7 @@ class DOCMANAGER_OT_sync(bpy.types.Operator):
     """Synchronize document list from graph data"""
     bl_idname = "em.docmanager_sync"
     bl_label = "Sync Documents"
+    bl_description = "Rebuild the document catalog from the active GraphML and scan the scene for linked quads"
     bl_options = {'REGISTER'}
 
     def execute(self, context):
@@ -137,6 +138,7 @@ class DOCMANAGER_OT_import_image(bpy.types.Operator):
     """Import document image into the scene as a textured quad"""
     bl_idname = "em.docmanager_import_image"
     bl_label = "Import Image"
+    bl_description = "Create a textured image quad in the scene at the 3D cursor, sized from the image aspect ratio"
     bl_options = {'REGISTER', 'UNDO'}
 
     quad_width: FloatProperty(
@@ -260,6 +262,7 @@ class DOCMANAGER_OT_create_camera(bpy.types.Operator):
     """Create a camera at the current viewport position looking at the document quad"""
     bl_idname = "em.docmanager_create_camera"
     bl_label = "Create Camera"
+    bl_description = "Create a camera at the current viewport pose, aligned to this document's quad"
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -323,6 +326,7 @@ class DOCMANAGER_OT_look_through(bpy.types.Operator):
     """Switch viewport to look through this document's camera"""
     bl_idname = "em.docmanager_look_through"
     bl_label = "Look Through Camera"
+    bl_description = "Switch the viewport to this document's camera and fit render resolution to the image"
 
     @classmethod
     def poll(cls, context):
@@ -358,6 +362,7 @@ class DOCMANAGER_OT_open_url(bpy.types.Operator):
     """Open the URL or file associated with the selected document"""
     bl_idname = "em.docmanager_open_url"
     bl_label = "Open Document"
+    bl_description = "Open the document's URL in the browser, or its file via the system default application"
 
     @classmethod
     def poll(cls, context):
@@ -399,6 +404,7 @@ class DOCMANAGER_OT_select_scene_object(bpy.types.Operator):
     """Select the quad object for this document in the viewport"""
     bl_idname = "em.docmanager_select_object"
     bl_label = "Select Quad"
+    bl_description = "Select this document's quad object in the 3D viewport"
 
     @classmethod
     def poll(cls, context):
@@ -427,6 +433,7 @@ class DOCMANAGER_OT_rename_object(bpy.types.Operator):
     """Rename the selected 3D object using the document name (with graph prefix)"""
     bl_idname = "em.docmanager_rename_object"
     bl_label = "Rename Object from Document"
+    bl_description = "Rename the active 3D object to match this document's name (with the graph prefix applied)"
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -1532,6 +1539,7 @@ class RMDOC_OT_select_object(bpy.types.Operator):
     """Select this RMDoc quad object in the viewport"""
     bl_idname = "em.rmdoc_select_object"
     bl_label = "Select RMDoc Object"
+    bl_description = "Select this RMDoc's quad in the 3D viewport (unhides its collection if needed)"
 
     object_name: StringProperty()  # type: ignore
 
@@ -1552,6 +1560,7 @@ class RMDOC_OT_add_selected(bpy.types.Operator):
     """Add selected mesh objects to the RMDoc list"""
     bl_idname = "em.rmdoc_add_selected"
     bl_label = "Add Selected"
+    bl_description = "Add the selected mesh objects to the RMDoc list (they become document quads after linking)"
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -1678,6 +1687,7 @@ class RMDOC_OT_assign_document(bpy.types.Operator):
     """Assign a document to an RMDoc object"""
     bl_idname = "em.rmdoc_assign_document"
     bl_label = "Assign Document"
+    bl_description = "Link this RMDoc quad to an existing document from the catalog"
     bl_options = {'REGISTER', 'UNDO'}
 
     rmdoc_index: IntProperty(default=-1)  # type: ignore
@@ -2137,6 +2147,7 @@ class RMDOC_OT_remove(bpy.types.Operator):
     """Delete RMDoc: removes quad and camera objects from the scene"""
     bl_idname = "em.rmdoc_remove"
     bl_label = "Delete RMDoc"
+    bl_description = "Delete this RMDoc — removes both the quad and its camera from the scene"
     bl_options = {'REGISTER', 'UNDO'}
 
     rmdoc_index: IntProperty(default=-1)  # type: ignore
@@ -2320,6 +2331,7 @@ class RMDOC_OT_look_through(bpy.types.Operator):
     """Look through camera and fit render resolution to image dimensions"""
     bl_idname = "em.rmdoc_look_through"
     bl_label = "Look Through Camera"
+    bl_description = "Switch the viewport to this RMDoc's camera and fit render resolution to the image"
 
     object_name: StringProperty()  # type: ignore
 
@@ -2384,6 +2396,7 @@ class RMDOC_OT_pilot_camera(bpy.types.Operator):
     """Toggle camera piloting — navigate inside camera view, moving camera and quad"""
     bl_idname = "em.rmdoc_pilot_camera"
     bl_label = "Pilot Camera"
+    bl_description = "Toggle camera pilot mode — viewport navigation drives the camera (and the quad if parented)"
 
     object_name: StringProperty()  # type: ignore
 
@@ -2445,6 +2458,7 @@ class RMDOC_OT_set_alpha(bpy.types.Operator):
     """Set the transparency of the document quad image"""
     bl_idname = "em.rmdoc_set_alpha"
     bl_label = "Set Alpha"
+    bl_description = "Set the transparency of this quad's material (0 = transparent, 1 = opaque)"
     bl_options = {'REGISTER', 'UNDO'}
 
     object_name: StringProperty()  # type: ignore
@@ -2475,6 +2489,7 @@ class RMDOC_OT_toggle_ortho(bpy.types.Operator):
     """Toggle camera between perspective and orthographic mode"""
     bl_idname = "em.rmdoc_toggle_ortho"
     bl_label = "Toggle Ortho"
+    bl_description = "Switch this camera between perspective and orthographic projection (preserves framing)"
     bl_options = {'REGISTER', 'UNDO'}
 
     object_name: StringProperty()  # type: ignore
@@ -2589,6 +2604,7 @@ class RMDOC_OT_open_document(bpy.types.Operator):
     """Open the document file linked to this RMDoc object"""
     bl_idname = "em.rmdoc_open_document"
     bl_label = "Open Document"
+    bl_description = "Open the source file of the document linked to this RMDoc"
 
     doc_node_id: StringProperty()  # type: ignore
 

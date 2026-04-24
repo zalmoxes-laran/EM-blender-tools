@@ -23,22 +23,27 @@ def _get_graph_safe(context):
 
 
 class VIEW3D_PT_SurfaceAreale(Panel):
-    """Surface Areas creation panel with requirement checklist (experimental).
+    """Surface Areas creation panel with a 5-step requirement checklist.
 
-    Nested under the RM to Proxy Suite parent panel (see
-    ``rm_to_proxy_suite.py``) — sibling of the Proxy Box Creator.
+    Top-level panel in the EM Annotator tab (promoted from the former
+    RM to Proxy Suite). Sibling of the Proxy Box panel.
     """
-    bl_label = "Surface Areas (Experimental)"
-    bl_parent_id = "VIEW3D_PT_RMToProxySuite"
+    bl_label = "Surface Areas"
     bl_idname = "VIEW3D_PT_SurfaceAreale"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM Annotator"
+    bl_order = 6
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
-        return context.scene.em_tools.active_file_index >= 0
+        em_tools = getattr(context.scene, 'em_tools', None)
+        if em_tools is None:
+            return False
+        if not getattr(em_tools, 'mode_em_advanced', False):
+            return False
+        return em_tools.active_file_index >= 0
 
     def draw_header(self, context):
         layout = self.layout
@@ -50,7 +55,27 @@ class VIEW3D_PT_SurfaceAreale(Panel):
         em_tools = scene.em_tools
         settings = em_tools.surface_areale
         graph = _get_graph_safe(context)
-        experimental = getattr(em_tools, 'experimental_features', False)
+
+        # Header with help popup — matches the convention used by the
+        # other EM Annotator panels (RM, Anastylosis, RMDoc, Document,
+        # Proxy Box).
+        header_row = layout.row(align=True)
+        header_row.label(text="Surface Areas", icon='MOD_TRIANGULATE')
+        help_op = header_row.operator(
+            "em.help_popup", text="", icon='QUESTION')
+        help_op.title = "Surface Areas"
+        help_op.text = (
+            "Five-step checklist for linking a drawn area on a\n"
+            "Representation Model to the extended matrix:\n"
+            "  1. pick the target RM mesh\n"
+            "  2. link a Document (existing or new)\n"
+            "  3. choose an Extractor method\n"
+            "  4. name the Property being measured\n"
+            "  5. assign the Stratigraphic Unit\n"
+            "Then click Draw to sketch the area on the RM."
+        )
+        help_op.url = "panels/surface_areale.html#surface-areas"
+        help_op.project = 'em_tools'
 
         all_ok = True  # Track if all requirements are met
 
@@ -72,66 +97,58 @@ class VIEW3D_PT_SurfaceAreale(Panel):
         elif not obj:
             all_ok = False
 
-        # ── Req 2-4: Document / Extractor / Property (experimental only) ─
-        if experimental:
-            # ── Req 2: Document linked to RM ──────────────────────────
-            box = layout.box()
-            doc_node = None
-            has_doc = False
+        # ── Req 2: Document linked to RM ────────────────────────────
+        box = layout.box()
+        doc_node = None
+        has_doc = False
 
-            if is_rm and graph:
-                doc_node = find_rm_document(scene, graph, obj)
-                has_doc = doc_node is not None
+        if is_rm and graph:
+            doc_node = find_rm_document(scene, graph, obj)
+            has_doc = doc_node is not None
 
-            row = box.row()
-            row.label(text="2. Document",
-                      icon='CHECKMARK' if has_doc else 'X')
+        row = box.row()
+        row.label(text="2. Document",
+                  icon='CHECKMARK' if has_doc else 'X')
 
-            if has_doc:
-                box.label(text=f"{doc_node.name}", icon='FILE')
-            elif is_rm:
-                # Shared Document picker (search existing + create new
-                # via the standard Master Document dialog). The wrapper
-                # operator ``emtools.surface_areale_create_doc`` opens
-                # the create-master-doc dialog and, on confirm, writes
-                # the new doc name back into ``settings.existing_document``
-                # so the user doesn't have to re-pick it.
-                from ..master_document_helpers import (
-                    draw_document_picker_with_create_button)
-                draw_document_picker_with_create_button(
-                    box, scene,
-                    target_owner=settings,
-                    target_prop_name="existing_document",
-                    create_new_operator=(
-                        "emtools.surface_areale_create_doc"),
-                    create_new_label="+ Add New Document...",
-                )
-                has_doc = bool(settings.existing_document)
+        if has_doc:
+            box.label(text=f"{doc_node.name}", icon='FILE')
+        elif is_rm:
+            # Shared Document picker (search existing + create new via
+            # the standard Master Document dialog).
+            from ..master_document_helpers import (
+                draw_document_picker_with_create_button)
+            draw_document_picker_with_create_button(
+                box, scene,
+                target_owner=settings,
+                target_prop_name="existing_document",
+                create_new_operator=(
+                    "emtools.surface_areale_create_doc"),
+                create_new_label="+ Add New Document...",
+            )
+            has_doc = bool(settings.existing_document)
 
-            if not has_doc:
-                all_ok = False
+        if not has_doc:
+            all_ok = False
 
-            # ── Req 3: Extractor ──────────────────────────────────────
-            box = layout.box()
-            has_extr = bool(settings.extractor_name)
-            row = box.row()
-            row.label(text="3. Extractor",
-                      icon='CHECKMARK' if has_extr else 'X')
-            box.prop(settings, "extractor_name", text="Method")
-            if not has_extr:
-                all_ok = False
+        # ── Req 3: Extractor ────────────────────────────────────────
+        box = layout.box()
+        has_extr = bool(settings.extractor_name)
+        row = box.row()
+        row.label(text="3. Extractor",
+                  icon='CHECKMARK' if has_extr else 'X')
+        box.prop(settings, "extractor_name", text="Method")
+        if not has_extr:
+            all_ok = False
 
-            # ── Req 4: Property ───────────────────────────────────────
-            box = layout.box()
-            has_prop = bool(settings.property_name)
-            row = box.row()
-            row.label(text="4. Property",
-                      icon='CHECKMARK' if has_prop else 'X')
-            box.prop(settings, "property_name", text="Name")
-            if not has_prop:
-                all_ok = False
-        else:
-            doc_node = None  # Not used in simple mode
+        # ── Req 4: Property ─────────────────────────────────────────
+        box = layout.box()
+        has_prop = bool(settings.property_name)
+        row = box.row()
+        row.label(text="4. Property",
+                  icon='CHECKMARK' if has_prop else 'X')
+        box.prop(settings, "property_name", text="Name")
+        if not has_prop:
+            all_ok = False
 
         # ── US Target ─────────────────────────────────────────────────
         # Always a single path: pick an existing US from the list, or
@@ -141,7 +158,7 @@ class VIEW3D_PT_SurfaceAreale(Panel):
         # all of that now, keeping the form identical across
         # ProxyBox, Surface Areas and Stratigraphy Manager.
         box = layout.box()
-        req_num = "5" if experimental else "2"
+        req_num = "5"
         row = box.row()
 
         from ..us_helpers import draw_add_us_button
@@ -163,25 +180,24 @@ class VIEW3D_PT_SurfaceAreale(Panel):
         if not has_us:
             all_ok = False
 
-        # ── Chain Summary (collapsed) — experimental only ─────────────
-        if experimental:
-            box = layout.box()
-            row = box.row()
-            row.prop(settings, "show_chain_summary",
-                     icon='TRIA_DOWN' if settings.show_chain_summary else 'TRIA_RIGHT',
-                     text="Chain Summary", emboss=False)
+        # ── Chain Summary (collapsed) ─────────────────────────────────
+        box = layout.box()
+        row = box.row()
+        row.prop(settings, "show_chain_summary",
+                 icon='TRIA_DOWN' if settings.show_chain_summary else 'TRIA_RIGHT',
+                 text="Chain Summary", emboss=False)
 
-            if settings.show_chain_summary:
-                us_name = settings.linked_us_name
-                doc_name = doc_node.name if doc_node else (settings.existing_document or "?")
-                rm_name = obj.name if obj else "?"
+        if settings.show_chain_summary:
+            us_name = settings.linked_us_name
+            doc_name = doc_node.name if doc_node else (settings.existing_document or "?")
+            rm_name = obj.name if obj else "?"
 
-                col = box.column(align=True)
-                col.scale_y = 0.8
-                col.label(text=f"{us_name or '?'} --has_property--> {settings.property_name}")
-                col.label(text=f"  --has_data_provenance--> {doc_name}.N")
-                col.label(text=f"  --extracted_from--> {doc_name}")
-                col.label(text=f"  --has_representation_model--> {rm_name}")
+            col = box.column(align=True)
+            col.scale_y = 0.8
+            col.label(text=f"{us_name or '?'} --has_property--> {settings.property_name}")
+            col.label(text=f"  --has_data_provenance--> {doc_name}.N")
+            col.label(text=f"  --extracted_from--> {doc_name}")
+            col.label(text=f"  --has_representation_model--> {rm_name}")
 
         # ── Draw Button ───────────────────────────────────────────────
         layout.separator()
