@@ -178,6 +178,7 @@ class EM_statistics:
     bl_label = "EM statistics"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
+    bl_order = 6
 
     def draw(self, context):
         layout = self.layout

@@ -666,12 +666,13 @@ def background_update_callback(update_ready):
 		return
 	if update_ready != True:
 		return
-	if updater_run_install_popup_handler not in \
-				bpy.app.handlers.scene_update_post and \
-				ran_autocheck_install_popup==False:
-		bpy.app.handlers.scene_update_post.append(
-				updater_run_install_popup_handler)
-		ran_autocheck_install_popup = True
+	if hasattr(bpy.app.handlers, "scene_update_post"):
+		if updater_run_install_popup_handler not in \
+					bpy.app.handlers.scene_update_post and \
+					ran_autocheck_install_popup==False:
+			bpy.app.handlers.scene_update_post.append(
+					updater_run_install_popup_handler)
+			ran_autocheck_install_popup = True
 
 
 def post_update_callback(module_name, res=None):
@@ -803,12 +804,13 @@ def showReloadPopup():
 		# no handlers in this case
 		if updater.auto_reload_post_update == False: return
 
-		if updater_run_success_popup_handler not in \
-					bpy.app.handlers.scene_update_post \
-					and ran_update_sucess_popup==False:
-			bpy.app.handlers.scene_update_post.append(
-					updater_run_success_popup_handler)
-			ran_update_sucess_popup = True
+		if hasattr(bpy.app.handlers, "scene_update_post"):
+			if updater_run_success_popup_handler not in \
+						bpy.app.handlers.scene_update_post \
+						and ran_update_sucess_popup==False:
+				bpy.app.handlers.scene_update_post.append(
+						updater_run_success_popup_handler)
+				ran_update_sucess_popup = True
 
 
 # -----------------------------------------------------------------------------

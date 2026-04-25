@@ -15,8 +15,9 @@ class EM_SetupPanel:
     devel_version = bl_info.get('devel_version', 'Unknown version')
 
     bl_label = "EM setup " + devel_version
-    bl_space_type = 'VIEW_3D' 
+    bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
+    bl_order = 0
 
     def draw(self, context):
         layout = self.layout
