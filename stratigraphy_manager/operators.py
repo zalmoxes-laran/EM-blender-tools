@@ -1912,6 +1912,15 @@ class STRAT_OT_add_us(Operator):
                     "state (a Blender crash otherwise loses the US).",
         default=True,
     )  # type: ignore
+    lock_us_type: bpy.props.BoolProperty(
+        name="Lock US Type",
+        description="Internal: when True, the US Type dropdown is "
+                    "rendered read-only. Used by callers (e.g. the "
+                    "RMSF flow) that must constrain the type to a "
+                    "specific value while reusing this dialog.",
+        default=False,
+        options={'HIDDEN', 'SKIP_SAVE'},
+    )  # type: ignore
 
     @classmethod
     def poll(cls, context):
@@ -1946,7 +1955,12 @@ class STRAT_OT_add_us(Operator):
         #    ``us_type`` and ``shared_numbering`` as explicit params
         #    at click time, so it doesn't have to reach into this
         #    operator's transient props.
-        layout.prop(self, "us_type")
+        # When ``lock_us_type`` is True the dropdown is shown disabled
+        # so callers (e.g. the RMSF "+ New SF" flow) can pre-set the
+        # type and prevent accidental edits.
+        type_row = layout.row()
+        type_row.enabled = not self.lock_us_type
+        type_row.prop(self, "us_type")
         name_row = layout.row(align=True)
         name_row.prop(strat, "pending_us_name", text="Name")
         op = name_row.operator(

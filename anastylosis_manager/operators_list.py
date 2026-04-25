@@ -145,14 +145,49 @@ class ANASTYLOSIS_OT_update_list(Operator):
                     item.lod_count = len(variants)
                     item.active_lod = _get_active_lod(item.name)
 
+            # ── Sanitise stale rows ────────────────────────────────
+            # Drop entries whose name maps neither to an RMSF graph
+            # node (well-formed, possibly orphan of an SF link — still
+            # a valid RMSF the user can complete here) NOR to a scene
+            # mesh. Those entries are leftovers from past iterations
+            # (manual property tinkering, partial imports, etc.) and
+            # would otherwise keep coming back on every refresh.
+            graph_rmsf_obj_names = set()
+            if graph:
+                for node in graph.nodes:
+                    if getattr(node, 'node_type', '') != "representation_model_sf":
+                        continue
+                    nname = getattr(node, 'name', '') or ''
+                    obj_name = nname.replace("RMSF for ", "").strip()
+                    if obj_name:
+                        graph_rmsf_obj_names.add(obj_name)
+            i = len(anastylosis_list) - 1
+            removed = 0
+            while i >= 0:
+                row = anastylosis_list[i]
+                in_graph = (graph is not None
+                             and row.name in graph_rmsf_obj_names)
+                in_scene = row.name in bpy.data.objects
+                if not in_graph and not in_scene:
+                    anastylosis_list.remove(i)
+                    removed += 1
+                i -= 1
+
             # Restore index if possible
             anastylosis.list_index = min(current_index, len(anastylosis_list)-1) if anastylosis_list else 0
 
             # Report
+            stale_msg = f" — pruned {removed} stale" if removed else ""
             if self.from_graph:
-                self.report({'INFO'}, f"Updated anastylosis list from graph: {len(anastylosis_list)} models")
+                self.report({'INFO'},
+                            f"Updated anastylosis list from graph: "
+                            f"{len(anastylosis_list)} models"
+                            f"{stale_msg}")
             else:
-                self.report({'INFO'}, f"Updated anastylosis list from scene: {len(anastylosis_list)} models")
+                self.report({'INFO'},
+                            f"Updated anastylosis list from scene: "
+                            f"{len(anastylosis_list)} models"
+                            f"{stale_msg}")
 
             return {'FINISHED'}
 
@@ -525,6 +560,114 @@ classes = (
     ANASTYLOSIS_OT_remove_selected,
     ANASTYLOSIS_OT_cleanup_missing_objects,
     ANASTYLOSIS_OT_select_from_object,
+    None,  # placeholder; replaced after class definitions below
+)
+
+
+class ANASTYLOSIS_OT_jump_to_document(Operator):
+    """Highlight the linked Document in the Document Manager catalog.
+
+    Mirrors :class:`RMDOC_OT_jump_to_document`: sets
+    ``scene.doc_list_index`` to the matching row so the user can move
+    from the RMSF detail panel to the catalog with a single click.
+    """
+    bl_idname = "anastylosis.jump_to_document"
+    bl_label = "Show in Document Manager"
+    bl_description = (
+        "Highlight this RMSF's linked Document in the Document Manager "
+        "catalog")
+
+    doc_node_id: StringProperty()  # type: ignore
+
+    def execute(self, context):
+        scene = context.scene
+        if not self.doc_node_id:
+            self.report({'WARNING'}, "No linked document")
+            return {'CANCELLED'}
+        doc_list = getattr(scene, 'doc_list', None)
+        if doc_list is None:
+            return {'CANCELLED'}
+        for i, item in enumerate(doc_list):
+            if item.node_id == self.doc_node_id:
+                scene.doc_list_index = i
+                self.report({'INFO'},
+                            f"Jumped to document {item.name}")
+                return {'FINISHED'}
+        self.report({'WARNING'},
+                    "Linked document not found in catalog")
+        return {'CANCELLED'}
+
+
+class ANASTYLOSIS_OT_select_sf_proxy(Operator):
+    """Select the SF proxy object in the viewport for this RMSF row.
+
+    Looks up a scene object whose name matches the linked SF node
+    name, optionally prefixed by the active graph code (the same
+    naming convention used by Stratigraphy Manager / Document
+    Manager). When no proxy is found, the operator reports the miss
+    so the future "create primitive proxy" tool has a clear hook.
+    """
+    bl_idname = "anastylosis.select_sf_proxy"
+    bl_label = "Select SF Proxy"
+    bl_description = (
+        "Select the SpecialFind's proxy object in the 3D viewport. "
+        "If no proxy exists yet, you'll need to create one (a future "
+        "tool will generate a simplified primitive automatically)")
+
+    anastylosis_index: IntProperty(default=-1)  # type: ignore
+
+    def execute(self, context):
+        scene = context.scene
+        anastylosis = scene.em_tools.anastylosis
+        idx = (self.anastylosis_index
+               if self.anastylosis_index >= 0
+               else anastylosis.list_index)
+        if idx < 0 or idx >= len(anastylosis.list):
+            self.report({'ERROR'}, "No anastylosis model selected")
+            return {'CANCELLED'}
+        item = anastylosis.list[idx]
+        if not item.sf_node_name:
+            self.report({'WARNING'}, "No SF linked to this RMSF")
+            return {'CANCELLED'}
+
+        # Try direct name match first, then with graph prefix.
+        target = bpy.data.objects.get(item.sf_node_name)
+        if target is None:
+            try:
+                from ..operators.addon_prefix_helpers import (
+                    node_name_to_proxy_name)
+                from ..functions import is_graph_available
+                ok, graph = is_graph_available(context)
+                if ok and graph is not None:
+                    prefixed = node_name_to_proxy_name(
+                        item.sf_node_name, context=context, graph=graph)
+                    target = bpy.data.objects.get(prefixed)
+            except Exception:
+                pass
+
+        if target is None:
+            self.report(
+                {'WARNING'},
+                f"SF proxy {item.sf_node_name!r} not found in the "
+                "scene. Create the proxy (manually or with the future "
+                "primitive-from-mesh tool) before retrying.")
+            return {'CANCELLED'}
+
+        try:
+            bpy.ops.object.select_all(action='DESELECT')
+        except RuntimeError:
+            pass
+        target.select_set(True)
+        context.view_layer.objects.active = target
+        self.report({'INFO'}, f"Selected SF proxy {target.name}")
+        return {'FINISHED'}
+
+
+# Patch the placeholder above with the freshly-defined class so the
+# registration tuple stays a single source of truth.
+classes = tuple(c for c in classes if c is not None) + (
+    ANASTYLOSIS_OT_jump_to_document,
+    ANASTYLOSIS_OT_select_sf_proxy,
 )
 
 
