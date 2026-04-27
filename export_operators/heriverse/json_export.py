@@ -12,6 +12,8 @@ from bpy.props import BoolProperty, StringProperty
 from bpy.types import Operator
 from bpy_extras.io_utils import ExportHelper
 
+from ...functions import em_log
+
 
 class HERIVERSE_OT_export_json(Operator, ExportHelper):
     """Export project data in Heriverse JSON format"""
@@ -39,11 +41,11 @@ class HERIVERSE_OT_export_json(Operator, ExportHelper):
         return self.execute(context)
 
     def execute(self, context):
-        print("\n=== Starting Heriverse JSON Export ===")
+        em_log("\n=== Starting Heriverse JSON Export ===", "INFO")
         try:
             from s3dgraphy.exporter.json_exporter import JSONExporter
             exporter = JSONExporter(self.filepath)
-            print(f"Created JSONExporter for path: {self.filepath}")
+            em_log(f"Created JSONExporter for path: {self.filepath}", "DEBUG")
 
             em_tools = context.scene.em_tools
             publishable_graph_ids = []
@@ -52,7 +54,7 @@ class HERIVERSE_OT_export_json(Operator, ExportHelper):
                 if is_publishable:
                     publishable_graph_ids.append(graphml_item.name)
 
-            print(f"Exporting {len(publishable_graph_ids)} publishable graphs: {publishable_graph_ids}")
+            em_log(f"Exporting {len(publishable_graph_ids)} publishable graphs: {publishable_graph_ids}", "DEBUG")
 
             if not publishable_graph_ids:
                 self.report({'WARNING'}, "No publishable graphs found to export")
@@ -77,18 +79,18 @@ class HERIVERSE_OT_export_json(Operator, ExportHelper):
                         g.shift_x, g.shift_y, g.shift_z,
                     )
             except Exception as exc:
-                print(f"[DP-56] GeoPositionNode mirror skipped: {exc}")
+                em_log(f"[DP-56] GeoPositionNode mirror skipped: {exc}", "WARNING")
 
             exporter.export_graphs(graph_ids=publishable_graph_ids)
-            print("Graphs exported successfully")
+            em_log("Graphs exported successfully", "DEBUG")
 
             self.report({'INFO'}, f"Heriverse data successfully exported to {self.filepath}")
             return {'FINISHED'}
 
         except Exception as e:
-            print(f"Error during JSON export: {str(e)}")
+            em_log(f"Error during JSON export: {str(e)}", "ERROR")
             import traceback
-            print(traceback.format_exc())
+            em_log(traceback.format_exc(), "ERROR")
             self.report({'ERROR'}, f"Error during export: {str(e)}")
             return {'CANCELLED'}
 

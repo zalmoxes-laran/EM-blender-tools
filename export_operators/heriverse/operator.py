@@ -62,14 +62,14 @@ class EXPORT_OT_heriverse(Operator):
                 if is_publishable:
                     published_graph_ids.append(graphml_item.name)
             
-            print(f"Found {len(published_graph_ids)} publishable graphs: {published_graph_ids}")
+            em_log(f"Found {len(published_graph_ids)} publishable graphs: {published_graph_ids}", "DEBUG")
             
             for graph_id in published_graph_ids:
                 graph = get_graph(graph_id)
                 if graph:
                     names = self._extract_stratigraphic_names_from_graph(graph)
                     stratigraphic_names.update(names)
-                    print(f"Graph '{graph_id}': found {len(names)} stratigraphic nodes")
+                    em_log(f"Graph '{graph_id}': found {len(names)} stratigraphic nodes", "DEBUG")
         else:
             # Solo il grafo attivo
             em_tools = context.scene.em_tools
@@ -79,9 +79,9 @@ class EXPORT_OT_heriverse(Operator):
                 if graph:
                     names = self._extract_stratigraphic_names_from_graph(graph)
                     stratigraphic_names.update(names)
-                    print(f"Active graph '{graphml.name}': found {len(names)} stratigraphic nodes")
+                    em_log(f"Active graph '{graphml.name}': found {len(names)} stratigraphic nodes", "DEBUG")
             else:
-                print("No active graph found")
+                em_log("No active graph found", "WARNING")
         
         return stratigraphic_names
 
@@ -168,25 +168,25 @@ class EXPORT_OT_heriverse(Operator):
                 has_multiple_graphs  # True se multigrafo, False se singolo grafo
             )
 
-            print(f"Found {len(stratigraphic_names)} stratigraphic nodes across graphs")
+            em_log(f"Found {len(stratigraphic_names)} stratigraphic nodes across graphs", "DEBUG")
             
             exported_count = 0
             skipped_count = 0
 
             # Debug: Lista tutti gli oggetti mesh disponibili
             all_mesh_objects = [obj.name for obj in bpy.data.objects if obj.type == 'MESH']
-            print(f"Available mesh objects in scene: {len(all_mesh_objects)}")
+            em_log(f"Available mesh objects in scene: {len(all_mesh_objects)}", "DEBUG")
 
             # ✅ OPTIMIZATION: Add progress bar for long export operations
             wm = context.window_manager
             total_proxies = len(stratigraphic_names)
             wm.progress_begin(0, total_proxies)
-            print(f"\n[EXPORT] Starting export of {total_proxies} proxies with progress bar...")
+            em_log(f"\n[EXPORT] Starting export of {total_proxies} proxies with progress bar...", "DEBUG")
 
             for idx, name in enumerate(stratigraphic_names):
                 # Update progress bar (shows current/total in status bar)
                 wm.progress_update(idx)
-                print(f"\n[{idx+1}/{total_proxies}] Processing: {name}")
+                em_log(f"\n[{idx+1}/{total_proxies}] Processing: {name}", "DEBUG")
                 # Try exact match first
                 proxy = bpy.data.objects.get(name)
 
@@ -201,17 +201,17 @@ class EXPORT_OT_heriverse(Operator):
                         # If multiple matches, take the first one
                         proxy = matching_objects[0]
                         if len(matching_objects) > 1:
-                            print(f"  Warning: Multiple proxies found for '{name}': {[o.name for o in matching_objects]}")
-                            print(f"           Using: {proxy.name}")
+                            em_log(f"  Warning: Multiple proxies found for '{name}': {[o.name for o in matching_objects]}", "WARNING")
+                            em_log(f"           Using: {proxy.name}", "DEBUG")
 
                 # Debug dettagliato
                 if not proxy:
-                    print(f"  Proxy '{name}': NOT FOUND in scene (tried exact match and '*.{name}')")
+                    em_log(f"  Proxy '{name}': NOT FOUND in scene (tried exact match and '*.{name}')", "WARNING")
                     skipped_count += 1
                     continue
 
                 if proxy.type != 'MESH':
-                    print(f"  Proxy '{proxy.name}': Found but not a MESH (type: {proxy.type})")
+                    em_log(f"  Proxy '{proxy.name}': Found but not a MESH (type: {proxy.type})", "DEBUG")
                     skipped_count += 1
                     continue
 
@@ -224,11 +224,11 @@ class EXPORT_OT_heriverse(Operator):
                             break
 
                 if not is_publishable:
-                    print(f"  Proxy '{proxy.name}': Not publishable, skipping")
+                    em_log(f"  Proxy '{proxy.name}': Not publishable, skipping", "WARNING")
                     skipped_count += 1
                     continue
 
-                print(f"  Proxy '{proxy.name}': Found and ready to export (strat node: '{name}')")
+                em_log(f"  Proxy '{proxy.name}': Found and ready to export (strat node: '{name}')", "DEBUG")
 
                 proxy.select_set(True)
                 # Use stratigraphic name for export filename (without graph prefix)
@@ -244,7 +244,7 @@ class EXPORT_OT_heriverse(Operator):
                         format_file='GLB'
                     )
                     exported_count += 1
-                    print(f"  Successfully exported proxy: {clean_name}.glb")
+                    em_log(f"  Successfully exported proxy: {clean_name}.glb", "DEBUG")
 
                     # Update SemanticShapeNode URL and create LinkNode in the graph
                     # (SemanticShapeNode should already exist from update_graph_with_scene_data)
@@ -258,7 +258,7 @@ class EXPORT_OT_heriverse(Operator):
                         if shape_node:
                             # Update URL (should already be set, but update to be sure)
                             shape_node.set_url(f"proxies/{clean_name}.glb")
-                            print(f"    Updated SemanticShape URL: {shape_node_id}")
+                            em_log(f"    Updated SemanticShape URL: {shape_node_id}", "DEBUG")
 
                             # Create LinkNode for the proxy (this is created only at export)
                             link_node_id = f"{shape_node_id}_link"
@@ -273,10 +273,10 @@ class EXPORT_OT_heriverse(Operator):
                                     url_type="3d_model"
                                 )
                                 graph.add_node(link_node)
-                                print(f"    Created Link node: {link_node_id}")
+                                em_log(f"    Created Link node: {link_node_id}", "DEBUG")
                             else:
                                 link_node.url = f"proxies/{clean_name}.glb"
-                                print(f"    Updated Link node: {link_node_id}")
+                                em_log(f"    Updated Link node: {link_node_id}", "DEBUG")
 
                             # Create edge between semantic shape and link node
                             edge_id = str(uuid.uuid4())
@@ -287,12 +287,12 @@ class EXPORT_OT_heriverse(Operator):
                                     edge_target=link_node_id,
                                     edge_type="has_linked_resource"
                                 )
-                                print(f"    Created edge: {shape_node_id} -> {link_node_id}")
+                                em_log(f"    Created edge: {shape_node_id} -> {link_node_id}", "DEBUG")
                         else:
-                            print(f"    Warning: SemanticShape node '{shape_node_id}' not found (should have been created by update_graph_with_scene_data)")
+                            em_log(f"    Warning: SemanticShape node '{shape_node_id}' not found (should have been created by update_graph_with_scene_data)", "WARNING")
 
                 except Exception as e:
-                    print(f"  Failed to export proxy {name}: {str(e)}")
+                    em_log(f"  Failed to export proxy {name}: {str(e)}", "ERROR")
                     self.report({'WARNING'}, f"Failed to export proxy {name}: {str(e)}")
 
                 proxy.select_set(False)
@@ -300,10 +300,10 @@ class EXPORT_OT_heriverse(Operator):
             # ✅ End progress bar
             wm.progress_end()
 
-            print(f"\nProxy export summary:")
-            print(f"  - Total stratigraphic nodes: {len(stratigraphic_names)}")
-            print(f"  - Successfully exported: {exported_count}")
-            print(f"  - Skipped: {skipped_count}")
+            em_log(f"\nProxy export summary:", "DEBUG")
+            em_log(f"  - Total stratigraphic nodes: {len(stratigraphic_names)}", "DEBUG")
+            em_log(f"  - Successfully exported: {exported_count}", "DEBUG")
+            em_log(f"  - Skipped: {skipped_count}", "WARNING")
 
             self.report({'INFO'}, f"Exported {exported_count} proxies")
             return exported_count > 0
@@ -328,7 +328,7 @@ class EXPORT_OT_heriverse(Operator):
     # Function to export tilesets
     def export_tilesets(self, context, export_folder):
         """Export Cesium tileset files"""
-        print("\n--- Exporting Cesium Tilesets ---")
+        em_log("\n--- Exporting Cesium Tilesets ---", "INFO")
         
         # Create tilesets directory if it doesn't exist
         os.makedirs(export_folder, exist_ok=True)
@@ -347,7 +347,7 @@ class EXPORT_OT_heriverse(Operator):
         
         # If no tilesets, return early
         if not tileset_objects:
-            print("No tileset objects found in scene")
+            em_log("No tileset objects found in scene", "DEBUG")
             return 0
         
         exported_count = 0
@@ -363,13 +363,13 @@ class EXPORT_OT_heriverse(Operator):
                     break
             
             if not is_publishable:
-                print(f"Skipping tileset {obj.name} (not publishable)")
+                em_log(f"Skipping tileset {obj.name} (not publishable)", "WARNING")
                 continue
                 
             try:
                 tileset_path = obj["tileset_path"]
                 if not tileset_path:
-                    print(f"Skipping tileset {obj.name} (empty path)")
+                    em_log(f"Skipping tileset {obj.name} (empty path)", "WARNING")
                     continue
                     
                 # Percorso assoluto
@@ -392,16 +392,16 @@ class EXPORT_OT_heriverse(Operator):
                 tileset_extracted = False
                 
                 if export_vars.heriverse_skip_extracted_tilesets and os.path.exists(tileset_json_path):
-                    print(f"Skipping extraction of tileset '{filename}' (already extracted)")
+                    em_log(f"Skipping extraction of tileset '{filename}' (already extracted)", "WARNING")
                     skipped_count += 1
                     tileset_extracted = True
                 else:
                     # Estrai il file ZIP
-                    print(f"Extracting tileset '{filename}' - this may take some time...")
+                    em_log(f"Extracting tileset '{filename}' - this may take some time...", "DEBUG")
                     import zipfile
                     with zipfile.ZipFile(abs_path, 'r') as zip_ref:
                         zip_ref.extractall(tileset_dir)
-                    print(f"Extracted tileset: {obj.name} -> {tileset_dir}")
+                    em_log(f"Extracted tileset: {obj.name} -> {tileset_dir}", "DEBUG")
                     exported_count += 1
                     tileset_extracted = True
                 
@@ -440,10 +440,10 @@ class EXPORT_OT_heriverse(Operator):
                         existing_link = graph.find_node_by_id(link_node_id)
                         if existing_link:
                             existing_link.url = relative_tileset_path
-                            print(f"Updated existing link node for tileset: {obj.name}")
+                            em_log(f"Updated existing link node for tileset: {obj.name}", "DEBUG")
                         else:
                             graph.add_node(link_node)
-                            print(f"Created new link node for tileset: {obj.name}")
+                            em_log(f"Created new link node for tileset: {obj.name}", "DEBUG")
                             
                             # Crea l'edge tra il nodo RM e il LinkNode
                             edge_id =  str(uuid.uuid4())
@@ -512,7 +512,7 @@ class EXPORT_OT_heriverse(Operator):
             # Copy the file
             dest_file = os.path.join(panorama_path, "defsky.jpg")
             shutil.copy2(source_file, dest_file)
-            print(f"Copied default panorama from {source_file} to {dest_file}")
+            em_log(f"Copied default panorama from {source_file} to {dest_file}", "DEBUG")
             return True
             
         except Exception as e:
@@ -544,7 +544,7 @@ class EXPORT_OT_heriverse(Operator):
             dest = os.path.join(panorama_dir, filename)
             if not os.path.isfile(dest) or not os.path.samefile(abs_path, dest):
                 shutil.copy2(abs_path, dest)
-                print(f"Copied epoch panorama '{filename}' for epoch '{epoch.name}'")
+                em_log(f"Copied epoch panorama '{filename}' for epoch '{epoch.name}'", "DEBUG")
             epoch_pano_map[epoch.name] = f"panorama/{filename}"
         return epoch_pano_map
 
@@ -607,7 +607,7 @@ class EXPORT_OT_heriverse(Operator):
             # Import Pillow
             from PIL import Image
             
-            print(f"\n=== Compressing all textures in {folder_path} ===")
+            em_log(f"\n=== Compressing all textures in {folder_path} ===", "INFO")
             
             # Settings
             max_res = scene.heriverse_texture_max_res
@@ -667,26 +667,26 @@ class EXPORT_OT_heriverse(Operator):
                             total_processed += 1
                             
                         except Exception as e:
-                            print(f"Error processing {filename}: {str(e)}")
+                            em_log(f"Error processing {filename}: {str(e)}", "ERROR")
             
             # Calculate size reduction
             size_reduction_mb = (total_size_before - total_size_after) / (1024 * 1024)
             percentage_reduction = ((total_size_before - total_size_after) / total_size_before * 100) if total_size_before > 0 else 0
             
-            print(f"Texture compression summary:")
-            print(f"- Total textures processed: {total_processed}")
-            print(f"- Textures resized: {total_resized}")
-            print(f"- Size before: {total_size_before / (1024 * 1024):.2f} MB")
-            print(f"- Size after: {total_size_after / (1024 * 1024):.2f} MB")
-            print(f"- Size reduction: {size_reduction_mb:.2f} MB ({percentage_reduction:.1f}%)")
+            em_log(f"Texture compression summary:", "DEBUG")
+            em_log(f"- Total textures processed: {total_processed}", "DEBUG")
+            em_log(f"- Textures resized: {total_resized}", "DEBUG")
+            em_log(f"- Size before: {total_size_before / (1024 * 1024):.2f} MB", "DEBUG")
+            em_log(f"- Size after: {total_size_after / (1024 * 1024):.2f} MB", "DEBUG")
+            em_log(f"- Size reduction: {size_reduction_mb:.2f} MB ({percentage_reduction:.1f}%)", "DEBUG")
             
             return total_processed
             
         except ImportError:
-            print("PIL (Pillow) library not available, skipping texture compression")
+            em_log("PIL (Pillow) library not available, skipping texture compression", "WARNING")
             return 0
         except Exception as e:
-            print(f"Error during texture compression: {str(e)}")
+            em_log(f"Error during texture compression: {str(e)}", "ERROR")
             import traceback
             traceback.print_exc()
             return 0
@@ -725,18 +725,26 @@ class EXPORT_OT_heriverse(Operator):
         original_active = context.view_layer.objects.active
 
         try:
-            # Make all collections visible
+            # Make all collections visible — handle BOTH the monitor icon (collection.hide_viewport,
+            # disables in viewports across all layers) AND the eye icon (layer_collection.hide_viewport,
+            # per-layer outliner hide). If only one is reset, an object can still end up un-selectable.
             for collection in bpy.data.collections:
                 layer_collection = find_layer_collection(context.view_layer.layer_collection, collection.name)
                 if layer_collection:
                     layer_collection.exclude = False
+                    layer_collection.hide_viewport = False
                 collection.hide_viewport = False
+                collection.hide_select = False
 
             # Make all objects visible and selectable
             for obj in bpy.data.objects:
                 if obj.type == 'MESH':
                     obj.hide_viewport = False
                     obj.hide_select = False
+                    try:
+                        obj.hide_set(False)  # local viewport hide (H key) — distinct from hide_viewport
+                    except Exception:
+                        pass
 
             # Deseleziona tutto prima di iniziare
             bpy.ops.object.select_all(action='DESELECT')
@@ -778,7 +786,7 @@ class EXPORT_OT_heriverse(Operator):
                     mesh_name = f"{obj.name}_unique"
                     mesh_groups[mesh_name] = [obj]
 
-            print(f"Found {len(mesh_groups)} different meshes in {len(publishable_rm_objects)} publishable RM objects")
+            em_log(f"Found {len(mesh_groups)} different meshes in {len(publishable_rm_objects)} publishable RM objects", "DEBUG")
 
             # Ottieni il grafo attivo
             graph = None
@@ -797,11 +805,28 @@ class EXPORT_OT_heriverse(Operator):
                         # Clear stale selection from previous iteration and make obj active,
                         # otherwise bpy.ops.export_scene.gltf(use_selection=True) writes an empty scene.
                         bpy.ops.object.select_all(action='DESELECT')
+                        # Force per-object visibility (mirrors export_rmdoc) — the global
+                        # unhide pass at the top can be defeated by nested layer_collections.
+                        obj.hide_viewport = False
+                        obj.hide_select = False
+                        try:
+                            obj.hide_set(False)
+                        except Exception:
+                            pass
                         obj.select_set(True)
                         context.view_layer.objects.active = obj
+                        # Diagnostic: what will bpy.ops.export_scene.gltf actually see?
+                        sel_view = [o.name for o in context.view_layer.objects if o.select_get()]
+                        sel_ctx = [o.name for o in bpy.context.selected_objects]
+                        in_vl = obj.name in context.view_layer.objects
+                        verts = len(obj.data.vertices) if obj.data else 0
+                        mods = [m.type for m in obj.modifiers]
+                        em_log(f"RM '{obj.name}': in_view_layer={in_vl}, select_get={obj.select_get()}, "
+                               f"verts={verts}, modifiers={mods}, "
+                               f"sel_view={len(sel_view)}, sel_ctx={len(sel_ctx)}, "
+                               f"hide_viewport={obj.hide_viewport}, hide_render={obj.hide_render}, hide_get={obj.hide_get()}", "DEBUG")
                         if not obj.select_get():
-                            self.report({'WARNING'}, f"RM object '{obj.name}' could not be selected (hidden/excluded); skipping")
-                            continue
+                            self.report({'WARNING'}, f"RM '{obj.name}' not selectable — collection probably not linked to active scene. Will produce empty GLTF.")
                         export_file = os.path.join(export_folder, clean_filename(obj.name))
 
                         export_gltf_with_animation_support(
@@ -810,6 +835,20 @@ class EXPORT_OT_heriverse(Operator):
                             scene=scene,
                             use_selection=True
                         )
+
+                        # Post-export sanity check: warn loudly if we wrote an empty GLTF
+                        produced = export_file + ".gltf"
+                        if os.path.exists(produced):
+                            try:
+                                size = os.path.getsize(produced)
+                                bin_path = export_file + ".bin"
+                                has_bin = os.path.exists(bin_path)
+                                if size < 500 or not has_bin:
+                                    msg = f"[heriverse] EMPTY EXPORT for '{obj.name}': gltf={size}B, bin_exists={has_bin}"
+                                    em_log(msg, "DEBUG")
+                                    self.report({'WARNING'}, msg)
+                            except Exception:
+                                pass
 
                         # Crea o aggiorna il nodo Link
                         if graph:
@@ -851,7 +890,7 @@ class EXPORT_OT_heriverse(Operator):
                         obj.select_set(False)
                         
                         exported_count += 1
-                        print(f"Exported RM: {obj.name}")
+                        em_log(f"Exported RM: {obj.name}", "DEBUG")
                         
                     except Exception as e:
                         self.report({'WARNING'}, f"Failed to export RM {obj.name}: {str(e)}")
@@ -883,7 +922,15 @@ class EXPORT_OT_heriverse(Operator):
                         
                         # Step 3.6: Prepara il nome del file
                         export_file = os.path.join(export_folder, clean_filename(primary_obj.name))
-                        
+
+                        # Diagnostic for instancing path
+                        sel_view = [o.name for o in context.view_layer.objects if o.select_get()]
+                        sel_ctx = [o.name for o in bpy.context.selected_objects]
+                        primary_verts = len(primary_obj.data.vertices) if primary_obj.data else 0
+                        em_log(f"INSTANCING '{primary_obj.name}': group_size={len(objects)}, "
+                               f"primary_verts={primary_verts}, sel_view={len(sel_view)}, sel_ctx={len(sel_ctx)}, "
+                               f"hide_render={primary_obj.hide_render}", "DEBUG")
+
                         # Step 3.7: Export with instancing enabled
                         export_gltf_with_animation_support(
                             filepath=export_file,
@@ -893,6 +940,20 @@ class EXPORT_OT_heriverse(Operator):
                             export_extras=True,
                             export_gpu_instances=True
                         )
+
+                        # Post-export sanity check
+                        produced = export_file + ".gltf"
+                        if os.path.exists(produced):
+                            try:
+                                size = os.path.getsize(produced)
+                                bin_path = export_file + ".bin"
+                                has_bin = os.path.exists(bin_path)
+                                if size < 500 or not has_bin:
+                                    msg = f"[heriverse] EMPTY INSTANCED EXPORT '{primary_obj.name}': gltf={size}B, bin_exists={has_bin}"
+                                    em_log(msg, "DEBUG")
+                                    self.report({'WARNING'}, msg)
+                            except Exception:
+                                pass
 
                         # Crea o aggiorna il nodo Link per l'oggetto primario
                         if graph:
@@ -933,7 +994,7 @@ class EXPORT_OT_heriverse(Operator):
                         # Step 3.8: Registra il gruppo di istanze per l'esportazione JSON
                         self.exported_models[primary_obj.name] = [obj.name for obj in objects]
                         
-                        print(f"Exported instanced group: {primary_obj.name} with {len(objects)} instances")
+                        em_log(f"Exported instanced group: {primary_obj.name} with {len(objects)} instances", "DEBUG")
                         exported_count += 1
                         
                     except Exception as e:
@@ -949,7 +1010,7 @@ class EXPORT_OT_heriverse(Operator):
             # Compress textures if enabled
             if exported_count > 0 and scene.heriverse_enable_compression:
                 self.compress_textures_in_folder(export_folder, scene)
-                print(f"Compressed textures for {exported_count} RM models")
+                em_log(f"Compressed textures for {exported_count} RM models", "DEBUG")
 
             self.report({'INFO'}, f"Exported {exported_count} RM models")
             return exported_count > 0
@@ -1116,7 +1177,7 @@ class EXPORT_OT_heriverse(Operator):
                                     materials_converted.append(mat_slot.material.name)
                                     
                         if materials_converted:
-                            print(f"Converted materials to Principled BSDF for {obj.name}: {', '.join(materials_converted)}")
+                            em_log(f"Converted materials to Principled BSDF for {obj.name}: {', '.join(materials_converted)}", "DEBUG")
 
                         # Esporta come GLTF
                         
@@ -1211,7 +1272,7 @@ class EXPORT_OT_heriverse(Operator):
                         obj.select_set(False)
                         
                         exported_count += 1
-                        print(f"Exported Paradata RM: {obj.name}")
+                        em_log(f"Exported Paradata RM: {obj.name}", "DEBUG")
                         
                     except Exception as e:
                         self.report({'WARNING'}, f"Failed to export Paradata RM {obj.name}: {str(e)}")
@@ -1330,17 +1391,17 @@ class EXPORT_OT_heriverse(Operator):
                         processed_count += 1
                         
                     except Exception as e:
-                        print(f"Error processing texture {filename}: {str(e)}")
+                        em_log(f"Error processing texture {filename}: {str(e)}", "ERROR")
         
         # Calcola statistiche
         if processed_count > 0:
             size_reduction_mb = (total_size_before - total_size_after) / (1024 * 1024)
             reduction_percent = (total_size_before - total_size_after) / total_size_before * 100 if total_size_before > 0 else 0
             
-            print(f"ParaData texture compression: processed {processed_count} files")
-            print(f"Size before: {total_size_before / (1024 * 1024):.2f} MB")
-            print(f"Size after: {total_size_after / (1024 * 1024):.2f} MB")
-            print(f"Reduction: {size_reduction_mb:.2f} MB ({reduction_percent:.1f}%)")
+            em_log(f"ParaData texture compression: processed {processed_count} files", "DEBUG")
+            em_log(f"Size before: {total_size_before / (1024 * 1024):.2f} MB", "DEBUG")
+            em_log(f"Size after: {total_size_after / (1024 * 1024):.2f} MB", "DEBUG")
+            em_log(f"Reduction: {size_reduction_mb:.2f} MB ({reduction_percent:.1f}%)", "DEBUG")
 
     def update_json_for_instancing(self, json_data):
         """
@@ -1413,7 +1474,7 @@ class EXPORT_OT_heriverse(Operator):
                             image = node.image
                             if image.packed_file:
                                 image_path = os.path.join(textures_dir, clean_filename(image.name))
-                                print(f"Exporting packed texture: {image.name}")
+                                em_log(f"Exporting packed texture: {image.name}", "DEBUG")
                                 
                                 # If compression is enabled
                                 if scene.heriverse_enable_compression:
@@ -1453,7 +1514,7 @@ class EXPORT_OT_heriverse(Operator):
                                 src_path = bpy.path.abspath(image.filepath)
                                 if os.path.exists(src_path):
                                     dst_path = os.path.join(textures_dir, clean_filename(os.path.basename(image.filepath)))
-                                    print(f"Copying external texture: {os.path.basename(image.filepath)}")
+                                    em_log(f"Copying external texture: {os.path.basename(image.filepath)}", "DEBUG")
                                     
                                     # If compression is enabled, load and process the image
                                     if scene.heriverse_enable_compression:
@@ -1520,7 +1581,7 @@ class EXPORT_OT_heriverse(Operator):
         
         try:
             shutil.copytree(src_path, dosco_path, dirs_exist_ok=True)
-            print(f"Copied DosCo files from {src_path} to {dosco_path}")
+            em_log(f"Copied DosCo files from {src_path} to {dosco_path}", "DEBUG")
             return True
         except Exception as e:
             self.report({'ERROR'}, f"Failed to copy DosCo files: {str(e)}")
@@ -1610,17 +1671,17 @@ class EXPORT_OT_heriverse(Operator):
                 # Important: Use item.name which refers to the actual 3D object
                 obj = bpy.data.objects.get(item.name)
                 if not obj:
-                    print(f"Object '{item.name}' not found in scene, skipping export")
+                    em_log(f"Object '{item.name}' not found in scene, skipping export", "WARNING")
                     continue
                 
-                print(f"Processing object '{item.name}' linked to SF/VSF '{item.sf_node_name}'")
+                em_log(f"Processing object '{item.name}' linked to SF/VSF '{item.sf_node_name}'", "DEBUG")
                     
                 # Select object and make it active
                 try:
                     obj.select_set(True)
                     context.view_layer.objects.active = obj
                 except Exception as e:
-                    print(f"Could not select object '{item.name}': {str(e)}")
+                    em_log(f"Could not select object '{item.name}': {str(e)}", "WARNING")
                     continue
                 
                 # Save original object transform data
@@ -1677,13 +1738,13 @@ class EXPORT_OT_heriverse(Operator):
                                 description=f"Representation model for {item.sf_node_name or 'Special Find'}"
                             )
                             graph.add_node(rmsf_node)
-                            print(f"Created RMSF node: {rmsf_node_id}")
+                            em_log(f"Created RMSF node: {rmsf_node_id}", "DEBUG")
                         else:
                             # Update existing node
                             rmsf_node.transform = transform
                             if hasattr(rmsf_node, 'data'):
                                 rmsf_node.data["transform"] = transform
-                            print(f"Updated RMSF node: {rmsf_node_id}")
+                            em_log(f"Updated RMSF node: {rmsf_node_id}", "DEBUG")
                         
                         # Connect SF node to RMSF node if SF node exists
                         if sf_node:
@@ -1695,7 +1756,7 @@ class EXPORT_OT_heriverse(Operator):
                                     edge_target=rmsf_node_id,
                                     edge_type="has_representation_model"
                                 )
-                                print(f"Created edge: {sf_node.node_id} -> {rmsf_node_id}")
+                                em_log(f"Created edge: {sf_node.node_id} -> {rmsf_node_id}", "DEBUG")
                         
                         # Create or update Link node
                         link_node_id = f"{rmsf_node_id}_link"
@@ -1714,11 +1775,11 @@ class EXPORT_OT_heriverse(Operator):
                                 url_type="3d_model"
                             )
                             graph.add_node(link_node)
-                            print(f"Created Link node: {link_node_id}")
+                            em_log(f"Created Link node: {link_node_id}", "DEBUG")
                         else:
                             # Update existing node
                             link_node.url = gltf_path
-                            print(f"Updated Link node URL to {gltf_path}")
+                            em_log(f"Updated Link node URL to {gltf_path}", "DEBUG")
                         
                         # Create edge between RMSF and Link if not exists
                         edge_id =  str(uuid.uuid4())
@@ -1729,10 +1790,10 @@ class EXPORT_OT_heriverse(Operator):
                                 edge_target=link_node_id,
                                 edge_type="has_linked_resource"
                             )
-                            print(f"Created edge: {rmsf_node_id} -> {link_node_id}")
+                            em_log(f"Created edge: {rmsf_node_id} -> {link_node_id}", "DEBUG")
                     
                     exported_count += 1
-                    print(f"Successfully exported anastylosis model: {obj.name}")
+                    em_log(f"Successfully exported anastylosis model: {obj.name}", "DEBUG")
                     
                 except Exception as e:
                     self.report({'WARNING'}, f"Failed to export anastylosis model {obj.name}: {str(e)}")
@@ -1745,7 +1806,7 @@ class EXPORT_OT_heriverse(Operator):
             # Compress textures if enabled
             if exported_count > 0 and scene.heriverse_enable_compression:
                 self.compress_textures_in_folder(export_folder, scene)
-                print(f"Compressed textures for {exported_count} anastylosis models")
+                em_log(f"Compressed textures for {exported_count} anastylosis models", "DEBUG")
             
             self.report({'INFO'}, f"Exported {exported_count} anastylosis models")
             return exported_count > 0
@@ -1782,7 +1843,7 @@ class EXPORT_OT_heriverse(Operator):
         import json
         
         try:
-            print("\n=== Starting Heriverse Export ===")
+            em_log("\n=== Starting Heriverse Export ===", "INFO")
             
             # Check if at least one graph is loaded
             if not check_graph_loaded(context):
@@ -1792,7 +1853,7 @@ class EXPORT_OT_heriverse(Operator):
             if not check_export_path(context):
                 return {'CANCELLED'}
             
-            print(f"Export path: {scene.heriverse_export_path}")
+            em_log(f"Export path: {scene.heriverse_export_path}", "DEBUG")
                 
             # Setup dei percorsi (con normalizzazione)
             output_dir = normalize_path(scene.heriverse_export_path)
@@ -1800,14 +1861,14 @@ class EXPORT_OT_heriverse(Operator):
             project_name = f"{project_name}_multigraph"
             project_path = os.path.join(output_dir, project_name)
             
-            print(f"Project path: {project_path}")
-            print(f"Project name: {project_name}")
-            print(f"Using GPU instancing: {export_vars.heriverse_use_gpu_instancing}")
+            em_log(f"Project path: {project_path}", "DEBUG")
+            em_log(f"Project name: {project_name}", "DEBUG")
+            em_log(f"Using GPU instancing: {export_vars.heriverse_use_gpu_instancing}", "DEBUG")
             
             # Crea la directory del progetto
             try:
                 os.makedirs(project_path, exist_ok=True)
-                print("Created project directory")
+                em_log("Created project directory", "DEBUG")
             except Exception as e:
                 show_popup_message(context, "Directory Error", f"Failed to create project directory: {str(e)}", 'ERROR')
                 return {'CANCELLED'}
@@ -1825,7 +1886,7 @@ class EXPORT_OT_heriverse(Operator):
                     # Always update all publishable graphs with scene data
                     # This ensures that SemanticShape, RM, RMSF nodes are created/updated
                     # before we add LinkNodes during the export process
-                    print("Updating all publishable graphs with scene data...")
+                    em_log("Updating all publishable graphs with scene data...", "DEBUG")
                     update_graph_with_scene_data(update_all_graphs=True, context=context)
 
                     # Refine generic_connection edges to semantic types
@@ -1840,41 +1901,41 @@ class EXPORT_OT_heriverse(Operator):
                             if graph:
                                 refined = graph.refine_generic_connections(verbose=True)
                                 if refined > 0:
-                                    print(f"  Graph '{graphml_item.name}': refined {refined} edges")
+                                    em_log(f"  Graph '{graphml_item.name}': refined {refined} edges", "DEBUG")
                 except Exception as e:
-                    print(f"Warning: Could not update graph: {e}")
+                    em_log(f"Warning: Could not update graph: {e}", "WARNING")
                 # STEP 1 Export Cesium tilesets if requested
                 tilesets_exported = False
                 if export_vars.heriverse_export_rm:
-                    print("\n--- Starting Tileset Export ---")
+                    em_log("\n--- Starting Tileset Export ---", "INFO")
                     tilesets_path = os.path.join(project_path, "tilesets")
                     os.makedirs(tilesets_path, exist_ok=True)
                     
                     count = self.export_tilesets(context, tilesets_path)
                     tilesets_exported = count > 0
                     if tilesets_exported:
-                        print(f"Exported {count} tileset files")
+                        em_log(f"Exported {count} tileset files", "DEBUG")
                     else:
-                        print("No tilesets were exported")
+                        em_log("No tilesets were exported", "DEBUG")
 
                 # STEP 2: Esporta i proxy se richiesto
                 if export_vars.heriverse_export_proxies:
-                    print("\n--- Starting Proxy Export ---")
+                    em_log("\n--- Starting Proxy Export ---", "INFO")
                     proxy_path = os.path.join(project_path, "proxies")
                     os.makedirs(proxy_path, exist_ok=True)
                     
                     result = self.export_proxies(context, proxy_path)
                     if result:
-                        print("Proxy export completed successfully")
+                        em_log("Proxy export completed successfully", "DEBUG")
                     else:
-                        print("No proxies were exported")
+                        em_log("No proxies were exported", "DEBUG")
 
                 # STEP 3: Esporta i modelli RM se richiesto
                 models_exported = False
                 models_path = None
                 models_docs_path = None
                 if export_vars.heriverse_export_rm:
-                    print("\n--- Starting RM Export ---")
+                    em_log("\n--- Starting RM Export ---", "INFO")
                     models_path = os.path.join(project_path, "models")
                     os.makedirs(models_path, exist_ok=True)
                     
@@ -1898,40 +1959,40 @@ class EXPORT_OT_heriverse(Operator):
                     result = self.export_rm(context, models_path)
                     models_exported = result
                     if result:
-                        print("RM export completed successfully")
+                        em_log("RM export completed successfully", "DEBUG")
                     else:
-                        print("No RM models were exported")
+                        em_log("No RM models were exported", "DEBUG")
 
                 # STEP 3.1: Esporta i modelli RMDoc se richiesto
                 if export_vars.heriverse_export_rmdoc:
-                    print("\n--- Starting RM Export ---")
+                    em_log("\n--- Starting RM Export ---", "INFO")
                     models_docs_path = os.path.join(project_path, "models_docs")
                     os.makedirs(models_docs_path, exist_ok=True)
 
                     # Aggiungi l'export degli oggetti ParaData
-                    print("\n--- Starting ParaData Objects Export ---")
+                    em_log("\n--- Starting ParaData Objects Export ---", "INFO")
                     paradata_count = self.export_paradata_objects(context, models_docs_path)
                     if paradata_count > 0:
-                        print(f"Exported {paradata_count} ParaData objects")
+                        em_log(f"Exported {paradata_count} ParaData objects", "DEBUG")
                     else:
-                        print("No ParaData objects were exported")
+                        em_log("No ParaData objects were exported", "DEBUG")
 
                 # STEP 3.2: Export SF models if requested
                 sf_models_exported = False
                 if export_vars.heriverse_export_rmsf:
-                    print("\n--- Starting Special Finds Models Export ---")
+                    em_log("\n--- Starting Special Finds Models Export ---", "INFO")
                     sf_models_path = os.path.join(project_path, "models_sf")
                     os.makedirs(sf_models_path, exist_ok=True)
                     
                     sf_models_exported = self.export_rmsf_models(context, sf_models_path)
                     if sf_models_exported:
-                        print("Special Finds models export completed successfully")
+                        em_log("Special Finds models export completed successfully", "DEBUG")
                     else:
-                        print("No Special Finds models were exported")
+                        em_log("No Special Finds models were exported", "DEBUG")
 
                 # STEP 4: Esporta i file DosCo se richiesto
                 if export_vars.heriverse_export_dosco:
-                    print("\n--- Starting DosCo Export ---")
+                    em_log("\n--- Starting DosCo Export ---", "INFO")
                     active_graph_id = None
                     if not (len(context.scene.em_tools.graphml_files) > 1) and context.scene.em_tools.active_file_index >= 0:
                         active_file = context.scene.em_tools.graphml_files[context.scene.em_tools.active_file_index]
@@ -1940,27 +2001,27 @@ class EXPORT_OT_heriverse(Operator):
                     dosco_path = os.path.join(project_path, "dosco")
                     result = self.export_dosco(context, active_graph_id, dosco_path)
                     if result:
-                        print("DosCo export completed successfully")
+                        em_log("DosCo export completed successfully", "DEBUG")
                     else:
-                        print("DosCo export failed or was skipped")
+                        em_log("DosCo export failed or was skipped", "ERROR")
                 
                 # STEP 5: Export panorama if requested
                 if scene.heriverse_export_panorama:
-                    print("\n--- Exporting Panorama ---")
+                    em_log("\n--- Exporting Panorama ---", "INFO")
                     result = self.export_panorama(context, project_path)
                     if result:
-                        print("Panorama export completed successfully")
+                        em_log("Panorama export completed successfully", "DEBUG")
                     else:
-                        print("Panorama export failed or was skipped")
+                        em_log("Panorama export failed or was skipped", "ERROR")
 
                 # STEP 5b: Export per-epoch panoramas (always runs — copies epoch HDR files)
                 epoch_pano_map = self.export_epoch_panoramas(context, project_path)
                 if epoch_pano_map:
-                    print(f"Exported {len(epoch_pano_map)} per-epoch panorama(s)")
+                    em_log(f"Exported {len(epoch_pano_map)} per-epoch panorama(s)", "DEBUG")
 
                 # STEP 6: Compress all textures at once if texture compression is enabled and RM models were exported
                 if scene.heriverse_enable_compression and models_exported and models_path:
-                    print("\n--- Starting Texture Compression ---")
+                    em_log("\n--- Starting Texture Compression ---", "INFO")
                     self.compress_textures_in_folder(models_path, scene)
 
                 # STEP 7: Export JSON
@@ -1970,7 +2031,7 @@ class EXPORT_OT_heriverse(Operator):
 
                     # Esporta il JSON direttamente usando il nuovo JSONExporter
                     json_path = os.path.join(project_path, "project.json")
-                    print(f"Exporting JSON to: {json_path}")
+                    em_log(f"Exporting JSON to: {json_path}", "DEBUG")
                     
                     # Verifica che esista almeno un grafo valido
                     if not check_graph_loaded(context):
@@ -1984,7 +2045,7 @@ class EXPORT_OT_heriverse(Operator):
                     )
                     
                     if result == {'FINISHED'}:
-                        print("JSON export completed successfully")
+                        em_log("JSON export completed successfully", "DEBUG")
 
                         # Post-process JSON: instancing + per-epoch lighting
                         needs_rewrite = False
@@ -1994,7 +2055,7 @@ class EXPORT_OT_heriverse(Operator):
 
                         if hasattr(self, 'instanced_objects') and len(self.instanced_objects) > 0:
                             json_data = self.update_json_for_instancing(json_data)
-                            print(f"Updated JSON with instancing information for {len(self.instanced_objects)} objects")
+                            em_log(f"Updated JSON with instancing information for {len(self.instanced_objects)} objects", "DEBUG")
                             needs_rewrite = True
 
                         # Inject per-epoch panorama/lighting data
@@ -2019,22 +2080,22 @@ class EXPORT_OT_heriverse(Operator):
 
             # STEP 8: Crea ZIP se richiesto
             if export_vars.heriverse_create_zip:
-                print("\n--- Creating ZIP Archive ---")
+                em_log("\n--- Creating ZIP Archive ---", "INFO")
                 zip_path = self.create_project_zip(project_path)
-                print(f"ZIP archive created at: {zip_path}")
+                em_log(f"ZIP archive created at: {zip_path}", "DEBUG")
                 
                 # Verifica che lo ZIP sia stato creato correttamente prima di cancellare
                 if os.path.exists(zip_path) and os.path.getsize(zip_path) > 0:
                     try:
                         import shutil
                         shutil.rmtree(project_path)
-                        print(f"Original folder deleted: {project_path}")
+                        em_log(f"Original folder deleted: {project_path}", "DEBUG")
                         self.report({'INFO'}, f"Export completed. ZIP created and original folder cleaned up.")
                     except Exception as e:
-                        print(f"Warning: Could not delete original folder: {e}")
+                        em_log(f"Warning: Could not delete original folder: {e}", "WARNING")
                         self.report({'WARNING'}, f"ZIP created but could not delete original folder: {str(e)}")
                 else:
-                    print("Warning: ZIP file not created properly, keeping original folder")
+                    em_log("Warning: ZIP file not created properly, keeping original folder", "WARNING")
                     self.report({'WARNING'}, "ZIP creation failed, original folder preserved")
 
 
@@ -2044,10 +2105,10 @@ class EXPORT_OT_heriverse(Operator):
             return {'FINISHED'}
                 
         except Exception as e:
-            print(f"\n!!! Export Failed !!!")
-            print(f"Error: {str(e)}")
+            em_log(f"\n!!! Export Failed !!!", "ERROR")
+            em_log(f"Error: {str(e)}", "ERROR")
             import traceback
-            print(traceback.format_exc())
+            em_log(traceback.format_exc(), "ERROR")
             self.report({'ERROR'}, f"Export failed: {str(e)}")
             return {'CANCELLED'}
 
