@@ -721,6 +721,9 @@ class EXPORT_OT_heriverse(Operator):
                     'hide_select': obj.hide_select
                 }
 
+        # Save the active object so we can restore it after export
+        original_active = context.view_layer.objects.active
+
         try:
             # Make all collections visible
             for collection in bpy.data.collections:
@@ -791,8 +794,14 @@ class EXPORT_OT_heriverse(Operator):
                     # Single object, export normally
                     obj = objects[0]
                     try:
-                        # Ora non è più necessario gestire was_hidden perché tutti gli oggetti sono già visibili e selezionabili
+                        # Clear stale selection from previous iteration and make obj active,
+                        # otherwise bpy.ops.export_scene.gltf(use_selection=True) writes an empty scene.
+                        bpy.ops.object.select_all(action='DESELECT')
                         obj.select_set(True)
+                        context.view_layer.objects.active = obj
+                        if not obj.select_get():
+                            self.report({'WARNING'}, f"RM object '{obj.name}' could not be selected (hidden/excluded); skipping")
+                            continue
                         export_file = os.path.join(export_folder, clean_filename(obj.name))
 
                         export_gltf_with_animation_support(
@@ -863,7 +872,7 @@ class EXPORT_OT_heriverse(Operator):
                         
                         # Step 3.4: Seleziona e imposta active l'oggetto primario
                         primary_obj.select_set(True)
-                        bpy.context.view_layer.objects.active = primary_obj
+                        context.view_layer.objects.active = primary_obj
                         
                         # Step 3.5: Seleziona gli altri oggetti nel gruppo
                         for obj in objects:
@@ -961,6 +970,12 @@ class EXPORT_OT_heriverse(Operator):
                 if obj:
                     obj.hide_viewport = state['hide_viewport']
                     obj.hide_select = state['hide_select']
+
+            # Restore the original active object
+            try:
+                context.view_layer.objects.active = original_active
+            except Exception:
+                pass
 
     def get_y_up_transform():
         """Returns the standard transform for converting z-up to y-up models"""
