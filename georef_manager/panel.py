@@ -200,14 +200,14 @@ class EM_PT_georef(Panel):
         row.operator("em.georef_push_geonode", text="Push to GeoNode", icon='WORLD')
 
         # --- Advanced ---
-        header, body = layout.panel("em_georef_advanced", default_closed=True) \
-            if hasattr(layout, 'panel') else (None, None)
-        if body is not None:
+        if hasattr(layout, 'panel'):
+            header, body = layout.panel("em_georef_advanced", default_closed=True)
             header.label(text="Advanced")
-            body.prop(g, "move_objects_on_change")
-            body.prop(g, "sync_lat_lon")
+            if body is not None:
+                body.prop(g, "move_objects_on_change")
+                body.prop(g, "sync_lat_lon")
         else:
-            # Fallback for older Blender versions without layout.panel()
+            # Fallback per Blender < 4.1 senza layout.panel()
             box = layout.box()
             box.label(text="Advanced:")
             box.prop(g, "move_objects_on_change")
