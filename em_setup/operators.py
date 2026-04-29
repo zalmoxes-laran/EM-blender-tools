@@ -557,9 +557,30 @@ class AUXILIARY_OT_import_now(Operator):
             # Execute DosCo harvesting
             inspect_load_dosco_files_on_graph(graph, dosco_folder)
 
-            # ✅ NON ripopolare le liste qui!
-            # Le liste verranno popolate automaticamente dopo l'auto-import
-            # dalla funzione chiamante (import.em_graphml) per evitare duplicazioni
+            # During the initial GraphML auto-import flow, the caller
+            # repopulates all lists from scratch so we don't have to.
+            # When the user triggers DosCo manually on an already-loaded
+            # graph, however, we must propagate the fresh URLs to the UI
+            # lists ourselves — populate_document_node skips existing
+            # items and would leave em_sources_list with stale URLs,
+            # breaking the "open file" button in Paradata Manager.
+            try:
+                from ..populate_lists import refresh_paradata_urls_from_graph
+                refresh_paradata_urls_from_graph(context.scene, graph)
+            except Exception as exc:
+                print(f"Warning: could not refresh paradata URLs after DosCo: {exc}")
+
+            try:
+                from ..document_manager.data import sync_doc_list
+                sync_doc_list(context.scene)
+            except Exception as exc:
+                print(f"Warning: could not sync doc_list after DosCo: {exc}")
+
+            if context.scene.em_tools.paradata_streaming_mode:
+                try:
+                    bpy.ops.em.update_paradata_lists()
+                except Exception as exc:
+                    print(f"Warning: streaming paradata refresh failed after DosCo: {exc}")
 
             self.report({'INFO'}, f"DosCo harvesting completed from {os.path.basename(dosco_folder)}")
             return {'FINISHED'}

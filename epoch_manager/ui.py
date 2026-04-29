@@ -82,6 +82,11 @@ class EM_BasePanel:
         epochs = em_tools.epochs
         ob = context.object
 
+        if context.mode != 'OBJECT':
+            from ..ui_helpers import draw_objectmode_required_box
+            draw_objectmode_required_box(layout)
+            return
+
         header_row = layout.row(align=True)
         header_row.label(text="Epochs", icon='TIME')
         help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
@@ -173,7 +178,6 @@ class VIEW3D_PT_BasePanel(Panel, EM_BasePanel):
     """Panel in the 3D View for the Epoch Manager"""
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_BasePanel"
-    bl_context = "objectmode"
 
 def register_ui():
     """Register UI classes."""

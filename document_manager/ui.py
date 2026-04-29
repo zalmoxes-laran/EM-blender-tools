@@ -386,7 +386,6 @@ class VIEW3D_PT_3DDocumentManager(Panel):
     bl_region_type = "UI"
     bl_category = "EM Annotator"
     bl_idname = "VIEW3D_PT_3DDocumentManager"
-    bl_context = "objectmode"
     bl_order = 1
     bl_options = {"DEFAULT_CLOSED"}
 
@@ -405,6 +404,12 @@ class VIEW3D_PT_3DDocumentManager(Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
+
+        if context.mode != 'OBJECT':
+            from ..ui_helpers import draw_objectmode_required_box
+            draw_objectmode_required_box(layout)
+            return
+
         doc_list = scene.doc_list
         doc_settings = scene.doc_settings
         idx = scene.doc_list_index

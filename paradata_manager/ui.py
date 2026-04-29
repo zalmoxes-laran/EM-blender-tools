@@ -71,6 +71,11 @@ class EM_ParadataPanel:
         scene = context.scene
         obj = context.object
 
+        if context.mode != 'OBJECT':
+            from ..ui_helpers import draw_objectmode_required_box
+            draw_objectmode_required_box(layout)
+            return
+
         header_row = layout.row(align=True)
         header_row.label(text="Paradata", icon='PROPERTIES')
         help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
@@ -387,10 +392,16 @@ class EM_ParadataPanel:
                 split = row.split(factor=0.85)
                 col_url = split.column()
                 draw_multiline_text(col_url, item_source.url, max_chars=70)
-                col_btn = split.column()
+                col_btn = split.column(align=True)
                 op = col_btn.operator("open.file", icon="EMPTY_SINGLE_ARROW", text="")
                 if op:
                     op.node_type = source_list_var
+                op = col_btn.operator(
+                    "paradata.show_in_doc_manager",
+                    icon="LONGDISPLAY",
+                    text="")
+                if op:
+                    op.node_id = item_source.id_node
             else:
                 row = box.row()
                 row.label(text="No documents available")
@@ -416,7 +427,6 @@ class EM_ParadataPanel:
 class VIEW3D_PT_ParadataPanel(Panel, EM_ParadataPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_ParadataPanel"
-    bl_context = "objectmode"
 
 
 class EM_UL_sources_managers(UIList):

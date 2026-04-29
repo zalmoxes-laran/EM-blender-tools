@@ -589,6 +589,48 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             em_tools.em_v_sources_list_index = -1
 
 
+class EM_OT_show_in_doc_manager(bpy.types.Operator):
+    """Select this document's row in the Document Manager so all detail
+    info (linked meshes, quad/camera, master metadata) becomes visible
+    in the EM Annotator tab."""
+
+    bl_idname = "paradata.show_in_doc_manager"
+    bl_label = "Show in Document Manager"
+    bl_description = (
+        "Select this document in the Document Manager (EM Annotator "
+        "tab) to view full details: linked meshes, quad/camera, master "
+        "metadata"
+    )
+    bl_options = {"REGISTER"}
+
+    node_id: StringProperty()  # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        return hasattr(context.scene, "doc_list")
+
+    def execute(self, context):
+        scene = context.scene
+        if not self.node_id:
+            self.report({'WARNING'}, "No document selected")
+            return {'CANCELLED'}
+
+        for i, item in enumerate(scene.doc_list):
+            if item.node_id == self.node_id:
+                scene.doc_list_index = i
+                self.report(
+                    {'INFO'},
+                    f"Selected '{item.name}' in Document Manager — open "
+                    "the 'EM Annotator' tab to view full details.")
+                return {'FINISHED'}
+
+        self.report(
+            {'WARNING'},
+            "Document not found in Document Manager. It may not be "
+            "synced yet — try the Document Manager Refresh button.")
+        return {'CANCELLED'}
+
+
 classes = (
     EM_OT_load_paradata_image,
     EM_OT_save_paradata_image,
@@ -596,6 +638,7 @@ classes = (
     EM_OT_next_image,
     EM_files_opener,
     EM_OT_update_paradata_lists,
+    EM_OT_show_in_doc_manager,
 )
 
 

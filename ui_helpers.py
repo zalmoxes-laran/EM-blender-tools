@@ -77,3 +77,15 @@ def draw_requirement_row(
         hint_row.enabled = False
         hint_row.label(text=hint, icon=hint_icon)
     return box
+
+
+def draw_objectmode_required_box(layout):
+    """Draw a small info box explaining that the panel content is
+    available only in Object Mode. Call from ``draw()`` and ``return``
+    immediately after when ``context.mode != 'OBJECT'`` so operators
+    that assume safe scene/object selection are never exposed in
+    Edit/Sculpt/Pose modes."""
+    box = layout.box()
+    box.label(text="Available in Object Mode only", icon='INFO')
+    box.label(text="Switch to Object Mode to use this panel.")
+    return box

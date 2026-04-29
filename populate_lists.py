@@ -171,10 +171,53 @@ def populate_reuse_US_table(scene, node, index, graph):
     return index
 
 
+def refresh_paradata_urls_from_graph(scene, graph):
+    """Update url/icon_url of existing items in em_sources_list,
+    em_extractors_list and em_combiners_list from current node values
+    on ``graph``.
+
+    Use after operations that mutate ``node.url`` in place (e.g. DosCo
+    auxiliary harvesting) without re-creating UI list entries — the
+    standard ``populate_*_node`` functions skip nodes already present
+    in the list and would not propagate the new URL.
+    """
+    em_tools = scene.em_tools
+
+    sources_by_id = {it.id_node: it for it in em_tools.em_sources_list if it.id_node}
+    extractors_by_id = {it.id_node: it for it in em_tools.em_extractors_list if it.id_node}
+    combiners_by_id = {it.id_node: it for it in em_tools.em_combiners_list if it.id_node}
+
+    for node in graph.nodes:
+        node_type = getattr(node, 'node_type', None)
+        if node_type not in ('document', 'extractor', 'combiner'):
+            continue
+
+        if node_type == 'extractor':
+            raw = getattr(node, 'source', None) or getattr(node, 'url', '')
+        elif node_type == 'combiner':
+            raw = getattr(node, 'value', None) or getattr(node, 'url', '')
+        else:
+            raw = getattr(node, 'url', '')
+
+        url = clean_value_for_ui(raw or '')
+        icon_url = "CHECKBOX_HLT" if url else "CHECKBOX_DEHLT"
+
+        if node_type == 'document':
+            target = sources_by_id.get(node.node_id)
+        elif node_type == 'extractor':
+            target = extractors_by_id.get(node.node_id)
+        else:
+            target = combiners_by_id.get(node.node_id)
+
+        if target is not None:
+            target.url = url
+            target.icon_url = icon_url
+
+
 def populate_document_node(scene, node, index, graph=None):
     """
     Popola la lista dei documenti.
-    
+
     ✅ MODIFICATO: Ora usa SEMPRE il nome pulito del nodo, senza prefisso.
     """
     source_already_in_list = False

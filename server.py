@@ -23,6 +23,11 @@ class EM_ServerPanel:
         layout = self.layout
         scene = context.scene
 
+        if context.mode != 'OBJECT':
+            from .ui_helpers import draw_objectmode_required_box
+            draw_objectmode_required_box(layout)
+            return
+
         row = layout.row()
         if scene.EM_server_status:
             row.label(text="Status: ON", icon='KEYTYPE_JITTER_VEC')
@@ -48,7 +53,6 @@ class EM_ServerPanel:
 class VIEW3D_PT_ServerPanel(Panel, EM_ServerPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_ServerPanel"
-    bl_context = "objectmode"
 
 
 class TCPServerThread(threading.Thread):
