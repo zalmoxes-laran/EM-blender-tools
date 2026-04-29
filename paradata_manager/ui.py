@@ -375,12 +375,29 @@ class EM_ParadataPanel:
                     else:
                         btn_row.label(text="", icon="MESH_CUBE")
 
-                if obj and check_if_current_obj_has_brother_inlist(obj.name, source_list_var):
-                    op = btn_row.operator("select.listitem", text="", icon="LONGDISPLAY")
-                    if op:
-                        op.list_type = source_list_var
+                # Jump to the matching row in the Document Manager so the
+                # user can see linked meshes / quad / camera / master
+                # metadata. Replaces the legacy ``select.listitem``
+                # icon here, which was effectively dead in the Docs
+                # section: documents are linked to 3D objects via the
+                # ``em_doc_node_id`` custom property, not via name match,
+                # so ``check_if_current_obj_has_brother_inlist`` never
+                # returned True for source rows.
+                _doc_icon = icons_manager.get_icon_value("document")
+                if _doc_icon:
+                    op = btn_row.operator(
+                        "paradata.show_in_target_manager",
+                        text="", icon_value=_doc_icon)
                 else:
-                    btn_row.label(text="", icon="LONGDISPLAY")
+                    op = btn_row.operator(
+                        "paradata.show_in_target_manager",
+                        text="", icon="FILE")
+                if op:
+                    op.node_id = item_source.id_node
+                    op.target_list = "doc_list"
+                    op.target_index = "doc_list_index"
+                    op.target_label = "Document Manager"
+                    op.target_tab = "EM Annotator"
 
                 row = box.row()
                 row.label(text="Description:", icon="TEXT")
@@ -392,16 +409,10 @@ class EM_ParadataPanel:
                 split = row.split(factor=0.85)
                 col_url = split.column()
                 draw_multiline_text(col_url, item_source.url, max_chars=70)
-                col_btn = split.column(align=True)
+                col_btn = split.column()
                 op = col_btn.operator("open.file", icon="EMPTY_SINGLE_ARROW", text="")
                 if op:
                     op.node_type = source_list_var
-                op = col_btn.operator(
-                    "paradata.show_in_doc_manager",
-                    icon="LONGDISPLAY",
-                    text="")
-                if op:
-                    op.node_id = item_source.id_node
             else:
                 row = box.row()
                 row.label(text="No documents available")
