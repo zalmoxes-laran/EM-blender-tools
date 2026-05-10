@@ -15,6 +15,7 @@ import math
 import bpy
 from bpy.props import StringProperty, FloatProperty, EnumProperty, IntProperty, BoolProperty  # type: ignore
 
+from ..us_types import SPECIAL_FIND_TYPES
 from .data import sync_doc_list
 from .validators import check_rmdoc_item, disable_pilot
 
@@ -812,8 +813,8 @@ class DOCMANAGER_OT_select_all_linked_us(bpy.types.Operator):
         doc_info = doc_cache.get(self.doc_node_id, {})
         us_nodes = doc_info.get('us_nodes', [])
 
-        # Filter out SF/VSF (same logic as the UI)
-        sf_types = {"SF", "VSF"}
+        # Filter out SF/VSF/RSF (same logic as the UI)
+        sf_types = SPECIAL_FIND_TYPES
         regular_us = [u for u in us_nodes if u[2] not in sf_types]
 
         if not regular_us:

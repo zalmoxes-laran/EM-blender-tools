@@ -11,6 +11,7 @@ import re
 import bpy
 from bpy.types import Panel, UIList
 from .. import icons_manager
+from ..us_types import SPECIAL_FIND_TYPES
 from .validators import check_rmdoc_item
 
 
@@ -260,7 +261,7 @@ class DOCMANAGER_UL_documents(UIList):
 
         # 4. Linked entity icons at the end of the row
         us_nodes = doc_info.get('us_nodes', [])
-        sf_types = {"SF", "VSF"}
+        sf_types = SPECIAL_FIND_TYPES
         regular_us = [u for u in us_nodes if u[2] not in sf_types]
         sf_us = [u for u in us_nodes if u[2] in sf_types]
 
@@ -528,7 +529,7 @@ class VIEW3D_PT_3DDocumentManager(Panel):
             us_nodes = doc_info.get('us_nodes', [])
             if us_nodes:
                 col.separator()
-                sf_types = {"SF", "VSF"}
+                sf_types = SPECIAL_FIND_TYPES
                 for us_name, us_node_id, us_type in us_nodes:
                     us_row = col.row(align=True)
                     us_row.label(text=f"→ {us_name} ({us_type})")

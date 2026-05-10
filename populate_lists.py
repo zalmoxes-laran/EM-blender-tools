@@ -450,7 +450,10 @@ def populate_blender_lists_from_graph(context, graph):
 
     # ✅ OPTIMIZED: Batch node filtering - 1 iteration instead of 14 queries
     # Get all nodes once and filter by type in a single pass - O(n) instead of O(14×n)
-    stratigraphic_types = {'US', 'USVs', 'USVn', 'VSF', 'SF', 'USD', 'TSU', 'UL', 'serSU', 'serUSD', 'serUSVn', 'serUSVs'}
+    # Source of truth: us_types.US_PROPER_TYPES (derived from s3dgraphy
+    # datamodel, excludes BR/SE helper nodes). Adding a new strat
+    # subtype to the datamodel auto-propagates here.
+    stratigraphic_types = US_PROPER_TYPES
 
     stratigraphic_nodes = []
     document_nodes = []

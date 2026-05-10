@@ -648,7 +648,7 @@ def is_reconstruction_us(node):
     # Caso 3: Il nodo ha un attributo 'node_type'
     if hasattr(node, 'node_type'):
         # Alcuni tipi di nodi sono sempre ricostruttivi
-        return node.node_type in ['USVs', 'USVn', 'VSF', 'SF']
+        return node.node_type in ['USVs', 'USVn', 'VSF', 'SF', 'RSF']
     
     # Caso 4: controllo sul border_style per casi speciali
     if hasattr(node, 'border_style'):
@@ -1670,6 +1670,8 @@ def set_materials_using_EM_list(context):
                         ob_material_name = 'SF'
                     elif current_ob_em_list.border_style == '#B19F61':
                         ob_material_name = 'VSF'
+                    elif current_ob_em_list.border_style == '#9B3333':
+                        ob_material_name = 'RSF'
                     else:
                         ob_material_name = 'VSF'
                 elif current_ob_em_list.shape == 'roundrectangle':

@@ -10,6 +10,7 @@ from s3dgraphy.nodes.representation_node import RepresentationModelSpecialFindNo
 from s3dgraphy.nodes.link_node import LinkNode
 
 from .. import icons_manager
+from ..us_types import SPECIAL_FIND_TYPES
 
 
 def _build_transform(obj):
@@ -135,7 +136,7 @@ class ANASTYLOSIS_OT_link_to_sf(Operator):
             self.report({'ERROR'}, f"SpecialFind node {active_strat_item.id_node} not found in graph")
             return {'CANCELLED'}
 
-        if sf_node.node_type not in ["SF", "VSF"]:
+        if sf_node.node_type not in SPECIAL_FIND_TYPES:
             self.report({'ERROR'}, f"Active node is not a SpecialFind (type: {sf_node.node_type})")
             return {'CANCELLED'}
 
@@ -318,7 +319,7 @@ class ANASTYLOSIS_OT_search_sf_node(Operator):
 
         sf_nodes = []
         for node in graph.nodes:
-            if hasattr(node, 'node_type') and node.node_type in ["SF", "VSF"]:
+            if hasattr(node, 'node_type') and node.node_type in SPECIAL_FIND_TYPES:
                 node_id = node.node_id if hasattr(node, 'node_id') else ""
                 node_name = node.name if hasattr(node, 'name') else ""
 
@@ -425,7 +426,7 @@ class ANASTYLOSIS_OT_assign_sf_node(Operator):
             self.report({'ERROR'}, f"SpecialFind node {self.sf_node_id} not found in graph")
             return {'CANCELLED'}
 
-        if sf_node.node_type not in ["SF", "VSF"]:
+        if sf_node.node_type not in SPECIAL_FIND_TYPES:
             self.report({'ERROR'}, f"Node is not a SpecialFind (type: {sf_node.node_type})")
             return {'CANCELLED'}
 

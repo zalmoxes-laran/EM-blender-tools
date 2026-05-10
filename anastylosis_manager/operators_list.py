@@ -8,6 +8,7 @@ from bpy.types import Operator
 from s3dgraphy import get_graph
 from s3dgraphy.nodes.representation_node import RepresentationModelSpecialFindNode
 
+from ..us_types import SPECIAL_FIND_TYPES
 from .lod_utils import detect_lod_variants, _get_active_lod
 from .graph_utils import (
     _remove_item_from_graph,
@@ -78,7 +79,7 @@ class ANASTYLOSIS_OT_update_list(Operator):
                     for edge in graph.edges:
                         if edge.edge_source == node.node_id and edge.edge_type == "has_representation_model":
                             target_node = graph.find_node_by_id(edge.edge_target)
-                            if target_node and target_node.node_type in ["SF", "VSF"]:
+                            if target_node and target_node.node_type in SPECIAL_FIND_TYPES:
                                 sf_node = target_node
                                 sf_node_id = target_node.node_id
                                 sf_node_name = target_node.name
@@ -86,7 +87,7 @@ class ANASTYLOSIS_OT_update_list(Operator):
                                 break
                         elif edge.edge_target == node.node_id and edge.edge_type == "has_representation_model":
                             source_node = graph.find_node_by_id(edge.edge_source)
-                            if source_node and source_node.node_type in ["SF", "VSF"]:
+                            if source_node and source_node.node_type in SPECIAL_FIND_TYPES:
                                 sf_node = source_node
                                 sf_node_id = source_node.node_id
                                 sf_node_name = source_node.name

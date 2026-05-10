@@ -1415,6 +1415,8 @@ class SET_materials_using_em_list(Operator):
                             ob_material_name = 'SF'
                         elif current_ob_em_list.border_style == '#B19F61':
                             ob_material_name = 'VSF'
+                        elif current_ob_em_list.border_style == '#9B3333':
+                            ob_material_name = 'RSF'
                         else:
                             # Default for octagon without recognized border
                             ob_material_name = 'VSF'
