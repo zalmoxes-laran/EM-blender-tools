@@ -249,14 +249,14 @@ def normalize_path(path):
     """
     if not path:
         return ""
-    
+
     # Prima espandi il percorso relativo a un percorso assoluto usando bpy.path.abspath
     abs_path = bpy.path.abspath(path)
-    
-    # Poi converti in oggetto Path per normalizzare i separatori di percorso
-    path_obj = Path(abs_path)
-    
-    return str(path_obj)
+
+    # Collasso lessicale di ".." senza seguire symlink: necessario quando il .blend
+    # è dentro OneDrive/iCloud, che sono symlink verso ~/Library/CloudStorage/...
+    # Path.resolve() o stat() seguirebbero la symlink prima del ".." e cadrebbero fuori.
+    return os.path.normpath(abs_path)
 
 def create_directory(path):
     """
