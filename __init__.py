@@ -686,16 +686,6 @@ def register_modules():
     except Exception as e:
         logger.error(f"Error registering tapestry integration: {e}")
 
-    # FASE 5.5: RM to Proxy Suite — parent panel that must exist
-    # BEFORE surface_areale and proxy_box_creator register so their
-    # sub-panels can nest under it via bl_parent_id.
-    try:
-        from . import rm_to_proxy_suite
-        rm_to_proxy_suite.register()
-        logger.debug("Registered RM to Proxy Suite parent panel")
-    except Exception as e:
-        logger.error(f"Error registering RM to Proxy Suite: {e}")
-
     # FASE 6: Surface Areale system
     try:
         surface_areale.register()
@@ -770,16 +760,6 @@ def unregister_modules():
         logger.debug(f"Unregistered surface areale")
     except Exception as e:
         logger.warning(f"Error unregistering surface areale: {e}")
-
-    # FASE 0.5: RM to Proxy Suite parent panel — removed AFTER its
-    # children (surface_areale above, proxy_box_creator via register
-    # order) so no child panel is left orphaned mid-unregister.
-    try:
-        from . import rm_to_proxy_suite
-        rm_to_proxy_suite.unregister()
-        logger.debug("Unregistered RM to Proxy Suite parent panel")
-    except Exception as e:
-        logger.warning(f"Error unregistering RM to Proxy Suite: {e}")
 
     # FASE 1: Tapestry Integration (va rimosso per primo - experimental feature)
     try:

@@ -16,8 +16,108 @@ from bpy.props import (  # type: ignore
     FloatVectorProperty,
     CollectionProperty,
     EnumProperty,
+    PointerProperty,
 )
 from bpy.types import PropertyGroup  # type: ignore
+
+
+def _on_target_mesh_update(self, context):
+    """Resolve the linked Document automatically when the user picks a
+    target mesh. Walks ``scene.rm_list`` → ``scene.rm_containers`` (or
+    the graph's ``has_representation_model`` edges) using the same
+    fallback chain as Surface Areas, so the Document badge in the UI
+    fills itself without an extra click.
+
+    Silently no-ops when the mesh isn't an RM or no Document is
+    linked — the user can still fall back to ``pick_from_selected`` /
+    ``search_document`` to set the anchor manually.
+    """
+    obj = self.target_mesh
+    scene = context.scene
+    if obj is None:
+        return
+    try:
+        from ..surface_areale.postprocess import (
+            is_mesh_an_rm, find_rm_document)
+        from s3dgraphy import get_graph
+    except Exception:
+        return
+
+    is_rm, _rm_item = is_mesh_an_rm(obj, scene)
+    if not is_rm:
+        return
+
+    em_tools = scene.em_tools
+    if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+        return
+    graph_info = em_tools.graphml_files[em_tools.active_file_index]
+    graph = get_graph(graph_info.name)
+    if graph is None:
+        return
+
+    doc_node = find_rm_document(scene, graph, obj)
+    if doc_node is None:
+        return
+    self.document_node_id = doc_node.node_id
+    self.document_node_name = doc_node.name
+    _retro_propagate_anchor_to_points(self, context)
+
+
+def _retro_propagate_anchor_to_points(self, context):
+    """Fill ``source_document`` / ``source_document_id`` on every
+    already-recorded point that still has them empty, using the
+    Step-1 anchor. Also computes the per-point ``extractor_id`` for
+    those points so the user does not have to re-Record them after
+    the anchor is set.
+
+    No-ops when ``propagate_doc_to_points`` is off or no anchor is
+    set yet — both are user-controlled and we honour those choices.
+    """
+    if not getattr(self, "propagate_doc_to_points", False):
+        return
+    doc_id = (self.document_node_id or "").strip()
+    doc_name = (self.document_node_name or "").strip()
+    if not doc_id or not doc_name:
+        return
+    try:
+        from .operators import _next_extractor_for_doc, _active_graph
+    except Exception:
+        return
+    _gi, graph = _active_graph(context)
+    used_existing = [p.extractor_id for p in self.points[:7]
+                     if p.extractor_id
+                     and p.source_document == doc_name]
+    for p in self.points[:7]:
+        if not p.is_recorded:
+            continue
+        if p.source_document_id:
+            continue  # explicit per-point override — leave alone
+        p.source_document = doc_name
+        p.source_document_name = doc_name
+        p.source_document_id = doc_id
+        if not p.extractor_id:
+            ext = _next_extractor_for_doc(graph, doc_name, used_existing)
+            p.extractor_id = ext
+            used_existing.append(ext)
+
+
+def _on_propagate_toggle(self, context):
+    """When the user enables ``propagate_doc_to_points`` mid-flow,
+    backfill recorded points that are missing the document/extractor
+    paradata. Turning it off does *not* clear existing values — the
+    user might want to keep them for a partial run.
+    """
+    if self.propagate_doc_to_points:
+        _retro_propagate_anchor_to_points(self, context)
+
+
+def _on_anchor_doc_id_update(self, context):
+    """Update callback bound to ``document_node_id``. Retro-propagates
+    the new anchor onto recorded points missing it (subject to the
+    propagate toggle), so the Create gating doesn't refuse a run with
+    points that were recorded before the user set the anchor.
+    """
+    _retro_propagate_anchor_to_points(self, context)
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -136,11 +236,24 @@ class ProxyBoxSettings(PropertyGroup):
         name="Measurement Points",
     )  # type: ignore
 
-    # ── Step 1: Document anchor ──────────────────────────────────────
+    # ── Step 1: Mesh → RM → Document chain ───────────────────────────
+    # Mirrors the Surface Areas flow: the user picks a target mesh
+    # and the linked Document is auto-resolved via the
+    # ``mesh → RM container → DocumentNode`` chain. The pick_from_selected
+    # / search_document operators remain available as fallbacks.
+    target_mesh: PointerProperty(
+        type=bpy.types.Object,
+        name="Target Mesh",
+        description="Mesh used to seed the extraction chain — the linked "
+                    "Document and RM are resolved automatically",
+        update=lambda self, context: _on_target_mesh_update(self, context),
+    )  # type: ignore
+
     document_node_id: StringProperty(
         name="Document node id",
         description="UUID of the DocumentNode chosen as the Step-1 anchor",
         default="",
+        update=lambda self, context: _on_anchor_doc_id_update(self, context),
     )  # type: ignore
 
     document_node_name: StringProperty(
@@ -156,6 +269,7 @@ class ProxyBoxSettings(PropertyGroup):
                     "extractor_id). When off, each point keeps its own "
                     "document picker.",
         default=True,
+        update=lambda self, context: _on_propagate_toggle(self, context),
     )  # type: ignore
 
     # Transient state for the Step 1 document picker dialog.

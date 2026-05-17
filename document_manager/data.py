@@ -114,6 +114,21 @@ class DocItem(PropertyGroup):
     )  # type: ignore
 
 
+class DocLinkedMeshItem(PropertyGroup):
+    """One row of the scrollable Linked-RMs list shown in the Document
+    Manager detail view.
+
+    The collection is rebuilt every time the active doc changes (via an
+    update callback on ``scene.doc_list_index``) so the UIList can be
+    driven by ``template_list`` — which gives us the native scrollbar
+    for free, replacing the "... and N more" truncation.
+    """
+    name: StringProperty(name="Object Name", default="")  # type: ignore
+    container_label: StringProperty(default="")  # type: ignore
+    is_header: BoolProperty(default=False)  # type: ignore
+    member_count: IntProperty(default=0)  # type: ignore
+
+
 class RMDocItem(PropertyGroup):
     """A scene object (quad) representing a spatialized document.
 
@@ -363,6 +378,69 @@ def _on_rm_border_by_geometry_toggle(settings, context):
 from .drivers import has_scale_drivers as _quad_has_scale_drivers  # noqa: E402
 
 
+def rebuild_doc_linked_meshes(scene):
+    """Populate ``scene.doc_detail_linked_meshes`` from the active doc's
+    RM containers. Called from the update callback on
+    ``doc_list_index`` so the scrollable UIList in the detail view
+    always reflects the selected document.
+
+    Rows are laid out as::
+
+        [header]  Survey 2015  (11)
+        [mesh  ]    ME_EST_bk_LOD2
+        [mesh  ]    ME_EST_fr_LOD2
+        ...
+        [header]  Reconstruction  (3)
+        [mesh  ]    ...
+
+    Headers carry ``is_header=True`` so the UIList can render them
+    differently. Each mesh row keeps a ``container_label`` so
+    consumers downstream can still group by container if needed.
+    """
+    coll = getattr(scene, 'doc_detail_linked_meshes', None)
+    if coll is None:
+        return  # registration ordering — collection not ready yet
+
+    coll.clear()
+    scene.doc_detail_linked_meshes_index = 0
+
+    idx = getattr(scene, 'doc_list_index', -1)
+    doc_list = getattr(scene, 'doc_list', None)
+    if doc_list is None or idx < 0 or idx >= len(doc_list):
+        return
+    doc_id = doc_list[idx].node_id
+    if not doc_id:
+        return
+
+    rm_containers = getattr(scene, 'rm_containers', None)
+    if rm_containers is None:
+        return
+
+    for container in rm_containers:
+        if container.doc_node_id != doc_id:
+            continue
+        members = [e.name for e in container.mesh_names]
+        # Header row (empty name → skips mesh detection in the UIList).
+        header = coll.add()
+        header.is_header = True
+        header.container_label = container.label or "(unnamed)"
+        header.member_count = len(members)
+        for mname in members:
+            entry = coll.add()
+            entry.name = mname
+            entry.container_label = header.container_label
+
+
+def _on_doc_list_index_update(self, context):
+    """Update callback for scene.doc_list_index — keeps the scrollable
+    Linked-RMs list in sync with the active document."""
+    try:
+        rebuild_doc_linked_meshes(context.scene)
+    except Exception:
+        # Never crash the UI because of a sync refresh.
+        pass
+
+
 def sync_doc_list(scene):
     """Synchronize scene.doc_list from scene.em_tools.em_sources_list.
 
@@ -452,6 +530,15 @@ def sync_doc_list(scene):
 
     # After doc_list sync, also sync the object-centric rmdoc_list
     sync_rmdoc_list(scene)
+
+    # Rebuild the scrollable Linked-RMs list for the currently active
+    # document. The update callback on doc_list_index covers all
+    # subsequent index changes, but fresh syncs (e.g. right after a
+    # GraphML import) need this kickstart.
+    try:
+        rebuild_doc_linked_meshes(scene)
+    except Exception:
+        pass
 
     # EM 1.6: refresh RMDoc quad viewport colours if the user toggled
     # "Colour RM by geometry". Runs after rmdoc_list is up to date so
@@ -631,6 +718,7 @@ def sync_rmdoc_list(scene):
 
 classes = (
     DocItem,
+    DocLinkedMeshItem,
     RMDocItem,
     DocManagerSettings,
 )
@@ -641,10 +729,20 @@ def register_data():
         bpy.utils.register_class(cls)
 
     bpy.types.Scene.doc_list = CollectionProperty(type=DocItem)
-    bpy.types.Scene.doc_list_index = IntProperty(name="Active Document", default=0)
+    bpy.types.Scene.doc_list_index = IntProperty(
+        name="Active Document", default=0,
+        update=_on_doc_list_index_update,
+    )
     bpy.types.Scene.rmdoc_list = CollectionProperty(type=RMDocItem)
     bpy.types.Scene.rmdoc_list_index = IntProperty(name="Active RMDoc", default=0)
     bpy.types.Scene.doc_settings = PointerProperty(type=DocManagerSettings)
+    # Backing store for the scrollable Linked-RMs list in the detail
+    # view. Populated by rebuild_doc_linked_meshes() whenever the
+    # active document changes.
+    bpy.types.Scene.doc_detail_linked_meshes = CollectionProperty(
+        type=DocLinkedMeshItem)
+    bpy.types.Scene.doc_detail_linked_meshes_index = IntProperty(
+        name="Active Linked Mesh", default=0)
     # Transient shared buffer backing the Name field of the Create
     # Master Document dialog. The "+" suggest-next operator writes
     # here so the open dialog sees the update on next tick — a
@@ -661,6 +759,10 @@ def register_data():
 def unregister_data():
     if hasattr(bpy.types.Scene, 'em_pending_master_doc_name'):
         del bpy.types.Scene.em_pending_master_doc_name
+    if hasattr(bpy.types.Scene, 'doc_detail_linked_meshes_index'):
+        del bpy.types.Scene.doc_detail_linked_meshes_index
+    if hasattr(bpy.types.Scene, 'doc_detail_linked_meshes'):
+        del bpy.types.Scene.doc_detail_linked_meshes
     if hasattr(bpy.types.Scene, 'doc_settings'):
         del bpy.types.Scene.doc_settings
     if hasattr(bpy.types.Scene, 'rmdoc_list_index'):

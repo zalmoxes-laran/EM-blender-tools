@@ -15,6 +15,7 @@ import math
 import bpy
 from bpy.props import StringProperty, FloatProperty, EnumProperty, IntProperty, BoolProperty  # type: ignore
 
+from ..us_types import SPECIAL_FIND_TYPES
 from .data import sync_doc_list
 from .validators import check_rmdoc_item, disable_pilot
 
@@ -86,6 +87,7 @@ class DOCMANAGER_OT_sync(bpy.types.Operator):
     """Synchronize document list from graph data"""
     bl_idname = "em.docmanager_sync"
     bl_label = "Sync Documents"
+    bl_description = "Rebuild the document catalog from the active GraphML and scan the scene for linked quads"
     bl_options = {'REGISTER'}
 
     def execute(self, context):
@@ -137,6 +139,7 @@ class DOCMANAGER_OT_import_image(bpy.types.Operator):
     """Import document image into the scene as a textured quad"""
     bl_idname = "em.docmanager_import_image"
     bl_label = "Import Image"
+    bl_description = "Create a textured image quad in the scene at the 3D cursor, sized from the image aspect ratio"
     bl_options = {'REGISTER', 'UNDO'}
 
     quad_width: FloatProperty(
@@ -260,6 +263,7 @@ class DOCMANAGER_OT_create_camera(bpy.types.Operator):
     """Create a camera at the current viewport position looking at the document quad"""
     bl_idname = "em.docmanager_create_camera"
     bl_label = "Create Camera"
+    bl_description = "Create a camera at the current viewport pose, aligned to this document's quad"
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -323,6 +327,7 @@ class DOCMANAGER_OT_look_through(bpy.types.Operator):
     """Switch viewport to look through this document's camera"""
     bl_idname = "em.docmanager_look_through"
     bl_label = "Look Through Camera"
+    bl_description = "Switch the viewport to this document's camera and fit render resolution to the image"
 
     @classmethod
     def poll(cls, context):
@@ -358,6 +363,7 @@ class DOCMANAGER_OT_open_url(bpy.types.Operator):
     """Open the URL or file associated with the selected document"""
     bl_idname = "em.docmanager_open_url"
     bl_label = "Open Document"
+    bl_description = "Open the document's URL in the browser, or its file via the system default application"
 
     @classmethod
     def poll(cls, context):
@@ -399,6 +405,7 @@ class DOCMANAGER_OT_select_scene_object(bpy.types.Operator):
     """Select the quad object for this document in the viewport"""
     bl_idname = "em.docmanager_select_object"
     bl_label = "Select Quad"
+    bl_description = "Select this document's quad object in the 3D viewport"
 
     @classmethod
     def poll(cls, context):
@@ -427,6 +434,7 @@ class DOCMANAGER_OT_rename_object(bpy.types.Operator):
     """Rename the selected 3D object using the document name (with graph prefix)"""
     bl_idname = "em.docmanager_rename_object"
     bl_label = "Rename Object from Document"
+    bl_description = "Rename the active 3D object to match this document's name (with the graph prefix applied)"
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -554,7 +562,7 @@ class DOCMANAGER_OT_select_linked_entity(bpy.types.Operator):
     bl_description = "Select the linked object in the viewport and highlight its row in the target panel"
 
     node_id: StringProperty()  # type: ignore
-    entity_type: StringProperty()  # 'US', 'RMSF', 'RMDoc'  # type: ignore
+    entity_type: StringProperty()  # 'US', 'RMSF', 'RMDoc', 'RM'  # type: ignore
 
     def _select_object(self, context, obj):
         """Deselect all, ensure object is accessible, select and activate, optionally zoom."""
@@ -711,9 +719,60 @@ class DOCMANAGER_OT_select_linked_entity(bpy.types.Operator):
             return self._handle_rmsf(context)
         elif self.entity_type == 'RMDoc':
             return self._handle_rmdoc(context)
+        elif self.entity_type == 'RM':
+            return self._handle_rm(context)
         else:
             self.report({'WARNING'}, f"Unknown entity type: {self.entity_type}")
             return {'CANCELLED'}
+
+    def _handle_rm(self, context):
+        """Select all RM meshes linked to the given document via
+        ``scene.rm_containers``. When multiple meshes are linked, they
+        are all selected and the first one is made active.
+        """
+        scene = context.scene
+        containers = getattr(scene, 'rm_containers', None)
+        if containers is None:
+            self.report({'WARNING'}, "No RM containers in this scene")
+            return {'CANCELLED'}
+
+        # Collect all meshes referenced by containers bound to this doc.
+        mesh_names = []
+        for container in containers:
+            if container.doc_node_id != self.node_id:
+                continue
+            for entry in container.mesh_names:
+                mesh_names.append(entry.name)
+        if not mesh_names:
+            self.report({'WARNING'}, "No RM meshes linked to this document")
+            return {'CANCELLED'}
+
+        objs = [self._find_object_by_name(n, context) for n in mesh_names]
+        objs = [o for o in objs if o is not None]
+        if not objs:
+            self.report({'WARNING'}, "Linked RM meshes are missing from the scene")
+            return {'CANCELLED'}
+
+        # Ensure the first one is accessible and active, then add the rest
+        # to the selection.
+        if not self._select_object(context, objs[0]):
+            return {'CANCELLED'}
+        for obj in objs[1:]:
+            obj.select_set(True)
+
+        # Try to highlight the matching row in the RM Manager panel.
+        try:
+            for i, container in enumerate(containers):
+                if container.doc_node_id == self.node_id:
+                    scene.rm_containers_index = i
+                    break
+        except Exception:
+            pass
+
+        self.report(
+            {'INFO'},
+            f"Selected {len(objs)} RM mesh(es) linked to {self.node_id}")
+        return {'FINISHED'}
 
 
 class DOCMANAGER_OT_select_all_linked_us(bpy.types.Operator):
@@ -754,8 +813,8 @@ class DOCMANAGER_OT_select_all_linked_us(bpy.types.Operator):
         doc_info = doc_cache.get(self.doc_node_id, {})
         us_nodes = doc_info.get('us_nodes', [])
 
-        # Filter out SF/VSF (same logic as the UI)
-        sf_types = {"SF", "VSF"}
+        # Filter out SF/VSF/RSF (same logic as the UI)
+        sf_types = SPECIAL_FIND_TYPES
         regular_us = [u for u in us_nodes if u[2] not in sf_types]
 
         if not regular_us:
@@ -1532,6 +1591,7 @@ class RMDOC_OT_select_object(bpy.types.Operator):
     """Select this RMDoc quad object in the viewport"""
     bl_idname = "em.rmdoc_select_object"
     bl_label = "Select RMDoc Object"
+    bl_description = "Select this RMDoc's quad in the 3D viewport (unhides its collection if needed)"
 
     object_name: StringProperty()  # type: ignore
 
@@ -1552,6 +1612,7 @@ class RMDOC_OT_add_selected(bpy.types.Operator):
     """Add selected mesh objects to the RMDoc list"""
     bl_idname = "em.rmdoc_add_selected"
     bl_label = "Add Selected"
+    bl_description = "Add the selected mesh objects to the RMDoc list (they become document quads after linking)"
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -1678,6 +1739,7 @@ class RMDOC_OT_assign_document(bpy.types.Operator):
     """Assign a document to an RMDoc object"""
     bl_idname = "em.rmdoc_assign_document"
     bl_label = "Assign Document"
+    bl_description = "Link this RMDoc quad to an existing document from the catalog"
     bl_options = {'REGISTER', 'UNDO'}
 
     rmdoc_index: IntProperty(default=-1)  # type: ignore
@@ -2137,6 +2199,7 @@ class RMDOC_OT_remove(bpy.types.Operator):
     """Delete RMDoc: removes quad and camera objects from the scene"""
     bl_idname = "em.rmdoc_remove"
     bl_label = "Delete RMDoc"
+    bl_description = "Delete this RMDoc — removes both the quad and its camera from the scene"
     bl_options = {'REGISTER', 'UNDO'}
 
     rmdoc_index: IntProperty(default=-1)  # type: ignore
@@ -2320,6 +2383,7 @@ class RMDOC_OT_look_through(bpy.types.Operator):
     """Look through camera and fit render resolution to image dimensions"""
     bl_idname = "em.rmdoc_look_through"
     bl_label = "Look Through Camera"
+    bl_description = "Switch the viewport to this RMDoc's camera and fit render resolution to the image"
 
     object_name: StringProperty()  # type: ignore
 
@@ -2384,6 +2448,7 @@ class RMDOC_OT_pilot_camera(bpy.types.Operator):
     """Toggle camera piloting — navigate inside camera view, moving camera and quad"""
     bl_idname = "em.rmdoc_pilot_camera"
     bl_label = "Pilot Camera"
+    bl_description = "Toggle camera pilot mode — viewport navigation drives the camera (and the quad if parented)"
 
     object_name: StringProperty()  # type: ignore
 
@@ -2445,6 +2510,7 @@ class RMDOC_OT_set_alpha(bpy.types.Operator):
     """Set the transparency of the document quad image"""
     bl_idname = "em.rmdoc_set_alpha"
     bl_label = "Set Alpha"
+    bl_description = "Set the transparency of this quad's material (0 = transparent, 1 = opaque)"
     bl_options = {'REGISTER', 'UNDO'}
 
     object_name: StringProperty()  # type: ignore
@@ -2475,6 +2541,7 @@ class RMDOC_OT_toggle_ortho(bpy.types.Operator):
     """Toggle camera between perspective and orthographic mode"""
     bl_idname = "em.rmdoc_toggle_ortho"
     bl_label = "Toggle Ortho"
+    bl_description = "Switch this camera between perspective and orthographic projection (preserves framing)"
     bl_options = {'REGISTER', 'UNDO'}
 
     object_name: StringProperty()  # type: ignore
@@ -2585,10 +2652,40 @@ class RMDOC_OT_fly(bpy.types.Operator):
         return {'CANCELLED'}
 
 
+class RMDOC_OT_jump_to_document(bpy.types.Operator):
+    """Select the corresponding row in the Document Manager catalog."""
+    bl_idname = "em.rmdoc_jump_to_document"
+    bl_label = "Show in Document Manager"
+    bl_description = (
+        "Highlight this RMDoc's source document in the Document Manager "
+        "catalog — the paired navigation of the RMDoc selector icon in "
+        "the Doc Manager rows"
+    )
+
+    doc_node_id: StringProperty()  # type: ignore
+
+    def execute(self, context):
+        scene = context.scene
+        if not self.doc_node_id:
+            self.report({'WARNING'}, "No linked document")
+            return {'CANCELLED'}
+        doc_list = getattr(scene, 'doc_list', None)
+        if doc_list is None:
+            return {'CANCELLED'}
+        for i, item in enumerate(doc_list):
+            if item.node_id == self.doc_node_id:
+                scene.doc_list_index = i
+                self.report({'INFO'}, f"Jumped to document {item.name}")
+                return {'FINISHED'}
+        self.report({'WARNING'}, "Linked document not found in catalog")
+        return {'CANCELLED'}
+
+
 class RMDOC_OT_open_document(bpy.types.Operator):
     """Open the document file linked to this RMDoc object"""
     bl_idname = "em.rmdoc_open_document"
     bl_label = "Open Document"
+    bl_description = "Open the source file of the document linked to this RMDoc"
 
     doc_node_id: StringProperty()  # type: ignore
 
@@ -2909,6 +3006,7 @@ classes = (
     RMDOC_OT_autocrop_near,
     RMDOC_OT_autocrop_far,
     RMDOC_OT_fly,
+    RMDOC_OT_jump_to_document,
     RMDOC_OT_open_document,
     RMDOC_OT_repair,
 )

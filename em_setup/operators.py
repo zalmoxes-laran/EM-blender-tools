@@ -557,9 +557,30 @@ class AUXILIARY_OT_import_now(Operator):
             # Execute DosCo harvesting
             inspect_load_dosco_files_on_graph(graph, dosco_folder)
 
-            # ✅ NON ripopolare le liste qui!
-            # Le liste verranno popolate automaticamente dopo l'auto-import
-            # dalla funzione chiamante (import.em_graphml) per evitare duplicazioni
+            # During the initial GraphML auto-import flow, the caller
+            # repopulates all lists from scratch so we don't have to.
+            # When the user triggers DosCo manually on an already-loaded
+            # graph, however, we must propagate the fresh URLs to the UI
+            # lists ourselves — populate_document_node skips existing
+            # items and would leave em_sources_list with stale URLs,
+            # breaking the "open file" button in Paradata Manager.
+            try:
+                from ..populate_lists import refresh_paradata_urls_from_graph
+                refresh_paradata_urls_from_graph(context.scene, graph)
+            except Exception as exc:
+                print(f"Warning: could not refresh paradata URLs after DosCo: {exc}")
+
+            try:
+                from ..document_manager.data import sync_doc_list
+                sync_doc_list(context.scene)
+            except Exception as exc:
+                print(f"Warning: could not sync doc_list after DosCo: {exc}")
+
+            if context.scene.em_tools.paradata_streaming_mode:
+                try:
+                    bpy.ops.em.update_paradata_lists()
+                except Exception as exc:
+                    print(f"Warning: streaming paradata refresh failed after DosCo: {exc}")
 
             self.report({'INFO'}, f"DosCo harvesting completed from {os.path.basename(dosco_folder)}")
             return {'FINISHED'}
@@ -576,61 +597,237 @@ class AUXILIARY_OT_import_now(Operator):
             em_settings.preserve_web_url = old_preserve
 
     def _process_source_list(self, context, graphml, aux_file):
-        """Process Source List Excel file to update source descriptions"""
-        from .resource_utils import resolve_resource_path
+        """Process Source List Excel file to update source descriptions
+        on document / extractor / combiner nodes in the active graph.
 
-        # Validate filepath
+        The previous implementation had two compounding bugs that
+        produced "0 descriptions updated" on every real source-list
+        file we ship:
+
+          1. ``pandas.read_excel(...)`` used the default ``header=0``
+             but our xlsx convention puts a single-row title above
+             the headers (``San Pietro`` etc.), so the header row was
+             read as data and the actual headers were skipped.
+          2. The code then reindexed to ``['Name', 'Description']``,
+             but our files carry Italian column names
+             (``Nome`` / ``Descrizione``). The reindex produced an
+             all-NaN frame and the equality test ``source_item.name
+             == row['Name']`` never fired.
+
+        Additionally, the old code only mutated the Blender UI
+        collection (``em_sources_list[].description``), not the
+        underlying graph node. Even when matching worked, the change
+        was lost on the next GraphML save because the exporter reads
+        from the graph, not the UI list.
+
+        This rewrite:
+
+          - auto-detects the header row (scans the first 5 rows for a
+            row exposing both a name-like and a description-like
+            column), and tolerates both Italian and English column
+            names;
+          - resolves matches against graph nodes (document / extractor
+            / combiner), honouring the optional ``graph_code`` prefix
+            so a row keyed ``D.02`` matches a node named ``GT26.D.02``;
+          - writes the description on the graph node with Hybrid-C
+            bookkeeping (``record_attribute_override`` +
+            ``freeze_aux_value``) so a volatile save can revert it;
+          - clears previously-filed orphans for this injector before
+            the scan so reloading doesn't double the orphan list;
+          - files unmatched rows as orphans so they appear in the
+            Lifecycle panel with a "Create host node" action;
+          - syncs the matched UI rows so the user sees the new
+            descriptions immediately, without a full populate.
+        """
+        from .resource_utils import resolve_resource_path
+        from s3dgraphy import get_graph
+
         if not aux_file.filepath:
             self.report({'ERROR'}, "Source List file path not specified")
             return {'CANCELLED'}
-
-        # Resolve filepath
         try:
             filepath = resolve_resource_path(aux_file.filepath)
         except ValueError as e:
             self.report({'ERROR'}, str(e))
             return {'CANCELLED'}
-
-        # Check file exists
         if not os.path.exists(filepath):
             self.report({'ERROR'}, f"Source List file not found: {filepath}")
             return {'CANCELLED'}
 
+        graph = get_graph(graphml.name)
+        if graph is None:
+            self.report(
+                {'ERROR'},
+                f"Graph '{graphml.name}' not loaded — import the "
+                f"GraphML first.")
+            return {'CANCELLED'}
+
         try:
             import pandas
-            import openpyxl
-
-            # Read Excel file - sheet name 'sources'
-            data = pandas.read_excel(filepath, sheet_name='sources')
-            df = pandas.DataFrame(data, columns=['Name', 'Description'])
-
-            updated_count = 0
-            em_tools = context.scene.em_tools
-
-            # Update em_sources_list
-            for index, row in df.iterrows():
-                for source_item in em_tools.em_sources_list:
-                    if source_item.name == row['Name']:
-                        source_item.description = row['Description']
-                        updated_count += 1
-
-                # Update em_v_sources_list (virtual sources)
-                for source_v_item in em_tools.em_v_sources_list:
-                    if source_v_item.name == row['Name']:
-                        source_v_item.description = row['Description']
-                        updated_count += 1
-
-            self.report({'INFO'}, f"Source List imported: {updated_count} descriptions updated")
-            return {'FINISHED'}
-
         except ImportError:
-            self.report({'ERROR'}, "pandas and openpyxl required. Install dependencies first.")
+            self.report({'ERROR'},
+                        "pandas and openpyxl required. Install "
+                        "dependencies first.")
             return {'CANCELLED'}
+
+        try:
+            raw = pandas.read_excel(filepath, sheet_name='sources',
+                                    header=None)
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to import Source List: {str(e)}")
+            self.report({'ERROR'},
+                        f"Cannot read 'sources' sheet from {filepath}: {e}")
             import traceback
             traceback.print_exc()
             return {'CANCELLED'}
+
+        NAME_KEYS = {"name", "nome", "id", "id node", "node id"}
+        DESC_KEYS = {"description", "descrizione"}
+
+        def _cell_str(v):
+            if v is None:
+                return ""
+            if isinstance(v, float) and pandas.isna(v):
+                return ""
+            return str(v).strip()
+
+        # ---- locate the header row ------------------------------------
+        header_row_idx = None
+        name_col_idx = None
+        desc_col_idx = None
+        scan_limit = min(5, len(raw))
+        for i in range(scan_limit):
+            cells = [_cell_str(v).lower() for v in raw.iloc[i].tolist()]
+            cand_name = next(
+                (j for j, v in enumerate(cells) if v in NAME_KEYS), None)
+            cand_desc = next(
+                (j for j, v in enumerate(cells) if v in DESC_KEYS), None)
+            if cand_name is not None and cand_desc is not None:
+                header_row_idx = i
+                name_col_idx = cand_name
+                desc_col_idx = cand_desc
+                break
+
+        if header_row_idx is None:
+            self.report(
+                {'ERROR'},
+                "Source List: could not locate a header row with "
+                "Name/Nome AND Description/Descrizione columns in "
+                "the first 5 rows of the 'sources' sheet.")
+            return {'CANCELLED'}
+
+        data_rows = raw.iloc[header_row_idx + 1:]
+
+        # ---- Hybrid-C primitives (best-effort) ------------------------
+        try:
+            from s3dgraphy.transforms import (
+                record_attribute_override, freeze_aux_value,
+                push_orphan, clear_orphans)
+            _AUX_AVAILABLE = True
+            _INJECTOR_ID = f"sources_list:{filepath}"
+            # Reload semantics: drop previous orphans from this
+            # injector so the list doesn't accumulate duplicates on
+            # repeated imports of the same xlsx.
+            clear_orphans(graph, injector_id=_INJECTOR_ID)
+        except ImportError:
+            _AUX_AVAILABLE = False
+            _INJECTOR_ID = None
+
+        # ---- build a name -> node lookup (with graph_code support) ----
+        graph_code = None
+        if (hasattr(graph, 'attributes')
+                and graph.attributes
+                and 'graph_code' in graph.attributes):
+            graph_code = graph.attributes['graph_code']
+
+        nodes_by_name = {}
+        for n in graph.nodes:
+            nt = getattr(n, 'node_type', None)
+            if nt not in ('document', 'extractor', 'combiner'):
+                continue
+            nm = getattr(n, 'name', '') or ''
+            if not nm:
+                continue
+            nodes_by_name.setdefault(nm, n)
+            if graph_code:
+                for sep in (f"{graph_code}.", f"{graph_code}_"):
+                    if nm.startswith(sep):
+                        nodes_by_name.setdefault(
+                            nm.split(sep, 1)[1], n)
+                        break
+
+        # ---- per-row apply -------------------------------------------
+        desc_updated = 0
+        matched_node_ids = set()
+        unmatched = []
+
+        for _i, row in data_rows.iterrows():
+            name_raw = (row.iloc[name_col_idx]
+                        if name_col_idx < len(row) else None)
+            name = _cell_str(name_raw)
+            if not name:
+                continue
+            desc = _cell_str(row.iloc[desc_col_idx]
+                             if desc_col_idx < len(row) else None)
+
+            node = nodes_by_name.get(name)
+            if node is None and graph_code:
+                node = nodes_by_name.get(f"{graph_code}.{name}")
+            if node is None:
+                unmatched.append((name, desc))
+                continue
+
+            if not desc:
+                # Match but no description to apply — still count as
+                # touched (the row exists in the xlsx) and remember
+                # the node so the UI sync below doesn't blank it.
+                matched_node_ids.add(getattr(node, 'node_id', None))
+                continue
+
+            if _AUX_AVAILABLE:
+                record_attribute_override(
+                    node, "description",
+                    injector_id=_INJECTOR_ID,
+                    original_value=getattr(node, "description", None))
+            node.description = desc
+            if _AUX_AVAILABLE:
+                freeze_aux_value(node, "description")
+            desc_updated += 1
+            matched_node_ids.add(getattr(node, 'node_id', None))
+
+        # ---- file unmatched rows as orphans --------------------------
+        if _AUX_AVAILABLE and unmatched:
+            for name, desc in unmatched:
+                push_orphan(
+                    graph,
+                    injector_id=_INJECTOR_ID,
+                    key_id=name,
+                    payload={"description": desc},
+                )
+
+        # ---- mirror description into the UI lists --------------------
+        em_tools = context.scene.em_tools
+        for collection_name in ("em_sources_list", "em_v_sources_list",
+                                "em_extractors_list", "em_combiners_list"):
+            collection = getattr(em_tools, collection_name, None)
+            if not collection:
+                continue
+            for item in collection:
+                if (item.id_node
+                        and item.id_node in matched_node_ids):
+                    node = next(
+                        (n for n in graph.nodes
+                         if getattr(n, 'node_id', None) == item.id_node),
+                        None)
+                    if node is not None:
+                        item.description = (
+                            getattr(node, "description", "") or "")
+
+        tail = (f", {len(unmatched)} unmatched rows filed as orphans"
+                if unmatched else "")
+        self.report({'INFO'},
+                    f"Source List imported: {desc_updated} descriptions "
+                    f"updated{tail}")
+        return {'FINISHED'}
 
 
 class EM_OT_open_author_url(Operator):

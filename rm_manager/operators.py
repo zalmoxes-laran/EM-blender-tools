@@ -938,13 +938,18 @@ class RM_OT_demote_from_rm_list(Operator):
     bl_idname = "rm.demote_from_rm_list"
     bl_label = "Demote RM"
     bl_description = "Remove this object from all epochs and the graph"
-    
+
     rm_index: IntProperty(
         name="RM Index",
         description="Index of the RM item in the list",
         default=-1
     ) # type: ignore
-    
+
+    def invoke(self, context, event):
+        # Destructive: removes the object from every epoch and from
+        # the graph. Always confirm.
+        return context.window_manager.invoke_confirm(self, event)
+
     def execute(self, context):
         scene = context.scene
         

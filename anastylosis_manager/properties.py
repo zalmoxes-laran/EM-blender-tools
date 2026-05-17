@@ -22,6 +22,22 @@ class AnastylisisItem(PropertyGroup):
         description="Name of the SpecialFind node",
         default=""
     )
+    # Document linkage — RMSFs can also be associated to a Document so
+    # downstream knowledge-extraction tools (Surface Areas, Proxy Box,
+    # measurement extractors) can attach paradata to the RMSF directly.
+    # The link is stored on the item; an explicit operator is needed to
+    # create the corresponding graph edge.
+    doc_node_id: StringProperty(
+        name="Document Node ID",
+        description="UUID of the Document linked to this RMSF",
+        default=""
+    )
+    doc_node_name: StringProperty(
+        name="Document Name",
+        description="Display name of the Document linked to this RMSF "
+                    "(e.g. D.01)",
+        default=""
+    )
     is_virtual: BoolProperty(
         name="Is Virtual",
         description="Whether this is a virtual reconstruction (VSF) or a real fragment (SF)",

@@ -200,6 +200,11 @@ def get_us_color(node_type: str) -> Optional[Tuple[float, float, float, float]]:
 US_PROPER_TYPES: frozenset = frozenset(
     abbr for abbr in ALL_US_TYPES if get_family(abbr) is not None)
 
+#: Octagon-family Special Find subtypes — real (SF), virtual (VSF) and
+#: reused/spolia (RSF). Anastylosis and Document Manager treat them
+#: uniformly; use this set when filtering octagons across the codebase.
+SPECIAL_FIND_TYPES: frozenset = frozenset({"SF", "VSF", "RSF"})
+
 
 def us_material_names() -> List[str]:
     """Sorted list variant of :data:`US_PROPER_TYPES` — handy when a

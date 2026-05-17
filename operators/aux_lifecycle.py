@@ -180,14 +180,35 @@ def compute_injector_id_for_aux(aux_file) -> Optional[str]:
 
 
 def count_attached(graph, injector_id: str) -> int:
+    """Distinct nodes this injector has attached to the graph.
+
+    A node counts as attached if either:
+      - it is tagged ``injected_by`` for this injector (enrichment
+        child, e.g. a DosCo LinkNode or an emdb PropertyNode), or
+      - it is a host carrying a ``_aux_overrides`` record attributed
+        to this injector (DocumentNode whose ``url`` was overwritten
+        by DosCo, host whose ``author`` was set by sources_list, …).
+
+    The override branch matters when the GraphML on disk already
+    contains the enrichment children as graph-native nodes: on
+    reload, those children are not re-tagged ``injected_by``, so the
+    previous ``injected_by``-only count reported 0 attached even
+    after a successful re-attach pass.
+    """
     if graph is None or not injector_id:
         return 0
-    n = 0
+    counted: set = set()
     for node in graph.nodes:
         attrs = getattr(node, "attributes", None) or {}
+        nid = getattr(node, "node_id", None) or id(node)
         if attrs.get("injected_by") == injector_id:
-            n += 1
-    return n
+            counted.add(nid)
+            continue
+        for rec in (attrs.get("_aux_overrides") or {}).values():
+            if isinstance(rec, dict) and rec.get("injector") == injector_id:
+                counted.add(nid)
+                break
+    return len(counted)
 
 
 def iter_orphans_for(graph, injector_id: str):

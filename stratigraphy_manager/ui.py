@@ -190,6 +190,12 @@ class EM_ToolsPanel:
     def draw(self, context):
         layout = self.layout
         scene = context.scene
+
+        if context.mode != 'OBJECT':
+            from ..ui_helpers import draw_objectmode_required_box
+            draw_objectmode_required_box(layout)
+            return
+
         em_settings = scene.em_tools.settings
         em_tools = scene.em_tools  # ✅ NEW: Access centralized properties
         strat = em_tools.stratigraphy  # ✅ NEW: Stratigraphy manager props
@@ -197,7 +203,7 @@ class EM_ToolsPanel:
 
         # Verifica la presenza di un grafo attivo
         from ..functions import is_graph_available
-        graph_available, _ = is_graph_available(context)        
+        graph_available, _ = is_graph_available(context)
 
         # ==================
         # HEADER BOX
@@ -676,7 +682,6 @@ class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     """Panel in the 3D View for the Stratigraphy Manager"""
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_ToolsPanel"
-    bl_context = "objectmode"
 
 def register_ui():
     """Register UI classes."""

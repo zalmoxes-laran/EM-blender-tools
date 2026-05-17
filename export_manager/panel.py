@@ -13,11 +13,16 @@ class VIEW3D_PT_ExportPanel(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'EM Bridge'
-    bl_context = "objectmode"
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         layout = self.layout
+
+        if context.mode != 'OBJECT':
+            from ..ui_helpers import draw_objectmode_required_box
+            draw_objectmode_required_box(layout)
+            return
+
         export_vars = context.window_manager.export_vars
 
         header_row = layout.row(align=True)

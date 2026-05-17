@@ -790,6 +790,12 @@ class RMCONTAINER_OT_unregister(Operator):
     def poll(cls, context):
         return active_container(context.scene) is not None
 
+    def invoke(self, context, event):
+        # Destructive: drops the container row and every
+        # has_representation_model edge it represents. Confirm before
+        # going through with it.
+        return context.window_manager.invoke_confirm(self, event)
+
     def execute(self, context):
         scene = context.scene
         idx = (self.container_index

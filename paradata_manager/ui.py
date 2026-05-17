@@ -71,6 +71,11 @@ class EM_ParadataPanel:
         scene = context.scene
         obj = context.object
 
+        if context.mode != 'OBJECT':
+            from ..ui_helpers import draw_objectmode_required_box
+            draw_objectmode_required_box(layout)
+            return
+
         header_row = layout.row(align=True)
         header_row.label(text="Paradata", icon='PROPERTIES')
         help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
@@ -370,12 +375,29 @@ class EM_ParadataPanel:
                     else:
                         btn_row.label(text="", icon="MESH_CUBE")
 
-                if obj and check_if_current_obj_has_brother_inlist(obj.name, source_list_var):
-                    op = btn_row.operator("select.listitem", text="", icon="LONGDISPLAY")
-                    if op:
-                        op.list_type = source_list_var
+                # Jump to the matching row in the Document Manager so the
+                # user can see linked meshes / quad / camera / master
+                # metadata. Replaces the legacy ``select.listitem``
+                # icon here, which was effectively dead in the Docs
+                # section: documents are linked to 3D objects via the
+                # ``em_doc_node_id`` custom property, not via name match,
+                # so ``check_if_current_obj_has_brother_inlist`` never
+                # returned True for source rows.
+                _doc_icon = icons_manager.get_icon_value("document")
+                if _doc_icon:
+                    op = btn_row.operator(
+                        "paradata.show_in_target_manager",
+                        text="", icon_value=_doc_icon)
                 else:
-                    btn_row.label(text="", icon="LONGDISPLAY")
+                    op = btn_row.operator(
+                        "paradata.show_in_target_manager",
+                        text="", icon="FILE")
+                if op:
+                    op.node_id = item_source.id_node
+                    op.target_list = "doc_list"
+                    op.target_index = "doc_list_index"
+                    op.target_label = "Document Manager"
+                    op.target_tab = "EM Annotator"
 
                 row = box.row()
                 row.label(text="Description:", icon="TEXT")
@@ -416,7 +438,6 @@ class EM_ParadataPanel:
 class VIEW3D_PT_ParadataPanel(Panel, EM_ParadataPanel):
     bl_category = "EM"
     bl_idname = "VIEW3D_PT_ParadataPanel"
-    bl_context = "objectmode"
 
 
 class EM_UL_sources_managers(UIList):

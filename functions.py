@@ -249,14 +249,14 @@ def normalize_path(path):
     """
     if not path:
         return ""
-    
+
     # Prima espandi il percorso relativo a un percorso assoluto usando bpy.path.abspath
     abs_path = bpy.path.abspath(path)
-    
-    # Poi converti in oggetto Path per normalizzare i separatori di percorso
-    path_obj = Path(abs_path)
-    
-    return str(path_obj)
+
+    # Collasso lessicale di ".." senza seguire symlink: necessario quando il .blend
+    # è dentro OneDrive/iCloud, che sono symlink verso ~/Library/CloudStorage/...
+    # Path.resolve() o stat() seguirebbero la symlink prima del ".." e cadrebbero fuori.
+    return os.path.normpath(abs_path)
 
 def create_directory(path):
     """
@@ -648,7 +648,7 @@ def is_reconstruction_us(node):
     # Caso 3: Il nodo ha un attributo 'node_type'
     if hasattr(node, 'node_type'):
         # Alcuni tipi di nodi sono sempre ricostruttivi
-        return node.node_type in ['USVs', 'USVn', 'VSF', 'SF']
+        return node.node_type in ['USVs', 'USVn', 'VSF', 'SF', 'RSF']
     
     # Caso 4: controllo sul border_style per casi speciali
     if hasattr(node, 'border_style'):
@@ -1670,6 +1670,8 @@ def set_materials_using_EM_list(context):
                         ob_material_name = 'SF'
                     elif current_ob_em_list.border_style == '#B19F61':
                         ob_material_name = 'VSF'
+                    elif current_ob_em_list.border_style == '#9B3333':
+                        ob_material_name = 'RSF'
                     else:
                         ob_material_name = 'VSF'
                 elif current_ob_em_list.shape == 'roundrectangle':
@@ -1900,9 +1902,16 @@ def inspect_load_dosco_files_on_graph(graph_instance, dosco_dir):
     # without transforms.aux_tracking keep the old behaviour).
     try:
         from s3dgraphy.transforms import (
-            record_attribute_override, freeze_aux_value, push_orphan)
+            record_attribute_override, freeze_aux_value, push_orphan,
+            clear_orphans)
         _AUX_AVAILABLE = True
         _INJECTOR_ID = f"DosCo:{dosco_dir}"
+        # Reload semantics: drop any stale orphan entries filed by an
+        # earlier scan of the same DosCo folder so the list reflects
+        # the current state on disk. ``push_orphan`` only appends, so
+        # without this the list would accumulate duplicates every time
+        # the user re-runs the DosCo refresh.
+        clear_orphans(graph_instance, injector_id=_INJECTOR_ID)
     except ImportError:
         _AUX_AVAILABLE = False
         _INJECTOR_ID = None
@@ -2017,7 +2026,21 @@ def inspect_load_dosco_files_on_graph(graph_instance, dosco_dir):
 
                     stem = os.path.splitext(fname)[0].strip()
                     _m = _ID_PREFIX.match(stem)
-                    short_id = _m.group(1) if _m else stem
+                    if not _m:
+                        # Off-convention filename: does not start with
+                        # an EM id (``D.<num>`` / ``D.<num>.<num>`` /
+                        # ``C.<num>``). Warn so the user knows the file
+                        # is in DosCo but ignored, and never surface it
+                        # as orphan — it would clutter the lifecycle
+                        # panel with rows the user cannot meaningfully
+                        # turn into a host node.
+                        graph_instance.warnings.append(
+                            f"DosCo: file '{fname}' does not match the "
+                            f"EM id convention (D.<num> / C.<num>) — "
+                            f"ignored."
+                        )
+                        continue
+                    short_id = _m.group(1)
 
                     # Case A: node with this id exists — matching
                     # failed elsewhere, but the node itself is fine.
@@ -2178,24 +2201,22 @@ def find_file_in_dosco(dosco_dir, node_name):
     """
     matches = []
 
-    # Define a more precise pattern matching to distinguish between node IDs
-    # For example, D.01 should match "D.01 mia fonte.jpg" but NOT "D.01.01 estrattore.jpg"
-    # The key is to NOT accept '.' as a delimiter since it's used for sub-levels
+    # Match on the stem (filename without extension) so ``D.02.jpg``
+    # is accepted for node ``D.02`` while ``D.02.01.jpg`` is still
+    # rejected. Comparing on the full filename treated the extension
+    # dot as a sub-node separator and rejected legitimate
+    # ``D.NN.<ext>`` files.
     for root, _, files in os.walk(dosco_dir):
         for file in files:
-            # Check if file starts with the exact node name followed by:
-            # - a space, underscore, or hyphen (NOT a dot!)
-            # This ensures D.01 matches "D.01 file.jpg" but not "D.01.01 file.jpg"
-            if file.startswith(node_name):
-                # Get the character immediately after the node name
-                if len(file) > len(node_name):
-                    next_char = file[len(node_name)]
-                    # Accept only space, underscore, or hyphen as delimiters
-                    # Do NOT accept '.' to avoid matching sub-nodes like D.01.01
-                    if next_char in [' ', '_', '-']:
-                        matches.append(os.path.join(root, file))
-                # If filename is exactly the node name (edge case)
-                elif len(file) == len(node_name):
+            stem = os.path.splitext(file)[0]
+            if stem == node_name:
+                matches.append(os.path.join(root, file))
+            elif stem.startswith(node_name) and len(stem) > len(node_name):
+                next_char = stem[len(node_name)]
+                # Accept only space / underscore / hyphen as delimiters
+                # after the node id; reject '.' so D.02 doesn't match
+                # the stem of D.02.01.
+                if next_char in [' ', '_', '-']:
                     matches.append(os.path.join(root, file))
     
     # If we found multiple matches, prioritize by common file types

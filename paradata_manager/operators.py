@@ -589,6 +589,95 @@ class EM_OT_update_paradata_lists(bpy.types.Operator):
             em_tools.em_v_sources_list_index = -1
 
 
+class EM_OT_show_in_target_manager(bpy.types.Operator):
+    """Select a row matching ``node_id`` in a target manager's UIList
+    collection (e.g. Document Manager, future Extractor/Combiner
+    Manager) so the user can see the full detail view for that node.
+
+    The operator is intentionally generic: callers pass the names of
+    the scene-level CollectionProperty (``target_list``) and IntProperty
+    (``target_index``) that drive the destination panel, plus a
+    human-readable label/tab to make the report message useful.
+    """
+
+    bl_idname = "paradata.show_in_target_manager"
+    bl_label = "Show in target manager"
+    bl_description = (
+        "Select this node's row in the corresponding manager panel "
+        "(Document Manager today; Extractor/Combiner Manager once "
+        "available) so all detail info becomes visible"
+    )
+    bl_options = {"REGISTER"}
+
+    node_id: StringProperty()  # type: ignore
+    target_list: StringProperty(  # type: ignore
+        name="Target list",
+        description="Name of the scene CollectionProperty to scan",
+        default="doc_list",
+    )
+    target_index: StringProperty(  # type: ignore
+        name="Target index",
+        description="Name of the scene IntProperty driving the active row",
+        default="doc_list_index",
+    )
+    target_label: StringProperty(  # type: ignore
+        name="Target label",
+        description="Human-readable name of the destination manager",
+        default="Document Manager",
+    )
+    target_tab: StringProperty(  # type: ignore
+        name="Target tab",
+        description="N-panel tab name where the destination manager lives",
+        default="EM Annotator",
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene is not None
+
+    def execute(self, context):
+        scene = context.scene
+        if not self.node_id:
+            self.report({'WARNING'}, "No item selected")
+            return {'CANCELLED'}
+
+        target_list = getattr(scene, self.target_list, None)
+        if target_list is None:
+            self.report(
+                {'WARNING'},
+                f"{self.target_label} not available "
+                f"(scene.{self.target_list} not registered)")
+            return {'CANCELLED'}
+
+        for i, item in enumerate(target_list):
+            # Accept both ``node_id`` (Document Manager) and ``id_node``
+            # (legacy Paradata lists) so the operator works regardless of
+            # which manager registered the destination collection.
+            item_id = (
+                getattr(item, 'node_id', None)
+                or getattr(item, 'id_node', None))
+            if item_id == self.node_id:
+                try:
+                    setattr(scene, self.target_index, i)
+                except (AttributeError, TypeError) as exc:
+                    self.report(
+                        {'WARNING'},
+                        f"Cannot set scene.{self.target_index}: {exc}")
+                    return {'CANCELLED'}
+                name = getattr(item, 'name', '') or self.node_id
+                self.report(
+                    {'INFO'},
+                    f"Selected '{name}' in {self.target_label} — open the "
+                    f"'{self.target_tab}' tab to view full details.")
+                return {'FINISHED'}
+
+        self.report(
+            {'WARNING'},
+            f"Item not found in {self.target_label}. It may not be "
+            "synced yet — try the destination panel's Refresh button.")
+        return {'CANCELLED'}
+
+
 classes = (
     EM_OT_load_paradata_image,
     EM_OT_save_paradata_image,
@@ -596,6 +685,7 @@ classes = (
     EM_OT_next_image,
     EM_files_opener,
     EM_OT_update_paradata_lists,
+    EM_OT_show_in_target_manager,
 )
 
 
