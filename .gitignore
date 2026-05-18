@@ -44,6 +44,7 @@ Thumbs.db
 .Python
 env/
 venv/
+.venv/
 ENV/
 env.bak/
 venv.bak/

@@ -133,21 +133,21 @@ print(f'Fixed version to {version}')
 fi
 cd scripts
 
-# Install dependencies for local development
+# Local dev dependencies are handled by ./em.sh first_setup (isolated .venv).
+# Don't pip-install into the system Python — modern Python rejects it
+# (PEP 668 "externally-managed-environment").
 echo
-echo "Installing dependencies for local development..."
-echo "Note: This installs Python packages for VSCode IntelliSense"
-echo "Installing packages from requirements_wheels.txt..."
-while IFS= read -r line || [ -n "$line" ]; do
-    # Skip empty lines and comments
-    [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
-    
-    echo "Installing $line for local development..."
-    $PYTHON_CMD -m pip install "$line" --user --upgrade
-    if [ $? -ne 0 ]; then
-        echo "WARNING: Failed to install $line"
-    fi
-done < requirements_wheels.txt
+echo "Checking dev venv for VSCode IntelliSense..."
+if [ -d "../.venv" ]; then
+    echo "✅ .venv/ detected at repo root — VSCode IntelliSense is configured"
+    echo "   (To refresh dev deps: ./em.sh first_setup from repo root)"
+else
+    echo "ℹ️  No .venv/ found at repo root."
+    echo "   Run './em.sh first_setup' once from the repo root to set up"
+    echo "   VSCode IntelliSense in an isolated venv."
+    echo "   (Skipping system-wide pip install — modern Python rejects it"
+    echo "    with 'externally-managed-environment' / PEP 668.)"
+fi
 
 # Setup VSCode
 echo

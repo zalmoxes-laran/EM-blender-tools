@@ -62,9 +62,13 @@ Version 1.5 is a major rewrite featuring a modular architecture, the **s3Dgraphy
 git clone --branch EMtools_dev1.5.0Beta3 https://github.com/zalmoxes-laran/EM-blender-tools.git
 cd EM-blender-tools
 
+# One-time: create dev venv for VSCode IntelliSense (run once after cloning)
+chmod +x em.sh
+./em.sh first_setup      # creates .venv/ and points VSCode at it
+# On Windows: .\em.bat first_setup
+
 # Setup development environment (downloads platform wheels)
 # For macOS / Linux
-chmod +x em.sh
 ./em.sh setup            # Python 3.11 (Blender 5.0.x)
 ./em.sh setup 3.13       # Python 3.13 (Blender 5.1+)
 ./em.sh setup force all  # Force re-download for both versions
