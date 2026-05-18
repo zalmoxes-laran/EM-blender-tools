@@ -112,7 +112,9 @@ show_help() {
     echo "Usage: ./em.sh [command] [options]"
     echo
     echo "=== SETUP ==="
-    echo "  setup              Setup development environment (Python 3.11)"
+    echo "  first_setup        One-time: create .venv/ for VSCode IntelliSense"
+    echo "                     (run once after cloning the repo)"
+    echo "  setup              Setup Blender wheels (Python 3.11, Blender 5.0.x)"
     echo "  setup force        Setup and force re-download wheels"
     echo "  setup [force] 3.13 Setup for Blender 5.1+ (Python 3.13)"
     echo "  setup [force] all  Setup for both Python 3.11 and 3.13"
@@ -156,6 +158,7 @@ show_help() {
     echo "  push               Push changes and tags to remote"
     echo
     echo "=== EXAMPLES ==="
+    echo "  ./em.sh first_setup    # Once after cloning: dev venv for VSCode IntelliSense"
     echo "  ./em.sh setup          # First time setup (Python 3.11, Blender 5.0.x)"
     echo "  ./em.sh setup 3.13     # Setup for Blender 5.1+ (Python 3.13)"
     echo "  ./em.sh setup force 3.13  # Force re-download for Python 3.13"
@@ -226,6 +229,102 @@ fi
 
 # Parse commands
 case "$1" in
+    first_setup)
+        echo "============================================"
+        echo "  First-time dev setup: VSCode IntelliSense"
+        echo "============================================"
+        echo
+        echo "This sets up an isolated Python venv at .venv/ for VSCode"
+        echo "IntelliSense and linting. It does NOT affect the wheels that"
+        echo "Blender loads (those live in wheels/cp* and are managed by"
+        echo "./em.sh setup)."
+        echo
+
+        # Pick a Python — prefer 3.13 (matches wheels/cp313 used by Blender 5.1+)
+        VENV_PYTHON=""
+        for cand in python3.13 python3.11 python3; do
+            if command -v "$cand" &>/dev/null; then
+                VENV_PYTHON="$cand"
+                break
+            fi
+        done
+
+        if [ -z "$VENV_PYTHON" ]; then
+            echo "❌ Python not found in PATH."
+            echo
+            echo "Install Python 3.13 (preferred) or 3.11:"
+            echo "  macOS:        brew install python@3.13"
+            echo "  Ubuntu/Deb:   sudo apt install python3.13 python3.13-venv"
+            echo "  Fedora/RHEL:  sudo dnf install python3.13"
+            exit 1
+        fi
+
+        PY_VERSION_RAW=$($VENV_PYTHON --version 2>&1)
+        echo "🐍 Using $VENV_PYTHON ($PY_VERSION_RAW)"
+
+        # Sanity-check version is >= 3.11
+        if ! $VENV_PYTHON -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" 2>/dev/null; then
+            echo "❌ Python >= 3.11 required (found $PY_VERSION_RAW)"
+            exit 1
+        fi
+        echo
+
+        # Create venv if not present (idempotent)
+        if [ ! -d ".venv" ]; then
+            echo "📦 Creating .venv/ ..."
+            $VENV_PYTHON -m venv .venv
+            if [ $? -ne 0 ]; then
+                echo "❌ Failed to create venv."
+                echo "   On Debian/Ubuntu you may need: sudo apt install python3-venv"
+                exit 1
+            fi
+            echo "   ✅ .venv/ created"
+        else
+            echo "📦 .venv/ already exists — refreshing deps"
+        fi
+        echo
+
+        # Upgrade pip & wheel inside venv
+        echo "⬆️  Upgrading pip and wheel in venv..."
+        .venv/bin/pip install --upgrade pip wheel
+        if [ $? -ne 0 ]; then
+            echo "⚠️  pip upgrade failed, continuing"
+        fi
+        echo
+
+        # Install dev deps inside venv (no PEP 668 issue — isolated)
+        echo "📥 Installing dev dependencies from scripts/requirements_wheels.txt..."
+        .venv/bin/pip install -r scripts/requirements_wheels.txt
+        if [ $? -ne 0 ]; then
+            echo "❌ Failed to install dev dependencies in venv."
+            echo "   See pip errors above. Common causes:"
+            echo "   - A pinned package has no wheel for $PY_VERSION_RAW"
+            echo "   - Network problem"
+            exit 1
+        fi
+        echo
+
+        # Point VSCode at the venv
+        echo "🛠  Configuring .vscode/settings.json..."
+        .venv/bin/python scripts/configure_dev_venv.py "./.venv/bin/python"
+        if [ $? -ne 0 ]; then
+            echo "⚠️  Failed to update .vscode/settings.json — set"
+            echo "   \"python.defaultInterpreterPath\": \"./.venv/bin/python\" manually"
+        fi
+
+        echo
+        echo "============================================"
+        echo "✅ Dev venv configured at .venv/"
+        echo "============================================"
+        echo
+        echo "VSCode IntelliSense will use ./.venv/bin/python."
+        echo "If VSCode is already open: Cmd+Shift+P → 'Developer: Reload Window'"
+        echo
+        echo "Note: the venv is for DEV ONLY (IntelliSense, linting)."
+        echo "      Blender uses the wheels in wheels/cp31*; configure those"
+        echo "      with: ./em.sh setup [3.11|3.13|all]"
+        ;;
+
     setup)
         # Check if dev s3dgraphy is active before setup
         check_dev_s3dgraphy
