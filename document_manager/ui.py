@@ -752,9 +752,6 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
         else:
             summary_row.label(text=f"{total} RMDoc", icon="FILE_IMAGE")
         summary_row.label(text=f"Cameras: {with_camera}", icon="CAMERA_DATA")
-        summary_row.prop(
-            scene.doc_settings, "rm_border_by_geometry",
-            text="", icon='COLORSET_03_VEC', toggle=True)
         help_op = summary_row.operator("em.help_popup", text="", icon='QUESTION')
         help_op.title = "RMDoc — Spatialized Documents"
         help_op.text = (
