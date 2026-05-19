@@ -306,6 +306,27 @@ class VIEW3D_PT_visual_panel(Panel):
 
             row.separator()
 
+            # RMDoc show/hide — fourth pair, mirrors the others.
+            try:
+                row.operator(
+                    "em.strat_show_all_rmdocs",
+                    text="",
+                    icon_value=icons_manager.get_icon_value("show_all_RMDoc")
+                )
+            except:
+                pass
+
+            try:
+                row.operator(
+                    "em.strat_hide_all_rmdocs",
+                    text="",
+                    icon_value=icons_manager.get_icon_value("show_all_RMDoc_off")
+                )
+            except:
+                pass
+
+            row.separator()
+
             # Help button
             try:
                 op = row.operator("em.help_popup", text="", icon='QUESTION')
@@ -314,7 +335,8 @@ class VIEW3D_PT_visual_panel(Panel):
                     "Quick visibility controls:\n"
                     "- First pair: Show/Hide all Proxies\n"
                     "- Second pair: Show/Hide all Representation Models\n"
-                    "- Third pair: Show/Hide all Special Finds\n\n"
+                    "- Third pair: Show/Hide all Special Finds\n"
+                    "- Fourth pair: Show/Hide all RMDoc quads\n\n"
                     "These buttons reset any active filters in the Stratigraphy Manager."
                 )
                 op.url = "panels/visual_manager.html#visual-manager"

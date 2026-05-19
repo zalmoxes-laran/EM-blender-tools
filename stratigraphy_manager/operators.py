@@ -876,6 +876,158 @@ class EM_strat_hide_all_special_finds(Operator):
         return {'FINISHED'}
 
 
+class EM_strat_show_all_rmdocs(Operator):
+    """Show all RMDoc quads (and their cameras)"""
+    bl_idname = "em.strat_show_all_rmdocs"
+    bl_label = "Show All RMDocs"
+    bl_description = (
+        "Show all RMDoc quads and their associated cameras with "
+        "render enabled"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        scene = context.scene
+
+        # Disable filters safely without triggering sync (mirrors the
+        # other show/hide-all operators).
+        disable_filters_safely(context)
+
+        shown_quads, shown_cams = self.sync_all_rmdocs(scene, context)
+
+        self.report({'INFO'},
+                    f"All RMDoc quads shown: {shown_quads} quads, "
+                    f"{shown_cams} cameras")
+        return {'FINISHED'}
+
+    def sync_all_rmdocs(self, scene, context):
+        """Show every quad in ``scene.rmdoc_list`` plus its associated
+        camera, and activate the collections that hold them. Mirrors
+        :class:`EM_strat_show_all_rms` so the four show/hide pairs
+        (proxies, RMs, special finds, RMDocs) all behave the same.
+        """
+        shown_quads = 0
+        shown_cams = 0
+        activated_collections = []
+
+        from ..object_cache import get_object_cache
+        cache = get_object_cache()
+
+        rmdoc_objects = []
+        rmdoc_cameras = []
+        for item in getattr(scene, "rmdoc_list", []):
+            obj = cache.get_object(item.name)
+            if obj is not None:
+                rmdoc_objects.append(obj)
+            # Each RMDocItem optionally carries the name of an
+            # associated camera (set during sync from custom prop
+            # ``em_camera_name`` or from a child CAMERA object). Pull
+            # the camera object too so visibility stays in lock-step
+            # with its quad.
+            if getattr(item, "has_camera", False):
+                cam_name = getattr(item, "camera_object_name", "") or ""
+                if cam_name:
+                    cam_obj = cache.get_object(cam_name)
+                    if cam_obj is not None and cam_obj not in rmdoc_cameras:
+                        rmdoc_cameras.append(cam_obj)
+
+        # Activate the conventional 'RMDoc' collection if it exists.
+        rmdoc_collection = bpy.data.collections.get('RMDoc')
+        if rmdoc_collection:
+            for obj in rmdoc_collection.objects:
+                if obj not in rmdoc_objects:
+                    rmdoc_objects.append(obj)
+            if activate_collection_fully(context, rmdoc_collection):
+                activated_collections.append('RMDoc')
+
+        # Activate the 'CAMS' collection used by the camera label tools
+        # (see visual_manager): RMDoc cameras commonly live there.
+        cams_collection = bpy.data.collections.get('CAMS')
+        if cams_collection:
+            if activate_collection_fully(context, cams_collection):
+                activated_collections.append('CAMS')
+
+        # Activate any other collection that happens to host an RMDoc
+        # quad or camera — users sometimes keep them grouped by
+        # document or epoch.
+        for obj in rmdoc_objects + rmdoc_cameras:
+            for collection in bpy.data.collections:
+                if obj.name in collection.objects:
+                    if activate_collection_fully(context, collection):
+                        if collection.name not in activated_collections:
+                            activated_collections.append(collection.name)
+
+        for obj in rmdoc_objects:
+            if obj.hide_viewport or obj.hide_render:
+                obj.hide_viewport = False
+                obj.hide_render = False
+                shown_quads += 1
+
+        for cam in rmdoc_cameras:
+            if cam.hide_viewport or cam.hide_render:
+                cam.hide_viewport = False
+                cam.hide_render = False
+                shown_cams += 1
+
+        if activated_collections:
+            self.show_activation_message(", ".join(activated_collections))
+
+        return shown_quads, shown_cams
+
+    def show_activation_message(self, collection_names):
+        def draw(self, context):
+            self.layout.label(text="The following collections have been activated:")
+            self.layout.label(text=collection_names)
+
+        bpy.context.window_manager.popup_menu(
+            draw, title="Collections Activated", icon='INFO')
+
+
+class EM_strat_hide_all_rmdocs(Operator):
+    """Hide all RMDoc quads (and their cameras)"""
+    bl_idname = "em.strat_hide_all_rmdocs"
+    bl_label = "Hide All RMDocs"
+    bl_description = (
+        "Hide all RMDoc quads and their associated cameras in the "
+        "viewport and disable rendering"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        scene = context.scene
+
+        # Disable filters safely without triggering sync.
+        disable_filters_safely(context)
+
+        from ..object_cache import get_object_cache
+        cache = get_object_cache()
+
+        hidden_quads = 0
+        hidden_cams = 0
+        for item in getattr(scene, "rmdoc_list", []):
+            obj = cache.get_object(item.name)
+            if obj is not None:
+                obj.hide_viewport = True
+                obj.hide_render = True
+                hidden_quads += 1
+            # Mirror the show operator: keep the associated camera in
+            # lock-step so toggling visibility doesn't leave dangling
+            # cameras visible without their quad.
+            if getattr(item, "has_camera", False):
+                cam_name = getattr(item, "camera_object_name", "") or ""
+                if cam_name:
+                    cam_obj = cache.get_object(cam_name)
+                    if cam_obj is not None:
+                        cam_obj.hide_viewport = True
+                        cam_obj.hide_render = True
+                        hidden_cams += 1
+
+        self.report({'INFO'},
+                    f"All RMDoc quads hidden: {hidden_quads} quads, "
+                    f"{hidden_cams} cameras")
+        return {'FINISHED'}
+
+
 class EM_strat_activate_collections(Operator):
     bl_idname = "em.strat_activate_collections"
     bl_label = "Activate Stratigraphy Collections"
@@ -2129,6 +2281,8 @@ def register_operators():
         EM_strat_hide_all_rms,
         EM_strat_show_all_special_finds,
         EM_strat_hide_all_special_finds,
+        EM_strat_show_all_rmdocs,
+        EM_strat_hide_all_rmdocs,
         EM_strat_activate_collections,
         EM_listitem_OT_to3D,
         EM_update_icon_list,

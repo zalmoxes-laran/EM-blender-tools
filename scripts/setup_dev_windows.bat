@@ -204,23 +204,19 @@ if not exist "blender_manifest.toml" (
 )
 cd scripts
 
-:: Installa dipendenze per sviluppo locale con VSCode
+:: Local dev dependencies are handled by em.bat first_setup (isolated .venv).
+:: Don't pip-install into the system Python — on modern Python this fails or
+:: pollutes the global site-packages.
 echo.
-echo Installing dependencies for local development...
-echo Note: This installs Python packages for VSCode IntelliSense
-echo Installing packages from requirements_wheels.txt...
-for /f "tokens=* delims=" %%a in (requirements_wheels.txt) do (
-    set line=%%a
-    :: Salta righe vuote e commenti
-    if not "!line!"=="" (
-        if not "!line:~0,1!"=="#" (
-            echo Installing !line! for local development...
-            python -m pip install "!line!" --user --upgrade
-            if errorlevel 1 (
-                echo WARNING: Failed to install !line!
-            )
-        )
-    )
+echo Checking dev venv for VSCode IntelliSense...
+if exist "..\.venv" (
+    echo [OK] .venv\ detected at repo root - VSCode IntelliSense is configured
+    echo      ^(To refresh dev deps: em.bat first_setup from repo root^)
+) else (
+    echo [INFO] No .venv\ found at repo root.
+    echo        Run "em.bat first_setup" once from the repo root to set up
+    echo        VSCode IntelliSense in an isolated venv.
+    echo        ^(Skipping system-wide pip install.^)
 )
 
 :: Setup VSCode

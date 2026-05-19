@@ -27,7 +27,7 @@ class S3dGraphyDevSyncer:
         else:
             # If run from root directory
             self.emtools_root = Path(__file__).parent
-            
+
         self.wheels_base_dir = self.emtools_root / "wheels"
         self.s3dgraphy_root = None
 
@@ -39,6 +39,39 @@ class S3dGraphyDevSyncer:
 
         # NUOVO: Rileva il site-packages di Blender
         self.blender_site_packages = self.detect_blender_site_packages()
+
+        # Build Python: prefer the project's ``.venv`` when present.
+        # The ``.venv`` is created by ``./em.sh first_setup`` with the
+        # ``build`` package installed (via requirements_dev.txt), so
+        # it's the right interpreter for ``python -m build --wheel``.
+        # Falling back to ``sys.executable`` covers fresh checkouts
+        # where the venv hasn't been created yet — the user will see
+        # the "build package missing" error and run first_setup.
+        self.build_python = self._detect_build_python()
+
+    def _detect_build_python(self):
+        """Return the Python executable to use for wheel builds and
+        pip downloads.
+
+        Prefers ``<emtools_root>/.venv/bin/python`` (or .venv/Scripts/
+        python.exe on Windows) when it exists. This is the venv set up
+        by ``./em.sh first_setup`` and is the only place where
+        ``build`` and ``wheel`` are reliably installed.
+        """
+        venv = self.emtools_root / ".venv"
+        # POSIX layout
+        cand = venv / "bin" / "python"
+        if cand.exists():
+            print(f"🐍 Build Python: {cand} (venv)")
+            return str(cand)
+        # Windows layout
+        cand = venv / "Scripts" / "python.exe"
+        if cand.exists():
+            print(f"🐍 Build Python: {cand} (venv)")
+            return str(cand)
+        print(f"🐍 Build Python: {sys.executable} (system fallback — "
+              f"run ./em.sh first_setup to create a .venv)")
+        return sys.executable
 
     def _detect_wheels_dirs(self):
         """Rileva tutte le directory wheels disponibili (cp311, cp313, o flat)"""
@@ -228,16 +261,21 @@ class S3dGraphyDevSyncer:
         if clean:
             self.clean_build_artifacts()
         
-        # Try different build methods
+        # Try different build methods. The interpreter is the project's
+        # ``.venv`` Python when available (see ``_detect_build_python``);
+        # ``build`` and ``wheel`` are installed there via
+        # ``requirements_dev.txt`` so the first command succeeds in the
+        # standard developer setup.
+        py = self.build_python
         build_commands = [
-            [sys.executable, "-m", "build", "--wheel"],  # Modern approach
-            [sys.executable, "setup.py", "bdist_wheel"],  # Fallback
+            [py, "-m", "build", "--wheel"],   # Modern PyPA frontend
+            [py, "setup.py", "bdist_wheel"],  # Legacy fallback
         ]
-        
+
         for cmd in build_commands:
             try:
                 result = subprocess.run(
-                    cmd, 
+                    cmd,
                     cwd=self.s3dgraphy_root,
                     capture_output=True,
                     text=True,
@@ -245,16 +283,27 @@ class S3dGraphyDevSyncer:
                 )
                 print("✅ Wheel built successfully")
                 return True
-                
+
             except subprocess.CalledProcessError as e:
                 print(f"⚠️  Command failed: {' '.join(cmd)}")
+                if e.stderr:
+                    # Surface a short hint from stderr so the user can
+                    # tell missing-build from compile errors at a glance.
+                    last = e.stderr.strip().splitlines()[-1] if e.stderr.strip() else ""
+                    if last:
+                        print(f"    {last[:160]}")
                 continue
             except FileNotFoundError:
                 print(f"⚠️  Command not found: {' '.join(cmd)}")
                 continue
-        
+
         print("❌ All build commands failed!")
-        print("   Make sure 'build' package is installed: pip install build")
+        if py == sys.executable:
+            print("   No .venv detected. Run ./em.sh first_setup to")
+            print("   create one with 'build' pre-installed.")
+        else:
+            print(f"   Verify build is installed in the venv:")
+            print(f"     {py} -m pip install build wheel")
         return False
     
     def find_latest_s3dgraphy_wheel(self):
@@ -379,7 +428,7 @@ class S3dGraphyDevSyncer:
             # Download into the first directory, then copy to others
             first_dir = self.wheels_dirs[0]
             cmd = [
-                sys.executable, '-m', 'pip', 'download',
+                self.build_python, '-m', 'pip', 'download',
                 package,
                 '--only-binary=:all:',
                 '--no-deps',
@@ -402,7 +451,7 @@ class S3dGraphyDevSyncer:
         else:
             # Fallback: flat structure
             cmd = [
-                sys.executable, '-m', 'pip', 'download',
+                self.build_python, '-m', 'pip', 'download',
                 package,
                 '--only-binary=:all:',
                 '--no-deps',

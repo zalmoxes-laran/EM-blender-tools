@@ -18,6 +18,103 @@ cd /d "%~dp0"
 :: MAIN COMMANDS
 :: ============================================
 
+:: One-time dev venv setup for VSCode IntelliSense
+if "%1"=="first_setup" (
+    echo ============================================
+    echo   First-time dev setup: VSCode IntelliSense
+    echo ============================================
+    echo.
+    echo This creates an isolated venv at .venv\ for VSCode IntelliSense
+    echo and linting. It does NOT affect Blender wheels ^(those live in
+    echo wheels\cp* and are managed by em.bat setup^).
+    echo.
+
+    :: Pick a Python — prefer 3.13 (matches wheels/cp313 used by Blender 5.1+)
+    set "VENV_PY="
+    py -3.13 --version >nul 2>&1 && set "VENV_PY=py -3.13"
+    if "!VENV_PY!"=="" (
+        py -3.11 --version >nul 2>&1 && set "VENV_PY=py -3.11"
+    )
+    if "!VENV_PY!"=="" (
+        python --version >nul 2>&1 && set "VENV_PY=python"
+    )
+
+    if "!VENV_PY!"=="" (
+        echo [ERROR] Python not found in PATH.
+        echo Install Python 3.13 ^(preferred^) or 3.11 from python.org or the
+        echo Microsoft Store and re-run: em.bat first_setup
+        pause
+        exit /b 1
+    )
+
+    for /f "tokens=*" %%v in ('!VENV_PY! --version 2^>^&1') do set "PY_VERSION_RAW=%%v"
+    echo Using !VENV_PY! ^(!PY_VERSION_RAW!^)
+
+    :: Sanity-check Python >= 3.11
+    !VENV_PY! -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" >nul 2>&1
+    if errorlevel 1 (
+        echo [ERROR] Python ^>= 3.11 required ^(found !PY_VERSION_RAW!^)
+        pause
+        exit /b 1
+    )
+    echo.
+
+    :: Create venv if not present (idempotent)
+    if not exist ".venv" (
+        echo Creating .venv\ ...
+        !VENV_PY! -m venv .venv
+        if errorlevel 1 (
+            echo [ERROR] Failed to create venv.
+            pause
+            exit /b 1
+        )
+        echo    .venv\ created
+    ) else (
+        echo .venv\ already exists - refreshing deps
+    )
+    echo.
+
+    :: Upgrade pip & wheel inside venv
+    echo Upgrading pip and wheel in venv...
+    .venv\Scripts\pip.exe install --upgrade pip wheel
+    if errorlevel 1 (
+        echo [WARN] pip upgrade failed, continuing
+    )
+    echo.
+
+    :: Install dev deps inside venv (no PEP 668 issue - isolated)
+    echo Installing dev dependencies from scripts\requirements_wheels.txt...
+    .venv\Scripts\pip.exe install -r scripts\requirements_wheels.txt
+    if errorlevel 1 (
+        echo [ERROR] Failed to install dev dependencies in venv.
+        echo See pip errors above.
+        pause
+        exit /b 1
+    )
+    echo.
+
+    :: Point VSCode at the venv
+    echo Configuring .vscode\settings.json...
+    .venv\Scripts\python.exe scripts\configure_dev_venv.py ".\\.venv\\Scripts\\python.exe"
+    if errorlevel 1 (
+        echo [WARN] Failed to update .vscode\settings.json - set
+        echo    "python.defaultInterpreterPath": ".\\.venv\\Scripts\\python.exe" manually
+    )
+
+    echo.
+    echo ============================================
+    echo Dev venv configured at .venv\
+    echo ============================================
+    echo.
+    echo VSCode IntelliSense will use .\.venv\Scripts\python.exe
+    echo If VSCode is already open: Ctrl+Shift+P -^> "Developer: Reload Window"
+    echo.
+    echo Note: the venv is for DEV ONLY ^(IntelliSense, linting^).
+    echo       Blender uses the wheels in wheels\cp31*; configure those
+    echo       with: em.bat setup [3.11^|3.13^|all]
+    goto :end
+)
+
 :: Setup command
 if "%1"=="setup" (
     echo Setting up development environment...
@@ -314,7 +411,9 @@ echo.
 echo Usage: em.bat [command] [options]
 echo.
 echo === SETUP ===
-echo   setup              Setup development environment (Python 3.11)
+echo   first_setup        One-time: create .venv\ for VSCode IntelliSense
+echo                      (run once after cloning the repo)
+echo   setup              Setup Blender wheels (Python 3.11, Blender 5.0.x)
 echo   setup force        Setup and force re-download wheels (clean install)
 echo   setup [force] 3.13 Setup for Blender 5.1+ (Python 3.13)
 echo   setup [force] all  Setup for both Python 3.11 and 3.13
@@ -352,6 +451,7 @@ echo   commit [msg]       Commit with auto-generated message
 echo   push               Push changes and tags to remote
 echo.
 echo === EXAMPLES ===
+echo   em first_setup     # Once after cloning: dev venv for VSCode IntelliSense
 echo   em setup           # First time setup
 echo   em setup force     # Clean setup (re-downloads wheels)
 echo   em s3d             # Activate s3dgraphy development version
