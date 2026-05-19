@@ -146,6 +146,7 @@ show_help() {
     echo "=== GITHUB RELEASES (builds .zip on GitHub Actions) ==="
     echo "  devrel             DEV RELEASE: inc + tag + push → GitHub builds"
     echo "  ghrelease          STABLE RELEASE: inc + tag + push → GitHub builds"
+    echo "  ghrelease-current  STABLE RELEASE (no inc): flip current → stable + tag + push"
     echo
     echo "=== RELEASE WORKFLOW ==="
     echo "  rc                 Create Release Candidate (inc patch + build RC)"
@@ -168,6 +169,7 @@ show_help() {
     echo "  ./em.sh dev        # Quick: inc dev + build LOCAL .zip for testing"
     echo "  ./em.sh devrel     # Push dev tag → GitHub builds .zip x4 platforms"
     echo "  ./em.sh ghrelease  # Push stable tag → GitHub builds .zip x4 platforms"
+    echo "  ./em.sh ghrelease-current  # Same but releases CURRENT version (no increment)"
     echo "  ./em.sh inc patch  # Increment patch: 1.5.0 → 1.5.1"
     echo "  ./em.sh build stable # Build stable .zip locally (for testing)"
     echo "  ./em.sh rc         # 1.5.0-dev.X → 1.5.1-rc.1"
@@ -603,7 +605,98 @@ case "$1" in
         echo "⏱️  Takes ~10-15 minutes"
         echo
         ;;
-    
+
+    ghrelease-current)
+        echo "============================================"
+        echo "  GitHub Stable Release — CURRENT version"
+        echo "============================================"
+        echo
+        echo "ℹ️  Releases the version stored in pyproject/manifest"
+        echo "   AS-IS, with mode flipped to 'stable'. No increment."
+        echo "   Use this when:"
+        echo "     - you already have a series of dev builds (e.g."
+        echo "       1.5.0-dev.146) and want to declare 1.5.0 stable;"
+        echo "     - you manually edited version_manager config and"
+        echo "       just want to commit + tag + push."
+        echo
+        echo "📊 Current version (before flip):"
+        $PYTHON_CMD scripts/version_manager.py current
+        echo
+
+        # Flip to stable WITHOUT incrementing. set-mode strips the
+        # -dev.N / -rc.N suffix and rewrites pyproject + manifest.
+        $PYTHON_CMD scripts/version_manager.py set-mode --mode stable
+        VERSION=$(get_version)
+
+        if [ -z "$VERSION" ]; then
+            echo "❌ ERROR: Could not extract version after set-mode!"
+            exit 1
+        fi
+
+        # Guard: refuse if v<VERSION> tag already exists locally or
+        # on remote. Forcing a re-release of an existing tag is
+        # never what the user wants when invoking this command.
+        if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo
+            echo "❌ Tag v$VERSION already exists locally."
+            echo "   Either delete it (git tag -d v$VERSION) or pick"
+            echo "   a different version via './em.sh inc patch'."
+            exit 1
+        fi
+        if git ls-remote --tags origin "refs/tags/v$VERSION" 2>/dev/null | grep -q "v$VERSION"; then
+            echo
+            echo "❌ Tag v$VERSION already exists on origin."
+            echo "   A different version must be picked — see './em.sh inc'."
+            exit 1
+        fi
+
+        echo
+        echo "============================================"
+        echo "📦 Will release CURRENT version as: v$VERSION"
+        echo "============================================"
+        echo
+        echo "⚠️  This will:"
+        echo "   1. Commit version-config / manifest changes"
+        echo "   2. Create tag v$VERSION"
+        echo "   3. Push branch + tag to GitHub"
+        echo "   4. Trigger GitHub Actions build"
+        echo
+        read -p "Proceed? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo
+            echo "❌ Release cancelled"
+            # Revert the set-mode by restoring previous config from git.
+            # (The user can re-run anytime.)
+            git checkout -- blender_manifest.toml scripts/version_manager_config.json 2>/dev/null || true
+            exit 0
+        fi
+
+        echo
+        echo "💾 Committing changes..."
+        git add -A
+        git commit -m "release: v$VERSION"
+
+        echo "🏷️  Creating tag v$VERSION..."
+        git tag "v$VERSION"
+
+        echo "📤 Pushing to GitHub..."
+        git push origin $(git branch --show-current)
+        git push origin "v$VERSION"
+
+        echo
+        echo "============================================"
+        echo "✅ Stable release v$VERSION (current) initiated!"
+        echo "============================================"
+        echo
+        echo "🔄 GitHub Actions is building..."
+        echo
+        echo "📦 Monitor: https://github.com/zalmoxes-laran/EM-blender-tools/actions"
+        echo "📥 Release: https://github.com/zalmoxes-laran/EM-blender-tools/releases/tag/v$VERSION"
+        echo "⏱️  Takes ~10-15 minutes"
+        echo
+        ;;
+
     rc)
         echo "Creating release candidate..."
         echo "This will increment patch version and set mode to RC"
