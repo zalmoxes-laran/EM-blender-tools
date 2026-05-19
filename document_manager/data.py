@@ -556,16 +556,27 @@ def sync_rmdoc_list(scene):
         if cam_obj is not None and cam_obj.get('em_quad_name') != obj.name:
             cam_obj['em_quad_name'] = obj.name
 
-    # Pass 1: objects with em_doc_node_id (primary detection)
+    # Pass 1: objects with em_doc_node_id whose id STILL resolves in
+    # the current graph. We deliberately skip objects whose cached
+    # ``em_doc_node_id`` is stale (the document was rebuilt with a
+    # different node_id on the last GraphML reload) so the name-based
+    # fallback in pass 2 can claim them. Without this guard the stale
+    # entries were marked ``seen`` here and the fallback never ran —
+    # the RMDoc UIList then displayed ``[Not Connected]`` for objects
+    # that had a perfectly valid name match in doc_list.
     for obj in bpy.data.objects:
         doc_node_id = obj.get('em_doc_node_id')
         if not doc_node_id:
             continue
         doc_item = doc_by_node_id.get(doc_node_id)
+        if doc_item is None:
+            continue  # let pass 2 try by name
         _process_object(obj, doc_node_id, doc_item)
 
-    # Pass 2: fallback — match object names to known documents
-    # Patterns: "{graph_code}.{doc_name}" or just "{doc_name}"
+    # Pass 2: fallback — match object names to known documents.
+    # Patterns: "{graph_code}.{doc_name}" or just "{doc_name}". Also
+    # heals stale ``em_doc_node_id`` props by overwriting them with
+    # the matched doc's current node_id.
     for obj in bpy.data.objects:
         if obj.name in seen_names:
             continue  # Already matched in pass 1
@@ -586,9 +597,24 @@ def sync_rmdoc_list(scene):
                     matched_doc = doc_by_name[suffix]
 
         if matched_doc:
-            # Set the custom property for future consistency
+            # Heal: overwrite the (possibly stale) custom property
+            # with the current node_id so future syncs hit pass 1.
             obj['em_doc_node_id'] = matched_doc.node_id
             _process_object(obj, matched_doc.node_id, matched_doc)
+
+    # Pass 3: orphan visibility — objects that still carry an
+    # ``em_doc_node_id`` marker but resolved to nothing in either
+    # pass above. Keep them in rmdoc_list as ``[Not Connected]`` so
+    # the user can spot the broken link and re-attach via "Search
+    # Document". Without this, a quad whose doc was deleted (or whose
+    # name was edited so the fallback no longer matches) would
+    # silently vanish from the list.
+    for obj in bpy.data.objects:
+        if obj.name in seen_names:
+            continue
+        if not obj.get('em_doc_node_id'):
+            continue
+        _process_object(obj, obj.get('em_doc_node_id', ''), None)
 
     # Remove orphaned entries (object no longer in scene)
     i = len(rmdoc_list) - 1

@@ -419,11 +419,11 @@ class VIEW3D_PT_3DDocumentManager(Panel):
 
         # Tab descriptor — shown only at the top of the first panel to
         # orient new users when they click into the EM Annotator tab.
-        descriptor = layout.row()
-        descriptor.enabled = False  # dimmed
-        descriptor.label(
-            text="EM Annotator — link 3D objects to the extended matrix",
-            icon='INFO')
+        #descriptor = layout.row()
+        #descriptor.enabled = False  # dimmed
+        #descriptor.label(
+        #    text="EM Annotator — link 3D objects to the extended matrix",
+       #     icon='INFO')
 
         # --- Summary line 1: total documents + masters ---
         row1 = layout.row(align=True)
@@ -771,12 +771,35 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
             action_row.label(text=f"{len(selected_meshes)} selected", icon='RESTRICT_SELECT_OFF')
             action_row.operator("em.rmdoc_add_selected", text="Add Selected", icon='ADD')
 
-        # Create from document (uses active doc_list item)
+        # Create from document (uses active doc_list item). 1:1 doc↔quad
+        # invariant: if an RMDoc already exists for this document, the
+        # button is disabled so the user can't accidentally trigger the
+        # operator and get a "doc already has RMDoc" error.
         if 0 <= scene.doc_list_index < len(scene.doc_list):
-            create_row = layout.row(align=True)
             doc_item = scene.doc_list[scene.doc_list_index]
-            create_row.operator("em.rmdoc_create_from_document",
-                                text=f"Create from '{doc_item.name}'", icon='CAMERA_DATA')
+            already_has_rmdoc = any(
+                rm.doc_node_id == doc_item.node_id
+                for rm in rmdoc_list
+            )
+            create_row = layout.row(align=True)
+            create_row.enabled = not already_has_rmdoc
+            # Use the RMDoc/document icon — the CAMERA_DATA icon used
+            # previously implied a camera workflow, which was misleading
+            # since this operator only creates the quad. The actual
+            # camera is added later via "Create Camera".
+            create_icon_val = icons_manager.get_icon_value("show_all_RMDoc")
+            if already_has_rmdoc:
+                btn_text = f"'{doc_item.name}' already has an RMDoc"
+            else:
+                btn_text = f"Create from '{doc_item.name}'"
+            if create_icon_val:
+                create_row.operator("em.rmdoc_create_from_document",
+                                    text=btn_text,
+                                    icon_value=create_icon_val)
+            else:
+                create_row.operator("em.rmdoc_create_from_document",
+                                    text=btn_text,
+                                    icon='FILE_IMAGE')
 
         if total == 0:
             layout.label(text="No spatialized documents", icon='INFO')
@@ -955,10 +978,32 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
                                         text="Remove Camera",
                                         icon="X")
                 op.object_name = item.name
+
+                # Apply Scale — bake the quad object scale into the
+                # mesh data. Disabled while scale drivers are active
+                # (CAMERA_DRIVEN) because applying driver-computed
+                # values would freeze them into the mesh.
+                from .drivers import has_scale_drivers
+                quad_obj = bpy.data.objects.get(item.name)
+                apply_row = col.row(align=True)
+                apply_row.enabled = (
+                    quad_obj is not None
+                    and not has_scale_drivers(quad_obj))
+                op = apply_row.operator("em.rmdoc_apply_scale",
+                                        text="Apply Scale",
+                                        icon="CON_SIZELIKE")
+                op.object_name = item.name
             else:
-                # No camera declared
-                op = col.operator("em.rmdoc_create_camera",
-                                  text="Create Camera", icon="CAMERA_DATA")
+                # No camera declared — quad-only authoring. Apply Scale
+                # is always safe here (no drivers can be present).
+                no_cam_row = col.row(align=True)
+                op = no_cam_row.operator("em.rmdoc_create_camera",
+                                         text="Create Camera",
+                                         icon="CAMERA_DATA")
+                op.object_name = item.name
+                op = no_cam_row.operator("em.rmdoc_apply_scale",
+                                         text="Apply Scale",
+                                         icon="CON_SIZELIKE")
                 op.object_name = item.name
 
             # --- Actions ---

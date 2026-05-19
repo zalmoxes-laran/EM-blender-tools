@@ -1,0 +1,16 @@
+# Development-only Python packages.
+#
+# These are tools the developer needs to BUILD / RELEASE / SYNC the
+# extension, NOT runtime dependencies bundled into Blender. They live
+# in the local ``.venv`` (created by ``./em.sh first_setup``) and must
+# never end up in ``wheels/cpXX/``.
+#
+# Distinct from ``requirements_wheels.txt`` which IS downloaded into
+# ``wheels/cpXX/`` and shipped inside the extension zip.
+
+# PyPA build frontend — used by scripts/sync_s3dgraphy_dev.py to build
+# the local s3dgraphy wheel against the development source tree.
+build>=1.2
+
+# Used internally by ``build`` to compile sdist/wheel artifacts.
+wheel
