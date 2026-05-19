@@ -1324,7 +1324,10 @@ class RM_OT_switch_lod(Operator):
             self.report({'ERROR'}, f"Object '{item.name}' not found in scene")
             return {'CANCELLED'}
 
+        from .containers import rename_mesh_in_containers
+
         if obj.type == 'MESH' and obj.data and obj.data.library:
+            old_name = item.name
             ok, resolved_lod, target_mesh_name, err = _switch_linked_mesh_lod(obj, requested_lod)
             if not ok:
                 self.report({'ERROR'}, err or "LOD switch failed")
@@ -1333,6 +1336,12 @@ class RM_OT_switch_lod(Operator):
                 self.report({'WARNING'}, LOD_FALLBACK_WARNING)
 
             item.name = obj.name
+            # Keep container.mesh_names entries pointing at the live
+            # object name so the rm_list filter (which compares
+            # item.name against container.mesh_names) doesn't drop
+            # this mesh on the next redraw.
+            if old_name != obj.name:
+                rename_mesh_in_containers(scene, old_name, obj.name)
             item.active_lod = resolved_lod
             item.object_exists = True
             variants = detect_lod_variants(item.name)
@@ -1369,7 +1378,13 @@ class RM_OT_switch_lod(Operator):
             new_obj.hide_viewport = False
             new_obj.hide_render = False
 
+        old_name = item.name
         item.name = target_name
+        # Same rationale as the linked-mesh path above: keep the
+        # container's stored mesh name pointing at the LOD-variant
+        # object that is now the active one.
+        if old_name != target_name:
+            rename_mesh_in_containers(scene, old_name, target_name)
         item.active_lod = resolved_lod
         item.object_exists = new_obj is not None
         item.has_lod_variants = len(variants) > 1
@@ -1394,6 +1409,8 @@ class RM_OT_batch_switch_lod(Operator):
         switched = 0
         fallback_applied = False
 
+        from .containers import rename_mesh_in_containers
+
         for item in scene.rm_list:
             obj = get_object_cache().get_object(item.name)
             if not obj or obj.type != 'MESH':
@@ -1402,11 +1419,14 @@ class RM_OT_batch_switch_lod(Operator):
             target_lod = max(LOD_MIN_LEVEL, min(LOD_MAX_LEVEL, item.active_lod + self.direction))
 
             if obj.data and obj.data.library:
+                old_name = item.name
                 ok, resolved_lod, _target_mesh_name, _err = _switch_linked_mesh_lod(obj, target_lod)
                 if ok:
                     if resolved_lod != target_lod:
                         fallback_applied = True
                     item.name = obj.name
+                    if old_name != obj.name:
+                        rename_mesh_in_containers(scene, old_name, obj.name)
                     item.active_lod = resolved_lod
                     item.object_exists = True
                     variants = detect_lod_variants(item.name)
@@ -1439,7 +1459,10 @@ class RM_OT_batch_switch_lod(Operator):
             if new_obj:
                 new_obj.hide_viewport = False
                 new_obj.hide_render = False
+            old_name = item.name
             item.name = target_name
+            if old_name != target_name:
+                rename_mesh_in_containers(scene, old_name, target_name)
             item.active_lod = resolved_lod
             item.object_exists = new_obj is not None
             item.has_lod_variants = len(variants) > 1
@@ -1470,12 +1493,15 @@ class RM_OT_batch_lod_selected(Operator):
         fallback_applied = False
         requested_lod = max(LOD_MIN_LEVEL, min(LOD_MAX_LEVEL, int(self.target_lod)))
 
+        from .containers import rename_mesh_in_containers
+
         for obj in context.selected_objects:
             item = next((it for it in scene.rm_list if it.name == obj.name), None)
             if item is None:
                 continue
 
             if obj.type == 'MESH' and obj.data and obj.data.library:
+                old_name = item.name
                 ok, resolved_lod, _target_mesh_name, _err = _switch_linked_mesh_lod(obj, requested_lod)
                 if not ok:
                     skipped += 1
@@ -1483,6 +1509,8 @@ class RM_OT_batch_lod_selected(Operator):
                 if resolved_lod != requested_lod:
                     fallback_applied = True
                 item.name = obj.name
+                if old_name != obj.name:
+                    rename_mesh_in_containers(scene, old_name, obj.name)
                 item.active_lod = resolved_lod
                 item.object_exists = True
                 variants = detect_lod_variants(item.name)
@@ -1517,7 +1545,10 @@ class RM_OT_batch_lod_selected(Operator):
             if new_obj:
                 new_obj.hide_viewport = False
                 new_obj.hide_render = False
+            old_name = item.name
             item.name = target_name
+            if old_name != target_name:
+                rename_mesh_in_containers(scene, old_name, target_name)
             item.active_lod = resolved_lod
             item.object_exists = new_obj is not None
             item.has_lod_variants = len(variants) > 1
@@ -1892,11 +1923,39 @@ class RM_OT_promote_to_rm(Operator):
                             )
                 except Exception as e:
                     print(f"Warning: Could not update graph: {e}")
-        
+
+        # Container auto-attach: for SELECTED mode, anchor any
+        # container-orphan mesh to the active container so the
+        # rm_list ↔ container ↔ epoch invariant holds. RM_LIST
+        # mode entries are already in a container by construction.
+        added_to_container = 0
+        if self.mode == 'SELECTED':
+            from .containers import (
+                active_container,
+                add_mesh_to_container,
+                find_container_for_mesh,
+            )
+            ac = active_container(scene)
+            if ac is not None:
+                for obj in selected_objects:
+                    if find_container_for_mesh(scene, obj.name) is None:
+                        ok, reason = add_mesh_to_container(context, ac, obj)
+                        if ok:
+                            added_to_container += 1
+                        elif reason:
+                            self.report({'WARNING'}, reason)
+
         # Aggiorna la lista RM
         bpy.ops.rm.update_list(from_graph=True)
-        
-        self.report({'INFO'}, f"Added epoch '{active_epoch.name}' to {len(selected_objects)} object(s)")
+
+        if added_to_container > 0:
+            self.report(
+                {'INFO'},
+                f"Added epoch '{active_epoch.name}' to "
+                f"{len(selected_objects)} object(s); "
+                f"{added_to_container} also added to active container")
+        else:
+            self.report({'INFO'}, f"Added epoch '{active_epoch.name}' to {len(selected_objects)} object(s)")
         return {'FINISHED'}
 
 class RM_OT_remove_epoch_from_rm_list(Operator):
@@ -1949,12 +2008,32 @@ class RM_OT_remove_epoch_from_rm_list(Operator):
         # Rimuovi le epoche in ordine inverso
         for i in reversed(epochs_to_remove):
             obj.EM_ep_belong_ob.remove(i)
-        
-        # Se non ci sono più epoche, aggiungi "no_epoch"
-        if len(obj.EM_ep_belong_ob) == 0:
-            ep_item = obj.EM_ep_belong_ob.add()
-            ep_item.epoch = "no_epoch"
-        
+
+        # Invariant: a mesh in rm_list must have a container AND ≥1
+        # real epoch. If removing this epoch leaves the mesh with no
+        # real epoch, evict it from its container too. The inline X
+        # mirrors what RM_OT_remove_epoch_from_selected does for the
+        # batch "-" button so both code paths keep the same shape.
+        real_epochs_left = [
+            ep.epoch for ep in obj.EM_ep_belong_ob
+            if ep.epoch and ep.epoch != "no_epoch"
+        ]
+        evicted_from_container = False
+        if not real_epochs_left:
+            from .containers import (
+                find_container_for_mesh,
+                remove_mesh_from_container,
+            )
+            current_idx = find_container_for_mesh(scene, obj.name)
+            if current_idx is not None:
+                cont = scene.rm_containers[current_idx]
+                if remove_mesh_from_container(
+                        context, cont, obj.name, drop_edge=True):
+                    evicted_from_container = True
+            if len(obj.EM_ep_belong_ob) == 0:
+                ep_item = obj.EM_ep_belong_ob.add()
+                ep_item.epoch = "no_epoch"
+
         # Rimuovi l'epoch dalla lista RM
         rm_item.epochs.remove(rm_item.active_epoch_index)
         
@@ -1991,8 +2070,14 @@ class RM_OT_remove_epoch_from_rm_list(Operator):
         
         # Aggiorna la lista RM
         bpy.ops.rm.update_list(from_graph=True)
-        
-        self.report({'INFO'}, f"Removed epoch '{epoch_name}' from {rm_item.name}")
+
+        if evicted_from_container:
+            self.report(
+                {'INFO'},
+                f"Removed epoch '{epoch_name}' from {rm_item.name} "
+                f"(no epoch left — also removed from its container)")
+        else:
+            self.report({'INFO'}, f"Removed epoch '{epoch_name}' from {rm_item.name}")
         return {'FINISHED'}
 
 class RM_OT_remove_epoch_from_selected(Operator):
@@ -2030,11 +2115,17 @@ class RM_OT_remove_epoch_from_selected(Operator):
         
         # Numero di oggetti modificati
         modified_count = 0
-        
+        evicted_from_container = 0
+
+        from .containers import (
+            find_container_for_mesh,
+            remove_mesh_from_container,
+        )
+
         for obj in selected_objects:
             # Trova le epoche esistenti dell'oggetto
             existing_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob if ep.epoch != "no_epoch"]
-            
+
             # Rimuovi l'epoch attiva se presente
             if active_epoch.name in existing_epochs:
                 # Rimuovi l'epoch
@@ -2042,40 +2133,65 @@ class RM_OT_remove_epoch_from_selected(Operator):
                 for i, ep in enumerate(obj.EM_ep_belong_ob):
                     if ep.epoch == active_epoch.name:
                         epochs_to_remove.append(i)
-                
+
                 # Rimuovi le epoche in ordine inverso
                 for i in reversed(epochs_to_remove):
                     obj.EM_ep_belong_ob.remove(i)
                     modified_count += 1
-            
-            # Se non ci sono più epoche, aggiungi "no_epoch"
-            if len(obj.EM_ep_belong_ob) == 0:
-                ep_item = obj.EM_ep_belong_ob.add()
-                ep_item.epoch = "no_epoch"
-            
+
+            # If no real epoch remains, the mesh would become a ghost
+            # entry in its container (visible-by-container, filtered-
+            # out-by-epoch). Evict from the container to keep the
+            # rm_list ↔ container ↔ epoch invariant: a mesh in
+            # rm_list must have a container AND ≥1 real epoch.
+            real_epochs_left = [
+                ep.epoch for ep in obj.EM_ep_belong_ob
+                if ep.epoch and ep.epoch != "no_epoch"
+            ]
+            if not real_epochs_left:
+                current_idx = find_container_for_mesh(scene, obj.name)
+                if current_idx is not None:
+                    cont = scene.rm_containers[current_idx]
+                    if remove_mesh_from_container(
+                            context, cont, obj.name, drop_edge=True):
+                        evicted_from_container += 1
+                # Keep the EP_belong_ob list non-empty for legacy
+                # readers; the mesh is no longer in any container, so
+                # it falls out of rm_list visibility regardless.
+                if len(obj.EM_ep_belong_ob) == 0:
+                    ep_item = obj.EM_ep_belong_ob.add()
+                    ep_item.epoch = "no_epoch"
+
             # Aggiorna il grafo se disponibile
             if graph:
                 try:
                     model_node_id = f"{obj.name}_model"
-                    
+
                     # Rimuovi gli edge per quest'epoch
                     edges_to_remove = []
                     for edge in graph.edges:
-                        if (edge.edge_source == model_node_id and 
+                        if (edge.edge_source == model_node_id and
                             edge.edge_type in ["has_first_epoch", "has_representation_model", "survive_in_epoch"]):
                             epoch_node = graph.find_node_by_id(edge.edge_target)
                             if epoch_node and epoch_node.name == active_epoch.name:
                                 edges_to_remove.append(edge.edge_id)
-                    
+
                     for edge_id in edges_to_remove:
                         graph.remove_edge(edge_id)
                 except Exception as e:
                     print(f"Warning: Could not update graph: {e}")
-        
+
         # Aggiorna la lista RM
         bpy.ops.rm.update_list(from_graph=True)
-        
-        self.report({'INFO'}, f"Removed epoch '{active_epoch.name}' from {modified_count} object(s)")
+
+        if evicted_from_container > 0:
+            self.report(
+                {'INFO'},
+                f"Removed epoch '{active_epoch.name}' from {modified_count} object(s); "
+                f"{evicted_from_container} also removed from their container "
+                f"(no epoch left)")
+        else:
+            self.report({'INFO'}, f"Removed epoch '{active_epoch.name}' from {modified_count} object(s)")
         return {'FINISHED'}
 
 class RM_OT_remove_epoch(Operator):

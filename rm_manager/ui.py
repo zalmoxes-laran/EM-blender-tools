@@ -6,9 +6,21 @@ from ..functions import is_graph_available
 from .. import icons_manager
 from .operators import (
     detect_lod_variants,
+    _split_lod_name,
     LOD_MIN_LEVEL,
     LOD_MAX_LEVEL,
 )
+
+
+def _base_name(name):
+    """Return the LOD-stripped form of ``name`` (``Foo_LOD2`` → ``Foo``),
+    or the name itself when no ``_LODn`` suffix is present. Used by the
+    UIList filter and display so a mesh keeps its identity across LOD
+    switches even if its real object name (and the entry stored in
+    ``container.mesh_names``) drifts.
+    """
+    base, _ = _split_lod_name(name or "")
+    return base or name
 
 # ✅ OPTIMIZED: Import object cache for O(1) lookups
 from ..object_cache import get_object_cache
@@ -118,9 +130,12 @@ class RM_UL_List(UIList):
         ac = active_container(context.scene)
         if ac is None:
             return filter_flags, order
-        allowed = {e.name for e in ac.mesh_names}
+        # Match on LOD-stripped base names so a mesh that switched LOD
+        # (e.g. ``Foo_LOD2`` → ``Foo_LOD3``) still resolves to the
+        # container entry that was stored under the previous suffix.
+        allowed = {_base_name(e.name) for e in ac.mesh_names}
         for i, item in enumerate(items):
-            if item.name not in allowed:
+            if _base_name(item.name) not in allowed:
                 filter_flags[i] = 0
         return filter_flags, order
 
@@ -156,12 +171,16 @@ class RM_UL_List(UIList):
                 else:
                     sub.label(text="X", icon='MOD_DECIM')
 
-                # Name of the RM model — blank icon unless there's an
-                # error state to flag.
+                # Name of the RM model — shown as label so switching
+                # LOD doesn't leak the ``_LODn`` suffix into the user-
+                # visible identity. The real object name still carries
+                # the suffix and is what bpy operators target; the
+                # label is just the stable base name.
+                display_name = _base_name(item.name)
                 if has_error:
-                    row.prop(item, "name", text="", emboss=False, icon='ERROR')
+                    row.label(text=display_name, icon='ERROR')
                 else:
-                    row.prop(item, "name", text="", emboss=False, icon='BLANK1')
+                    row.label(text=display_name, icon='BLANK1')
 
                 # Epoch of belonging
                 if hasattr(item, 'first_epoch'):
@@ -525,12 +544,11 @@ class VIEW3D_PT_RM_Manager(Panel):
                 if has_lod_objects:
                     sub = row.row(align=True)
                     sub.menu("RM_MT_batch_lod_selected", text="", icon='MOD_DECIM')
-                # Container-scoped ops: add selected meshes to the
-                # active container, or move them between containers.
-                # Each enabled by its own poll().
+                # Container-scoped op: move selected meshes between
+                # containers. The previous "add to active container"
+                # action is subsumed by "+": adding to an epoch now
+                # auto-anchors orphan meshes to the active container.
                 row.separator()
-                row.operator("rmcontainer.add_selected_meshes",
-                             text="", icon='IMPORT')
                 row.operator("rmcontainer.move_selected_to_container",
                              text="", icon='EXPORT')
         else:

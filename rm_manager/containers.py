@@ -97,6 +97,26 @@ def find_container_for_mesh(scene, mesh_name: str) -> Optional[int]:
     return None
 
 
+def rename_mesh_in_containers(scene, old_name: str, new_name: str) -> int:
+    """Rename ``old_name`` to ``new_name`` in every container's
+    ``mesh_names`` entry. Returns the number of entries updated.
+
+    Used after a LOD switch renames the underlying object so the
+    container's stored mesh name keeps tracking the live object.
+    Without this, the rm_list filter (which compares item.name to
+    container.mesh_names) would lose the entry on the next redraw.
+    """
+    if not old_name or old_name == new_name:
+        return 0
+    updated = 0
+    for container in scene.rm_containers:
+        for entry in container.mesh_names:
+            if entry.name == old_name:
+                entry.name = new_name
+                updated += 1
+    return updated
+
+
 def _ensure_rm_node_for_mesh(scene, graph, mesh_obj) -> Optional[str]:
     """Return the node_id of the RepresentationModelNode that
     represents this mesh in the graph. Resolution order:
