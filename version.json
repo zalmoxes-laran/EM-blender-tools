@@ -4,7 +4,7 @@
   "patch": 0,
   "dev_build": 146,
   "rc_build": 1,
-  "mode": "dev",
+  "mode": "stable",
   "description": "Version configuration for EM Tools",
   "docs": {
     "em_tools": {
