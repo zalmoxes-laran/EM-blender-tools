@@ -292,15 +292,30 @@ case "$1" in
         fi
         echo
 
-        # Install dev deps inside venv (no PEP 668 issue — isolated)
-        echo "📥 Installing dev dependencies from scripts/requirements_wheels.txt..."
+        # Install dev deps inside venv (no PEP 668 issue — isolated).
+        # Two requirements files:
+        #   - requirements_wheels.txt: runtime libs that ALSO go into
+        #     wheels/cpXX/ for Blender to load. Installed in venv so
+        #     IntelliSense / linting work locally.
+        #   - requirements_dev.txt: tools used only by the dev pipeline
+        #     (``build`` for ``./em.sh s3d``, ``wheel`` for setuptools
+        #     fallback). Kept OUT of wheels/cpXX/.
+        echo "📥 Installing runtime deps from scripts/requirements_wheels.txt..."
         .venv/bin/pip install -r scripts/requirements_wheels.txt
         if [ $? -ne 0 ]; then
-            echo "❌ Failed to install dev dependencies in venv."
+            echo "❌ Failed to install runtime dependencies in venv."
             echo "   See pip errors above. Common causes:"
             echo "   - A pinned package has no wheel for $PY_VERSION_RAW"
             echo "   - Network problem"
             exit 1
+        fi
+        echo
+        echo "📥 Installing dev tools from scripts/requirements_dev.txt..."
+        .venv/bin/pip install -r scripts/requirements_dev.txt
+        if [ $? -ne 0 ]; then
+            echo "⚠️  Failed to install dev tools — ./em.sh s3d may not"
+            echo "   build the s3dgraphy wheel until 'build' is available."
+            echo "   Try: .venv/bin/pip install build wheel"
         fi
         echo
 

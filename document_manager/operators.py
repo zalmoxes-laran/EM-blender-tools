@@ -1801,16 +1801,43 @@ def _resolve_doc_from_context_or_id(scene, doc_node_id):
     return None, ""
 
 
-def _apply_render_settings_from_image(scene, image, cam_data):
-    """Match render resolution + pixel aspect + sensor_fit to the image.
+def _apply_render_settings_from_image(scene, image, cam_data,
+                                       target_aspect=None):
+    """Match render resolution + pixel aspect + sensor_fit to the image
+    or, when no usable image is provided, to ``target_aspect`` alone.
+
     Shared helper — also called from look_through / pilot in Step 6 to
     preserve the 1:1 overlay invariant regardless of who created the
     camera.
+
+    ``target_aspect`` (height / width) overrides the image's intrinsic
+    aspect so the camera frame matches the quad's *current* shape
+    rather than the original image. When ``target_aspect`` is None and
+    a valid image is provided, the image's pixel aspect is used
+    (legacy behaviour). When the image is missing or invalid we still
+    coerce the render aspect from ``target_aspect`` (reusing the
+    scene's current ``resolution_x`` as the horizontal pixel budget) —
+    otherwise the camera frame would inherit whatever stale aspect the
+    scene happened to carry (often square), which produced visibly
+    wrong frames for users whose quads' materials had no resolvable
+    image.
     """
-    if image and image.size[0] > 0 and image.size[1] > 0:
-        scene.render.resolution_x = image.size[0]
-        scene.render.resolution_y = image.size[1]
+    image_ok = (image and image.size[0] > 0 and image.size[1] > 0)
+    if image_ok:
+        res_x = image.size[0]
+        if target_aspect is not None and target_aspect > 1e-6:
+            res_y = max(1, int(round(res_x * float(target_aspect))))
+        else:
+            res_y = image.size[1]
+        scene.render.resolution_x = res_x
+        scene.render.resolution_y = res_y
         scene.render.resolution_percentage = 100
+        scene.render.pixel_aspect_x = 1.0
+        scene.render.pixel_aspect_y = 1.0
+    elif target_aspect is not None and target_aspect > 1e-6:
+        res_x = max(1, int(scene.render.resolution_x))
+        res_y = max(1, int(round(res_x * float(target_aspect))))
+        scene.render.resolution_y = res_y
         scene.render.pixel_aspect_x = 1.0
         scene.render.pixel_aspect_y = 1.0
     if cam_data is not None:
@@ -1879,6 +1906,37 @@ def _viewport_placement_matrix(context, quad_width, quad_height):
     return mathutils.Matrix.Translation(scene.cursor.location)
 
 
+def _cursor_placement_matrix(context, orientation):
+    """Return a 4×4 world matrix placing a quad at the 3D cursor with
+    the requested orientation.
+
+    ``orientation``:
+        - ``'VIEW'``    facing the active 3D Viewport (quad's +Z toward
+                        the viewer). Falls back to identity when no
+                        viewport is available.
+        - ``'ZENITH'``  lying flat on the XY plane (image visible from
+                        above), normal = world +Z. Identity rotation.
+    """
+    import mathutils
+    scene = context.scene
+    trans = mathutils.Matrix.Translation(scene.cursor.location)
+
+    if orientation == 'ZENITH':
+        # Flat on the ground — image readable looking straight down.
+        return trans
+
+    # 'VIEW' (default): inherit the viewport's orientation so the quad
+    # faces the user immediately.
+    for area in context.screen.areas:
+        if area.type != 'VIEW_3D':
+            continue
+        r3d = area.spaces[0].region_3d
+        rot = r3d.view_matrix.inverted().to_3x3().to_4x4()
+        return trans @ rot
+    # No viewport available — fall back to identity (zenith-like).
+    return trans
+
+
 def _build_quad_for_document(context, doc_item, image, placement_matrix=None,
                              width=1.0):
     """Create a textured quad for a document — no camera, no drivers.
@@ -1911,13 +1969,23 @@ def _build_quad_for_document(context, doc_item, image, placement_matrix=None,
     if placement_matrix is None:
         placement_matrix = _viewport_placement_matrix(context, width, height)
 
-    # Unit plane (1×1 after the 0.5 resize), UV mapped.
-    bpy.ops.mesh.primitive_plane_add()
+    # Unit plane: vertices at ±0.5 directly via ``size=1.0``. We used
+    # to call ``primitive_plane_add()`` (default size=2 → vertices at
+    # ±1) and then ``bpy.ops.transform.resize(0.5)`` in edit mode, but
+    # the resize op silently no-ops when the operator is invoked from
+    # a props dialog (context.area isn't a 3D Viewport). The result was
+    # a mesh that stayed at ±1 — once the object scale was set to
+    # (width, height, 1) the quad ended up 2× the intended world size,
+    # and the camera placed by ``_align_camera_to_quad`` framed only a
+    # central portion of it. Specifying ``size=1.0`` makes the mesh
+    # extent independent of operator context.
+    bpy.ops.mesh.primitive_plane_add(size=1.0)
     quad_obj = bpy.context.active_object
     quad_obj.name = quad_name
+    # UV unwrap is purely texture-orientation; safe to leave inside
+    # edit mode but no longer paired with a mesh-resize step.
     bpy.ops.object.editmode_toggle()
     bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.transform.resize(value=(0.5, 0.5, 0.5))
     bpy.ops.uv.smart_project(angle_limit=66, island_margin=0, area_weight=0)
     bpy.ops.uv.select_all(action='SELECT')
     bpy.ops.transform.rotate(value=1.5708, orient_axis='Z')
@@ -1946,12 +2014,46 @@ def _build_quad_for_document(context, doc_item, image, placement_matrix=None,
     return quad_obj
 
 
-def _build_camera_quad_driven(context, quad_obj, image, focal=None):
+def _quad_world_dims(quad_obj):
+    """Return ``(world_w, world_h, target_aspect)`` for ``quad_obj``.
+
+    ``world_w`` / ``world_h`` are the visible width/height of the quad
+    along its local X / Y axes in world units: ``local_extent * scale``.
+    ``target_aspect = world_h / world_w`` is what every render-aspect
+    computation in this module needs — using ``scale.y / scale.x`` is
+    only correct when the mesh is the canonical unit plane (±0.5 on
+    both axes), and silently produces a square camera frame whenever
+    the mesh is non-uniform (legacy ±1 plane, hand-edited geometry).
+
+    Falls back to ``(1, 1, 1.0)`` when the bounding box is degenerate.
+    """
+    bb = quad_obj.bound_box if quad_obj else None
+    if bb:
+        local_w = max(c[0] for c in bb) - min(c[0] for c in bb)
+        local_h = max(c[1] for c in bb) - min(c[1] for c in bb)
+    else:
+        local_w = local_h = 1.0
+    world_w = abs(local_w * quad_obj.scale.x) if quad_obj else 1.0
+    world_h = abs(local_h * quad_obj.scale.y) if quad_obj else 1.0
+    if world_w <= 1e-6:
+        world_w = 1.0
+    if world_h <= 1e-6:
+        world_h = 1.0
+    return world_w, world_h, world_h / world_w
+
+
+def _build_camera_quad_driven(context, quad_obj, image, focal=None,
+                              camera_type='PERSP'):
     """Create a camera that frames ``quad_obj`` and is parented to it.
 
     No scale drivers are installed — the quad keeps its authored
     dimensions and the camera follows the quad through parenting. Uses
     the default focal length from DocManagerSettings unless overridden.
+
+    ``camera_type``: ``'PERSP'`` (default) or ``'ORTHO'``. In ORTHO mode
+    ``cam_data.ortho_scale`` is set to the quad's world width along its
+    local X axis; the camera is parked one quad-width away along +Z so
+    it sits clear of the plane without affecting framing.
 
     Returns the new camera object.
     """
@@ -1963,29 +2065,54 @@ def _build_camera_quad_driven(context, quad_obj, image, focal=None):
 
     cam_data = bpy.data.cameras.new(name=f"Cam_Doc_{quad_obj.name}")
     cam_data.lens = focal
+    cam_data.type = camera_type if camera_type in {'PERSP', 'ORTHO'} else 'PERSP'
     cam_obj = bpy.data.objects.new(
         name=f"Cam_Doc_{quad_obj.name}", object_data=cam_data)
     dosco_col.objects.link(cam_obj)
 
-    # Distance chosen so the camera horizontal FOV exactly matches the
-    # quad width. scale.x is the quad's world width (plane is unit at
-    # scale=1). angle = 2 * atan((sensor_w/2) / focal); sensor_fit is
-    # set to HORIZONTAL below via _apply_render_settings_from_image.
-    quad_w = abs(quad_obj.scale.x)
+    # Read the quad's true world dimensions (see _quad_world_dims).
+    world_w, world_h, _ = _quad_world_dims(quad_obj)
+    quad_w = world_w  # alias used in the math below
+
     cam_data.sensor_fit = 'HORIZONTAL'
-    sensor_w = cam_data.sensor_width
-    fov = 2.0 * math.atan((sensor_w / 2.0) / focal)
-    d = quad_w / (2.0 * math.tan(fov / 2.0))
+
+    if cam_data.type == 'ORTHO':
+        # Orthographic camera: ortho_scale is the visible world width
+        # along the sensor_fit axis. With sensor_fit=HORIZONTAL that
+        # axis is the camera's local X — which equals the quad's local
+        # X (camera is parented with identity rotation). The vertical
+        # extent is derived from render aspect (handled below).
+        # Camera distance doesn't affect framing in ORTHO; we park it
+        # one quad-width away so it sits visibly clear of the plane.
+        cam_data.ortho_scale = world_w
+        d = max(1.0, world_w)
+    else:
+        # PERSP: distance chosen so horizontal FOV exactly matches
+        # the quad's world width. angle = 2 * atan((sensor_w/2) / focal).
+        sensor_w = cam_data.sensor_width
+        fov = 2.0 * math.atan((sensor_w / 2.0) / focal)
+        d = world_w / (2.0 * math.tan(fov / 2.0))
 
     cam_obj.parent = quad_obj
     cam_obj.matrix_parent_inverse.identity()
     cam_obj.location = (0.0, 0.0, d)
     cam_obj.rotation_euler = (0.0, 0.0, 0.0)
 
-    cam_data.clip_start = max(0.01, d - 0.1)
-    cam_data.clip_end = d + 0.5
+    # clip_start / clip_end deliberately left at the camera's default
+    # values (0.1 / 100 m). Adjusting them on creation surprised users
+    # by making the camera blind past the quad. The user can tune the
+    # clip range manually if needed.
 
-    _apply_render_settings_from_image(scene, image, cam_data)
+    # Render aspect derived from WORLD dimensions: target_aspect =
+    # world_h / world_w. The camera frame shape is set entirely by
+    # ``scene.render.resolution_y / resolution_x`` (with
+    # ``sensor_fit=HORIZONTAL``), so this is what actually makes the
+    # camera frame match the quad. Computing the aspect from scale.x/y
+    # alone would silently produce a square camera whenever the mesh
+    # extents are non-uniform (legacy ±1 plane, or anything edited).
+    target_aspect = world_h / world_w if world_w > 1e-6 else 1.0
+    _apply_render_settings_from_image(scene, image, cam_data,
+                                       target_aspect=target_aspect)
 
     # Bidirectional pointers.
     quad_obj['em_camera_name'] = cam_obj.name
@@ -2016,6 +2143,42 @@ def _image_aspect(image):
     return 1.0
 
 
+def _normalize_quad_mesh_to_unit(quad_obj):
+    """Rescale the quad's mesh vertices to the canonical ±0.5 extent
+    on X and Y while preserving the object's world dimensions (the
+    scale.x/scale.y are inflated to compensate).
+
+    The whole RMDoc pipeline — camera placement, scale drivers,
+    look_through framing — assumes the quad mesh is a unit plane (±0.5
+    on each axis). A brief regression in ``_build_quad_for_document``
+    left some quads with a ±1 mesh because ``bpy.ops.transform.resize``
+    silently no-ops when called from a props dialog context. This
+    helper repairs those legacy quads in-place so the rest of the
+    machinery keeps working without special cases.
+
+    Returns ``True`` when the mesh was actually rescaled.
+    """
+    mesh = quad_obj.data if quad_obj else None
+    if mesh is None or not mesh.vertices:
+        return False
+    xs = [v.co.x for v in mesh.vertices]
+    ys = [v.co.y for v in mesh.vertices]
+    local_w = max(xs) - min(xs)
+    local_h = max(ys) - min(ys)
+    if abs(local_w - 1.0) < 1e-6 and abs(local_h - 1.0) < 1e-6:
+        return False  # Already canonical.
+    sx = (1.0 / local_w) if local_w > 1e-6 else 1.0
+    sy = (1.0 / local_h) if local_h > 1e-6 else 1.0
+    for v in mesh.vertices:
+        v.co.x *= sx
+        v.co.y *= sy
+    mesh.update()
+    # Compensate object scale so world dimensions remain unchanged.
+    quad_obj.scale.x = quad_obj.scale.x / sx
+    quad_obj.scale.y = quad_obj.scale.y / sy
+    return True
+
+
 def _reparent_keep_world(child, new_parent):
     """Reparent ``child`` to ``new_parent`` (or None) preserving its
     current world transform.
@@ -2033,7 +2196,8 @@ def _reparent_keep_world(child, new_parent):
     child.matrix_world = world
 
 
-def _align_camera_to_quad(context, quad_obj, cam_obj, parent_to_quad=True):
+def _align_camera_to_quad(context, quad_obj, cam_obj, parent_to_quad=True,
+                          target_aspect=None):
     """Position ``cam_obj`` so it frames ``quad_obj`` exactly.
 
     When ``parent_to_quad`` is True the camera ends up as a child of
@@ -2043,12 +2207,27 @@ def _align_camera_to_quad(context, quad_obj, cam_obj, parent_to_quad=True):
     Works for both PERSP and ORTHO cameras: distance is computed from
     horizontal FOV in PERSP, and ``ortho_scale`` is set to the quad's
     world width in ORTHO.
+
+    ``target_aspect`` (h / w) overrides the image aspect when matching
+    render resolution / camera frame to the quad. Pass the quad's own
+    current aspect to keep the frame in sync with the author's manual
+    scaling; pass None to fall back to the image pixel aspect.
     """
     scene = context.scene
     cam_data = cam_obj.data
 
-    # Quad world width = scale.x (unit plane, ±0.5 verts).
-    quad_w = abs(quad_obj.scale.x)
+    # Quad world width along its local X axis. We compute it from the
+    # mesh's local bounding box * obj.scale instead of trusting
+    # ``scale.x == world width`` (which only holds when the mesh is the
+    # canonical ±0.5 unit plane). This makes the camera fitting
+    # resilient to legacy quads whose mesh ended up at ±1 because of a
+    # context-dependent ``transform.resize`` no-op during creation.
+    bb = quad_obj.bound_box
+    if bb:
+        local_w = max(c[0] for c in bb) - min(c[0] for c in bb)
+    else:
+        local_w = 1.0
+    quad_w = abs(local_w * quad_obj.scale.x)
     if quad_w <= 0:
         quad_w = 1.0
 
@@ -2063,8 +2242,10 @@ def _align_camera_to_quad(context, quad_obj, cam_obj, parent_to_quad=True):
         fov = 2.0 * math.atan((sensor_w / 2.0) / focal)
         d = quad_w / (2.0 * math.tan(fov / 2.0))
 
-    cam_data.clip_start = max(0.01, d - 0.1)
-    cam_data.clip_end = d + 0.5
+    # clip_start / clip_end are intentionally NOT touched here. The
+    # old behaviour (set clip to a thin slice around the quad) made
+    # the camera blind to anything past the quad's depth — a surprise
+    # users couldn't undo without finding the property. Defaults stay.
 
     if parent_to_quad:
         cam_obj.parent = quad_obj
@@ -2093,9 +2274,12 @@ def _align_camera_to_quad(context, quad_obj, cam_obj, parent_to_quad=True):
     quad_obj['em_camera_name'] = cam_obj.name
     cam_obj['em_quad_name'] = quad_obj.name
 
-    # Render invariant.
+    # Render invariant — respect target_aspect when provided so the
+    # camera frame matches the quad's current shape, not the image's
+    # original pixel aspect.
     image = _get_image_from_quad(quad_obj)
-    _apply_render_settings_from_image(scene, image, cam_data)
+    _apply_render_settings_from_image(scene, image, cam_data,
+                                       target_aspect=target_aspect)
 
 
 def _set_rmdoc_drive_mode(scene, quad_name, mode):
@@ -2118,16 +2302,16 @@ def _set_rmdoc_drive_mode(scene, quad_name, mode):
 class RMDOC_OT_create_from_document(bpy.types.Operator):
     """Create a free-standing quad from the active document — no camera.
 
-    Quad-first workflow: the quad is placed at the current 3D Viewport's
-    focal point and oriented to face the viewer. A camera can be added
-    afterwards via Create Camera or Set Drive Mode.
+    Quad-first workflow: the quad is placed at the 3D Cursor with the
+    chosen orientation (current 3D view or zenith/top-down). A camera
+    can be added afterwards via Create Camera or Set Drive Mode.
     """
     bl_idname = "em.rmdoc_create_from_document"
     bl_label = "Create from Document"
     bl_description = (
-        "Create an image quad from the active document at the current "
-        "viewport focal point, facing the viewer. No camera is created; "
-        "add one later with Create Camera"
+        "Create an image quad from the active document at the 3D Cursor "
+        "with the chosen orientation. No camera is created; add one "
+        "later with Create Camera"
     )
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -2137,6 +2321,20 @@ class RMDOC_OT_create_from_document(bpy.types.Operator):
         description="Quad width in meters (height follows image aspect)",
         default=1.0, min=0.001, soft_max=50.0, unit='LENGTH',
     )  # type: ignore
+    orientation: EnumProperty(
+        name="Orientation",
+        description=(
+            "How the quad is oriented when placed at the 3D Cursor. "
+            "VIEW matches the current 3D Viewport (faces the viewer); "
+            "ZENITH lays the quad flat on the XY plane (top-down map "
+            "style)."
+        ),
+        items=[
+            ('VIEW', "3D View", "Orient the quad to face the active 3D Viewport"),
+            ('ZENITH', "Zenith", "Lay the quad flat (image readable from above)"),
+        ],
+        default='VIEW',
+    )  # type: ignore
 
     @classmethod
     def poll(cls, context):
@@ -2144,6 +2342,19 @@ class RMDOC_OT_create_from_document(bpy.types.Operator):
             return False
         idx = context.scene.doc_list_index
         return 0 <= idx < len(context.scene.doc_list)
+
+    def invoke(self, context, event):
+        # Open a small dialog so the user can pick width + orientation
+        # before the quad is built. Without invoke_props_dialog the
+        # operator runs with whatever last-used values it has, which
+        # made the orientation effectively invisible.
+        return context.window_manager.invoke_props_dialog(self, width=320)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "width")
+        layout.label(text="Placement: at 3D Cursor", icon='PIVOT_CURSOR')
+        layout.prop(self, "orientation", expand=True)
 
     def execute(self, context):
         scene = context.scene
@@ -2173,8 +2384,28 @@ class RMDOC_OT_create_from_document(bpy.types.Operator):
             self.report({'ERROR'}, f"Cannot load image: {e}")
             return {'CANCELLED'}
 
+        # Force a reload if the cached image somehow ended up with a
+        # zero-size header — this happens when the underlying file was
+        # removed/replaced after Blender first sampled it. Without
+        # this, the quad's aspect silently falls back to 1.0 and the
+        # camera ends up square.
+        if img.size[0] == 0 or img.size[1] == 0:
+            try:
+                img.reload()
+            except Exception:
+                pass
+        if img.size[0] == 0 or img.size[1] == 0:
+            self.report(
+                {'ERROR'},
+                f"Image '{img.name}' loaded with size 0×0 (path may be "
+                f"missing or unreadable: '{image_path}'). The quad "
+                f"would default to a 1:1 aspect — aborting creation.")
+            return {'CANCELLED'}
+
+        placement = _cursor_placement_matrix(context, self.orientation)
         quad_obj = _build_quad_for_document(
-            context, doc_item, img, placement_matrix=None, width=self.width)
+            context, doc_item, img,
+            placement_matrix=placement, width=self.width)
 
         sync_doc_list(scene)
         _set_rmdoc_drive_mode(scene, quad_obj.name, 'NO_CAMERA')
@@ -2191,7 +2422,8 @@ class RMDOC_OT_create_from_document(bpy.types.Operator):
 
         self.report(
             {'INFO'},
-            f"Created quad for {doc_item.name} (width={self.width:.2f}m, no camera)")
+            f"Created quad for {doc_item.name} "
+            f"(width={self.width:.2f}m, {self.orientation.lower()}, no camera)")
         return {'FINISHED'}
 
 
@@ -2222,24 +2454,34 @@ class RMDOC_OT_remove(bpy.types.Operator):
 
         obj = bpy.data.objects.get(obj_name)
         if obj:
-            # Delete camera first (child or referenced)
             cam_obj = _find_rmdoc_camera(obj)
             if cam_obj:
+                # Detach parenting in EITHER direction before removing
+                # the camera. Without this, removing a camera that was
+                # the quad's parent (legacy CAMERA_DRIVEN layout) makes
+                # Blender re-parent the quad to None silently, which is
+                # fine for transform but emits warnings if drivers were
+                # cached against the camera id.
+                if obj.parent == cam_obj:
+                    _reparent_keep_world(obj, None)
+                if cam_obj.parent == obj:
+                    _reparent_keep_world(cam_obj, None)
+
                 cam_data = cam_obj.data
                 bpy.data.objects.remove(cam_obj, do_unlink=True)
-                # Clean up orphan camera data
                 if cam_data and cam_data.users == 0:
                     bpy.data.cameras.remove(cam_data)
                 deleted.append("camera")
 
-            # Remove drivers before deleting (avoids Blender warnings)
+            # Defensive: clean up any legacy scale drivers on the quad
+            # before deletion. With the driver-less design these calls
+            # are no-ops, but they kept files from older sessions tidy.
             try:
                 obj.driver_remove('scale', 0)
                 obj.driver_remove('scale', 1)
             except Exception:
                 pass
 
-            # Delete the quad object
             mesh_data = obj.data if obj.type == 'MESH' else None
             bpy.data.objects.remove(obj, do_unlink=True)
             if mesh_data and mesh_data.users == 0:
@@ -2259,64 +2501,102 @@ class RMDOC_OT_remove(bpy.types.Operator):
 
 
 class RMDOC_OT_create_camera(bpy.types.Operator):
-    """Create a camera that frames this RMDoc quad (camera-driven).
+    """Create a camera that frames this RMDoc quad — quad-driven layout.
 
-    The camera is placed in world space along the quad's normal at the
-    distance needed to fit the quad into its horizontal FOV (or
-    ortho_scale for ORTHO cameras). The quad is then reparented to the
-    camera and scale drivers are installed — moving the camera carries
-    the quad along.
+    The camera is parented to the quad and positioned along its normal
+    so the quad fills the camera frame. No scripted drivers are added
+    to the quad: its scale stays exactly where the user authored it.
+    Moving (or scaling) the quad later carries the camera along.
+
+    For the PhotogrTool-style workflow where the QUAD follows the
+    CAMERA's frustum via scripted scale drivers, switch to
+    Camera-driven mode via "Set Drive Mode → Camera".
     """
     bl_idname = "em.rmdoc_create_camera"
     bl_label = "Create Camera"
     bl_description = (
-        "Create a camera aligned to this quad (camera-driven). The quad "
-        "becomes child of the camera and fills its frustum via drivers"
+        "Create a camera that frames this quad (quad-driven layout). "
+        "The camera becomes child of the quad and tracks it; the quad's "
+        "scale stays untouched. Switch to Camera-driven mode separately "
+        "if you want PhotogrTool-style frustum-fitting drivers."
     )
     bl_options = {'REGISTER', 'UNDO'}
 
     object_name: StringProperty()  # type: ignore
+    camera_type: EnumProperty(
+        name="Camera Type",
+        description="Projection mode for the new camera",
+        items=[
+            ('ORTHO', "Orthographic",
+             "Orthographic projection — no perspective distortion, "
+             "ideal for plans / elevations / top views"),
+            ('PERSP', "Perspective",
+             "Perspective projection — natural framing with depth, "
+             "ideal for photo reprojection workflows"),
+        ],
+        default='ORTHO',
+    )  # type: ignore
+
+    def invoke(self, context, event):
+        # Small dialog so the user picks projection up-front. Default
+        # is ORTHO because that's the common case for archaeological
+        # planimetries / elevations.
+        return context.window_manager.invoke_props_dialog(self, width=300)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "camera_type", expand=True)
+        layout.label(text="The quad will NOT be modified.", icon='LOCKED')
 
     def execute(self, context):
-        from .drivers import install_scale_drivers
+        from .drivers import has_scale_drivers
 
         quad_obj = bpy.data.objects.get(self.object_name)
         if not quad_obj:
             self.report({'ERROR'}, f"Object '{self.object_name}' not found")
             return {'CANCELLED'}
 
+        # STRICT rule: Create Camera must not touch the quad in any
+        # way (no transform_apply, no scale assignment, no driver
+        # baking). If the quad still has scripted scale drivers from a
+        # previous Camera-driven session, bail out and ask the user to
+        # clean them up explicitly via Set Drive Mode → Free. This
+        # protects the author's chosen dimensions absolutely.
+        if has_scale_drivers(quad_obj):
+            self.report(
+                {'ERROR'},
+                "Quad still has Camera-driven scale drivers. "
+                "Switch the RMDoc to 'Free' (Set Drive Mode) first to "
+                "remove them, then Create Camera again.")
+            return {'CANCELLED'}
+
         scene = context.scene
-        focal = scene.doc_settings.default_focal_length
-
-        dosco_col = _get_or_create_dosco_collection()
-        cam_data = bpy.data.cameras.new(name=f"Cam_{self.object_name}")
-        cam_data.lens = focal
-        cam_obj = bpy.data.objects.new(
-            name=f"Cam_{self.object_name}", object_data=cam_data)
-        dosco_col.objects.link(cam_obj)
-
-        # Align camera in world space to frame the quad exactly.
-        _align_camera_to_quad(context, quad_obj, cam_obj,
-                              parent_to_quad=False)
-
-        # Reparent quad to camera (keep world transform) — the camera
-        # now leads the quad through the parent chain.
-        _reparent_keep_world(quad_obj, cam_obj)
-
-        # Install scale drivers so the quad fills the frustum.
         image = _get_image_from_quad(quad_obj)
-        install_scale_drivers(quad_obj, cam_obj, _image_aspect(image))
+
+        # ``_build_camera_quad_driven`` only creates the camera and
+        # parents it to the quad. It reads quad.scale and bound_box to
+        # size the frustum (ortho_scale for ORTHO, FOV-derived distance
+        # for PERSP) but never writes back to the quad.
+        cam_obj = _build_camera_quad_driven(context, quad_obj, image,
+                                            camera_type=self.camera_type)
         bpy.context.view_layer.update()
 
-        quad_obj['em_camera_name'] = cam_obj.name
-        cam_obj['em_quad_name'] = quad_obj.name
-
         sync_doc_list(scene)
-        _set_rmdoc_drive_mode(scene, quad_obj.name, 'CAMERA_DRIVEN')
-        self.report(
-            {'INFO'},
-            f"Created camera for {self.object_name} "
-            f"(camera-driven, f={focal:.0f}mm)")
+        _set_rmdoc_drive_mode(scene, quad_obj.name, 'QUAD_DRIVEN')
+
+        if self.camera_type == 'ORTHO':
+            ortho_scale = cam_obj.data.ortho_scale if cam_obj and cam_obj.data else 0.0
+            self.report(
+                {'INFO'},
+                f"Created ortho camera for {self.object_name} "
+                f"(ortho_scale={ortho_scale:.2f}m)")
+        else:
+            focal = cam_obj.data.lens if cam_obj and cam_obj.data else \
+                scene.doc_settings.default_focal_length
+            self.report(
+                {'INFO'},
+                f"Created perspective camera for {self.object_name} "
+                f"(f={focal:.0f}mm)")
         return {'FINISHED'}
 
 
@@ -2342,7 +2622,7 @@ class RMDOC_OT_remove_camera(bpy.types.Operator):
         return context.window_manager.invoke_confirm(self, event)
 
     def execute(self, context):
-        from .drivers import freeze_scale_from_drivers
+        from .drivers import remove_scale_drivers
 
         quad_obj = bpy.data.objects.get(self.object_name)
         if not quad_obj:
@@ -2354,12 +2634,17 @@ class RMDOC_OT_remove_camera(bpy.types.Operator):
             self.report({'WARNING'}, "No camera linked to this quad")
             return {'CANCELLED'}
 
-        # Freeze any scale drivers first so the quad keeps its current
-        # visible size after the camera is gone.
-        freeze_scale_from_drivers(quad_obj)
+        # Remove any legacy scale drivers. We use ``remove_scale_drivers``
+        # (not ``freeze_scale_from_drivers``) because freezing rewrites
+        # the basis scale, and that violates the "Create Camera and
+        # Remove Camera must never touch the quad's scale" rule. After
+        # removal the driver is gone; the basis scale is whatever the
+        # user authored, so the quad reverts to its original size.
+        remove_scale_drivers(quad_obj)
 
-        # Detach parent links (keep world transform) before deleting so
-        # the quad does not jump.
+        # Detach parent links in BOTH directions (keep world transform)
+        # so the quad does not jump regardless of which parenting layout
+        # the RMDoc was in.
         if quad_obj.parent == cam_obj:
             _reparent_keep_world(quad_obj, None)
         if cam_obj.parent == quad_obj:
@@ -2376,6 +2661,76 @@ class RMDOC_OT_remove_camera(bpy.types.Operator):
         _set_rmdoc_drive_mode(context.scene, quad_obj.name, 'NO_CAMERA')
 
         self.report({'INFO'}, f"Removed camera for {self.object_name}")
+        return {'FINISHED'}
+
+
+class RMDOC_OT_apply_scale(bpy.types.Operator):
+    """Apply the quad's object scale to its mesh data.
+
+    After authoring the quad's size and orientation manually, calling
+    this bakes the current object scale into the mesh so the object
+    transform comes back to ``scale = (1, 1, 1)``. Useful before
+    attaching a camera (the camera-fitting math is happier with unit
+    scales) and to keep numbers tidy in the Object Properties panel.
+
+    No-op when CAMERA_DRIVEN scale drivers are present — those values
+    are computed every frame and applying them would freeze the driver
+    expression into the mesh.
+    """
+    bl_idname = "em.rmdoc_apply_scale"
+    bl_label = "Apply Scale"
+    bl_description = (
+        "Bake the quad's object scale into the mesh (scale becomes "
+        "1,1,1). Disabled when the quad is driven by a camera"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    object_name: StringProperty()  # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        # The poll only checks scene reachability — the per-quad guard
+        # against active scale drivers is enforced in execute() so the
+        # operator can be inspected via F3 search without crashing.
+        return context.scene is not None
+
+    def execute(self, context):
+        from .drivers import has_scale_drivers
+
+        quad_obj = bpy.data.objects.get(self.object_name)
+        if quad_obj is None:
+            self.report({'ERROR'}, f"Object '{self.object_name}' not found")
+            return {'CANCELLED'}
+        if has_scale_drivers(quad_obj):
+            self.report(
+                {'ERROR'},
+                "Cannot apply scale while camera-driven scale drivers "
+                "are active. Switch to Quad-driven or Free mode first.")
+            return {'CANCELLED'}
+
+        # transform_apply needs the object in OBJECT mode and selected
+        # as the active. Stash the previous selection so the user's
+        # focus is preserved.
+        prev_active = context.view_layer.objects.active
+        prev_selected = [o for o in context.selected_objects]
+        try:
+            bpy.ops.object.select_all(action='DESELECT')
+            quad_obj.select_set(True)
+            context.view_layer.objects.active = quad_obj
+            bpy.ops.object.transform_apply(
+                location=False, rotation=False, scale=True)
+        finally:
+            # Restore previous selection.
+            bpy.ops.object.select_all(action='DESELECT')
+            for o in prev_selected:
+                try:
+                    o.select_set(True)
+                except Exception:
+                    pass
+            if prev_active is not None:
+                context.view_layer.objects.active = prev_active
+
+        self.report({'INFO'}, f"Applied scale on '{self.object_name}'")
         return {'FINISHED'}
 
 
@@ -2410,17 +2765,24 @@ class RMDOC_OT_look_through(bpy.types.Operator):
             self.report({'ERROR'}, "No camera found for this object")
             return {'CANCELLED'}
 
-        # Set render resolution from image pixels so camera frame matches exactly
+        # Set render resolution so the camera frame matches the quad
+        # the user actually sees. Use the quad's WORLD aspect (h/w =
+        # local_h*scale.y / local_w*scale.x) so legacy quads with
+        # non-uniform mesh extents still render edge-to-edge.
         img = self._get_quad_image(quad_obj)
+        _, _, target_aspect = _quad_world_dims(quad_obj)
         if img and img.size[0] > 0 and img.size[1] > 0:
-            context.scene.render.resolution_x = img.size[0]
-            context.scene.render.resolution_y = img.size[1]
-            context.scene.render.resolution_percentage = 100
-            context.scene.render.pixel_aspect_x = 1.0
-            context.scene.render.pixel_aspect_y = 1.0
-            # Match camera sensor to image aspect for perfect overlay
-            cam_data = cam_obj.data
-            cam_data.sensor_fit = 'HORIZONTAL'
+            _apply_render_settings_from_image(
+                context.scene, img, cam_obj.data,
+                target_aspect=target_aspect)
+        else:
+            # Image lookup failed — still impose the quad-derived
+            # aspect on the existing render so the camera frame isn't
+            # left at whatever stale (often square) aspect the scene
+            # was carrying.
+            _apply_render_settings_from_image(
+                context.scene, None, cam_obj.data,
+                target_aspect=target_aspect)
 
         context.scene.camera = cam_obj
         for area in context.screen.areas:
@@ -2558,24 +2920,26 @@ class RMDOC_OT_toggle_ortho(bpy.types.Operator):
 
         cam_data = cam_obj.data
         if cam_data.type == 'PERSP':
-            # Switch to orthographic
+            # Switch to orthographic. Compute ortho_scale from the
+            # perspective frame at the quad's actual world distance so
+            # the framing is preserved: ortho_scale = 2 * depth *
+            # tan(angle_x/2). ``_camera_quad_distance`` handles both
+            # parenting directions (camera-driven vs quad-driven).
+            depth = _camera_quad_distance(cam_obj, quad_obj)
             cam_data.type = 'ORTHO'
-            # Compute ortho_scale from quad's apparent size at its depth
-            # The quad sits at local Z = -depth from camera
-            depth = abs(quad_obj.location.z) if quad_obj.parent == cam_obj else 2.0
-            # In perspective: apparent half-width = depth * tan(fov/2)
-            # ortho_scale = 2 * apparent half-width
-            fov = cam_data.angle  # radians
+            fov = cam_data.angle  # radians, horizontal when sensor_fit=HORIZONTAL
             cam_data.ortho_scale = 2.0 * depth * math.tan(fov / 2.0)
-            # Set tight clip for isolating the quad view
-            cam_data.clip_start = max(0.001, depth - 0.5)
-            cam_data.clip_end = depth + 0.5
-            self.report({'INFO'}, f"Ortho mode (scale={cam_data.ortho_scale:.2f}m, clip={cam_data.clip_start:.2f}-{cam_data.clip_end:.2f})")
+            # clip values intentionally left alone — earlier versions
+            # tightened them around the quad's depth, which made the
+            # camera blind to the rest of the scene.
+            self.report({'INFO'},
+                        f"Ortho mode (ortho_scale="
+                        f"{cam_data.ortho_scale:.2f}m)")
         else:
-            # Switch back to perspective
+            # Switch back to perspective. Lens / sensor settings are
+            # left alone — they were what the user (or Create Camera)
+            # last set.
             cam_data.type = 'PERSP'
-            cam_data.clip_start = 0.1
-            cam_data.clip_end = 1000.0
             self.report({'INFO'}, "Perspective mode")
 
         return {'FINISHED'}
@@ -2835,11 +3199,7 @@ class RMDOC_OT_set_drive_mode(bpy.types.Operator):
         return self.execute(context)
 
     def execute(self, context):
-        from .drivers import (
-            install_scale_drivers,
-            freeze_scale_from_drivers,
-            remove_scale_drivers,
-        )
+        from .drivers import remove_scale_drivers
 
         scene = context.scene
         quad_obj = bpy.data.objects.get(self.object_name)
@@ -2850,28 +3210,26 @@ class RMDOC_OT_set_drive_mode(bpy.types.Operator):
         item = _find_rmdoc_item_for_quad(scene, self.object_name)
         cam_obj = _find_rmdoc_camera(quad_obj)
         image = _get_image_from_quad(quad_obj)
-        aspect = _image_aspect(image)
 
         # --- Ensure we have a camera when the target mode needs one ---
         if self.mode in {'QUAD_DRIVEN', 'CAMERA_DRIVEN', 'UNLINKED'} and cam_obj is None:
             cam_obj = _build_camera_quad_driven(context, quad_obj, image)
-            # _build_camera_quad_driven already parents cam to quad;
-            # further reparenting below will adjust if the mode needs it.
 
-        # --- Leaving CAMERA_DRIVEN: freeze drivers before anything else ---
-        if self.mode != 'CAMERA_DRIVEN':
-            # Freeze (or remove) whatever driver state is currently
-            # present. freeze_scale_from_drivers is a no-op when there
-            # are no drivers.
-            freeze_scale_from_drivers(quad_obj)
+        # Drop any legacy scale drivers up-front and never reinstall
+        # them. ``remove_scale_drivers`` leaves the basis scale alone —
+        # this whole operator is now purely about parenting, no driver
+        # baking, no scale assignment. The quad keeps the dimensions
+        # the user authored.
+        remove_scale_drivers(quad_obj)
 
         # --- Apply target mode ---
         if self.mode == 'NO_CAMERA':
-            remove_scale_drivers(quad_obj)
             if cam_obj is not None:
                 # Detach parent relations first to keep world transforms.
                 if quad_obj.parent == cam_obj:
                     _reparent_keep_world(quad_obj, None)
+                if cam_obj.parent == quad_obj:
+                    _reparent_keep_world(cam_obj, None)
                 cam_data = cam_obj.data
                 bpy.data.objects.remove(cam_obj, do_unlink=True)
                 if cam_data and cam_data.users == 0:
@@ -2879,24 +3237,23 @@ class RMDOC_OT_set_drive_mode(bpy.types.Operator):
                 quad_obj['em_camera_name'] = ''
 
         elif self.mode == 'QUAD_DRIVEN':
-            # Camera must be child of quad.
+            # Camera follows the quad: make camera child of quad. No
+            # drivers, no re-positioning of the camera — just the
+            # parenting flip.
             if quad_obj.parent == cam_obj:
-                # Legacy layout: quad is child of camera. Swap direction.
                 _reparent_keep_world(quad_obj, None)
             if cam_obj.parent != quad_obj:
                 _reparent_keep_world(cam_obj, quad_obj)
-            # Refresh clip/ortho for the new parenting.
-            _align_camera_to_quad(context, quad_obj, cam_obj,
-                                  parent_to_quad=True)
 
         elif self.mode == 'CAMERA_DRIVEN':
-            # Legacy PhotogrTool layout: quad is child of camera.
+            # Quad follows the camera: make quad child of camera. No
+            # drivers (the old PhotogrTool-style frustum-fitting drivers
+            # have been removed — they violated the "don't touch the
+            # quad's scale" rule). Pure parenting flip.
             if cam_obj.parent == quad_obj:
                 _reparent_keep_world(cam_obj, None)
             if quad_obj.parent != cam_obj:
                 _reparent_keep_world(quad_obj, cam_obj)
-            install_scale_drivers(quad_obj, cam_obj, aspect)
-            bpy.context.view_layer.update()
 
         elif self.mode == 'UNLINKED':
             # Neither object is the parent of the other.
@@ -2936,8 +3293,6 @@ class RMDOC_OT_realign(bpy.types.Operator):
     object_name: StringProperty()  # type: ignore
 
     def execute(self, context):
-        from .drivers import install_scale_drivers
-
         scene = context.scene
         quad_obj = bpy.data.objects.get(self.object_name)
         if not quad_obj:
@@ -2951,23 +3306,32 @@ class RMDOC_OT_realign(bpy.types.Operator):
             self.report({'ERROR'}, "No camera associated with this quad")
             return {'CANCELLED'}
 
-        if mode == 'QUAD_DRIVEN':
-            _align_camera_to_quad(
-                context, quad_obj, cam_obj,
-                parent_to_quad=(cam_obj.parent == quad_obj))
-            self.report({'INFO'}, "Camera re-aligned to quad")
-            return {'FINISHED'}
+        # Compute the quad's CURRENT WORLD aspect (h/w) so the camera
+        # frame matches what the user actually sees. Works on any mode
+        # since the quad's scale is now the single source of truth.
+        _, _, current_aspect = _quad_world_dims(quad_obj)
 
-        if mode == 'CAMERA_DRIVEN':
-            image = _get_image_from_quad(quad_obj)
-            install_scale_drivers(quad_obj, cam_obj, _image_aspect(image))
-            bpy.context.view_layer.update()
-            self.report({'INFO'}, "Drivers refreshed; quad re-fits frustum")
-            return {'FINISHED'}
-
-        self.report({'WARNING'},
-                    f"Re-align is not applicable in mode '{mode or 'UNKNOWN'}'")
-        return {'CANCELLED'}
+        # All driver-bearing modes have been removed — Re-align is now
+        # a pure "move the camera back to frame the quad" operator.
+        # Works whether the camera is child of the quad (QUAD_DRIVEN),
+        # the quad is child of the camera (CAMERA_DRIVEN — parenting
+        # only, no drivers), or they're unlinked.
+        _align_camera_to_quad(
+            context, quad_obj, cam_obj,
+            parent_to_quad=(cam_obj.parent == quad_obj),
+            target_aspect=current_aspect)
+        # Refresh render settings from the quad's current aspect so
+        # the camera frame matches even if scene render was changed
+        # elsewhere.
+        _apply_render_settings_from_image(
+            context.scene,
+            _get_image_from_quad(quad_obj),
+            cam_obj.data,
+            target_aspect=current_aspect,
+        )
+        bpy.context.view_layer.update()
+        self.report({'INFO'}, "Camera re-aligned to quad")
+        return {'FINISHED'}
 
 
 # ============================================================================
@@ -2999,6 +3363,7 @@ classes = (
     RMDOC_OT_remove,
     RMDOC_OT_create_camera,
     RMDOC_OT_remove_camera,
+    RMDOC_OT_apply_scale,
     RMDOC_OT_look_through,
     RMDOC_OT_pilot_camera,
     RMDOC_OT_set_alpha,

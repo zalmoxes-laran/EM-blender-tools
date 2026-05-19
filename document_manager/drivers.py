@@ -95,31 +95,29 @@ def has_scale_drivers(quad_obj):
 
 
 def install_scale_drivers(quad_obj, cam_obj, image_aspect):
-    """Install PhotogrTool-style scale drivers on ``quad_obj``.
+    """DEPRECATED — used to install PhotogrTool-style scripted drivers
+    on the quad's scale channels so the quad would auto-fit the camera
+    frustum.
 
-    Drivers constrain the quad to fill the camera frustum at whatever
-    local-Z depth the quad currently has. Any existing scale drivers
-    are removed first so the operation is idempotent.
+    The whole CAMERA_DRIVEN-with-drivers approach has been retired:
+    drivers turned the quad's scale into a formula that visibly
+    inflated the quad whenever the camera moved, which violated the
+    "Create Camera and mode switches must not touch the quad's scale"
+    rule the user demanded. The two RMDoc-camera modes now do only
+    parenting:
 
-    Args:
-        quad_obj:       the mesh object whose scale is to be driven.
-        cam_obj:        the camera object supplying ``data.angle``.
-        image_aspect:   height / width of the reference image; clamped
-                        to 1.0 when the image size is invalid.
+        - QUAD_DRIVEN   : camera is child of quad
+        - CAMERA_DRIVEN : quad is child of camera
+
+    No scripted drivers in either layout. This function is kept as a
+    safe no-op so any cached / external code still calling it cannot
+    re-introduce the regression — it also strips any pre-existing
+    drivers from the quad so a call here can be used as a "make sure
+    drivers are gone" guard.
     """
     remove_scale_drivers(quad_obj)
-
-    aspect = float(image_aspect) if image_aspect and image_aspect > 0 else 1.0
-
-    drv_y = quad_obj.driver_add('scale', 1).driver
-    drv_y.type = 'SCRIPTED'
-    _add_driver_vars(drv_y, quad_obj, cam_obj)
-    drv_y.expression = _EXPR_Y.format(aspect=aspect)
-
-    drv_x = quad_obj.driver_add('scale', 0).driver
-    drv_x.type = 'SCRIPTED'
-    _add_driver_vars(drv_x, quad_obj, cam_obj)
-    drv_x.expression = _EXPR_X
+    # Intentionally NOT installing new drivers. See docstring.
+    return
 
 
 def remove_scale_drivers(quad_obj):
