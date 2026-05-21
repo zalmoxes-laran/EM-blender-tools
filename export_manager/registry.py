@@ -24,6 +24,12 @@ class ExportProvider:
     icon: str = 'EXPORT'                  # Blender icon for the section header
     poll: Callable[[object], bool] = field(default=lambda ctx: True)
     draw: Callable[[object, object], None] = field(default=lambda box, ctx: None)
+    # Optional per-provider help-button. When help_url is set, the panel
+    # header row for this provider renders a QUESTION icon that opens the
+    # em.help_popup operator with this title/text/url.
+    help_title: Optional[str] = None
+    help_text: Optional[str] = None
+    help_url: Optional[str] = None
 
 
 _providers: dict[str, ExportProvider] = {}
