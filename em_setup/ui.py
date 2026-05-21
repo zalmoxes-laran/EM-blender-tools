@@ -269,7 +269,7 @@ def _draw_stratiminer_panel(layout, context, em_tools):
         "archaeological databases with explicit stratigraphic\n"
         "relations."
     )
-    help_op.url = "creating_em.html#em-data"
+    help_op.url = "panels/stratiminer.html#block-1-create-em-data-xlsx"
 
     # ── Option A: AI-assisted ──
     ai_box = create_box.box()
@@ -321,7 +321,7 @@ def _draw_stratiminer_panel(layout, context, em_tools):
         "The two options are independent — pick the one that\n"
         "matches your current session."
     )
-    help_op.url = "creating_em.html#em-data-use"
+    help_op.url = "panels/stratiminer.html#block-2-use-em-data-xlsx"
 
     use_box.prop(em_tools, "stratiminer_input_xlsx", text="em_data.xlsx")
 
@@ -419,7 +419,7 @@ def _draw_graphml_wizard(layout, context, em_tools):
         "em_data.xlsx flow in the EM Bridge panel is the\n"
         "preferred path."
     )
-    help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
+    help_op.url = "tutorials/16-mapping-tool-excel.html"
 
     if not em_tools.exp_create_graphml_expanded:
         return
@@ -436,7 +436,7 @@ def _draw_graphml_wizard(layout, context, em_tools):
         "follow the 24-column template. Download the\n"
         "template using the button below."
     )
-    help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
+    help_op.url = "tutorials/16-mapping-tool-excel.html"
     step1_box.prop(em_tools, "xlsx_wizard_strat_file", text="Excel File")
     step1_box.prop(em_tools, "xlsx_wizard_mapping", text="Mapping")
 
@@ -480,7 +480,7 @@ def _draw_graphml_wizard(layout, context, em_tools):
             "Then import it via File > Import EM file to\n"
             "populate the Blender lists and scene."
         )
-        help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
+        help_op.url = "tutorials/16-mapping-tool-excel.html"
         step3_box.prop(em_tools, "xlsx_wizard_output_path", text="Output Path")
 
         can_export = has_graph and bool(em_tools.xlsx_wizard_output_path)
@@ -527,7 +527,7 @@ def _draw_graphml_wizard(layout, context, em_tools):
         "stratigraphy.xlsx: 24-column stratigraphic data.\n"
         "em_paradata.xlsx: per-property provenance data."
     )
-    help_op.url = "creating_em.html#from-excel-standard-stratigraphy"
+    help_op.url = "tutorials/16-mapping-tool-excel.html"
     row = graphml_box.row(align=True)
     row.scale_y = 0.9
     row.operator(
@@ -553,7 +553,7 @@ def _draw_graphml_wizard(layout, context, em_tools):
         "documents. The AI will produce the two Excel files\n"
         "needed by Steps 1 and 2."
     )
-    help_op.url = "creating_em.html#ai-assisted-extraction"
+    help_op.url = "panels/stratiminer.html#block-1-create-em-data-xlsx"
     graphml_box.prop(em_tools, "xlsx_wizard_prompt_language", text="Language")
     col = graphml_box.column(align=True)
     col.label(text="Sezioni:", icon='LINENUMBERS_ON')
