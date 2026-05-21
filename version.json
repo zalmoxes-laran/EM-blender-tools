@@ -8,7 +8,7 @@
   "description": "Version configuration for EM Tools",
   "docs": {
     "em_tools": {
-      "version": "1.5.0",
+      "version": "1.5",
       "url_base": "https://docs.extendedmatrix.org/projects/EM-tools/en/"
     },
     "em": {
