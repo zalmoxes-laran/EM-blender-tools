@@ -25,19 +25,6 @@ class VIEW3D_PT_ExportPanel(Panel):
 
         export_vars = context.window_manager.export_vars
 
-        header_row = layout.row(align=True)
-        header_row.label(text="Export Manager", icon='EXPORT')
-        help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
-        help_op.title = "Export Manager"
-        help_op.text = (
-            "Export graphs, 3D data and paradata for\n"
-            "Heriverse deployment, or as tabular CSV.\n"
-            "Each sub-section targets a specific\n"
-            "publication pipeline."
-        )
-        help_op.url = "panels/export_manager.html#export-manager"
-        help_op.project = 'em_tools'
-
         for provider in get_providers():
             if not provider.poll(context):
                 continue
@@ -60,6 +47,13 @@ class VIEW3D_PT_ExportPanel(Panel):
             else:
                 expanded = True
                 row.label(text=provider.label, icon=provider.icon)
+
+            if provider.help_url:
+                help_op = row.operator("em.help_popup", text="", icon='QUESTION')
+                help_op.title = provider.help_title or "Help"
+                help_op.text = provider.help_text or ""
+                help_op.url = provider.help_url
+                help_op.project = 'em_tools'
 
             if expanded:
                 provider.draw(box, context)

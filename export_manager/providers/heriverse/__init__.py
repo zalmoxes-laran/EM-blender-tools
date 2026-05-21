@@ -15,6 +15,9 @@ PROVIDER = ExportProvider(
     icon='WORLD_DATA',
     poll=ui.poll,
     draw=ui.draw,
+    help_title="Heriverse Export",
+    help_text="Multi-component export for Heriverse publishing platform (proxies, RM, RB, animations, paradata).",
+    help_url="panels/heriverse_export.html#heriverse-export",
 )
 
 

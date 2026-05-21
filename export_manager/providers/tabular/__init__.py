@@ -11,6 +11,9 @@ PROVIDER = ExportProvider(
     icon='LONGDISPLAY',
     poll=ui.poll,
     draw=ui.draw,
+    help_title="Tabular Export",
+    help_text="Export to em_data.xlsx (5-sheet canonical) or CSV for downstream analysis.",
+    help_url="panels/export_manager.html#tabular-export",
 )
 
 
