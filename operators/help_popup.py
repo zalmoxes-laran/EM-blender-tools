@@ -10,7 +10,8 @@ from bpy.types import Operator
 DOCS_CONFIG_DEFAULT = {
     'em_tools': {
         'url_base': 'https://docs.extendedmatrix.org/projects/EM-tools/en/',
-        'version': None,  # None → fallback a manifest (em_tools) o a "latest"
+        # None → fallback a manifest (em_tools) ridotto a release-line "M.m", poi "latest"
+        'version': None,
     },
     'em': {
         'url_base': 'https://docs.extendedmatrix.org/en/',
@@ -25,7 +26,12 @@ _PROJECT_ITEMS = [
 
 
 def _read_version_from_manifest():
-    """Legge la versione base (major.minor.patch) dal blender_manifest.toml, o None."""
+    """Legge la release-line (major.minor) dal blender_manifest.toml, o None.
+
+    ReadTheDocs serve i manuali per release-line (es. /en/1.5/), non per patch:
+    qualsiasi 1.5.x deve linkare a /en/1.5/. Per questo ritorniamo solo "M.m",
+    scartando il segmento patch e l'eventuale suffisso pre/dev (es. -dev.3, -rc.1).
+    """
     try:
         addon_dir = os.path.dirname(os.path.dirname(__file__))
         manifest_file = os.path.join(addon_dir, "blender_manifest.toml")
@@ -34,8 +40,8 @@ def _read_version_from_manifest():
                 content = f.read()
             m = re.search(r'^version\s*=\s*"([^"]+)"', content, re.MULTILINE)
             if m:
-                base = re.match(r'(\d+\.\d+\.\d+)', m.group(1))
-                return base.group(1) if base else m.group(1)
+                base = re.match(r'(\d+\.\d+)', m.group(1))
+                return base.group(1) if base else None
     except Exception:
         pass
     return None
@@ -61,9 +67,12 @@ def _load_docs_config():
 
 
 def get_docs_version(project='em_tools'):
-    """Ritorna la versione del manuale scelto.
+    """Ritorna la release-line del manuale scelto (es. "1.5").
 
-    - em_tools: prima version.json docs.em_tools.version, poi manifest, poi "latest"
+    Granularità release-line: tutti gli utenti 1.5.x vedono lo stesso manuale
+    (ReadTheDocs serve /en/1.5/, non più /en/1.5.0/, /en/1.5.1/, etc.).
+
+    - em_tools: prima version.json docs.em_tools.version, poi manifest (M.m), poi "latest"
     - em: prima version.json docs.em.version, poi "latest"
     """
     config = _load_docs_config()
