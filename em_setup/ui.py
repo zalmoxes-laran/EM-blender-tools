@@ -1035,6 +1035,12 @@ class EM_SetupPanel(bpy.types.Panel):
                             row.operator("emtools.open_mapping_preferences",
                                         text="",
                                         icon='PREFERENCES')
+                            row = box.row()
+                            row.prop(aux_file, "pyarchinit_import_geometries")
+                            if aux_file.pyarchinit_import_geometries:
+                                sub = box.row()
+                                sub.alignment = 'RIGHT'
+                                sub.prop(aux_file, "pyarchinit_geom_force_update")
 
                             # Mapping details (collapsible to reduce clutter)
                             if aux_file.pyarchinit_mapping != "none":
@@ -1380,6 +1386,12 @@ class EM_SetupPanel(bpy.types.Panel):
                 options_box.operator("emtools.open_mapping_preferences",
                             text="",
                             icon='PREFERENCES')
+                row = options_box.row()
+                row.prop(em_tools, "pyarchinit_import_geometries")
+                if em_tools.pyarchinit_import_geometries:
+                    sub = options_box.row()
+                    sub.alignment = 'RIGHT'
+                    sub.prop(em_tools, "pyarchinit_geom_force_update")
 
                 # Mostra info sul mapping selezionato
                 if em_tools.pyarchinit_mapping != "none":
