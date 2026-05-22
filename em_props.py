@@ -529,6 +529,148 @@ class MergeConflictItem(PropertyGroup):
 
 
 # =====================================================
+# PYARCHINIT FILTER SLOTS (s3dgraphy 1.6 mapping filter)
+# =====================================================
+
+# Number of pre-registered dynamic filter slots. Mappings may declare
+# up to this many ``is_filter`` columns; extra columns are ignored.
+PYARCHINIT_FILTER_SLOT_COUNT = 5
+
+
+def _pyarchinit_filter_items_factory(slot_idx):
+    """Return an EnumProperty items callback for filter slot ``slot_idx``.
+
+    The callback reads the column name previously stashed by the
+    discovery step, then lazy-loads distinct values from the source
+    file via ``PyArchInitImporter.get_distinct_values``. Results are
+    cached by (filepath, mtime, column) so disk reads only happen
+    when the file changes.
+
+    The returned ``list`` is held by ``filter_cache`` (a module-level
+    dict), which keeps a strong reference to the strings and avoids
+    Blender's enum GC crash.
+    """
+
+    def _items(self, context):
+        import os
+        try:
+            em_tools = context.scene.em_tools
+        except AttributeError:
+            return [('NONE', '(no filter)', '')]
+
+        column_name = em_tools.get(f"pyarchinit_filter_{slot_idx}_column", "")
+        if not column_name:
+            return [('NONE', '(no filter)', '')]
+
+        filepath = em_tools.pyarchinit_db_path
+        mapping_name = em_tools.pyarchinit_mapping
+        if not filepath or not mapping_name or mapping_name == "none":
+            return [('NONE', '(file not selected)', '')]
+
+        abs_path = bpy.path.abspath(filepath)
+        if not os.path.exists(abs_path):
+            return [('NONE', '(file not found)', '')]
+
+        try:
+            mtime = os.path.getmtime(abs_path)
+        except OSError:
+            return [('NONE', '(file not readable)', '')]
+
+        from .import_operators import filter_cache
+        cached = filter_cache.get(abs_path, mtime, column_name)
+        if cached is None:
+            try:
+                from s3dgraphy.importer.pyarchinit_importer import PyArchInitImporter
+                importer = PyArchInitImporter(abs_path, mapping_name)
+                values = importer.get_distinct_values(column_name)
+                filter_cache.put(abs_path, mtime, column_name, values)
+            except Exception as e:
+                print(f"[em] filter values query failed for '{column_name}': {e}")
+                return [('NONE', '(error)', '')]
+        else:
+            values = cached
+
+        items = [(str(v), str(v), '') for v in values]
+        is_required = em_tools.get(
+            f"pyarchinit_filter_{slot_idx}_required", False
+        )
+        if not is_required:
+            items.insert(0, ('__ALL__', '(All values)', 'Import all rows'))
+        return items
+
+    return _items
+
+
+def _discover_pyarchinit_filter_columns(em_tools):
+    """Populate slot metadata from the active mapping.
+
+    Resets all 5 slots, then queries the importer's
+    ``get_filter_columns()`` and stashes column name / display label /
+    required flag for each spec into Blender ID-properties on the
+    container. UI/items callbacks read those back.
+
+    Silently degrades if s3dgraphy is older than 1.6 (no
+    ``get_filter_columns`` attribute) or the file/mapping isn't ready.
+    """
+    import os
+
+    for i in range(1, PYARCHINIT_FILTER_SLOT_COUNT + 1):
+        em_tools[f"pyarchinit_filter_{i}_column"] = ""
+        em_tools[f"pyarchinit_filter_{i}_label"] = ""
+        em_tools[f"pyarchinit_filter_{i}_required"] = False
+
+    filepath = em_tools.pyarchinit_db_path
+    mapping_name = em_tools.pyarchinit_mapping
+    if not filepath or not mapping_name or mapping_name == "none":
+        return
+
+    abs_path = bpy.path.abspath(filepath)
+    if not os.path.exists(abs_path):
+        return
+
+    try:
+        from s3dgraphy.importer.pyarchinit_importer import PyArchInitImporter
+        importer = PyArchInitImporter(abs_path, mapping_name)
+        if not hasattr(importer, "get_filter_columns"):
+            # s3dgraphy < 1.6 — silently skip filter discovery.
+            return
+        filter_cols = importer.get_filter_columns() or []
+    except Exception as e:
+        print(f"[em] filter discovery failed: {e}")
+        return
+
+    for i, spec in enumerate(
+        filter_cols[:PYARCHINIT_FILTER_SLOT_COUNT], start=1
+    ):
+        column = spec.get("column", "") if isinstance(spec, dict) else ""
+        if not column:
+            continue
+        em_tools[f"pyarchinit_filter_{i}_column"] = column
+        em_tools[f"pyarchinit_filter_{i}_label"] = spec.get(
+            "display_name", column
+        )
+        em_tools[f"pyarchinit_filter_{i}_required"] = bool(
+            spec.get("filter_required", False)
+        )
+
+
+def _update_pyarchinit_db_path(self, context):
+    """Re-run filter discovery whenever the SQLite/XLSX path changes."""
+    try:
+        _discover_pyarchinit_filter_columns(self)
+    except Exception as e:
+        print(f"[em] pyarchinit filter discovery (db_path) failed: {e}")
+
+
+def _update_pyarchinit_mapping(self, context):
+    """Re-run filter discovery whenever the mapping selection changes."""
+    try:
+        _discover_pyarchinit_filter_columns(self)
+    except Exception as e:
+        print(f"[em] pyarchinit filter discovery (mapping) failed: {e}")
+
+
+# =====================================================
 # MAIN CONTAINER CLASS
 # =====================================================
 
@@ -793,6 +935,7 @@ class EM_Tools(PropertyGroup):
         description="Path to pyArchInit SQLite database",
         subtype='FILE_PATH',
         options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set(),
+        update=_update_pyarchinit_db_path,
     )  # type: ignore
 
     pyarchinit_table: EnumProperty(
@@ -809,6 +952,40 @@ class EM_Tools(PropertyGroup):
         name="pyArchInit Mapping",
         description="Select pyArchInit table mapping",
         items=get_pyarchinit_mappings,
+        update=_update_pyarchinit_mapping,
+    )  # type: ignore
+
+    # ----------------------------------------------------------
+    # PyArchInit filter slots (s3dgraphy 1.6 ``is_filter`` flag).
+    # Up to 5 dynamic dropdowns; metadata (column / label /
+    # required) is stashed in ID-properties by the discovery step
+    # so registering the EnumProperty objects themselves stays
+    # cheap and stable across reloads.
+    # ----------------------------------------------------------
+    pyarchinit_filter_1: EnumProperty(
+        name="Filter 1",
+        description="Filter rows by the first column flagged is_filter in the mapping",
+        items=_pyarchinit_filter_items_factory(1),
+    )  # type: ignore
+    pyarchinit_filter_2: EnumProperty(
+        name="Filter 2",
+        description="Filter rows by the second column flagged is_filter in the mapping",
+        items=_pyarchinit_filter_items_factory(2),
+    )  # type: ignore
+    pyarchinit_filter_3: EnumProperty(
+        name="Filter 3",
+        description="Filter rows by the third column flagged is_filter in the mapping",
+        items=_pyarchinit_filter_items_factory(3),
+    )  # type: ignore
+    pyarchinit_filter_4: EnumProperty(
+        name="Filter 4",
+        description="Filter rows by the fourth column flagged is_filter in the mapping",
+        items=_pyarchinit_filter_items_factory(4),
+    )  # type: ignore
+    pyarchinit_filter_5: EnumProperty(
+        name="Filter 5",
+        description="Filter rows by the fifth column flagged is_filter in the mapping",
+        items=_pyarchinit_filter_items_factory(5),
     )  # type: ignore
 
     # ============================================

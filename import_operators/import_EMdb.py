@@ -67,12 +67,21 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             import_type = em_tools.mode_3dgis_import_type
             
             if import_type == "pyarchinit":
-                return {
+                settings = {
                     'import_type': import_type,
                     'filepath': em_tools.pyarchinit_db_path,
                     'mapping_name': em_tools.pyarchinit_mapping,
                     'mode': '3DGIS'
                 }
+                filters = self._collect_pyarchinit_filters(em_tools)
+                if filters is None:
+                    # Required filter left at "(All values)" — abort
+                    # gracefully; the user-facing error has already
+                    # been reported.
+                    return None
+                if filters:
+                    settings['filters'] = filters
+                return settings
             elif import_type == "generic_xlsx":
                 return {
                     'import_type': import_type,
@@ -90,10 +99,48 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
                     'mode': '3DGIS'
                 }
 
+    def _collect_pyarchinit_filters(self, em_tools):
+        """Collect the user-selected filter values into a dict.
+
+        Returns:
+            * ``dict`` mapping column -> value for each active slot whose
+              user picked a real value (skipped if "(All values)" is
+              left and the slot isn't required);
+            * ``{}`` if no slot has a value to apply;
+            * ``None`` if a required filter was left unselected — in
+              that case the operator must abort (an ERROR has been
+              reported to the user already).
+        """
+        filters = {}
+        for i in range(1, 6):
+            column = em_tools.get(f"pyarchinit_filter_{i}_column", "")
+            if not column:
+                continue
+            value = getattr(em_tools, f"pyarchinit_filter_{i}", '__ALL__')
+            required = em_tools.get(
+                f"pyarchinit_filter_{i}_required", False
+            )
+            if value in ('__ALL__', 'NONE', ''):
+                if required:
+                    label = em_tools.get(
+                        f"pyarchinit_filter_{i}_label", column
+                    )
+                    self.report(
+                        {'ERROR'},
+                        f"Filter '{label}' is required. Please choose a value.",
+                    )
+                    return None
+                continue
+            filters[column] = value
+        return filters
+
     def execute(self, context):
         try:
             # 1. Get import settings
             settings = self.get_import_settings(context)
+            if settings is None:
+                # Filter validation failed (e.g. required filter empty).
+                return {'CANCELLED'}
 
             # ✅ VALIDAZIONE PREVENTIVA PER AUXILIARY MODE
             if self.auxiliary_mode:

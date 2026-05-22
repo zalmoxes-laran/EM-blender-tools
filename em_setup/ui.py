@@ -1394,6 +1394,26 @@ class EM_SetupPanel(bpy.types.Panel):
                         if "table_settings" in mapping_data:
                             desc_box.label(text=f"Table: {mapping_data['table_settings']['table_name']}")
 
+                # Dynamic filter dropdowns (populated by the mapping's
+                # ``is_filter`` columns — see s3dgraphy 1.6).
+                active_filters = [
+                    i for i in range(1, 6)
+                    if em_tools.get(f"pyarchinit_filter_{i}_column")
+                ]
+                if active_filters:
+                    filter_box = options_box.box()
+                    filter_box.label(text="Filter rows by:", icon='FILTER')
+                    for i in active_filters:
+                        label = em_tools.get(
+                            f"pyarchinit_filter_{i}_label", f"Filter {i}"
+                        )
+                        required = em_tools.get(
+                            f"pyarchinit_filter_{i}_required", False
+                        )
+                        text = label + (" *" if required else "")
+                        row = filter_box.row()
+                        row.prop(em_tools, f"pyarchinit_filter_{i}", text=text)
+
             elif em_tools.mode_3dgis_import_type == "emdb_xlsx":
                 options_box.label(text="EMdb Excel Import Settings:")
                 options_box.prop(em_tools, "emdb_xlsx_file", text="EMdb Excel File")

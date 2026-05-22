@@ -80,7 +80,7 @@ IMPORTER_REGISTRY = {
     'pyarchinit': ImporterConfig(
         importer_class=PyArchInitImporter,
         required_params=['filepath', 'mapping_name'],
-        optional_params=[]
+        optional_params=['filters']
     ),
 
     # ✅ EXTENSIBILITY: Adding new formats is easy - just add entry here:
@@ -139,6 +139,31 @@ def create_importer(import_type: str, settings: dict, existing_graph=None):
         kwargs = config.build_kwargs(settings, existing_graph)
     except ValueError as e:
         raise ValueError(f"Invalid settings for {import_type}: {str(e)}")
+
+    # ✅ BACKWARD COMPAT: drop kwargs the target importer's __init__
+    # does not accept. Lets us forward newer settings (e.g. ``filters``
+    # introduced in s3dgraphy 1.6) without breaking older library
+    # versions that may still be vendored in some installs.
+    import inspect
+    try:
+        sig = inspect.signature(config.importer_class.__init__)
+        accepts_var_kw = any(
+            p.kind == inspect.Parameter.VAR_KEYWORD
+            for p in sig.parameters.values()
+        )
+        if not accepts_var_kw:
+            accepted = set(sig.parameters.keys())
+            dropped = [k for k in list(kwargs.keys()) if k not in accepted]
+            for k in dropped:
+                kwargs.pop(k, None)
+            if dropped:
+                print(
+                    f"[em] importer_registry: dropped unsupported kwargs "
+                    f"{dropped} for {config.importer_class.__name__}"
+                )
+    except (TypeError, ValueError):
+        # Built-in / C-implemented signature — pass through unchanged.
+        pass
 
     return config.importer_class(**kwargs)
 
