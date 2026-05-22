@@ -376,6 +376,7 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             force_update=force_update,
             ask_user_callback=ask_user,
             show_warning_callback=show_warning,
+            filters=settings.get('filters'),
         )
         self._show_geom_summary(context, report)
 

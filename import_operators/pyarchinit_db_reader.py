@@ -15,6 +15,24 @@ AREA_COLUMN_FALLBACKS = ("area_s", "area")
 SITO_COLUMN_FALLBACKS = ("scavo_s", "sito", "site")
 
 
+# Filter-column aliases. Filter dicts are populated from the
+# US-table form's mapping (which may use ``us_s``/``area_s``/``scavo_s``
+# or the bare ``us``/``area``/``sito`` depending on the schema). The
+# pyunitastratigrafiche spatial table can use a different convention,
+# so translate each incoming filter key to the actual column detected
+# on the spatial table.
+_FILTER_ALIASES = {
+    "us": "us",
+    "us_s": "us",
+    "area": "area",
+    "area_s": "area",
+    "sito": "sito",
+    "site": "sito",
+    "scavo": "sito",
+    "scavo_s": "sito",
+}
+
+
 class PyArchInitDBError(RuntimeError):
     """Raised for schema or connection problems the caller must surface."""
 
@@ -76,12 +94,69 @@ def detect_key_columns(conn):
     return us_col, area_col, sito_col
 
 
-def fetch_polygons(conn, geom_column):
-    """Yield dicts {us_key, us, area, sito, wkb, wkb_hex_preview}."""
+def _build_filter_clause(filters, us_col, area_col, sito_col):
+    """Build a parameterised WHERE clause from ``filters``.
+
+    Filter keys are matched against a small whitelist
+    (``us`` / ``us_s`` / ``area`` / ``area_s`` / ``sito`` / ``site`` /
+    ``scavo`` / ``scavo_s``) and translated to the actual detected
+    column name in the spatial table. Unknown keys are silently
+    skipped (so a US-table-only filter, e.g. ``d_stratigrafica``, does
+    not raise — it simply doesn't constrain the geometry query).
+
+    Returns ``(where_sql, params)`` — ``where_sql`` is either an empty
+    string or starts with ``" WHERE "``. Always returns parameterised
+    placeholders; never interpolates user-supplied values into the SQL.
+    """
+    if not filters:
+        return "", []
+
+    semantic_to_actual = {
+        "us": us_col,
+        "area": area_col,
+        "sito": sito_col,
+    }
+
+    clauses = []
+    params = []
+    for raw_col, value in filters.items():
+        if not isinstance(raw_col, str):
+            continue
+        semantic = _FILTER_ALIASES.get(raw_col.strip().lower())
+        if semantic is None:
+            # Column has no equivalent on the spatial table — skip
+            # silently so US-table-only filters don't break the geom
+            # query.
+            continue
+        actual_col = semantic_to_actual.get(semantic)
+        if not actual_col:
+            continue
+        clauses.append(f"{actual_col} = ?")
+        params.append(value)
+
+    if not clauses:
+        return "", []
+    return " WHERE " + " AND ".join(clauses), params
+
+
+def fetch_polygons(conn, geom_column, filters=None):
+    """Yield dicts {us_key, us, area, sito, wkb, wkb_hex_preview}.
+
+    If ``filters`` is non-empty, narrow the query to rows matching
+    every recognised ``column = value`` pair. Filter columns are
+    matched against a whitelist (us / us_s / area / area_s /
+    sito / site / scavo / scavo_s) and translated to the actual
+    column name detected on the spatial table; unknown columns are
+    ignored so US-table-only filters don't break here.
+    """
     us_col, area_col, sito_col = detect_key_columns(conn)
+    where_sql, params = _build_filter_clause(
+        filters, us_col, area_col, sito_col
+    )
     cur = conn.execute(
         f"SELECT {us_col}, {area_col}, {sito_col}, {geom_column} "
-        f"FROM {TABLE_NAME}"
+        f"FROM {TABLE_NAME}{where_sql}",
+        params,
     )
     for us, area, sito, geom in cur:
         if geom is None:

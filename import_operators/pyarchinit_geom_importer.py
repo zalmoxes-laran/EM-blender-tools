@@ -33,8 +33,17 @@ from .geom_georef import resolve_georef_anchor
 
 
 def import_geometries(context, db_path, graph, graph_code, force_update,
-                     ask_user_callback, show_warning_callback):
-    """Run the full geometry import. Returns a report dict."""
+                     ask_user_callback, show_warning_callback,
+                     filters=None):
+    """Run the full geometry import. Returns a report dict.
+
+    ``filters`` (optional dict): column -> value pairs propagated from
+    the s3dgraphy US-table filter feature (commit b6377db). When set,
+    only polygons whose pyunitastratigrafiche row matches the filter
+    are read from the DB. Unknown filter columns (no equivalent on the
+    spatial table) are silently ignored — see
+    ``pyarchinit_db_reader._build_filter_clause``.
+    """
     report = {
         "created": 0,
         "updated": 0,
@@ -67,12 +76,16 @@ def import_geometries(context, db_path, graph, graph_code, force_update,
             return report
 
         polygons = []
-        for row in fetch_polygons(conn, geom_col):
-            try:
-                row["parsed_rings"] = parse_wkb(row["wkb"])
-                polygons.append(row)
-            except WKBParseError as e:
-                report["malformed_geometries"].append((row["us_key"], str(e)))
+        try:
+            for row in fetch_polygons(conn, geom_col, filters=filters):
+                try:
+                    row["parsed_rings"] = parse_wkb(row["wkb"])
+                    polygons.append(row)
+                except WKBParseError as e:
+                    report["malformed_geometries"].append((row["us_key"], str(e)))
+        except PyArchInitDBError as e:
+            show_warning_callback("ERROR", str(e))
+            return report
 
         if not polygons:
             show_warning_callback("INFO", "No polygons in DB.")
