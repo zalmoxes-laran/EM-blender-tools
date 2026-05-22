@@ -93,6 +93,13 @@ def import_geometries(context, db_path, graph, graph_code, force_update,
 
         anchor = resolve_georef_anchor(context, polygons, srid, ask_user_callback)
         if anchor is None:
+            show_warning_callback(
+                "ERROR",
+                "Set shift in the Georeferencing panel "
+                "(View3D → EM sidebar → Georeferencing) before "
+                "importing geometries. EPSG alone is not sufficient — "
+                "both EPSG and shift_x/y/z must be set.",
+            )
             return report
         shift_xyz, epsg_used = anchor
 

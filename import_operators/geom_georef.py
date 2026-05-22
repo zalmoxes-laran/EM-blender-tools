@@ -1,8 +1,17 @@
 """Resolve the scene shift / EPSG used to anchor imported geometries.
 
-Reads (and conditionally writes) scene.em_georef via its public PropertyGroup
-fields. The PropertyGroup's update callbacks propagate to BlenderGIS and 3DSC
+Reads scene.em_georef via its public PropertyGroup fields. The
+PropertyGroup's update callbacks propagate to BlenderGIS and 3DSC
 adapters automatically.
+
+Policy (since v1.6.0_dev — georef gating tightened): a fully
+``CONFIGURED`` em_georef (both EPSG and a non-zero shift) is the only
+green path for geometry import. ``EPSG_ONLY`` and ``UNSET`` both
+return ``None`` (the caller's CANCEL signal) so the import operator
+can show a clear error pointing the user to the Georeferencing panel
+instead of silently auto-anchoring to the polygon centroid — silent
+auto-anchoring across multiple imports could place geometries from
+different scenes at inconsistent reference points.
 """
 
 import bpy  # type: ignore
@@ -51,32 +60,27 @@ def write_georef(context, epsg, shift_x, shift_y, shift_z):
 def resolve_georef_anchor(context, polygons, db_srid, ask_user_callback):
     """Return ((shift_x, shift_y, shift_z), epsg_used) or None to cancel.
 
-    `polygons` is a list of dicts with a 'parsed_rings' field already populated
-    by the WKB parser. `ask_user_callback(state, centroid, db_srid)` shows the
-    appropriate popup and returns 'AUTO' / 'CANCEL' / 'MANUAL_EPSG:<value>'.
+    Returns ``None`` whenever ``classify_georef_state`` is not
+    ``CONFIGURED``. The caller (``import_geometries`` in
+    ``pyarchinit_geom_importer.py``) surfaces a user-facing ERROR
+    message pointing to the Georeferencing panel. The
+    ``ask_user_callback`` is retained in the signature for forward
+    compatibility (a future modal popup for the EPSG-only and unset
+    cases) but is intentionally NOT invoked under the current
+    block-until-CONFIGURED policy.
     """
     g = context.scene.em_georef
     state = classify_georef_state(g)
 
-    if state == STATE_CONFIGURED:
-        if db_srid and g.epsg.strip() != str(db_srid):
-            # Non-blocking warning is surfaced by the orchestrator.
-            pass
-        return (g.shift_x, g.shift_y, g.shift_z), g.epsg
+    if state != STATE_CONFIGURED:
+        # Block — the caller will show a clear error. Silent
+        # auto-anchoring is no longer allowed because EPSG-only or
+        # unset state silently anchoring at the centroid could place
+        # geometries from different sites/scenes at inconsistent
+        # reference points.
+        return None
 
-    centroid = compute_centroid(polygons)
-    if centroid is None:
-        return (0.0, 0.0, 0.0), g.epsg or "4326"
-
-    if state == STATE_UNSET:
-        choice = ask_user_callback(state, centroid, db_srid)
-        if choice == "CANCEL":
-            return None
-        # AUTO
-        write_georef(context, str(db_srid or "4326"),
-                     centroid[0], centroid[1], 0.0)
-        return (centroid[0], centroid[1], 0.0), str(db_srid or "4326")
-
-    # STATE_EPSG_ONLY: anchor without asking
-    write_georef(context, g.epsg, centroid[0], centroid[1], 0.0)
-    return (centroid[0], centroid[1], 0.0), g.epsg
+    if db_srid and g.epsg.strip() != str(db_srid):
+        # Non-blocking warning is surfaced by the orchestrator.
+        pass
+    return (g.shift_x, g.shift_y, g.shift_z), g.epsg

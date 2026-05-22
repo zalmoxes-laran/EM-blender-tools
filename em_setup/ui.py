@@ -10,6 +10,7 @@ from ..populate_lists import clear_lists, populate_blender_lists_from_graph
 from ..functions import get_compatible_icon
 from ..thumb_utils import reload_doc_previews_from_cache, has_doc_thumbs
 from ..operators.graphml_converter import GRAPHML_OT_convert_borders
+from ..import_operators.geom_georef import classify_georef_state, STATE_CONFIGURED
 # XLSX_OT_to_graphml kept registered for F3 access but no longer used in panel UI
 # from ..operators.xlsx_to_graphml import XLSX_OT_to_graphml
 
@@ -1041,6 +1042,12 @@ class EM_SetupPanel(bpy.types.Panel):
                                 sub = box.row()
                                 sub.alignment = 'RIGHT'
                                 sub.prop(aux_file, "pyarchinit_geom_force_update")
+                                if classify_georef_state(context.scene.em_georef) != STATE_CONFIGURED:
+                                    warn = box.row()
+                                    warn.label(
+                                        text="Set shift in Georeferencing panel first",
+                                        icon='ERROR',
+                                    )
 
                             # Mapping details (collapsible to reduce clutter)
                             if aux_file.pyarchinit_mapping != "none":
@@ -1392,6 +1399,12 @@ class EM_SetupPanel(bpy.types.Panel):
                     sub = options_box.row()
                     sub.alignment = 'RIGHT'
                     sub.prop(em_tools, "pyarchinit_geom_force_update")
+                    if classify_georef_state(context.scene.em_georef) != STATE_CONFIGURED:
+                        warn = options_box.row()
+                        warn.label(
+                            text="Set shift in Georeferencing panel first",
+                            icon='ERROR',
+                        )
 
                 # Mostra info sul mapping selezionato
                 if em_tools.pyarchinit_mapping != "none":
