@@ -130,6 +130,5 @@ blext/
 
 # Ignora i mapping JSON degli utenti ma mantieni la struttura
 user_mappings/*/*.json
-!user_mappings/*/README.txt.cowork-work/
-.cowork-work/issue-draft-1-spatialite-fixtures.md
-/.cowork-work
+!user_mappings/*/README.txt
+.cowork-work/
