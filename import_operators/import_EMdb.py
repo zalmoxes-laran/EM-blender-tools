@@ -10,6 +10,7 @@ from s3dgraphy import get_graph, Graph
 from s3dgraphy.importer.pyarchinit_importer import PyArchInitImporter
 from s3dgraphy.importer.mapped_xlsx_importer import MappedXLSXImporter
 from s3dgraphy.multigraph.multigraph import multi_graph_manager
+from .pyarchinit_geom_importer import import_geometries as _pyarchinit_import_geometries
 
 
 class EM_OT_import_3dgis_database(bpy.types.Operator):
@@ -222,7 +223,13 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             self._set_graph_metadata(settings, graph)
             
             # 9. POST-PROCESSING
-            return self._handle_import_results(context, settings, graph)
+            result = self._handle_import_results(context, settings, graph)
+
+            if settings.get("import_type") == "pyarchinit" \
+               and result == {'FINISHED'}:
+                self._maybe_import_pyarchinit_geometries(context, settings, graph)
+
+            return result
             
         except Exception as e:
             self.report({'ERROR'}, f"Import failed: {str(e)}")
@@ -333,6 +340,78 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             self.report({'INFO'}, f"Successfully imported {len(graph.nodes)} nodes from {settings['import_type']}")
 
         return {'FINISHED'}
+
+    def _maybe_import_pyarchinit_geometries(self, context, settings, graph):
+        em_tools = context.scene.em_tools
+        if settings["mode"] == "EM_ADVANCED":
+            graphml = em_tools.graphml_files[self.graphml_index]
+            aux_file = graphml.auxiliary_files[self.auxiliary_index]
+            if not aux_file.pyarchinit_import_geometries:
+                return
+            db_path = aux_file.filepath
+            force_update = aux_file.pyarchinit_geom_force_update
+            graph_code = graphml.graph_code
+        else:
+            if not em_tools.pyarchinit_import_geometries:
+                return
+            db_path = em_tools.pyarchinit_db_path
+            force_update = em_tools.pyarchinit_geom_force_update
+            graph_code = "GraphMain"
+
+        from ..functions import show_popup_message
+
+        def show_warning(level, msg):
+            icon = 'ERROR' if level == 'ERROR' else 'INFO'
+            show_popup_message(context, title=f"Geometry import {level}",
+                               message=msg, icon=icon)
+
+        def ask_user(state, centroid, db_srid):
+            return self._popup_georef_choice(state, centroid, db_srid)
+
+        report = _pyarchinit_import_geometries(
+            context=context,
+            db_path=db_path,
+            graph=graph,
+            graph_code=graph_code,
+            force_update=force_update,
+            ask_user_callback=ask_user,
+            show_warning_callback=show_warning,
+        )
+        self._show_geom_summary(context, report)
+
+    def _popup_georef_choice(self, state, centroid, db_srid):
+        """Modal popup. Returns 'AUTO' or 'CANCEL'.
+
+        Stub returning 'AUTO' is acceptable for the first iteration —
+        auto-anchor is the recommended path and the user can pre-configure
+        em_georef manually if they want to skip. A proper modal dialog can
+        land in a follow-up.
+        """
+        return 'AUTO'
+
+    def _show_geom_summary(self, context, report):
+        lines = [
+            f"Created:               {report['created']}",
+            f"Updated:               {report['updated']}",
+            f"Skipped (modified):    {report['skipped_user_modified']}",
+            f"Marked orphan (obj):   {report['marked_orphan_obj']}",
+            f"Polygon orphans:       {report['polygon_orphans']}",
+            f"US without geometry:   {len(report['us_without_geometry'])}",
+        ]
+        if report["malformed_geometries"]:
+            lines.append(
+                f"Malformed geometries:  {len(report['malformed_geometries'])}"
+            )
+        if report["backup_collection"]:
+            lines.append(f"Backup collection:     {report['backup_collection']}")
+
+        from ..functions import show_popup_message
+        show_popup_message(
+            context,
+            title="PyArchInit Geometry Import — Summary",
+            message="\n".join(lines),
+            icon='INFO',
+        )
 
 
 def register():
