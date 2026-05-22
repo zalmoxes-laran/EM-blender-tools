@@ -1,38 +1,48 @@
-"""Pytest configuration that safely handles Blender addon root __init__.py.
+"""Pytest conftest at the repo root.
 
-The root __init__.py imports bpy (only available in Blender), which prevents
-pytest from running tests outside of Blender. This conftest temporarily
-renames it during test collection/execution, using try/finally to ensure
-safe restoration even on failure.
+Why this exists: the Blender addon's `__init__.py` at this same level
+does `import bpy` and relative imports (`from . import icons_manager`)
+that only resolve inside Blender's addon loader. Pytest's discovery
+walks past the rootdir `__init__.py` and Python tries to execute it,
+which crashes outside Blender.
+
+We temporarily rename `__init__.py` to `__init__.py.pytest-hidden`
+during the pytest session and restore it via three independent safety
+nets: pytest_sessionfinish, atexit, and SIGINT/SIGTERM handlers. Even
+on a crashed pytest session the original file is restored.
 """
 
-from pathlib import Path
-import shutil
 import atexit
+import signal
+import sys
+from pathlib import Path
+
+
+_ROOT = Path(__file__).parent
+_INIT = _ROOT / "__init__.py"
+_HIDDEN = _ROOT / "__init__.py.pytest-hidden"
+
+
+def _restore():
+    if _HIDDEN.exists() and not _INIT.exists():
+        _HIDDEN.rename(_INIT)
+
+
+def _signal_restore(signum, frame):
+    _restore()
+    sys.exit(1)
 
 
 def pytest_configure(config):
-    """Hide the root __init__.py before pytest imports it."""
-    root_init = Path(config.rootdir) / "__init__.py"
-    root_init_backup = Path(config.rootdir) / "__init__.py.bak"
-
-    # Only rename if it exists and backup doesn't already exist
-    if root_init.exists() and not root_init_backup.exists():
-        shutil.move(str(root_init), str(root_init_backup))
-        
-        # Register cleanup in case of crash
-        def cleanup():
-            if root_init_backup.exists() and not root_init.exists():
-                shutil.move(str(root_init_backup), str(root_init))
-        
-        atexit.register(cleanup)
+    if _INIT.exists() and not _HIDDEN.exists():
+        _INIT.rename(_HIDDEN)
+        atexit.register(_restore)
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            try:
+                signal.signal(sig, _signal_restore)
+            except (ValueError, OSError):
+                pass
 
 
 def pytest_sessionfinish(session, exitstatus):
-    """Restore the root __init__.py after tests are done."""
-    root = Path(session.config.rootdir)
-    root_init = root / "__init__.py"
-    root_init_backup = root / "__init__.py.bak"
-
-    if root_init_backup.exists() and not root_init.exists():
-        shutil.move(str(root_init_backup), str(root_init))
+    _restore()
