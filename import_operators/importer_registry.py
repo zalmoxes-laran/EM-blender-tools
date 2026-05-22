@@ -80,7 +80,7 @@ IMPORTER_REGISTRY = {
     'pyarchinit': ImporterConfig(
         importer_class=PyArchInitImporter,
         required_params=['filepath', 'mapping_name'],
-        optional_params=['table_name']
+        optional_params=[]
     ),
 
     # ✅ EXTENSIBILITY: Adding new formats is easy - just add entry here:
