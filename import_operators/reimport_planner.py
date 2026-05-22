@@ -51,7 +51,11 @@ def build_reimport_plan(
         node = resolve_us_node(graph, poly["us_key"])
         if node is None:
             continue  # polygon orphan — handled by the caller
-        incoming_by_node_id[node.id] = (poly, node)
+        # s3dgraphy nodes expose `node_id`; test doubles expose `id`.
+        node_id = getattr(node, "node_id", None) or getattr(node, "id", None)
+        if node_id is None:
+            continue
+        incoming_by_node_id[node_id] = (poly, node)
 
     for node_id, (poly, node) in incoming_by_node_id.items():
         existing = existing_by_node_id.get(node_id)

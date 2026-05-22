@@ -133,20 +133,41 @@ def import_geometries(context, db_path, graph, graph_code, force_update,
     return report
 
 
-def _resolve_us_node(graph, us_key):
-    """Find an US node in the graph whose attributes match the (sito, area, us) key.
+_STRATIGRAPHIC_NODE_TYPES = frozenset({
+    "US", "USN", "USV", "USVS", "USVA", "USM", "USR",
+    "SF", "TSU", "VSF", "USD",
+})
 
-    Implementation detail: the existing PyArchInitImporter stores keys with
-    underscores in node names (e.g. "SITE1_A_1"). We accept both
-    'sito=SITE1,area=A,us=1' form and the underscored form.
+
+def _resolve_us_node(graph, us_key):
+    """Find the s3dgraphy US node matching a pyunitastratigrafiche row.
+
+    PyArchInitImporter (mapping `pyarchinit_us_mapping.json`) names US
+    nodes with the bare value of the `us` column (e.g. '1', '16',
+    'USM100'). PropertyNodes are named after the property
+    ('Interpretation', 'Structure', ...) so they don't collide with
+    numeric US codes — but to be safe we prefer nodes whose
+    `node_type` looks stratigraphic.
     """
     if graph is None:
         return None
-    key = us_key.replace("sito=", "").replace(",area=", "_").replace(",us=", "_")
-    for node in getattr(graph, "nodes", []):
-        if getattr(node, "name", None) == key:
-            return node
-    return None
+    us_value = None
+    for part in us_key.split(","):
+        if part.startswith("us="):
+            us_value = part.split("=", 1)[1].strip()
+            break
+    if not us_value:
+        return None
+    candidates = [
+        n for n in getattr(graph, "nodes", [])
+        if getattr(n, "name", None) == us_value
+    ]
+    if not candidates:
+        return None
+    for n in candidates:
+        if getattr(n, "node_type", "") in _STRATIGRAPHIC_NODE_TYPES:
+            return n
+    return candidates[0]
 
 
 def _create_one(entry, parent_coll, shift_xyz, db_path, graph_code):
@@ -157,7 +178,7 @@ def _create_one(entry, parent_coll, shift_xyz, db_path, graph_code):
     obj = create_or_replace_object(obj_name, mesh, parent_coll)
     apply_imported_geom_properties(
         obj=obj,
-        us_node_id=node.id,
+        us_node_id=getattr(node, "node_id", None) or getattr(node, "id", ""),
         us_name=node.name,
         graph_code=graph_code,
         db_path=db_path,
@@ -201,16 +222,21 @@ def _handle_polygon_orphans(polygons, graph, shift_xyz, db_path, report):
 def _record_us_without_geometry(polygons, graph, report):
     if graph is None:
         return
-    polygon_keys = {p["us_key"] for p in polygons}
+    polygon_us_values = set()
+    for p in polygons:
+        for part in p["us_key"].split(","):
+            if part.startswith("us="):
+                polygon_us_values.add(part.split("=", 1)[1].strip())
+                break
     for node in getattr(graph, "nodes", []):
-        node_name = getattr(node, "name", "")
-        try:
-            sito, area, us = node_name.split("_")
-        except ValueError:
+        if getattr(node, "node_type", "") not in _STRATIGRAPHIC_NODE_TYPES:
             continue
-        key = f"sito={sito},area={area},us={us}"
-        if key not in polygon_keys:
-            report["us_without_geometry"].append(node_name)
-            attrs = getattr(graph, "attributes", None)
-            if isinstance(attrs, dict):
-                attrs.setdefault(C.GRAPH_ATTR_AUX_US_NO_GEOM, []).append(node.id)
+        name = getattr(node, "name", "")
+        if not name or name in polygon_us_values:
+            continue
+        report["us_without_geometry"].append(name)
+        attrs = getattr(graph, "attributes", None)
+        if isinstance(attrs, dict):
+            node_id = getattr(node, "node_id", None) or getattr(node, "id", None)
+            if node_id is not None:
+                attrs.setdefault(C.GRAPH_ATTR_AUX_US_NO_GEOM, []).append(node_id)
