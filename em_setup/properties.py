@@ -479,24 +479,6 @@ class EMToolsSettings(bpy.types.PropertyGroup):
         description="Select mapping configuration"
     )  # type: ignore
 
-    pyarchinit_import_geometries: BoolProperty(
-        name="Also import US geometries",
-        description=(
-            "After importing the us_table, also import multipolygon "
-            "footprints from the pyunitastratigrafiche table"
-        ),
-        default=False,
-    )  # type: ignore
-
-    pyarchinit_geom_force_update: BoolProperty(
-        name="Force update existing meshes",
-        description=(
-            "Rebuild meshes even when the user has modified them. "
-            "A backup of each modified mesh is created automatically."
-        ),
-        default=False,
-    )  # type: ignore
-
     # EMdb Excel import
     emdb_xlsx_file: StringProperty(
         name="EMdb File",
