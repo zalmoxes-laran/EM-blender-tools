@@ -10,6 +10,9 @@ import sqlite3
 
 TABLE_NAME = "pyunitastratigrafiche"
 GEOM_COLUMN_FALLBACKS = ("the_geom", "geom", "geometry")
+US_COLUMN_FALLBACKS = ("us_s", "us")
+AREA_COLUMN_FALLBACKS = ("area_s", "area")
+SITO_COLUMN_FALLBACKS = ("scavo_s", "sito", "site")
 
 
 class PyArchInitDBError(RuntimeError):
@@ -51,10 +54,34 @@ def table_exists(conn, name=TABLE_NAME):
     return cur.fetchone() is not None
 
 
+def detect_key_columns(conn):
+    """Detect which us/area/sito column naming convention this DB uses.
+
+    Real PyArchInit installations use the _s-suffixed names
+    (us_s, area_s, scavo_s) on the spatial pyunitastratigrafiche
+    table. Older or custom schemas may use the bare names (us, area,
+    sito). Probe the table info and return whichever set is present.
+    """
+    cur = conn.execute(f"PRAGMA table_info('{TABLE_NAME}')")
+    cols = {r[1] for r in cur.fetchall()}
+    us_col = next((c for c in US_COLUMN_FALLBACKS if c in cols), None)
+    area_col = next((c for c in AREA_COLUMN_FALLBACKS if c in cols), None)
+    sito_col = next((c for c in SITO_COLUMN_FALLBACKS if c in cols), None)
+    missing = [n for n, v in (("us", us_col), ("area", area_col),
+                              ("sito/scavo", sito_col)) if v is None]
+    if missing:
+        raise PyArchInitDBError(
+            f"missing key columns in '{TABLE_NAME}': {', '.join(missing)}"
+        )
+    return us_col, area_col, sito_col
+
+
 def fetch_polygons(conn, geom_column):
     """Yield dicts {us_key, us, area, sito, wkb, wkb_hex_preview}."""
+    us_col, area_col, sito_col = detect_key_columns(conn)
     cur = conn.execute(
-        f"SELECT us, area, sito, {geom_column} FROM {TABLE_NAME}"
+        f"SELECT {us_col}, {area_col}, {sito_col}, {geom_column} "
+        f"FROM {TABLE_NAME}"
     )
     for us, area, sito, geom in cur:
         if geom is None:
