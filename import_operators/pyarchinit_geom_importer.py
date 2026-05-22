@@ -30,6 +30,7 @@ from .geom_blender_io import (
     is_mesh_modified,
 )
 from .geom_georef import resolve_georef_anchor
+from ..operators.addon_prefix_helpers import node_name_to_proxy_name
 
 
 def import_geometries(context, db_path, graph, graph_code, force_update,
@@ -115,7 +116,8 @@ def import_geometries(context, db_path, graph, graph_code, force_update,
         graph_coll = ensure_collection(graph_code, parent=parent_coll)
 
         for entry in plan["create"]:
-            obj = _create_one(entry, graph_coll, shift_xyz, db_path, graph_code)
+            obj = _create_one(entry, graph_coll, shift_xyz, db_path,
+                              graph_code, context=context, graph=graph)
             _link_to_node(entry["node"], obj)
             report["created"] += 1
 
@@ -190,11 +192,16 @@ def _resolve_us_node(graph, us_key):
     return candidates[0]
 
 
-def _create_one(entry, parent_coll, shift_xyz, db_path, graph_code):
+def _create_one(entry, parent_coll, shift_xyz, db_path, graph_code,
+                context=None, graph=None):
     poly = entry["poly"]
     node = entry["node"]
     mesh = build_mesh_from_polygons(poly["parsed_rings"], shift_xyz)
-    obj_name = f"{graph_code}.{node.name}"
+    # Mode-aware naming: in Advanced EM mode the graph carries a valid
+    # ``graph_code`` and the proxy name becomes ``<CODE>.<node>``; in
+    # 3DGIS mode (graph_code unset or placeholder) the helper returns
+    # the bare ``<node>`` — see operators/addon_prefix_helpers.py.
+    obj_name = node_name_to_proxy_name(node.name, context=context, graph=graph)
     obj = create_or_replace_object(obj_name, mesh, parent_coll)
     apply_imported_geom_properties(
         obj=obj,
