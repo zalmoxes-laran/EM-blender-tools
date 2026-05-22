@@ -71,7 +71,6 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
                     'import_type': import_type,
                     'filepath': em_tools.pyarchinit_db_path,
                     'mapping_name': em_tools.pyarchinit_mapping,
-                    'table_name': em_tools.pyarchinit_table,
                     'mode': '3DGIS'
                 }
             elif import_type == "generic_xlsx":
