@@ -78,13 +78,48 @@ class EXPORT_OT_rdf(Operator):
             return []
         return [em_tools.graphml_files[em_tools.active_file_index].name]
 
-    def _resolve_output_path(self, scene):
-        """Apply the format's expected extension to the user's path if needed."""
+    def _resolve_output_path(self, context):
+        """Resolve and canonicalize the output path.
+
+        Handles three edge cases that bit us in early testing:
+        - Blender relative paths (//...) that point at directories which
+          may not physically exist (e.g. OneDrive on-demand): we canonicalize
+          via os.path.normpath after bpy.path.abspath so the OS doesn't have
+          to walk through a stale `..` chain at open() time.
+        - User picks a directory instead of a file: we mint a sensible
+          filename from the active graphml name (or 'em_export' fallback).
+        - User types ".ttl" (leading dot) as filename: Path.suffix treats
+          ".ttl" as a hidden-file basename and would double-append ".ttl",
+          producing ".ttl.ttl". We detect that here.
+        """
+        import re
+        scene = context.scene
         raw = scene.rdf_export_path
         if not raw:
             return None
-        path = bpy.path.abspath(raw)
 
+        # 1) Expand Blender // (relative-to-blend), ~ (home), env vars
+        path = bpy.path.abspath(raw)
+        # 2) Canonicalize ../.. chains so the OS doesn't have to traverse
+        #    possibly-missing intermediate directories at write time.
+        path = os.path.normpath(path)
+
+        # 3) If user selected a directory, mint a filename from the active
+        #    graphml so the output is identifiable. Fall back to 'em_export'.
+        if path.endswith(os.sep) or os.path.isdir(path):
+            default_basename = "em_export"
+            em_tools = scene.em_tools
+            if (em_tools.active_file_index >= 0
+                    and em_tools.active_file_index < len(em_tools.graphml_files)):
+                graphml_name = em_tools.graphml_files[em_tools.active_file_index].name
+                # Strip .graphml extension if present, sanitize for filesystem
+                base = os.path.splitext(graphml_name)[0]
+                safe = re.sub(r'[^\w\-_.]', '_', base)
+                if safe:
+                    default_basename = safe
+            path = os.path.join(path, default_basename)
+
+        # 4) Apply the format's extension. Handle the leading-dot trap.
         ext_map = {
             'turtle': '.ttl',
             'nt':     '.nt',
@@ -93,6 +128,27 @@ class EXPORT_OT_rdf(Operator):
             'xml':    '.rdf',
         }
         wanted = ext_map.get(scene.rdf_format, '.ttl')
+        basename = os.path.basename(path)
+
+        # Leading-dot trap: basename like ".ttl" / ".jsonld" — pathlib treats
+        # the whole name as a hidden file with empty suffix and would double
+        # it. Replace the hidden-file basename with default_basename + ext.
+        if basename.startswith('.') and basename.lower().lstrip('.') in {
+                'ttl', 'nt', 'jsonld', 'trig', 'rdf'}:
+            # User likely selected a dir picker that returned with the dotted
+            # ext we appended in a previous step. Reset to the default name.
+            default_basename = "em_export"
+            em_tools = scene.em_tools
+            if (em_tools.active_file_index >= 0
+                    and em_tools.active_file_index < len(em_tools.graphml_files)):
+                graphml_name = em_tools.graphml_files[em_tools.active_file_index].name
+                base = os.path.splitext(graphml_name)[0]
+                safe = re.sub(r'[^\w\-_.]', '_', base)
+                if safe:
+                    default_basename = safe
+            parent = os.path.dirname(path)
+            path = os.path.join(parent, default_basename + wanted)
+            return path
 
         root, ext = os.path.splitext(path)
         if ext.lower() != wanted:
@@ -105,7 +161,7 @@ class EXPORT_OT_rdf(Operator):
         scene = context.scene
 
         # 1) Validate path
-        output_path = self._resolve_output_path(scene)
+        output_path = self._resolve_output_path(context)
         if not output_path:
             self.report({'ERROR'}, "No output path set. Choose a file in RDF Export Path.")
             return {'CANCELLED'}

@@ -467,9 +467,29 @@ case "$1" in
         ;;
     
     devrel)
+        # Compute projected version BEFORE asking confirmation, so the user
+        # knows exactly which tag/release will be created.
+        CURRENT_DEVREL_VERSION=$(get_version)
+        PROJECTED_DEVREL_VERSION=$($PYTHON_CMD - <<'PY'
+import json, pathlib
+cfg = json.loads(pathlib.Path("version.json").read_text())
+base = f"{cfg['major']}.{cfg['minor']}.{cfg['patch']}"
+mode = cfg.get('mode', 'dev')
+if mode == 'dev':
+    print(f"{base}-dev.{cfg.get('dev_build', 0) + 1}")
+elif mode == 'rc':
+    print(f"{base}-rc.{cfg.get('rc_build', 1) + 1}")
+else:
+    print(base)
+PY
+)
+
         echo "============================================"
         echo "  Creating GitHub Dev Release"
         echo "============================================"
+        echo
+        echo "  Current version:  $CURRENT_DEVREL_VERSION"
+        echo "  Will publish as:  v$PROJECTED_DEVREL_VERSION"
         echo
         echo "⚠️  This will push a TAG to GitHub"
         echo "🔄 GitHub Actions will build .zip files automatically"
@@ -481,7 +501,7 @@ case "$1" in
             echo "❌ Cancelled"
             exit 0
         fi
-        
+
         echo
         echo "📝 Incrementing dev version..."
         $PYTHON_CMD scripts/dev.py inc

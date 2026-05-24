@@ -41,8 +41,11 @@ logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger("EMTools")
 logger.setLevel(logging.WARNING)
 
-# Constants for reuse 
-VERSION = "1.5.0"
+# Constants for reuse
+# NOTE: this is the hard-coded fallback shown in bl_info. The authoritative
+# version is in version.json (managed by scripts/version_manager.py) and is
+# written into blender_manifest.toml by `./em.sh manifest 3.13` (or 3.11).
+VERSION = "1.6.0"
 BL_INFO = {
     "name": "EM Tools",
     "author": "Emanuel Demetrescu",

@@ -15,7 +15,23 @@ tzdata>=2025.1
 et-xmlfile==2.0.0
 fonttools>=4.57.0
 packaging==25.0
-s3dgraphy>=0.1.0
+s3dgraphy>=1.6.0.dev0,<1.7.0
+# Constraint syntax (PEP 440):
+#   - `.dev0` lower bound EXPLICITLY allows pre-release versions for this
+#     package only (1.6.0.dev3, 1.6.0a1, 1.6.0rc1, 1.6.0, 1.6.1, ...).
+#     No need for `--pre` globally (which would affect ALL packages).
+#   - `<1.7.0` upper bound prevents breaking-change surprises from a
+#     hypothetical future major release on the same minor line.
+#
+# rdflib is listed EXPLICITLY below because scripts/setup_development.py
+# downloads each wheel with --no-deps (controlled set). The `[rdf]` extra
+# is therefore IGNORED here even though s3dgraphy declares it correctly
+# (`pip install s3dgraphy[rdf]` works outside this bundle — see PyPI metadata).
+# rdflib 7.x on Python 3.13 needs only pyparsing (already pinned above).
+# When v1.6.3 ships pyoxigraph for embedded SPARQL, add an explicit
+# pyoxigraph wheel here.
+rdflib>=7.0
+
 PyMuPDF>=1.24.0,<1.25.0
 
 # Tapestry Integration dependencies

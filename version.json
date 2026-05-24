@@ -1,8 +1,8 @@
 {
   "major": 1,
-  "minor": 5,
+  "minor": 6,
   "patch": 0,
-  "dev_build": 153,
+  "dev_build": 0,
   "rc_build": 1,
   "mode": "dev",
   "description": "Version configuration for EM Tools",
@@ -12,15 +12,18 @@
       "url_base": "https://docs.extendedmatrix.org/projects/EM-tools/en/"
     },
     "em": {
-      "version": "1.5",
+      "version": "1.6",
       "url_base": "https://docs.extendedmatrix.org/en/"
     }
   },
   "changelog": {
-    "1.5.0-dev.xxx": [
-      "xxx",
-      "yyy",
-      "zzz"
+    "1.6.0-dev.0": [
+      "RDF Export panel (new): integrates with s3dgraphy v1.6.0 RDFExporter (Turtle/N-Triples/JSON-LD/TriG/RDF-XML).",
+      "Provider pattern in export_manager: RDF section added alongside Heriverse/Tabular.",
+      "Operator EXPORT_OT_rdf in export_operators/rdf/ with format/path/base-URI/parent-HDT-IRI/all-publishable controls.",
+      "Scene properties: rdf_export_path, rdf_format, rdf_base_uri, rdf_parent_hdt_iri, rdf_export_all_graphs, rdf_export_advanced.",
+      "requirements_wheels.txt: explicit rdflib>=7.0 (migrate to s3dgraphy[rdf]>=1.6.0 once s3dgraphy is on PyPI).",
+      "Version bump from 1.5.0-dev to 1.6.0-dev (branch EM-tools_v1.6.0_dev)."
     ]
   }
 }
