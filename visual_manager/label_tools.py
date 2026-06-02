@@ -225,23 +225,101 @@ class VISUAL_OT_label_creation_safe(Operator):
         links.new(principled.outputs['BSDF'], output.inputs['Surface'])
     
     def position_label(self, text_obj, camera, target_obj, label_settings):
-        """Position the label between camera and target object"""
-        # Calculate direction from camera to object
-        diff_loc = target_obj.location - camera.location
-        distance = diff_loc.length
-        
-        if distance == 0:
-            text_obj.location = camera.location
-        else:
-            # Position at specified distance from camera
-            normalized_dir = diff_loc.normalized()
-            text_obj.location = camera.location + (normalized_dir * label_settings.label_distance)
-        
-        # Set rotation to match camera
-        text_obj.rotation_euler = camera.rotation_euler
-        
-        # Set scale
-        text_obj.scale = label_settings.label_scale
+        """Position the label between camera and target object."""
+        _apply_label_position(text_obj, camera, target_obj, label_settings)
+
+
+# ────────────────────────────────────────────────────────────────────
+# Module-level helpers — used both by the creation operator above and
+# by the Distance / Scale slider live-refresh callbacks in `data.py`
+# (issue #17). Kept here so the creation path and the refresh path
+# share one definition of "where a label goes".
+#
+# TODO(label-tool): name-parsing in ``_split_label_name`` is fragile if
+# a camera or proxy gets renamed between label-creation and slider
+# refresh. That's the structural reason a future Development Project
+# will move label positioning to a clipping-plane-based scheme (same
+# pattern as ``document_manager`` for RM-doc quads, see
+# ``document_manager/operators.py`` ``RMDOC_OT_autocrop_near`` / ``_far``).
+# Until that lands, this minimal path is what backs issue #17.
+# ────────────────────────────────────────────────────────────────────
+
+_LABEL_NAME_PREFIX = "_generated."
+
+
+def _apply_label_position(text_obj, camera, target_obj, label_settings):
+    """Position a single label between its source camera and target object."""
+    diff_loc = target_obj.location - camera.location
+    distance = diff_loc.length
+
+    if distance == 0:
+        text_obj.location = camera.location
+    else:
+        normalized_dir = diff_loc.normalized()
+        text_obj.location = camera.location + (normalized_dir * label_settings.label_distance)
+
+    # Match camera rotation so the label faces the camera.
+    text_obj.rotation_euler = camera.rotation_euler
+
+    # Scale follows the user-tunable label_scale vector.
+    text_obj.scale = label_settings.label_scale
+
+
+def _split_label_name(label_name):
+    """Parse ``_generated.<camera>.<target>`` into ``(camera_name, target_name)``.
+
+    Camera and target names may both contain dots (Blender duplicates
+    are ``Foo.001``, ``Foo.002``, …), so we resolve the boundary by
+    trying every possible split point against actually existing objects.
+    Longest matching camera-name wins (greedy). Returns ``(None, None)``
+    if no plausible split is found.
+    """
+    if not label_name.startswith(_LABEL_NAME_PREFIX):
+        return None, None
+    rest = label_name[len(_LABEL_NAME_PREFIX):]
+    if not rest:
+        return None, None
+
+    cams_collection = bpy.data.collections.get("CAMS")
+    cams_objs = cams_collection.objects if cams_collection else None
+
+    parts = rest.split(".")
+    for i in range(len(parts) - 1, 0, -1):
+        cam_candidate = ".".join(parts[:i])
+        tgt_candidate = ".".join(parts[i:])
+        cam_obj = cams_objs.get(cam_candidate) if cams_objs else None
+        if cam_obj and cam_obj.type == 'CAMERA':
+            return cam_candidate, tgt_candidate
+    return None, None
+
+
+def _reposition_label_by_name(label_obj, label_settings):
+    """Resolve a ``_generated.*`` label back to its camera+target and
+    re-apply position / scale / rotation using the current settings.
+
+    Returns ``True`` on success; ``False`` when the boundary parse
+    fails, the camera is no longer in the CAMS collection, or the
+    target object has been renamed / deleted. Callers handle the
+    failure case (e.g. silently skip).
+    """
+    cam_name, target_name = _split_label_name(label_obj.name)
+    if not cam_name or not target_name:
+        return False
+
+    cams_collection = bpy.data.collections.get("CAMS")
+    if cams_collection is None:
+        return False
+
+    camera = cams_collection.objects.get(cam_name)
+    if camera is None or camera.type != 'CAMERA':
+        return False
+
+    target_obj = bpy.data.objects.get(target_name)
+    if target_obj is None:
+        return False
+
+    _apply_label_position(label_obj, camera, target_obj, label_settings)
+    return True
 
 
 class VISUAL_OT_update_camera_list_safe(Operator):

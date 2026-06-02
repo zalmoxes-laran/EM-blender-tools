@@ -20,6 +20,63 @@ from bpy.props import ( # type: ignore
 )
 from bpy.types import PropertyGroup # type: ignore
 
+
+# =====================================================
+# PROPERTY UPDATE CALLBACKS
+# =====================================================
+# Lightweight update hooks for label settings — kept here next to the
+# PropertyGroup that uses them so the lambda factory stays self-contained.
+#
+# TODO(label-tool): the position math below assumes labels can be
+# matched back to their source camera+target by parsing the object name
+# (`_generated.<camera>.<target>`). This is the minimal fix tracked in
+# issue #17 — enough to make the Distance / Scale sliders update existing
+# labels live. The intended evolution is automatic positioning tied to
+# the camera clipping planes (same pattern as `document_manager` uses
+# for the RM-doc quads — see `document_manager/operators.py` around
+# the `RMDOC_OT_autocrop_near` / `_far` operators). That evolution will
+# be tracked as a dedicated Development Project (label-tool refactor)
+# and will retire the name-parsing approach here.
+
+
+def _refresh_existing_labels(context):
+    """Reposition / rescale generated labels using current LabelSettings.
+
+    Best-effort: labels whose source camera or target object have been
+    renamed or removed are silently skipped (they remain at their old
+    position). The intent is to give the Distance / Scale sliders
+    immediate visual feedback for the common case where the user is
+    just tuning the spacing of a fresh batch of labels.
+    """
+    # Lazy import to avoid the data.py ↔ label_tools.py module cycle that
+    # would happen if label_tools is imported at module load time.
+    try:
+        from .label_tools import _reposition_label_by_name
+    except Exception:
+        return
+
+    scene = getattr(context, "scene", None)
+    if scene is None:
+        return
+    label_settings = getattr(scene, "label_settings", None)
+    if label_settings is None:
+        return
+
+    cams_collection = bpy.data.collections.get("CAMS")
+    if cams_collection is None:
+        return
+
+    for obj in list(cams_collection.objects):
+        if obj.type != 'FONT' or not obj.name.startswith("_generated."):
+            continue
+        try:
+            _reposition_label_by_name(obj, label_settings)
+        except Exception:
+            # Swallow per-label failures — one broken label must not
+            # break the slider for the rest.
+            continue
+
+
 # =====================================================
 # PROPERTY GROUP CLASSES
 # =====================================================
@@ -116,19 +173,25 @@ class LabelSettings(PropertyGroup):
     
     label_distance: FloatProperty(
         name="Label Distance",
-        description="Distance from camera to place labels",
+        description="Distance from camera to place labels. Changing this "
+                    "value also repositions any existing generated labels "
+                    "by re-matching them with their source camera/proxy by "
+                    "object name (best-effort).",
         min=0.1,
         max=10.0,
-        default=1.0
+        default=1.0,
+        update=lambda self, ctx: _refresh_existing_labels(ctx),
     ) # type: ignore
-    
+
     label_scale: FloatVectorProperty(
         name="Label Scale",
-        description="Scale factor for labels",
+        description="Scale factor for labels. Changing this value also "
+                    "rescales any existing generated labels.",
         size=3,
         min=0.001,
         max=1.0,
-        default=(0.03, 0.03, 0.03)
+        default=(0.03, 0.03, 0.03),
+        update=lambda self, ctx: _refresh_existing_labels(ctx),
     ) # type: ignore
     
     auto_move_cameras: BoolProperty(
