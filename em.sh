@@ -557,7 +557,7 @@ case "$1" in
         echo
         echo "📝 Incrementing $INCREMENT version and setting to STABLE..."
         
-        $PYTHON_CMD scripts/version_manager.py inc $INCREMENT
+        $PYTHON_CMD scripts/version_manager.py increment --part $INCREMENT
         $PYTHON_CMD scripts/version_manager.py set-mode --mode stable
         
         VERSION=$(get_version)
