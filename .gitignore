@@ -72,6 +72,12 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
+# Legacy artifact from the previous conftest.py that physically renamed
+# __init__.py aside during pytest runs. The new conftest uses
+# collect_ignore + --import-mode=importlib so this file should never
+# appear; the .gitignore entry is belt-and-suspenders in case an old
+# conftest still lingers in a developer's working copy.
+__init__.py.pytest-hidden
 
 # Documentation builds
 docs/_build/

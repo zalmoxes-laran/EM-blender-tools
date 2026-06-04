@@ -1,48 +1,34 @@
-"""Pytest conftest at the repo root.
+"""Pytest conftest at the repo root — intentionally near-empty.
 
-Why this exists: the Blender addon's `__init__.py` at this same level
-does `import bpy` and relative imports (`from . import icons_manager`)
-that only resolve inside Blender's addon loader. Pytest's discovery
-walks past the rootdir `__init__.py` and Python tries to execute it,
-which crashes outside Blender.
+This file used to physically rename the addon's ``__init__.py`` aside
+during the pytest session and restore it on exit. The rename was
+needed because the rootdir's ``__init__.py`` does ``import bpy`` at
+module level — that import fails outside Blender's addon loader, and
+pytest's discovery walked into the rootdir as if it were a package
+and triggered the import.
 
-We temporarily rename `__init__.py` to `__init__.py.pytest-hidden`
-during the pytest session and restore it via three independent safety
-nets: pytest_sessionfinish, atexit, and SIGINT/SIGTERM handlers. Even
-on a crashed pytest session the original file is restored.
+The new strategy avoids touching the working tree entirely. See
+``pytest.ini``:
+
+    addopts = ... --rootdir=tests --confcutdir=tests
+
+Those two flags tell pytest that the project root for the run is
+``tests/`` (where there is no ``__init__.py``), and that conftest
+discovery stops there too. With this, the rootdir's ``__init__.py``
+is never imported by pytest, so ``import bpy`` is never executed
+outside Blender. Tests still resolve ``import_operators`` etc. via
+``pythonpath = . tests`` in ``pytest.ini`` (paths are read relative
+to the directory of ``pytest.ini``, i.e. the actual repo root, so
+the addon source remains importable for the tests that need it).
+
+This file is kept as a placeholder for two reasons:
+
+1. To document the migration (so a future contributor doesn't bring
+   back the rename hack on autopilot).
+2. To avoid the situation where some external runner (an IDE, an
+   unusual CI invocation) finds no conftest at the rootdir and
+   decides to walk upward.
+
+Real test-time setup, if it ever becomes necessary, belongs in
+``tests/conftest.py`` (under the ``--confcutdir`` boundary).
 """
-
-import atexit
-import signal
-import sys
-from pathlib import Path
-
-
-_ROOT = Path(__file__).parent
-_INIT = _ROOT / "__init__.py"
-_HIDDEN = _ROOT / "__init__.py.pytest-hidden"
-
-
-def _restore():
-    if _HIDDEN.exists() and not _INIT.exists():
-        _HIDDEN.rename(_INIT)
-
-
-def _signal_restore(signum, frame):
-    _restore()
-    sys.exit(1)
-
-
-def pytest_configure(config):
-    if _INIT.exists() and not _HIDDEN.exists():
-        _INIT.rename(_HIDDEN)
-        atexit.register(_restore)
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            try:
-                signal.signal(sig, _signal_restore)
-            except (ValueError, OSError):
-                pass
-
-
-def pytest_sessionfinish(session, exitstatus):
-    _restore()
