@@ -68,12 +68,22 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             import_type = em_tools.mode_3dgis_import_type
             
             if import_type == "pyarchinit":
+                from .pyarchinit_db_reader import is_postgres_spec
+                db_spec, err = self._resolve_pyarchinit_db_spec(em_tools)
+                if err:
+                    self.report({'ERROR'}, err)
+                    return None
                 settings = {
                     'import_type': import_type,
-                    'filepath': em_tools.pyarchinit_db_path,
                     'mapping_name': em_tools.pyarchinit_mapping,
                     'mode': '3DGIS'
                 }
+                # SQLite path vs PostgreSQL URL — mutually exclusive
+                # kwargs on PyArchInitImporter (issue #27, Sub-2).
+                if is_postgres_spec(db_spec):
+                    settings['connection_url'] = db_spec
+                else:
+                    settings['filepath'] = db_spec
                 filters = self._collect_pyarchinit_filters(em_tools)
                 if filters is None:
                     # Required filter left at "(All values)" — abort
@@ -99,6 +109,46 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
                     'mapping_name': em_tools.emdb_mapping,
                     'mode': '3DGIS'
                 }
+
+    def _resolve_pyarchinit_db_spec(self, em_tools):
+        """Resolve the pyArchInit connection spec from the 3D GIS panel.
+
+        Returns ``(db_spec, error)``:
+
+        * ``db_spec`` — a SQLite file path (SQLite mode) or a
+          ``postgresql+psycopg2://…`` URL (PostgreSQL mode), suitable
+          for both PyArchInitImporter and the geometry reader.
+        * ``error`` — None on success, or a user-facing message when the
+          chosen mode is missing required fields.
+
+        The password is read from the (SKIP_SAVE) password field if the
+        user just typed it, otherwise from the OS keychain — never from
+        the .blend (issue #27).
+        """
+        mode = getattr(em_tools, "pyarchinit_connection_mode", "sqlite")
+        if mode == "postgres":
+            from .pyarchinit_connection import build_connection_url, get_password
+            host = (em_tools.pyarchinit_pg_host or "").strip()
+            port = em_tools.pyarchinit_pg_port
+            dbname = (em_tools.pyarchinit_pg_dbname or "").strip()
+            user = (em_tools.pyarchinit_pg_user or "").strip()
+            if not (host and dbname and user):
+                return None, ("PostgreSQL connection needs host, database "
+                              "and user. Fill them in the 3D GIS import panel.")
+            password = em_tools.pyarchinit_pg_password or get_password(
+                host, port, dbname, user)
+            if not password:
+                return None, ("No PostgreSQL password set. Type it in the "
+                              "panel (and optionally 'Save to keychain').")
+            url = build_connection_url(host, port, dbname, user, password)
+            return url, None
+
+        # Default: SQLite. Keep the raw path (PyArchInitImporter and the
+        # geometry reader resolve it themselves) — behaviour unchanged.
+        path = em_tools.pyarchinit_db_path
+        if not path:
+            return None, "Select a pyArchInit SQLite database file."
+        return path, None
 
     def _collect_pyarchinit_filters(self, em_tools):
         """Collect the user-selected filter values into a dict.
@@ -320,8 +370,15 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
         """Set metadata on the graph after import"""
         if not hasattr(graph, 'attributes'):
             graph.attributes = {}
-        
-        graph.attributes['source_file'] = str(settings['filepath'])
+
+        # 3D GIS pyArchInit may carry a connection_url instead of a
+        # filepath; redact credentials before recording provenance so a
+        # PostgreSQL password never lands in the graph / .blend (#27).
+        source = settings.get('filepath')
+        if source is None and settings.get('connection_url'):
+            from .pyarchinit_db_reader import redacted_db_spec
+            source = redacted_db_spec(settings['connection_url'])
+        graph.attributes['source_file'] = str(source or '')
         graph.attributes['import_type'] = settings['import_type']
         
         print(f"EM-tools: Set metadata on graph '{graph.graph_id}'")
@@ -354,7 +411,12 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
         else:
             if not em_tools.pyarchinit_import_geometries:
                 return
-            db_path = em_tools.pyarchinit_db_path
+            db_path, err = self._resolve_pyarchinit_db_spec(em_tools)
+            if err:
+                from ..functions import show_popup_message
+                show_popup_message(context, title="Geometry import ERROR",
+                                   message=err, icon='ERROR')
+                return
             force_update = em_tools.pyarchinit_geom_force_update
             graph_code = "GraphMain"
 

@@ -1388,7 +1388,23 @@ class EM_SetupPanel(bpy.types.Panel):
 
             elif em_tools.mode_3dgis_import_type == "pyarchinit":
                 options_box.label(text="pyArchInit Import Settings:")
-                options_box.prop(em_tools, "pyarchinit_db_path", text="SQLite Database")
+                options_box.prop(em_tools, "pyarchinit_connection_mode",
+                                 text="Connection", expand=True)
+                if em_tools.pyarchinit_connection_mode == "postgres":
+                    pg_box = options_box.box()
+                    pg_box.prop(em_tools, "pyarchinit_pg_host", text="Host")
+                    pg_box.prop(em_tools, "pyarchinit_pg_port", text="Port")
+                    pg_box.prop(em_tools, "pyarchinit_pg_dbname", text="Database")
+                    pg_box.prop(em_tools, "pyarchinit_pg_user", text="User")
+                    pg_box.prop(em_tools, "pyarchinit_pg_password", text="Password")
+                    creds = pg_box.row(align=True)
+                    creds.operator("emtools.pyarchinit_pg_save_password",
+                                   text="Save to keychain", icon='LOCKED')
+                    creds.operator("emtools.pyarchinit_pg_forget_password",
+                                   text="Forget", icon='UNLOCKED')
+                else:
+                    options_box.prop(em_tools, "pyarchinit_db_path",
+                                     text="SQLite Database")
                 options_box.prop(em_tools, "pyarchinit_mapping", text="Select Mapping")
                 options_box.operator("emtools.open_mapping_preferences",
                             text="",
@@ -1487,9 +1503,20 @@ class EM_SetupPanel(bpy.types.Panel):
                     em_tools.xlsx_id_column != "none"
                 )
             elif em_tools.mode_3dgis_import_type == "pyarchinit":
-                # Richiede: db path, mapping
+                # Richiede un mapping e una connessione valida: in SQLite
+                # il file DB, in PostgreSQL host+db+user (la password è
+                # verificata all'avvio dell'import, non qui — #27 Sub-2).
+                conn_mode = getattr(em_tools, "pyarchinit_connection_mode", "sqlite")
+                if conn_mode == "postgres":
+                    conn_ok = bool(
+                        (em_tools.pyarchinit_pg_host or "").strip() and
+                        (em_tools.pyarchinit_pg_dbname or "").strip() and
+                        (em_tools.pyarchinit_pg_user or "").strip()
+                    )
+                else:
+                    conn_ok = bool(em_tools.pyarchinit_db_path)
                 can_import = bool(
-                    em_tools.pyarchinit_db_path and
+                    conn_ok and
                     em_tools.pyarchinit_mapping != "none"
                 )
             elif em_tools.mode_3dgis_import_type == "emdb_xlsx":

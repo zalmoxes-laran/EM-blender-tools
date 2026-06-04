@@ -10,10 +10,8 @@ import bpy  # type: ignore
 
 from . import geom_constants as C
 from .pyarchinit_db_reader import (
-    open_readonly,
-    table_exists,
-    detect_geometry_column,
-    fetch_polygons,
+    PyArchInitReader,
+    redacted_db_spec,
     PyArchInitDBError,
     TABLE_NAME,
 )
@@ -57,28 +55,33 @@ def import_geometries(context, db_path, graph, graph_code, force_update,
         "warnings": [],
     }
 
+    # Credential-stripped spec used for any persisted provenance / error
+    # text. For a PostgreSQL URL this drops ``user:password@`` so the
+    # password never reaches a custom property or a popup (issue #27).
+    safe_spec = redacted_db_spec(db_path)
+
     try:
-        conn = open_readonly(db_path)
+        reader = PyArchInitReader(db_path)
     except Exception as e:
-        show_warning_callback("ERROR", f"Cannot open DB: {db_path}\n{e}")
+        show_warning_callback("ERROR", f"Cannot open DB: {safe_spec}\n{e}")
         return report
 
     try:
-        if not table_exists(conn):
+        if not reader.table_exists():
             show_warning_callback(
                 "WARNING",
                 f"Table '{TABLE_NAME}' not present in DB — no geometries to import.",
             )
             return report
         try:
-            geom_col, srid = detect_geometry_column(conn)
+            geom_col, srid = reader.detect_geometry_column()
         except PyArchInitDBError as e:
             show_warning_callback("ERROR", str(e))
             return report
 
         polygons = []
         try:
-            for row in fetch_polygons(conn, geom_col, filters=filters):
+            for row in reader.fetch_polygons(filters=filters):
                 try:
                     row["parsed_rings"] = parse_wkb(row["wkb"])
                     polygons.append(row)
@@ -116,7 +119,7 @@ def import_geometries(context, db_path, graph, graph_code, force_update,
         graph_coll = ensure_collection(graph_code, parent=parent_coll)
 
         for entry in plan["create"]:
-            obj = _create_one(entry, graph_coll, shift_xyz, db_path,
+            obj = _create_one(entry, graph_coll, shift_xyz, safe_spec,
                               graph_code, context=context, graph=graph)
             _link_to_node(entry["node"], obj)
             report["created"] += 1
@@ -147,10 +150,10 @@ def import_geometries(context, db_path, graph, graph_code, force_update,
                 move_obj_to_collection(obj, orphan_coll)
             report["marked_orphan_obj"] = len(plan["mark_orphan_obj"])
 
-        _handle_polygon_orphans(polygons, graph, shift_xyz, db_path, report)
+        _handle_polygon_orphans(polygons, graph, shift_xyz, safe_spec, report)
         _record_us_without_geometry(polygons, graph, report)
     finally:
-        conn.close()
+        reader.close()
 
     return report
 

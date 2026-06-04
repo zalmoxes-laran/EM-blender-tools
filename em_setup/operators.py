@@ -856,6 +856,60 @@ class EM_OT_open_license_url(Operator):
         return {'FINISHED'}
 
 
+class EM_OT_pyarchinit_pg_save_password(Operator):
+    """Store the PostgreSQL password in the OS keychain.
+
+    The password is never written into the .blend: it is saved in the
+    operating-system keychain (or, if that is unavailable, kept in
+    memory for this Blender session only). Issue #27, Sub-2.
+    """
+    bl_idname = "emtools.pyarchinit_pg_save_password"
+    bl_label = "Save PostgreSQL password to keychain"
+
+    def execute(self, context):
+        em_tools = context.scene.em_tools
+        host = (em_tools.pyarchinit_pg_host or "").strip()
+        dbname = (em_tools.pyarchinit_pg_dbname or "").strip()
+        user = (em_tools.pyarchinit_pg_user or "").strip()
+        port = em_tools.pyarchinit_pg_port
+        password = em_tools.pyarchinit_pg_password
+        if not (host and dbname and user):
+            self.report({'ERROR'}, "Fill host, database and user first.")
+            return {'CANCELLED'}
+        if not password:
+            self.report({'ERROR'}, "Type a password to save.")
+            return {'CANCELLED'}
+        from ..import_operators.pyarchinit_connection import set_password
+        tier = set_password(host, port, dbname, user, password)
+        if tier == "keychain":
+            self.report({'INFO'}, "Password saved to the OS keychain.")
+        else:
+            self.report(
+                {'WARNING'},
+                "OS keychain unavailable — password kept in memory for "
+                "this session only (still never written to the .blend).",
+            )
+        return {'FINISHED'}
+
+
+class EM_OT_pyarchinit_pg_forget_password(Operator):
+    """Remove the stored PostgreSQL password from keychain and memory."""
+    bl_idname = "emtools.pyarchinit_pg_forget_password"
+    bl_label = "Forget PostgreSQL password"
+
+    def execute(self, context):
+        em_tools = context.scene.em_tools
+        host = (em_tools.pyarchinit_pg_host or "").strip()
+        dbname = (em_tools.pyarchinit_pg_dbname or "").strip()
+        user = (em_tools.pyarchinit_pg_user or "").strip()
+        port = em_tools.pyarchinit_pg_port
+        from ..import_operators.pyarchinit_connection import forget_password
+        forget_password(host, port, dbname, user)
+        em_tools.pyarchinit_pg_password = ""
+        self.report({'INFO'}, "Password removed from keychain and memory.")
+        return {'FINISHED'}
+
+
 # Registration
 classes = (
     EM_create_collection,
@@ -873,6 +927,8 @@ classes = (
     AUXILIARY_OT_import_now,
     EM_OT_open_author_url,
     EM_OT_open_license_url,
+    EM_OT_pyarchinit_pg_save_password,
+    EM_OT_pyarchinit_pg_forget_password,
 )
 
 

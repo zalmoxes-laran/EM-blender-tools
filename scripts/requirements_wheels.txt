@@ -15,10 +15,13 @@ tzdata>=2025.1
 et-xmlfile==2.0.0
 fonttools>=4.57.0
 packaging==25.0
-s3dgraphy>=1.6.0.dev0,<1.7.0
+s3dgraphy>=1.6.0.dev6,<1.7.0
 # Constraint syntax (PEP 440):
-#   - `.dev0` lower bound EXPLICITLY allows pre-release versions for this
-#     package only (1.6.0.dev3, 1.6.0a1, 1.6.0rc1, 1.6.0, 1.6.1, ...).
+#   - `.dev6` lower bound EXPLICITLY allows pre-release versions for this
+#     package only (1.6.0.dev6, 1.6.0a1, 1.6.0rc1, 1.6.0, 1.6.1, ...).
+#     dev6 is the first build carrying the PyArchInit Postgres backend
+#     (PyArchInitImporter connection_url=) and s3dgraphy.sync.GraphIngestor
+#     that EM-tools Sub-2 / Sub-3 (issue #27) consume.
 #     No need for `--pre` globally (which would affect ALL packages).
 #   - `<1.7.0` upper bound prevents breaking-change surprises from a
 #     hypothetical future major release on the same minor line.
@@ -39,8 +42,23 @@ mmh3>=4.1.0
 # Note: OpenImageIO is optional for Tapestry - if not available, fallback to Blender's image API
 # Note: numpy and requests are already included in Blender 4.0+
 
-# pyarchinit dependency
+# PyArchInit Postgres backend (issue #27, Sub-2).
+#   - psycopg2-binary: the PostgreSQL driver used by s3dgraphy's
+#     PyArchInitImporter (connection_url=) and by the EM-tools geometry
+#     reader. Ships self-contained platform wheels (manylinux / macOS /
+#     win) for cp311 + cp313, so it bundles cleanly with the --no-deps
+#     download in setup_development.py.
+#   - keyring: optional, stores the PG password in the OS keychain. The
+#     code degrades to a session-memory fallback if keyring (or its
+#     platform backend) is missing, so a missing wheel never hard-breaks
+#     the import — it just means the password isn't persisted across
+#     sessions. (keyring has a few small transitive deps — jaraco.*,
+#     and SecretStorage/jeepney on Linux — that may need adding here for
+#     full keychain persistence; the fallback covers the gap meanwhile.)
+# NOTE: SQLAlchemy 2.x is intentionally NOT bundled here — it is only
+# needed by s3dgraphy.sync (GraphIngestor), which lands with Sub-3.
+psycopg2-binary>=2.9.9
+keyring>=24.0
+
 #pyarchinit-mini>=1.9.38
-#sqlalchemy==2.0.20
-# sqlalchemy dependency
 #typing_extensions==4.12.2
