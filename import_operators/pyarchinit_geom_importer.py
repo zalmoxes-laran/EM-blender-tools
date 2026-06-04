@@ -32,8 +32,7 @@ from ..operators.addon_prefix_helpers import node_name_to_proxy_name
 
 
 def import_geometries(context, db_path, graph, graph_code, force_update,
-                     ask_user_callback, show_warning_callback,
-                     filters=None):
+                     show_warning_callback, filters=None):
     """Run the full geometry import. Returns a report dict.
 
     ``filters`` (optional dict): column -> value pairs propagated from
@@ -95,7 +94,7 @@ def import_geometries(context, db_path, graph, graph_code, force_update,
             show_warning_callback("INFO", "No polygons in DB.")
             return report
 
-        anchor = resolve_georef_anchor(context, polygons, srid, ask_user_callback)
+        anchor = resolve_georef_anchor(context, polygons, srid)
         if anchor is None:
             show_warning_callback(
                 "ERROR",

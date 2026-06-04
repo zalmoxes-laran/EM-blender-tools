@@ -57,17 +57,19 @@ def write_georef(context, epsg, shift_x, shift_y, shift_z):
     g.shift_z = float(shift_z)
 
 
-def resolve_georef_anchor(context, polygons, db_srid, ask_user_callback):
+def resolve_georef_anchor(context, polygons, db_srid):
     """Return ((shift_x, shift_y, shift_z), epsg_used) or None to cancel.
 
     Returns ``None`` whenever ``classify_georef_state`` is not
     ``CONFIGURED``. The caller (``import_geometries`` in
     ``pyarchinit_geom_importer.py``) surfaces a user-facing ERROR
-    message pointing to the Georeferencing panel. The
-    ``ask_user_callback`` is retained in the signature for forward
-    compatibility (a future modal popup for the EPSG-only and unset
-    cases) but is intentionally NOT invoked under the current
-    block-until-CONFIGURED policy.
+    message pointing to the Georeferencing panel.
+
+    Under the current block-until-CONFIGURED policy there is no
+    auto-anchor fallback. If a future iteration needs a modal popup
+    to ask the user where to anchor (EPSG-only or unset state), the
+    callback can be re-introduced as an explicit parameter at that
+    time; until then the API stays minimal.
     """
     g = context.scene.em_georef
     state = classify_georef_state(g)

@@ -427,30 +427,16 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
             show_popup_message(context, title=f"Geometry import {level}",
                                message=msg, icon=icon)
 
-        def ask_user(state, centroid, db_srid):
-            return self._popup_georef_choice(state, centroid, db_srid)
-
         report = _pyarchinit_import_geometries(
             context=context,
             db_path=db_path,
             graph=graph,
             graph_code=graph_code,
             force_update=force_update,
-            ask_user_callback=ask_user,
             show_warning_callback=show_warning,
             filters=settings.get('filters'),
         )
         self._show_geom_summary(context, report)
-
-    def _popup_georef_choice(self, state, centroid, db_srid):
-        """Modal popup. Returns 'AUTO' or 'CANCEL'.
-
-        Stub returning 'AUTO' is acceptable for the first iteration —
-        auto-anchor is the recommended path and the user can pre-configure
-        em_georef manually if they want to skip. A proper modal dialog can
-        land in a follow-up.
-        """
-        return 'AUTO'
 
     def _show_geom_summary(self, context, report):
         lines = [
