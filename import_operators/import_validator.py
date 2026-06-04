@@ -28,7 +28,10 @@ class ImportValidator:
         },
 
         'pyarchinit': {
-            'required_fields': ['filepath', 'mapping_name'],
+            # Either a SQLite ``filepath`` OR a PostgreSQL ``connection_url``
+            # is accepted (issue #27, Sub-2) — see ``required_one_of``.
+            'required_fields': ['mapping_name'],
+            'required_one_of': ['filepath', 'connection_url'],
             'mapping_required': True,
             'file_extensions': ['.sqlite', '.db', '.sql']
         }
@@ -63,6 +66,12 @@ class ImportValidator:
         for field in rules['required_fields']:
             if not settings.get(field):
                 return False, f"Missing required field: {field}"
+
+        # Check "one of" requirement (e.g. SQLite filepath OR PG
+        # connection_url for pyArchInit — exactly one connection source).
+        one_of = rules.get('required_one_of')
+        if one_of and not any(settings.get(f) for f in one_of):
+            return False, f"Provide one of: {', '.join(one_of)}"
 
         # Check mapping if required
         if rules['mapping_required']:

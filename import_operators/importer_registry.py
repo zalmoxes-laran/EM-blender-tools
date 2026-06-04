@@ -77,10 +77,15 @@ IMPORTER_REGISTRY = {
         optional_params=[]
     ),
 
+    # pyArchInit accepts EITHER a SQLite ``filepath`` OR a PostgreSQL
+    # ``connection_url`` (mutually exclusive — PyArchInitImporter raises
+    # if both/neither are given). Both are declared optional here; the
+    # operator (import_EMdb.get_import_settings) guarantees exactly one
+    # is set per the user's chosen connection mode (issue #27, Sub-2).
     'pyarchinit': ImporterConfig(
         importer_class=PyArchInitImporter,
-        required_params=['filepath', 'mapping_name'],
-        optional_params=['filters']
+        required_params=['mapping_name'],
+        optional_params=['filepath', 'connection_url', 'filters']
     ),
 
     # ✅ EXTENSIBILITY: Adding new formats is easy - just add entry here:

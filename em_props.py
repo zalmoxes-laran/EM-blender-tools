@@ -938,6 +938,61 @@ class EM_Tools(PropertyGroup):
         update=_update_pyarchinit_db_path,
     )  # type: ignore
 
+    # ----------------------------------------------------------
+    # PyArchInit connection mode (issue #27, Sub-2).
+    # SQLite (the historical default) vs PostgreSQL/PostGIS. The
+    # password is held in a SKIP_SAVE field so it is NEVER written to
+    # the .blend; persistence is delegated to the OS keychain via the
+    # pyarchinit_connection module.
+    # ----------------------------------------------------------
+    pyarchinit_connection_mode: EnumProperty(
+        name="Connection",
+        description="Read pyArchInit from a SQLite file or a PostgreSQL/PostGIS server",
+        items=[
+            ("sqlite", "SQLite", "Local pyArchInit SQLite/SpatiaLite database file"),
+            ("postgres", "PostgreSQL", "Remote pyArchInit PostgreSQL/PostGIS database"),
+        ],
+        default="sqlite",
+    )  # type: ignore
+
+    pyarchinit_pg_host: StringProperty(
+        name="Host",
+        description="PostgreSQL server host name or IP",
+        default="localhost",
+    )  # type: ignore
+
+    pyarchinit_pg_port: IntProperty(
+        name="Port",
+        description="PostgreSQL server port",
+        default=5432,
+        min=1,
+        max=65535,
+    )  # type: ignore
+
+    pyarchinit_pg_dbname: StringProperty(
+        name="Database",
+        description="PostgreSQL database name",
+        default="",
+    )  # type: ignore
+
+    pyarchinit_pg_user: StringProperty(
+        name="User",
+        description="PostgreSQL user name",
+        default="",
+    )  # type: ignore
+
+    pyarchinit_pg_password: StringProperty(
+        name="Password",
+        description=(
+            "PostgreSQL password. Held only in memory for this session "
+            "(never saved in the .blend). Use 'Save to keychain' to "
+            "persist it securely in the OS keychain"
+        ),
+        subtype='PASSWORD',
+        options={'SKIP_SAVE'},
+        default="",
+    )  # type: ignore
+
     pyarchinit_table: EnumProperty(
         name="Table",
         items=[
