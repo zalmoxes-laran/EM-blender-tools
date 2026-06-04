@@ -192,6 +192,23 @@ class ExportVars(PropertyGroup):
         description="Expand/Collapse Emviq export options",
         default=False
     ) # type: ignore
+
+    # PyArchInit DB reverse-export (issue #27, Sub-3)
+    pyarchinit_expanded: BoolProperty(
+        name="Show PyArchInit DB export options",
+        description="Expand/Collapse PyArchInit DB export options",
+        default=False
+    ) # type: ignore
+    pyarchinit_export_sito: StringProperty(
+        name="Site",
+        description="PyArchInit site name (sito) the graph is written under",
+        default=""
+    ) # type: ignore
+    pyarchinit_export_create_epochs: BoolProperty(
+        name="Create missing epochs",
+        description="Auto-create periodizzazione rows for epochs not yet in the DB",
+        default=False
+    ) # type: ignore
     heriverse_project_name: StringProperty(
         name="Project Name",
         description="Name of the Heriverse project",
