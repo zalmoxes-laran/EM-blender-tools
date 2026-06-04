@@ -123,32 +123,11 @@ class EM_OT_import_3dgis_database(bpy.types.Operator):
 
         The password is read from the (SKIP_SAVE) password field if the
         user just typed it, otherwise from the OS keychain — never from
-        the .blend (issue #27).
+        the .blend (issue #27). Delegates to the shared resolver so the
+        import and export paths stay in sync.
         """
-        mode = getattr(em_tools, "pyarchinit_connection_mode", "sqlite")
-        if mode == "postgres":
-            from .pyarchinit_connection import build_connection_url, get_password
-            host = (em_tools.pyarchinit_pg_host or "").strip()
-            port = em_tools.pyarchinit_pg_port
-            dbname = (em_tools.pyarchinit_pg_dbname or "").strip()
-            user = (em_tools.pyarchinit_pg_user or "").strip()
-            if not (host and dbname and user):
-                return None, ("PostgreSQL connection needs host, database "
-                              "and user. Fill them in the 3D GIS import panel.")
-            password = em_tools.pyarchinit_pg_password or get_password(
-                host, port, dbname, user)
-            if not password:
-                return None, ("No PostgreSQL password set. Type it in the "
-                              "panel (and optionally 'Save to keychain').")
-            url = build_connection_url(host, port, dbname, user, password)
-            return url, None
-
-        # Default: SQLite. Keep the raw path (PyArchInitImporter and the
-        # geometry reader resolve it themselves) — behaviour unchanged.
-        path = em_tools.pyarchinit_db_path
-        if not path:
-            return None, "Select a pyArchInit SQLite database file."
-        return path, None
+        from .pyarchinit_connection import resolve_db_spec
+        return resolve_db_spec(em_tools)
 
     def _collect_pyarchinit_filters(self, em_tools):
         """Collect the user-selected filter values into a dict.

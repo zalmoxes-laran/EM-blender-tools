@@ -55,8 +55,12 @@ mmh3>=4.1.0
 #     sessions. (keyring has a few small transitive deps — jaraco.*,
 #     and SecretStorage/jeepney on Linux — that may need adding here for
 #     full keychain persistence; the fallback covers the gap meanwhile.)
-# NOTE: SQLAlchemy 2.x is intentionally NOT bundled here — it is only
-# needed by s3dgraphy.sync (GraphIngestor), which lands with Sub-3.
+# SQLAlchemy 2.x + typing_extensions: required by s3dgraphy.sync
+# (GraphIngestor / DbHandle) for the reverse-export (issue #27, Sub-3).
+# typing_extensions is a hard runtime dependency of SQLAlchemy 2.0 and
+# must be bundled explicitly because setup downloads with --no-deps.
+SQLAlchemy>=2.0,<3.0
+typing_extensions>=4.6.0
 psycopg2-binary>=2.9.9
 keyring>=24.0
 
