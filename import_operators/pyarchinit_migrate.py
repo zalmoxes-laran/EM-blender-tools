@@ -54,6 +54,29 @@ def apply_node_uuid_migration(sa_spec):
     touched. Returns ``{table: backfilled_row_count}`` for the tables
     present. Raises on any failure so the caller can fall back to a
     user-facing message.
+
+    Transaction semantics — *best-effort, not all-or-nothing.* The DDL
+    (ALTER TABLE + CREATE INDEX) commits in one ``engine.begin()``
+    block; the backfill runs in a separate block. A failure midway
+    through the backfill leaves the schema migrated but some rows
+    still NULL. That's safe: the migration is idempotent (the column
+    add is skipped when it already exists, the partial unique index
+    uses ``IF NOT EXISTS``, and the backfill SELECTs ``WHERE
+    node_uuid IS NULL`` so re-running heals the half-applied state).
+    A single-transaction structure would be cleaner on PostgreSQL
+    (DDL inside a transaction is fully supported) but SQLite is more
+    restrictive on mixing DDL + DML in one transaction, so the split
+    is the lowest-common-denominator choice.
+
+    Identifier interpolation — *trusted sources only.* Table names
+    are interpolated via f-string from the hardcoded ``TABLES``
+    constant; primary-key column names come from
+    ``inspect(engine).get_pk_constraint()`` or the hardcoded
+    ``_CANONICAL_PK`` fallback. Neither source accepts user input,
+    so there is no SQL-injection vector here. (SQLAlchemy's
+    ``text().bindparams()`` cannot bind identifiers in any major
+    backend, so a comment is the right discipline lever rather than
+    a structural refactor.)
     """
     from sqlalchemy import create_engine, inspect, text
 

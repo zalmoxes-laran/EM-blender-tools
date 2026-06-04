@@ -59,7 +59,7 @@ class EXPORT_OT_pyarchinit_db(Operator):
         # 3. Connection spec ---------------------------------------------
         from ....import_operators.pyarchinit_connection import resolve_db_spec
         from ....import_operators.pyarchinit_db_reader import (
-            is_postgres_spec, redacted_db_spec,
+            is_postgres_spec, redact_url_from_message, redacted_db_spec,
         )
         db_spec, err = resolve_db_spec(em_tools)
         if err:
@@ -104,7 +104,13 @@ class EXPORT_OT_pyarchinit_db(Operator):
             result = _ingest()
         except Exception as e:
             if not is_node_uuid_error(str(e)):
-                self.report({'ERROR'}, f"Export failed: {e}")
+                # Defensive: an upstream exception message may (today or
+                # in a future SQLAlchemy/psycopg2/s3dgraphy.sync change)
+                # embed the connection URL with creds. Strip
+                # ``user:password@`` from any postgres URL substring
+                # before surfacing the message to the user popup.
+                self.report({'ERROR'},
+                            f"Export failed: {redact_url_from_message(e)}")
                 return {'CANCELLED'}
 
             # node_uuid columns missing. NEVER mutate the schema during a
@@ -139,7 +145,10 @@ class EXPORT_OT_pyarchinit_db(Operator):
             try:
                 result = _ingest()
             except Exception as e2:
-                self.report({'ERROR'}, f"Export failed after migration: {e2}")
+                self.report(
+                    {'ERROR'},
+                    f"Export failed after migration: "
+                    f"{redact_url_from_message(e2)}")
                 return {'CANCELLED'}
 
         # 5. Summary ------------------------------------------------------

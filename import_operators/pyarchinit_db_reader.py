@@ -24,6 +24,8 @@ for the existing test-suite). Backend-agnostic callers should use
 import sqlite3
 
 
+import re
+
 TABLE_NAME = "pyunitastratigrafiche"
 GEOM_COLUMN_FALLBACKS = ("the_geom", "geom", "geometry")
 US_COLUMN_FALLBACKS = ("us_s", "us")
@@ -232,6 +234,36 @@ def redacted_db_spec(db_spec):
     # rest = [userinfo@]host[:port]/db... — drop everything up to '@'.
     host_part = rest.split("@", 1)[1] if "@" in rest else rest
     return f"{scheme}://{host_part}"
+
+
+# Match a postgres/postgresql URL with optional ``+driver`` tag and
+# optional userinfo. Captures the scheme (group 1) and the host-onwards
+# part (group 2) so the substitution can rebuild the URL without the
+# ``user:password@`` segment. Tolerant of URLs embedded mid-sentence —
+# used defensively to strip credentials out of exception messages.
+_PG_URL_IN_TEXT = re.compile(
+    r"(postgres(?:ql)?(?:\+[A-Za-z0-9_]+)?://)"  # scheme[+driver]://
+    r"(?:[^@\s/'\"`<>]+@)?"                       # optional userinfo@
+    r"([^\s'\"`<>]+)"                              # host[:port]/db...
+)
+
+
+def redact_url_from_message(msg):
+    """Defensively strip ``user:password@`` from any postgres URL in *msg*.
+
+    Exception messages from SQLAlchemy / psycopg2 / s3dgraphy.sync may
+    or may not embed the connection URL today; the upstream contract
+    can shift across versions. This helper rewrites every postgres URL
+    substring it finds so a forwarded error popup cannot leak
+    credentials regardless of how the upstream layer formats its
+    message. Non-postgres messages pass through unchanged.
+
+    ``"could not connect to postgres://u:p@db.example/foo: …"`` →
+    ``"could not connect to postgres://db.example/foo: …"``
+    """
+    if msg is None:
+        return msg
+    return _PG_URL_IN_TEXT.sub(lambda m: m.group(1) + m.group(2), str(msg))
 
 
 def _normalise_pg_dsn(url):
