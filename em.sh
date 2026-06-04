@@ -473,6 +473,30 @@ case "$1" in
         echo "  Creating GitHub Dev Release"
         echo "============================================"
         echo
+
+        # Show current → next dev version BEFORE asking for confirmation,
+        # so the user knows exactly what tag is about to be pushed. The
+        # `version_manager.py current` line looks like
+        #   "Current version: 1.6.0-dev.1 (mode: dev)"
+        # so we strip the prefix and the trailing "(mode: …)" to extract
+        # the bare version, then compute the implied next dev_build for
+        # the preview. The actual increment still happens inside
+        # `scripts/dev.py inc` below — this block is read-only.
+        echo "📊 Current version:"
+        $PYTHON_CMD scripts/version_manager.py current
+        CURRENT_VERSION=$($PYTHON_CMD scripts/version_manager.py current | awk '{print $3}')
+        # CURRENT_VERSION looks like "1.6.0-dev.42" (hyphen before "dev",
+        # dot before the build number). Bump the trailing integer by 1
+        # to preview the next dev build for the user.
+        if [[ "$CURRENT_VERSION" =~ ^(.+-dev\.)([0-9]+)$ ]]; then
+            BASE="${BASH_REMATCH[1]}"
+            NUM="${BASH_REMATCH[2]}"
+            NEXT_VERSION="${BASE}$((NUM + 1))"
+            echo "📈 Next dev version: ${CURRENT_VERSION} → ${NEXT_VERSION}"
+        else
+            echo "ℹ️  Could not derive next dev version from '$CURRENT_VERSION' — proceeding will let scripts/dev.py decide."
+        fi
+        echo
         echo "⚠️  This will push a TAG to GitHub"
         echo "🔄 GitHub Actions will build .zip files automatically"
         echo "⏱️  Build takes ~10-15 minutes"
@@ -483,7 +507,7 @@ case "$1" in
             echo "❌ Cancelled"
             exit 0
         fi
-        
+
         echo
         echo "📝 Incrementing dev version..."
         $PYTHON_CMD scripts/dev.py inc
