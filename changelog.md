@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — PyArchInit PostgreSQL + reverse-export (2026-06)
+
+Round-trip pyArchInit ⇄ EM through one shared connection config
+(issue #27). Consumes the s3dgraphy 1.6.0.dev6 API.
+
+- **PostgreSQL/PostGIS read for the 3D GIS import** (Sub-2, PR #28):
+  a **SQLite | PostgreSQL** switch in the pyArchInit import panel
+  (host / port / db / user / password) that passes
+  `connection_url=` to `PyArchInitImporter` instead of `filepath=`.
+  PostGIS geometry is read as WKB via `ST_AsBinary(<geom>)` so the
+  existing `wkb_parser` is reused unchanged; a new
+  `PyArchInitReader` dispatches SQLite vs Postgres. The password is
+  held in a `SKIP_SAVE` field and the OS keychain (`keyring`, with a
+  session-memory fallback) — **never written to the .blend** — and
+  `redacted_db_spec()` strips credentials from any provenance or
+  error text.
+- **"Export to PyArchInit DB" reverse-export** (Sub-3, PR #29): a new
+  section in the Export panel that writes the active s3dgraphy graph
+  back into a PyArchInit database (SQLite or PostgreSQL) via
+  `s3dgraphy.sync.GraphIngestor`, with a **dry-run preview** that
+  reports planned inserts / updates / skips / conflicts without
+  touching the DB. Connection settings are shared with the import
+  panel (`resolve_db_spec`).
+- **Best-effort `node_uuid` migration** (`import_operators/pyarchinit_migrate.py`):
+  when the target DB lacks the `node_uuid` columns `s3dgraphy.sync`
+  requires, the real export adds them (`ALTER TABLE` + partial unique
+  index + uuid backfill, via SQLAlchemy, SQLite + PostgreSQL) and
+  retries. Dry-run never mutates the schema; on failure both paths
+  surface a clear "update the database from PyArchInit" message.
+- **Bundled wheels**: `psycopg2-binary`, `keyring`, `SQLAlchemy`,
+  `typing_extensions`. The s3dgraphy pin is bumped to
+  `s3dgraphy>=1.6.0.dev6`.
+
 ### Added — US creation workflow unification (2026-04)
 
 - **Unified "Add Stratigraphic Unit" dialog** (`strat.add_us`):
