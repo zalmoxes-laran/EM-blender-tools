@@ -260,3 +260,38 @@ jobs:
             Each package contains wheels compiled for a specific platform and Python version.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  zenodo:
+    needs: build
+    runs-on: ubuntu-latest
+    # Archivia su Zenodo SOLO le release STABILI (non -dev/-rc/-alpha/-beta),
+    # via API deposizioni -- NON il webhook (disattivato: dopo la migrazione a
+    # InvenioRDM falliva con errore vuoto). Job separato e NON bloccante: se
+    # fallisce, la GitHub Release e i link di download restano validi e quella
+    # stabile si archivia a mano. Richiede il secret ZENODO_TOKEN (scope
+    # deposit:write + deposit:actions); se manca, lo script salta senza errore.
+    if: >-
+      ${{ github.event_name == 'push'
+          && !contains(github.ref_name, '-dev')
+          && !contains(github.ref_name, '-rc')
+          && !contains(github.ref_name, '-alpha')
+          && !contains(github.ref_name, '-beta') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build source archive
+        run: |
+          TAG="${{ github.ref_name }}"
+          git archive --format=zip --prefix="EM-blender-tools-${TAG}/" HEAD \
+            -o "EM-blender-tools-${TAG}.zip"
+          ls -la "EM-blender-tools-${TAG}.zip"
+
+      - name: Publish source to Zenodo (stable only)
+        env:
+          ZENODO_TOKEN: ${{ secrets.ZENODO_TOKEN }}
+          ZENODO_CONCEPT: "4459272"
+          TAG: ${{ github.ref_name }}
+          SRC_ZIP: "EM-blender-tools-${{ github.ref_name }}.zip"
+        run: python3 scripts/zenodo_publish.py
