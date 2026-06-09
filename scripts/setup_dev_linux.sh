@@ -31,11 +31,19 @@ fi
 
 PYTHON_CMD="python3"
 
-# Setup version management
-echo "Setting up version management..."
-cd ..
-$PYTHON_CMD scripts/version_manager.py set-mode --mode dev
-cd scripts
+# Version management
+#
+# NOTE: setup intentionally does NOT call `set-mode --mode dev` here
+# anymore. The previous behaviour silently flipped `version.json` to
+# `mode: dev` every time `em.sh setup` ran, which polluted stable
+# release branches (e.g. `EM-tools_v1.5.0` at the v1.5.2 tag) the
+# moment the maintainer ran a local dev setup to test a patch. The
+# rule now is the standard one: `setup` installs dependencies; mode
+# is controlled explicitly via `em.sh stable` / `em.sh dev` (or a
+# direct `python3 scripts/version_manager.py set-mode --mode <...>`).
+# Branches that should run setup in dev mode already declare it in
+# their tracked `version.json`, so the manifest regeneration step
+# below picks up the right mode without any forced flip.
 
 # Cerca Blender
 echo "Searching for Blender..."
@@ -113,8 +121,12 @@ cd scripts
 echo
 echo "Generating blender_manifest.toml (Python $PYTHON_VER wheels)..."
 cd ..
-# Aggiungiamo un'ulteriore impostazione mode prima dell'update
-$PYTHON_CMD scripts/version_manager.py set-mode --mode dev --python-version $PYTHON_VER
+# Generate the manifest under the CURRENT mode declared in
+# version.json — do NOT force `--mode dev` here (see the rationale
+# at the top of this file). If the maintainer is on a stable
+# release branch running setup to test a patch, the manifest stays
+# stable; if they are on the main dev branch, version.json already
+# carries `mode: dev` and the manifest reflects it.
 $PYTHON_CMD scripts/version_manager.py update --python-version $PYTHON_VER
 if [ ! -f "blender_manifest.toml" ]; then
     echo "ERROR: Failed to generate blender_manifest.toml!"
