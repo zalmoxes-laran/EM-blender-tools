@@ -63,11 +63,29 @@ check("tooltip mentions Demote proxy", rna.description.startswith("Demote proxy"
 scene = bpy.context.scene
 strat = scene.em_tools.stratigraphy
 
-# --- 1. selection-driven demote (single) -------------------------------------
+# Clean slate: ignore anything persisted in the user's startup scene
+strat.units.clear()
+scene.em_tools.graphml_files.clear()
+
+# --- 1. graph requirement + selection-driven demote ---------------------------
 obj_a = make_mesh("US_TESTA")
 add_unit("US_TESTA")
 strat.units_index = 0
 select_only(obj_a)
+
+# A loaded graph is a requirement: without it the operator must be disabled
+check("poll False without a loaded graph", not bpy.ops.em.proxy_demote.poll())
+
+# Register a minimal graph in the s3dgraphy registry (no graph_code, so
+# name resolution stays prefix-less) and point the scene at it
+from s3dgraphy.graph import Graph
+from s3dgraphy.multigraph.multigraph import multi_graph_manager
+smoke_graph = Graph(graph_id="smoke_graph")
+multi_graph_manager.graphs["smoke_graph"] = smoke_graph
+gfile = scene.em_tools.graphml_files.add()
+gfile.name = "smoke_graph"
+scene.em_tools.active_file_index = 0
+check("poll True once a graph is loaded", bpy.ops.em.proxy_demote.poll())
 
 result = bpy.ops.em.proxy_demote()
 check("selection demote returns FINISHED", result == {"FINISHED"})
@@ -79,6 +97,10 @@ check(
 )
 check("list icon flipped to UNLINKED", strat.units[0].icon == "UNLINKED")
 check("mesh data intact", obj_a.data is not None and obj_a.type == "MESH")
+check(
+    "demoted object selected and active",
+    obj_a.select_get() and bpy.context.view_layer.objects.active == obj_a,
+)
 
 # --- 2. explicit node_name (Stratigraphy Manager row button) -----------------
 obj_b = make_mesh("US_TESTB")
@@ -124,6 +146,34 @@ check(
     "collision handled by Blender dedup",
     result == {"FINISHED"} and obj_e.name.startswith("US_TESTE_demoted."),
     f"got '{obj_e.name}'",
+)
+
+# --- 6. prefixed graph + hidden proxy (real-project scenario) ----------------
+# With an active graph code, proxies are named "<CODE>.<node>" and may be
+# hidden in the viewport: demote must still resolve them, and must end with
+# the object visible, selected and active so the user sees the result.
+# Switch the loaded graph to a prefixed one, as after a real import
+gfile.graph_code = "GT16"
+smoke_graph.attributes["graph_code"] = "GT16"
+
+obj_f = make_mesh("GT16.SU010")
+obj_f.hide_set(True)  # buried/hidden proxy, like in real projects
+unit_f = add_unit("SU010")
+unit_f_index = len(strat.units) - 1
+select_only()  # nothing selected: row-button path
+
+result = bpy.ops.em.proxy_demote(node_name="SU010")
+check("prefixed demote returns FINISHED", result == {"FINISHED"})
+check("prefixed rename", obj_f.name == "GT16.SU010_demoted", f"got '{obj_f.name}'")
+check("demoted proxy unhidden", obj_f.visible_get())
+check(
+    "demoted proxy selected and active",
+    obj_f.select_get() and bpy.context.view_layer.objects.active == obj_f,
+)
+check("prefixed unit icon UNLINKED", strat.units[unit_f_index].icon == "UNLINKED")
+check(
+    "prefixed magenta applied",
+    len(obj_f.data.materials) == 1 and obj_f.data.materials[0].name == "mat_NotInTheMatrix",
 )
 
 print(f"[SMOKE] {len(FAILURES)} failure(s)")

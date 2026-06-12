@@ -475,7 +475,11 @@ class EM_ToolsPanel:
             split = row.split()
             col = split.column()
             col.enabled = item.icon == 'LINKED'
-            op = col.operator("em.proxy_demote", text="", icon="UNLINKED")
+            _unlink_icon = icons_manager.get_icon_value("proxies_unlink")
+            if _unlink_icon:
+                op = col.operator("em.proxy_demote", text="", icon_value=_unlink_icon)
+            else:
+                op = col.operator("em.proxy_demote", text="", icon="UNLINKED")
             if op:
                 op.node_name = item.name
 

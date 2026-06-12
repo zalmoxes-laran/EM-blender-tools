@@ -52,6 +52,7 @@ def load_icons():
         "proxies_off": "proxies_off.png",
         "proxies_rows": "proxies_rows.png",
         "proxies_link": "proxies_link.png",
+        "proxies_unlink": "proxies_unlink.png",
         "proxies_select_rows": "proxies_select_rows.png",
         "proxies_rows_add": "proxies_rows_add.png",
         # EM Annotator — selector icons used inline in UIList rows

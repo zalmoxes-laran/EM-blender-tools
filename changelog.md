@@ -19,9 +19,16 @@ the object is kept intact (mesh, transforms, modifiers), renamed with the
 magenta `mat_NotInTheMatrix` "unlinked" colour — no manual colour-scheme
 round-trip needed anymore. List icons and the object cache refresh in the
 same step, the demotion is logged through `em_log()`, and `Ctrl+Z`
-reverses it. Selecting several bound proxies demotes them all at once;
-with no viewport selection the button acts on the active list row.
-Replaces the fragile "rename the object to break the match" workaround.
+reverses it. After demotion the objects are unhidden, selected and made
+active (and framed when "Zoom to selected" is enabled), so the result is
+visible even for proxies buried under other geometry. Selecting several
+bound proxies demotes them all at once; with no viewport selection the
+button acts on the active list row. A loaded graph is a requirement:
+without it the name-matching layer cannot resolve graph prefixes, so the
+button is greyed out (with an explanatory tooltip via
+`poll_message_set`) and the operator aborts with a clear error. Uses the
+`proxies_unlink` custom icon. Replaces the fragile "rename the object to
+break the match" workaround.
 
 ### Added — PyArchInit PostgreSQL + reverse-export (2026-06)
 

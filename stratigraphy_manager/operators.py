@@ -1159,6 +1159,14 @@ class EM_OT_proxy_demote(Operator):
     def poll(cls, context):
         if context.mode != 'OBJECT':
             return False
+        # A loaded graph is a requirement: without it the name-matching
+        # layer cannot resolve graph prefixes and the binding state in the
+        # list may be stale, so demoting would act on the wrong names
+        from ..functions import is_graph_available
+        graph_available, _graph = is_graph_available(context)
+        if not graph_available:
+            cls.poll_message_set("No graph loaded: import a GraphML file first")
+            return False
         strat = context.scene.em_tools.stratigraphy
         if len(strat.units) == 0:
             return False
@@ -1172,7 +1180,6 @@ class EM_OT_proxy_demote(Operator):
         from ..operators.addon_prefix_helpers import (
             node_name_to_proxy_name,
             sever_proxy_binding,
-            DEMOTED_SUFFIX,
         )
         from ..object_cache import get_object_cache, invalidate_object_cache
 
@@ -1180,7 +1187,10 @@ class EM_OT_proxy_demote(Operator):
         strat = scene.em_tools.stratigraphy
 
         graph_exists, graph = check_graph(context)
-        active_graph = graph if graph_exists else None
+        if not graph_exists:
+            self.report({'ERROR'}, "No graph loaded: import a GraphML file first (EM Setup panel)")
+            return {'CANCELLED'}
+        active_graph = graph
 
         # Landscape mode: resolve each unit against its own source graph
         all_graphs = None
@@ -1246,15 +1256,66 @@ class EM_OT_proxy_demote(Operator):
             obj.data.materials.clear()
             obj.data.materials.append(unlinked_mat)
             em_log(f"Demoted proxy '{old_name}' from node '{unit.name}' (object renamed to '{new_name}')", "INFO")
-            demoted.append(unit.name)
+            demoted.append((unit.name, new_name))
 
         invalidate_object_cache()
         update_icons(context, "em_list")
 
+        # Make the result visible: a demoted proxy may be hidden or buried
+        # under other geometry, so without selection feedback the operation
+        # looks like a no-op. Unhide, select and activate the demoted
+        # objects so the new name and the magenta colour are apparent.
+        try:
+            bpy.ops.object.select_all(action='DESELECT')
+        except RuntimeError:
+            pass
+        last_obj = None
+        for obj, _unit in targets:
+            for collection in obj.users_collection:
+                activate_collection_fully(context, collection)
+            if obj.hide_viewport:
+                obj.hide_viewport = False
+            if obj.hide_get():
+                try:
+                    obj.hide_set(False)
+                except RuntimeError:
+                    pass
+            if obj.hide_select:
+                obj.hide_select = False
+            try:
+                obj.select_set(True)
+                context.view_layer.objects.active = obj
+                last_obj = obj
+            except RuntimeError:
+                pass
+
+        # Frame the demoted proxies when the user has zoom-on-select active
+        if last_obj and strat.zoom_to_selected:
+            win = context.window
+            scr = win.screen if win else None
+            if scr:
+                for area in scr.areas:
+                    if area.type == 'VIEW_3D':
+                        region = next((r for r in area.regions if r.type == 'WINDOW'), None)
+                        space = area.spaces.active if hasattr(area, "spaces") else None
+                        if region:
+                            with context.temp_override(
+                                window=win,
+                                screen=scr,
+                                area=area,
+                                region=region,
+                                space_data=space,
+                                scene=scene,
+                                view_layer=context.view_layer
+                            ):
+                                bpy.ops.view3d.view_selected()
+                        break
+
         if len(demoted) == 1:
-            self.report({'INFO'}, f"Demoted proxy of '{demoted[0]}' — object kept, renamed with '{DEMOTED_SUFFIX}'")
+            self.report({'INFO'}, f"Demoted '{demoted[0][0]}' — object renamed to '{demoted[0][1]}'")
         else:
-            self.report({'INFO'}, f"Demoted {len(demoted)} proxies: {', '.join(demoted)}")
+            renames = ", ".join(f"{node}→{new}" for node, new in demoted)
+            self.report({'INFO'}, f"Demoted {len(demoted)} proxies: {renames}")
         return {'FINISHED'}
 
 class EM_update_icon_list(Operator):

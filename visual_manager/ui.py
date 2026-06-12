@@ -348,7 +348,11 @@ class VIEW3D_PT_visual_panel(Panel):
 
         # Demote proxy: unlink the selected proxies from their nodes
         try:
-            row.operator("em.proxy_demote", icon="UNLINKED", text='')
+            _unlink_icon = icons_manager.get_icon_value("proxies_unlink")
+            if _unlink_icon:
+                row.operator("em.proxy_demote", icon_value=_unlink_icon, text='')
+            else:
+                row.operator("em.proxy_demote", icon="UNLINKED", text='')
         except:
             row.label(text="", icon="UNLINKED")
 
