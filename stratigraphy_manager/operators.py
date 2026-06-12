@@ -10,7 +10,7 @@ from bpy.props import StringProperty, IntProperty, BoolProperty
 from bpy.types import Operator
 
 from ..functions import check_material_presence, em_setup_mat_cycles, update_icons
-from ..functions import select_list_element_from_obj_proxy
+from ..functions import select_list_element_from_obj_proxy, em_log
 from ..us_types import US_PROPER_TYPES
 
 from s3dgraphy.utils.utils import manage_id_prefix, get_base_name, add_graph_prefix
@@ -1135,6 +1135,126 @@ class EM_listitem_OT_to3D(Operator):
                 if scene.selected_property and hasattr(scene, 'property_values') and len(scene.property_values) > 0:
                     bpy.ops.visual.apply_colors()
             # Future modalità qui
+        return {'FINISHED'}
+
+class EM_OT_proxy_demote(Operator):
+    """Inverse of listitem.toobj: sever the proxy ↔ node binding."""
+    bl_idname = "em.proxy_demote"
+    bl_label = "Demote Proxy from Stratigraphic Node"
+    bl_description = (
+        "Demote proxy: unlink the selected proxy (or the bound proxy of the "
+        "active list row) from its stratigraphic node. The object is kept "
+        "intact, renamed with the '_demoted' suffix and repainted with the "
+        "magenta 'unlinked' colour"
+    )
+    bl_options = {"REGISTER", "UNDO"}
+
+    node_name: StringProperty(
+        name="Node name",
+        description="Demote the proxy bound to this specific node (leave empty to demote the selected proxies)",
+        default="",
+    ) # type: ignore
+
+    @classmethod
+    def poll(cls, context):
+        if context.mode != 'OBJECT':
+            return False
+        strat = context.scene.em_tools.stratigraphy
+        if len(strat.units) == 0:
+            return False
+        # Cheap gate only: precise binding checks happen in execute()
+        has_mesh_selected = any(o.type == 'MESH' for o in context.selected_objects)
+        has_active_row = 0 <= strat.units_index < len(strat.units)
+        return has_mesh_selected or has_active_row
+
+    def execute(self, context):
+        from ..functions import is_graph_available as check_graph
+        from ..operators.addon_prefix_helpers import (
+            node_name_to_proxy_name,
+            sever_proxy_binding,
+            DEMOTED_SUFFIX,
+        )
+        from ..object_cache import get_object_cache, invalidate_object_cache
+
+        scene = context.scene
+        strat = scene.em_tools.stratigraphy
+
+        graph_exists, graph = check_graph(context)
+        active_graph = graph if graph_exists else None
+
+        # Landscape mode: resolve each unit against its own source graph
+        all_graphs = None
+        if getattr(scene, 'landscape_mode_active', False):
+            try:
+                from ..landscape_system.populate_functions import get_all_loaded_graphs
+                all_graphs = get_all_loaded_graphs(context)
+            except Exception:
+                all_graphs = None
+
+        # Map proxy object name -> unit, in the same direction the display
+        # logic resolves the binding (node name -> prefixed proxy name)
+        proxy_map = {}
+        for unit in strat.units:
+            unit_graph = active_graph
+            if all_graphs and getattr(unit, 'source_graph', ''):
+                unit_graph = all_graphs.get(unit.source_graph) or active_graph
+            proxy_name = node_name_to_proxy_name(unit.name, context=context, graph=unit_graph)
+            proxy_map[proxy_name] = unit
+
+        cache = get_object_cache()
+        targets = []  # (obj, unit)
+
+        # Explicit node (button in the Stratigraphy Manager row) takes
+        # priority; otherwise demote the selected proxies, falling back to
+        # the active list row when nothing bound is selected.
+        wanted_node = self.node_name
+        if not wanted_node:
+            for obj in context.selected_objects:
+                # Skip library-linked objects: their IDs are read-only
+                if obj.type == 'MESH' and obj.library is None and obj.name in proxy_map:
+                    targets.append((obj, proxy_map[obj.name]))
+            if not targets and 0 <= strat.units_index < len(strat.units):
+                wanted_node = strat.units[strat.units_index].name
+
+        if wanted_node and not targets:
+            for proxy_name, unit in proxy_map.items():
+                if unit.name == wanted_node:
+                    obj = cache.get_object(proxy_name)
+                    if obj and obj.library is None:
+                        targets.append((obj, unit))
+                    break
+
+        if not targets:
+            if self.node_name:
+                self.report({'WARNING'}, f"No proxy in the scene is linked to '{self.node_name}'")
+            else:
+                self.report({'WARNING'}, "Select a node-bound proxy (or a list row with a linked proxy) to demote")
+            return {'CANCELLED'}
+
+        # Reuse the magenta 'NotInTheMatrix' colour as the unlinked colour,
+        # so a demoted proxy is immediately recognizable in the viewport
+        unlinked_mat_name = "mat_NotInTheMatrix"
+        if not check_material_presence(unlinked_mat_name):
+            bpy.data.materials.new(unlinked_mat_name)
+            em_setup_mat_cycles(unlinked_mat_name, 1.0, 0.0, 1.0)
+        unlinked_mat = bpy.data.materials[unlinked_mat_name]
+
+        demoted = []
+        for obj, unit in targets:
+            old_name = obj.name
+            new_name = sever_proxy_binding(obj)
+            obj.data.materials.clear()
+            obj.data.materials.append(unlinked_mat)
+            em_log(f"Demoted proxy '{old_name}' from node '{unit.name}' (object renamed to '{new_name}')", "INFO")
+            demoted.append(unit.name)
+
+        invalidate_object_cache()
+        update_icons(context, "em_list")
+
+        if len(demoted) == 1:
+            self.report({'INFO'}, f"Demoted proxy of '{demoted[0]}' — object kept, renamed with '{DEMOTED_SUFFIX}'")
+        else:
+            self.report({'INFO'}, f"Demoted {len(demoted)} proxies: {', '.join(demoted)}")
         return {'FINISHED'}
 
 class EM_update_icon_list(Operator):
@@ -2285,6 +2405,7 @@ def register_operators():
         EM_strat_hide_all_rmdocs,
         EM_strat_activate_collections,
         EM_listitem_OT_to3D,
+        EM_OT_proxy_demote,
         EM_update_icon_list,
         EM_select_list_item,
         EM_select_from_list_item,
@@ -2441,6 +2562,7 @@ def unregister_operators():
         EM_select_from_list_item,
         EM_select_list_item,
         EM_update_icon_list,
+        EM_OT_proxy_demote,
         EM_listitem_OT_to3D,
         EM_strat_activate_collections,
         EM_strat_hide_all_special_finds,

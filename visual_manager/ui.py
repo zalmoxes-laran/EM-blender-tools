@@ -346,6 +346,12 @@ class VIEW3D_PT_visual_panel(Panel):
 
             row.separator()
 
+        # Demote proxy: unlink the selected proxies from their nodes
+        try:
+            row.operator("em.proxy_demote", icon="UNLINKED", text='')
+        except:
+            row.label(text="", icon="UNLINKED")
+
         try:
             row.operator("notinthematrix.material", icon="MOD_MASK", text='')
         except:

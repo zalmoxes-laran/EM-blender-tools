@@ -32,6 +32,20 @@ Version 1.5 is a major rewrite featuring a modular architecture, the **s3Dgraphy
 * **Period Visualisation** - Epoch-based colouring, EM display modes, property-based colouring with colour ramps
 * **Statistical Tools (experimental)** - Volume calculations, source analysis, property density
 
+### Linking and demoting proxies
+
+A proxy mesh is bound to a stratigraphic node (US, USV, SF…) by name matching:
+the link button in the Stratigraphy Manager renames the selected mesh after the
+active node. The reverse operation is **Demote proxy** (broken-chain icon, in
+the Visual Manager toolbar and next to the link button in the Stratigraphy
+Manager; also reachable via F3 search). Demoting severs the binding in a single
+click without deleting anything: the object keeps its mesh, transforms and
+modifiers, is renamed with the `_demoted` suffix and immediately repainted with
+the magenta "unlinked" colour, so no manual colour-scheme toggle is needed. Use
+it when a mesh was linked to the wrong node, or to free a temporary geometry
+from the formal stratigraphy before joining or re-linking it. `Ctrl+Z` reverses
+the demotion; selecting several bound proxies demotes them all at once.
+
 ## Documentation
 
 - [**User Manual**](https://docs.extendedmatrix.org/projects/EM-tools/en/latest/) - Complete documentation

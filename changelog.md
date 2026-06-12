@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — "Demote proxy" button (2026-06)
+
+First-class reverse of the proxy ↔ node link (`em.proxy_demote`,
+broken-chain icon in the Visual Manager toolbar and in the selected-node
+row of the Stratigraphy Manager; also in F3 search as "Demote Proxy from
+Stratigraphic Node"). Demoting severs the name-match binding in one click:
+the object is kept intact (mesh, transforms, modifiers), renamed with the
+`_demoted` suffix via the new `sever_proxy_binding()` API in
+`operators/addon_prefix_helpers.py`, and immediately repainted with the
+magenta `mat_NotInTheMatrix` "unlinked" colour — no manual colour-scheme
+round-trip needed anymore. List icons and the object cache refresh in the
+same step, the demotion is logged through `em_log()`, and `Ctrl+Z`
+reverses it. Selecting several bound proxies demotes them all at once;
+with no viewport selection the button acts on the active list row.
+Replaces the fragile "rename the object to break the match" workaround.
+
 ### Added — PyArchInit PostgreSQL + reverse-export (2026-06)
 
 Round-trip pyArchInit ⇄ EM through one shared connection config

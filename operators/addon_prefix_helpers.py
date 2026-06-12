@@ -131,6 +131,38 @@ def should_use_prefix_in_ui(context=None):
     return False
 
 
+# --- Demote / unbind --------------------------------------------------------
+#
+# A proxy is bound to a stratigraphic node purely by name matching:
+# node_name_to_proxy_name(node.name) == object.name. Severing the binding
+# therefore means renaming the object so the match breaks, without touching
+# mesh data, transforms or modifiers.
+
+DEMOTED_SUFFIX = "_demoted"
+
+
+def sever_proxy_binding(obj):
+    """
+    Sever the name-match binding between a proxy object and its node.
+
+    Renames the object by appending DEMOTED_SUFFIX so that it no longer
+    matches any node name in either lookup direction (node -> proxy and
+    proxy -> node). Name collisions are resolved by Blender (.001, .002...).
+
+    The object itself (mesh data, transforms, modifiers, parenting) is left
+    untouched. Callers are responsible for refreshing list icons, the object
+    cache and materials — see the ``em.proxy_demote`` operator.
+
+    Args:
+        obj: The proxy object (bpy.types.Object)
+
+    Returns:
+        str: The new object name actually assigned by Blender
+    """
+    obj.name = f"{obj.name}{DEMOTED_SUFFIX}"
+    return obj.name
+
+
 def get_proxy_from_node(node, context=None, graph=None):
     """
     Get the 3D proxy object corresponding to a node.

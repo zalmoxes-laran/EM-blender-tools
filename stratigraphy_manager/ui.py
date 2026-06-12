@@ -471,6 +471,14 @@ class EM_ToolsPanel:
             if op:
                 op.list_type = "em_list"
 
+            # Demote proxy: sever the proxy ↔ node binding (inverse of link)
+            split = row.split()
+            col = split.column()
+            col.enabled = item.icon == 'LINKED'
+            op = col.operator("em.proxy_demote", text="", icon="UNLINKED")
+            if op:
+                op.node_name = item.name
+
             row = box.row()
             row.prop(item, "description", text="", slider=True, emboss=True)
 
