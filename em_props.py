@@ -1409,8 +1409,14 @@ class EM_Tools(PropertyGroup):
     )  # type: ignore
 
     proxy_display_alpha: FloatProperty(
-        name="Proxy Alpha",
-        description="The alpha value for proxies",
+        # User-facing label renamed in EM Tools 1.6.0-dev.8 to make
+        # the slider understandable to archaeologists without
+        # Blender shading background ("alpha" is a graphics term;
+        # "transparency" is universal). The internal identifier
+        # `proxy_display_alpha` is preserved so saved .blend files
+        # and existing operator wiring keep working.
+        name="Proxy Transparency",
+        description="Transparency of proxies in the viewport (0 = fully transparent, 1 = fully opaque)",
         min=0.0,
         max=1.0,
         default=0.5,

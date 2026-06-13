@@ -1108,12 +1108,17 @@ class EM_strat_show_all_rmdocs(Operator):
             if activate_collection_fully(context, rmdoc_collection):
                 activated_collections.append('RMDoc')
 
-        # Activate the 'CAMS' collection used by the camera label tools
-        # (see visual_manager): RMDoc cameras commonly live there.
-        cams_collection = bpy.data.collections.get('CAMS')
+        # Activate the 'Layouts' collection (renamed from the legacy
+        # 'CAMS' in EM Tools 1.6.0-dev.8) used by the camera label
+        # tools — see visual_manager. RMDoc cameras commonly live
+        # there. Lookup prefers the new name and falls back to the
+        # legacy 'CAMS' so projects authored against earlier dev
+        # builds keep working.
+        cams_collection = (bpy.data.collections.get('Layouts')
+                           or bpy.data.collections.get('CAMS'))
         if cams_collection:
             if activate_collection_fully(context, cams_collection):
-                activated_collections.append('CAMS')
+                activated_collections.append(cams_collection.name)
 
         # Activate any other collection that happens to host an RMDoc
         # quad or camera — users sometimes keep them grouped by

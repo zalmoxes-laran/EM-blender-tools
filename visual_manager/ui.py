@@ -57,7 +57,7 @@ class VISUAL_UL_camera_list(UIList):
                 except:
                     row.label(text="", icon='TRASH')
             
-            # Move to CAMS
+            # Move to Layouts (legacy: CAMS)
             try:
                 op = row.operator("visual.move_camera_to_cams_safe", text="", icon='COLLECTION_NEW', emboss=False)
                 op.camera_name = item.name
@@ -531,12 +531,12 @@ class VIEW3D_PT_visual_panel(Panel):
             # Debug info
             debug_row = camera_box.row()
             debug_row.scale_y = 0.8
-            cams_collection = bpy.data.collections.get("CAMS")
+            cams_collection = bpy.data.collections.get("Layouts") or bpy.data.collections.get("CAMS")
             if cams_collection:
                 cams_count = len([obj for obj in cams_collection.objects if obj.type == 'CAMERA'])
-                debug_row.label(text=f"CAMS collection: {cams_count} cameras", icon='INFO')
+                debug_row.label(text=f"Layouts collection: {cams_count} cameras", icon='INFO')
             else:
-                debug_row.label(text="CAMS collection: not found", icon='ERROR')
+                debug_row.label(text="Layouts collection: not found (legacy name: CAMS)", icon='ERROR')
             
             # Camera list
             if hasattr(scene, 'camera_em_list') and len(scene.camera_em_list) > 0:
@@ -579,7 +579,7 @@ class VIEW3D_PT_visual_panel(Panel):
                 # Behavior settings
                 col.separator()
                 col.label(text="Behavior:")
-                col.prop(label_settings, "auto_move_cameras", text="Auto Move Cameras to CAMS")
+                col.prop(label_settings, "auto_move_cameras", text="Auto Move Cameras to Layouts")
 
     def draw_proxy_inflate_tools(self, layout, context):
         """Draw proxy inflate controls using the same collapsible pattern as Label Tools."""

@@ -83,13 +83,58 @@ class EM_create_collection(Operator):
     def execute(self, context):
         collections_created = []
 
-        # Create all standard collections
-        standard_collections = ["Proxy", "RM", "CAMS"]
+        # Top-level standard collections.
+        #
+        # "Layouts" replaces the legacy "CAMS" name. The CAMS label
+        # was a Blender-ism (cameras for renders) that confused
+        # archaeologists; "Layouts" reflects what this collection
+        # actually holds — 2D viewpoint setups (camera + labels)
+        # used to author derivative plates and publication figures.
+        # Lookups across the addon prefer "Layouts" and fall back
+        # to "CAMS" so projects authored against earlier 1.6 dev
+        # builds keep working without a migration step.
+        standard_collections = ["Proxy", "RM", "Layouts"]
 
         for collection_name in standard_collections:
             if not bpy.data.collections.get(collection_name):
                 self.create_collection(collection_name)
                 collections_created.append(collection_name)
+
+        # RM sub-collections — split Representation Models by
+        # source type so the user can browse them at a glance:
+        #   - RB = reality-based   (photogrammetry, laser scan, ...)
+        #   - SB = source-based    (hand-modelled from sources)
+        # Routing is left to the user (drag the mesh into the
+        # appropriate sub-collection); a future patch may
+        # auto-route on promote_to_rm. We never re-parent meshes
+        # that already live elsewhere — the sub-collections are
+        # added as empty children of RM and the user moves
+        # content into them as needed.
+        rm_collection = bpy.data.collections.get("RM")
+        if rm_collection is not None:
+            existing_children = {c.name for c in rm_collection.children}
+            for sub_name in ("RB", "SB"):
+                if sub_name in existing_children:
+                    continue
+                sub = bpy.data.collections.get(sub_name)
+                if sub is None:
+                    sub = bpy.data.collections.new(name=sub_name)
+                    rm_collection.children.link(sub)
+                    collections_created.append(f"RM/{sub_name}")
+                else:
+                    # Top-level collection with the same name exists
+                    # (probably created by hand in an earlier
+                    # session) — link it as an RM child instead of
+                    # creating a duplicate.
+                    try:
+                        rm_collection.children.link(sub)
+                        collections_created.append(
+                            f"RM/{sub_name} (re-linked under RM)")
+                    except RuntimeError:
+                        # Already a child of another collection;
+                        # leave it alone, the user can re-parent
+                        # manually if they want.
+                        pass
 
         if collections_created:
             self.report({'INFO'}, f"Created collections: {', '.join(collections_created)}")

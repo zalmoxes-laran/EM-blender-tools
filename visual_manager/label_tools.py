@@ -17,7 +17,7 @@ def update_camera_list_safe(context):
     scene.camera_em_list.clear()
     
     # Get CAMS collection
-    cams_collection = bpy.data.collections.get("CAMS")
+    cams_collection = bpy.data.collections.get("Layouts") or bpy.data.collections.get("CAMS")
     if not cams_collection:
         print("CAMS collection not found")
         return
@@ -89,9 +89,9 @@ class VISUAL_OT_label_creation_safe(Operator):
             pass
         
         # Ensure CAMS collection exists
-        cams_collection = bpy.data.collections.get("CAMS")
+        cams_collection = bpy.data.collections.get("Layouts") or bpy.data.collections.get("CAMS")
         if not cams_collection:
-            cams_collection = bpy.data.collections.new("CAMS")
+            cams_collection = bpy.data.collections.new("Layouts")
             context.scene.collection.children.link(cams_collection)
         
         # Move camera to CAMS collection if auto_move_cameras is enabled
@@ -280,7 +280,7 @@ def _split_label_name(label_name):
     if not rest:
         return None, None
 
-    cams_collection = bpy.data.collections.get("CAMS")
+    cams_collection = bpy.data.collections.get("Layouts") or bpy.data.collections.get("CAMS")
     cams_objs = cams_collection.objects if cams_collection else None
 
     parts = rest.split(".")
@@ -306,7 +306,7 @@ def _reposition_label_by_name(label_obj, label_settings):
     if not cam_name or not target_name:
         return False
 
-    cams_collection = bpy.data.collections.get("CAMS")
+    cams_collection = bpy.data.collections.get("Layouts") or bpy.data.collections.get("CAMS")
     if cams_collection is None:
         return False
 
@@ -326,7 +326,7 @@ class VISUAL_OT_update_camera_list_safe(Operator):
     """Update the camera list (Safe version)"""
     bl_idname = "visual.update_camera_list_safe"
     bl_label = "Update Camera List"
-    bl_description = "Refresh the list of cameras in CAMS collection"
+    bl_description = "Refresh the list of cameras in the Layouts collection (legacy name: CAMS)"
 
     def execute(self, context):
         try:
@@ -417,8 +417,8 @@ class VISUAL_OT_set_active_camera_safe(Operator):
 class VISUAL_OT_move_camera_to_cams_safe(Operator):
     """Move selected camera to CAMS collection (Safe version)"""
     bl_idname = "visual.move_camera_to_cams_safe"
-    bl_label = "Move to CAMS"
-    bl_description = "Move the selected camera to CAMS collection"
+    bl_label = "Move to Layouts"
+    bl_description = "Move the selected camera to the Layouts collection (legacy name: CAMS)"
     bl_options = {'REGISTER', 'UNDO'}
 
     camera_name: StringProperty(
@@ -440,7 +440,7 @@ class VISUAL_OT_move_camera_to_cams_safe(Operator):
             return {'CANCELLED'}
         
         # Ensure CAMS collection exists
-        cams_collection = bpy.data.collections.get("CAMS")
+        cams_collection = bpy.data.collections.get("Layouts") or bpy.data.collections.get("CAMS")
         if not cams_collection:
             cams_collection = bpy.data.collections.new("CAMS")
             context.scene.collection.children.link(cams_collection)
