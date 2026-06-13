@@ -1,7 +1,6 @@
 # operators/help_popup.py
 import bpy
 import os
-import re
 import json
 from bpy.props import StringProperty, EnumProperty
 from bpy.types import Operator
@@ -10,12 +9,12 @@ from bpy.types import Operator
 DOCS_CONFIG_DEFAULT = {
     'em_tools': {
         'url_base': 'https://docs.extendedmatrix.org/projects/EM-tools/en/',
-        # None → fallback a manifest (em_tools) ridotto a release-line "M.m", poi "latest"
+        # None → release-line derivata da version.json (major.minor), poi "latest"
         'version': None,
     },
     'em': {
         'url_base': 'https://docs.extendedmatrix.org/en/',
-        'version': None,  # None → fallback a "latest"
+        'version': None,  # None → release-line da version.json (major.minor), poi "latest"
     },
 }
 
@@ -25,65 +24,75 @@ _PROJECT_ITEMS = [
 ]
 
 
-def _read_version_from_manifest():
-    """Legge la release-line (major.minor) dal blender_manifest.toml, o None.
+def _read_version_json():
+    """Legge e parsa version.json (accanto all'addon), o None se assente/illeggibile.
 
-    ReadTheDocs serve i manuali per release-line (es. /en/1.5/), non per patch:
-    qualsiasi 1.5.x deve linkare a /en/1.5/. Per questo ritorniamo solo "M.m",
-    scartando il segmento patch e l'eventuale suffisso pre/dev (es. -dev.3, -rc.1).
+    version.json è la single source of truth della versione: da qui viene
+    generato anche blender_manifest.toml.
     """
     try:
         addon_dir = os.path.dirname(os.path.dirname(__file__))
-        manifest_file = os.path.join(addon_dir, "blender_manifest.toml")
-        if os.path.exists(manifest_file):
-            with open(manifest_file, 'r') as f:
-                content = f.read()
-            m = re.search(r'^version\s*=\s*"([^"]+)"', content, re.MULTILINE)
-            if m:
-                base = re.match(r'(\d+\.\d+)', m.group(1))
-                return base.group(1) if base else None
+        version_file = os.path.join(addon_dir, "version.json")
+        if os.path.exists(version_file):
+            with open(version_file, 'r') as f:
+                return json.load(f)
     except Exception:
         pass
+    return None
+
+
+def _version_line_from_json():
+    """Release-line "M.m" derivata da major/minor in version.json, o None.
+
+    Derivare la release-line dai campi major/minor evita il drift del vecchio
+    campo docs.<project>.version, che andava aggiornato a mano a ogni bump.
+    """
+    data = _read_version_json()
+    if data:
+        major = data.get('major')
+        minor = data.get('minor')
+        if major is not None and minor is not None:
+            return f"{major}.{minor}"
     return None
 
 
 def _load_docs_config():
     """Carica docs.* da version.json fondendoli con DOCS_CONFIG_DEFAULT."""
     config = {k: dict(v) for k, v in DOCS_CONFIG_DEFAULT.items()}
-    try:
-        addon_dir = os.path.dirname(os.path.dirname(__file__))
-        version_file = os.path.join(addon_dir, "version.json")
-        if os.path.exists(version_file):
-            with open(version_file, 'r') as f:
-                data = json.load(f)
-            docs = data.get('docs') or {}
-            for project_key, entry in docs.items():
-                if project_key not in config:
-                    config[project_key] = {}
-                config[project_key].update(entry)
-    except Exception:
-        pass
+    data = _read_version_json()
+    if data:
+        docs = data.get('docs') or {}
+        for project_key, entry in docs.items():
+            if project_key not in config:
+                config[project_key] = {}
+            config[project_key].update(entry)
     return config
 
 
 def get_docs_version(project='em_tools'):
-    """Ritorna la release-line del manuale scelto (es. "1.5").
+    """Ritorna la release-line del manuale scelto (es. "1.6").
 
-    Granularità release-line: tutti gli utenti 1.5.x vedono lo stesso manuale
-    (ReadTheDocs serve /en/1.5/, non più /en/1.5.0/, /en/1.5.1/, etc.).
+    Granularità release-line: tutti gli utenti M.m.x vedono lo stesso manuale
+    (ReadTheDocs serve /en/1.6/, non /en/1.6.0/, /en/1.6.1/, etc.).
 
-    - em_tools: prima version.json docs.em_tools.version, poi manifest (M.m), poi "latest"
-    - em: prima version.json docs.em.version, poi "latest"
+    Ordine di risoluzione (uguale per entrambi i progetti):
+      1. override esplicito docs.<project>.version in version.json — escape hatch
+         se l'addon e il manuale del linguaggio EM divergono di release-line;
+      2. M.m derivato da major/minor in version.json (single source of truth);
+      3. "latest".
+
+    Nota: blender_manifest.toml NON viene consultato. È un artefatto generato da
+    version.json al momento del publish dello zip: non è mai più autorevole di
+    version.json (che viaggia dentro ogni zip) e in dev può essere stale/orfano.
     """
     config = _load_docs_config()
     entry = config.get(project, config['em_tools'])
     version = entry.get('version')
     if version:
         return version
-    if project == 'em_tools':
-        manifest_version = _read_version_from_manifest()
-        if manifest_version:
-            return manifest_version
+    version_line = _version_line_from_json()
+    if version_line:
+        return version_line
     return 'latest'
 
 
