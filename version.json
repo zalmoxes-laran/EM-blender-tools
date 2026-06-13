@@ -8,11 +8,11 @@
   "description": "Version configuration for EM Tools",
   "docs": {
     "em_tools": {
-      "version": "1.6",
+      "version": null,
       "url_base": "https://docs.extendedmatrix.org/projects/EM-tools/en/"
     },
     "em": {
-      "version": "1.6",
+      "version": null,
       "url_base": "https://docs.extendedmatrix.org/en/"
     }
   },
