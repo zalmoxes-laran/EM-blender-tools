@@ -113,6 +113,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GENERIC` placeholder from the Surface Areas US type picker —
   replaced by the proper typed flow backed by the JSON datamodel.
 
+### Fixed — Visual Manager show/hide-all pairs (2026-06)
+
+- **"Show All RMs" no-op** when any RM had been hidden via the
+  outliner eye icon or the `H` key in the 3D viewport — the
+  operator set `hide_viewport=False` / `hide_render=False` but
+  never called `obj.hide_set(False)`, so the per-view-layer eye
+  flag stayed ON and the object remained invisible. Symmetric
+  hole on the HIDE side left state inconsistent across the three
+  Blender visibility flags. Fixed by clearing all three flags
+  (`hide_set` + `hide_viewport` + `hide_render`) unconditionally
+  in `EM_strat_show_all_rms` / `EM_strat_hide_all_rms`.
+- **MESH-only filter excluded valid RMs**: CURVE objects and
+  Cesium tileset EMPTY wrappers (which carry the `tileset_path`
+  custom property) are accepted as RMs by the container
+  subsystem (`is_rm_candidate`) but were silently skipped by the
+  show/hide pair. The show/hide operators now reuse
+  `is_rm_candidate` so non-MESH RMs participate.
+- **Container-only RMs invisible to show/hide**: meshes added to
+  an RM container without an active epoch (the container "Add
+  selected" path warns and proceeds) live in
+  `scene.rm_containers[*].mesh_names` but not in `rm_list`. The
+  show/hide operators now iterate a third source —
+  `rm_containers` — and union it with `rm_list` + the legacy
+  `RM` collection.
+- **Stale object cache after rename / LOD switch** could cause
+  `cache.get_object(item.name)` to return None for objects whose
+  Blender name changed without affecting the object count. The
+  show/hide RM and RMDoc operators now invalidate the cache on
+  entry.
+- **Same three-flag bug also fixed for SF (Special Finds) and
+  RMDoc show/hide pairs** so all four Visual Manager pairs
+  (Proxy / RM / SF / RMDoc) now behave consistently: each
+  flips `hide_set`, `hide_viewport`, and `hide_render` together.
+
 ### Fixed — US creation workflow unification (2026-04)
 
 - **Paradata chain edges rendered as solid lines** in yEd because
