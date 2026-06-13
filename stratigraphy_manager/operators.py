@@ -680,34 +680,92 @@ class EM_strat_show_all_rms(Operator):
         return {'FINISHED'}
     
     def sync_all_rms(self, scene, context):
-        """Show all RM objects using the existing system logic"""
+        """Show all RM objects using the existing system logic.
+
+        Three sources of RM candidates are unioned:
+
+        1. ``scene.rm_list`` — the legacy enumeration plus every
+           container-promoted entry.
+        2. The conventional ``RM`` Blender collection (legacy).
+        3. ``scene.rm_containers[*].mesh_names`` — DP-47 containers.
+           A mesh can be added to a container without an active epoch
+           (the container ops warn and proceed), so without this
+           source those container-only RMs would be invisible to
+           the Visual Manager show/hide pair.
+
+        Each candidate has ALL THREE Blender visibility flags
+        cleared (``hide_set(False)`` for the per-view-layer eye
+        icon plus ``hide_viewport`` and ``hide_render``). Without
+        ``hide_set(False)`` anything the user hid via the H key or
+        the outliner eye icon would stay hidden after a SHOW click —
+        which is the symptom the user reports as
+        "the RM show button doesn't show anything".
+
+        Candidate type is now checked with ``is_rm_candidate`` (the
+        same predicate the container subsystem uses) so CURVE and
+        plain-EMPTY RMs (Cesium tilesets ride on EMPTY objects with
+        a ``tileset_path`` custom property) are no longer silently
+        skipped.
+        """
         shown_count = 0
         activated_collections = []
-        
+
         # ✅ OPTIMIZED: Use object cache for batch lookups
         from ..object_cache import get_object_cache
         cache = get_object_cache()
+        # Defensive: scene may have been reshuffled (LOD switch,
+        # rename, container moves) since the cache last rebuilt.
+        # The cache only auto-rebuilds on object count change, so a
+        # rename that keeps the count constant leaves it stale.
+        try:
+            cache.invalidate()
+        except Exception:
+            pass
+
+        # is_rm_candidate matches the same predicate used by the
+        # container subsystem (MESH / CURVE / plain EMPTY). Keeping
+        # the filter in sync with promote_to_rm and the container
+        # add-mesh paths avoids the previous MESH-only restriction
+        # that hid non-MESH RMs from show/hide.
+        try:
+            from ..rm_manager.containers import is_rm_candidate
+        except Exception:
+            def is_rm_candidate(o):
+                return o is not None and o.type == 'MESH'
 
         # Use the SAME logic as sync_rm_visibility but without epoch filtering
         rm_objects = []
 
-        # Find objects in the scene that are registered as RM in the rm_list
+        # Source 1 — rm_list (legacy + container-promoted entries)
         for item in scene.rm_list:
             obj = cache.get_object(item.name)
-            if obj and obj.type == 'MESH':
+            if obj is not None and is_rm_candidate(obj):
                 rm_objects.append(obj)
-        
-        # Also check for objects in the RM collection
+
+        # Source 2 — explicit 'RM' Blender collection (legacy)
         rm_collection = bpy.data.collections.get('RM')
         if rm_collection:
             for obj in rm_collection.objects:
-                if obj.type == 'MESH' and obj not in rm_objects:
+                if is_rm_candidate(obj) and obj not in rm_objects:
                     rm_objects.append(obj)
-            
+
             # ATTIVA COMPLETAMENTE la collezione RM (base + view layer)
             if activate_collection_fully(context, rm_collection):
                 activated_collections.append('RM')
-        
+
+        # Source 3 — DP-47 RM containers. A mesh can live in a
+        # container without being in rm_list (when "Add selected" is
+        # invoked without an active epoch — the operator warns but
+        # proceeds). Without this loop those container-only RMs are
+        # invisible to the Visual Manager show/hide pair.
+        for container in getattr(scene, "rm_containers", []):
+            for entry in container.mesh_names:
+                obj = cache.get_object(entry.name)
+                if (obj is not None
+                        and is_rm_candidate(obj)
+                        and obj not in rm_objects):
+                    rm_objects.append(obj)
+
         # ATTIVA anche eventuali altre collezioni che contengono RM
         for obj in rm_objects:
             for collection in bpy.data.collections:
@@ -715,18 +773,33 @@ class EM_strat_show_all_rms(Operator):
                     if activate_collection_fully(context, collection):
                         if collection.name not in activated_collections:
                             activated_collections.append(collection.name)
-        
-        # Show and make renderable ALL RM objects
+
+        # Show and make renderable ALL RM objects — touching every
+        # visibility flag unconditionally. The previous version
+        # gated the body on ``obj.hide_viewport or obj.hide_render``,
+        # which made it a no-op for anything hidden purely via the
+        # outliner eye icon (``hide_get() == True``).
         for obj in rm_objects:
-            if obj.hide_viewport or obj.hide_render:
-                obj.hide_viewport = False
-                obj.hide_render = False
+            was_hidden = (
+                obj.hide_viewport
+                or obj.hide_render
+                or obj.hide_get()
+            )
+            try:
+                obj.hide_set(False)
+            except RuntimeError:
+                # Object may not be visible in the current view layer;
+                # the viewport flag below still takes effect.
+                pass
+            obj.hide_viewport = False
+            obj.hide_render = False
+            if was_hidden:
                 shown_count += 1
-        
+
         # MOSTRA messaggio collezioni attivate
         if activated_collections:
             self.show_activation_message(", ".join(activated_collections))
-        
+
         return shown_count
     
     def show_activation_message(self, collection_names):
@@ -786,7 +859,17 @@ class EM_strat_hide_all_proxies(Operator):
 
 
 class EM_strat_hide_all_rms(Operator):
-    """Hide all RM objects"""
+    """Hide all RM objects.
+
+    Symmetric to :class:`EM_strat_show_all_rms`: iterates the same
+    three sources (``rm_list``, the ``RM`` Blender collection,
+    ``rm_containers[*].mesh_names``) and clears ALL THREE visibility
+    flags on each — ``hide_set(True)`` for the per-view-layer eye
+    icon plus ``hide_viewport`` and ``hide_render``. Without the
+    ``hide_set`` call visibility ended up in an inconsistent state
+    (viewport hidden but eye icon still ON) which then broke the
+    SHOW pair.
+    """
     bl_idname = "em.strat_hide_all_rms"
     bl_label = "Hide All RMs"
     bl_description = "Hide all RM objects in the viewport and disable rendering"
@@ -801,14 +884,57 @@ class EM_strat_hide_all_rms(Operator):
         # ✅ OPTIMIZED: Use object cache for batch lookups
         from ..object_cache import get_object_cache
         cache = get_object_cache()
+        try:
+            cache.invalidate()
+        except Exception:
+            pass
 
-        # Hide all RM objects
-        hidden_count = 0
+        try:
+            from ..rm_manager.containers import is_rm_candidate
+        except Exception:
+            def is_rm_candidate(o):
+                return o is not None and o.type == 'MESH'
+
+        # Collect candidate RMs from the same three sources used by
+        # the SHOW pair — see EM_strat_show_all_rms.sync_all_rms for
+        # rationale. Using a list (not a set) preserves first-seen
+        # ordering so the report message stays deterministic.
+        rm_objects = []
+
         for item in scene.rm_list:
             obj = cache.get_object(item.name)
-            if obj and obj.type == 'MESH':
-                obj.hide_viewport = True
-                obj.hide_render = True
+            if obj is not None and is_rm_candidate(obj):
+                rm_objects.append(obj)
+
+        rm_collection = bpy.data.collections.get('RM')
+        if rm_collection:
+            for obj in rm_collection.objects:
+                if is_rm_candidate(obj) and obj not in rm_objects:
+                    rm_objects.append(obj)
+
+        for container in getattr(scene, "rm_containers", []):
+            for entry in container.mesh_names:
+                obj = cache.get_object(entry.name)
+                if (obj is not None
+                        and is_rm_candidate(obj)
+                        and obj not in rm_objects):
+                    rm_objects.append(obj)
+
+        # Hide all candidate RMs — unconditional clear of every flag.
+        hidden_count = 0
+        for obj in rm_objects:
+            was_visible = (
+                not obj.hide_viewport
+                or not obj.hide_render
+                or not obj.hide_get()
+            )
+            try:
+                obj.hide_set(True)
+            except RuntimeError:
+                pass
+            obj.hide_viewport = True
+            obj.hide_render = True
+            if was_visible:
                 hidden_count += 1
 
         self.report({'INFO'}, f"All RM objects hidden: {hidden_count} objects")
@@ -816,7 +942,15 @@ class EM_strat_hide_all_rms(Operator):
 
 
 class EM_strat_show_all_special_finds(Operator):
-    """Show all Special Find objects"""
+    """Show all Special Find objects.
+
+    Touches ALL THREE Blender visibility flags (``hide_set(False)``
+    for the per-view-layer eye icon plus ``hide_viewport`` and
+    ``hide_render``) so any SF hidden via the outliner eye icon or
+    the H key is also recovered. Without ``hide_set(False)`` the
+    SHOW button looked like a no-op for any SF the user had hidden
+    via the eye icon, mirroring the RM bug fixed in the same pass.
+    """
     bl_idname = "em.strat_show_all_special_finds"
     bl_label = "Show All Special Finds"
     bl_description = "Show all Special Find objects in the viewport and enable rendering"
@@ -836,19 +970,36 @@ class EM_strat_show_all_special_finds(Operator):
             # Activate collection
             activate_collection_fully(context, sf_collection)
 
-            # Show all SF objects
+            # Show all SF objects — touching every visibility flag
+            # unconditionally so an SF hidden via the eye icon is
+            # also recovered.
             for obj in sf_collection.objects:
                 if obj.type == 'MESH':
+                    was_hidden = (
+                        obj.hide_viewport
+                        or obj.hide_render
+                        or obj.hide_get()
+                    )
+                    try:
+                        obj.hide_set(False)
+                    except RuntimeError:
+                        pass
                     obj.hide_viewport = False
                     obj.hide_render = False
-                    shown_count += 1
+                    if was_hidden:
+                        shown_count += 1
 
         self.report({'INFO'}, f"All Special Finds shown: {shown_count} objects")
         return {'FINISHED'}
 
 
 class EM_strat_hide_all_special_finds(Operator):
-    """Hide all Special Find objects"""
+    """Hide all Special Find objects.
+
+    Symmetric to :class:`EM_strat_show_all_special_finds`: touches
+    ``hide_set(True)`` plus ``hide_viewport`` and ``hide_render`` so
+    visibility state stays consistent across the three flags.
+    """
     bl_idname = "em.strat_hide_all_special_finds"
     bl_label = "Hide All Special Finds"
     bl_description = "Hide all Special Find objects in the viewport and disable rendering"
@@ -865,12 +1016,23 @@ class EM_strat_hide_all_special_finds(Operator):
         sf_collection = bpy.data.collections.get('SF')
 
         if sf_collection:
-            # Hide all SF objects
+            # Hide all SF objects — touching every visibility flag
+            # so SHOW can later recover state cleanly.
             for obj in sf_collection.objects:
                 if obj.type == 'MESH':
+                    was_visible = (
+                        not obj.hide_viewport
+                        or not obj.hide_render
+                        or not obj.hide_get()
+                    )
+                    try:
+                        obj.hide_set(True)
+                    except RuntimeError:
+                        pass
                     obj.hide_viewport = True
                     obj.hide_render = True
-                    hidden_count += 1
+                    if was_visible:
+                        hidden_count += 1
 
         self.report({'INFO'}, f"All Special Finds hidden: {hidden_count} objects")
         return {'FINISHED'}
@@ -912,6 +1074,12 @@ class EM_strat_show_all_rmdocs(Operator):
 
         from ..object_cache import get_object_cache
         cache = get_object_cache()
+        # Defensive: stale cache after a rename / LOD switch would
+        # silently drop quads or cameras from the show set.
+        try:
+            cache.invalidate()
+        except Exception:
+            pass
 
         rmdoc_objects = []
         rmdoc_cameras = []
@@ -957,16 +1125,39 @@ class EM_strat_show_all_rmdocs(Operator):
                         if collection.name not in activated_collections:
                             activated_collections.append(collection.name)
 
+        # Show RMDoc quads — touch every visibility flag
+        # unconditionally so a quad hidden via the outliner eye icon
+        # or the H key is also recovered. Same fix as the RM / SF
+        # pairs in this module.
         for obj in rmdoc_objects:
-            if obj.hide_viewport or obj.hide_render:
-                obj.hide_viewport = False
-                obj.hide_render = False
+            was_hidden = (
+                obj.hide_viewport
+                or obj.hide_render
+                or obj.hide_get()
+            )
+            try:
+                obj.hide_set(False)
+            except RuntimeError:
+                pass
+            obj.hide_viewport = False
+            obj.hide_render = False
+            if was_hidden:
                 shown_quads += 1
 
+        # Same for the associated cameras.
         for cam in rmdoc_cameras:
-            if cam.hide_viewport or cam.hide_render:
-                cam.hide_viewport = False
-                cam.hide_render = False
+            was_hidden = (
+                cam.hide_viewport
+                or cam.hide_render
+                or cam.hide_get()
+            )
+            try:
+                cam.hide_set(False)
+            except RuntimeError:
+                pass
+            cam.hide_viewport = False
+            cam.hide_render = False
+            if was_hidden:
                 shown_cams += 1
 
         if activated_collections:
@@ -984,7 +1175,12 @@ class EM_strat_show_all_rmdocs(Operator):
 
 
 class EM_strat_hide_all_rmdocs(Operator):
-    """Hide all RMDoc quads (and their cameras)"""
+    """Hide all RMDoc quads (and their cameras).
+
+    Symmetric to :class:`EM_strat_show_all_rmdocs`: clears all three
+    visibility flags (``hide_set(True)`` plus ``hide_viewport`` and
+    ``hide_render``) on every quad and its associated camera.
+    """
     bl_idname = "em.strat_hide_all_rmdocs"
     bl_label = "Hide All RMDocs"
     bl_description = (
@@ -1001,15 +1197,33 @@ class EM_strat_hide_all_rmdocs(Operator):
 
         from ..object_cache import get_object_cache
         cache = get_object_cache()
+        try:
+            cache.invalidate()
+        except Exception:
+            pass
+
+        def _hide_one(obj):
+            """Hide ``obj`` via all three Blender visibility flags."""
+            was_visible = (
+                not obj.hide_viewport
+                or not obj.hide_render
+                or not obj.hide_get()
+            )
+            try:
+                obj.hide_set(True)
+            except RuntimeError:
+                pass
+            obj.hide_viewport = True
+            obj.hide_render = True
+            return was_visible
 
         hidden_quads = 0
         hidden_cams = 0
         for item in getattr(scene, "rmdoc_list", []):
             obj = cache.get_object(item.name)
             if obj is not None:
-                obj.hide_viewport = True
-                obj.hide_render = True
-                hidden_quads += 1
+                if _hide_one(obj):
+                    hidden_quads += 1
             # Mirror the show operator: keep the associated camera in
             # lock-step so toggling visibility doesn't leave dangling
             # cameras visible without their quad.
@@ -1018,9 +1232,8 @@ class EM_strat_hide_all_rmdocs(Operator):
                 if cam_name:
                     cam_obj = cache.get_object(cam_name)
                     if cam_obj is not None:
-                        cam_obj.hide_viewport = True
-                        cam_obj.hide_render = True
-                        hidden_cams += 1
+                        if _hide_one(cam_obj):
+                            hidden_cams += 1
 
         self.report({'INFO'},
                     f"All RMDoc quads hidden: {hidden_quads} quads, "
