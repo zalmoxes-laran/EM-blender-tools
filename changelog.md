@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned for 1.6 — .em.json adoption (decision 2026-07-11)
+- Adopt `.em.json` v1 (frozen in s3Dgraphy: `emjson_exporter` / `emjson_importer`)
+  as the native project format alongside GraphML: GraphML becomes legacy one-way
+  import; exports towards Heriverse 1.6 switch to `.em.json` (the flat graph
+  section replaces the bucketed payload). Wiring entry point:
+  `emjson_support.py` (thin wrapper around s3dgraphy, added 2026-07-11).
+
+
 ### Added — "Demote proxy" button (2026-06)
 
 First-class reverse of the proxy ↔ node link (`em.proxy_demote`,
