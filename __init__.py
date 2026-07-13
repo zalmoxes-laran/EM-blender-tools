@@ -354,6 +354,7 @@ if DEPENDENCIES_LOADED:
             tapestry_integration,  # Tapestry AI reconstruction
             surface_areale,  # Surface Areale proxy creation
             georef_manager,  # DP-56: Georeferencing (shift + EPSG, BGIS/3DSC orchestration)
+            sync_manager,  # ADR-002: live selection bridge to EMStudio (WS host)
         )
 
         # Import base PropertyGroup classes into this namespace
@@ -722,6 +723,13 @@ def register_modules():
     except Exception as e:
         logger.error(f"Error registering georef manager: {e}")
 
+    # FASE 8: Sync Manager (ADR-002 — EMStudio live selection bridge)
+    try:
+        sync_manager.register()
+        logger.debug("Registered sync manager")
+    except Exception as e:
+        logger.error(f"Error registering sync manager: {e}")
+
     # Registra il keymap manager per ultimo
     if KEYMAP_MANAGER_LOADED:
         try:
@@ -769,6 +777,13 @@ def unregister_modules():
         except Exception as e:
             logger.error(f"Error unregistering keymap manager: {e}")
 
+
+    # Sync Manager (ADR-002)
+    try:
+        sync_manager.unregister()
+        logger.debug("Unregistered sync manager")
+    except Exception as e:
+        logger.warning(f"Error unregistering sync manager: {e}")
 
     # FASE 0: Georef Manager (DP-56)
     try:
