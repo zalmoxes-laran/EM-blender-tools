@@ -87,17 +87,25 @@ def _redraw():
         pass
 
 
-def _reflect_in_em_list(context, node_id: str, patch: dict):
-    """Mirror a node patch onto its EMListItem so the EM panel updates."""
+def _reflect_in_em_list(context, node, patch: dict):
+    """Mirror a node patch onto its EMListItem so the EM panel updates.
+
+    EMListItems are keyed by NAME (the node_id field is frequently empty on
+    populated items), so we match name first and fall back to node_id. A
+    targeted patch keeps the current selection; a full repopulate
+    (populate_blender_lists_from_graph) is the tool for structural ops
+    (add/delete) — the lists are a projection of the graph, the s3dgraphy
+    multigraph in memory is the source of truth."""
     try:
         units = context.scene.em_tools.stratigraphy.units
     except Exception:
         return
+    nid = getattr(node, "node_id", None)
     for item in units:
-        if getattr(item, "node_id", None) == node_id:
+        if item.name == node.name or (nid and getattr(item, "node_id", "") == nid):
             if "description" in patch:
                 item.description = patch["description"]
-            break
+            return
 
 
 def _apply_op(msg: dict, context, graph):
@@ -113,7 +121,7 @@ def _apply_op(msg: dict, context, graph):
     if not node or "description" not in patch:
         return
     node.description = patch["description"]
-    _reflect_in_em_list(context, node_id, patch)
+    _reflect_in_em_list(context, node, patch)
     _redraw()
 
 
