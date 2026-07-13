@@ -79,6 +79,44 @@ def _apply_incoming(node_id: str, context, graph) -> bool:
     return True
 
 
+def _redraw():
+    try:
+        for area in bpy.context.screen.areas:
+            area.tag_redraw()
+    except Exception:
+        pass
+
+
+def _reflect_in_em_list(context, node_id: str, patch: dict):
+    """Mirror a node patch onto its EMListItem so the EM panel updates."""
+    try:
+        units = context.scene.em_tools.stratigraphy.units
+    except Exception:
+        return
+    for item in units:
+        if getattr(item, "node_id", None) == node_id:
+            if "description" in patch:
+                item.description = patch["description"]
+            break
+
+
+def _apply_op(msg: dict, context, graph):
+    """Apply an op-log operation from EMStudio to the live s3dgraphy graph
+    (ADR-002 phase 2). First slice: update_node.description only — no rename
+    cascade (name / add / delete land in later slices)."""
+    if msg.get("op") != "update_node":
+        return
+    node_id = msg.get("node_id")
+    patch = msg.get("patch") or {}
+    finder = getattr(graph, "find_node_by_id", None)
+    node = finder(node_id) if callable(finder) else None
+    if not node or "description" not in patch:
+        return
+    node.description = patch["description"]
+    _reflect_in_em_list(context, node_id, patch)
+    _redraw()
+
+
 def _pump():
     """Timer callback (main thread). Returns the next interval, or None to
     stop when the server is gone."""
@@ -102,11 +140,14 @@ def _pump():
             continue
         if msg.get("source") == _SOURCE:
             continue  # our own echo
-        if msg.get("type") == "select" and msg.get("node_id") and ok:
+        mtype = msg.get("type")
+        if mtype == "select" and msg.get("node_id") and ok:
             if _apply_incoming(msg["node_id"], context, graph):
                 active = getattr(context.view_layer.objects, "active", None)
                 # suppress the echo the outbound poll would otherwise send
                 _last_active_name = active.name if active else _last_active_name
+        elif mtype == "op" and ok:
+            _apply_op(msg, context, graph)
 
     # --- outbound: local selection → broadcast the node id -----------------
     active = getattr(context.view_layer.objects, "active", None)
