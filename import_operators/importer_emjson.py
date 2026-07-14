@@ -44,7 +44,15 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
 
     def invoke(self, context, event):
         if self.file_index >= 0:
-            return self.execute(context)  # silent reload from the entry's path
+            # reloading replaces the in-memory graph with the file on disk →
+            # confirm first so live-sync / unsaved edits are not lost silently.
+            return context.window_manager.invoke_confirm(
+                self, event,
+                title="Reload graph from disk?",
+                message=("Reloading replaces the in-memory graph with the file "
+                         "on disk. Unsaved changes (including live-sync edits) "
+                         "will be lost. Save first if you want to keep them."),
+                confirm_text="Reload")
         return ImportHelper.invoke(self, context, event)
 
     def execute(self, context):

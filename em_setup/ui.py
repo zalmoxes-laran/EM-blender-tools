@@ -795,10 +795,11 @@ class EM_SetupPanel(bpy.types.Panel):
             row.operator('em_tools.remove_file', text="Remove graph", icon="REMOVE")
 
             # Loading is inline per-row (Add graph → set Path → 🔄 reload,
-            # format auto-detected). Save As… writes em.json (full/lossless,
-            # default) or GraphML (legacy, not lossless).
+            # format auto-detected). Save writes the active graph's em.json in
+            # place; Save As… chooses em.json (full/lossless) or GraphML (legacy).
             row = layout.row(align=True)
-            row.operator('export.em_saveas', text="Save As…", icon="FILE_TICK")
+            row.operator('export.em_save', text="Save", icon="FILE_TICK")
+            row.operator('export.em_saveas', text="Save As…", icon="FILE_NEW")
 
             # Save / Export / Merge buttons (experimental — GraphML write-back not production-ready)
             if em_tools.experimental_features:

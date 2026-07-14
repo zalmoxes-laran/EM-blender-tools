@@ -92,13 +92,68 @@ class EM_export_saveas(bpy.types.Operator, ExportHelper):
             show_popup_message(context, "Export Error", str(exc), "ERROR")
             return {"CANCELLED"}
 
+        # Remember the em.json path on the active entry so a later "Save" writes
+        # in place (em.json is the canonical file).
+        if self.fmt == "EMJSON":
+            em_tools = context.scene.em_tools
+            if em_tools.graphml_files and em_tools.active_file_index >= 0:
+                entry = em_tools.graphml_files[em_tools.active_file_index]
+                entry.graphml_path = out
+                if hasattr(entry, "file_format"):
+                    entry.file_format = "EMJSON"
+
         self.report({"INFO"}, f"Saved {self.fmt} → {out}")
+        return {"FINISHED"}
+
+
+class EM_export_save(bpy.types.Operator):
+    bl_idname = "export.em_save"
+    bl_label = "Save"
+    bl_description = "Save the active graph to its .em.json file in place (falls back to Save As… when there is no em.json target)"
+
+    @classmethod
+    def poll(cls, context):
+        ok, _ = is_graph_available(context)
+        return ok
+
+    def execute(self, context):
+        ok, graph = is_graph_available(context)
+        if not ok or graph is None:
+            self.report({"ERROR"}, "No active EM graph to save")
+            return {"CANCELLED"}
+
+        em_tools = context.scene.em_tools
+        entry = (
+            em_tools.graphml_files[em_tools.active_file_index]
+            if em_tools.graphml_files and em_tools.active_file_index >= 0
+            else None
+        )
+        path = entry.graphml_path if entry else ""
+        is_emjson_target = (
+            entry is not None
+            and getattr(entry, "file_format", "GRAPHML") == "EMJSON"
+            and path.lower().endswith((".em.json", ".json"))
+        )
+        if not is_emjson_target or not path:
+            # no in-place em.json target (graphml-origin, or never saved) → Save As
+            return bpy.ops.export.em_saveas("INVOKE_DEFAULT")
+
+        try:
+            out = export_graph_to_emjson(graph, path, layout=None)
+        except Exception as exc:  # noqa: BLE001
+            self.report({"ERROR"}, f"Save failed: {exc}")
+            show_popup_message(context, "Save Error", str(exc), "ERROR")
+            return {"CANCELLED"}
+
+        self.report({"INFO"}, f"Saved em.json → {out}")
         return {"FINISHED"}
 
 
 def register():
     bpy.utils.register_class(EM_export_saveas)
+    bpy.utils.register_class(EM_export_save)
 
 
 def unregister():
+    bpy.utils.unregister_class(EM_export_save)
     bpy.utils.unregister_class(EM_export_saveas)
