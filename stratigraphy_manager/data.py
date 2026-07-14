@@ -22,6 +22,37 @@ from bpy.types import PropertyGroup # type: ignore
 # NOTE: These classes are registered by em_props.py
 # We only define them here for import by other modules
 
+def _on_item_description_changed(self, context):
+    """Reverse sync (ADR-002 phase 2): a description edit in the Blender panel
+    writes to the graph node AND emits an update_node op to connected clients
+    (EMStudio). Guard: emit only when the value actually differs from the node
+    — so populate (which sets item.description FROM the node) never emits, and
+    an incoming op doesn't echo back."""
+    try:
+        from ..functions import is_graph_available
+        ok, graph = is_graph_available(context)
+        if not ok or graph is None:
+            return
+        node = graph.find_node_by_id(self.node_id) if self.node_id else None
+        if node is None and self.name:
+            finder = getattr(graph, "find_node_by_name", None)
+            node = finder(self.name) if callable(finder) else None
+        if node is None:
+            return
+        if getattr(node, "description", "") == self.description:
+            return  # populate / echo — the graph already has this value
+        node.description = self.description
+        from ..sync_manager import operators as sync_ops
+        sync_ops.emit_op({
+            "type": "op",
+            "op": "update_node",
+            "node_id": getattr(node, "node_id", ""),
+            "patch": {"description": self.description},
+        })
+    except Exception as exc:  # noqa: BLE001
+        print(f"[sync] item description update failed: {exc}")
+
+
 class EMListItem(PropertyGroup):
     """Information about a stratigraphic unit"""
     name: StringProperty(
@@ -42,7 +73,8 @@ class EMListItem(PropertyGroup):
     description: StringProperty(
         name="Description",
         description="Description of this unit",
-        default=""
+        default="",
+        update=_on_item_description_changed
     ) # type: ignore
     icon: StringProperty(
         name="Icon",

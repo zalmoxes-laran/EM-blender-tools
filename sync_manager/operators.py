@@ -129,21 +129,110 @@ def _reflect_in_em_list(context, node, patch: dict):
             return
 
 
+def _node_from_payload(payload: dict):
+    """Build an s3dgraphy Node from an EMStudio node op payload, reusing the
+    emjson importer's type-resolving instantiator (degrades to a base Node on
+    unknown types)."""
+    try:
+        from s3dgraphy.importer.emjson_importer import _instantiate
+        node = _instantiate(payload.get("node_type", ""), payload, [])
+    except Exception as exc:  # noqa: BLE001
+        print(f"[sync] node instantiate failed: {exc}")
+        return None
+    if node is not None and "description" in payload:
+        try:
+            node.description = payload["description"]
+        except Exception:
+            pass
+    return node
+
+
+def _repopulate(context, graph):
+    """Full rebuild of the Blender EM lists from the graph — the correct tool
+    for STRUCTURAL ops (add/delete node/edge); the lists are a projection.
+
+    MUST clear first: populate_blender_lists_from_graph APPENDS (no internal
+    clear), so without this repeated calls duplicate every row."""
+    try:
+        from ..populate_lists import (
+            populate_blender_lists_from_graph,
+            clear_lists,
+        )
+        clear_lists(context)
+        populate_blender_lists_from_graph(context, graph)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[sync] repopulate failed: {exc}")
+
+
 def _apply_op(msg: dict, context, graph):
     """Apply an op-log operation from EMStudio to the live s3dgraphy graph
-    (ADR-002 phase 2). First slice: update_node.description only — no rename
-    cascade (name / add / delete land in later slices)."""
-    if msg.get("op") != "update_node":
+    (ADR-002 phase 2). Handles update_node (targeted) + structural
+    add/delete of nodes and edges (full list repopulate)."""
+    op = msg.get("op")
+    if graph is None:
         return
-    node_id = msg.get("node_id")
-    patch = msg.get("patch") or {}
-    finder = getattr(graph, "find_node_by_id", None)
-    node = finder(node_id) if callable(finder) else None
-    if not node or "description" not in patch:
+
+    if op == "update_node":
+        node_id = msg.get("node_id")
+        patch = msg.get("patch") or {}
+        finder = getattr(graph, "find_node_by_id", None)
+        node = finder(node_id) if callable(finder) else None
+        if not node or "description" not in patch:
+            return
+        node.description = patch["description"]
+        _reflect_in_em_list(context, node, patch)
+        _redraw()
         return
-    node.description = patch["description"]
-    _reflect_in_em_list(context, node, patch)
-    _redraw()
+
+    changed = False
+    try:
+        if op == "add_node":
+            nd = msg.get("node") or {}
+            nid = nd.get("id")
+            if nid and not graph.find_node_by_id(nid):
+                node = _node_from_payload(nd)
+                if node is not None:
+                    graph.add_node(node, overwrite=True)
+                    changed = True
+        elif op == "delete_node":
+            nid = msg.get("node_id")
+            if nid and graph.find_node_by_id(nid):
+                graph.remove_node(nid)
+                changed = True
+        elif op == "add_edge":
+            ed = msg.get("edge") or {}
+            if ed.get("id") and ed.get("source") and ed.get("target"):
+                graph.add_edge(
+                    ed["id"], ed["source"], ed["target"],
+                    ed.get("edge_type") or "generic_connection")
+                changed = True
+        elif op == "delete_edge":
+            ed = msg.get("edge") or {}
+            if ed.get("id"):
+                graph.remove_edge(ed["id"])
+                changed = True
+    except Exception as exc:  # noqa: BLE001
+        print(f"[sync] _apply_op {op} failed: {exc}")
+        return
+
+    if changed:
+        _repopulate(context, graph)
+        _redraw()
+
+
+def emit_op(op: dict):
+    """Emit a local (Blender-side) graph mutation to connected clients
+    (ADR-002 phase 2, reverse direction). No-op when the sync server is off.
+    `op` is a dict like {"type":"op","op":"update_node","node_id":..,"patch":..}."""
+    srv = _server
+    if srv is None or not srv.running:
+        return
+    payload = {"v": 1, "source": _SOURCE}
+    payload.update(op)
+    try:
+        srv.broadcast(json.dumps(payload))
+    except Exception as exc:  # noqa: BLE001
+        print(f"[sync] emit_op failed: {exc}")
 
 
 def _send_snapshot(graph):
