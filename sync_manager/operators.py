@@ -32,13 +32,17 @@ import bpy  # type: ignore
 
 from ..sync_bridge.ws_server import WsServer
 from ..functions import is_graph_available, select_3D_obj
-from ..operators.addon_prefix_helpers import proxy_name_to_node_name
+from ..operators.addon_prefix_helpers import (
+    proxy_name_to_node_name,
+    node_name_to_proxy_name,
+)
 
 _SOURCE = "emtools"
 
 # Module-level session state (a single server per Blender instance).
 _server: WsServer | None = None
 _last_active_name: str | None = None
+_last_selection: frozenset = frozenset()  # node_ids last selected (echo guard)
 
 # msgbus subscription owner (opaque token; clear_by_owner removes the sub).
 _msgbus_owner = object()
@@ -104,6 +108,38 @@ def _apply_incoming_select(node_id: str, context, graph) -> bool:
     if not node:
         return False
     select_3D_obj(node.name, context=context, graph=graph)
+    _frame_selected()
+    return True
+
+
+def _apply_incoming_select_many(node_ids, active_id, context, graph) -> bool:
+    """Select ALL proxies for a peer's multi-selection (mirrors Blender's
+    active/selected model): the active node reuses select_3D_obj (deselects
+    all, handles visibility, sets it active), the others are added on top."""
+    finder = getattr(graph, "find_node_by_id", None)
+    if not callable(finder):
+        return False
+    active_node = finder(active_id) if active_id else None
+    if active_node is not None:
+        select_3D_obj(active_node.name, context=context, graph=graph)
+    else:
+        try:
+            bpy.ops.object.select_all(action="DESELECT")
+        except Exception:
+            pass
+    for nid in node_ids:
+        if nid == active_id:
+            continue
+        node = finder(nid)
+        if node is None:
+            continue
+        obj = bpy.data.objects.get(
+            node_name_to_proxy_name(node.name, context=context, graph=graph))
+        if obj is not None:
+            try:
+                obj.select_set(True)
+            except Exception:
+                pass
     _frame_selected()
     return True
 
@@ -254,7 +290,7 @@ def _send_snapshot(graph):
 
 def _handle_message(raw: str, context, graph, ok: bool):
     """Dispatch one inbound message (main thread)."""
-    global _last_active_name
+    global _last_active_name, _last_selection
     try:
         msg = json.loads(raw)
     except (ValueError, TypeError):
@@ -262,11 +298,18 @@ def _handle_message(raw: str, context, graph, ok: bool):
     if msg.get("source") == _SOURCE:
         return  # our own echo
     mtype = msg.get("type")
-    if mtype == "select" and msg.get("node_id") and ok:
-        if _apply_incoming_select(msg["node_id"], context, graph):
-            active = getattr(context.view_layer.objects, "active", None)
-            # suppress the echo the outbound msgbus callback would otherwise send
-            _last_active_name = active.name if active else _last_active_name
+    if mtype == "select" and ok and (msg.get("node_id") or msg.get("node_ids")):
+        node_ids = msg.get("node_ids")
+        active_id = msg.get("node_id")
+        if node_ids:
+            _apply_incoming_select_many(node_ids, active_id, context, graph)
+            _last_selection = frozenset(node_ids)
+        elif active_id:
+            _apply_incoming_select(active_id, context, graph)
+            _last_selection = frozenset([active_id])
+        # suppress the echo the outbound msgbus callback would otherwise send
+        active = getattr(context.view_layer.objects, "active", None)
+        _last_active_name = active.name if active else _last_active_name
     elif mtype == "op" and ok:
         _apply_op(msg, context, graph)
     elif mtype == "request_snapshot" and ok:
@@ -317,27 +360,39 @@ def _schedule_drain(_payload=None):
 # --------------------------------------------------------------------------- #
 
 def _on_selection_changed(*_args):
-    """msgbus notify (MAIN thread): the active object changed → broadcast its
-    node id, unless it is the object we just selected from an inbound message."""
-    global _last_active_name
+    """msgbus notify (MAIN thread): the active object changed → broadcast the
+    FULL current selection (active + others), mirroring Blender's model, unless
+    it matches what we just applied from an inbound message (echo guard)."""
+    global _last_active_name, _last_selection
     srv = _server
     if srv is None or not srv.running:
         return
     context = bpy.context
-    active = getattr(context.view_layer.objects, "active", None)
-    name = active.name if (active and active.select_get()) else None
-    if name == _last_active_name:
-        return
-    _last_active_name = name
-    if not name:
-        return
     ok, graph = is_graph_available(context)
     if not ok:
         return
-    node_id = _node_id_for_object(active, graph)
-    if node_id:
-        srv.broadcast(json.dumps(
-            {"v": 1, "type": "select", "node_id": node_id, "source": _SOURCE}))
+    sel_ids = []
+    for obj in getattr(context, "selected_objects", []) or []:
+        nid = _node_id_for_object(obj, graph)
+        if nid and nid not in sel_ids:
+            sel_ids.append(nid)
+    sel_set = frozenset(sel_ids)
+    if sel_set == _last_selection:
+        return  # unchanged — nothing to broadcast (also suppresses our echo)
+    _last_selection = sel_set
+    active = getattr(context.view_layer.objects, "active", None)
+    _last_active_name = active.name if (active and active.select_get()) else None
+    active_id = (
+        _node_id_for_object(active, graph)
+        if (active and active.select_get())
+        else (sel_ids[0] if sel_ids else None)
+    )
+    if not sel_ids and not active_id:
+        return
+    msg = {"v": 1, "type": "select", "node_id": active_id, "source": _SOURCE}
+    if len(sel_ids) > 1:
+        msg["node_ids"] = sel_ids
+    srv.broadcast(json.dumps(msg))
 
 
 def _subscribe_selection():
@@ -361,10 +416,11 @@ def _unsubscribe_selection():
 # --------------------------------------------------------------------------- #
 
 def _start(port: int):
-    global _server, _last_active_name, _drain_scheduled
+    global _server, _last_active_name, _last_selection, _drain_scheduled
     if is_running():
         return
     _last_active_name = None
+    _last_selection = frozenset()
     with _drain_lock:
         _drain_scheduled = False
     srv = WsServer(port=port, on_message=_schedule_drain)
