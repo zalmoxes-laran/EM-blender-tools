@@ -1,22 +1,32 @@
-"""EMtools ⇄ EMStudio live-sync — operators + main-thread pump (ADR-002
-phase 1: ephemeral selection). EMtools is the HOST: it runs the WebSocket
-server (sync_bridge.ws_server) and holds the live s3dgraphy graph; EMStudio
-connects as a client.
+"""EMtools ⇄ EMStudio live-sync — operators + EVENT-DRIVEN dispatch (ADR-002
+phase 1 selection + phase 2 op-log). EMtools is the HOST: it runs the
+WebSocket server (sync_bridge.ws_server) and holds the live s3dgraphy graph;
+EMStudio connects as a client.
 
-Two directions, both driven by a single ``bpy.app.timers`` callback on the
-MAIN thread (bpy is not thread-safe):
-  * inbound  — drain the server's inbox; a peer ``select`` picks + frames the
-    matching 3D object (``functions.select_3D_obj``);
-  * outbound — poll the active object; when the user selects a different EM
-    proxy, broadcast its node id.
+No polling timer. Two directions, both event-driven:
 
-The server thread only touches the socket + thread-safe queue/lock; every
-Blender API call happens here, in the timer.
+  * OUTBOUND (Blender → EMStudio): a ``bpy.msgbus`` subscription on the active
+    object fires ``_on_selection_changed`` on the MAIN thread whenever the
+    selection changes → broadcast the node id. Zero polling.
+  * INBOUND (EMStudio → Blender): the server thread's ``on_message`` callback
+    schedules a ONE-SHOT ``bpy.app.timers.register(_drain_inbox,
+    first_interval=0)`` (returns ``None`` → self-unregisters). It fires only
+    when a message actually arrives, drains the queue on the MAIN thread and
+    applies each message (select / op). ``timers.register`` is the one
+    Blender API that is safe to call from a non-main thread.
+
+The server thread only touches the socket + thread-safe queue and schedules
+the one-shot; every ``bpy`` access happens on the main thread.
+
+Known limitation: ``bpy.msgbus`` subscriptions are dropped when a new .blend
+is loaded — start Sync AFTER opening the project (re-subscribe on load_post
+is a later refinement).
 """
 
 from __future__ import annotations
 
 import json
+import threading
 
 import bpy  # type: ignore
 
@@ -29,7 +39,15 @@ _SOURCE = "emtools"
 # Module-level session state (a single server per Blender instance).
 _server: WsServer | None = None
 _last_active_name: str | None = None
-_POLL_INTERVAL = 0.25
+
+# msgbus subscription owner (opaque token; clear_by_owner removes the sub).
+_msgbus_owner = object()
+
+# One-shot inbound-drain scheduling guard. The flag is cleared at the START of
+# every drain, so any message arriving during a drain re-schedules another
+# drain — no lost wake-ups; at worst one redundant empty drain.
+_drain_lock = threading.Lock()
+_drain_scheduled = False
 
 
 def is_running() -> bool:
@@ -39,6 +57,10 @@ def is_running() -> bool:
 def client_count() -> int:
     return _server.client_count() if _server else 0
 
+
+# --------------------------------------------------------------------------- #
+# helpers (main thread)
+# --------------------------------------------------------------------------- #
 
 def _node_id_for_object(obj, graph) -> str | None:
     """Blender object → its graph node's UUID, or None if it is not an EM
@@ -52,8 +74,7 @@ def _node_id_for_object(obj, graph) -> str | None:
 
 
 def _frame_selected():
-    """Best-effort 'view selected' in the first 3D viewport (timers have no
-    region context of their own)."""
+    """Best-effort 'view selected' in the first 3D viewport."""
     try:
         win = bpy.context.window
         for area in (win.screen.areas if win and win.screen else []):
@@ -67,7 +88,15 @@ def _frame_selected():
         pass
 
 
-def _apply_incoming(node_id: str, context, graph) -> bool:
+def _redraw():
+    try:
+        for area in bpy.context.screen.areas:
+            area.tag_redraw()
+    except Exception:
+        pass
+
+
+def _apply_incoming_select(node_id: str, context, graph) -> bool:
     """Select + frame the object for an incoming node id. Returns True if a
     matching object was selected."""
     finder = getattr(graph, "find_node_by_id", None)
@@ -79,21 +108,13 @@ def _apply_incoming(node_id: str, context, graph) -> bool:
     return True
 
 
-def _redraw():
-    try:
-        for area in bpy.context.screen.areas:
-            area.tag_redraw()
-    except Exception:
-        pass
-
-
 def _reflect_in_em_list(context, node, patch: dict):
     """Mirror a node patch onto its EMListItem so the EM panel updates.
 
     EMListItems are keyed by NAME (the node_id field is frequently empty on
     populated items), so we match name first and fall back to node_id. A
     targeted patch keeps the current selection; a full repopulate
-    (populate_blender_lists_from_graph) is the tool for structural ops
+    (populate_blender_lists_from_graph) is the tool for STRUCTURAL ops
     (add/delete) — the lists are a projection of the graph, the s3dgraphy
     multigraph in memory is the source of truth."""
     try:
@@ -125,70 +146,154 @@ def _apply_op(msg: dict, context, graph):
     _redraw()
 
 
-def _pump():
-    """Timer callback (main thread). Returns the next interval, or None to
-    stop when the server is gone."""
-    global _last_active_name
+def _send_snapshot(graph):
+    """Host → client: send the active graph as an .em.json doc (ADR-002
+    snapshot-READ). Triggered by a client's ``request_snapshot`` on connect —
+    this is what makes 'sync mode = see Blender's data'."""
     srv = _server
-    if srv is None or not srv.running:
-        return None
+    if srv is None or not srv.running or graph is None:
+        return
+    try:
+        from ..emjson_support import graph_to_emjson_dict
+        doc = graph_to_emjson_dict(graph)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[sync] snapshot build failed: {exc}")
+        return
+    srv.broadcast(json.dumps(
+        {"v": 1, "type": "snapshot", "doc": doc, "source": _SOURCE}))
 
+
+def _handle_message(raw: str, context, graph, ok: bool):
+    """Dispatch one inbound message (main thread)."""
+    global _last_active_name
+    try:
+        msg = json.loads(raw)
+    except (ValueError, TypeError):
+        return
+    if msg.get("source") == _SOURCE:
+        return  # our own echo
+    mtype = msg.get("type")
+    if mtype == "select" and msg.get("node_id") and ok:
+        if _apply_incoming_select(msg["node_id"], context, graph):
+            active = getattr(context.view_layer.objects, "active", None)
+            # suppress the echo the outbound msgbus callback would otherwise send
+            _last_active_name = active.name if active else _last_active_name
+    elif mtype == "op" and ok:
+        _apply_op(msg, context, graph)
+    elif mtype == "request_snapshot" and ok:
+        _send_snapshot(graph)
+
+
+# --------------------------------------------------------------------------- #
+# INBOUND — one-shot drain (scheduled from the server thread)
+# --------------------------------------------------------------------------- #
+
+def _drain_inbox():
+    """One-shot timer callback (MAIN thread): drain + apply every queued
+    message, then unregister (return None)."""
+    global _drain_scheduled
+    with _drain_lock:
+        _drain_scheduled = False  # cleared first: messages arriving now re-arm
+    srv = _server
+    if srv is None:
+        return None
     context = bpy.context
     ok, graph = is_graph_available(context)
-
-    # --- inbound: peer selections → pick the 3D object ---------------------
     while True:
         try:
             raw = srv.inbox.get_nowait()
         except Exception:
             break
-        try:
-            msg = json.loads(raw)
-        except (ValueError, TypeError):
-            continue
-        if msg.get("source") == _SOURCE:
-            continue  # our own echo
-        mtype = msg.get("type")
-        if mtype == "select" and msg.get("node_id") and ok:
-            if _apply_incoming(msg["node_id"], context, graph):
-                active = getattr(context.view_layer.objects, "active", None)
-                # suppress the echo the outbound poll would otherwise send
-                _last_active_name = active.name if active else _last_active_name
-        elif mtype == "op" and ok:
-            _apply_op(msg, context, graph)
+        _handle_message(raw, context, graph, ok)
+    return None  # one-shot
 
-    # --- outbound: local selection → broadcast the node id -----------------
+
+def _schedule_drain(_payload=None):
+    """WsServer on_message callback — runs on the SERVER thread. Only touches
+    the guard + bpy.app.timers.register (thread-safe)."""
+    global _drain_scheduled
+    with _drain_lock:
+        if _drain_scheduled:
+            return
+        _drain_scheduled = True
+    try:
+        bpy.app.timers.register(_drain_inbox, first_interval=0.0)
+    except Exception:
+        with _drain_lock:
+            _drain_scheduled = False
+
+
+# --------------------------------------------------------------------------- #
+# OUTBOUND — msgbus selection subscription (main thread)
+# --------------------------------------------------------------------------- #
+
+def _on_selection_changed(*_args):
+    """msgbus notify (MAIN thread): the active object changed → broadcast its
+    node id, unless it is the object we just selected from an inbound message."""
+    global _last_active_name
+    srv = _server
+    if srv is None or not srv.running:
+        return
+    context = bpy.context
     active = getattr(context.view_layer.objects, "active", None)
     name = active.name if (active and active.select_get()) else None
-    if name != _last_active_name:
-        _last_active_name = name
-        if name and ok:
-            node_id = _node_id_for_object(active, graph)
-            if node_id:
-                srv.broadcast(json.dumps(
-                    {"v": 1, "type": "select", "node_id": node_id, "source": _SOURCE}))
+    if name == _last_active_name:
+        return
+    _last_active_name = name
+    if not name:
+        return
+    ok, graph = is_graph_available(context)
+    if not ok:
+        return
+    node_id = _node_id_for_object(active, graph)
+    if node_id:
+        srv.broadcast(json.dumps(
+            {"v": 1, "type": "select", "node_id": node_id, "source": _SOURCE}))
 
-    return _POLL_INTERVAL
 
+def _subscribe_selection():
+    bpy.msgbus.subscribe_rna(
+        key=(bpy.types.LayerObjects, "active"),
+        owner=_msgbus_owner,
+        args=(),
+        notify=_on_selection_changed,
+    )
+
+
+def _unsubscribe_selection():
+    try:
+        bpy.msgbus.clear_by_owner(_msgbus_owner)
+    except Exception:
+        pass
+
+
+# --------------------------------------------------------------------------- #
+# lifecycle
+# --------------------------------------------------------------------------- #
 
 def _start(port: int):
-    global _server, _last_active_name
+    global _server, _last_active_name, _drain_scheduled
     if is_running():
         return
-    _server = WsServer(port=port)
-    _server.start()
     _last_active_name = None
-    if not bpy.app.timers.is_registered(_pump):
-        bpy.app.timers.register(_pump, first_interval=_POLL_INTERVAL)
+    with _drain_lock:
+        _drain_scheduled = False
+    srv = WsServer(port=port, on_message=_schedule_drain)
+    srv.start()
+    _server = srv
+    _subscribe_selection()
 
 
 def _stop():
-    global _server
-    if bpy.app.timers.is_registered(_pump):
+    global _server, _drain_scheduled
+    _unsubscribe_selection()
+    if bpy.app.timers.is_registered(_drain_inbox):
         try:
-            bpy.app.timers.unregister(_pump)
+            bpy.app.timers.unregister(_drain_inbox)
         except ValueError:
             pass
+    with _drain_lock:
+        _drain_scheduled = False
     if _server:
         _server.stop()
         _server = None

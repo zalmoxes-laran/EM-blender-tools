@@ -313,13 +313,17 @@ def populate_epoch_node(scene, node, index, graph=None):
     epoch_item = epochs[-1]
     epoch_item.name = node.name
     epoch_item.id = node.node_id
-    epoch_item.min_y = node.min_y
-    epoch_item.max_y = node.max_y
+    # min_y/max_y are yEd swimlane geometry (layout), attached only by the
+    # GraphML importer. em.json separates semantics from layout, so an
+    # em.json-origin EpochNode has none — default to 0.0 (mirrors the
+    # landscape-mode populate, populate_functions.py:286-287).
+    epoch_item.min_y = getattr(node, "min_y", 0.0)
+    epoch_item.max_y = getattr(node, "max_y", 0.0)
     epoch_item.start_time = node.start_time
     epoch_item.end_time = node.end_time
     epoch_item.epoch_color = node.color
     epoch_item.epoch_RGB_color = hex_to_rgb(node.color)
-    epoch_item.description = node.description
+    epoch_item.description = node.description or ""  # em.json may carry None
     return index + 1
 
 

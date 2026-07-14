@@ -29,6 +29,16 @@ def export_graph_to_emjson(graph, output_path: str, layout: dict | None = None) 
     return export_emjson(graph, output_path, layout=layout)
 
 
+def graph_to_emjson_dict(graph, layout: dict | None = None) -> dict:
+    """Serialize an s3dgraphy Graph to an in-memory .em.json v1 doc (dict).
+
+    Same content as ``export_graph_to_emjson`` but returned instead of written
+    — used by the live-sync snapshot channel (ADR-002) to send the host's
+    graph to a connecting client without touching disk."""
+    from s3dgraphy.exporter.emjson_exporter import build_emjson
+    return build_emjson(graph, layout=layout)
+
+
 def import_graph_from_emjson(filepath: str) -> Tuple[object, List[str]]:
     """Load a .em.json v1 file into an s3dgraphy Graph.
 

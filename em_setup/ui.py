@@ -664,10 +664,17 @@ class EMTOOLS_UL_files(bpy.types.UIList):
             row = layout.row()
             row.label(text="", icon=status_icon)
 
-            # Pulsante per ricaricare il file GraphML (con icona FILE_REFRESH)
+            # Pulsante per ricaricare il grafo (icona FILE_REFRESH) — dispatch
+            # sul formato dell'entry: em.json usa l'importer em.json, altrimenti
+            # GraphML. Senza questo, ricaricare un entry em.json lo parserebbe
+            # come XML ("not well-formed").
             row = layout.row(align=True)
-            op = row.operator("import.em_graphml", text="", icon="FILE_REFRESH", emboss=False)
-            op.graphml_index = index  # Passa l'indice corretto per caricare il GraphML
+            if getattr(item, "file_format", "GRAPHML") == "EMJSON":
+                op = row.operator("import.em_emjson", text="", icon="FILE_REFRESH", emboss=False)
+                op.file_index = index
+            else:
+                op = row.operator("import.em_graphml", text="", icon="FILE_REFRESH", emboss=False)
+                op.graphml_index = index
 
             # Disabilita il pulsante se l'icona è rossa (grafo non esistente)
             if is_graph_present:
@@ -784,8 +791,14 @@ class EM_SetupPanel(bpy.types.Panel):
             row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=2)
 
             row = layout.row(align=True)
-            row.operator('em_tools.add_file', text="Add GraphML", icon="ADD")
-            row.operator('em_tools.remove_file', text="Remove GraphML", icon="REMOVE")
+            row.operator('em_tools.add_file', text="Add graph", icon="ADD")
+            row.operator('em_tools.remove_file', text="Remove graph", icon="REMOVE")
+
+            # Loading is inline per-row (Add graph → set Path → 🔄 reload,
+            # format auto-detected). Save As… writes em.json (full/lossless,
+            # default) or GraphML (legacy, not lossless).
+            row = layout.row(align=True)
+            row.operator('export.em_saveas', text="Save As…", icon="FILE_TICK")
 
             # Save / Export / Merge buttons (experimental — GraphML write-back not production-ready)
             if em_tools.experimental_features:

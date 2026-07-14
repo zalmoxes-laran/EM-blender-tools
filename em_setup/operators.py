@@ -289,14 +289,14 @@ class EMToolsSwitchModeOperator(Operator):
 
 class EMToolsAddFile(Operator):
     bl_idname = "em_tools.add_file"
-    bl_label = "Add GraphML File"
-    bl_description = "Add a new GraphML file to the list"
+    bl_label = "Add graph"
+    bl_description = "Add a new EM graph slot (set its Path to a .graphml or .em.json)"
 
     def execute(self, context):
 
         em_tools = context.scene.em_tools
         new_file = em_tools.graphml_files.add()
-        new_file.name = "New GraphML File"
+        new_file.name = "New Graph"
         # Aggiungi un graph_code predefinito
         if hasattr(new_file, 'graph_code'):
             new_file.graph_code = "empty slot"
@@ -306,8 +306,8 @@ class EMToolsAddFile(Operator):
 
 class EMToolsRemoveFile(Operator):
     bl_idname = "em_tools.remove_file"
-    bl_label = "Remove GraphML File"
-    bl_description = "Remove the selected GraphML file from the list"
+    bl_label = "Remove graph"
+    bl_description = "Remove the selected EM graph from the list"
 
     def execute(self, context):
         em_tools = context.scene.em_tools

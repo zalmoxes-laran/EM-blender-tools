@@ -494,8 +494,29 @@ class EMToolsSettings(bpy.types.PropertyGroup):
     )  # type: ignore
 
 
+def detect_graph_format(path):
+    """Deduce the EM graph file format from its extension.
+
+    Returns "GRAPHML", "EMJSON", or None (unknown → leave as-is). em.json is
+    the canonical live-sync format; GraphML is legacy import."""
+    low = (path or "").lower()
+    if low.endswith(".graphml"):
+        return "GRAPHML"
+    if low.endswith(".em.json") or low.endswith(".json"):
+        return "EMJSON"
+    return None
+
+
+def _on_graph_path_update(self, context):
+    """Path field update: auto-detect the entry's format from the extension
+    so per-row load/reload dispatches to the right importer."""
+    fmt = detect_graph_format(self.graphml_path)
+    if fmt and self.file_format != fmt:
+        self.file_format = fmt
+
+
 class GraphMLFileItem(bpy.types.PropertyGroup):
-    """Represents a GraphML file in the multi-graph manager"""
+    """Represents an EM graph file (GraphML or em.json) in the multi-graph manager"""
 
     name: StringProperty(
         name="Name",
@@ -516,11 +537,22 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
     )  # type: ignore
 
     graphml_path: StringProperty(
-        name="GraphML Path",
-        description="Full path to the GraphML file",
+        name="Path",
+        description="Full path to the EM graph file (.graphml or .em.json)",
         subtype='FILE_PATH',
         default="",
-        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
+        options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set(),
+        update=_on_graph_path_update
+    )  # type: ignore
+
+    file_format: EnumProperty(
+        name="Format",
+        description="Source format of this EM graph file",
+        items=[
+            ("GRAPHML", "GraphML", "yEd GraphML (legacy import format)"),
+            ("EMJSON", "em.json", "EM 1.6 native JSON (live-sync canonical format)"),
+        ],
+        default="GRAPHML"
     )  # type: ignore
 
     expanded: BoolProperty(
