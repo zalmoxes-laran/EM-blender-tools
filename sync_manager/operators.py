@@ -43,6 +43,7 @@ _SOURCE = "emtools"
 _server: WsServer | None = None
 _last_active_name: str | None = None
 _last_selection: frozenset = frozenset()  # node_ids last selected (echo guard)
+_pending_repop = False  # a structural op needs a list rebuild (batched per drain)
 
 # msgbus subscription owner (opaque token; clear_by_owner removes the sub).
 _msgbus_owner = object()
@@ -252,8 +253,10 @@ def _apply_op(msg: dict, context, graph):
         return
 
     if changed:
-        _repopulate(context, graph)
-        _redraw()
+        # batched: the actual list rebuild + redraw happen once at the end of
+        # the inbox drain (a group op is add_node + N add_edges → 1 rebuild)
+        global _pending_repop
+        _pending_repop = True
 
 
 def emit_op(op: dict):
@@ -323,7 +326,7 @@ def _handle_message(raw: str, context, graph, ok: bool):
 def _drain_inbox():
     """One-shot timer callback (MAIN thread): drain + apply every queued
     message, then unregister (return None)."""
-    global _drain_scheduled
+    global _drain_scheduled, _pending_repop
     with _drain_lock:
         _drain_scheduled = False  # cleared first: messages arriving now re-arm
     srv = _server
@@ -331,12 +334,17 @@ def _drain_inbox():
         return None
     context = bpy.context
     ok, graph = is_graph_available(context)
+    _pending_repop = False
     while True:
         try:
             raw = srv.inbox.get_nowait()
         except Exception:
             break
         _handle_message(raw, context, graph, ok)
+    if _pending_repop:  # batch: one list rebuild for the whole drained burst
+        _repopulate(context, graph)
+        _redraw()
+        _pending_repop = False
     return None  # one-shot
 
 

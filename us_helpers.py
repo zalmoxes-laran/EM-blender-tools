@@ -113,6 +113,7 @@ def create_us_node(scene,
         from s3dgraphy.nodes import StratigraphicUnit
         node_class = StratigraphicUnit
 
+    _edge_ids_before = {getattr(e, "edge_id", None) for e in graph.edges}
     try:
         us_node = node_class(
             node_id=str(uuid.uuid4()), name=name,
@@ -181,6 +182,32 @@ def create_us_node(scene,
         strat.units_index = idx
     except Exception as e:
         return False, us_node, f"Failed to populate US list: {e}"
+
+    # Reverse live-sync (ADR-002): emit add_node + the new edges to peers.
+    # Graphml-INDEPENDENT and at the shared factory, so it fires for EVERY
+    # create-US flow (add_us / ProxyBox / Surface Areas), decoupled from the
+    # graphml persist that lives in strat.add_us. No-op when sync is off.
+    try:
+        from .sync_manager import operators as _sync
+        _sync.emit_op({
+            "type": "op", "op": "add_node",
+            "node": {
+                "id": us_node.node_id, "name": us_node.name,
+                "node_type": getattr(us_node, "node_type", us_type),
+                "description": getattr(us_node, "description", ""),
+            },
+        })
+        for e in graph.edges:
+            if getattr(e, "edge_id", None) not in _edge_ids_before:
+                _sync.emit_op({
+                    "type": "op", "op": "add_edge",
+                    "edge": {
+                        "id": e.edge_id, "source": e.edge_source,
+                        "target": e.edge_target, "edge_type": e.edge_type,
+                    },
+                })
+    except Exception as _exc:  # noqa: BLE001
+        print(f"[sync] create_us_node reverse emit failed: {_exc}")
 
     return True, us_node, ""
 

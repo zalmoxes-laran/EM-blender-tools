@@ -2588,6 +2588,8 @@ class STRAT_OT_add_us(Operator):
         if not ok:
             self.report({'ERROR'}, f"Failed to create US: {err}")
             return {'CANCELLED'}
+        # (reverse live-sync emit now happens inside create_us_node — the
+        #  graphml-independent factory shared by all create-US flows)
 
         # ── Persist to disk (mirror ProxyBox "salvataggio virtuoso") ─
         persisted = False
