@@ -274,10 +274,47 @@ def emit_op(op: dict):
         print(f"[sync] emit_op failed: {exc}")
 
 
-def _send_snapshot(graph):
+def _host_info(context, graph):
+    """Describe what this host (Blender/EMtools) is editing so the EMStudio
+    client can show it in the footer sidecar badge: tool · document · database.
+    All fields optional — a field is omitted when unknown."""
+    info = {"tool": "Blender · EMtools"}
+    try:
+        em_tools = context.scene.em_tools
+        idx = em_tools.active_file_index
+        if 0 <= idx < len(em_tools.graphml_files):
+            entry = em_tools.graphml_files[idx]
+            if getattr(entry, "graphml_path", ""):
+                info["file"] = bpy.path.basename(entry.graphml_path)
+            emdb = getattr(entry, "emdb_filepath", "")
+            if emdb:
+                info["database"] = bpy.path.basename(emdb)
+    except Exception:  # noqa: BLE001
+        pass
+    if "file" not in info and graph is not None:
+        # no file entry known → fall back to the graph name/id as a label
+        label = getattr(graph, "name", None) or getattr(graph, "graph_id", "")
+        if label:
+            info["label"] = str(label)
+    return info
+
+
+def _send_host_info(context, graph):
+    """Push a standalone host_info message (e.g. when the active graph
+    changes). EMStudio also accepts `host` piggy-backed on the snapshot."""
+    srv = _server
+    if srv is None or not srv.running:
+        return
+    srv.broadcast(json.dumps(
+        {"v": 1, "type": "host_info", "source": _SOURCE,
+         **_host_info(context, graph)}))
+
+
+def _send_snapshot(graph, context=None):
     """Host → client: send the active graph as an .em.json doc (ADR-002
     snapshot-READ). Triggered by a client's ``request_snapshot`` on connect —
-    this is what makes 'sync mode = see Blender's data'."""
+    this is what makes 'sync mode = see Blender's data'. The host metadata
+    (tool/file/database) rides along as `host` for the sidecar badge."""
     srv = _server
     if srv is None or not srv.running or graph is None:
         return
@@ -288,7 +325,8 @@ def _send_snapshot(graph):
         print(f"[sync] snapshot build failed: {exc}")
         return
     srv.broadcast(json.dumps(
-        {"v": 1, "type": "snapshot", "doc": doc, "source": _SOURCE}))
+        {"v": 1, "type": "snapshot", "doc": doc, "source": _SOURCE,
+         "host": _host_info(context or bpy.context, graph)}))
 
 
 def _handle_message(raw: str, context, graph, ok: bool):
@@ -316,7 +354,7 @@ def _handle_message(raw: str, context, graph, ok: bool):
     elif mtype == "op" and ok:
         _apply_op(msg, context, graph)
     elif mtype == "request_snapshot" and ok:
-        _send_snapshot(graph)
+        _send_snapshot(graph, context)
     elif mtype == "request_save":
         _save_emjson_on_host()
 

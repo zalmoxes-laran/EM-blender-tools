@@ -98,10 +98,10 @@ class EMToolsSelectListItem(bpy.types.Operator):
         return len(strat.units) > 0
 
 class EMToolsReloadActiveGraphML(bpy.types.Operator):
-    """Ricarica il file GraphML attualmente attivo"""
+    """Ricarica il file della row attiva della UIList dei grafi (GraphML o em.json)"""
     bl_idname = "em_tools.reload_active_graphml"
-    bl_label = "Reload Active GraphML"
-    bl_description = "Reload the currently active GraphML file (F5)"
+    bl_label = "Reload Active Graph"
+    bl_description = "Reload the active graph entry from disk — GraphML or em.json (SHIFT+F5)"
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
@@ -118,17 +118,26 @@ class EMToolsReloadActiveGraphML(bpy.types.Operator):
                 return {'CANCELLED'}
             
             active_file = em_tools.graphml_files[em_tools.active_file_index]
-            
+
             # Controlla se il file ha un path valido
             if not active_file.graphml_path or active_file.graphml_path == "":
-                self.report({'WARNING'}, "Active GraphML file has no valid path")
+                self.report({'WARNING'}, "Active graph entry has no valid path")
                 return {'CANCELLED'}
-            
-            # Chiama l'operatore di import esistente
-            # Uso getattr perché 'import' è una parola riservata Python
+
+            # Ricarica il file della ROW attiva della UIList — dispatch sul
+            # formato dell'entry, esattamente come il pulsante 🔄 per-riga in
+            # em_setup/ui.py: em.json → importer em.json, altrimenti GraphML.
+            # (Senza il dispatch, ricaricare un entry em.json lo parserebbe come
+            # XML e fallirebbe con "not well-formed".)
+            # Uso getattr perché 'import' è una parola riservata Python.
+            # INVOKE_DEFAULT così l'em.json mostra la sua conferma di reload,
+            # come cliccando il pulsante nella lista.
             import_op = getattr(bpy.ops, 'import')
-            import_op.em_graphml(graphml_index=em_tools.active_file_index)
-            
+            if getattr(active_file, "file_format", "GRAPHML") == "EMJSON":
+                import_op.em_emjson('INVOKE_DEFAULT', file_index=em_tools.active_file_index)
+            else:
+                import_op.em_graphml('INVOKE_DEFAULT', graphml_index=em_tools.active_file_index)
+
             self.report({'INFO'}, f"Reloaded: {active_file.name}")
             return {'FINISHED'}
             
