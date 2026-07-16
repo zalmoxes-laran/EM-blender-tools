@@ -317,6 +317,21 @@ def _handle_message(raw: str, context, graph, ok: bool):
         _apply_op(msg, context, graph)
     elif mtype == "request_snapshot" and ok:
         _send_snapshot(graph)
+    elif mtype == "request_save":
+        _save_emjson_on_host()
+
+
+def _save_emjson_on_host():
+    """A Sidecar client (EMStudio) is leaving sync and asked us — the host — to
+    persist the canonical graph (ADR-002 §4). Save the active graph's em.json
+    in place via export.em_save (falls back to a Save-As dialog if the entry
+    has no em.json path yet)."""
+    try:
+        import bpy
+        res = bpy.ops.export.em_save()
+        print(f"[EMStudio sync] request_save → export.em_save {res}")
+    except Exception as exc:  # pragma: no cover — surface in the console
+        print(f"[EMStudio sync] request_save failed: {exc}")
 
 
 # --------------------------------------------------------------------------- #
