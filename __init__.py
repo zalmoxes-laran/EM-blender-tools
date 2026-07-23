@@ -355,6 +355,7 @@ if DEPENDENCIES_LOADED:
             surface_areale,  # Surface Areale proxy creation
             georef_manager,  # DP-56: Georeferencing (shift + EPSG, BGIS/3DSC orchestration)
             sync_manager,  # ADR-002: live selection bridge to EMStudio (WS host)
+            graph_info,  # fetta 3: graph-level HDT-O dataset info panel
         )
 
         # Import base PropertyGroup classes into this namespace
@@ -644,6 +645,7 @@ def register_modules():
     # NOTE: em_setup is registered separately BEFORE em_props in main register()
     core_independent_modules = [
         icons_manager,
+        graph_info,  # fetta 3: HDT-O props/operators (drawn inline by EM Data Tree)
         EMdb_excel,
         visual_manager,
         activity_manager,

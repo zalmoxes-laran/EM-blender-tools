@@ -138,3 +138,6 @@ blext/
 user_mappings/*/*.json
 !user_mappings/*/README.txt
 .cowork-work/
+
+# AI dev-loop planning (not shipped)
+.claude/

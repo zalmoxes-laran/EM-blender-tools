@@ -1274,6 +1274,15 @@ class EM_SetupPanel(bpy.types.Panel):
                                             create_op.injector_id = injector_id
                                             create_op.key_id = kid
 
+            # HDT-O · Heritage Digital Twin — per-graph metadata (fetta 3).
+            # Inline collapsible section (same box+TRIA style as the sections
+            # above), drawn BEFORE Utils so Utils stays last. Optional/non-blocking.
+            try:
+                from ..graph_info.ui import draw_graph_info_section
+                draw_graph_info_section(layout, context)
+            except Exception as _hdto_exc:  # never break the EM Data Tree panel
+                layout.box().label(text=f"HDT-O section error: {_hdto_exc}", icon='ERROR')
+
             # Advanced Tools section
             box = layout.box()
             header = box.row(align=True)
