@@ -267,6 +267,18 @@ def apply_hdto(graph: Any, fields: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ── authority resolver passthrough (in-process, offline) ───────────────────────
+def available_facets() -> List[str]:
+    """Facets that currently have at least one bundled offline snapshot, so the
+    UI can explain an empty result (no snapshot for this facet vs no match vs no
+    snapshots bundled at all)."""
+    try:
+        import s3dgraphy.authorities.resolver as r
+        return sorted({(s.get("facet") or "").upper()
+                       for s in r._load_snapshots().values() if s.get("facet")})
+    except Exception:
+        return []
+
+
 def resolve_authority(term: str, facet: str) -> List[Dict[str, Any]]:
     """Ranked offline candidates from s3dgraphy.authorities (P1-D). Returns [] if
     the resolver is unavailable or the term is empty — the caller degrades to

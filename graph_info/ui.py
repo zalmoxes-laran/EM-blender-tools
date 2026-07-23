@@ -126,9 +126,23 @@ def _draw_body(layout, context, p) -> None:
 
 
 # No Panel classes: HDT-O is drawn inline by the EM Data Tree panel.
+def _purge_stale_panel() -> None:
+    """Earlier fetta-3 iterations registered a standalone/child Panel
+    'VIEW3D_PT_EM_GraphInfo'. After switching to an inline section a hot-reload
+    can leave that old class registered → a DUPLICATE panel. Drop it if present.
+    (A full Blender restart also clears it; this makes dev reloads clean.)"""
+    import bpy
+    cls = getattr(bpy.types, "VIEW3D_PT_EM_GraphInfo", None)
+    if cls is not None:
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception:
+            pass
+
+
 def register():
-    pass
+    _purge_stale_panel()
 
 
 def unregister():
-    pass
+    _purge_stale_panel()

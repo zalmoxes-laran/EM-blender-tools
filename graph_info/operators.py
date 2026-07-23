@@ -126,8 +126,17 @@ class EM_OT_graph_info_resolve(Operator):
             it.label = str(c.get("label", ""))
             it.rank = int(c.get("rank", 0) or 0)
             it.match = str(c.get("match", ""))
-        p.status = (f"{len(cands)} candidate(s)" if cands
-                    else "No matches (resolver offline or empty)")
+        if cands:
+            p.status = f"{len(cands)} candidate(s)"
+        else:
+            # explain WHY it's empty (precise, not the old generic message)
+            facets = hdto_graph.available_facets()
+            if not facets:
+                p.status = "No authority snapshots bundled — rebuild + re-sync s3dgraphy"
+            elif p.authority_facet not in facets:
+                p.status = f"No offline snapshot for {p.authority_facet} yet (seeded: {', '.join(facets)})"
+            else:
+                p.status = f"No match for '{term}' in {p.authority_facet}"
         return {'FINISHED'}
 
 
