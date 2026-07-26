@@ -356,6 +356,7 @@ if DEPENDENCIES_LOADED:
             georef_manager,  # DP-56: Georeferencing (shift + EPSG, BGIS/3DSC orchestration)
             sync_manager,  # ADR-002: live selection bridge to EMStudio (WS host)
             graph_info,  # fetta 3: graph-level HDT-O dataset info panel
+            dtc_authoring,  # DTC (Digital Twin Chain) authoring panel (ECHOES)
         )
 
         # Import base PropertyGroup classes into this namespace
@@ -646,6 +647,7 @@ def register_modules():
     core_independent_modules = [
         icons_manager,
         graph_info,  # fetta 3: HDT-O props/operators (drawn inline by EM Data Tree)
+        dtc_authoring,  # DTC authoring props/operators (drawn inline by EM Data Tree)
         EMdb_excel,
         visual_manager,
         activity_manager,

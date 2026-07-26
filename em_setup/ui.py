@@ -1283,6 +1283,14 @@ class EM_SetupPanel(bpy.types.Panel):
             except Exception as _hdto_exc:  # never break the EM Data Tree panel
                 layout.box().label(text=f"HDT-O section error: {_hdto_exc}", icon='ERROR')
 
+            # DTC · Digital Twin Chain authoring — provenance metadata (ECHOES).
+            # Inline collapsible section, same style; drawn BEFORE Utils.
+            try:
+                from ..dtc_authoring.ui import draw_dtc_section
+                draw_dtc_section(layout, context)
+            except Exception as _dtc_exc:  # never break the EM Data Tree panel
+                layout.box().label(text=f"DTC section error: {_dtc_exc}", icon='ERROR')
+
             # Advanced Tools section
             box = layout.box()
             header = box.row(align=True)
