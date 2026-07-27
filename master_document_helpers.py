@@ -29,6 +29,7 @@ def create_master_document_node(
     content_nature: Optional[str] = None,
     geometry: Optional[str] = None,
     mark_as_master: bool = True,
+    node_id: Optional[str] = None,
 ):
     """Create a DocumentNode (plus temporal-anchor chain) in ``graph``
     and return it. No UI side effects — caller handles refresh.
@@ -42,13 +43,20 @@ def create_master_document_node(
     ``mark_as_master=True`` (default) sets
     ``attributes['em_master_document'] = True`` so the
     :class:`GraphMLPatcher` writes the node on Save.
+
+    ``node_id`` (optional): when given, the DocumentNode adopts this id
+    as its ``node_id`` instead of minting a fresh UUID. Used by the
+    Resources-tab "hat" flow (R4) to ADOPT the FS backend's stable
+    resource ID as the node identity — one ID space across the FS
+    manifest, the graph node, and any references. Defaults to a fresh
+    UUID (unchanged behaviour for every existing caller).
     """
     from s3dgraphy.exporter.graphml.utils import generate_uuid
     from s3dgraphy.nodes.document_node import DocumentNode
     from s3dgraphy.nodes.property_node import PropertyNode
 
     node = DocumentNode(
-        node_id=generate_uuid(),
+        node_id=node_id or generate_uuid(),
         name=name,
         description=description,
         role=role,

@@ -628,7 +628,7 @@ class EM_OT_show_in_target_manager(bpy.types.Operator):
     target_tab: StringProperty(  # type: ignore
         name="Target tab",
         description="N-panel tab name where the destination manager lives",
-        default="EM Annotator",
+        default="EM Resources",
     )
 
     @classmethod

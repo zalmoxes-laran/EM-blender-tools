@@ -357,6 +357,7 @@ if DEPENDENCIES_LOADED:
             sync_manager,  # ADR-002: live selection bridge to EMStudio (WS host)
             graph_info,  # fetta 3: graph-level HDT-O dataset info panel
             dtc_authoring,  # DTC (Digital Twin Chain) authoring panel (ECHOES)
+            resources_tab,  # R4: EM Resources tab over the FS-index resource backend
         )
 
         # Import base PropertyGroup classes into this namespace
@@ -648,6 +649,7 @@ def register_modules():
         icons_manager,
         graph_info,  # fetta 3: HDT-O props/operators (drawn inline by EM Data Tree)
         dtc_authoring,  # DTC authoring props/operators (drawn inline by EM Data Tree)
+        resources_tab,  # R4: EM Resources tab (Documents/RM/DTC/Shelf over FS backend)
         EMdb_excel,
         visual_manager,
         activity_manager,
