@@ -397,7 +397,7 @@ class EM_ParadataPanel:
                     op.target_list = "doc_list"
                     op.target_index = "doc_list_index"
                     op.target_label = "Document Manager"
-                    op.target_tab = "EM Resources"
+                    op.target_tab = "EM Scene"
 
                 row = box.row()
                 row.label(text="Description:", icon="TEXT")

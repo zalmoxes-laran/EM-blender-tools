@@ -41,7 +41,7 @@ class PROXYBOX_PT_main_panel(Panel):
     bl_idname = "PROXYBOX_PT_main_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "EM Resources"
+    bl_category = "EM Scene"
     bl_order = 5
     bl_options = {'DEFAULT_CLOSED'}
 

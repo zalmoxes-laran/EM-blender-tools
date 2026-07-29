@@ -295,7 +295,7 @@ class VIEW3D_PT_RM_Manager(Panel):
     bl_idname = "VIEW3D_PT_RM_Manager"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'EM Resources'
+    bl_category = 'EM Scene'
     bl_order = 2
     bl_options = {'DEFAULT_CLOSED'}
         

@@ -1,6 +1,6 @@
-"""resources_tab — the EM Resources tab (EMTools, R4).
+"""resources_tab — the EM Scene tab (EMTools).
 
-The face of the shared Resource layer: a panel in the "EM Resources" N-panel tab
+The face of the shared Resource layer: a panel in the "EM Scene" N-panel tab
 with Documents · Representation Models · DTC · Shelf sections, wired to the
 s3dgraphy R1 FS-index backend. Generalises the DosCo auxiliary-files prototype;
 hatting a Shelf orphan → a Document ADOPTS the FS stable ID as node_id.

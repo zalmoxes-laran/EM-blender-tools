@@ -10,6 +10,14 @@ log.setLevel(logging.WARNING)
 # Dizionario globale per le icone
 icon_collections = {}
 
+# Icone il cui file può non essere ancora su disco: chi le usa ha una
+# catena di fallback (get_icon_value(...) or get_icon_value(...)), quindi
+# l'assenza non è un errore e non va segnalata come warning.
+OPTIONAL_ICONS = {
+    "RM_on",
+    "RM_off",
+}
+
 def get_icons_dir():
     """Ottieni il percorso della cartella icons"""
     return os.path.join(os.path.dirname(__file__), "icons")
@@ -88,6 +96,8 @@ def load_icons():
                 log.debug(f"Icona caricata: {icon_name}")
             except Exception as e:
                 log.warning(f"Errore nel caricare l'icona {icon_name}: {e}")
+        elif icon_name in OPTIONAL_ICONS:
+            log.debug(f"Icona opzionale assente (si usa il fallback): {icon_path}")
         else:
             log.warning(f"Icona non trovata: {icon_path}")
     

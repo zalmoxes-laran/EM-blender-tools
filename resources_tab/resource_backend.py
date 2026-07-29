@@ -1,6 +1,6 @@
-"""Resources-tab backend logic (R4) — the pure, bpy-free core.
+"""EM Scene tab backend logic — the pure, bpy-free core.
 
-Bridges the EMTools "EM Resources" tab to the s3dgraphy R1 FS-index backend
+Bridges the EMTools "EM Scene" tab to the s3dgraphy R1 FS-index backend
 (``s3dgraphy.resources.FSIndexBackend``). Mirrors graph_info/hdto_graph.py and
 dtc_authoring/dtc_graph.py: NO ``bpy`` import here (unit-testable outside
 Blender), a capability guard for the stale-bundle case, and all reads/writes go
@@ -27,12 +27,6 @@ from typing import Any, Dict, List, Optional
 # stable IDs survive across sessions (FSIndexBackend.scan skips dotfiles, so the
 # manifest never indexes itself).
 MANIFEST_NAME = ".em_resources_manifest.json"
-
-# Node types that "hat" a resource (a file matched to one of these is not on the
-# Shelf). Documents are the R4 hat target; extractor/combiner belong to the
-# paradata chain (handled by the FS backend's orphan convention filters).
-_DOC_TYPE = "document"
-
 
 class ResourcesUnavailable(RuntimeError):
     """Raised when the active s3dgraphy lacks the R0/R1 resource layer."""
@@ -125,26 +119,87 @@ def shelf_entries(graph: Any, backend, *, graph_code: Optional[str] = None
     return out
 
 
-# ── Documents section (existing documents, R4 = show/list) ─────────────────────
-def list_documents(graph: Any, backend=None) -> List[Dict[str, Any]]:
-    """List the graph's Document nodes (the register face). When a scanned
-    ``backend`` is given, annotate each with whether the FS backend resolves its
-    (adopted) stable ID — i.e. whether the document is backed by an indexed file.
-    Read-only; em.json is the source of truth."""
+# ── MinIO / shared object store (promote — mirrors EMStudio) ───────────────────
+# Resources are LinkNodes (E73). Their locator (``data.url``) may be a local path,
+# a file:// / s3:// URI, or an http(s) URL. "Promote to MinIO" uploads a LOCAL
+# resource into the shared object store under its OWN stable ID (one ID space
+# FS↔MinIO) and repoints its locator at the returned s3:// URI.
+_LINK_TYPE = "link"
+_REMOTE_PREFIXES = ("http://", "https://", "s3://", "file://")
+
+
+def _link_url(node: Any) -> str:
+    url = getattr(node, "url", None)
+    if url is None:
+        url = (getattr(node, "data", {}) or {}).get("url", "")
+    return url or ""
+
+
+def _locator_kind(url: str) -> str:
+    low = (url or "").lower()
+    if low.startswith(("http://", "https://")):
+        return "http_url"
+    if low.startswith("s3://"):
+        return "s3_uri"
+    if low.startswith("file://"):
+        return "file_uri"
+    return "local_path"
+
+
+def minio_supported() -> bool:
+    """True if promote is possible: the active s3dgraphy exposes the MinIO api op
+    AND the optional ``minio`` SDK is installed. False → the button degrades with
+    a clear message (like the FS resource-layer blocker)."""
+    try:
+        import importlib.util
+        from s3dgraphy import api
+        if not hasattr(api, "ingest_minio_resource"):
+            return False
+        return importlib.util.find_spec("minio") is not None
+    except Exception:
+        return False
+
+
+def list_link_resources(graph: Any) -> List[Dict[str, Any]]:
+    """List the graph's resources (LinkNodes) with id/name/locator/kind — the
+    face the promote action acts on. Read-only."""
     out: List[Dict[str, Any]] = []
     for n in getattr(graph, "nodes", []) or []:
-        if getattr(n, "node_type", None) != _DOC_TYPE:
+        if getattr(n, "node_type", None) != _LINK_TYPE:
             continue
-        entry: Dict[str, Any] = {
+        url = _link_url(n)
+        out.append({
             "id": n.node_id,
             "name": str(getattr(n, "name", "") or ""),
-        }
-        if backend is not None:
-            loc = backend.resolve(n.node_id, "")
-            entry["fs_backed"] = loc is not None
-            entry["rel_path"] = loc.value if loc is not None else ""
-        out.append(entry)
+            "locator": url,
+            "kind": _locator_kind(url),
+        })
     return out
+
+
+def promote_resource_to_minio(graph: Any, resource_id: str) -> Dict[str, Any]:
+    """Upload a LOCAL resource's bytes into the shared MinIO under its OWN stable
+    ID (in-process s3dgraphy; api.ingest_minio_resource reads S3_* from env), then
+    repoint its LinkNode locator to the returned ``s3_uri``. The stable ID and every
+    graph reference are unchanged (one ID space FS↔MinIO). Returns
+    ``{id, object_key, s3_uri}``. Raises ``ValueError`` for a non-local / non-link
+    resource, or ``MissingDependency`` if the ``minio`` extra is absent."""
+    from s3dgraphy import api
+    node = graph.find_node_by_id(resource_id)
+    if node is None or getattr(node, "node_type", None) != _LINK_TYPE:
+        raise ValueError(f"{resource_id!r} is not a resource (LinkNode)")
+    url = _link_url(node)
+    if not url or _locator_kind(url) != "local_path":
+        raise ValueError("resource has no local path to promote")
+    # preserve the stable ID: pass resource_id through to the MinIO backend
+    res = api.ingest_minio_resource(url, resource_id=resource_id)
+    # repoint the locator at the shared-store URI (id + refs unchanged)
+    d = getattr(node, "data", None)
+    if not isinstance(d, dict):
+        d = {}
+        setattr(node, "data", d)
+    d["url"] = res["s3_uri"]
+    return res
 
 
 # ── Hatting (Create-Host generalised — ADOPT the FS stable ID) ──────────────────

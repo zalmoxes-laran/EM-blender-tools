@@ -1,17 +1,19 @@
-"""EM Resources tab UI (R4).
+"""EM Scene tab UI.
 
-A panel in the renamed "EM Resources" N-panel tab, the face of the shared
-Resource layer. Sections:
+A panel in the "EM Scene" N-panel tab, the face of the shared Resource layer.
+Sections:
 
-  * **Documents** — the graph's Document nodes (the register face; a live,
-    editable source_list register + xlsx round-trip is a follow-up).
-  * **Representation Models** — RM face (managed by the RM Manager panel in this
-    same tab; hatting a Shelf resource → RM is a follow-up).
+  * **Documents** — points to the existing **Document Manager** panel (in this
+    same tab); NOT a duplicate list.
+  * **Representation Models** — RM face (managed by the RM Manager panel here).
   * **DTC** — the Digital Twin Chain section (reuses the DTC authoring renderer).
   * **Shelf** — the un-hatted resources (orphans) with a Create-Document (hat)
-    action that ADOPTS the FS stable ID as the node id.
+    action that ADOPTS the FS stable ID as the node id. (A richer search+library
+    Shelf v2 is a later session.)
+  * **Object store (MinIO)** — the graph's local resources with a **Promote to
+    MinIO** action (in-process s3dgraphy; keeps the stable ID; repoints locator).
 
-Reads the scanned FS-index backend from the operators' session cache; all graph
+The DosCo / scan folder is set with a folder picker (Set DosCo folder). All graph
 reads go through s3dgraphy (em.json = truth).
 """
 
@@ -23,11 +25,11 @@ from . import operators, resource_backend
 
 
 class EM_PT_resources(bpy.types.Panel):
-    bl_label = "EM Resources"
+    bl_label = "EM Scene"
     bl_idname = "EM_PT_resources"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "EM Resources"
+    bl_category = "EM Scene"
     bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context):
@@ -57,23 +59,24 @@ class EM_PT_resources(bpy.types.Panel):
         _ok2, _graph, folder, graph_code = operators._active(context)
         backend = operators.get_cached_backend(folder)
 
-        # scan control
-        srow = layout.row(align=True)
+        # DosCo / scan folder — folder picker + current path, then Scan.
+        fbox = layout.box()
+        fbox.operator("em.resources_set_dosco_folder", icon='FILE_FOLDER')
+        fbox.label(text=(folder if folder else "— no DosCo folder set —"),
+                   icon='CHECKMARK' if folder else 'INFO')
+        srow = fbox.row(align=True)
         srow.operator("em.resources_scan", icon='FILE_REFRESH')
         if p.status:
             srow.label(text=p.status)
-        if not folder:
-            layout.label(text="Set a DosCo/library folder on the active GraphML.",
-                         icon='INFO')
 
-        self._section(layout, p, "show_documents", "Documents",
-                      lambda box: self._draw_documents(box, graph, backend))
-        self._section(layout, p, "show_rm", "Representation Models",
-                      self._draw_rm)
+        self._section(layout, p, "show_documents", "Documents", self._draw_documents)
+        self._section(layout, p, "show_rm", "Representation Models", self._draw_rm)
         self._section(layout, p, "show_dtc", "DTC",
                       lambda box: self._draw_dtc(box, context))
         self._section(layout, p, "show_shelf", "Shelf",
                       lambda box: self._draw_shelf(box, graph, backend, graph_code))
+        self._section(layout, p, "show_minio", "Object store (MinIO)",
+                      lambda box: self._draw_minio(box, graph))
 
     # ── section helper ──────────────────────────────────────────────────────────
     def _section(self, layout, p, prop, title, body):
@@ -85,24 +88,14 @@ class EM_PT_resources(bpy.types.Panel):
         if getattr(p, prop):
             body(box)
 
-    # ── Documents ────────────────────────────────────────────────────────────────
-    def _draw_documents(self, box, graph, backend):
-        docs = resource_backend.list_documents(graph, backend)
-        if not docs:
-            box.label(text="— no documents yet")
-            return
-        for d in docs:
-            row = box.row(align=True)
-            icon = 'FILE' if d.get("fs_backed") else 'FILE_HIDDEN'
-            label = d["name"] or d["id"][:8]
-            if d.get("fs_backed"):
-                label += "  (indexed)"
-            row.label(text=label, icon=icon)
+    # ── Documents → the existing Document Manager (no duplicate list) ─────────────
+    def _draw_documents(self, box):
+        box.label(text="Managed in the Document Manager panel (this tab).",
+                  icon='FILE_TEXT')
 
-    # ── Representation Models (managed by the RM Manager panel; hat = follow-up) ──
+    # ── Representation Models (managed by the RM Manager panel) ───────────────────
     def _draw_rm(self, box):
         box.label(text="Manage RMs in the RM Manager panel (this tab).", icon='MESH_DATA')
-        box.label(text="Hatting a resource → RM: follow-up (R3/R5).", icon='INFO')
 
     # ── DTC (reuse the authoring renderer) ────────────────────────────────────────
     def _draw_dtc(self, box, context):
@@ -128,6 +121,28 @@ class EM_PT_resources(bpy.types.Panel):
             op = row.operator("em.resources_hat_document", text="", icon='FILE_NEW')
             op.resource_id = e["resource_id"]
             op.key_id = e["key_id"]
+
+    # ── Object store (MinIO) — Promote local resources (mirrors EMStudio) ─────────
+    def _draw_minio(self, box, graph):
+        box.label(text="Upload a local resource; keeps its stable ID.", icon='EXPORT')
+        supported = resource_backend.minio_supported()
+        if not supported:
+            b = box.box()
+            b.label(text="MinIO promote unavailable", icon='INFO')
+            b.label(text="Needs dev s3dgraphy (./em.sh s3d) + the 'minio' extra,")
+            b.label(text="and S3_* env (source dev-stack/.env).")
+        resources = resource_backend.list_link_resources(graph)
+        if not resources:
+            box.label(text="— no resources (link nodes) yet")
+            return
+        for r in resources:
+            row = box.row(align=True)
+            row.label(text=f"{r['name'] or r['id'][:8]}  ·  {r['kind']}", icon='FILE')
+            if r["kind"] == "local_path":
+                sub = row.row(align=True)
+                sub.enabled = supported
+                op = sub.operator("em.resources_promote_minio", text="Promote")
+                op.resource_id = r["id"]
 
 
 classes = (EM_PT_resources,)

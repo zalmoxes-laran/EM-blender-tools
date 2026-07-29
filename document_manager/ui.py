@@ -385,7 +385,7 @@ class VIEW3D_PT_3DDocumentManager(Panel):
     bl_label = "Document Manager"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "EM Resources"
+    bl_category = "EM Scene"
     bl_idname = "VIEW3D_PT_3DDocumentManager"
     bl_order = 1
     bl_options = {"DEFAULT_CLOSED"}
@@ -720,7 +720,7 @@ class VIEW3D_PT_RMDoc_Manager(Panel):
     bl_idname = "VIEW3D_PT_RMDoc_Manager"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'EM Resources'
+    bl_category = 'EM Scene'
     bl_order = 4
     bl_options = {'DEFAULT_CLOSED'}
 

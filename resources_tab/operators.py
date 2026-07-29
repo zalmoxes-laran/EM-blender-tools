@@ -1,9 +1,11 @@
-"""Operators for the EM Resources tab (R4).
+"""Operators for the EM Scene tab.
 
-Scan the DosCo / library folder into the R1 FS-index backend (stable IDs), and
-"hat" a Shelf orphan into a Master Document that ADOPTS the FS stable ID as its
-node_id. All graph writes go through the s3dgraphy graph (em.json = truth) and
-persist through the existing GraphML round-trip. Nothing here is a 3D object.
+Scan the DosCo / library folder into the R1 FS-index backend (stable IDs), set the
+DosCo folder via a folder picker, "hat" a Shelf orphan into a Master Document that
+ADOPTS the FS stable ID as its node_id, and "Promote to MinIO" a local resource
+(in-process s3dgraphy, preserving the stable ID). All graph writes go through the
+s3dgraphy graph (em.json = truth) and persist through the existing GraphML
+round-trip. Nothing here is a 3D object.
 """
 
 from __future__ import annotations
@@ -26,20 +28,31 @@ def get_cached_backend(folder: str):
     return _BACKENDS.get(os.path.abspath(folder)) if folder else None
 
 
+def _active_graphml_item(context):
+    """The active GraphMLFileItem, or None."""
+    try:
+        em_tools = context.scene.em_tools
+        return em_tools.graphml_files[em_tools.active_file_index]
+    except Exception:
+        return None
+
+
 def _active(context):
-    """(ok, graph, folder, graph_code). Reports nothing; UI/ops decide."""
+    """(ok, graph, folder, graph_code). Reports nothing; UI/ops decide.
+    Resolves the DosCo folder via the shared resolver (legacy dosco_dir AND the
+    newer auxiliary-files system)."""
     from ..functions import check_active_graph
     ok, graph = check_active_graph(context, show_message=False)
     if not ok or graph is None:
         return False, None, "", None
     folder = ""
-    try:
-        em_tools = context.scene.em_tools
-        item = em_tools.graphml_files[em_tools.active_file_index]
-        if getattr(item, "dosco_dir", ""):
-            folder = bpy.path.abspath(item.dosco_dir)
-    except Exception:
-        folder = ""
+    item = _active_graphml_item(context)
+    if item is not None:
+        try:
+            from ..em_setup.resource_utils import resolve_dosco_dir
+            folder = resolve_dosco_dir(item) or ""
+        except Exception:
+            folder = bpy.path.abspath(item.dosco_dir) if getattr(item, "dosco_dir", "") else ""
     graph_code = None
     attrs = getattr(graph, "attributes", None) or {}
     if isinstance(attrs, dict):
@@ -137,9 +150,72 @@ class EM_OT_resources_hat_document(Operator):
         return {'FINISHED'}
 
 
+class EM_OT_resources_set_dosco_folder(Operator):
+    bl_idname = "em.resources_set_dosco_folder"
+    bl_label = "Set DosCo folder"
+    bl_description = ("Choose the DosCo / library folder for the active GraphML "
+                      "(opens a folder browser)")
+    bl_options = {'REGISTER'}
+
+    # a directory-only file browser (subtype DIR_PATH, no filename field)
+    directory: bpy.props.StringProperty(subtype='DIR_PATH')  # type: ignore
+
+    def invoke(self, context, event):
+        if _active_graphml_item(context) is None:
+            self.report({'WARNING'}, "No active GraphML — select one in EM Setup.")
+            return {'CANCELLED'}
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        item = _active_graphml_item(context)
+        if item is None:
+            self.report({'WARNING'}, "No active GraphML.")
+            return {'CANCELLED'}
+        item.dosco_dir = self.directory
+        self.report({'INFO'}, f"DosCo folder set: {self.directory}")
+        for area in context.screen.areas:
+            area.tag_redraw()
+        return {'FINISHED'}
+
+
+class EM_OT_resources_promote_minio(Operator):
+    bl_idname = "em.resources_promote_minio"
+    bl_label = "Promote to MinIO"
+    bl_description = ("Upload this local resource into the shared MinIO object "
+                      "store (keeps its stable ID) and repoint its locator")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    resource_id: bpy.props.StringProperty()  # type: ignore
+
+    def execute(self, context):
+        if not resource_backend.minio_supported():
+            self.report({'ERROR'},
+                        "MinIO unavailable: needs the dev s3dgraphy (./em.sh s3d) "
+                        "AND the 'minio' extra (pip install s3dgraphy[minio]).")
+            return {'CANCELLED'}
+        ok, graph, _folder, _gc = _active(context)
+        if not ok:
+            self.report({'WARNING'}, "No active graph.")
+            return {'CANCELLED'}
+        if not self.resource_id:
+            return {'CANCELLED'}
+        try:
+            res = resource_backend.promote_resource_to_minio(graph, self.resource_id)
+        except Exception as exc:
+            self.report({'ERROR'}, f"Promote failed: {exc}")
+            return {'CANCELLED'}
+        context.scene.em_resources.status = f"Promoted → {res['s3_uri']}"
+        for area in context.screen.areas:
+            area.tag_redraw()
+        return {'FINISHED'}
+
+
 classes = (
     EM_OT_resources_scan,
+    EM_OT_resources_set_dosco_folder,
     EM_OT_resources_hat_document,
+    EM_OT_resources_promote_minio,
 )
 
 
