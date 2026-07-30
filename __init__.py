@@ -358,6 +358,7 @@ if DEPENDENCIES_LOADED:
             graph_info,  # fetta 3: graph-level HDT-O dataset info panel
             dtc_authoring,  # DTC (Digital Twin Chain) authoring panel (ECHOES)
             resources_tab,  # R4: EM Scene tab over the FS-index resource backend
+            shelf_tool,  # Shelf v2 C1: EM Shelf tab (3D-first search → acquisition pipeline)
         )
 
         # Import base PropertyGroup classes into this namespace
@@ -650,6 +651,7 @@ def register_modules():
         graph_info,  # fetta 3: HDT-O props/operators (drawn inline by EM Data Tree)
         dtc_authoring,  # DTC authoring props/operators (drawn inline by EM Data Tree)
         resources_tab,  # EM Scene tab (Shelf/RM/DTC/MinIO over FS backend; Documents → Document Manager)
+        shelf_tool,  # Shelf v2 C1: EM Shelf tab (3D-first search → acquisition pipeline)
         EMdb_excel,
         visual_manager,
         activity_manager,
