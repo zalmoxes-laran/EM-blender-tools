@@ -68,9 +68,14 @@ class EM_ShelfProps(PropertyGroup):
             ('STANDALONE', "Standalone file",
              "Reusable .em.json saved/loaded on disk"),
             ('PROJECT', "Project multigraph",
-             "Member of the current project's multigraph (co-persisted with it)"),
+             "Member of the current project's multigraph (auto-saved beside the .blend)"),
         ],
         default='STANDALONE', update=_scope_update)  # type: ignore
+    attach_to_active_us: BoolProperty(
+        name="Attach to active US",
+        description="On Hat, also link the RM to the active stratigraphic unit "
+                    "(has_representation_model / P138i). Off = floating RM (attach later)",
+        default=False)  # type: ignore
 
 
 def _tier_short(tier_label: str) -> str:

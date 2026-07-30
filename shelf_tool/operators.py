@@ -173,6 +173,18 @@ class EM_OT_shelf_remove(Operator):
         return {'FINISHED'}
 
 
+def _active_us_id(context):
+    """The graph node id of the active stratigraphic unit (EM list), or None —
+    the optional attach target for has_representation_model (P138i)."""
+    try:
+        strat = context.scene.em_tools.stratigraphy
+        if strat.units and 0 <= strat.units_index < len(strat.units):
+            return strat.units[strat.units_index].id_node or None
+    except Exception:
+        pass
+    return None
+
+
 def _import_mesh(path):
     """Import a 3D file into the scene, returning the newly-created objects.
     Per-extension dispatch over Blender's importers (glTF/OBJ/FBX/PLY/STL/DAE/USD).
@@ -239,8 +251,13 @@ class EM_OT_shelf_hat(Operator):
             return {'CANCELLED'}
         obj = objs[0]
         rm_id = f"{obj.name}_model"
+        # optional: attach the RM to the active US (has_representation_model / P138i)
+        attach_to = None
+        if p.attach_to_active_us:
+            attach_to = _active_us_id(context)
         try:
-            out = shelf_backend.hat_as_rm(graph, rid, rm_id=rm_id, name=obj.name)
+            out = shelf_backend.hat_as_rm(graph, rid, rm_id=rm_id, name=obj.name,
+                                          attach_to=attach_to)
         except Exception as exc:
             self.report({'ERROR'}, f"Hat failed: {exc}")
             return {'CANCELLED'}
@@ -248,7 +265,12 @@ class EM_OT_shelf_hat(Operator):
         for o in objs:
             o["em_resource_id"] = rid
             o["em_rm_node_id"] = out["rm_id"]
-        p.status = f"Hatted → RM {out['rm_id']}"
+        if p.attach_to_active_us and not out.get("attached"):
+            p.status = f"Hatted → RM {out['rm_id']} (no active US → floating)"
+        elif out.get("attached"):
+            p.status = f"Hatted → RM {out['rm_id']} · attached to US"
+        else:
+            p.status = f"Hatted → RM {out['rm_id']}"
         for area in context.screen.areas:
             area.tag_redraw()
         return {'FINISHED'}

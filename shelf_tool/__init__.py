@@ -12,16 +12,18 @@ em.json = source of truth. NO hatting (that is C2), NO network connectors.
 
 from __future__ import annotations
 
-from . import properties, operators, ui
+from . import properties, operators, ui, handlers
 
 
 def register():
     properties.register()
     operators.register()
     ui.register()
+    handlers.register()
 
 
 def unregister():
+    handlers.unregister()
     ui.unregister()
     operators.unregister()
     properties.unregister()

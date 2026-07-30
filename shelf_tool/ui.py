@@ -85,6 +85,16 @@ class EM_PT_shelf(bpy.types.Panel):
         mg = shelf_backend.multigraph_id()
         if mg:
             layout.label(text=f"project member: {mg}", icon='OUTLINER')
+        # project-scope persistence: sidecar beside the .blend (not in the Heriverse export)
+        if p.shelf_scope == 'PROJECT':
+            if bpy.data.filepath:
+                layout.label(text="auto-saved beside the .blend on save", icon='INFO')
+            else:
+                w = layout.box()
+                w.alert = True
+                w.label(text="Save the .blend to persist the project shelf",
+                        icon='ERROR')
+                w.label(text="(or use Save Shelf for a standalone file)")
         if p.status:
             layout.label(text=p.status, icon='INFO')
 
@@ -106,6 +116,7 @@ class EM_PT_shelf(bpy.types.Panel):
             if not it.exists:
                 box.label(text="(file not found on disk)", icon='ERROR')
             # Hat: import the 3D into the scene as an RM in the active study graph
+            box.prop(p, "attach_to_active_us")
             actions = box.row(align=True)
             hat = actions.operator("em.shelf_hat", text="Hat (import as RM)",
                                    icon='IMPORT')
