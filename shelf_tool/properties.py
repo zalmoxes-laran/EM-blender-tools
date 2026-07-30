@@ -1,14 +1,32 @@
-"""PropertyGroup backing the EM Shelf tool.
+"""PropertyGroups backing the EM Shelf tool.
 
 UI buffer only — the single source of truth is the s3dgraphy ShelfGraph held by
-shelf_backend (a standalone em.json). Nothing here is a Blender scene object.
+shelf_backend (a standalone em.json). The `items` collection mirrors
+shelf_backend.cards() for a scalable UIList presentation; it is repopulated
+(``sync_items``) after every Scan / Load / New / Remove. Nothing here is a
+Blender scene object.
 """
 
 from __future__ import annotations
 
 import bpy
-from bpy.props import BoolProperty, StringProperty
+from bpy.props import (BoolProperty, CollectionProperty, IntProperty,
+                       StringProperty)
 from bpy.types import PropertyGroup
+
+
+class EM_ShelfItem(PropertyGroup):
+    """One shelf resource, mirrored from a backend card for UIList display."""
+    resource_id: StringProperty(default="")  # type: ignore
+    # `name` is the UIList's default filter/sort key (built-in name funnel).
+    name: StringProperty(default="")  # type: ignore
+    media_type: StringProperty(default="")  # type: ignore
+    resource_type: StringProperty(default="")  # type: ignore
+    size_bytes: IntProperty(default=0)  # type: ignore
+    size_text: StringProperty(default="")  # type: ignore
+    tier_label: StringProperty(default="")  # type: ignore
+    tier_short: StringProperty(default="")  # type: ignore
+    exists: BoolProperty(default=True)  # type: ignore
 
 
 class EM_ShelfProps(PropertyGroup):
@@ -19,9 +37,44 @@ class EM_ShelfProps(PropertyGroup):
     recursive: BoolProperty(
         name="Recursive", description="Scan sub-folders too", default=True)  # type: ignore
     status: StringProperty(name="", default="")  # type: ignore
+    items: CollectionProperty(type=EM_ShelfItem)  # type: ignore
+    active_index: IntProperty(name="", default=0)  # type: ignore
 
 
-classes = (EM_ShelfProps,)
+def _tier_short(tier_label: str) -> str:
+    """'Tier 0 · import + origin' → 'T0' (compact badge for the list row)."""
+    t = (tier_label or "").strip()
+    if t.lower().startswith("tier ") and len(t) > 5 and t[5].isdigit():
+        return "T" + t[5]
+    return "T?"
+
+
+def sync_items(scene) -> None:
+    """Refill ``scene.em_shelf.items`` from the backend card cache. Clamps the
+    active index. Called after Scan / Load / New / Remove — presentation only."""
+    from . import shelf_backend
+    p = getattr(scene, "em_shelf", None)
+    if p is None:
+        return
+    cards = shelf_backend.cards()
+    p.items.clear()
+    for c in cards:
+        it = p.items.add()
+        it.resource_id = c.get("resource_id", "")
+        it.name = c.get("name", "") or c.get("resource_id", "")[:8]
+        it.media_type = c.get("media_type", "") or c.get("resource_type", "")
+        it.resource_type = c.get("resource_type", "")
+        size = c.get("size")
+        it.size_bytes = int(size) if isinstance(size, int) else 0
+        it.size_text = shelf_backend.human_size(size)
+        it.tier_label = c.get("tier", "")
+        it.tier_short = _tier_short(c.get("tier", ""))
+        it.exists = bool(c.get("exists", True))
+    if p.active_index >= len(p.items):
+        p.active_index = max(0, len(p.items) - 1)
+
+
+classes = (EM_ShelfItem, EM_ShelfProps)
 
 
 def register():

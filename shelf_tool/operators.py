@@ -12,7 +12,7 @@ import os
 import bpy
 from bpy.types import Operator
 
-from . import shelf_backend
+from . import properties, shelf_backend
 
 _STALE = ("Shelf unavailable: the active s3dgraphy is stale — activate the "
           "dev/updated s3dgraphy (./em.sh s3d), then reopen.")
@@ -60,6 +60,7 @@ class EM_OT_shelf_scan(Operator):
             return {'CANCELLED'}
         p.status = (f"Scanned {res['scanned']} 3D file(s) — Shelf has "
                     f"{res['shelf_count']} resource(s)")
+        properties.sync_items(context.scene)
         for area in context.screen.areas:
             area.tag_redraw()
         return {'FINISHED'}
@@ -77,6 +78,7 @@ class EM_OT_shelf_new(Operator):
             return {'CANCELLED'}
         shelf_backend.new_shelf()
         context.scene.em_shelf.status = "New shelf"
+        properties.sync_items(context.scene)
         for area in context.screen.areas:
             area.tag_redraw()
         return {'FINISHED'}
@@ -141,6 +143,7 @@ class EM_OT_shelf_load(Operator):
             print(f"[EM Shelf] warning: {w}")
         context.scene.em_shelf.status = (f"Loaded {len(shelf_backend.cards())} "
                                          f"resource(s)")
+        properties.sync_items(context.scene)
         for area in context.screen.areas:
             area.tag_redraw()
         return {'FINISHED'}
@@ -159,6 +162,7 @@ class EM_OT_shelf_remove(Operator):
             return {'CANCELLED'}
         shelf_backend.remove(self.resource_id)
         context.scene.em_shelf.status = "Removed"
+        properties.sync_items(context.scene)
         for area in context.screen.areas:
             area.tag_redraw()
         return {'FINISHED'}

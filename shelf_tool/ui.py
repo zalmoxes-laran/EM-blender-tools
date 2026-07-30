@@ -1,9 +1,12 @@
 """EM Shelf tool UI — a SEPARATE N-panel tab ("EM Shelf"), distinct from EM Scene.
 
-A 3D-first project-folder search that populates a Shelf of acquired resources; each
-card reflects the fields the acquisition mapping offers (name, media type, size in
-bytes) + a tier badge (Tier 0 = "import + origin"). Standalone save/load. NO
-hatting here (that is C2). All data comes from shelf_backend (in-process s3dgraphy).
+A 3D-first project-folder search populates a Shelf of acquired resources. The
+resources are shown in a scalable **UIList** (one compact row each, built-in
+name filter/sort — essential with hundreds of items); the ACTIVE row's fields
+(name, media type, size in bytes, tier badge) are shown in a details box below,
+with the Remove action. NO hatting here (that is C2; the details box leaves room
+for a future "Hat" button). All data comes from shelf_backend (in-process
+s3dgraphy) mirrored into scene.em_shelf.items.
 """
 
 from __future__ import annotations
@@ -11,6 +14,27 @@ from __future__ import annotations
 import bpy
 
 from . import shelf_backend
+
+
+class SHELF_UL_resources(bpy.types.UIList):
+    """One compact row per shelf resource: icon + name + tier badge (+ size)."""
+
+    def draw_item(self, context, layout, data, item, icon, active_data,
+                  active_propname, index):
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            row = layout.row(align=True)
+            row.label(text=item.name or item.resource_id[:8],
+                      icon='MESH_DATA' if item.exists else 'ERROR')
+            badge = row.row()
+            badge.alignment = 'RIGHT'
+            badge.label(text=item.tier_short)      # compact "T0"
+            badge.label(text=item.size_text)        # size to the right
+        elif self.layout_type == 'GRID':
+            layout.alignment = 'CENTER'
+            layout.label(text=item.tier_short)
+
+    # rely on the built-in name filter/sort (filters on item.name) — the funnel
+    # in the UIList header lets the user type-to-filter hundreds of resources.
 
 
 class EM_PT_shelf(bpy.types.Panel):
@@ -60,31 +84,32 @@ class EM_PT_shelf(bpy.types.Panel):
         if p.status:
             layout.label(text=p.status, icon='INFO')
 
-        # ── cards ──────────────────────────────────────────────────────────────
-        cards = shelf_backend.cards()
-        layout.label(text=f"Shelf — {len(cards)} resource(s)")
-        if not cards:
+        # ── resource list (scalable UIList + name funnel) ─────────────────────
+        layout.label(text=f"Shelf — {len(p.items)} resource(s)")
+        layout.template_list("SHELF_UL_resources", "", p, "items",
+                             p, "active_index", rows=6)
+
+        # ── details for the ACTIVE resource ───────────────────────────────────
+        if 0 <= p.active_index < len(p.items):
+            it = p.items[p.active_index]
+            box = layout.box()
+            box.label(text=it.name or it.resource_id[:8],
+                      icon='MESH_DATA' if it.exists else 'ERROR')
+            box.label(text=f"Type: {it.media_type or it.resource_type or '?'}",
+                      icon='FILE_3D')
+            box.label(text=f"Size: {it.size_text}")
+            box.label(text=it.tier_label or "Tier 0 · import + origin", icon='INFO')
+            if not it.exists:
+                box.label(text="(file not found on disk)", icon='ERROR')
+            # room here for the future "Hat" action (C2: import into the scene as RM)
+            rm = box.operator("em.shelf_remove", text="Remove", icon='X')
+            rm.resource_id = it.resource_id
+        else:
             layout.box().label(text="— empty. Set a folder and Scan for 3D.",
                                icon='INFO')
-            return
-        for c in cards:
-            box = layout.box()
-            head = box.row(align=True)
-            icon = 'MESH_DATA' if c["exists"] else 'ERROR'
-            head.label(text=c["name"], icon=icon)
-            rm = head.operator("em.shelf_remove", text="", icon='X')
-            rm.resource_id = c["resource_id"]
-            # fields reflecting the mapping (name/media_type/size) + tier badge
-            meta = box.row(align=True)
-            mt = c["media_type"] or c["resource_type"] or "?"
-            meta.label(text=mt, icon='FILE_3D')
-            meta.label(text=shelf_backend.human_size(c["size"]))
-            box.label(text=c["tier"], icon='INFO')
-            if not c["exists"]:
-                box.label(text="(file not found on disk)", icon='ERROR')
 
 
-classes = (EM_PT_shelf,)
+classes = (SHELF_UL_resources, EM_PT_shelf)
 
 
 def register():
