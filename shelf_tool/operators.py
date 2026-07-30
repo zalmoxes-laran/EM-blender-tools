@@ -152,7 +152,8 @@ class EM_OT_shelf_load(Operator):
 class EM_OT_shelf_remove(Operator):
     bl_idname = "em.shelf_remove"
     bl_label = "Remove"
-    bl_description = "Remove this resource from the Shelf"
+    bl_description = ("Remove this resource from the Shelf (keeps it if it is "
+                      "referenced/hatted; cleans up its acquisition event otherwise)")
     bl_options = {'REGISTER', 'UNDO'}
 
     resource_id: bpy.props.StringProperty()  # type: ignore
@@ -160,9 +161,94 @@ class EM_OT_shelf_remove(Operator):
     def execute(self, context):
         if not self.resource_id:
             return {'CANCELLED'}
-        shelf_backend.remove(self.resource_id)
-        context.scene.em_shelf.status = "Removed"
+        rep = shelf_backend.remove(self.resource_id)
+        if rep.get("referenced"):
+            context.scene.em_shelf.status = "Kept — resource is referenced (hatted)"
+        elif rep.get("removed"):
+            context.scene.em_shelf.status = (
+                f"Removed (event cleaned: {rep.get('events_removed', 0)})")
         properties.sync_items(context.scene)
+        for area in context.screen.areas:
+            area.tag_redraw()
+        return {'FINISHED'}
+
+
+def _import_mesh(path):
+    """Import a 3D file into the scene, returning the newly-created objects.
+    Per-extension dispatch over Blender's importers (glTF/OBJ/FBX/PLY/STL/DAE/USD).
+    Blender-only → covered by E.D.'s manual verify."""
+    ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+    before = set(bpy.data.objects)
+    try:
+        if ext in ("glb", "gltf"):
+            bpy.ops.import_scene.gltf(filepath=path)
+        elif ext == "obj":
+            (bpy.ops.wm.obj_import if hasattr(bpy.ops.wm, "obj_import")
+             else bpy.ops.import_scene.obj)(filepath=path)
+        elif ext == "fbx":
+            bpy.ops.import_scene.fbx(filepath=path)
+        elif ext == "ply":
+            (bpy.ops.wm.ply_import if hasattr(bpy.ops.wm, "ply_import")
+             else bpy.ops.import_mesh.ply)(filepath=path)
+        elif ext == "stl":
+            (bpy.ops.wm.stl_import if hasattr(bpy.ops.wm, "stl_import")
+             else bpy.ops.import_mesh.stl)(filepath=path)
+        elif ext == "dae":
+            bpy.ops.wm.collada_import(filepath=path)
+        elif ext in ("usd", "usda", "usdc", "usdz"):
+            bpy.ops.wm.usd_import(filepath=path)
+        else:
+            return []
+    except Exception as exc:  # importer missing / bad file
+        print(f"[EM Shelf] mesh import failed for {path}: {exc}")
+        return []
+    return [o for o in bpy.data.objects if o not in before]
+
+
+class EM_OT_shelf_hat(Operator):
+    bl_idname = "em.shelf_hat"
+    bl_label = "Hat (import as RM)"
+    bl_description = ("Import this 3D resource into the scene and hat it into the "
+                      "active study graph as a RepresentationModel (keeps the stable ID)")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    resource_id: bpy.props.StringProperty()  # type: ignore
+
+    def execute(self, context):
+        if not shelf_backend.shelf_supported():
+            self.report({'ERROR'}, _STALE)
+            return {'CANCELLED'}
+        p = context.scene.em_shelf
+        it = p.items[p.active_index] if 0 <= p.active_index < len(p.items) else None
+        rid = self.resource_id or (it.resource_id if it else "")
+        loc = it.locator if it else ""
+        if not rid:
+            return {'CANCELLED'}
+        # target study graph = the active GraphML's graph
+        from ..functions import check_active_graph
+        ok, graph = check_active_graph(context, show_message=False)
+        if not ok or graph is None:
+            self.report({'WARNING'}, "No active study graph — select a GraphML in EM Setup.")
+            return {'CANCELLED'}
+        if not loc or not os.path.isfile(bpy.path.abspath(loc)):
+            self.report({'WARNING'}, f"Resource file not found on disk: {loc}")
+            return {'CANCELLED'}
+        objs = _import_mesh(bpy.path.abspath(loc))
+        if not objs:
+            self.report({'ERROR'}, "Mesh import produced no object (unsupported format?).")
+            return {'CANCELLED'}
+        obj = objs[0]
+        rm_id = f"{obj.name}_model"
+        try:
+            out = shelf_backend.hat_as_rm(graph, rid, rm_id=rm_id, name=obj.name)
+        except Exception as exc:
+            self.report({'ERROR'}, f"Hat failed: {exc}")
+            return {'CANCELLED'}
+        # bind the imported object(s) to the RM node + resource (EMTools convention)
+        for o in objs:
+            o["em_resource_id"] = rid
+            o["em_rm_node_id"] = out["rm_id"]
+        p.status = f"Hatted → RM {out['rm_id']}"
         for area in context.screen.areas:
             area.tag_redraw()
         return {'FINISHED'}
@@ -174,6 +260,7 @@ classes = (
     EM_OT_shelf_new,
     EM_OT_shelf_save,
     EM_OT_shelf_load,
+    EM_OT_shelf_hat,
     EM_OT_shelf_remove,
 )
 

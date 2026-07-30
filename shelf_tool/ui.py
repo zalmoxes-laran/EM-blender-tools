@@ -73,7 +73,8 @@ class EM_PT_shelf(bpy.types.Panel):
         srow.prop(p, "recursive")
         srow.operator("em.shelf_scan", icon='VIEWZOOM')
 
-        # ── shelf file (standalone em.json) ───────────────────────────────────
+        # ── shelf scope (standalone file vs project multigraph) ───────────────
+        layout.prop(p, "shelf_scope", text="")
         frow = layout.row(align=True)
         frow.operator("em.shelf_new", icon='FILE_NEW')
         frow.operator("em.shelf_save", icon='EXPORT')
@@ -81,6 +82,9 @@ class EM_PT_shelf(bpy.types.Panel):
         path = shelf_backend.active_path()
         if path:
             layout.label(text=f"file: {path}", icon='CHECKMARK')
+        mg = shelf_backend.multigraph_id()
+        if mg:
+            layout.label(text=f"project member: {mg}", icon='OUTLINER')
         if p.status:
             layout.label(text=p.status, icon='INFO')
 
@@ -101,8 +105,12 @@ class EM_PT_shelf(bpy.types.Panel):
             box.label(text=it.tier_label or "Tier 0 · import + origin", icon='INFO')
             if not it.exists:
                 box.label(text="(file not found on disk)", icon='ERROR')
-            # room here for the future "Hat" action (C2: import into the scene as RM)
-            rm = box.operator("em.shelf_remove", text="Remove", icon='X')
+            # Hat: import the 3D into the scene as an RM in the active study graph
+            actions = box.row(align=True)
+            hat = actions.operator("em.shelf_hat", text="Hat (import as RM)",
+                                   icon='IMPORT')
+            hat.resource_id = it.resource_id
+            rm = actions.operator("em.shelf_remove", text="", icon='X')
             rm.resource_id = it.resource_id
         else:
             layout.box().label(text="— empty. Set a folder and Scan for 3D.",

@@ -22,8 +22,9 @@ from typing import Any, Dict, List, Optional
 # 3D-first: the search entry points are scene-placeable 3D assets (design §1c).
 THREE_D_EXTS = ("glb", "gltf", "obj", "fbx", "ply", "stl", "3ds", "dae", "usd", "usdz")
 
-# session-held active shelf: the s3dgraphy Graph, its on-disk path, cached cards.
-_active: Dict[str, Any] = {"graph": None, "path": None, "cards": []}
+# session-held active shelf: the s3dgraphy Graph, its on-disk path, cached cards,
+# and the project-multigraph id when linked (Session C2).
+_active: Dict[str, Any] = {"graph": None, "path": None, "cards": [], "mg_id": None}
 
 # every s3dgraphy api op this tool drives (the capability guard checks them all).
 _REQUIRED_API = (
@@ -169,16 +170,64 @@ def cards() -> List[Dict[str, Any]]:
     return _active["cards"]
 
 
-def remove(resource_id: str) -> bool:
-    """Remove a resource from the active shelf (reuses remove_from_shelf; cascades
-    its incident edges). Refreshes the cards."""
+def remove(resource_id: str) -> Dict[str, Any]:
+    """Remove a resource from the active shelf, cleaning up its orphan acquisition
+    event (kept if the resource is still referenced — reuses
+    api.remove_shelf_resource). Refreshes the cards. Returns the cleanup report."""
     from s3dgraphy import api
     graph = _active["graph"]
     if graph is None:
-        return False
-    ok = api.remove_from_shelf(graph, resource_id)
+        return {"removed": False, "referenced": False, "events_removed": 0}
+    rep = api.remove_shelf_resource(graph, resource_id)
     _refresh_cards()
-    return ok
+    return rep
+
+
+# ── hatting (C2): shelf resource → RepresentationModel in the study graph ───────
+def hat_as_rm(target_graph: Any, resource_id: str, *, rm_id: Optional[str] = None,
+              name: Optional[str] = None, attach_to: Optional[str] = None
+              ) -> Dict[str, Any]:
+    """Hat a shelf resource into ``target_graph`` as a RepresentationModel (pure;
+    reuses api.hat_as_representation_model). The Blender mesh import + object bind
+    are done by the operator; this only touches the graph."""
+    from s3dgraphy import api
+    return api.hat_as_representation_model(
+        target_graph, resource_id, shelf=_active["graph"], rm_id=rm_id,
+        name=name, attach_to=attach_to)
+
+
+# ── shelf ↔ multigraph (C2): the shelf as a project-local member ────────────────
+def link_to_multigraph(graph_id: str) -> Optional[str]:
+    """Register the active shelf as a member of the project multigraph (so
+    get_graph(graph_id) returns it and it co-persists with the project). Returns
+    the id used, or None if there is no active shelf."""
+    graph = ensure_shelf()
+    try:
+        from s3dgraphy.multigraph.multigraph import multi_graph_manager
+        graph.graph_id = graph_id
+        multi_graph_manager.graphs[graph_id] = graph
+        _active["mg_id"] = graph_id
+        return graph_id
+    except Exception:
+        return None
+
+
+def unlink_from_multigraph() -> None:
+    """Drop the shelf from the project multigraph (back to standalone-file mode)."""
+    gid = _active.get("mg_id")
+    if not gid:
+        return
+    try:
+        from s3dgraphy.multigraph.multigraph import multi_graph_manager
+        if multi_graph_manager.graphs.get(gid) is _active["graph"]:
+            del multi_graph_manager.graphs[gid]
+    except Exception:
+        pass
+    _active["mg_id"] = None
+
+
+def multigraph_id() -> Optional[str]:
+    return _active.get("mg_id")
 
 
 def human_size(n: Optional[int]) -> str:
