@@ -4,9 +4,11 @@ A 3D-first project-folder search populates a Shelf of acquired resources. The
 resources are shown in a scalable **UIList** (one compact row each, built-in
 name filter/sort — essential with hundreds of items); the ACTIVE row's fields
 (name, media type, size in bytes, tier badge) are shown in a details box below,
-with the Remove action. NO hatting here (that is C2; the details box leaves room
-for a future "Hat" button). All data comes from shelf_backend (in-process
-s3dgraphy) mirrored into scene.em_shelf.items.
+with the Hat and Remove actions. Hat opens a dialog where the user picks the
+FACET explicitly (RM / RMSF / RMDoc / Document) and a compatible target; the
+facets are not exclusive, so the same resource can be hatted more than once. All
+data comes from shelf_backend (in-process s3dgraphy) mirrored into
+scene.em_shelf.items.
 """
 
 from __future__ import annotations
@@ -115,11 +117,12 @@ class EM_PT_shelf(bpy.types.Panel):
             box.label(text=it.tier_label or "Tier 0 · import + origin", icon='INFO')
             if not it.exists:
                 box.label(text="(file not found on disk)", icon='ERROR')
-            # Hat: import the 3D into the scene as an RM in the active study graph
-            box.prop(p, "attach_to_active_us")
+            # Hat: pick the facet (RM / RMSF / RMDoc / Document) + its target.
+            # Facets are not exclusive — Hat the same resource again for another.
+            box.label(text="Hat under a facet (RM · RMSF · RMDoc · Document)",
+                      icon='PRESET')
             actions = box.row(align=True)
-            hat = actions.operator("em.shelf_hat", text="Hat (import as RM)",
-                                   icon='IMPORT')
+            hat = actions.operator("em.shelf_hat", text="Hat…", icon='IMPORT')
             hat.resource_id = it.resource_id
             rm = actions.operator("em.shelf_remove", text="", icon='X')
             rm.resource_id = it.resource_id

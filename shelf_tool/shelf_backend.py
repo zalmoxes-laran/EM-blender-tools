@@ -10,8 +10,12 @@ is reimplemented here — every step calls the s3dgraphy api:
 so each entry lands with its acquisition DTC event + origin (tier). The shelf is a
 standalone reusable em.json (save/load) — the ShelfGraph substrate (Session A).
 
+Hatting (C2/C3) is here too, as thin passthroughs to the s3dgraphy facet ops: the
+role picks the facet (RM / RMSF / RMDoc / Document) and the facets are NOT
+exclusive — one Resource can carry several.
+
 NO ``bpy`` here (unit-testable outside Blender), mirroring resource_backend.py.
-NO hatting (that is C2). The active shelf + its display cards are held per session.
+The active shelf + its display cards are held per session.
 """
 
 from __future__ import annotations
@@ -30,6 +34,9 @@ _active: Dict[str, Any] = {"graph": None, "path": None, "cards": [], "mg_id": No
 _REQUIRED_API = (
     "new_shelf", "list_shelf", "remove_from_shelf", "save_shelf", "load_shelf",
     "acquire_from_descriptor", "apply_acquisition_mapping", "fs_acquisition_record",
+    # C3 hatting facets + the datamodel-driven attach picker
+    "hat_as_representation_model", "hat_as_rmsf", "hat_as_rmdoc", "hat_as_document",
+    "attach_candidates",
 )
 
 
@@ -183,17 +190,93 @@ def remove(resource_id: str) -> Dict[str, Any]:
     return rep
 
 
-# ── hatting (C2): shelf resource → RepresentationModel in the study graph ───────
+# ── hatting facets (C2 = RM; C3 = RMSF / RMDoc / Document) ──────────────────────
+# The ROLE picks the facet and facets are NOT exclusive: the same Resource can be
+# an RM (of the epoch it depicts) AND a Document (a source in a paradata chain).
+# All four are pure graph ops in s3dgraphy — the Blender mesh import + object bind
+# stay in the operator, and the Document facet imports NOTHING (it is a source).
+FACET_ITEMS = (
+    ('RM', "Representation Model",
+     "A 3D representation of a real or reconstructed STATE — binds to one or "
+     "more Epochs (a photogrammetric model of the current state is the RM of "
+     "the epoch it depicts). Imports the mesh"),
+    ('RMSF', "RM Special Find",
+     "The 3D representation of a Special Find (e.g. a scanned capital "
+     "repositioned by an anastylosis hypothesis). Binds to an SF node. "
+     "Imports the mesh"),
+    ('RMDOC', "RM Document",
+     "A Document instantiated in the 3D scene (e.g. a historical photo placed "
+     "where it was taken). Binds to a Document; placement is free / manual. "
+     "Imports the mesh"),
+    ('DOCUMENT', "Document (source)",
+     "The resource used as a SOURCE in a reasoning chain — the paradata entry "
+     "an Extractor reads from. No mesh, no placement"),
+)
+#: facet enum id → the s3dgraphy facet name used by the api
+FACET_KEY = {'RM': "rm", 'RMSF': "rmsf", 'RMDOC': "rmdoc", 'DOCUMENT': "document"}
+#: the facets that put geometry in the scene (Document is a record, not a mesh)
+MESH_FACETS = ('RM', 'RMSF', 'RMDOC')
+
+
+def attach_candidates(facet: str, target_graph: Any) -> List[Dict[str, Any]]:
+    """The nodes ``facet`` may attach to in ``target_graph`` — straight from
+    s3dgraphy, which derives them from the datamodel's allowed_connections (the
+    picker never hardcodes a type list). ``rm`` returns the epochs in
+    chronological order (first = has_first_epoch)."""
+    from s3dgraphy import api
+    if target_graph is None:
+        return []
+    return api.attach_candidates(FACET_KEY.get(facet, facet), target_graph)
+
+
 def hat_as_rm(target_graph: Any, resource_id: str, *, rm_id: Optional[str] = None,
-              name: Optional[str] = None, attach_to: Optional[str] = None
-              ) -> Dict[str, Any]:
-    """Hat a shelf resource into ``target_graph`` as a RepresentationModel (pure;
-    reuses api.hat_as_representation_model). The Blender mesh import + object bind
-    are done by the operator; this only touches the graph."""
+              name: Optional[str] = None, epochs: Optional[List[str]] = None,
+              attach_to: Optional[str] = None) -> Dict[str, Any]:
+    """Hat a shelf resource as a RepresentationModel bound to one or more EPOCHS
+    (ordered: first → has_first_epoch, rest → survive_in_epoch)."""
     from s3dgraphy import api
     return api.hat_as_representation_model(
         target_graph, resource_id, shelf=_active["graph"], rm_id=rm_id,
-        name=name, attach_to=attach_to)
+        name=name, epochs=epochs, attach_to=attach_to)
+
+
+def hat_as_rmsf(target_graph: Any, resource_id: str, *, rmsf_id: Optional[str] = None,
+                name: Optional[str] = None, attach_to: Optional[str] = None
+                ) -> Dict[str, Any]:
+    """Hat a shelf resource as an RMSF attached to a Special Find node."""
+    from s3dgraphy import api
+    return api.hat_as_rmsf(target_graph, resource_id, shelf=_active["graph"],
+                           rmsf_id=rmsf_id, name=name, attach_to=attach_to)
+
+
+def hat_as_rmdoc(target_graph: Any, resource_id: str, *,
+                 rmdoc_id: Optional[str] = None, name: Optional[str] = None,
+                 attach_to: Optional[str] = None, free_placement: bool = True
+                 ) -> Dict[str, Any]:
+    """Hat a shelf resource as an RMDoc attached to a Document node. Placement is
+    free / manual — no epoch, no stratigraphy."""
+    from s3dgraphy import api
+    return api.hat_as_rmdoc(target_graph, resource_id, shelf=_active["graph"],
+                            rmdoc_id=rmdoc_id, name=name, attach_to=attach_to,
+                            free_placement=free_placement)
+
+
+def hat_as_document(target_graph: Any, resource_id: str, *,
+                    doc_id: Optional[str] = None, name: Optional[str] = None,
+                    description: str = "", role: Optional[str] = None,
+                    content_nature: Optional[str] = None,
+                    geometry: Optional[str] = None,
+                    attach_to: Optional[str] = None) -> Dict[str, Any]:
+    """Wire an EXISTING DocumentNode (``doc_id``, built by the operator through
+    ``master_document_helpers.create_master_document_node`` so EMTools keeps ONE
+    document shape) to the Resource via has_linked_resource (P67), plus the
+    optional attach. When ``doc_id`` is unknown the op creates the node itself
+    with the same shape."""
+    from s3dgraphy import api
+    return api.hat_as_document(
+        target_graph, resource_id, shelf=_active["graph"], doc_id=doc_id, name=name,
+        description=description, role=role, content_nature=content_nature,
+        geometry=geometry, attach_to=attach_to)
 
 
 # ── shelf ↔ multigraph (C2): the shelf as a project-local member ────────────────

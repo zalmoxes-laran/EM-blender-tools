@@ -16,6 +16,12 @@ from .graph_utils import (
     apply_visibility_changes,
 )
 
+#: Edge types that bind a Special Find to its RMSF. This manager historically
+#: writes the generic ``has_representation_model``; the datamodel's purpose-built
+#: edge is ``has_representation_model_sf`` (SpecialFindUnit → RMSF), which the
+#: Shelf "Hat as RMSF" facet emits. The reader accepts both.
+_SF_RM_EDGES = ("has_representation_model", "has_representation_model_sf")
+
 
 class ANASTYLOSIS_OT_update_list(Operator):
     bl_idname = "anastylosis.update_list"
@@ -75,9 +81,15 @@ class ANASTYLOSIS_OT_update_list(Operator):
                     sf_node_name = ""
                     is_virtual = False
 
-                    # Find edges connecting to SF/VSF nodes
+                    # Find edges connecting to SF/VSF nodes. Two edge types are
+                    # accepted: the legacy generic `has_representation_model`
+                    # written by this manager, and `has_representation_model_sf`
+                    # — the datamodel's purpose-built SF→RMSF edge, emitted by
+                    # the Shelf "Hat as RMSF" facet.
                     for edge in graph.edges:
-                        if edge.edge_source == node.node_id and edge.edge_type == "has_representation_model":
+                        if edge.edge_type not in _SF_RM_EDGES:
+                            continue
+                        if edge.edge_source == node.node_id:
                             target_node = graph.find_node_by_id(edge.edge_target)
                             if target_node and target_node.node_type in SPECIAL_FIND_TYPES:
                                 sf_node = target_node
@@ -85,7 +97,7 @@ class ANASTYLOSIS_OT_update_list(Operator):
                                 sf_node_name = target_node.name
                                 is_virtual = target_node.node_type == "VSF"
                                 break
-                        elif edge.edge_target == node.node_id and edge.edge_type == "has_representation_model":
+                        elif edge.edge_target == node.node_id:
                             source_node = graph.find_node_by_id(edge.edge_source)
                             if source_node and source_node.node_type in SPECIAL_FIND_TYPES:
                                 sf_node = source_node

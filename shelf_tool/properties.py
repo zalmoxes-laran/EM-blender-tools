@@ -71,11 +71,9 @@ class EM_ShelfProps(PropertyGroup):
              "Member of the current project's multigraph (auto-saved beside the .blend)"),
         ],
         default='STANDALONE', update=_scope_update)  # type: ignore
-    attach_to_active_us: BoolProperty(
-        name="Attach to active US",
-        description="On Hat, also link the RM to the active stratigraphic unit "
-                    "(has_representation_model / P138i). Off = floating RM (attach later)",
-        default=False)  # type: ignore
+    # NOTE (C3): the C2.1 "attach to active US" toggle is GONE — it was
+    # off-target. An RM represents a state and binds to EPOCHS; the facet and its
+    # compatible target are now picked explicitly in the Hat dialog.
 
 
 def _tier_short(tier_label: str) -> str:
