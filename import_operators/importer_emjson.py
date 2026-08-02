@@ -106,6 +106,17 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
         if hasattr(entry, "import_warnings"):
             entry.import_warnings = "\n".join(warnings) if warnings else ""
 
+        # S6 — version banner: what the document declares (em.json
+        # schema_version, S2a) next to what is reading it (EM datamodel).
+        try:
+            from ..em_setup.version_banner import read_graph_versions
+            _v = read_graph_versions(graph)
+            entry.emjson_schema_version = _v["emjson_schema"]
+            entry.em_datamodel_version = _v["em_datamodel"]
+            entry.stratigraph_version = _v["stratigraph"]
+        except Exception as exc:  # noqa: BLE001
+            print(f"[em.json import] WARN version banner: {exc}")
+
         # --- common populate tail (mirrors importer_graphml) -----------------
         clear_lists(context)
         try:

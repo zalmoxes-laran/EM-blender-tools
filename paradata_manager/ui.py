@@ -376,7 +376,7 @@ class EM_ParadataPanel:
                         btn_row.label(text="", icon="MESH_CUBE")
 
                 # Jump to the matching row in the Document Manager so the
-                # user can see linked meshes / quad / camera / master
+                # user can see linked meshes / quad / camera / canonical
                 # metadata. Replaces the legacy ``select.listitem``
                 # icon here, which was effectively dead in the Docs
                 # section: documents are linked to 3D objects via the
@@ -450,8 +450,8 @@ class EM_UL_sources_managers(UIList):
     }
 
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        if item.is_master:
-            # Master document: show certainty icon + name + date info
+        if item.is_canonical:
+            # Canonical document: show certainty icon + name + date info
             certainty_icon = self.CERTAINTY_ICONS.get(item.certainty_class, "KEYTYPE_MOVING_HOLD_VEC")
             row = layout.row(align=True)
             row.label(text="", icon=certainty_icon)

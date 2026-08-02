@@ -92,10 +92,12 @@ class EMListParadata(PropertyGroup):
         default=""
     )  # type: ignore
 
-    # Master document attributes (Phase 3: document as space-time entity)
-    is_master: BoolProperty(
-        name="Is Master",
-        description="Whether this document is a master (space-time entity) rather than an instance",
+    # Canonical document attributes (Phase 3: document as space-time entity).
+    # Derived cache: re-populated from the graph on every import
+    # (see populate_lists) — never authored in the .blend.
+    is_canonical: BoolProperty(
+        name="Is Canonical",
+        description="Whether this document is canonical (space-time entity) rather than an instance",
         default=False
     )  # type: ignore
     certainty_class: StringProperty(
@@ -105,12 +107,12 @@ class EMListParadata(PropertyGroup):
     )  # type: ignore
     border_color: StringProperty(
         name="Border Color",
-        description="Master document border color (encodes certainty class)",
+        description="Canonical document border color (encodes certainty class)",
         default="#000000"
     )  # type: ignore
     epoch_name: StringProperty(
         name="Epoch",
-        description="Epoch where this master document is placed",
+        description="Epoch where this canonical document is placed",
         default=""
     )  # type: ignore
     absolute_time_start: StringProperty(

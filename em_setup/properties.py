@@ -593,14 +593,37 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
 
     import_warnings: StringProperty(
         name="Import Warnings",
-        description="Warnings generated during GraphML import (e.g., duplicate extractor names)",
+        description="Warnings raised while importing this graph, whatever its "
+                    "source (GraphML or em.json). One line per issue",
         default=""
     )  # type: ignore
 
     show_warnings_section: BoolProperty(
-        name="Show GraphML Warnings",
-        description="Expand/collapse GraphML warnings section",
+        name="Show EM Warnings",
+        description="Expand/collapse the EM warnings section",
         default=False
+    )  # type: ignore
+
+    # S6 — version banner. Filled at import so the author always knows which
+    # language version the file speaks and which one is reading it. Empty
+    # strings mean "not declared", which is itself information (a legacy file).
+    emjson_schema_version: StringProperty(
+        name="em.json Schema",
+        description="Content schema version declared by the em.json header "
+                    "(S2a). Empty for a GraphML source",
+        default=""
+    )  # type: ignore
+
+    em_datamodel_version: StringProperty(
+        name="EM Version",
+        description="Version of the EM node datamodel this file was read with",
+        default=""
+    )  # type: ignore
+
+    stratigraph_version: StringProperty(
+        name="StratiGraph Version",
+        description="StratiGraph version, when the document declares one",
+        default=""
     )  # type: ignore
 
     auxiliary_files: CollectionProperty(type=AuxiliaryFileProperties)  # type: ignore

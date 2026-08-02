@@ -121,7 +121,7 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
         # pre-existing ``D.XX`` instance was picked at Step 1 — an
         # instance typically already wrapped inside another PD node-
         # group, which is exactly what the user reported. The clone
-        # carries ``em_master_document=True`` so the GraphMLPatcher
+        # carries ``em_canonical_document=True`` so the GraphMLPatcher
         # serialises it; ``attributes['original_emid']`` points back
         # to the master UUID so downstream tools can re-link the
         # instances (same convention used by the GraphMLExporter's
@@ -590,7 +590,7 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
         - Gets a fresh UUID so edges can't collide with the master's.
         - Copies ``description`` + ``data`` (role/content_nature/
           geometry).
-        - Is marked ``em_master_document=True`` so the GraphMLPatcher
+        - Is marked ``em_canonical_document=True`` so the GraphMLPatcher
           serialises it; ``original_emid`` points at the master so a
           future de-duplication step can collapse them back into one.
         """
@@ -621,7 +621,7 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
                 v = (getattr(master, "attributes", {}) or {}).get(k)
                 if v is not None:
                     clone.attributes[k] = v
-            clone.attributes["em_master_document"] = True
+            clone.attributes["em_canonical_document"] = True
             clone.attributes["original_emid"] = master_doc_id
             graph.add_node(clone)
             return clone_id

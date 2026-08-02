@@ -581,7 +581,7 @@ class AUX_OT_create_host_for_orphan(bpy.types.Operator):
                 role=_role,
                 content_nature=_nature,
                 geometry=_geom,
-                mark_as_master=True,
+                mark_as_canonical=True,
             )
         elif kind in ("emdb", "pyarchinit"):
             from s3dgraphy.exporter.graphml.utils import generate_uuid

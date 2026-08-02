@@ -1,7 +1,7 @@
 """UI components for the Document Manager and RMDoc panels.
 
 Document Manager: catalog of all documents from the graph (metadata, connections).
-The row shows: master/instance icon, name [ref count], description, linked object icons.
+The row shows: canonical/instance icon, name [ref count], description, linked object icons.
 
 RMDoc panel: scene objects (quads) linked to documents — object-centric like RM Manager.
 """
@@ -28,13 +28,13 @@ CERTAINTY_ICONS = {
     "unknown": "COLLECTION_COLOR_08",         # gray
 }
 
-# Master-Document variant → UIList icon (EM 1.6). In the three-axis
+# Canonical-Document variant → UIList icon (EM 1.6). In the three-axis
 # classification the border colour is driven by the `geometry` axis
 # alone; role and content_nature are metadata without a colour coding.
 # Colours match em_visual_rules.json → document_variant_styles:
-# reality_based red, observable orange, asserted yellow. Masters without
+# reality_based red, observable orange, asserted yellow. Canonicals without
 # a geometry value (PDF articles etc.) keep the legacy marker.
-MASTERDOC_VARIANT_ICONS = {
+CANONICALDOC_VARIANT_ICONS = {
     "reality_based": "COLLECTION_COLOR_01",  # red
     "observable":    "COLLECTION_COLOR_02",  # orange
     "asserted":      "COLLECTION_COLOR_03",  # yellow
@@ -176,7 +176,7 @@ def _build_doc_cache(context):
     cache = {}
     for doc_id in doc_ids:
         us_list = list(doc_to_us.get(doc_id, []))
-        # Look up the DocumentNode to extract its Master-Document
+        # Look up the DocumentNode to extract its Canonical-Document
         # classification (EM 1.5.4+). The variant key drives the
         # coloured icon shown in the UIList.
         variant_key = None
@@ -229,7 +229,7 @@ def invalidate_doc_connection_cache():
 class DOCMANAGER_UL_documents(UIList):
     """UIList for document items.
 
-    Row: master/instance icon | name [ref_count] | description | linked object icons
+    Row: canonical/instance icon | name [ref_count] | description | linked object icons
     """
 
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -238,14 +238,14 @@ class DOCMANAGER_UL_documents(UIList):
 
         row = layout.row(align=True)
 
-        # 1. Master/instance icon — masters get a variant-coloured dot
+        # 1. Canonical/instance icon — canonicals get a variant-coloured dot
         # driven by the DocumentNode's `geometry` axis (EM 1.6):
         # red = reality_based, orange = observable, yellow = asserted.
-        if item.is_master:
+        if item.is_canonical:
             variant_key = doc_info.get('variant_key')
             row.label(
                 text="",
-                icon=MASTERDOC_VARIANT_ICONS.get(
+                icon=CANONICALDOC_VARIANT_ICONS.get(
                     variant_key, "KEYTYPE_KEYFRAME_VEC"),
             )
         else:
@@ -332,7 +332,7 @@ class DOCMANAGER_UL_documents(UIList):
         settings = context.scene.doc_settings
 
         for i, item in enumerate(items):
-            if settings.filter_masters and not item.is_master:
+            if settings.filter_canonicals and not item.is_canonical:
                 filter_flags[i] = 0
             if settings.filter_with_3d and not item.has_quad:
                 filter_flags[i] = 0
@@ -425,15 +425,15 @@ class VIEW3D_PT_3DDocumentManager(Panel):
         #    text="EM Annotator — link 3D objects to the extended matrix",
        #     icon='INFO')
 
-        # --- Summary line 1: total documents + masters ---
+        # --- Summary line 1: total documents + canonicals ---
         row1 = layout.row(align=True)
         doc_icon = icons_manager.get_icon_value("document")
         if doc_icon:
             row1.label(text=f"{total} Documents", icon_value=doc_icon)
         else:
             row1.label(text=f"{total} Documents", icon="FILE")
-        masters = sum(1 for item in doc_list if item.is_master)
-        row1.label(text=f"Masters: {masters}", icon="KEYTYPE_KEYFRAME_VEC")
+        canonicals = sum(1 for item in doc_list if item.is_canonical)
+        row1.label(text=f"Canonicals: {canonicals}", icon="KEYTYPE_KEYFRAME_VEC")
         # Create Document — experimental only (requires GraphML write-back for persistence)
         if context.scene.em_tools.experimental_features:
             row1.operator("docmanager.create_document", text="", icon="ADD")
@@ -441,7 +441,7 @@ class VIEW3D_PT_3DDocumentManager(Panel):
         help_op.title = "Document Manager"
         help_op.text = (
             "Catalog of all document nodes from the graph.\n"
-            "Shows masters vs instances, reference counts,\n"
+            "Shows canonicals vs instances, reference counts,\n"
             "and linked scene objects (RM, RMDoc, RMSF)."
         )
         help_op.url = "panels/document_manager_3d.html#document-manager-3d"
@@ -483,7 +483,7 @@ class VIEW3D_PT_3DDocumentManager(Panel):
 
         # --- Filter row ---
         filter_row = layout.row(align=True)
-        filter_row.prop(doc_settings, "filter_masters", toggle=True)
+        filter_row.prop(doc_settings, "filter_canonicals", toggle=True)
         filter_row.prop(doc_settings, "filter_with_3d", toggle=True)
 
         # --- Document list ---
@@ -507,14 +507,14 @@ class VIEW3D_PT_3DDocumentManager(Panel):
             detail_box = layout.box()
             col = detail_box.column(align=True)
 
-            # Header: name + master/instance badge + reference count
+            # Header: name + canonical/instance badge + reference count
             # on a single row so the identity strip stays compact.
             ref_count = doc_info.get('ref_count', 0)
             ref_text = f"Ref x{ref_count}" if ref_count else "Ref x0"
             header = col.row(align=True)
             header.label(text=item.name, icon="FILE_TEXT")
-            if item.is_master:
-                header.label(text="Master", icon="KEYTYPE_KEYFRAME_VEC")
+            if item.is_canonical:
+                header.label(text="Canonical", icon="KEYTYPE_KEYFRAME_VEC")
             else:
                 header.label(text="Instance", icon="DOT")
             header.label(text=ref_text, icon="LINKED")
@@ -556,8 +556,8 @@ class VIEW3D_PT_3DDocumentManager(Panel):
             # col.separator()
             # col.prop(item, "doc_type", text="Type")
 
-            # Chronology (masters only)
-            if item.is_master:
+            # Chronology (canonicals only)
+            if item.is_canonical:
                 col.separator()
                 chrono_row = col.row()
                 chrono_row.label(text="Chronology:", icon="TIME")
@@ -568,10 +568,10 @@ class VIEW3D_PT_3DDocumentManager(Panel):
                 if item.epoch_name:
                     col.label(text=f"Epoch: {item.epoch_name}")
 
-            # Three-axis classification (EM 1.6) — for Master Documents.
+            # Three-axis classification (EM 1.6) — for Canonical Documents.
             # Reads the live values from the graph DocumentNode via the
             # doc_cache; an Edit button opens the classification dialog.
-            if item.is_master:
+            if item.is_canonical:
                 col.separator()
                 variant_key = doc_info.get('variant_key') or "default"
                 cls_row = col.row(align=True)

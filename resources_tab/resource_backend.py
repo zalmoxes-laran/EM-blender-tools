@@ -209,7 +209,7 @@ def hat_orphan_as_document(graph: Any, resource_id: str, name: str, *,
                            role: Optional[str] = None,
                            content_nature: Optional[str] = None,
                            geometry: Optional[str] = None):
-    """Promote a Shelf orphan → a Master Document, ADOPTING ``resource_id`` (the
+    """Promote a Shelf orphan → a Canonical Document, ADOPTING ``resource_id`` (the
     FS stable ID) as the new node's ``node_id``. Delegates to the shared
     ``create_master_document_node`` (the existing DosCo→Document path) so the
     DocumentNode shape (attributes + temporal-anchor chain) stays identical —
@@ -222,7 +222,7 @@ def hat_orphan_as_document(graph: Any, resource_id: str, name: str, *,
     return create_master_document_node(
         graph, name=name, description=description, resolved_epoch=resolved_epoch,
         creation_year=creation_year, role=role, content_nature=content_nature,
-        geometry=geometry, mark_as_master=True, node_id=resource_id)
+        geometry=geometry, mark_as_canonical=True, node_id=resource_id)
 
 
 # RM / DTC hatting are R4 stubs (Document is the R4 hat target). The FS stable ID

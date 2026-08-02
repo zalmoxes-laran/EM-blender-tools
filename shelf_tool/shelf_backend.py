@@ -206,7 +206,8 @@ FACET_ITEMS = (
      "Imports the mesh"),
     ('RMDOC', "RM Document",
      "A Document instantiated in the 3D scene (e.g. a historical photo placed "
-     "where it was taken). Binds to a Document; placement is free / manual. "
+     "where it was taken). Binds to a Document; never anchored to an epoch or "
+     "a stratigraphic unit — its placement is graded on the geometry axis. "
      "Imports the mesh"),
     ('DOCUMENT', "Document (source)",
      "The resource used as a SOURCE in a reasoning chain — the paradata entry "
@@ -251,14 +252,17 @@ def hat_as_rmsf(target_graph: Any, resource_id: str, *, rmsf_id: Optional[str] =
 
 def hat_as_rmdoc(target_graph: Any, resource_id: str, *,
                  rmdoc_id: Optional[str] = None, name: Optional[str] = None,
-                 attach_to: Optional[str] = None, free_placement: bool = True
-                 ) -> Dict[str, Any]:
-    """Hat a shelf resource as an RMDoc attached to a Document node. Placement is
-    free / manual — no epoch, no stratigraphy."""
+                 attach_to: Optional[str] = None,
+                 geometry: Optional[str] = None) -> Dict[str, Any]:
+    """Hat a shelf resource as an RMDoc attached to a Document node. No epoch, no
+    stratigraphy: what grades an RMDoc is ``geometry``, the metric authority of
+    its placement (Q-C) — reality_based / observable / asserted / symbolic. This
+    replaces the C3 ``placement = manual|anchored`` literal, which stated a
+    workflow fact instead of a qualia."""
     from s3dgraphy import api
     return api.hat_as_rmdoc(target_graph, resource_id, shelf=_active["graph"],
                             rmdoc_id=rmdoc_id, name=name, attach_to=attach_to,
-                            free_placement=free_placement)
+                            geometry=geometry)
 
 
 def hat_as_document(target_graph: Any, resource_id: str, *,

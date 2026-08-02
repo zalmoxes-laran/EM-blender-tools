@@ -208,6 +208,33 @@ def _draw_wrapped_text(layout, context, text, icon=None, first_prefix="", next_p
             layout.label(text=line_text)
 
 
+#: How many individual lines a warning family shows before collapsing into a
+#: "… and N more of the same" tail. The point of the panel is that the author
+#: recognises the PROBLEM; the exhaustive list belongs to the console.
+_MAX_WARNINGS_PER_GROUP = 8
+
+
+def _format_version_banner(active_file):
+    """S6 version banner for ``active_file`` — the versions recorded at import.
+
+    Returns "" when nothing is known, in which case the panel draws no banner
+    at all rather than a row of dashes.
+    """
+    from .version_banner import format_banner
+    source = ""
+    fmt = getattr(active_file, "file_format", "") or ""
+    if fmt:
+        source = "em.json" if str(fmt).upper() == "EMJSON" else "GraphML"
+    return format_banner(
+        {
+            "emjson_schema": getattr(active_file, "emjson_schema_version", ""),
+            "em_datamodel": getattr(active_file, "em_datamodel_version", ""),
+            "stratigraph": getattr(active_file, "stratigraph_version", ""),
+        },
+        source_label=source,
+    )
+
+
 def _draw_wrapped_warning(layout, context, text, bullet="- "):
     """Draw warning text wrapped to current sidebar width."""
     _draw_wrapped_text(
@@ -968,36 +995,74 @@ class EM_SetupPanel(bpy.types.Panel):
 
                 warning_count = len(warning_messages)
 
+                # S6 — version banner. Shown whether or not there are warnings:
+                # knowing which language version you are working with is not
+                # conditional on something having gone wrong.
+                _banner = _format_version_banner(active_file)
+                if _banner:
+                    banner_row = layout.row()
+                    banner_row.label(text=_banner, icon='FILE_TEXT')
+
                 # Se ci sono warning, mostra il box di warning
                 if warning_count > 0:
+                    from .warning_digest import digest_warnings, summarise
+                    groups = digest_warnings(warning_messages)
+
                     warning_box = layout.box()
                     header_row = warning_box.row(align=True)
                     icon = 'TRIA_DOWN' if active_file.show_warnings_section else 'TRIA_RIGHT'
                     header_row.prop(
                         active_file,
                         "show_warnings_section",
-                        text=f"GraphML Warning ({warning_count}):",
+                        text=f"EM Warnings ({warning_count}):",
                         icon=icon,
                         emboss=False,
                     )
                     header_row.label(text="", icon='ERROR')
                     help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
-                    help_op.title = "GraphML Warnings"
+                    help_op.title = "EM Warnings"
                     help_op.text = (
-                        "Validation issues detected while importing\n"
-                        "this GraphML. Common causes:\n"
+                        "Issues raised while reading this graph,\n"
+                        "whatever its source (GraphML or em.json).\n"
+                        "Common causes:\n"
                         "- Missing site ID in the swimlane header\n"
                         "- Epochs with placeholder dates (xx)\n"
-                        "- Structural issues flagged by the importer\n"
-                        "Fix the .graphml in yEd, then reload."
+                        "- Nodes whose shape/colour matches no EM type\n"
+                        "- Groups with no palette colour, hence no role\n"
+                        "- Connections degraded to generic_connection\n"
+                        "Nothing here is guessed for you: fix the SOURCE\n"
+                        "graph, then reload."
                     )
-                    help_op.url = "panels/em_setup.html#graphml-warnings"
+                    help_op.url = "panels/em_setup.html#em-warnings"
                     help_op.project = 'em_tools'
 
+                    # Collapsed: one line saying what the bulk of it is, so the
+                    # panel is informative without being opened.
+                    if not active_file.show_warnings_section:
+                        digest = summarise(groups)
+                        if digest:
+                            _draw_wrapped_text(warning_box, context, digest,
+                                               icon='INFO')
+
                     if active_file.show_warnings_section:
-                        warning_col = warning_box.column(align=True)
-                        for warning_msg in warning_messages:
-                            _draw_wrapped_warning(warning_col, context, warning_msg)
+                        # Grouped by problem, biggest first. A flat list of ~100
+                        # near-identical lines is unreadable, and unread warnings
+                        # fix nothing.
+                        for group in groups:
+                            grp_box = warning_box.box()
+                            grp_box.label(
+                                text=f"{group.label} ({group.count})",
+                                icon=group.icon)
+                            warning_col = grp_box.column(align=True)
+                            for warning_msg in group.messages[:_MAX_WARNINGS_PER_GROUP]:
+                                _draw_wrapped_warning(warning_col, context, warning_msg)
+                            hidden = group.count - _MAX_WARNINGS_PER_GROUP
+                            if hidden > 0:
+                                # Never let a cap read as "that was all of them".
+                                warning_col.label(
+                                    text=f"… and {hidden} more of the same "
+                                         f"(see the console for the full list)",
+                                    icon='DOT')
 
                         op = warning_box.operator("em.open_docs", text="Data Funnel guide", icon="URL")
                         op.url = "data_funnel.html#important-considerations"

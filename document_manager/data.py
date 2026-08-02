@@ -32,8 +32,8 @@ class DocItem(PropertyGroup):
     description: StringProperty(name="Description", default="")  # type: ignore
     url: StringProperty(name="URL", default="")  # type: ignore
 
-    # --- Master document attributes (from import Phase 1-2) ---
-    is_master: BoolProperty(name="Is Master", default=False)  # type: ignore
+    # --- Canonical document attributes (from import Phase 1-2) ---
+    is_canonical: BoolProperty(name="Is Canonical", default=False)  # type: ignore
     certainty_class: StringProperty(
         name="Certainty Class",
         description="Positioning methodology: direct (red), reconstructed (orange), hypothetical (yellow)",
@@ -224,9 +224,9 @@ class RMDocItem(PropertyGroup):
 class DocManagerSettings(PropertyGroup):
     """Settings for the 3D Document Manager panel."""
 
-    filter_masters: BoolProperty(
-        name="Masters Only",
-        description="Show only master documents",
+    filter_canonicals: BoolProperty(
+        name="Canonicals Only",
+        description="Show only canonical documents",
         default=False,
     )  # type: ignore
     filter_with_3d: BoolProperty(
@@ -371,7 +371,7 @@ def sync_doc_list(scene):
         item.node_id = src.id_node
         item.description = src.description
         item.url = src.url
-        item.is_master = src.is_master
+        item.is_canonical = src.is_canonical
         item.certainty_class = src.certainty_class
         item.border_color = src.border_color
         item.epoch_name = src.epoch_name

@@ -337,11 +337,13 @@ class EM_OT_shelf_hat(Operator):
         name="Content", items=_nature_items)
     doc_geometry: bpy.props.EnumProperty(  # type: ignore
         name="Geometry", items=_geometry_items)
-    free_placement: bpy.props.BoolProperty(  # type: ignore
-        name="Free placement",
-        description="An RMDoc is positioned manually by the operator — it is not "
-                    "anchored to an epoch or a stratigraphic unit",
-        default=True)
+    rmdoc_geometry: bpy.props.EnumProperty(  # type: ignore
+        name="Placement",
+        items=_geometry_items,
+        description="Metric authority of this RMDoc's placement (Q-C). An RMDoc "
+                    "is never anchored to an epoch or a stratigraphic unit; what "
+                    "grades it is HOW metric its positioning is — "
+                    "reality_based > observable > asserted > symbolic")
 
     def _item(self, context):
         p = context.scene.em_shelf
@@ -408,7 +410,7 @@ class EM_OT_shelf_hat(Operator):
                       icon='INFO')
         else:
             if self.facet == 'RMDOC':
-                col.prop(self, "free_placement")
+                col.prop(self, "rmdoc_geometry")
             col.prop(self, "target_node")
 
     # ── per-facet execution ────────────────────────────────────────────────
@@ -459,12 +461,15 @@ class EM_OT_shelf_hat(Operator):
         rmdoc_id = f"{target}_rm_doc" if target else f"{obj.name}_rm_doc"
         out = shelf_backend.hat_as_rmdoc(
             graph, rid, rmdoc_id=rmdoc_id, name=f"RM Doc for {obj.name}",
-            attach_to=target, free_placement=self.free_placement)
+            attach_to=target,
+            geometry=None if self.rmdoc_geometry == 'none' else self.rmdoc_geometry)
         for o in objs:
             o["em_rmdoc_node_id"] = out["rmdoc_id"]
             if target:
                 o["em_doc_node_id"] = target  # picked up by the RMDoc updater
-        return out["rmdoc_id"], (f"RMDoc {out['rmdoc_id']} · {out['placement']}"
+        return out["rmdoc_id"], (f"RMDoc {out['rmdoc_id']}"
+                                 + (f" · {out['geometry']}" if out.get("geometry")
+                                    else "")
                                  + (" · attached" if out.get("attached") else ""))
 
     def _do_document(self, context, graph, rid):

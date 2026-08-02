@@ -1,7 +1,7 @@
-"""Shared helpers for creating Master Documents across EMtools flows.
+"""Shared helpers for creating Canonical Documents across EMtools flows.
 
 Used by the DosCo Create Host operator (`AUX_OT_create_host_for_orphan`),
-the Document Manager's standalone Create-Master-Document operator, and
+the Document Manager's standalone Create-Canonical-Document operator, and
 the RM Manager container-creation flow. Centralises:
 
 - DocumentNode + temporal-anchor chain construction (has_first_epoch
@@ -28,7 +28,7 @@ def create_master_document_node(
     role: Optional[str] = None,
     content_nature: Optional[str] = None,
     geometry: Optional[str] = None,
-    mark_as_master: bool = True,
+    mark_as_canonical: bool = True,
     node_id: Optional[str] = None,
 ):
     """Create a DocumentNode (plus temporal-anchor chain) in ``graph``
@@ -40,9 +40,11 @@ def create_master_document_node(
     ``has_first_epoch`` mirrors the document's — without this the PN
     would fall into the default swimlane in GraphML rendering.
 
-    ``mark_as_master=True`` (default) sets
-    ``attributes['em_master_document'] = True`` so the
-    :class:`GraphMLPatcher` writes the node on Save.
+    ``mark_as_canonical=True`` (default) sets
+    ``attributes['em_canonical_document'] = True`` so the
+    :class:`GraphMLPatcher` writes the node on Save. This is the em.json
+    schema-2 spelling (S2b); the legacy ``em_master_document`` is still
+    READ by consumers but never written again.
 
     ``node_id`` (optional): when given, the DocumentNode adopts this id
     as its ``node_id`` instead of minting a fresh UUID. Used by the
@@ -63,10 +65,10 @@ def create_master_document_node(
         content_nature=content_nature,
         geometry=geometry,
     )
-    if mark_as_master:
+    if mark_as_canonical:
         if not hasattr(node, "attributes") or node.attributes is None:
             node.attributes = {}
-        node.attributes["em_master_document"] = True
+        node.attributes["em_canonical_document"] = True
     graph.add_node(node)
 
     if resolved_epoch is not None:

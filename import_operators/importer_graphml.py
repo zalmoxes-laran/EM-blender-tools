@@ -101,6 +101,18 @@ class EM_import_GraphML(bpy.types.Operator):
                             print(f"  - {w}")
                     else:
                         graphml.import_warnings = ""
+
+                    # S6 — version banner. A GraphML declares no schema of its
+                    # own; what we can always state is the EM datamodel version
+                    # doing the reading.
+                    try:
+                        from ..em_setup.version_banner import read_graph_versions
+                        _v = read_graph_versions(graph_instance)
+                        graphml.emjson_schema_version = _v["emjson_schema"]
+                        graphml.em_datamodel_version = _v["em_datamodel"]
+                        graphml.stratigraph_version = _v["stratigraph"]
+                    except Exception as exc:  # noqa: BLE001
+                        print(f"[GraphML import] WARN version banner: {exc}")
                 else: 
                     error_msg = f"Grafo non trovato con ID: {final_graph_id}"
                     self.report({'ERROR'}, error_msg)

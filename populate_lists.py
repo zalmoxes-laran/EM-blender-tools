@@ -238,12 +238,15 @@ def populate_document_node(scene, node, index, graph=None):
         em_item.icon_url = "CHECKBOX_HLT" if node.url else "CHECKBOX_DEHLT"
         em_item.description = node.description
 
-        # Master document attributes. Prefer the EM 1.5.4+ fields
-        # (attributes['em_master_document'] and data['role']) and fall
-        # back to legacy keys so older graphs still populate correctly.
+        # Canonical document attributes. Prefer the em.json schema-2
+        # spelling (``is_canonical`` / ``em_canonical_document``, S2b) and
+        # fall back to the legacy ``master`` keys so older graphs and
+        # em.json files still populate correctly. Read both, write only new.
         if hasattr(node, 'attributes'):
-            em_item.is_master = bool(
-                node.attributes.get('is_master', False)
+            em_item.is_canonical = bool(
+                node.attributes.get('is_canonical', False)
+                or node.attributes.get('em_canonical_document', False)
+                or node.attributes.get('is_master', False)
                 or node.attributes.get('em_master_document', False))
             em_item.certainty_class = node.attributes.get('certainty_class', '')
             em_item.border_color = node.attributes.get('border_color', '#000000')

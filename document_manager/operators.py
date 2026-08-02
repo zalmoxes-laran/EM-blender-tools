@@ -1342,7 +1342,7 @@ class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
             role=_role,
             content_nature=_nature,
             geometry=_geom,
-            mark_as_master=True,
+            mark_as_canonical=True,
         )
         refresh_document_lists(context, node, graph)
 

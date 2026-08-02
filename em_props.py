@@ -1247,9 +1247,9 @@ class EM_Tools(PropertyGroup):
     )  # type: ignore
 
     # Document Manager filter
-    docmanager_filter_masters: BoolProperty(
-        name="Filter Masters Only",
-        description="Show only master documents in the Document Manager",
+    docmanager_filter_canonicals: BoolProperty(
+        name="Filter Canonicals Only",
+        description="Show only canonical documents in the Document Manager",
         default=False
     )  # type: ignore
 
