@@ -214,6 +214,29 @@ def _draw_wrapped_text(layout, context, text, icon=None, first_prefix="", next_p
 _MAX_WARNINGS_PER_GROUP = 8
 
 
+def _imported_warnings(active_file):
+    """The import warnings for ``active_file``, as records where the source gave
+    us records and as plain strings otherwise.
+
+    The two shapes travel together on purpose: ``digest_warnings`` accepts them
+    mixed, so a graph that carries records for its state warnings and bare
+    strings for the free-form ones is grouped correctly in one pass.
+    """
+    raw = getattr(active_file, "import_warning_records", "") or ""
+    if raw:
+        try:
+            import json
+            records = json.loads(raw)
+            if isinstance(records, list) and records:
+                return records
+        except (ValueError, TypeError):
+            # Malformed cache — fall through to the strings rather than showing
+            # the author nothing.
+            pass
+    text = getattr(active_file, "import_warnings", "") or ""
+    return [line.strip() for line in text.split("\n") if line.strip()]
+
+
 def _format_version_banner(active_file):
     """S6 version banner for ``active_file`` — the versions recorded at import.
 
@@ -987,11 +1010,12 @@ class EM_SetupPanel(bpy.types.Panel):
                 if epochs_date_warning:
                     warning_messages.append("Update the epochs placeholder dates (xx)")
 
-                if hasattr(active_file, 'import_warnings') and active_file.import_warnings:
-                    for line in active_file.import_warnings.split("\n"):
-                        stripped = line.strip()
-                        if stripped:
-                            warning_messages.append(stripped)
+                # Prefer the structured records: they carry the s3Dgraphy `kind`,
+                # so the digest files them exactly instead of matching English.
+                # The flat strings are the fallback — for a GraphML source, whose
+                # importer emits richer prose than the state families can, and
+                # for anything loaded before the records existed.
+                warning_messages.extend(_imported_warnings(active_file))
 
                 warning_count = len(warning_messages)
 

@@ -140,7 +140,7 @@ class EM_OT_resources_hat_document(Operator):
             return {'CANCELLED'}
         # Refresh EMTools document lists so it shows up immediately.
         try:
-            from ..master_document_helpers import refresh_document_lists
+            from ..canonical_document_helpers import refresh_document_lists
             refresh_document_lists(context, node, graph)
         except Exception:
             pass

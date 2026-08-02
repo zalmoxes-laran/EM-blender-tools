@@ -114,7 +114,7 @@ def _next_shared_us_number(graph, target_node_type: str,
     """Return the next free numbered name drawn from a **shared
     pool** across every stratigraphic type in ``us_types_pool``.
 
-    Unlike :func:`master_document_helpers.get_next_numbered_name`,
+    Unlike :func:`canonical_document_helpers.get_next_numbered_name`,
     which only counts nodes whose NAME matches the prefix pattern,
     this helper scans every node whose ``node_type`` is in the pool
     and extracts the trailing digits from the name. That way
@@ -161,7 +161,7 @@ def _next_extractor_for_doc(graph, doc_name: str,
     ``used = {5, 6, 7}`` yields ``1`` (nothing below min is taken),
     ``used = {1, 2, 4}`` yields ``3`` (first gap), and a contiguous
     ``{1, 2, 3}`` yields ``4`` (max + 1). Matches the semantics of
-    :func:`master_document_helpers.get_next_numbered_name`.
+    :func:`canonical_document_helpers.get_next_numbered_name`.
     """
     if not doc_name:
         return ""
@@ -293,7 +293,7 @@ class PROXYBOX_OT_link_selected_to_doc(Operator):
         if obj is not None:
             layout.label(text=f"Mesh: {obj.name}", icon='OBJECT_DATA')
         layout.separator()
-        from ..master_document_helpers import (
+        from ..canonical_document_helpers import (
             draw_document_picker_with_create_button)
         # The shared picker offers "+ Add New Document..." which invokes
         # the standard create-master-document dialog. After the dialog
@@ -431,7 +431,7 @@ class PROXYBOX_OT_search_document(Operator):
         layout.label(text="Pick the Step-1 anchor document:",
                      icon='FILE_TEXT')
         layout.separator()
-        from ..master_document_helpers import (
+        from ..canonical_document_helpers import (
             draw_document_picker_with_create_button)
         draw_document_picker_with_create_button(
             layout, context.scene,
@@ -510,7 +510,7 @@ class PROXYBOX_OT_search_point_document(Operator):
             text=f"Pick the document for point {self.point_index + 1}:",
             icon='FILE_TEXT')
         layout.separator()
-        from ..master_document_helpers import (
+        from ..canonical_document_helpers import (
             draw_document_picker_with_create_button)
         draw_document_picker_with_create_button(
             layout, context.scene,

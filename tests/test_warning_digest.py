@@ -114,3 +114,71 @@ def test_banner_omits_what_is_not_declared():
 def test_banner_is_empty_when_nothing_is_known():
     assert format_banner({"emjson_schema": "", "em_datamodel": "",
                           "stratigraph": ""}) == ""
+
+
+# ── structured records: grouping by kind, exactly ─────────────────────────────
+
+REC_UNTYPED = {"kind": "untyped_node", "node_id": "n1",
+               "message": "Node 'SF04.2' has no recognised EM type: …"}
+REC_DEGRADED = {"kind": "degraded_edge", "node_id": "d1", "edge_id": "e1",
+                "target_id": "d2",
+                "message": "Connection D.1 → D.2 is 'generic_connection': …"}
+
+
+def test_a_record_is_filed_by_its_kind_not_by_its_words():
+    """The point of the records: the message can be reworded, translated or
+    truncated and the family still lands right."""
+    rec = {"kind": "untyped_node", "node_id": "n1",
+           "message": "qualcosa di completamente diverso"}
+    groups = digest_warnings([rec])
+    assert [g.key for g in groups] == ["untyped_node"]
+
+
+def test_records_and_strings_mix_in_one_pass():
+    """A graph carries records for its state warnings and bare strings for the
+    free-form ones; both must land in the right family together."""
+    groups = {g.key: g for g in digest_warnings(
+        [REC_UNTYPED, UNTYPED, "Please add a proper site ID in the header"])}
+    assert groups["untyped_node"].count == 2
+    assert groups["header"].count == 1
+
+
+def test_the_record_travels_with_its_message():
+    """Aligned by index, so a click-to-reveal knows which element each drawn
+    line points at."""
+    (group,) = digest_warnings([REC_DEGRADED])
+    assert group.messages == [REC_DEGRADED["message"]]
+    assert group.records == [REC_DEGRADED]
+    assert group.node_ids() == ["d1"]
+
+
+def test_a_string_has_no_record_and_says_so():
+    """`None` is the truthful answer: for this line there is nothing to
+    select."""
+    (group,) = digest_warnings([UNTYPED])
+    assert group.records == [None]
+    assert group.node_ids() == []
+
+
+def test_an_unknown_kind_is_visible_not_swallowed():
+    """A kind added upstream that this build does not know must show up in
+    "Other" rather than vanish."""
+    rec = {"kind": "something_new_upstream", "node_id": "n9",
+           "message": "a family this version has never heard of"}
+    (group,) = digest_warnings([rec])
+    assert group.key == "other"
+    assert group.node_ids() == ["n9"]
+
+
+def test_records_do_not_change_what_the_panel_draws():
+    """Same messages either way — the records add addressing, not new text."""
+    as_records = digest_warnings([REC_UNTYPED, REC_DEGRADED])
+    as_strings = digest_warnings([REC_UNTYPED["message"],
+                                  REC_DEGRADED["message"]])
+    assert ([g.messages for g in as_records]
+            == [g.messages for g in as_strings])
+
+
+def test_a_record_without_a_message_is_dropped_like_a_blank_line():
+    assert digest_warnings([{"kind": "untyped_node", "node_id": "n1",
+                             "message": "   "}]) == []

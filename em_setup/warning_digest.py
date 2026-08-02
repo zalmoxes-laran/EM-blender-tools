@@ -17,15 +17,18 @@ Blender.
 from __future__ import annotations
 
 #: Warning families, in the order they are shown. Each entry is
-#: ``(key, label, icon, matchers)``; a warning joins the FIRST family whose
-#: matcher substring occurs in it, so the order below is also the priority.
+#: ``(key, label, icon, matchers)``.
 #:
-#: The matchers are substrings of the messages s3Dgraphy actually emits. They
-#: are intentionally short and stable fragments ("has no recognised EM type"),
-#: not whole sentences: the wording around them may be reworded without
-#: silently emptying a family. A family that stops matching shows up as a
-#: growing "Other" bucket rather than as lost information — nothing is ever
-#: dropped.
+#: ``key`` is the s3Dgraphy warning KIND
+#: (``edges.connection_resolver.WARNING_KINDS``) wherever one exists, because a
+#: warning that arrives as a record is filed by its kind — exactly, no guessing.
+#:
+#: ``matchers`` are the fallback for warnings that arrive as plain strings: the
+#: free-form ones s3Dgraphy has always emitted (a deserialisation note, a header
+#: complaint) and any older graph handed over without records. They are short,
+#: stable fragments of the English message rather than whole sentences, so a
+#: rewording upstream does not silently empty a family — it grows the "Other"
+#: bucket instead, which is visible. Nothing is ever dropped either way.
 WARNING_FAMILIES = (
     (
         "untyped_node",
@@ -43,7 +46,14 @@ WARNING_FAMILIES = (
         "degraded_edge",
         "Connections degraded to generic_connection",
         "DRIVER",
-        ("Using 'generic_connection' instead", "not allowed between"),
+        ("Using 'generic_connection' instead", "not allowed between",
+         "is 'generic_connection'"),
+    ),
+    (
+        "dangling_edge",
+        "Connections with a missing endpoint",
+        "UNLINKED",
+        ("has a missing endpoint",),
     ),
     (
         "unknown_node_type",
@@ -70,47 +80,83 @@ OTHER_FAMILY = ("other", "Other", "DOT")
 
 
 class WarningGroup:
-    """One family plus the messages that fell into it."""
+    """One family plus the warnings that fell into it.
 
-    __slots__ = ("key", "label", "icon", "messages")
+    ``messages`` is the list of sentences (what the panel draws). ``records``
+    holds the ``{kind, node_id, message}`` record behind each one, aligned by
+    index, or ``None`` where the warning arrived as a bare string. That is what
+    a future "select the offending node" button reads — and the ``None`` says
+    truthfully that for this line there is nothing to select.
+    """
 
-    def __init__(self, key, label, icon, messages):
+    __slots__ = ("key", "label", "icon", "messages", "records")
+
+    def __init__(self, key, label, icon, messages, records=None):
         self.key = key
         self.label = label
         self.icon = icon
         self.messages = messages
+        self.records = records if records is not None else []
 
     @property
     def count(self):
         return len(self.messages)
 
+    def node_ids(self):
+        """The graph elements this family points at, in order, skipping the
+        warnings that point at nothing."""
+        return [r["node_id"] for r in self.records
+                if isinstance(r, dict) and r.get("node_id")]
+
     def __repr__(self):  # pragma: no cover - debugging aid
         return f"<WarningGroup {self.key} n={self.count}>"
+
+
+def _classify(message, kind):
+    """(key, label, icon) for a warning. An explicit ``kind`` wins outright."""
+    for fam_key, fam_label, fam_icon, matchers in WARNING_FAMILIES:
+        if kind is not None:
+            if kind == fam_key:
+                return fam_key, fam_label, fam_icon
+            continue
+        if any(m in message for m in matchers):
+            return fam_key, fam_label, fam_icon
+    return OTHER_FAMILY
 
 
 def digest_warnings(warnings):
     """Group ``warnings`` into :class:`WarningGroup`s, largest family first.
 
-    Empty and whitespace-only lines are dropped; everything else is kept
+    Accepts both shapes, mixed freely:
+
+    * a ``{kind, node_id, message}`` record — filed by its **kind**, exactly;
+    * a plain string — filed by matching the message, the fallback for the
+      free-form warnings and for a graph that predates the records.
+
+    Empty and whitespace-only entries are dropped; everything else is kept
     exactly once, in its original order within its family. The total across the
-    returned groups always equals the number of non-empty input lines — the
-    digest summarises, it never filters.
+    returned groups always equals the number of non-empty inputs — the digest
+    summarises, it never filters.
     """
     buckets = {}
     order = []
     for raw in warnings or []:
-        message = (raw or "").strip()
+        if isinstance(raw, dict):
+            record = raw
+            message = (record.get("message") or "").strip()
+            kind = record.get("kind") or None
+        else:
+            record = None
+            message = (raw or "").strip()
+            kind = None
         if not message:
             continue
-        key, label, icon = OTHER_FAMILY[0], OTHER_FAMILY[1], OTHER_FAMILY[2]
-        for fam_key, fam_label, fam_icon, matchers in WARNING_FAMILIES:
-            if any(m in message for m in matchers):
-                key, label, icon = fam_key, fam_label, fam_icon
-                break
+        key, label, icon = _classify(message, kind)
         if key not in buckets:
-            buckets[key] = WarningGroup(key, label, icon, [])
+            buckets[key] = WarningGroup(key, label, icon, [], [])
             order.append(key)
         buckets[key].messages.append(message)
+        buckets[key].records.append(record)
 
     groups = [buckets[k] for k in order]
     # Biggest problem first; ties keep the order the families were declared in,

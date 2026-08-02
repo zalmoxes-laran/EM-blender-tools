@@ -565,12 +565,12 @@ class AUX_OT_create_host_for_orphan(bpy.types.Operator):
             # chain) consistent with the Document Manager's standalone
             # Create-Master-Document flow and the RM Manager container
             # creation flow.
-            from ..master_document_helpers import create_master_document_node
+            from ..canonical_document_helpers import create_canonical_document_node
             _role = self.doc_role
             _nature = self.doc_content_nature
             _geom = (self.doc_geometry
                      if self.doc_geometry != "none" else None)
-            node = create_master_document_node(
+            node = create_canonical_document_node(
                 graph,
                 name=name,
                 description=desc or (f"Master Document created from "
@@ -619,7 +619,7 @@ class AUX_OT_create_host_for_orphan(bpy.types.Operator):
         # Document Manager / EM tree immediately, without requiring a
         # graphml reload.
         if is_document_kind:
-            from ..master_document_helpers import refresh_document_lists
+            from ..canonical_document_helpers import refresh_document_lists
             refresh_document_lists(context, node, graph)
 
         # Optional: persist to disk via volatile Save.

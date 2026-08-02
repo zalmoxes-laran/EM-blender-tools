@@ -505,7 +505,7 @@ class RMCONTAINER_OT_link_or_create_doc(Operator):
         # The returned ``add_op`` handle is configured with the current
         # container_index so the create flow knows which container to
         # link the new document to.
-        from ..master_document_helpers import \
+        from ..canonical_document_helpers import \
             draw_document_picker_with_create_button
         add_op = draw_document_picker_with_create_button(
             layout, scene,

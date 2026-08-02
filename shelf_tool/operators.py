@@ -371,7 +371,7 @@ class EM_OT_shelf_hat(Operator):
         it = self._item(context)
         if not self.doc_name:
             try:
-                from ..master_document_helpers import suggest_next_document_name
+                from ..canonical_document_helpers import suggest_next_document_name
                 self.doc_name = suggest_next_document_name(_active_graph(context))
             except Exception:
                 self.doc_name = (it.name if it else "Document")
@@ -474,11 +474,11 @@ class EM_OT_shelf_hat(Operator):
 
     def _do_document(self, context, graph, rid):
         """No mesh: the resource becomes a SOURCE. The DocumentNode is built by
-        the SHARED helper (create_master_document_node) so EMTools keeps one
+        the SHARED helper (create_canonical_document_node) so EMTools keeps one
         document shape; the op only wires the P67 hinge + the attach."""
-        from ..master_document_helpers import (create_master_document_node,
+        from ..canonical_document_helpers import (create_canonical_document_node,
                                                refresh_document_lists)
-        node = create_master_document_node(
+        node = create_canonical_document_node(
             graph, name=self.doc_name or "Document",
             description=self.doc_description.strip(),
             role=self.doc_role,

@@ -598,6 +598,15 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
         default=""
     )  # type: ignore
 
+    import_warning_records: StringProperty(
+        name="Import Warning Records",
+        description="The same warnings as JSON {kind, node_id, message} records, "
+                    "when the source provides them. Lets the panel group them by "
+                    "kind exactly instead of matching message text, and names the "
+                    "element each one points at",
+        default=""
+    )  # type: ignore
+
     show_warnings_section: BoolProperty(
         name="Show EM Warnings",
         description="Expand/collapse the EM warnings section",

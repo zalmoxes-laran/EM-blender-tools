@@ -19,7 +19,7 @@ from __future__ import annotations
 from typing import Optional
 
 
-def create_master_document_node(
+def create_canonical_document_node(
     graph,
     name: str,
     description: str = "",
@@ -108,7 +108,7 @@ def create_master_document_node(
 
 def refresh_document_lists(context, node, graph) -> None:
     """Refresh the EMTools document-backed UI lists so a newly-created
-    Master Document appears immediately in the Document Manager /
+    Canonical Document appears immediately in the Document Manager /
     EM tree without requiring a graphml reload.
 
     Best-effort: silently tolerates import failures (callers may
@@ -217,7 +217,7 @@ def get_next_numbered_name(graph, prefix: str,
 
 
 def suggest_next_document_name(graph) -> str:
-    """Propose the next available Master-Document name (e.g. ``D.42``).
+    """Propose the next available Canonical-Document name (e.g. ``D.42``).
 
     Thin wrapper over :func:`get_next_numbered_name` that pins the
     prefix to ``D`` and filters by ``node_type == 'document'``. The

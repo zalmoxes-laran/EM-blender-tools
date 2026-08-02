@@ -579,7 +579,7 @@ class ANASTYLOSIS_OT_search_doc_node(Operator):
         layout.label(text="Pick a Document for this RMSF:",
                      icon='FILE_TEXT')
         layout.separator()
-        from ..master_document_helpers import (
+        from ..canonical_document_helpers import (
             draw_document_picker_with_create_button)
         draw_document_picker_with_create_button(
             layout, context.scene,

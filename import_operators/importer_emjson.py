@@ -105,6 +105,18 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
             entry.graph_code = attrs["graph_code"]
         if hasattr(entry, "import_warnings"):
             entry.import_warnings = "\n".join(warnings) if warnings else ""
+        # Structured counterpart: the panel groups by `kind` instead of matching
+        # message text, and each record names the element it points at. Only the
+        # state families have records; the free-form warnings stay strings and
+        # the panel falls back to matching for those.
+        if hasattr(entry, "import_warning_records"):
+            try:
+                import json as _json
+                from s3dgraphy.api import graph_warnings
+                entry.import_warning_records = _json.dumps(graph_warnings(graph))
+            except Exception as exc:  # noqa: BLE001
+                entry.import_warning_records = ""
+                print(f"[em.json import] WARN warning records: {exc}")
 
         # S6 — version banner: what the document declares (em.json
         # schema_version, S2a) next to what is reading it (EM datamodel).

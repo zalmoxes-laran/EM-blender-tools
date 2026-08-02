@@ -211,15 +211,15 @@ def hat_orphan_as_document(graph: Any, resource_id: str, name: str, *,
                            geometry: Optional[str] = None):
     """Promote a Shelf orphan → a Canonical Document, ADOPTING ``resource_id`` (the
     FS stable ID) as the new node's ``node_id``. Delegates to the shared
-    ``create_master_document_node`` (the existing DosCo→Document path) so the
+    ``create_canonical_document_node`` (the existing DosCo→Document path) so the
     DocumentNode shape (attributes + temporal-anchor chain) stays identical —
     only the identity is pinned. Returns the created node.
 
     After this, the resource's stable ID is a node in the graph, so
     :func:`shelf_entries` no longer lists it (it has left the Shelf), while the
     FS backend still resolves the same ID to the file (one ID space)."""
-    from ..master_document_helpers import create_master_document_node
-    return create_master_document_node(
+    from ..canonical_document_helpers import create_canonical_document_node
+    return create_canonical_document_node(
         graph, name=name, description=description, resolved_epoch=resolved_epoch,
         creation_year=creation_year, role=role, content_nature=content_nature,
         geometry=geometry, mark_as_canonical=True, node_id=resource_id)

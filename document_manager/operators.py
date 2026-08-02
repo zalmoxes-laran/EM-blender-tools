@@ -1057,7 +1057,7 @@ class DOCMANAGER_OT_suggest_next_doc_name_for_dialog(bpy.types.Operator):
                 graph = get_graph(gi.name)
         except Exception:
             graph = None
-        from ..master_document_helpers import suggest_next_document_name
+        from ..canonical_document_helpers import suggest_next_document_name
         proposed = suggest_next_document_name(graph)
         # Write into the shared scene buffer — the open dialog's Name
         # field reads from this property, so it updates on next tick.
@@ -1074,7 +1074,7 @@ class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
     Master Document: DosCo Create Host (for orphan promotion), the RM
     Manager container creation (DP-47 extension), and any standalone
     use case from the Document Manager panel. Thin operator wrapper
-    around :func:`master_document_helpers.create_master_document_node`.
+    around :func:`canonical_document_helpers.create_canonical_document_node`.
     """
     bl_idname = "docmanager.create_master_document"
     bl_label = "Create Master Document"
@@ -1184,7 +1184,7 @@ class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
                 graph = get_graph(gi.name)
         except Exception:
             graph = None
-        from ..master_document_helpers import suggest_next_document_name
+        from ..canonical_document_helpers import suggest_next_document_name
         scene.em_pending_master_doc_name = suggest_next_document_name(graph)
         self.new_description = ""
         self.has_creation_year = False
@@ -1235,7 +1235,7 @@ class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
                     graph = get_graph(gi.name)
                 except Exception:
                     graph = None
-            from ..master_document_helpers import resolve_epoch_from_year
+            from ..canonical_document_helpers import resolve_epoch_from_year
             resolved = resolve_epoch_from_year(graph, self.creation_year)
             hint = anchor_box.row()
             if resolved is None:
@@ -1302,8 +1302,8 @@ class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
             return {'CANCELLED'}
 
         # Resolve epoch: explicit pick wins; otherwise derive from year.
-        from ..master_document_helpers import (
-            create_master_document_node, refresh_document_lists,
+        from ..canonical_document_helpers import (
+            create_canonical_document_node, refresh_document_lists,
             resolve_epoch_from_year,
         )
         resolved_epoch = None
@@ -1332,7 +1332,7 @@ class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
         _geom = (self.doc_geometry
                  if self.doc_geometry != "none" else None)
         desc = (self.new_description or "").strip()
-        node = create_master_document_node(
+        node = create_canonical_document_node(
             graph,
             name=name,
             description=desc or f"Master Document '{name}'",

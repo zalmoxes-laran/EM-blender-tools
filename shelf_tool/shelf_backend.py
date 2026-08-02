@@ -272,7 +272,7 @@ def hat_as_document(target_graph: Any, resource_id: str, *,
                     geometry: Optional[str] = None,
                     attach_to: Optional[str] = None) -> Dict[str, Any]:
     """Wire an EXISTING DocumentNode (``doc_id``, built by the operator through
-    ``master_document_helpers.create_master_document_node`` so EMTools keeps ONE
+    ``canonical_document_helpers.create_canonical_document_node`` so EMTools keeps ONE
     document shape) to the Resource via has_linked_resource (P67), plus the
     optional attach. When ``doc_id`` is unknown the op creates the node itself
     with the same shape."""

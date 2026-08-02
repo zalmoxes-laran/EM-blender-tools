@@ -2659,7 +2659,7 @@ class STRAT_OT_add_us_suggest_next(Operator):
             proposed = _next_shared_us_number(
                 graph, self.us_type, US_PROPER_TYPES)
         else:
-            from ..master_document_helpers import get_next_numbered_name
+            from ..canonical_document_helpers import get_next_numbered_name
             proposed = get_next_numbered_name(
                 graph, self.us_type, node_type_filter=self.us_type)
         strat.pending_us_name = proposed

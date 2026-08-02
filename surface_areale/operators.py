@@ -510,11 +510,11 @@ class EMTOOLS_OT_confirm_areale(Operator):
 
 def _get_next_numbered_name(graph, prefix, node_type_filter=None):
     """Thin wrapper — delegates to
-    :func:`master_document_helpers.get_next_numbered_name` so the
+    :func:`canonical_document_helpers.get_next_numbered_name` so the
     gap-aware numbering logic stays in one place. Kept as a local
     name so existing call sites in this module don't need to change.
     """
-    from ..master_document_helpers import get_next_numbered_name
+    from ..canonical_document_helpers import get_next_numbered_name
     return get_next_numbered_name(
         graph, prefix=prefix, node_type_filter=node_type_filter)
 

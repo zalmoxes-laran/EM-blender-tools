@@ -162,7 +162,7 @@ class VIEW3D_PT_SurfaceAreale(Panel):
             hint.label(
                 text="Pick an existing one or create a new master.",
                 icon='BLANK1')
-            from ..master_document_helpers import (
+            from ..canonical_document_helpers import (
                 draw_document_picker_with_create_button)
             draw_document_picker_with_create_button(
                 box, scene,
