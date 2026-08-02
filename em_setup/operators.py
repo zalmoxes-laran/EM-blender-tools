@@ -956,6 +956,119 @@ class EM_OT_pyarchinit_pg_forget_password(Operator):
 
 
 # Registration
+
+class EM_OT_reveal_warning_node(Operator):
+    """Select the graph element a warning points at, and frame it in the 3D view
+
+    The warnings carry a `node_id` (F): for a node warning it is that node, for
+    an edge warning its source — the thing to look at first. This turns the
+    reading of a warning into the act of going to see it, which is the whole
+    point of surfacing them.
+    """
+    bl_idname = "em.reveal_warning_node"
+    bl_label = "Show this node"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    node_id: StringProperty(name="Node ID", default="")  # type: ignore
+    #: purely informative, shown in the tooltip: the relations the datamodel
+    #: would allow for a degraded edge. Re-typing stays a manual act in the
+    #: source graph — this operator never rewrites anything.
+    candidates: StringProperty(name="Allowed relations", default="")  # type: ignore
+
+    @classmethod
+    def description(cls, context, properties):
+        base = "Select this node and frame it in the 3D view"
+        cands = getattr(properties, "candidates", "") or ""
+        if cands:
+            return (f"{base}.\nThe datamodel would allow: {cands}.\n"
+                    f"Re-draw the connection in the source graph — nothing is "
+                    f"changed for you")
+        return base
+
+    def execute(self, context):
+        if not self.node_id:
+            self.report({'WARNING'}, "This warning does not name an element")
+            return {'CANCELLED'}
+
+        em_tools = context.scene.em_tools
+        if em_tools.active_file_index < 0 or not em_tools.graphml_files:
+            self.report({'WARNING'}, "No active graph")
+            return {'CANCELLED'}
+        graph = get_graph(em_tools.graphml_files[em_tools.active_file_index].name)
+        node = graph.find_node_by_id(self.node_id) if graph else None
+        if node is None:
+            # The graph moved on since the warnings were computed — say so
+            # instead of doing nothing, which reads as a broken button.
+            self.report({'WARNING'},
+                        "That element is no longer in the graph — reload to "
+                        "refresh the warnings")
+            return {'CANCELLED'}
+
+        # 1. pin the row in the Stratigraphy Manager, when the node has one:
+        #    that is what drives every downstream panel (paradata, properties…)
+        listed = _focus_node_in_lists(context, self.node_id)
+
+        # 2. select + frame the proxy, reusing the live-sync path so viewport
+        #    visibility and collection activation are handled exactly once.
+        from ..sync_manager.operators import _apply_incoming_select
+        framed = _apply_incoming_select(self.node_id, context, graph)
+
+        for area in context.screen.areas:
+            area.tag_redraw()
+
+        name = getattr(node, "name", "") or self.node_id
+        if framed:
+            self.report({'INFO'}, f"{name} — selected in the 3D view")
+        elif listed:
+            self.report({'INFO'}, f"{name} — selected in the list (no 3D proxy)")
+        else:
+            self.report({'INFO'},
+                        f"{name} — in the graph, but with no row and no proxy "
+                        f"to show")
+        return {'FINISHED'}
+
+
+def _focus_node_in_lists(context, node_id):
+    """Pin ``node_id`` as the active row of whichever EM list holds it.
+
+    Returns True if a row was found. Only the lists that carry `id_node` are
+    searched; a node with no row (a group, a rights node) is not an error —
+    the caller says so.
+    """
+    scene = context.scene
+    em_tools = scene.em_tools
+    targets = [
+        (em_tools.stratigraphy, "units", "units_index"),
+        (em_tools.epochs, "list", "list_index"),
+    ]
+    for owner, coll_name, index_name in targets:
+        coll = getattr(owner, coll_name, None)
+        if not coll:
+            continue
+        for i, item in enumerate(coll):
+            if getattr(item, "id_node", "") == node_id:
+                setattr(owner, index_name, i)
+                return True
+    # the flat paradata lists live on the scene, keyed the same way
+    for coll_name, index_name in (
+            ("em_sources_list", "em_sources_list_index"),
+            ("em_properties_list", "em_properties_list_index"),
+            ("em_extractors_list", "em_extractors_list_index"),
+            ("em_combiners_list", "em_combiners_list_index")):
+        coll = getattr(scene, coll_name, None) or getattr(em_tools, coll_name, None)
+        if not coll:
+            continue
+        for i, item in enumerate(coll):
+            if getattr(item, "id_node", "") == node_id:
+                holder = scene if hasattr(scene, index_name) else em_tools
+                try:
+                    setattr(holder, index_name, i)
+                except (AttributeError, TypeError):
+                    continue
+                return True
+    return False
+
+
 classes = (
     EM_create_collection,
     EM_OT_benchmark_property_functions,
@@ -974,6 +1087,7 @@ classes = (
     EM_OT_open_license_url,
     EM_OT_pyarchinit_pg_save_password,
     EM_OT_pyarchinit_pg_forget_password,
+    EM_OT_reveal_warning_node,
 )
 
 

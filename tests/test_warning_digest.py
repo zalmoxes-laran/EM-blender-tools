@@ -182,3 +182,23 @@ def test_records_do_not_change_what_the_panel_draws():
 def test_a_record_without_a_message_is_dropped_like_a_blank_line():
     assert digest_warnings([{"kind": "untyped_node", "node_id": "n1",
                              "message": "   "}]) == []
+
+
+# ── click-to-node: the panel must be able to address each line ────────────────
+
+def test_records_stay_aligned_with_the_lines_the_panel_draws():
+    """The panel walks `group.messages` by index and reaches for
+    `group.records[i]`; if the two ever fell out of step a line would offer a
+    button to the WRONG element, which is worse than no button."""
+    mixed = [REC_UNTYPED, UNTYPED, REC_DEGRADED, "Please add a proper site ID"]
+    for group in digest_warnings(mixed):
+        assert len(group.records) == len(group.messages)
+        for msg, rec in zip(group.messages, group.records):
+            if rec is not None:
+                assert rec["message"].strip() == msg
+
+
+def test_a_degraded_record_offers_its_candidates_to_the_tooltip():
+    rec = {**REC_DEGRADED, "candidates": ["abuts", "cuts"]}
+    (group,) = digest_warnings([rec])
+    assert group.records[0]["candidates"] == ["abuts", "cuts"]

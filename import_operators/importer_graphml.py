@@ -102,6 +102,21 @@ class EM_import_GraphML(bpy.types.Operator):
                     else:
                         graphml.import_warnings = ""
 
+                    # Structured records for the warnings the importer knows
+                    # the subject of (it emits them via add_state_warning while
+                    # parsing, so they keep their richer wording AND name their
+                    # node). That is what makes the panel's reveal button work
+                    # on a GraphML source too, not only on em.json.
+                    if hasattr(graphml, "import_warning_records"):
+                        try:
+                            import json as _json
+                            graphml.import_warning_records = _json.dumps(
+                                list(getattr(graph_instance,
+                                             "warning_records", []) or []))
+                        except Exception as exc:  # noqa: BLE001
+                            graphml.import_warning_records = ""
+                            print(f"[GraphML import] WARN warning records: {exc}")
+
                     # S6 — version banner. A GraphML declares no schema of its
                     # own; what we can always state is the EM datamodel version
                     # doing the reading.

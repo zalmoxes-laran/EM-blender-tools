@@ -215,26 +215,53 @@ _MAX_WARNINGS_PER_GROUP = 8
 
 
 def _imported_warnings(active_file):
-    """The import warnings for ``active_file``, as records where the source gave
-    us records and as plain strings otherwise.
+    """The import warnings for ``active_file``: records where the source knew
+    what a warning was about, plain strings for the rest.
 
-    The two shapes travel together on purpose: ``digest_warnings`` accepts them
-    mixed, so a graph that carries records for its state warnings and bare
-    strings for the free-form ones is grouped correctly in one pass.
+    The two are MERGED, not chosen between. Only the state families come with a
+    record; the free-form warnings a source also emits — a duplicate extractor
+    name, a malformed field — have none, and preferring the records alone would
+    quietly drop them. ``digest_warnings`` takes the mixture and files each by
+    kind or by text as appropriate.
     """
+    records = []
     raw = getattr(active_file, "import_warning_records", "") or ""
     if raw:
         try:
             import json
-            records = json.loads(raw)
-            if isinstance(records, list) and records:
-                return records
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                records = [r for r in parsed if isinstance(r, dict)]
         except (ValueError, TypeError):
-            # Malformed cache — fall through to the strings rather than showing
-            # the author nothing.
-            pass
+            records = []  # malformed cache: fall back to the strings alone
+
+    covered = {(r.get("message") or "").strip() for r in records}
     text = getattr(active_file, "import_warnings", "") or ""
-    return [line.strip() for line in text.split("\n") if line.strip()]
+    extra = [line.strip() for line in text.split("\n")
+             if line.strip() and line.strip() not in covered]
+    return records + extra
+
+
+def _draw_warning_row(layout, context, message, record):
+    """One warning line, with a reveal button when it points somewhere.
+
+    The button carries the element id, and — for a degraded connection — the
+    relations the datamodel would allow, in its tooltip. Those are shown as
+    INFORMATION: which relation the edge should have carried is an authorial
+    decision taken in the source graph, never something a click here rewrites.
+    """
+    node_id = record.get("node_id") if isinstance(record, dict) else None
+    if not node_id:
+        _draw_wrapped_warning(layout, context, message)
+        return
+    row = layout.row(align=True)
+    op = row.operator("em.reveal_warning_node", text="",
+                      icon='RESTRICT_SELECT_OFF', emboss=False)
+    op.node_id = node_id
+    candidates = record.get("candidates") or []
+    if candidates:
+        op.candidates = ", ".join(str(c) for c in candidates)
+    _draw_wrapped_warning(row.column(align=True), context, message)
 
 
 def _format_version_banner(active_file):
@@ -1078,8 +1105,16 @@ class EM_SetupPanel(bpy.types.Panel):
                                 text=f"{group.label} ({group.count})",
                                 icon=group.icon)
                             warning_col = grp_box.column(align=True)
-                            for warning_msg in group.messages[:_MAX_WARNINGS_PER_GROUP]:
-                                _draw_wrapped_warning(warning_col, context, warning_msg)
+                            shown = group.messages[:_MAX_WARNINGS_PER_GROUP]
+                            for i, warning_msg in enumerate(shown):
+                                # A warning that names an element gets a button
+                                # that goes there: reading it and going to look
+                                # are the same gesture. A warning with no record
+                                # (a free-form line) simply has no button.
+                                record = (group.records[i]
+                                          if i < len(group.records) else None)
+                                _draw_warning_row(warning_col, context,
+                                                  warning_msg, record)
                             hidden = group.count - _MAX_WARNINGS_PER_GROUP
                             if hidden > 0:
                                 # Never let a cap read as "that was all of them".
