@@ -15,12 +15,12 @@ from .save_template import *
 # Import bake paradata operator
 from .bake_paradata import *
 
-# Import XLSX wizard operators (legacy 3-step, kept for backward compat
-# while the new StratiMiner unified-schema flow replaces it)
+# Import XLSX wizard operators (legacy 3-step stratigraphy.xlsx -> GraphML).
+# The StratiMiner authoring flow that used to sit beside this one moved OUT of
+# EMtools in SM3 (2026-08-03): folder -> em_data.xlsx -> em.json is data work, not
+# Blender modelling, and it now lives in EMStudio over s3Dgraphy's api. What stays
+# here is what touches the ACTIVE graph: see `merge_conflict_ui`.
 from .xlsx_wizard import *
-
-# Import StratiMiner operators (new unified em_data.xlsx flow)
-from .stratiminer import *
 
 # Import Hybrid-C auxiliary-lifecycle operators (orphan list + bake)
 from .aux_lifecycle import *
@@ -49,7 +49,6 @@ __all__ = [
     "AUX_OT_create_host_for_orphan",
     "AUX_OT_revert_injector",
     "AUX_OT_bake_to_graphml",
-    "XLSX_WIZARD_OT_copy_ai_prompt",
     "get_active_graph_code",
     "get_graph_code_from_graph",
     "node_name_to_proxy_name",
@@ -70,7 +69,6 @@ def register():
     from . import save_template
     from . import bake_paradata
     from . import xlsx_wizard
-    from . import stratiminer
     from . import aux_lifecycle
     from . import merge_conflict_ui
 
@@ -81,7 +79,6 @@ def register():
     save_template.register()
     bake_paradata.register()
     xlsx_wizard.register()
-    stratiminer.register()
     aux_lifecycle.register()
     merge_conflict_ui.register()
 
@@ -95,14 +92,12 @@ def unregister():
     from . import save_template
     from . import bake_paradata
     from . import xlsx_wizard
-    from . import stratiminer
     from . import aux_lifecycle
     from . import merge_conflict_ui
 
     # Unregister in reverse order
     merge_conflict_ui.unregister()
     aux_lifecycle.unregister()
-    stratiminer.unregister()
     xlsx_wizard.unregister()
     bake_paradata.unregister()
     save_template.unregister()

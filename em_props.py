@@ -1085,12 +1085,6 @@ class EM_Tools(PropertyGroup):
         options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
     )  # type: ignore
 
-    xlsx_wizard_prompt_language: StringProperty(
-        name="Prompt Language",
-        description="Language for AI-generated descriptions. Leave default to keep the source language",
-        default="the same as the original document"
-    )  # type: ignore
-
     xlsx_wizard_graph_id: StringProperty(
         name="Active Wizard Graph",
         description="Internal: graph_id of the graph created by the wizard",
@@ -1109,101 +1103,11 @@ class EM_Tools(PropertyGroup):
         default=True
     )  # type: ignore
 
-    # StratiMiner prompt toggles (v5.4 — unified em_data.xlsx schema)
-    xlsx_wizard_prompt_checklist: BoolProperty(
-        name="End-of-session checklist",
-        description="Include the end-of-session checklist in the prompt",
-        default=True
-    )  # type: ignore
-
-    xlsx_wizard_prompt_validation: BoolProperty(
-        name="Validation script",
-        description="Include the embedded Python validation script that "
-                    "checks cross-sheet referential integrity, duplicate "
-                    "triples, missing COMBINER_REASONING and stratigraphic "
-                    "cycles",
-        default=True
-    )  # type: ignore
-
-    xlsx_wizard_prompt_stratigraphy_only: BoolProperty(
-        name="Include stratigraphy-only mode",
-        description="Append the STRATIGRAPHY_ONLY section describing the "
-                    "minimal flow for pre-existing archaeological databases "
-                    "(curator as sole author, no paradata chain). Useful "
-                    "only for legacy dataset migration",
-        default=False
-    )  # type: ignore
-
-    # Path to the folder of source PDFs (or equivalent). Optional but
-    # recommended for the fire-test on DosCo.
-    stratiminer_documents_folder: StringProperty(
-        name="Documents folder",
-        description="Folder containing the source PDFs the AI should read. "
-                    "Appended to the prompt so the AI enumerates the files "
-                    "automatically (e.g. the DosCo folder for Templu Mare)",
-        default="",
-        subtype='DIR_PATH',
-    )  # type: ignore
-
-    stratiminer_dosco_in_place: BoolProperty(
-        name="Use this folder as DosCo (in-place rename)",
-        description="ON (default): the Documents folder above IS the DosCo. "
-                    "Files may be renamed in place with the D.NN_ prefix; "
-                    "numbering fills gaps. Comparative / parallel sources "
-                    "start at D.1000. OFF: specify a target DosCo folder — "
-                    "files are copied there with the new prefix and the "
-                    "originals are left untouched",
-        default=True,
-    )  # type: ignore
-
-    stratiminer_dosco_target_folder: StringProperty(
-        name="Target DosCo folder",
-        description="Destination folder when 'Use this folder as DosCo' "
-                    "is OFF: files are copied here with D.NN_ prefixes",
-        default="",
-        subtype='DIR_PATH',
-    )  # type: ignore
-
-    stratiminer_ai_has_filesystem: BoolProperty(
-        name="AI can read local files",
-        description="ON (default): the AI model has filesystem access to the "
-                    "Documents folder (e.g. Claude Desktop, API-driven). "
-                    "OFF: the AI runs in a chat UI without filesystem access — "
-                    "the prompt instructs it to ask the user to upload the "
-                    "files directly into the conversation, with a data-"
-                    "sovereignty disclaimer",
-        default=True,
-    )  # type: ignore
-
-    # StratiMiner Action A — import em_data.xlsx → graph → optional GraphML
-    stratiminer_input_xlsx: StringProperty(
-        name="em_data.xlsx",
-        description="Path to the unified em_data.xlsx produced by the AI",
-        default="",
-        subtype='FILE_PATH',
-    )  # type: ignore
-
-    stratiminer_output_graphml: StringProperty(
-        name="Output .graphml",
-        description="Destination path for the GraphML built from em_data.xlsx "
-                    "(used when 'Export on import' is enabled)",
-        default="",
-        subtype='FILE_PATH',
-    )  # type: ignore
-
-    stratiminer_export_on_import: BoolProperty(
-        name="Export on import",
-        description="Immediately write the imported graph to the output "
-                    "GraphML path in addition to keeping it in memory",
-        default=True,
-    )  # type: ignore
-
-    stratiminer_active_graph_id: StringProperty(
-        name="Active StratiMiner graph",
-        description="Internal: id of the latest graph built by "
-                    "stratiminer.import_em_data",
-        default="",
-    )  # type: ignore
+    # The StratiMiner properties that used to sit here — the prompt toggles and
+    # the folder / xlsx / output-graphml paths — went out with SM3 (2026-08-03):
+    # folder -> em_data.xlsx -> em.json is data work, and it now lives in EMStudio
+    # over s3Dgraphy's api. `xlsx_wizard_warnings` / `_show_warnings` above STAY:
+    # `merge_conflict_ui` writes them and the Conflict Resolution panel reads them.
 
     # ============================================
     # PARADATA COLLECTIONS & INDICES

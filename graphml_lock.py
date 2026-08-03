@@ -2,7 +2,7 @@
 
 Every EMtools code path that writes to an existing .graphml on disk
 (volatile Save GraphML, Bake Paradata, Create Host persistence,
-Proxy Box Creator, StratiMiner export, xlsx→graphml, etc.) must
+Proxy Box Creator, xlsx→graphml, etc.) must
 confirm the target file is actually writable BEFORE starting work.
 The most common failure mode is the user keeping the .graphml open
 in yEd: on Windows yEd holds an exclusive share lock, so our write

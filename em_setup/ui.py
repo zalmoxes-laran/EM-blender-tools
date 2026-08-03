@@ -307,177 +307,20 @@ def _draw_experimental_notice(layout, context):
         icon='INFO',
     )
 
-def _draw_stratiminer_panel(layout, context, em_tools):
-    """Draw the StratiMiner workflow (EM Bridge tab).
-
-    Two logical blocks, not sequential steps:
-
-      ━━━ CREATE em_data.xlsx ━━━
-        Two alternative paths to obtain an ``em_data.xlsx``:
-          A. AI-assisted: prepare and copy the v5.0 extraction prompt
-             for Claude / ChatGPT / Gemini.
-          B. Manual: save the empty 5-sheet template and fill it by
-             hand (for pre-existing archaeological databases with
-             explicit stratigraphic relations).
-
-      ━━━ USE em_data.xlsx ━━━
-        Once an ``em_data.xlsx`` exists, use it either to:
-          A. Build a brand-new GraphML (Import → new in-memory graph
-             with optional immediate .graphml export).
-          B. Merge it into an already-loaded GraphML (conflict
-             resolution in the EM tree tab).
-    """
-    _draw_experimental_notice(layout, context)
-
-    # ═══════════════════════════════════════════════════════════════
-    # BLOCK 1 — Create em_data.xlsx
-    # ═══════════════════════════════════════════════════════════════
-    create_box = layout.box()
-    row = create_box.row(align=True)
-    row.label(text="CREATE em_data.xlsx", icon='FILE_NEW')
-    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-    help_op.title = "Two paths to create em_data.xlsx"
-    help_op.text = (
-        "Option A — AI-assisted: copy the StratiMiner prompt\n"
-        "to your clipboard, paste it into Claude / ChatGPT /\n"
-        "Gemini along with the PDFs; the AI returns a ready\n"
-        "em_data.xlsx file (5 typed sheets).\n\n"
-        "Option B — Manual: save the empty 5-sheet template\n"
-        "and fill it by hand. Useful for migrating existing\n"
-        "archaeological databases with explicit stratigraphic\n"
-        "relations."
-    )
-    help_op.url = "panels/stratiminer.html#block-1-create-em-data-xlsx"
-
-    # ── Option A: AI-assisted ──
-    ai_box = create_box.box()
-    ai_box.label(text="Option A — AI-assisted", icon='OUTLINER_OB_LIGHT')
-    ai_box.prop(em_tools, "xlsx_wizard_prompt_language",
-                text="Output language")
-    ai_box.prop(em_tools, "stratiminer_documents_folder",
-                text="Documents folder")
-
-    # DosCo in-place vs copy-to-target
-    ai_box.prop(em_tools, "stratiminer_dosco_in_place")
-    if not em_tools.stratiminer_dosco_in_place:
-        sub = ai_box.column(align=True)
-        sub.prop(em_tools, "stratiminer_dosco_target_folder",
-                 text="Target DosCo folder")
-
-    ai_box.prop(em_tools, "stratiminer_ai_has_filesystem")
-
-    toggles = ai_box.column(align=True)
-    toggles.prop(em_tools, "xlsx_wizard_prompt_validation")
-    toggles.prop(em_tools, "xlsx_wizard_prompt_checklist")
-    toggles.prop(em_tools, "xlsx_wizard_prompt_stratigraphy_only")
-    row = ai_box.row()
-    row.scale_y = 1.2
-    row.operator("stratiminer.copy_prompt",
-                 text="Copy StratiMiner Prompt", icon='COPYDOWN')
-
-    # ── Option B: Manual template ──
-    manual_box = create_box.box()
-    manual_box.label(text="Option B — Manual (empty template)",
-                     icon='GREASEPENCIL')
-    row = manual_box.row()
-    row.scale_y = 1.0
-    row.operator("emtools.save_em_data_template",
-                 text="Save em_data.xlsx Template", icon='FILE_TICK')
-
-    # ═══════════════════════════════════════════════════════════════
-    # BLOCK 2 — Use em_data.xlsx
-    # ═══════════════════════════════════════════════════════════════
-    layout.separator(factor=0.5)
-    use_box = layout.box()
-    row = use_box.row(align=True)
-    row.label(text="USE em_data.xlsx", icon='IMPORT')
-    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-    help_op.title = "Use em_data.xlsx"
-    help_op.text = (
-        "Build a new GraphML from the xlsx, or merge the xlsx\n"
-        "into an already-loaded GraphML (conflict resolution).\n"
-        "The two options are independent — pick the one that\n"
-        "matches your current session."
-    )
-    help_op.url = "panels/stratiminer.html#block-2-use-em-data-xlsx"
-
-    use_box.prop(em_tools, "stratiminer_input_xlsx", text="em_data.xlsx")
-
-    # ── Path A: Build a brand-new GraphML ──
-    build_box = use_box.box()
-    build_box.label(text="→ Build a new GraphML", icon='GRAPH')
-    build_box.prop(em_tools, "stratiminer_export_on_import",
-                   text="Also write .graphml on import")
-    sub = build_box.column(align=True)
-    sub.enabled = em_tools.stratiminer_export_on_import
-    sub.prop(em_tools, "stratiminer_output_graphml", text="Output .graphml")
-    row = build_box.row()
-    row.scale_y = 1.3
-    row.enabled = bool(em_tools.stratiminer_input_xlsx)
-    row.operator("stratiminer.import_em_data",
-                 text="Build GraphML from em_data.xlsx", icon='GRAPH')
-
-    # Stats for the latest imported graph
-    if em_tools.stratiminer_active_graph_id:
-        try:
-            from s3dgraphy import get_graph as _get_graph
-            _g = _get_graph(em_tools.stratiminer_active_graph_id)
-            if _g is not None:
-                build_box.label(
-                    text=f"In memory: {len(_g.nodes)} nodes, {len(_g.edges)} edges",
-                    icon='CHECKMARK')
-        except Exception:
-            pass
-
-    # ── Path B: Merge into active GraphML ──
-    merge_box = use_box.box()
-    merge_box.label(text="→ Merge into active GraphML",
-                    icon='AUTOMERGE_ON')
-    row = merge_box.row()
-    row.scale_y = 1.3
-    has_active = (em_tools.active_file_index >= 0
-                  and em_tools.active_file_index < len(em_tools.graphml_files))
-    row.enabled = has_active
-    row.operator("em.merge_xlsx_start",
-                 text="Merge into Active Graph...",
-                 icon='AUTOMERGE_ON')
-    if not has_active:
-        merge_box.label(text="(load a GraphML in the EM tree first)",
-                        icon='INFO')
-
-    # ═══════════════════════════════════════════════════════════════
-    # Warnings accumulated during import
-    # ═══════════════════════════════════════════════════════════════
-    if em_tools.xlsx_wizard_warnings:
-        warnings_list = [w for w in em_tools.xlsx_wizard_warnings.split("\n")
-                         if w.strip()]
-        if warnings_list:
-            layout.separator(factor=0.5)
-            warn_box = layout.box()
-            warn_box.alert = True
-            header_row = warn_box.row(align=True)
-            icon = ('TRIA_DOWN' if em_tools.xlsx_wizard_show_warnings
-                    else 'TRIA_RIGHT')
-            header_row.prop(
-                em_tools, "xlsx_wizard_show_warnings",
-                text=f"Import Warnings ({len(warnings_list)})",
-                icon=icon, emboss=False,
-            )
-            header_row.label(text="", icon='ERROR')
-            header_row.operator("xlsx_wizard.clear_warnings", text="",
-                                icon='X')
-            if em_tools.xlsx_wizard_show_warnings:
-                warn_col = warn_box.column(align=True)
-                for w in warnings_list:
-                    _draw_wrapped_warning(warn_col, context, w)
-
-
 def _draw_graphml_wizard(layout, context, em_tools):
     """Legacy GraphML wizard (stratigraphy + em_paradata two-file flow).
 
-    Deprecated by the unified em_data.xlsx flow surfaced through
-    :func:`_draw_stratiminer_panel`. Kept intact for backward compat —
-    no UI currently calls this function.
+    **No UI currently calls this function**, and it has not for some time: the panel
+    that used to (``VIEW3D_PT_graphml_wizard_bridge``) was renamed and repointed at
+    the StratiMiner panel, which SM3 has now removed with the rest of that flow.
+    Kept rather than deleted because what it draws — stratigraphy.xlsx + paradata →
+    GraphML — is an IMPORT path, not StratiMiner authoring, and reviving it is a
+    decision about the legacy two-file format rather than about this cut.
+
+    Its "AI Extraction Prompt" block is gone: that was the same
+    ``get_ai_prompt`` authoring that moved to EMStudio (SM1/SM2), and it referenced
+    ``xlsx_wizard_prompt_part_a``…``_d``, which are declared nowhere in
+    ``em_props`` — so the block would have raised the first time it was drawn.
     """
     graphml_box = layout.box()
     row = graphml_box.row(align=True)
@@ -617,36 +460,6 @@ def _draw_graphml_wizard(layout, context, em_tools):
         "emtools.save_em_paradata_template",
         text="Save Paradata Template",
         icon='FILE_TICK'
-    )
-
-    # ── AI Extraction Prompt ──
-    graphml_box.separator(factor=0.5)
-    row = graphml_box.row(align=True)
-    row.label(text="AI Extraction Prompt:", icon='FILE_TEXT')
-    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-    help_op.title = "AI-Assisted Extraction"
-    help_op.text = (
-        "Copy a ready-to-use prompt to paste into Claude,\n"
-        "ChatGPT, or Gemini alongside your archaeological\n"
-        "documents. The AI will produce the two Excel files\n"
-        "needed by Steps 1 and 2."
-    )
-    help_op.url = "panels/stratiminer.html#block-1-create-em-data-xlsx"
-    graphml_box.prop(em_tools, "xlsx_wizard_prompt_language", text="Language")
-    col = graphml_box.column(align=True)
-    col.label(text="Sezioni:", icon='LINENUMBERS_ON')
-    col.prop(em_tools, "xlsx_wizard_prompt_part_a")
-    col.prop(em_tools, "xlsx_wizard_prompt_part_b")
-    col.prop(em_tools, "xlsx_wizard_prompt_part_c")
-    col.prop(em_tools, "xlsx_wizard_prompt_part_d")
-    col.prop(em_tools, "xlsx_wizard_prompt_checklist")
-    col.prop(em_tools, "xlsx_wizard_prompt_validation")
-    row = graphml_box.row()
-    row.scale_y = 1.1
-    row.operator(
-        "xlsx_wizard.copy_ai_prompt",
-        text="Copy AI Prompt to Clipboard",
-        icon='COPYDOWN'
     )
 
 
@@ -1691,45 +1504,6 @@ class EM_SetupPanel(bpy.types.Panel):
             op.auxiliary_index = -1  # Non applicabile in modalità 3DGIS
 
 
-class VIEW3D_PT_stratiminer_bridge(bpy.types.Panel):
-    """StratiMiner workflow panel in EM Bridge tab (experimental).
-
-    Three stacked actions:
-      1. Copy the v5.0 extraction prompt to the clipboard.
-      2. Import an em_data.xlsx (AI output) as a new in-memory graph
-         and optionally export it as .graphml in one pass.
-      3. Merge an em_data.xlsx into the currently active graph, with
-         conflict resolution UI.
-    """
-    bl_label = "StratiMiner (Experimental)"
-    bl_idname = "VIEW3D_PT_stratiminer_bridge"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'EM Bridge'
-    bl_options = {'DEFAULT_CLOSED'}
-
-    @classmethod
-    def poll(cls, context):
-        return (
-            hasattr(context.scene, 'em_tools') and
-            context.scene.em_tools.mode_em_advanced and
-            context.scene.em_tools.experimental_features
-        )
-
-    def draw_header(self, context):
-        self.layout.label(text="", icon='EXPERIMENTAL')
-
-    def draw(self, context):
-        layout = self.layout
-        em_tools = context.scene.em_tools
-        _draw_stratiminer_panel(layout, context, em_tools)
-
-
-# Backward-compatibility alias so external addons that referenced the
-# old panel id still see a valid class.
-VIEW3D_PT_graphml_wizard_bridge = VIEW3D_PT_stratiminer_bridge
-
-
 class AUXILIARY_MT_context_menu(bpy.types.Menu):
     bl_idname = "AUXILIARY_MT_context_menu"
     bl_label = "Auxiliary File Specials"
@@ -1759,7 +1533,6 @@ classes = (
     AUXILIARY_UL_files,
     EMTOOLS_UL_files,
     EM_SetupPanel,
-    VIEW3D_PT_stratiminer_bridge,
     AUXILIARY_MT_context_menu,
 )
 

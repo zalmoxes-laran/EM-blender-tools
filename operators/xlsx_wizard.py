@@ -227,59 +227,6 @@ class XLSX_WIZARD_OT_export_graphml(bpy.types.Operator):
 # COPY AI PROMPT — Copy extraction prompt to clipboard
 # ──────────────────────────────────────────────────────────────────────
 
-class XLSX_WIZARD_OT_copy_ai_prompt(bpy.types.Operator):
-    """Copy the AI extraction prompt (Part A + Part B) to clipboard"""
-    bl_idname = "xlsx_wizard.copy_ai_prompt"
-    bl_label = "Copy AI Prompt to Clipboard"
-    bl_description = (
-        "Copy the full AI extraction prompt to clipboard, ready to paste "
-        "into Claude, ChatGPT, or Gemini alongside your documents"
-    )
-    bl_options = {'REGISTER'}
-
-    def execute(self, context):
-        em_tools = context.scene.em_tools
-
-        # ── 1. Build the prompt via s3dgraphy ──
-        try:
-            from s3dgraphy import get_ai_prompt
-        except ImportError:
-            self.report({'ERROR'}, "s3dgraphy package not found or outdated (missing get_ai_prompt)")
-            return {'CANCELLED'}
-
-        language = em_tools.xlsx_wizard_prompt_language.strip()
-
-        try:
-            folder = (em_tools.stratiminer_documents_folder or "").strip()
-            full_prompt = get_ai_prompt(
-                language=language if language else None,
-                include_validation=em_tools.xlsx_wizard_prompt_validation,
-                include_checklist=em_tools.xlsx_wizard_prompt_checklist,
-                include_stratigraphy_only=getattr(
-                    em_tools, "xlsx_wizard_prompt_stratigraphy_only", False),
-                documents_folder=folder if folder else None,
-            )
-        except FileNotFoundError as e:
-            self.report({'ERROR'}, str(e))
-            return {'CANCELLED'}
-        except ValueError as e:
-            self.report({'ERROR'}, str(e))
-            return {'CANCELLED'}
-        except Exception as e:
-            self.report({'ERROR'}, f"Failed to build AI prompt: {str(e)}")
-            return {'CANCELLED'}
-
-        # ── 2. Copy to clipboard ──
-        bpy.context.window_manager.clipboard = full_prompt
-
-        # ── Report ──
-        char_count = len(full_prompt)
-        self.report({'INFO'}, f"AI prompt copied to clipboard ({char_count} characters)")
-        print(f"AI extraction prompt copied to clipboard ({char_count} chars)")
-
-        return {'FINISHED'}
-
-
 # ──────────────────────────────────────────────────────────────────────
 # CLEAR WARNINGS
 # ──────────────────────────────────────────────────────────────────────
@@ -303,7 +250,6 @@ class XLSX_WIZARD_OT_clear_warnings(bpy.types.Operator):
 classes = (
     XLSX_WIZARD_OT_convert_stratigraphy,
     XLSX_WIZARD_OT_export_graphml,
-    XLSX_WIZARD_OT_copy_ai_prompt,
     XLSX_WIZARD_OT_clear_warnings,
 )
 
