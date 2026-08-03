@@ -2,7 +2,7 @@
 Micro-pannello Georeferencing in EMTools.
 
 Mostra:
-- campi editabili EPSG + shift_x/y/z
+- campi editabili EPSG + shift_x/y/z + azimut (rotation)
 - spie semaforiche per BGIS e 3DSC (verde/giallo/grigio/rosso)
 - pulsanti Import/Export shift.txt, Sync all, Pull, Push to GeoNode
 - sezione Advanced con toggle move_objects / sync_lat_lon
@@ -118,6 +118,11 @@ class EM_PT_georef(Panel):
         col.prop(g, "shift_x", text="Shift X")
         col.prop(g, "shift_y", text="Shift Y")
         col.prop(g, "shift_z", text="Shift Z")
+        # The azimuth sits slightly apart from the shift: the shift is WHERE the
+        # scene origin is, the azimuth is WHICH WAY the scene faces, and the two
+        # are read by different consumers (BGIS/3DSC take the shift only).
+        col.separator(factor=0.4)
+        col.prop(g, "rotation", text="Azimuth °")
 
         # --- Active graph indicator ---
         graph = graph_sync.get_active_graph()

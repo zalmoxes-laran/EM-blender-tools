@@ -88,6 +88,25 @@ class EMGeorefProperties(PropertyGroup):
         update=_on_georef_changed,
     )  # type: ignore
 
+    rotation: FloatProperty(
+        name="Azimuth",
+        description=(
+            "Scene azimuth in degrees, clockwise from geographic north. "
+            "0 = north up, which is the default and the normal case; a "
+            "non-zero value says the scene is rotated with respect to north "
+            "(aligned to a wall, an excavation grid, a historical plan). "
+            "Travels to the graph's GeoPositionNode as 'rotation' and is what "
+            "EMStudio uses to orient the scene footprint on the map"
+        ),
+        default=0.0,
+        precision=2,
+        soft_min=-360.0,
+        soft_max=360.0,
+        # No update callback: neither BlenderGIS nor 3DSC has a place for an
+        # azimuth, so there is nothing to propagate. It reaches the graph via
+        # push_to_geonode, like the shift does.
+    )  # type: ignore
+
     # Toggle avanzati (default conservativi)
 
     move_objects_on_change: BoolProperty(

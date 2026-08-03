@@ -77,6 +77,7 @@ class HERIVERSE_OT_export_json(Operator, ExportHelper):
                         graph,
                         g.epsg or None,
                         g.shift_x, g.shift_y, g.shift_z,
+                        g.rotation,
                     )
             except Exception as exc:
                 em_log(f"[DP-56] GeoPositionNode mirror skipped: {exc}", "WARNING")

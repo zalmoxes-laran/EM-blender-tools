@@ -180,6 +180,7 @@ class EM_OT_georef_push_geonode(Operator):
         g = context.scene.em_georef
         ok = graph_sync.push_to_geonode(
             graph, g.epsg or None, g.shift_x, g.shift_y, g.shift_z,
+            g.rotation,
         )
         if not ok:
             self.report({'WARNING'}, "Could not write GeoPositionNode on active graph")
