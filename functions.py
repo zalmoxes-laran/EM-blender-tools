@@ -16,7 +16,15 @@ from bpy.props import (BoolProperty, # type: ignore
 from urllib.parse import urlparse
 
 from s3dgraphy.utils.utils import get_material_color
-from s3dgraphy.nodes.link_node import LinkNode
+# EMTOOLS1 (2026-08-08): MIG1-B renamed LinkNode → ResourceNode (module
+# resource_node, node_type "link" → "resource"). Import ResourceNode from the
+# new s3Dgraphy, with a fallback to the pre-1.6 LinkNode so EMtools keeps
+# working whether the vendored s3Dgraphy has been re-vendored yet or not (the
+# re-vendor 1.5→1.6 is a deliberate step, given the dev9-pin sensitivity).
+try:
+    from s3dgraphy.nodes.resource_node import ResourceNode
+except ImportError:  # pre-1.6 s3Dgraphy still ships link_node.LinkNode
+    from s3dgraphy.nodes.link_node import LinkNode as ResourceNode
 from s3dgraphy import load_graph_from_file, get_graph
 
 import platform
@@ -2262,9 +2270,10 @@ def update_or_create_link_node(graph, source_node, url, preserve_existing=True,
         # Aggiorna l'URL del nodo link esistente
         existing_link.url = url
     else:
-        # Crea un nuovo nodo link
+        # Crea un nuovo nodo risorsa (ResourceNode, ex LinkNode — node_type
+        # "resource" nel nuovo s3Dgraphy; l'edge has_linked_resource è invariato)
 
-        link_node = LinkNode(
+        link_node = ResourceNode(
             node_id=link_node_id,
             name=f"Link to {source_node.name}",
             description=f"Link to {source_node.description}" if source_node.description else "",
