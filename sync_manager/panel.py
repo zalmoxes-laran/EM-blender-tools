@@ -30,6 +30,29 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
             depress=running,
         )
 
+        # MODES1 · the mirror of EMStudio's control: what THIS side does on the
+        # channel. Only while running — a control over a channel that is not
+        # there is furniture.
+        if running:
+            col = layout.column(align=True)
+            col.label(text="Sync direction")
+            col.prop(context.scene, "em_sync_direction", expand=True)
+            col.label(text="Alone on two screens: Both.", icon="INFO")
+            col.label(text="Someone else working too: Off or one way.")
+
+            # CMD1 · consent for the command channel — a separate, stronger
+            # permission than the selection mirror: this one lets EMStudio
+            # MODEL IN THIS SCENE. Off by default, and never implied by the
+            # connection being up.
+            box = layout.box()
+            box.prop(context.scene, "em_accept_commands", text="Accept commands from EMStudio")
+            if context.scene.em_accept_commands:
+                box.label(text="EMStudio may model proxies / import geometry here.",
+                          icon="CHECKMARK")
+            else:
+                box.label(text="Commands are refused (and EMStudio is told).",
+                          icon="LOCKED")
+
         box = layout.box()
         if running:
             box.label(text=f"Listening on ws://localhost:{context.scene.em_sync_port}",

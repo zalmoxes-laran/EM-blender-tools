@@ -55,6 +55,81 @@ _drain_lock = threading.Lock()
 _drain_scheduled = False
 
 
+# --------------------------------------------------------------------------- #
+# MODES1 · what THIS side does on the channel (mirror of EMStudio's control)
+# --------------------------------------------------------------------------- #
+#
+# Four states, described from Blender's point of view — each side describes
+# itself, so "send" always means "out of here":
+#
+#   off      no echo at all
+#   send     Blender's selection reaches EMStudio; EMStudio's does not land here
+#   receive  EMStudio's selection lands here; Blender's does not leave
+#   both     the two follow each other
+#
+# Why it exists: **nobody has somebody else's state imposed on them without
+# having chosen it.** One person on two screens wants `both`; two people working
+# at once want `off` or one direction — and without this the Blender user could
+# only unplug the whole server.
+#
+# It gates the EPHEMERAL traffic (selection + ops). `request_snapshot` and
+# `request_save` are NOT gated: they are requests the client makes, not an echo,
+# and refusing them would make a connected EMStudio look broken.
+
+SYNC_DIRECTIONS = (
+    ("off", "Off", "No echo: nothing leaves, nothing is applied"),
+    ("send", "Send", "Blender's selection reaches EMStudio; EMStudio's does not land here"),
+    ("receive", "Receive", "EMStudio's selection lands here; Blender's does not leave"),
+    ("both", "Both", "The two screens follow each other"),
+)
+
+
+def _direction() -> str:
+    """The current channel direction. Defaults to `both` — which IS the
+    behaviour that existed before this control, so nothing changes for anyone
+    until they choose."""
+    try:
+        return str(getattr(bpy.context.scene, "em_sync_direction", "both") or "both")
+    except Exception:  # noqa: BLE001 — no scene (headless import): assume both
+        return "both"
+
+
+def _sends() -> bool:
+    return _direction() in ("send", "both")
+
+
+def _receives() -> bool:
+    return _direction() in ("receive", "both")
+
+
+def _on_accept_commands_changed(self, context):
+    """Consent changed → tell the client at once.
+
+    The affordance on the other side is drawn from `host_info`; without this it
+    would stay greyed out until the next reconnection, and the user who just
+    ticked the box would think the box does nothing.
+    """
+    try:
+        ok, graph = is_graph_available(context)
+        _send_host_info(context, graph if ok else None)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[sync] could not announce the consent change: {exc}")
+
+
+def _accepts_commands() -> bool:
+    """CMD1 · does this host let EMStudio act on the scene?
+
+    A separate switch from the sync direction, and OFF by default. Mirroring a
+    selection is a reflection; executing a command MODELS IN YOUR SCENE, and the
+    stronger act gets the explicit consent — nobody models in somebody else's
+    Blender because a socket was open.
+    """
+    try:
+        return bool(getattr(bpy.context.scene, "em_accept_commands", False))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def is_running() -> bool:
     return _server is not None and _server.running
 
@@ -266,6 +341,8 @@ def emit_op(op: dict):
     srv = _server
     if srv is None or not srv.running:
         return
+    if not _sends():          # MODES1 · off / receive: nothing leaves
+        return
     payload = {"v": 1, "source": _SOURCE}
     payload.update(op)
     try:
@@ -278,7 +355,10 @@ def _host_info(context, graph):
     """Describe what this host (Blender/EMtools) is editing so the EMStudio
     client can show it in the footer sidecar badge: tool · document · database.
     All fields optional — a field is omitted when unknown."""
-    info = {"tool": "Blender · EMtools"}
+    # CMD1 · the client cannot guess whether commands will be executed, and an
+    # affordance that is offered and then refused is worse than one that is
+    # greyed out. So the host DECLARES it, and EMStudio reads it.
+    info = {"tool": "Blender · EMtools", "accepts_commands": _accepts_commands()}
     try:
         em_tools = context.scene.em_tools
         idx = em_tools.active_file_index
@@ -339,6 +419,9 @@ def _handle_message(raw: str, context, graph, ok: bool):
     if msg.get("source") == _SOURCE:
         return  # our own echo
     mtype = msg.get("type")
+    # MODES1 · the ephemeral channels are gated; the requests below are not.
+    if mtype in ("select", "op") and not _receives():
+        return
     if mtype == "select" and ok and (msg.get("node_id") or msg.get("node_ids")):
         node_ids = msg.get("node_ids")
         active_id = msg.get("node_id")
@@ -357,6 +440,50 @@ def _handle_message(raw: str, context, graph, ok: bool):
         _send_snapshot(graph, context)
     elif mtype == "request_save":
         _save_emjson_on_host()
+    elif mtype == "command":
+        _handle_command(msg, context, graph if ok else None)
+
+
+def _handle_command(msg, context, graph):
+    """CMD1 · execute a command from EMStudio (MAIN thread) and answer.
+
+    NOT gated by the sync direction: a command is an explicit act by a person at
+    the other end, not an echo, so turning the selection mirror off must not
+    silently disable the 3D arm. It is gated by CONSENT, which is a different
+    question and has its own switch.
+
+    A refusal is ANSWERED, not swallowed: the client is waiting, and a command
+    that vanishes looks exactly like a command that failed.
+    """
+    from . import commands as cmds
+
+    cmd_id = str(msg.get("cmd_id") or "")
+    if not _accepts_commands():
+        print(f"[sync] command refused ({msg.get('verb')}): consent is off "
+              f"(EM Server ▸ Accept commands from EMStudio)")
+        _send_command_result({
+            "ok": False, "cmd_id": cmd_id,
+            "error": "this host does not accept commands (the Blender user has "
+                     "not enabled 'Accept commands from EMStudio')"})
+        return
+    result = cmds.execute(msg, context, graph)
+    _send_command_result(result)
+    if result.get("ok"):
+        # a command changed the graph: the lists must show it
+        global _pending_repop
+        _pending_repop = True
+
+
+def _send_command_result(result):
+    srv = _server
+    if srv is None or not srv.running:
+        return
+    payload = {"v": 1, "type": "command_result", "source": _SOURCE}
+    payload.update(result)
+    try:
+        srv.broadcast(json.dumps(payload))
+    except Exception as exc:  # noqa: BLE001
+        print(f"[sync] command_result failed: {exc}")
 
 
 def _save_emjson_on_host():
@@ -427,6 +554,8 @@ def _on_selection_changed(*_args):
     global _last_active_name, _last_selection
     srv = _server
     if srv is None or not srv.running:
+        return
+    if not _sends():          # MODES1 · off / receive: my selection stays here
         return
     context = bpy.context
     ok, graph = is_graph_available(context)
@@ -526,6 +655,24 @@ class EM_OT_sync_toggle(bpy.types.Operator):
 
 
 def register():
+    if not hasattr(bpy.types.Scene, "em_sync_direction"):
+        bpy.types.Scene.em_sync_direction = bpy.props.EnumProperty(
+            name="Sync",
+            items=SYNC_DIRECTIONS,
+            default="both",
+            description=(
+                "What this side does on the live channel. Alone on two screens: "
+                "Both. Somebody else working at the same time: Off, or one "
+                "direction"))
+    if not hasattr(bpy.types.Scene, "em_accept_commands"):
+        bpy.types.Scene.em_accept_commands = bpy.props.BoolProperty(
+            name="Accept commands from EMStudio",
+            default=False,
+            description=(
+                "Let EMStudio act on THIS scene (model a proxy, import a "
+                "geometry). Off by default: a command changes your scene, which "
+                "is more than mirroring a selection"),
+            update=_on_accept_commands_changed)
     if not hasattr(bpy.types.Scene, "em_sync_port"):
         bpy.types.Scene.em_sync_port = bpy.props.IntProperty(
             name="Sync Port", default=8788, min=1024, max=65535,
@@ -538,3 +685,7 @@ def unregister():
     bpy.utils.unregister_class(EM_OT_sync_toggle)
     if hasattr(bpy.types.Scene, "em_sync_port"):
         del bpy.types.Scene.em_sync_port
+    if hasattr(bpy.types.Scene, "em_sync_direction"):
+        del bpy.types.Scene.em_sync_direction
+    if hasattr(bpy.types.Scene, "em_accept_commands"):
+        del bpy.types.Scene.em_accept_commands
