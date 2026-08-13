@@ -27,7 +27,7 @@ from ..populate_lists import (
     update_graph_statistics,
 )
 from ..functions import ensure_valid_index, show_popup_message
-from ..emjson_support import import_graph_from_emjson
+from ..emjson_support import import_container_from_emjson
 
 
 class EM_import_emjson(bpy.types.Operator, ImportHelper):
@@ -72,19 +72,45 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
             return {"CANCELLED"}
 
         # --- import + register in the multigraph -----------------------------
+        #
+        # CONTAINER (2026-08-13): an em.json holds 1..N graphs plus the project
+        # shelf, and a legacy single-graph file is a container-of-one. Every
+        # member is registered, so opening a project puts ALL of its graphs in
+        # this one Blender scene — which is what a .blend has always been able to
+        # hold, arriving now from one file instead of several.
+        #
+        # The ACTIVE member is the one the panels populate from, because the
+        # lists (units, epochs) show one graph at a time; the others are loaded
+        # and reachable, exactly as they were when they came from separate files.
         try:
-            graph, warnings = import_graph_from_emjson(path)
+            container, warnings = import_container_from_emjson(path)
         except Exception as exc:  # noqa: BLE001
             self.report({"ERROR"}, f"em.json import failed: {exc}")
             show_popup_message(context, "Import Error", str(exc), "ERROR")
             return {"CANCELLED"}
 
+        graph = container.active()
+        if graph is None and container.shelf is not None:
+            # a shelf-only project: readable, and there is nothing to populate
+            self.report({"INFO"}, "em.json holds only a shelf — loaded, nothing to draw")
+            return {"FINISHED"}
         gid = getattr(graph, "graph_id", None)
         if not gid:
             self.report({"ERROR"}, "Imported graph has no graph_id")
             return {"CANCELLED"}
-        # parse_emjson does NOT register the graph — do it here (overwrite).
-        multi_graph_manager.graphs[gid] = graph
+
+        # One file entry per member, so the panel lists the project's graphs the
+        # way it used to list the files. (The active one is selected below.)
+        for member_id in container.graph_ids():
+            if member_id == gid:
+                continue
+            existing = next((f for f in em_tools.graphml_files if f.name == member_id), None)
+            if existing is None:
+                extra = em_tools.graphml_files.add()
+                extra.name = member_id
+                extra.graphml_path = path
+                if hasattr(extra, "file_format"):
+                    extra.file_format = "EMJSON"
 
         # --- find/create the file entry for this graph -----------------------
         entry = None
@@ -151,8 +177,12 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
                            show_popup=False, data_object=em_tools.epochs)
 
         n_warn = len(warnings) if warnings else 0
+        n_graphs = len(container.graph_ids())
+        project = f"{n_graphs} graphs" if n_graphs > 1 else "1 graph"
+        shelf_note = " + shelf" if container.shelf is not None else ""
         self.report({"INFO"},
-                    f"Loaded em.json '{gid}' — {len(graph.nodes)} nodes, "
+                    f"Loaded em.json project ({project}{shelf_note}); active "
+                    f"'{gid}' — {len(graph.nodes)} nodes, "
                     f"{len(graph.edges)} edges, {n_warn} warning(s)")
         return {"FINISHED"}
 

@@ -17,7 +17,7 @@ from bpy.props import StringProperty, EnumProperty  # type: ignore
 from bpy_extras.io_utils import ExportHelper  # type: ignore
 
 from ..functions import is_graph_available, show_popup_message
-from ..emjson_support import export_graph_to_emjson
+from ..emjson_support import export_container_to_emjson, export_graph_to_emjson
 
 
 class EM_export_saveas(bpy.types.Operator, ExportHelper):
@@ -82,7 +82,13 @@ class EM_export_saveas(bpy.types.Operator, ExportHelper):
         out_path = self._normalize_ext(self.filepath, self.fmt)
         try:
             if self.fmt == "EMJSON":
-                out = export_graph_to_emjson(graph, out_path, layout=None)
+                # CONTAINER (2026-08-13): the file is the PROJECT — every graph
+                # registered in this scene, plus the shelf. A .blend holding four
+                # graphs used to export four files and the project existed only
+                # in somebody's head; now it is one portable file, and a single
+                # graph is a container-of-one (the shape Heriverse reads).
+                out = export_container_to_emjson(
+                    out_path, active_graph_id=getattr(graph, "graph_id", None))
             else:
                 from s3dgraphy.exporter.graphml.graphml_exporter import GraphMLExporter
                 GraphMLExporter(graph).export(out_path)
@@ -139,13 +145,14 @@ class EM_export_save(bpy.types.Operator):
             return bpy.ops.export.em_saveas("INVOKE_DEFAULT")
 
         try:
-            out = export_graph_to_emjson(graph, path, layout=None)
+            out = export_container_to_emjson(
+                path, active_graph_id=getattr(graph, "graph_id", None))
         except Exception as exc:  # noqa: BLE001
             self.report({"ERROR"}, f"Save failed: {exc}")
             show_popup_message(context, "Save Error", str(exc), "ERROR")
             return {"CANCELLED"}
 
-        self.report({"INFO"}, f"Saved em.json → {out}")
+        self.report({"INFO"}, f"Saved em.json project → {out}")
         return {"FINISHED"}
 
 
