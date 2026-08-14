@@ -61,6 +61,32 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         else:
             box.label(text="Server off — EMStudio can't connect", icon="UNLINKED")
 
+        # P4.4 · the other role: this Blender as a CLIENT of a room. Separate
+        # box because it is a different question — the one above is "who may
+        # connect to me", this one is "where do I go".
+        status = ops.room_status(context)
+        room_box = layout.box()
+        room_box.label(text="Room (em-server)", icon="WORLD")
+        col = room_box.column(align=True)
+        col.enabled = not status["joined"]
+        col.prop(context.scene, "em_room_url", text="Server")
+        col.prop(context.scene, "em_room_id", text="Room")
+        room_box.operator(
+            "em.room_join",
+            text="Leave room" if status["joined"] else "Join room…",
+            icon="UNLINKED" if status["joined"] else "LINKED",
+            depress=status["joined"])
+        if status["joined"]:
+            room_box.label(text=f"In {status['room_id']} · "
+                                f"{status['members']} present", icon="COMMUNITY")
+            if status.get("author"):
+                room_box.label(text=f"Publishing as {status['author']}", icon="USER")
+            else:
+                room_box.label(text="No identity in the token: edits are dated, "
+                                    "not signed", icon="INFO")
+        if status.get("error"):
+            room_box.label(text=str(status["error"])[:60], icon="ERROR")
+
 
 def register():
     bpy.utils.register_class(VIEW3D_PT_em_sync)

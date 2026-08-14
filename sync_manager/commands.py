@@ -42,7 +42,7 @@ CMD_NAMESPACE = uuid.UUID("6f1f2f4a-3f2a-5c7e-9d1b-4a6c8e2f0b31")
 
 #: The verbs this host will execute. A verb that is not here is refused BY NAME,
 #: which is the difference between "I do not do that" and a silent no-op.
-VERBS = ("create_proxy_for_unit", "import_geometry")
+VERBS = ("create_proxy_for_unit", "import_geometry", "promote_model")
 
 
 def make_cmd_id(verb: str, target: str, params: Optional[Dict[str, Any]] = None) -> str:
@@ -237,11 +237,138 @@ def import_geometry(target: str, params: Dict[str, Any], context,
                      "skipped": info.get("skipped")}}
 
 
+# ── verb: promote_model (the inverse of import_geometry) ─────────────────────
+
+def _object_for_target(target: str, params: Dict[str, Any], context, graph):
+    """The Blender object whose mesh this command publishes.
+
+    Three ways of naming it, in order of explicitness: the command says which
+    object; an object already bound to this resource (`em_resource_id`, written
+    by `import_geometry`); or the proxy/model object of the unit, by the naming
+    convention the whole addon uses.
+    """
+    import bpy  # type: ignore
+
+    named = params.get("object")
+    if named:
+        return bpy.data.objects.get(str(named))
+    for obj in bpy.data.objects:
+        if obj.get("em_resource_id") == target:
+            return obj
+    node = graph.find_node_by_id(target) if graph is not None else None
+    node_name = getattr(node, "name", None) or target
+    return _proxy_object_for(node_name, context, graph)
+
+
+def _export_gltf(obj, context) -> bytes:
+    """The object as a **glTF-binary**, in memory.
+
+    glTF because it is the published form the viewers read; .glb (single file)
+    because an asset made of a file plus its neighbours is not one object and
+    could not be content-addressed as one.
+
+    The selection is saved and restored: a command must not leave the user's
+    scene in a state they did not choose.
+    """
+    import os
+    import tempfile
+
+    import bpy  # type: ignore
+
+    selected = list(context.selected_objects)
+    active = context.view_layer.objects.active
+    tmp = os.path.join(tempfile.mkdtemp(prefix="em-promote-"), "asset.glb")
+    try:
+        bpy.ops.object.select_all(action="DESELECT")
+        obj.select_set(True)
+        context.view_layer.objects.active = obj
+        bpy.ops.export_scene.gltf(filepath=tmp, export_format="GLB",
+                                  use_selection=True)
+        with open(tmp, "rb") as handle:
+            return handle.read()
+    finally:
+        try:
+            bpy.ops.object.select_all(action="DESELECT")
+            for previous in selected:
+                previous.select_set(True)
+            context.view_layer.objects.active = active
+        except Exception:  # noqa: BLE001 — restoring is best-effort, never fatal
+            pass
+        try:
+            os.remove(tmp)
+            os.rmdir(os.path.dirname(tmp))
+        except OSError:
+            pass
+
+
+def promote_model(target: str, params: Dict[str, Any], context,
+                  graph) -> Dict[str, Any]:
+    """Publish a node's mesh into the room's store, and reference it (DP-76).
+
+    The inverse of `import_geometry`, and the gesture that stops the .blend from
+    being both workshop and archive: the mesh is exported once in the canonical
+    format, published into the room's content-addressed store, and the graph
+    keeps a **reference** — url + checksum — instead of the bytes. The .blend
+    stays the hi-res container you work in; the asset of record is the published
+    glTF.
+
+    `target` is what the model DEPICTS — a stratigraphic unit, or the resource
+    itself when the model came in as one. The ResourceNode that carries the
+    published asset is `params.resource_id`, or `<target>.model` by default: a
+    deterministic name, so promoting the same unit twice is the same resource.
+
+    The uploader identity is the one the ROOM reports for the token, never one
+    the client declares — the same rule the relay follows for operations.
+    """
+    from s3dgraphy.api import promote_resource, promotion_delta
+
+    from . import room
+
+    if not room.is_configured():
+        return {"ok": False,
+                "error": "no room configured: set the room address and paste a "
+                         "token for this session, then promote again"}
+    obj = _object_for_target(target, params, context, graph)
+    if obj is None:
+        return {"ok": False,
+                "error": f"no object in this scene holds the model of '{target}'"}
+
+    node = graph.find_node_by_id(target)
+    is_resource = getattr(node, "node_type", None) == "resource"
+    resource_id = str(params.get("resource_id") or
+                      (target if is_resource else f"{target}.model"))
+    node_name = getattr(node, "name", None) or target
+
+    try:
+        data = _export_gltf(obj, context)
+        info = room.put_asset(data, room.GLTF_MEDIA_TYPE)
+    except room.RoomError as exc:
+        # the graph is NOT written when the bytes did not arrive: a reference to
+        # an asset nobody can fetch is the one thing worse than no reference
+        return {"ok": False, "error": str(exc)}
+
+    result = promote_resource(
+        graph, resource_id, url=info["url"], sha256=info["sha256"],
+        media_type=room.GLTF_MEDIA_TYPE, author=info.get("author"),
+        link_to=None if is_resource else target,
+        name=params.get("name") or f"{node_name} (glTF)")
+    obj["em_resource_id"] = resource_id
+    obj["em_asset_ref"] = info["ref"]
+    return {"ok": True,
+            "delta": promotion_delta(graph, result),
+            "info": {"object": obj.name, "resource_id": resource_id,
+                     "ref": info["ref"], "size": info.get("size"),
+                     "stored": bool(info.get("created")),
+                     "process_id": result.get("process_id"),
+                     "warnings": result.get("warnings") or []}}
+
+
 # ── dispatch ─────────────────────────────────────────────────────────────────
 
 _HANDLERS = {
     "create_proxy_for_unit": create_proxy_for_unit,
     "import_geometry": import_geometry,
+    "promote_model": promote_model,
 }
 
 #: cmd_id → result, for the run of this Blender session. Idempotence is a

@@ -337,18 +337,30 @@ def _apply_op(msg: dict, context, graph):
 def emit_op(op: dict):
     """Emit a local (Blender-side) graph mutation to connected clients
     (ADR-002 phase 2, reverse direction). No-op when the sync server is off.
-    `op` is a dict like {"type":"op","op":"update_node","node_id":..,"patch":..}."""
-    srv = _server
-    if srv is None or not srv.running:
-        return
+    `op` is a dict like {"type":"op","op":"update_node","node_id":..,"patch":..}.
+
+    P4.4 · the same operation goes to the ROOM when we are in one. Same gate
+    (`_sends()`): the direction control governs what leaves this Blender, and it
+    would be a strange control that stopped the message to the person next to
+    you and let it through to the server.
+    """
     if not _sends():          # MODES1 · off / receive: nothing leaves
         return
-    payload = {"v": 1, "source": _SOURCE}
-    payload.update(op)
-    try:
-        srv.broadcast(json.dumps(payload))
-    except Exception as exc:  # noqa: BLE001
-        print(f"[sync] emit_op failed: {exc}")
+    from .room_session import SESSION
+
+    srv = _server
+    if srv is not None and srv.running:
+        payload = {"v": 1, "source": _SOURCE}
+        payload.update(op)
+        try:
+            srv.broadcast(json.dumps(payload))
+        except Exception as exc:  # noqa: BLE001
+            print(f"[sync] emit_op failed: {exc}")
+    if SESSION.joined:
+        try:
+            SESSION.send_op(op)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[room] emit_op failed: {exc}")
 
 
 def _host_info(context, graph):
@@ -505,22 +517,38 @@ def _save_emjson_on_host():
 
 def _drain_inbox():
     """One-shot timer callback (MAIN thread): drain + apply every queued
-    message, then unregister (return None)."""
+    message, then unregister (return None).
+
+    Two sources feed the same drain: the clients connected TO us (the server's
+    inbox) and the room we are connected to (P4.4). Deliberately one drain and
+    not two — a message is a message, `_handle_message` already dispatches by
+    type, and two timers would mean two orders in which the same op could land.
+    """
     global _drain_scheduled, _pending_repop
     with _drain_lock:
         _drain_scheduled = False  # cleared first: messages arriving now re-arm
+    from .room_session import SESSION
     srv = _server
-    if srv is None:
+    if srv is None and not SESSION.joined:
         return None
     context = bpy.context
     ok, graph = is_graph_available(context)
     _pending_repop = False
-    while True:
+    while srv is not None:
         try:
             raw = srv.inbox.get_nowait()
         except Exception:
             break
         _handle_message(raw, context, graph, ok)
+    for message in SESSION.drain():
+        # the room's frames are the same wire; `select` from a room carries a
+        # `connection_id` (somebody else's awareness) and must NOT move our own
+        # selection — the bug P4.3 found in EMStudio, not repeated here
+        if message.get("type") == "select" and message.get("connection_id"):
+            continue
+        _handle_message(json.dumps(message), context, graph, ok)
+    if SESSION.joined:
+        SESSION.ack()
     if _pending_repop:  # batch: one list rebuild for the whole drained burst
         _repopulate(context, graph)
         _redraw()
@@ -634,6 +662,156 @@ def _stop():
         _server = None
 
 
+# --------------------------------------------------------------------------- #
+# P4.4 · the ROOM (Blender as a client, not only as a host)
+# --------------------------------------------------------------------------- #
+
+def room_status(context=None) -> dict:
+    """What to show about the room: joined, who else is there, which room."""
+    from . import room as room_cfg
+    from .room_session import SESSION
+
+    info = room_cfg.room()
+    info.update({"joined": SESSION.joined,
+                 "room_id": SESSION.room_id or info.get("room_id"),
+                 "members": len(SESSION.members),
+                 "host": SESSION.host_tool,
+                 "author": SESSION.author,
+                 "error": SESSION.error})
+    return info
+
+
+def _adopt_snapshot(doc: dict, context) -> str:
+    """Take the room's document into this Blender — or say why we did not.
+
+    A room snapshot is a **container** (several graphs + the shelf), and it is
+    merged, never substituted: merging is the offline "integrate later" and the
+    less expensive mistake, while replacing a populated session would throw away
+    work that is only in this .blend.
+
+    **Declared limit.** The merge lands in the multigraph manager, which is what
+    the lists and the 3D scene are drawn from; a session that already holds
+    graphs therefore has to be repopulated, and the geometry the room describes
+    is NOT materialised here (that is the "Blender consumes from the store"
+    half of DP-76, explicitly outside this step).
+    """
+    import json as _json
+    import tempfile
+
+    if not isinstance(doc, dict) or not doc:
+        return "the room sent no document"
+    path = None
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=".em.json", delete=False,
+                                         encoding="utf-8") as handle:
+            _json.dump(doc, handle, ensure_ascii=False)
+            path = handle.name
+        from ..emjson_support import merge_container_from_emjson
+        report, warnings = merge_container_from_emjson(path)
+        merged = len(getattr(report, "merged_nodes", []) or [])
+        ok, graph = is_graph_available(context)
+        if ok:
+            _repopulate(context, graph)
+            _redraw()
+        return (f"adopted the room's document "
+                f"({merged} node(s) merged, {len(warnings)} warning(s))")
+    except Exception as exc:  # noqa: BLE001 — a failed adoption must be SAID
+        return f"could not adopt the room's document: {exc}"
+    finally:
+        if path:
+            try:
+                import os
+                os.remove(path)
+            except OSError:
+                pass
+
+
+def join_room(context, base_url: str, room_id: str, token: str,
+              adopt: bool = True) -> dict:
+    """Enter a room: connect, read the arrival, optionally adopt the document.
+
+    Returns `{ok, message, plan, …}`. The token is handed to `room.py`, which
+    keeps it in memory for this session and never writes it anywhere.
+    """
+    from . import room as room_cfg
+    from .room_session import SESSION
+
+    room_cfg.set_room(base_url, room_id, token)
+    try:
+        arrival = SESSION.join(since=SESSION.last_applied)
+    except Exception as exc:  # noqa: BLE001 — the reason belongs to the user
+        return {"ok": False, "message": str(exc)}
+    _schedule_drain()
+    SESSION.client._on_message = lambda _raw: _schedule_drain()
+
+    note = ""
+    if adopt and arrival.get("snapshot"):
+        note = _adopt_snapshot(arrival["snapshot"].get("doc") or {}, context)
+    plan = arrival.get("plan")
+    if plan == "resync" and SESSION.last_applied:
+        # a REBASE, not a first arrival: the two look the same to `plan_rejoin`
+        # (no base and an old base both mean "take the document"), but only one
+        # of them is worth telling the user about
+        # the room has compacted past our base: replaying our history would
+        # re-assert facts that were already settled and forgotten
+        note = (note + " · " if note else "") + \
+            "re-synced from the room's document (our base was older than its " \
+            "compaction point)"
+    return {"ok": True, "plan": plan, "room": SESSION.room_id,
+            "members": len(SESSION.members), "host": SESSION.host_tool,
+            "message": note or "joined"}
+
+
+def leave_room() -> None:
+    from . import room as room_cfg
+    from .room_session import SESSION
+
+    SESSION.leave()
+    room_cfg.forget_token()      # the credential goes when the membership does
+
+
+class EM_OT_room_join(bpy.types.Operator):
+    bl_idname = "em.room_join"
+    bl_label = "Join / leave an EM room"
+    bl_description = ("Connect this Blender to an em-server room: adopt its "
+                      "document, send and receive edits, publish models into "
+                      "its store")
+
+    token: bpy.props.StringProperty(
+        name="Token", default="", subtype="PASSWORD",
+        description=("Access token for this room. Kept in memory for this "
+                     "session only — never written to the .blend or to disk"))
+    adopt: bpy.props.BoolProperty(
+        name="Adopt the room's document", default=True,
+        description=("Merge what the room holds into this session (additive — "
+                     "nothing here is replaced)"))
+
+    def invoke(self, context, event):
+        from .room_session import SESSION
+        if SESSION.joined:
+            return self.execute(context)
+        return context.window_manager.invoke_props_dialog(self)
+
+    def execute(self, context):
+        from .room_session import SESSION
+        if SESSION.joined:
+            leave_room()
+            self.report({"INFO"}, "left the room (token forgotten)")
+            return {"FINISHED"}
+        base = str(getattr(context.scene, "em_room_url", "") or "").strip()
+        room_id = str(getattr(context.scene, "em_room_id", "") or "").strip()
+        if not base or not room_id:
+            self.report({"ERROR"}, "set the room address and id first")
+            return {"CANCELLED"}
+        result = join_room(context, base, room_id, self.token, adopt=self.adopt)
+        self.token = ""          # not even in the operator's own memory
+        if not result["ok"]:
+            self.report({"ERROR"}, result["message"])
+            return {"CANCELLED"}
+        self.report({"INFO"}, f"room {result['room']}: {result['message']}")
+        return {"FINISHED"}
+
+
 class EM_OT_sync_toggle(bpy.types.Operator):
     bl_idname = "em.sync_toggle"
     bl_label = "Toggle EMStudio Sync"
@@ -677,12 +855,35 @@ def register():
         bpy.types.Scene.em_sync_port = bpy.props.IntProperty(
             name="Sync Port", default=8788, min=1024, max=65535,
             description="WebSocket port EMStudio connects to")
+    # P4.4 · the room. The address and the id are saved with the project (they
+    # are not secrets and re-typing them every session is friction); the TOKEN
+    # is not a property at all — it lives in memory in `room.py`, because a
+    # credential saved in a .blend travels with every copy of that .blend.
+    if not hasattr(bpy.types.Scene, "em_room_url"):
+        bpy.types.Scene.em_room_url = bpy.props.StringProperty(
+            name="Room server", default="",
+            description="Address of the em-server holding the room "
+                        "(e.g. https://em.example.org)")
+    if not hasattr(bpy.types.Scene, "em_room_id"):
+        bpy.types.Scene.em_room_id = bpy.props.StringProperty(
+            name="Room", default="",
+            description="Which room on that server")
     bpy.utils.register_class(EM_OT_sync_toggle)
+    bpy.utils.register_class(EM_OT_room_join)
 
 
 def unregister():
     _stop()
+    try:
+        leave_room()
+    except Exception:  # noqa: BLE001 — unregistering must not fail on a socket
+        pass
+    bpy.utils.unregister_class(EM_OT_room_join)
     bpy.utils.unregister_class(EM_OT_sync_toggle)
+    if hasattr(bpy.types.Scene, "em_room_url"):
+        del bpy.types.Scene.em_room_url
+    if hasattr(bpy.types.Scene, "em_room_id"):
+        del bpy.types.Scene.em_room_id
     if hasattr(bpy.types.Scene, "em_sync_port"):
         del bpy.types.Scene.em_sync_port
     if hasattr(bpy.types.Scene, "em_sync_direction"):
