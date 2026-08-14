@@ -156,7 +156,9 @@ def test_joining_a_room_yields_the_three_frames_and_a_document(session):
     assert arrival["snapshot"]["type"] == "snapshot"
     assert arrival["presence"]["type"] == "presence"
     assert client.joined and client.connection_id
-    doc = arrival["snapshot"]["doc"]
+    # WIRE 2 · the body is nested: the envelope says what KIND of message this
+    # is, the payload says what is in it
+    doc = arrival["snapshot"]["payload"]["doc"]
     assert isinstance(doc.get("graphs"), dict)     # a room's document is a CONTAINER
 
 
@@ -193,9 +195,9 @@ def test_an_operation_reaches_the_other_member(session):
                         "ts": "2026-08-14T12:00:00Z"})
     echoed = _wait_for(two, "op")
     assert echoed is not None, "the room did not pass the operation on"
-    assert echoed["node"]["id"] == "US-ROOM-1"
+    assert echoed["payload"]["node"]["id"] == "US-ROOM-1"
     # …and the sender is told whether it landed
-    assert _wait_for(one, "op_result")["applied"] is True
+    assert _wait_for(one, "op_result")["payload"]["applied"] is True
 
 
 def test_the_room_keeps_what_was_sent(session):
@@ -206,10 +208,10 @@ def test_the_room_keeps_what_was_sent(session):
     one.send_op({"op": "add_node",
                  "node": {"id": "US-ROOM-2", "type": "US", "name": "kept"},
                  "ts": "2026-08-14T12:01:00Z"})
-    assert _wait_for(one, "op_result")["applied"] is True
+    assert _wait_for(one, "op_result")["payload"]["applied"] is True
 
     late = session.new_session()
-    document = json.dumps(late.join()["snapshot"]["doc"])
+    document = json.dumps(late.join()["snapshot"]["payload"]["doc"])
     assert "US-ROOM-2" in document
 
 
@@ -224,7 +226,7 @@ def test_the_author_is_the_rooms_to_decide_not_ours(session):
                  "ts": "2026-08-14T12:02:00Z"})
     echoed = _wait_for(two, "op")
     assert echoed is not None
-    assert echoed.get("author") != "somebody-else"
+    assert echoed["payload"].get("author") != "somebody-else"
 
 
 def test_presence_appears_and_disappears_with_the_membership(session):
@@ -233,10 +235,10 @@ def test_presence_appears_and_disappears_with_the_membership(session):
     two = session.new_session()
     two.join()
     roster = _wait_for(one, "presence")
-    assert roster is not None and len(roster["members"]) == 2
+    assert roster is not None and len(roster["payload"]["members"]) == 2
     two.leave()
     gone = _wait_for(one, "presence")
-    assert gone is not None and len(gone["members"]) == 1
+    assert gone is not None and len(gone["payload"]["members"]) == 1
 
 
 def test_the_watermark_travels_so_a_client_can_decide(session):

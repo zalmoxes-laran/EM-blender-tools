@@ -36,13 +36,17 @@ import threading
 from typing import Any, Callable, Dict, List, Optional
 
 from . import room
+from ..sync_bridge.wire import WIRE, WireError, envelope, read
 from ..sync_bridge.ws_client import WsClient, WsClientError
 
-#: The wire version — the same number as the bridge's, because it is the same wire.
-WIRE = 1
+#: The wire version lives in `sync_bridge/wire.py` — one definition for both
+#: roles of this addon (the server it runs and this client), so a bump cannot be
+#: half-applied.
 
-#: What this client calls itself on the room's roster.
+#: What this client calls itself on the room's roster…
 CLIENT_TOOL = "EMtools (Blender)"
+#: …and on the wire, which is the tag the echo guard compares.
+CLIENT_SOURCE = "emtools"
 
 
 def plan_rejoin(base: Optional[str], gc_watermark: Optional[str]) -> str:
@@ -124,7 +128,8 @@ class RoomSession:
             kind = str(message.get("type") or "")
             arrival[kind] = message
             if kind == "snapshot":
-                self.gc_watermark = message.get("gc_watermark") or self.gc_watermark
+                body = message.get("payload") or {}
+                self.gc_watermark = body.get("gc_watermark") or self.gc_watermark
         plan = plan_rejoin(since, self.gc_watermark)
         return {"host_info": arrival.get("host_info"),
                 "snapshot": arrival.get("snapshot"),
@@ -140,12 +145,14 @@ class RoomSession:
 
     # ── traffic ──────────────────────────────────────────────────────────────
 
-    def send(self, message: Dict[str, Any]) -> bool:
+    def send(self, kind: str, payload: Optional[Dict[str, Any]] = None,
+             **routing: Any) -> bool:
+        """One message: an envelope with the body nested inside it (WIRE 2)."""
         client = self.client
         if client is None or not client.connected:
             return False
-        payload = {"v": WIRE, **message}
-        return client.send(json.dumps(payload, ensure_ascii=False))
+        message = envelope(kind, payload or {}, source=CLIENT_SOURCE, **routing)
+        return client.send(json.dumps(message, ensure_ascii=False))
 
     def send_op(self, op: Dict[str, Any]) -> bool:
         """Send one operation. The AUTHOR is not ours to declare.
@@ -155,31 +162,45 @@ class RoomSession:
         is an author anybody can borrow (P4.1b: the stamp is what the merge
         trusts).
         """
-        body = {k: v for k, v in op.items() if k not in ("author", "v", "source")}
-        body["type"] = "op"
-        return self.send(body)
+        # The author is dropped, not renamed: whatever this client writes there,
+        # the relay replaces it with the token's identity. `source`/`target` are
+        # NOT touched — in an edge op they are the endpoints, and since WIRE 2
+        # they live in the payload where no envelope word can reach them.
+        body = {k: v for k, v in op.items() if k not in ("author", "type")}
+        return self.send("op", body)
 
     def send_select(self, node_ids: List[str], active: Optional[str] = None) -> bool:
         """Awareness, never a lock: the others see where you are looking."""
-        return self.send({"type": "select", "node_ids": list(node_ids),
-                          "node_id": active})
+        return self.send("select", {"node_ids": list(node_ids),
+                                    "node_id": active})
 
     def request_snapshot(self) -> bool:
-        return self.send({"type": "request_snapshot"})
+        return self.send("request_snapshot")
 
     def ack(self, ts: Optional[str] = None) -> bool:
         """Tell the room how far we have applied — what makes its GC safe."""
         stamp = ts or self.last_applied
-        return self.send({"type": "ack", "ts": stamp}) if stamp else False
+        return self.send("ack", {"ts": stamp}) if stamp else False
 
     # ── inbound ──────────────────────────────────────────────────────────────
 
     def _parse(self, raw: str) -> Dict[str, Any]:
+        """The message as it arrived, with the envelope CHECKED.
+
+        A frame from another protocol version becomes an `error` this session
+        can show, not a half-read message: a client that guesses at a version it
+        does not speak is how an edge arrives without its endpoints.
+        """
         try:
             message = json.loads(raw)
         except (TypeError, ValueError):
             return {}
         if not isinstance(message, dict):
+            return {}
+        try:
+            read(message)
+        except WireError as exc:
+            self.error = str(exc)
             return {}
         self._absorb(message)
         return message
@@ -187,21 +208,22 @@ class RoomSession:
     def _absorb(self, message: Dict[str, Any]) -> None:
         """Keep the few facts about the ROOM that the session owns."""
         kind = str(message.get("type") or "")
+        body = message.get("payload") or {}
         if kind == "host_info":
-            self.room_id = message.get("room") or self.room_id
-            self.connection_id = message.get("connection_id")
-            self.author = message.get("author")
-            self.host_tool = message.get("tool")
-            self.gc_watermark = message.get("gc_watermark") or self.gc_watermark
+            self.room_id = body.get("room") or self.room_id
+            self.connection_id = body.get("connection_id")
+            self.author = body.get("author")
+            self.host_tool = body.get("tool")
+            self.gc_watermark = body.get("gc_watermark") or self.gc_watermark
         elif kind == "presence":
-            members = message.get("members")
+            members = body.get("members")
             self.members = list(members) if isinstance(members, list) else []
         elif kind == "op":
-            ts = message.get("ts")
+            ts = body.get("ts")
             if ts and (self.last_applied is None or str(ts) > str(self.last_applied)):
                 self.last_applied = str(ts)
         elif kind == "error":
-            self.error = str(message.get("detail") or "")
+            self.error = str(body.get("detail") or "")
 
     def _receive(self, raw: str) -> None:
         """Reader-thread callback: queue and notify. Touches no bpy."""

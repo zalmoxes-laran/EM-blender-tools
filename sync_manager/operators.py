@@ -31,6 +31,7 @@ import threading
 import bpy  # type: ignore
 
 from ..sync_bridge.ws_server import WsServer
+from ..sync_bridge.wire import WIRE, WireError, envelope, read
 from ..functions import is_graph_available, select_3D_obj
 from ..operators.addon_prefix_helpers import (
     proxy_name_to_node_name,
@@ -279,7 +280,10 @@ def _repopulate(context, graph):
 def _apply_op(msg: dict, context, graph):
     """Apply an op-log operation from EMStudio to the live s3dgraphy graph
     (ADR-002 phase 2). Handles update_node (targeted) + structural
-    add/delete of nodes and edges (full list repopulate)."""
+    add/delete of nodes and edges (full list repopulate).
+
+    `msg` is the op's BODY (WIRE 2's `payload`), so `msg["source"]` here — if a
+    verb ever has one — is the op's own field and nothing else's.""" 
     op = msg.get("op")
     if graph is None:
         return
@@ -337,7 +341,10 @@ def _apply_op(msg: dict, context, graph):
 def emit_op(op: dict):
     """Emit a local (Blender-side) graph mutation to connected clients
     (ADR-002 phase 2, reverse direction). No-op when the sync server is off.
-    `op` is a dict like {"type":"op","op":"update_node","node_id":..,"patch":..}.
+    `op` is the BODY of the operation — `{"op": "update_node", "node_id": …,
+    "patch": …}`. WIRE 2 puts it inside `payload`, so a field of the op can
+    never collide with a word of the envelope (an `add_edge` carries
+    `source`/`target` as its endpoints; the wire's `source` is who sent it).
 
     P4.4 · the same operation goes to the ROOM when we are in one. Same gate
     (`_sends()`): the direction control governs what leaves this Blender, and it
@@ -350,10 +357,9 @@ def emit_op(op: dict):
 
     srv = _server
     if srv is not None and srv.running:
-        payload = {"v": 1, "source": _SOURCE}
-        payload.update(op)
+        body = {k: v for k, v in op.items() if k != "type"}
         try:
-            srv.broadcast(json.dumps(payload))
+            srv.broadcast(json.dumps(envelope("op", body, source=_SOURCE)))
         except Exception as exc:  # noqa: BLE001
             print(f"[sync] emit_op failed: {exc}")
     if SESSION.joined:
@@ -398,8 +404,7 @@ def _send_host_info(context, graph):
     if srv is None or not srv.running:
         return
     srv.broadcast(json.dumps(
-        {"v": 1, "type": "host_info", "source": _SOURCE,
-         **_host_info(context, graph)}))
+        envelope("host_info", _host_info(context, graph), source=_SOURCE)))
 
 
 def _send_snapshot(graph, context=None):
@@ -416,13 +421,20 @@ def _send_snapshot(graph, context=None):
     except Exception as exc:  # noqa: BLE001
         print(f"[sync] snapshot build failed: {exc}")
         return
-    srv.broadcast(json.dumps(
-        {"v": 1, "type": "snapshot", "doc": doc, "source": _SOURCE,
-         "host": _host_info(context or bpy.context, graph)}))
+    srv.broadcast(json.dumps(envelope(
+        "snapshot",
+        {"doc": doc, "host": _host_info(context or bpy.context, graph)},
+        source=_SOURCE)))
 
 
 def _handle_message(raw: str, context, graph, ok: bool):
-    """Dispatch one inbound message (main thread)."""
+    """Dispatch one inbound message (main thread).
+
+    WIRE 2: the envelope says WHO and WHAT KIND, the payload holds the body. A
+    message from another protocol version is refused with a line in the console
+    rather than half-read — half-reading a frame is how an edge lost its
+    endpoints.
+    """
     global _last_active_name, _last_selection
     try:
         msg = json.loads(raw)
@@ -430,13 +442,17 @@ def _handle_message(raw: str, context, graph, ok: bool):
         return
     if msg.get("source") == _SOURCE:
         return  # our own echo
-    mtype = msg.get("type")
+    try:
+        mtype, payload = read(msg)
+    except WireError as exc:
+        print(f"[sync] refused a message: {exc}")
+        return
     # MODES1 · the ephemeral channels are gated; the requests below are not.
     if mtype in ("select", "op") and not _receives():
         return
-    if mtype == "select" and ok and (msg.get("node_id") or msg.get("node_ids")):
-        node_ids = msg.get("node_ids")
-        active_id = msg.get("node_id")
+    if mtype == "select" and ok and (payload.get("node_id") or payload.get("node_ids")):
+        node_ids = payload.get("node_ids")
+        active_id = payload.get("node_id")
         if node_ids:
             _apply_incoming_select_many(node_ids, active_id, context, graph)
             _last_selection = frozenset(node_ids)
@@ -447,13 +463,13 @@ def _handle_message(raw: str, context, graph, ok: bool):
         active = getattr(context.view_layer.objects, "active", None)
         _last_active_name = active.name if active else _last_active_name
     elif mtype == "op" and ok:
-        _apply_op(msg, context, graph)
+        _apply_op(payload, context, graph)
     elif mtype == "request_snapshot" and ok:
         _send_snapshot(graph, context)
     elif mtype == "request_save":
         _save_emjson_on_host()
     elif mtype == "command":
-        _handle_command(msg, context, graph if ok else None)
+        _handle_command(payload, context, graph if ok else None)
 
 
 def _handle_command(msg, context, graph):
@@ -490,10 +506,9 @@ def _send_command_result(result):
     srv = _server
     if srv is None or not srv.running:
         return
-    payload = {"v": 1, "type": "command_result", "source": _SOURCE}
-    payload.update(result)
     try:
-        srv.broadcast(json.dumps(payload))
+        srv.broadcast(json.dumps(
+            envelope("command_result", result, source=_SOURCE)))
     except Exception as exc:  # noqa: BLE001
         print(f"[sync] command_result failed: {exc}")
 
@@ -544,7 +559,8 @@ def _drain_inbox():
         # the room's frames are the same wire; `select` from a room carries a
         # `connection_id` (somebody else's awareness) and must NOT move our own
         # selection — the bug P4.3 found in EMStudio, not repeated here
-        if message.get("type") == "select" and message.get("connection_id"):
+        if (message.get("type") == "select"
+                and (message.get("payload") or {}).get("connection_id")):
             continue
         _handle_message(json.dumps(message), context, graph, ok)
     if SESSION.joined:
@@ -607,10 +623,10 @@ def _on_selection_changed(*_args):
     )
     if not sel_ids and not active_id:
         return
-    msg = {"v": 1, "type": "select", "node_id": active_id, "source": _SOURCE}
+    body = {"node_id": active_id}
     if len(sel_ids) > 1:
-        msg["node_ids"] = sel_ids
-    srv.broadcast(json.dumps(msg))
+        body["node_ids"] = sel_ids
+    srv.broadcast(json.dumps(envelope("select", body, source=_SOURCE)))
 
 
 def _subscribe_selection():
@@ -746,7 +762,8 @@ def join_room(context, base_url: str, room_id: str, token: str,
 
     note = ""
     if adopt and arrival.get("snapshot"):
-        note = _adopt_snapshot(arrival["snapshot"].get("doc") or {}, context)
+        note = _adopt_snapshot(
+            (arrival["snapshot"].get("payload") or {}).get("doc") or {}, context)
     plan = arrival.get("plan")
     if plan == "resync" and SESSION.last_applied:
         # a REBASE, not a first arrival: the two look the same to `plan_rejoin`
