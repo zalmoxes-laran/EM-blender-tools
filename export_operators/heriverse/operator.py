@@ -23,6 +23,8 @@ from ...functions import *
 from ...graph_updaters import *
 from ...us_types import ALL_US_TYPES
 
+from .dissemination import (
+    predicate_available, publishable_stratigraphic_names)
 from .utils import clean_filename, find_layer_collection, get_collection_for_object
 from .gltf import export_gltf_with_animation_support
 
@@ -95,21 +97,21 @@ class EXPORT_OT_heriverse(Operator):
         Returns:
             list: Lista di nomi di nodi stratigrafici
         """
-        stratigraphic_names = []
-        
-        # Tipi di nodi stratigrafici da cercare
-        stratigraphic_types = ALL_US_TYPES
+        # Questo elenco comanda quali proxy .glb finiscono nella scena, quindi
+        # è una superficie di disseminazione quanto il grafo: i tombstone
+        # restano fuori. Regola, predicato e limite stanno in
+        # ``.dissemination`` — modulo separato perché senza ``bpy`` si può
+        # misurare headless.
+        names, removed = publishable_stratigraphic_names(graph, ALL_US_TYPES)
 
-        # Usa gli indici per rapidità
-        indices = graph.indices
+        if removed:
+            em_log(f"Heriverse export: {removed} nodi rimossi (tombstone) "
+                   f"esclusi dai proxy", "DEBUG")
+        elif not predicate_available():
+            em_log("s3dgraphy.dissemination non disponibile: i tombstone non "
+                   "vengono filtrati dall'export Heriverse", "WARNING")
 
-        for node_type in stratigraphic_types:
-            if node_type in indices.nodes_by_type:
-                nodes = indices.nodes_by_type[node_type]
-                for node in nodes:
-                    stratigraphic_names.append(node.name)
-        
-        return stratigraphic_names
+        return names
 
 
     def export_proxies(self, context, export_folder):
