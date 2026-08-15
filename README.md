@@ -61,16 +61,49 @@ several bound proxies demotes them all at once.
 - [Facebook Group](https://www.facebook.com/groups/extendedmatrix) - Extended Matrix users
 - [EM Website](https://www.extendedmatrix.org) - Official website
 
+## Where this sits
+
+EMtools is the **3D end** of the Extended Matrix ecosystem: where the *geometry*
+of the reasoning lives. Proxies for stratigraphic units, reconstruction models,
+orthophotos, georeferencing — all attached to the same graph that
+[EMStudio](../EMStudio) edits as a matrix and that [s3Dgraphy](../s3Dgraphy)
+knows the meaning of. It can also **publish** a model into a room's asset store,
+so a `.blend` stops having to be both the workshop and the archive.
+
+**The whole map:** [`ARCHITECTURE-SYSTEM.md`](../em-server/docs/ARCHITECTURE-SYSTEM.md).
+
 ## Installation
 
 ### For Users
 
 1. Go to the [Releases](https://github.com/zalmoxes-laran/EM-blender-tools/releases) page
-2. Download the `.zip` matching your **platform** and **Blender version**:
+2. Download the file matching your **platform** and **Blender version**:
    - Blender 5.0.x &rarr; `blender50` files (Python 3.11)
    - Blender 5.1+ &rarr; `blender51` files (Python 3.13)
 3. In Blender: **Extensions &rarr; Install from Disk**
-4. Select the downloaded zip file (do not unzip) and enable the extension
+4. Select the downloaded file (do not unzip) and enable the extension
+
+### Using it, once installed
+
+The addon adds an **EM** tab to the 3D viewport's sidebar (`N` to open it). The
+short version of a working session:
+
+1. **Load a graph.** The *EM setup* panel takes a `.graphml` (a yEd matrix) or an
+   `.em.json`. Several graphs can be loaded at once — a landscape of studies —
+   and each one says whether it is publishable.
+2. **Match the 3D to the graph.** Proxies (the boxes that stand for
+   stratigraphic units) are named after their US; the panels list what is in the
+   graph, what is in the scene, and what is missing from either side. That list
+   *is* the job: a US with no proxy and a proxy with no US are both errors you
+   want to see.
+3. **Work with time.** The epoch manager filters the scene by period, so the
+   viewport shows the site as it was rather than everything at once.
+4. **Publish.** *Export* writes the Heriverse payload (graph + proxies + models)
+   or an RDF projection; a deleted US is **absent** from those, not marked in
+   them.
+5. **Stay in step with EMStudio.** With the sync panel connected, edits travel
+   both ways while you work: the matrix in one window, the 3D in the other, one
+   graph underneath.
 
 ### For Developers
 
@@ -102,6 +135,25 @@ code .
 ```
 
 See `./em.sh help` for the full list of development commands.
+
+**Build and test, verified on macOS:**
+
+```bash
+./em.sh build dev                          # → ../EM_Tools_Releases/em_tools-v<version>.blext
+.venv/bin/python -m pytest tests -q        # 127 passed, 1 skipped
+./em.sh s3d status                         # which s3dgraphy the Blender extension is using
+```
+
+`build` does **not** change the version (that is `./em.sh dev`), and the artefact
+lands **outside** the repository, in a sibling `EM_Tools_Releases/` folder — so a
+build never dirties the working tree. The tests run headless: they exercise the
+parts that do not need `bpy`, and the ones that do are named as such rather than
+faked.
+
+> The tests put the sibling **s3Dgraphy checkout** ahead of the installed wheel,
+> so they measure the library as it is now. Before using EMtools *inside Blender*
+> against a changed library, re-run `./em.sh s3d` — otherwise Blender keeps the
+> wheel it was given, and the two disagree in a way that looks like a bug.
 
 ## Roadmap
 
@@ -135,7 +187,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0 - see [LICENSE](LICENSE) for details.
+This project is licensed under the GNU General Public License v3.0 - see [GPL3-license.txt](GPL3-license.txt) for details.
 
 ## Credits
 
