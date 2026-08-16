@@ -693,8 +693,40 @@ def room_status(context=None) -> dict:
                  "members": len(SESSION.members),
                  "host": SESSION.host_tool,
                  "author": SESSION.author,
+                 "role": SESSION.role,
+                 "can_write": SESSION.can_write,
                  "error": SESSION.error})
     return info
+
+
+#: The three states a session can be in, with the names EMStudio uses. One
+#: vocabulary across the two apps: somebody switching between them should not
+#: have to learn that "Room" here is "Hub" there.
+MODE_STANDALONE = "standalone"
+MODE_SIDECAR = "sidecar"
+MODE_HUB = "hub"
+
+
+def session_mode(context=None) -> str:
+    """Which mode this Blender is in — DERIVED, never chosen.
+
+    The design turn (EM_design_room-come-workspace §3) is that the ROOM is the
+    primitive and the mode follows from belonging: join a room and you are in
+    Hub mode because you are in a room, not because somebody pressed a third
+    button that then has to be kept in agreement with reality. Leave, and the
+    mode goes back on its own.
+
+    The order is the precedence, and it is the honest one: being in a room is a
+    stronger fact than serving a bridge, so a Blender doing both reads as Hub —
+    that is where the shared document is.
+    """
+    from .room_session import SESSION
+
+    if SESSION.joined:
+        return MODE_HUB
+    if is_running():
+        return MODE_SIDECAR
+    return MODE_STANDALONE
 
 
 def _list_adopted_graphs(context) -> list:

@@ -632,6 +632,32 @@ class EM_SetupPanel(bpy.types.Panel):
         em_tools = scene.em_tools
 
         # ========================================================================
+        # WHOSE DOCUMENT IS THIS? (the room, when there is one)
+        # ========================================================================
+        # The design turn: the room is the primitive and **the tree IS the room's
+        # container** when you are in one (EM_design_room-come-workspace §3). The
+        # adopt already fills it; this says so at the top, because a tree that
+        # looks local while it is somebody's shared room is a tree you edit with
+        # the wrong expectations. Leave the room and the line disappears — the
+        # tree is local again, which is also true.
+        try:
+            from ..sync_manager import operators as _sync_ops
+            _room = _sync_ops.room_status(context)
+            if _room.get("joined"):
+                room_box = layout.box()
+                room_box.label(
+                    text=f"In {_room.get('room_id')} · "
+                         f"{_room.get('members', 0)} present"
+                         + (f" · as {_room['author']}" if _room.get("author") else ""),
+                    icon="COMMUNITY")
+                if _room.get("can_write") is False:
+                    room_box.label(
+                        text=f"Read-only ({_room.get('role') or 'viewer'}) — "
+                             f"the room refuses edits from here", icon="LOCKED")
+        except Exception:  # noqa: BLE001 — the tree must draw without the bridge
+            pass
+
+        # ========================================================================
         # WORKING METHODS SECTION
         # ========================================================================
 

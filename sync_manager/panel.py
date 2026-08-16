@@ -1,10 +1,43 @@
-"""Panel for the EMStudio live-sync bridge (tab "EM")."""
+"""Panel for the live-sync bridge and the room (tab "EM").
+
+**One control, three states, and the state is DERIVED.**
+
+EMStudio has had this for a while: a session is Standalone, Sidecar or Hub, and
+those are exclusive — one thing at a time, shown as one thing. Here there used
+to be two boxes that did not know about each other ("EMStudio Sync" with a
+Start/Stop, "Room" with a Join) and no way to say "neither", which is the state
+Blender is in most of the time.
+
+The design turn behind the change (`EM_design_room-come-workspace` §3): the
+**room is the primitive**, the mode **follows from belonging**, and the EM Data
+Tree becomes the room's container. So the panel does not offer a mode to pick —
+it *reports* the one the session is in, and the buttons underneath are the acts
+that change it (serve the bridge; join a room). Join a room and the mode becomes
+Hub by itself; leave and it goes back to Standalone. A mode you can set
+independently of what is true is a mode that will eventually lie.
+
+**The names are EMStudio's**: Standalone · Sidecar · Hub. One vocabulary across
+the two applications — somebody switching between them should not have to learn
+that "Room" here is "Hub" there. The *place* stays a room ("in {room} · N
+present"), the *mode* is Hub: the room is where the work is, the hub is the
+service that holds it.
+"""
 
 from __future__ import annotations
 
 import bpy  # type: ignore
 
 from . import operators as ops
+
+#: label · icon · what it means, in the words the tooltip uses.
+_MODES = (
+    (ops.MODE_STANDALONE, "Standalone", "MESH_CIRCLE",
+     "This Blender alone: no bridge served, no room joined."),
+    (ops.MODE_SIDECAR, "Sidecar", "LINKED",
+     "Paired with EMStudio over the local bridge — two screens, one person."),
+    (ops.MODE_HUB, "Hub", "WORLD",
+     "In a room on an em-server: the EM Data Tree is that room's container."),
+)
 
 
 class VIEW3D_PT_em_sync(bpy.types.Panel):
@@ -18,21 +51,77 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         running = ops.is_running()
+        status = ops.room_status(context)
+        mode = ops.session_mode(context)
 
-        row = layout.row()
+        # ── the three states, at the top ────────────────────────────────────
+        # Drawn as a segmented row of the three, with the current one pressed.
+        # They are NOT buttons that set the mode: the mode is derived, and a
+        # control that pretended otherwise would let somebody choose "Hub"
+        # without being in a room.
+        row = layout.row(align=True)
+        for value, label, icon, _tip in _MODES:
+            cell = row.row(align=True)
+            cell.enabled = False          # a report, not a switch
+            cell.operator("em.mode_explain", text=label, icon=icon,
+                          depress=(value == mode)).mode = value
+        current = next(m for m in _MODES if m[0] == mode)
+        layout.label(text=current[3], icon="INFO")
+
+        # ── in a room: what the tree is showing, and what you may do ────────
+        if mode == ops.MODE_HUB:
+            box = layout.box()
+            box.label(text=f"In {status['room_id']} · "
+                           f"{status['members']} present", icon="COMMUNITY")
+            if status.get("author"):
+                box.label(text=f"As {status['author']}", icon="USER")
+            else:
+                box.label(text="No identity in the token: edits are dated, "
+                               "not signed", icon="INFO")
+            # THE ROLE, believed rather than assumed. A panel that offered
+            # editing the server refuses would read as a broken addon instead of
+            # as a study somebody let you read (same rule as EMStudio's badge).
+            role = status.get("role")
+            if status.get("can_write") is False:
+                box.label(text=f"Read-only here ({role or 'viewer'}): the room "
+                               f"refuses edits from this Blender", icon="LOCKED")
+            elif role:
+                box.label(text=f"Role: {role}", icon="CHECKMARK")
+            box.label(text="The EM Data Tree is this room's container.",
+                      icon="OUTLINER")
+
+        # ── the acts that change the mode ──────────────────────────────────
+        acts = layout.box()
+        acts.label(text="Where this Blender is", icon="PREFERENCES")
+
+        row = acts.row()
         row.prop(context.scene, "em_sync_port", text="Port")
         row.enabled = not running
-
-        layout.operator(
+        acts.operator(
             "em.sync_toggle",
-            text="Stop Sync" if running else "Start Sync",
+            text="Stop serving the bridge" if running else "Serve the bridge (Sidecar)",
             icon="RADIOBUT_ON" if running else "RADIOBUT_OFF",
             depress=running,
         )
+        if running:
+            acts.label(text=f"ws://localhost:{context.scene.em_sync_port} · "
+                            f"{ops.client_count()} client(s)", icon="URL")
 
-        # MODES1 · the mirror of EMStudio's control: what THIS side does on the
-        # channel. Only while running — a control over a channel that is not
-        # there is furniture.
+        col = acts.column(align=True)
+        col.enabled = not status["joined"]
+        col.prop(context.scene, "em_room_url", text="Server")
+        col.prop(context.scene, "em_room_id", text="Room")
+        acts.operator(
+            "em.room_join",
+            text="Leave the room" if status["joined"] else "Join a room (Hub)…",
+            icon="UNLINKED" if status["joined"] else "LINKED",
+            depress=status["joined"])
+        if status.get("error"):
+            acts.label(text=str(status["error"])[:60], icon="ERROR")
+
+        # ── what THIS side does on the channel (MODES1) ────────────────────
+        # Only while there is a channel to govern: a control over a channel that
+        # is not there is furniture.
         if running:
             col = layout.column(align=True)
             col.label(text="Sync direction")
@@ -45,7 +134,8 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
             # MODEL IN THIS SCENE. Off by default, and never implied by the
             # connection being up.
             box = layout.box()
-            box.prop(context.scene, "em_accept_commands", text="Accept commands from EMStudio")
+            box.prop(context.scene, "em_accept_commands",
+                     text="Accept commands from EMStudio")
             if context.scene.em_accept_commands:
                 box.label(text="EMStudio may model proxies / import geometry here.",
                           icon="CHECKMARK")
@@ -53,44 +143,32 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
                 box.label(text="Commands are refused (and EMStudio is told).",
                           icon="LOCKED")
 
-        box = layout.box()
-        if running:
-            box.label(text=f"Listening on ws://localhost:{context.scene.em_sync_port}",
-                      icon="URL")
-            box.label(text=f"Clients connected: {ops.client_count()}", icon="LINKED")
-        else:
-            box.label(text="Server off — EMStudio can't connect", icon="UNLINKED")
 
-        # P4.4 · the other role: this Blender as a CLIENT of a room. Separate
-        # box because it is a different question — the one above is "who may
-        # connect to me", this one is "where do I go".
-        status = ops.room_status(context)
-        room_box = layout.box()
-        room_box.label(text="Room (em-server)", icon="WORLD")
-        col = room_box.column(align=True)
-        col.enabled = not status["joined"]
-        col.prop(context.scene, "em_room_url", text="Server")
-        col.prop(context.scene, "em_room_id", text="Room")
-        room_box.operator(
-            "em.room_join",
-            text="Leave room" if status["joined"] else "Join room…",
-            icon="UNLINKED" if status["joined"] else "LINKED",
-            depress=status["joined"])
-        if status["joined"]:
-            room_box.label(text=f"In {status['room_id']} · "
-                                f"{status['members']} present", icon="COMMUNITY")
-            if status.get("author"):
-                room_box.label(text=f"Publishing as {status['author']}", icon="USER")
-            else:
-                room_box.label(text="No identity in the token: edits are dated, "
-                                    "not signed", icon="INFO")
-        if status.get("error"):
-            room_box.label(text=str(status["error"])[:60], icon="ERROR")
+class EM_OT_mode_explain(bpy.types.Operator):
+    """The mode chips are a REPORT, and this is what they would say if they
+    could be pressed. Registered because a disabled `operator()` still needs
+    something to point at — and because the sentence belongs somewhere a user
+    can reach rather than only in a comment."""
+
+    bl_idname = "em.mode_explain"
+    bl_label = "What this mode means"
+    bl_description = ("Standalone / Sidecar / Hub — the mode follows what is "
+                      "true: serve the bridge to be a Sidecar, join a room to "
+                      "be in Hub. It is not a switch.")
+
+    mode: bpy.props.StringProperty(default="")  # type: ignore
+
+    def execute(self, context):
+        tip = next((m[3] for m in _MODES if m[0] == self.mode), "")
+        self.report({"INFO"}, tip or self.bl_description)
+        return {"FINISHED"}
 
 
 def register():
+    bpy.utils.register_class(EM_OT_mode_explain)
     bpy.utils.register_class(VIEW3D_PT_em_sync)
 
 
 def unregister():
     bpy.utils.unregister_class(VIEW3D_PT_em_sync)
+    bpy.utils.unregister_class(EM_OT_mode_explain)

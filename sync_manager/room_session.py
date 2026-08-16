@@ -83,6 +83,12 @@ class RoomSession:
         self.members: List[Dict[str, Any]] = []
         self.last_applied: Optional[str] = None
         self.error: Optional[str] = None
+        #: P5 · what this client MAY DO here, as the room resolved it at the
+        #: door (owner/admin/editor/viewer). Believed rather than assumed: a
+        #: panel that offers editing which the server refuses reads as a broken
+        #: addon instead of as a study somebody let you read.
+        self.role: Optional[str] = None
+        self.can_write: bool = True
 
     # ── joining ──────────────────────────────────────────────────────────────
 
@@ -142,6 +148,8 @@ class RoomSession:
             client.close()
         self.connection_id = None
         self.members = []
+        self.role = None
+        self.can_write = True
 
     # ── traffic ──────────────────────────────────────────────────────────────
 
@@ -214,6 +222,10 @@ class RoomSession:
             self.connection_id = body.get("connection_id")
             self.author = body.get("author")
             self.host_tool = body.get("tool")
+            self.role = body.get("role") or self.role
+            # a host that says nothing is writable: every EMtools pairing, where
+            # the question does not arise
+            self.can_write = bool(body.get("can_write", True))
             self.gc_watermark = body.get("gc_watermark") or self.gc_watermark
         elif kind == "presence":
             members = body.get("members")
