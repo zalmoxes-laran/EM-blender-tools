@@ -697,6 +697,102 @@ def room_status(context=None) -> dict:
     return info
 
 
+def _list_adopted_graphs(context) -> list:
+    """Give every adopted graph a row in the EM Data Tree, and return the NEW ones.
+
+    The manager holds the graphs; `em_tools.graphml_files` is what the panel
+    lists and what `is_graph_available` reads — a row per graph, keyed by
+    `graph_id`, because that name is what `get_graph()` is asked for. Without a
+    row the session is in the state this function exists to end: loaded and
+    invisible.
+
+    The same act the em.json importer performs (`importer_emjson.py`), minus the
+    file: a room's document arrives over a socket, so there is no path to
+    remember and `graphml_path` stays empty. That is not a gap to fill with the
+    temporary file this adoption wrote — it is deleted a few lines later, and a
+    row pointing at it would offer a reload that cannot work.
+
+    Idempotent by `graph_id`: re-joining a room must not grow the list.
+    """
+    em_tools = getattr(context.scene, "em_tools", None)
+    if em_tools is None or not hasattr(em_tools, "graphml_files"):
+        return []
+    from s3dgraphy import get_graph
+    from s3dgraphy.container import is_shelf_member
+    from s3dgraphy.multigraph.multigraph import multi_graph_manager
+
+    added = []
+    for graph_id, graph in multi_graph_manager.graphs.items():
+        # The shelf is a graph of LinkNodes, not a project: it has no place in a
+        # list of things you can draw.
+        if is_shelf_member(graph):
+            continue
+        if any(row.name == graph_id for row in em_tools.graphml_files):
+            continue
+        row = em_tools.graphml_files.add()
+        row.name = graph_id
+        row.graphml_path = ""
+        if hasattr(row, "file_format"):
+            row.file_format = "EMJSON"
+        attrs = getattr(graph, "attributes", {}) or {}
+        if "graph_code" in attrs and hasattr(row, "graph_code"):
+            row.graph_code = attrs["graph_code"]
+        added.append(graph_id)
+
+    # An index pointing nowhere is the same failure as an empty list, and a
+    # session that had rows already may be pointing at one of them — so only
+    # move it when it is not currently on something that resolves.
+    index = getattr(em_tools, "active_file_index", -1)
+    rows = em_tools.graphml_files
+    if not (0 <= index < len(rows) and get_graph(rows[index].name) is not None):
+        for i, row in enumerate(rows):
+            if get_graph(row.name) is not None:
+                em_tools.active_file_index = i
+                break
+    return added
+
+
+def _count_for_active_row(context, graph) -> None:
+    """Refresh the row's cached counters (US/USV · Epochs · Properties · Documents).
+
+    The panel reads those numbers off the row, not off the graph, and the
+    importer fills them at import. Without this the tree lists the graph and its
+    units and then heads the panel with four zeros — which is the same wrong
+    answer the empty tree gave, in smaller type.
+    """
+    em_tools = getattr(context.scene, "em_tools", None)
+    if em_tools is None:
+        return
+    index = getattr(em_tools, "active_file_index", -1)
+    if not (0 <= index < len(em_tools.graphml_files)):
+        return
+    try:
+        from ..populate_lists import update_graph_statistics
+        update_graph_statistics(context, graph, em_tools.graphml_files[index])
+    except Exception as exc:  # noqa: BLE001 — a count is not worth an adoption
+        print(f"[sync] could not refresh the graph statistics: {exc}")
+
+
+def _adoption_note(graph, listed: list, overwritten: int, warnings: int) -> str:
+    """What the adoption actually did, in the words of what changed.
+
+    The old message said "N node(s) merged", where N counted only the nodes
+    OVERWRITTEN by UUID — so a room whose six units were all new reported
+    "0 node(s) merged" over a successful adoption. It was true and it read as a
+    failure, which is the worst kind of accurate.
+    """
+    what = []
+    if graph is not None:
+        name = getattr(graph, "graph_id", "?")
+        what.append(f"«{name}»: {len(getattr(graph, 'nodes', []) or [])} node(s), "
+                    f"{len(getattr(graph, 'edges', []) or [])} edge(s)")
+    if listed:
+        what.append(f"{len(listed)} graph(s) added to the EM Data Tree")
+    what.append(f"{overwritten} node(s) overwritten by UUID")
+    what.append(f"{warnings} warning(s)")
+    return "adopted the room's document — " + " · ".join(what)
+
+
 def _adopt_snapshot(doc: dict, context) -> str:
     """Take the room's document into this Blender — or say why we did not.
 
@@ -724,13 +820,29 @@ def _adopt_snapshot(doc: dict, context) -> str:
             path = handle.name
         from ..emjson_support import merge_container_from_emjson
         report, warnings = merge_container_from_emjson(path)
-        merged = len(getattr(report, "merged_nodes", []) or [])
+        # `merged_nodes` is a COUNT in the library we run against (measured:
+        # s3dgraphy 1.6.0.dev14 returns 14, an int) and was a list of ids in
+        # earlier ones. `len()` on the int raised inside this try, so the whole
+        # adoption reported "could not adopt the room's document: object of type
+        # 'int' has no len()" — after the merge had already succeeded. Read both
+        # shapes: a number in a message is not worth failing an adoption for.
+        merged = getattr(report, "merged_nodes", 0)
+        overwritten = merged if isinstance(merged, int) else len(merged or [])
+        # THE MERGE IS NOT THE ARRIVAL. `merge_container_from_emjson` writes into
+        # the multigraph manager; the EM Data Tree is drawn from
+        # `em_tools.graphml_files`, and `is_graph_available` asks THAT list. In a
+        # Blender that was empty the list has no rows, so the check said no, the
+        # repopulate never ran, and the panel offered "Add graph" over six units
+        # that were already loaded. Registering the graphs is what makes the
+        # adoption visible — and it is the same act the importer performs.
+        listed = _list_adopted_graphs(context)
         ok, graph = is_graph_available(context)
         if ok:
             _repopulate(context, graph)
+            _count_for_active_row(context, graph)
             _redraw()
-        return (f"adopted the room's document "
-                f"({merged} node(s) merged, {len(warnings)} warning(s))")
+        return _adoption_note(graph if ok else None, listed, overwritten,
+                              len(warnings))
     except Exception as exc:  # noqa: BLE001 — a failed adoption must be SAID
         return f"could not adopt the room's document: {exc}"
     finally:
