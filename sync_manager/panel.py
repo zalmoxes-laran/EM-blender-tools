@@ -110,6 +110,25 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         col = acts.column(align=True)
         col.enabled = not status["joined"]
         col.prop(context.scene, "em_room_url", text="Server")
+        # WHERE IS IT · a saved list (this installation's, not the .blend's) and
+        # a probe. A URL somebody typed is a hope; `/v1/health` makes it a fact,
+        # and the failures are the useful half. mDNS browsing is absent and NOT
+        # simulated — Blender's Python has no `zeroconf` — so what is offered is
+        # a direct probe of the addresses worth trying, and the Bonjour name of
+        # the other machine, which the OS resolves on its own.
+        find = col.row(align=True)
+        find.operator("em.server_discover", text="Find", icon="VIEWZOOM")
+        find.operator("em.server_probe", text="Probe", icon="CHECKMARK")
+        try:
+            from . import servers as _servers
+            known = _servers.saved()
+        except Exception:  # noqa: BLE001 — a list that will not read is empty
+            known = []
+        for entry in known[:6]:
+            line = col.row(align=True)
+            line.operator("em.server_use", text=entry.get("label") or entry["url"],
+                          icon="WORLD").url = entry["url"]
+            line.operator("em.server_forget", text="", icon="X").url = entry["url"]
         col.prop(context.scene, "em_room_id", text="Room")
         acts.operator(
             "em.room_join",

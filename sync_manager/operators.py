@@ -931,6 +931,94 @@ def leave_room() -> None:
     room_cfg.forget_token()      # the credential goes when the membership does
 
 
+class EM_OT_server_probe(bpy.types.Operator):
+    """Ask the address in the field what it is — before trying to join it.
+
+    A URL somebody typed is a hope; `/v1/health` turns it into a fact, and the
+    failures are the useful half (refused, no such host, a TLS the OS does not
+    trust). Reported, never raised: "check this address" must be a thing you can
+    do twice."""
+
+    bl_idname = "em.server_probe"
+    bl_label = "Probe this server"
+
+    def execute(self, context):
+        from . import servers
+
+        answer = servers.probe(getattr(context.scene, "em_room_url", ""))
+        if answer.get("ok"):
+            self.report({"INFO"},
+                        f"{answer['url']} — {answer.get('service')} "
+                        f"{answer.get('version')} · auth: {answer.get('auth')} · "
+                        f"{answer.get('rooms')} room(s)")
+            servers.remember(answer["url"], answer.get("service") or "")
+        else:
+            self.report({"WARNING"},
+                        f"{answer.get('url')}: {answer.get('error')}")
+        return {"FINISHED"}
+
+
+class EM_OT_server_discover(bpy.types.Operator):
+    """Find an em-server on this network — by asking, not by browsing.
+
+    Blender's Python has no `zeroconf`, so there is no mDNS browsing here and
+    none is simulated. What this does is probe the addresses that are worth
+    trying (this machine, this machine's Bonjour name) and remember whatever
+    answers. The other Mac is reached as `<name>.local`, which the operating
+    system resolves without any library."""
+
+    bl_idname = "em.server_discover"
+    bl_label = "Find a server"
+
+    def execute(self, context):
+        from . import servers
+
+        result = servers.discover()
+        for found in result["found"]:
+            servers.remember(found["url"], found.get("service") or "")
+        if result["found"]:
+            context.scene.em_room_url = result["found"][0]["url"]
+            self.report({"INFO"},
+                        f"found {len(result['found'])}: "
+                        + ", ".join(f["url"] for f in result["found"]))
+        else:
+            self.report({"WARNING"},
+                        "nothing answered on this machine or its Bonjour name — "
+                        "type the address of the server you were given")
+        if result.get("browsing_unavailable"):
+            print("[em] " + result["browsing_unavailable"])
+        return {"FINISHED"}
+
+
+class EM_OT_server_use(bpy.types.Operator):
+    """Put a saved server in the field."""
+
+    bl_idname = "em.server_use"
+    bl_label = "Use this server"
+
+    url: bpy.props.StringProperty(default="")  # type: ignore
+
+    def execute(self, context):
+        context.scene.em_room_url = self.url
+        return {"FINISHED"}
+
+
+class EM_OT_server_forget(bpy.types.Operator):
+    """Take a server off the saved list. The list is this installation's, not
+    the .blend's, so this does not touch anybody's project."""
+
+    bl_idname = "em.server_forget"
+    bl_label = "Forget this server"
+
+    url: bpy.props.StringProperty(default="")  # type: ignore
+
+    def execute(self, context):
+        from . import servers
+
+        servers.forget(self.url)
+        return {"FINISHED"}
+
+
 class EM_OT_room_join(bpy.types.Operator):
     bl_idname = "em.room_join"
     bl_label = "Join / leave an EM room"
@@ -1031,6 +1119,10 @@ def register():
             description="Which room on that server")
     bpy.utils.register_class(EM_OT_sync_toggle)
     bpy.utils.register_class(EM_OT_room_join)
+    bpy.utils.register_class(EM_OT_server_probe)
+    bpy.utils.register_class(EM_OT_server_discover)
+    bpy.utils.register_class(EM_OT_server_use)
+    bpy.utils.register_class(EM_OT_server_forget)
 
 
 def unregister():
@@ -1039,6 +1131,12 @@ def unregister():
         leave_room()
     except Exception:  # noqa: BLE001 — unregistering must not fail on a socket
         pass
+    for cls in (EM_OT_server_forget, EM_OT_server_use, EM_OT_server_discover,
+                EM_OT_server_probe):
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception:  # noqa: BLE001 — unregistering must not fail
+            pass
     bpy.utils.unregister_class(EM_OT_room_join)
     bpy.utils.unregister_class(EM_OT_sync_toggle)
     if hasattr(bpy.types.Scene, "em_room_url"):
