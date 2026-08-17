@@ -81,6 +81,19 @@ def _suffix_for(record: Dict[str, Any]) -> str:
     return ".glb"
 
 
+class LibraryTooOld(RuntimeError):
+    """The s3dgraphy in THIS Blender predates the consuming half of DP-76.
+
+    Worth its own type and its own sentence. The addon ships s3dgraphy as a
+    wheel, and a wheel is a copy: a Blender enabled before the library grew
+    `geometry_summary` raises `ImportError` deep inside a button press, which
+    reads as "the addon is broken" rather than "this copy is older than the
+    feature". Measured the first time this smoke ran against a real extension —
+    the version STRING was even the same (1.6.0.dev14 on both sides), so nothing
+    but the missing function could have told them apart.
+    """
+
+
 def plan(graph: Any) -> Dict[str, Any]:
     """What could be materialised, and what could not — read only.
 
@@ -89,7 +102,14 @@ def plan(graph: Any) -> Dict[str, Any]:
     numbers, because "3 models" when the study describes seven is a true
     sentence that misleads.
     """
-    from s3dgraphy.api import geometry_summary
+    try:
+        from s3dgraphy.api import geometry_summary
+    except ImportError as exc:                # the wheel is older than the feature
+        raise LibraryTooOld(
+            "this Blender's s3dgraphy has no `geometry_summary`: it predates "
+            "DP-76's consuming half. Refresh the addon's bundled wheel "
+            "(wheels/cp3xx/s3dgraphy-*.whl) and re-enable the extension"
+        ) from exc
 
     return geometry_summary(graph)
 
