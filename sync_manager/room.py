@@ -42,7 +42,19 @@ GLTF_MEDIA_TYPE = "model/gltf-binary"
 
 class RoomError(RuntimeError):
     """The room refused, or could not be reached. Carries a sentence a user can
-    act on rather than an HTTP number nobody reads."""
+    act on rather than an HTTP number nobody reads.
+
+    …and, when there was one, the **status** beside the sentence. Not for
+    display: for the one caller that must tell refusals apart. A 403 on an asset
+    is the embargo gate doing its job (the study is closed and this token is not
+    an editor of it) while a 404 is a missing file — the first is a row to skip
+    with an explanation, the second is something wrong. A consumer that could
+    only read the sentence would have to match on English.
+    """
+
+    def __init__(self, message: str, *, status: Optional[int] = None):
+        super().__init__(message)
+        self.status = status
 
 
 # ── the session ──────────────────────────────────────────────────────────────
@@ -173,7 +185,17 @@ def get_asset(ref: str, timeout: float = 60.0) -> Tuple[bytes, str]:
             data = response.read()
             media = response.headers.get("Content-Type") or "application/octet-stream"
     except urllib.error.HTTPError as exc:
-        raise RoomError(f"the room has no asset {ref} ({exc.code})") from exc
+        # The status travels with the sentence: 403 here is the EMBARGO GATE,
+        # not a missing file, and the consumer (materialise.py) has to be able
+        # to say so. Same words as before for 404 and the rest.
+        if exc.code == 403:
+            message = (f"the room will not serve {ref} to this token (403): "
+                       f"an embargo, or a role below editor")
+        elif exc.code == 401:
+            message = f"the room did not accept the token (401) for {ref}"
+        else:
+            message = f"the room has no asset {ref} ({exc.code})"
+        raise RoomError(message, status=exc.code) from exc
     except urllib.error.URLError as exc:
         raise RoomError(f"could not reach the room: {exc.reason}") from exc
     if content_id(data) != ref:

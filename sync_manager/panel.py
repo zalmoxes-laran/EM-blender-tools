@@ -89,6 +89,18 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
                 box.label(text=f"Role: {role}", icon="CHECKMARK")
             box.label(text="The EM Data Tree is this room's container.",
                       icon="OUTLINER")
+            # DP-76, consuming half. An ACTION and not a consequence of joining:
+            # adopting a document is reading, downloading somebody's meshes into
+            # your file is more. The toggle beside it is for whoever wants it at
+            # adoption time — a decision they made, not one made for them.
+            geo = box.column(align=True)
+            geo.operator("em.materialise_geometry",
+                         text="Materialise geometry from the store",
+                         icon="IMPORT")
+            geo.prop(context.scene, "em_materialise_on_adopt",
+                     text="…also when adopting")
+            geo.label(text="Only what lives in the store; an embargoed model is "
+                           "skipped with a reason.", icon="INFO")
 
         # ── the acts that change the mode ──────────────────────────────────
         acts = layout.box()

@@ -833,11 +833,19 @@ def _adopt_snapshot(doc: dict, context) -> str:
     less expensive mistake, while replacing a populated session would throw away
     work that is only in this .blend.
 
+    **The geometry.** Adoption reads the document; the models the document
+    describes are fetched by their own act — `em.materialise_geometry`, the
+    consuming half of DP-76 (`materialise.py`). It is an action and not a
+    consequence, for the same reason the command channel is opt-in: downloading
+    somebody's meshes into your file is more than reading their graph. Whoever
+    wants it at adoption time says so once, with
+    `Scene.em_materialise_on_adopt`, and this function honours it — with the
+    same rules as the manual action (resident only, embargo skipped with a
+    reason, content-addressed so it never duplicates).
+
     **Declared limit.** The merge lands in the multigraph manager, which is what
     the lists and the 3D scene are drawn from; a session that already holds
-    graphs therefore has to be repopulated, and the geometry the room describes
-    is NOT materialised here (that is the "Blender consumes from the store"
-    half of DP-76, explicitly outside this step).
+    graphs therefore has to be repopulated.
     """
     import json as _json
     import tempfile
@@ -873,8 +881,18 @@ def _adopt_snapshot(doc: dict, context) -> str:
             _repopulate(context, graph)
             _count_for_active_row(context, graph)
             _redraw()
-        return _adoption_note(graph if ok else None, listed, overwritten,
+        note = _adoption_note(graph if ok else None, listed, overwritten,
                               len(warnings))
+        # …and, only if somebody asked for it, the geometry (DP-76). A failure
+        # here must not undo an adoption that worked: the document IS adopted,
+        # and the meshes are a second act reported beside it.
+        if ok and getattr(context.scene, "em_materialise_on_adopt", False):
+            try:
+                from .materialise import materialise, summarise
+                note += " · geometry: " + summarise(materialise(graph))
+            except Exception as exc:  # noqa: BLE001 — said, never fatal
+                note += f" · geometry not materialised: {exc}"
+        return note
     except Exception as exc:  # noqa: BLE001 — a failed adoption must be SAID
         return f"could not adopt the room's document: {exc}"
     finally:
