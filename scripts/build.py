@@ -99,10 +99,44 @@ def download_platform_wheels(platform: str, wheels_dir: Path, python_version: st
         if result.returncode != 0:
             print(f"Warning: Failed to download {package} for {platform} (Python {python_version})")
 
+def refresh_bundled_s3dgraphy(python_version: str = '3.11') -> None:
+    """Rebuild the bundled s3dgraphy wheel from the sibling checkout, if it is there.
+
+    A wheel is a COPY, and on 17 Aug 2026 the copy in `wheels/` was days older
+    than the library while declaring the same version (`1.6.0.dev14` on both
+    sides) — so the addon ran old code and the only symptom was an ImportError
+    inside a button press. Building it here means a `.blext` cannot ship a
+    s3dgraphy older than the source that was on the machine that built it.
+
+    **Best-effort, and loud about it**: no sibling checkout (a build from a
+    tarball, a CI runner with only this repo) leaves the existing wheel alone and
+    says so. Refusing to build would turn a convenience into a requirement.
+    """
+    script = Path(__file__).parent / 'rebundle_s3dgraphy.py'
+    source = Path(__file__).parent.parent.parent / 's3Dgraphy'
+    if not script.is_file():
+        return
+    if not (source / 'pyproject.toml').is_file():
+        print(f"ℹ️  no s3Dgraphy checkout at {source}: keeping the bundled wheel "
+              f"as it is (run scripts/rebundle_s3dgraphy.py where the source is)")
+        return
+    print("🔁 rebuilding the bundled s3dgraphy wheel from source…")
+    result = subprocess.run([sys.executable, str(script),
+                             '--python', python_version, '--source', str(source)])
+    if result.returncode != 0:
+        # The script's own output already said what is stale or why pip failed.
+        print("⚠️  the bundled s3dgraphy wheel is NOT aligned with the source — "
+              "see above. Building anyway; fix it before publishing.")
+
+
 def build_extension(mode: str = 'dev', platform: str = None, python_version: str = '3.11'):
     """Costruisce l'extension in modalità specificata"""
     root_dir = Path(__file__).parent.parent
     build_dir = root_dir / "build"
+
+    # The bundled library FIRST: the manifest lists wheels by name, so the wheel
+    # has to be the right one before the manifest is generated below.
+    refresh_bundled_s3dgraphy(python_version)
 
     # Rimuovi vecchi file .blext per evitare raddoppiamenti
     print("Cleaning old .blext files...")

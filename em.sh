@@ -124,6 +124,11 @@ show_help() {
     echo "  manifest 3.13      Rigenera manifest per Blender 5.1+  (usa wheels cp313)"
     echo
     echo "=== s3dgraphy DEVELOPMENT ==="
+    echo "  rebundle           Ricostruisci il wheel s3dgraphy bundlato dal"
+    echo "                     sorgente accanto (../s3Dgraphy) e VERIFICALO per"
+    echo "                     CONTENUTO — non per stringa di versione, che mente"
+    echo "  rebundle --check   Solo la verifica, senza ricostruire"
+    echo "  rebundle --python 3.13   Solo quella cartella di wheels"
     echo "  s3d                Activate s3dgraphy development version"
     echo "  s3d on             Same as above"
     echo "  s3d off            Restore PyPI version"
@@ -413,6 +418,16 @@ case "$1" in
         notify_dev_replaced
         ;;
 
+    rebundle)
+        # Il wheel di s3dgraphy RICOSTRUITO dal sorgente accanto.
+        #
+        # Un wheel è una COPIA, e il 17 ago 2026 la copia era più vecchia della
+        # libreria pur dichiarando la stessa versione (1.6.0.dev14 da entrambe le
+        # parti): EMtools girava codice vecchio e il sintomo era un ImportError
+        # dentro un click. Questo lo ricostruisce, e VERIFICA per contenuto.
+        shift
+        $PYTHON_CMD scripts/rebundle_s3dgraphy.py "$@"
+        ;;
     manifest)
         # Rigenera solo il manifest puntando ai wheels già scaricati
         PYTHON_VER="${2:-3.11}"
