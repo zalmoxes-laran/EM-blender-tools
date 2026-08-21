@@ -377,6 +377,21 @@ def _host_info(context, graph):
     # affordance that is offered and then refused is worse than one that is
     # greyed out. So the host DECLARES it, and EMStudio reads it.
     info = {"tool": "Blender · EMtools", "accepts_commands": _accepts_commands()}
+    # CONNECTOR · and the DESCRIPTOR: what this host is, how it can be reached,
+    # what it speaks and what it can do — declared before anything happens, so
+    # EMStudio's registry can accept it (or refuse it with a reason) instead of
+    # discovering at the first write that the two do not understand each other.
+    # Same frame as `tool` and `accepts_commands`, which were the first two
+    # answers to the same question.
+    try:
+        from .connector import descriptor as _connector_descriptor
+        info["connector"] = _connector_descriptor(
+            accepts_commands=info["accepts_commands"])
+    except Exception as exc:  # noqa: BLE001
+        # A host that cannot describe itself still pairs: the client falls back to
+        # what it DOES declare (older peers sent no descriptor at all). Said, not
+        # swallowed — a silent absence here would look like a stale EMStudio.
+        print(f"[connector] descriptor unavailable: {exc}")
     try:
         em_tools = context.scene.em_tools
         idx = em_tools.active_file_index
