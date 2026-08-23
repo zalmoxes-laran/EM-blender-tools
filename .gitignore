@@ -132,3 +132,4 @@ blext/
 user_mappings/*/*.json
 !user_mappings/*/README.txt
 .cowork-work/
+.claude/
