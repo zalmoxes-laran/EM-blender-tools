@@ -51,9 +51,9 @@ several bound proxies demotes them all at once.
 
 ## Documentation
 
-- [**User Manual**](https://docs.extendedmatrix.org/projects/EM-tools/en/latest/) - Complete documentation
-- [**Installation Guide**](https://docs.extendedmatrix.org/projects/EM-tools/en/latest/installation.html) - Setup instructions
-- [**API Reference**](https://docs.extendedmatrix.org/projects/EM-tools/en/latest/api.html) - Developer documentation
+- [**User Manual**](https://docs.extendedmatrix.org/projects/EM-tools/en/1.5/) - Complete documentation
+- [**Installation Guide**](https://docs.extendedmatrix.org/projects/EM-tools/en/1.5/installation.html) - Setup instructions
+- [**API Reference**](https://docs.extendedmatrix.org/projects/EM-tools/en/1.5/api_reference.html) - Developer documentation
 
 ## Community
 
