@@ -28,6 +28,16 @@ class EM_ShelfItem(PropertyGroup):
     tier_label: StringProperty(default="")  # type: ignore
     tier_short: StringProperty(default="")  # type: ignore
     exists: BoolProperty(default=True)  # type: ignore
+    # ── the three the LIBRARY answers (Traccia A/C). Mirrored verbatim; empty
+    # means "not answered" (an older s3dgraphy), never "no".
+    #
+    # `role` is what the resource is FOR — comparandum / internal_source —
+    # orthogonal to the fence and never derived from it. `mode` is
+    # only_shelf / used_in_graph, the hatting reference-check. `residence` is
+    # disk / minio / uri. None of the three is computed on this side.
+    role: StringProperty(default="")  # type: ignore
+    mode: StringProperty(default="")  # type: ignore
+    residence: StringProperty(default="")  # type: ignore
 
 
 def _scope_update(self, context):
@@ -106,6 +116,9 @@ def sync_items(scene) -> None:
         it.tier_label = c.get("tier", "")
         it.tier_short = _tier_short(c.get("tier", ""))
         it.exists = bool(c.get("exists", True))
+        it.role = c.get("role", "") or ""
+        it.mode = c.get("mode", "") or ""
+        it.residence = c.get("residence", "") or ""
     if p.active_index >= len(p.items):
         p.active_index = max(0, len(p.items) - 1)
 

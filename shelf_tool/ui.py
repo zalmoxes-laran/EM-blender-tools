@@ -21,14 +21,32 @@ from . import shelf_backend
 class SHELF_UL_resources(bpy.types.UIList):
     """One compact row per shelf resource: icon + name + tier badge (+ size)."""
 
+    #: WHERE the bytes are → the icon that says it at a glance. Data, not an
+    #: if-chain, and keyed by the library's own values (`RESIDENCE`).
+    RESIDENCE_ICONS = {"disk": 'FILE_FOLDER', "minio": 'URL', "uri": 'WORLD'}
+    #: …and whether it is already part of the study. `used_in_graph` is the one
+    #: worth a solid mark: it is the answer to "have I already brought this in?"
+    MODE_ICONS = {"used_in_graph": 'LINKED', "only_shelf": 'UNLINKED'}
+    #: the role, compacted for a row that also has to hold a name
+    ROLE_SHORT = {"comparandum": "cmp", "internal_source": "src"}
+
     def draw_item(self, context, layout, data, item, icon, active_data,
                   active_propname, index):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             row = layout.row(align=True)
+            # residence first: it answers "can I even open this?" before the name
+            # matters (a URI-only entry has no file here at all)
+            if item.residence:
+                row.label(text="", icon=self.RESIDENCE_ICONS.get(
+                    item.residence, 'QUESTION'))
             row.label(text=item.name or item.resource_id[:8],
                       icon='MESH_DATA' if item.exists else 'ERROR')
             badge = row.row()
             badge.alignment = 'RIGHT'
+            if item.role:
+                badge.label(text=self.ROLE_SHORT.get(item.role, item.role[:3]))
+            if item.mode:
+                badge.label(text="", icon=self.MODE_ICONS.get(item.mode, 'DOT'))
             badge.label(text=item.tier_short)      # compact "T0"
             badge.label(text=item.size_text)        # size to the right
         elif self.layout_type == 'GRID':
@@ -75,6 +93,34 @@ class EM_PT_shelf(bpy.types.Panel):
         srow.prop(p, "recursive")
         srow.operator("em.shelf_scan", icon='VIEWZOOM')
 
+        # ── the shelf the PROJECT already carries ─────────────────────────────
+        #
+        # Blender does not export the shelf: it is already a member of the
+        # container (a ShelfGraph in the em.json). So the first thing this panel
+        # offers is to LIST that one — no file, no import — and then to bring one
+        # entry at a time into the scene.
+        proj = shelf_backend.project_shelf()
+        pbox = layout.box()
+        if proj is not None:
+            active = shelf_backend.active_shelf()
+            pbox.label(text="This project carries a shelf", icon='ASSET_MANAGER')
+            row = pbox.row(align=True)
+            row.operator("em.shelf_adopt_project",
+                         text="Read the project's shelf", icon='IMPORT')
+            row.enabled = active is not proj
+            if active is proj:
+                pbox.label(text="…and you are looking at it.", icon='CHECKMARK')
+        else:
+            pbox.label(text="This project carries no shelf yet — scan a folder, "
+                            "or open a project that has one.", icon='INFO')
+        if not shelf_backend.table_supported():
+            # the three columns are the library's to answer; saying so beats
+            # showing empty cells that look like "no"
+            w = pbox.row()
+            w.alert = True
+            w.label(text="role/mode/residence need a newer s3dgraphy",
+                    icon='ERROR')
+
         # ── shelf scope (standalone file vs project multigraph) ───────────────
         layout.prop(p, "shelf_scope", text="")
         frow = layout.row(align=True)
@@ -115,14 +161,31 @@ class EM_PT_shelf(bpy.types.Panel):
                       icon='FILE_3D')
             box.label(text=f"Size: {it.size_text}")
             box.label(text=it.tier_label or "Tier 0 · import + origin", icon='INFO')
-            if not it.exists:
+            # the three the library answers, spelled out where there is room
+            if it.residence or it.role or it.mode:
+                said = box.row(align=True)
+                if it.residence:
+                    said.label(text=it.residence,
+                               icon=SHELF_UL_resources.RESIDENCE_ICONS.get(
+                                   it.residence, 'QUESTION'))
+                said.label(text=it.role or "role: not stated",
+                           icon='PRESET' if it.role else 'DOT')
+                if it.mode:
+                    said.label(text=it.mode.replace("_", " "),
+                               icon=SHELF_UL_resources.MODE_ICONS.get(
+                                   it.mode, 'DOT'))
+            if not it.exists and it.residence != "uri":
                 box.label(text="(file not found on disk)", icon='ERROR')
-            # Hat: pick the facet (RM / RMSF / RMDoc / Document) + its target.
-            # Facets are not exclusive — Hat the same resource again for another.
-            box.label(text="Hat under a facet (RM · RMSF · RMDoc · Document)",
+            # MATERIALIZE = hat it into the active study graph, which for the
+            # mesh facets also imports the geometry. On demand, one entry at a
+            # time: that is the point of browsing a shelf instead of importing a
+            # whole library. The facet stays a DECISION (the dialog), because
+            # what a resource is in the argument is not something to guess.
+            box.label(text="Materialize under a facet (RM · RMSF · RMDoc · Document)",
                       icon='PRESET')
             actions = box.row(align=True)
-            hat = actions.operator("em.shelf_hat", text="Hat…", icon='IMPORT')
+            hat = actions.operator("em.shelf_hat", text="Materialize…",
+                                   icon='IMPORT')
             hat.resource_id = it.resource_id
             rm = actions.operator("em.shelf_remove", text="", icon='X')
             rm.resource_id = it.resource_id

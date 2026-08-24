@@ -40,6 +40,25 @@ _REQUIRED_API = (
 )
 
 
+#: The ops the ENRICHED list needs (Traccia A). Kept OUT of `_REQUIRED_API` on
+#: purpose: an older s3dgraphy still gives a working shelf, it simply cannot
+#: answer role/mode/residence — and turning the whole panel off over three extra
+#: columns would be a worse trade than showing the shelf without them.
+_TABLE_API = ("shelf_table", "shelf_table_columns", "shelf_entry_status",
+              "resource_roles")
+
+
+def table_supported() -> bool:
+    """True when this s3dgraphy can answer the three columns only it knows:
+    residence · role · mode. False → the list drops those cells and SAYS so,
+    instead of computing them here (which would be a second answer)."""
+    try:
+        from s3dgraphy import api
+        return all(hasattr(api, fn) for fn in _TABLE_API)
+    except Exception:
+        return False
+
+
 def shelf_supported() -> bool:
     """True if the active s3dgraphy exposes the Shelf + acquisition ops AND the fs
     mapping. False for the stale vendored copy → the panel shows a blocker box
@@ -132,6 +151,116 @@ def scan_folder(folder: str, *, recursive: bool = True) -> Dict[str, int]:
             "shelf_count": len(_active["cards"])}
 
 
+# ── the shelf of the ACTIVE PROJECT (Traccia C) ─────────────────────────────────
+#
+# The correction that makes this tool part of the project instead of beside it:
+# **Blender does not export the shelf**. The shelf is already a member of the
+# container (a ShelfGraph in the em.json), so what Blender does is LIST it and
+# bring one entry at a time into the scene. There is no export path here and
+# there must not be one — that is the whole point of the change.
+
+def project_shelf():
+    """The ShelfGraph the open project already carries, or None.
+
+    Found by its MARKER in the multigraph (`em_collection == "ShelfGraph"`), not
+    by its id: the id is a convention (`<project>__shelf`) and a project that
+    came from somewhere else will have used another one. A marker is what makes a
+    shelf self-identifying, which is exactly why it exists.
+    """
+    try:
+        from s3dgraphy.multigraph.multigraph import multi_graph_manager
+        from s3dgraphy.shelf import is_shelf
+    except Exception:
+        return None
+    for graph in (multi_graph_manager.graphs or {}).values():
+        try:
+            if is_shelf(graph):
+                return graph
+        except Exception:                       # noqa: BLE001 — a graph that will not answer
+            continue
+    return None
+
+
+def adopt_project_shelf() -> Dict[str, Any]:
+    """Make the project's own ShelfGraph the active one — no file, no import.
+
+    This is the difference between browsing YOUR project's library and browsing a
+    folder: the entries, their roles and their acquisition events came with the
+    em.json, and hatting one of them references the resource the study already
+    knows. Returns ``{adopted, graph_id, count}``.
+    """
+    graph = project_shelf()
+    if graph is None:
+        return {"adopted": False, "graph_id": None, "count": 0}
+    _active["graph"] = graph
+    _active["path"] = None                      # it lives in the project, not a file
+    _active["mg_id"] = str(getattr(graph, "graph_id", "") or "") or None
+    _refresh_cards()
+    return {"adopted": True, "graph_id": _active["mg_id"],
+            "count": len(_active["cards"])}
+
+
+def table_subject(study_graph: Any = None) -> List[Any]:
+    """What to ask the library ABOUT — the shelf plus the study graph(s).
+
+    The mode column is the hatting reference-check, and a resource sits on the
+    SHELF while it is hatted into a STUDY graph: asking the shelf alone answers
+    "only_shelf" for everything, for ever. So the subject is both, and when the
+    project multigraph is open it is all of it.
+    """
+    graphs: List[Any] = []
+    shelf = _active["graph"]
+    if shelf is not None:
+        graphs.append(shelf)
+    try:
+        from s3dgraphy.multigraph.multigraph import multi_graph_manager
+        for graph in (multi_graph_manager.graphs or {}).values():
+            if graph is not None and all(graph is not g for g in graphs):
+                graphs.append(graph)
+    except Exception:                           # noqa: BLE001
+        pass
+    if study_graph is not None and all(study_graph is not g for g in graphs):
+        graphs.append(study_graph)
+    return graphs
+
+
+def table_rows(study_graph: Any = None) -> List[Dict[str, Any]]:
+    """The shelf as the library's own rows (`api.shelf_table`), or [].
+
+    Read, never computed: residence, role and mode are the three things this side
+    must not have a second opinion about.
+    """
+    if not table_supported() or _active["graph"] is None:
+        return []
+    from s3dgraphy import api
+    try:
+        return api.shelf_table(table_subject(study_graph), shelf=_active["graph"])
+    except Exception:                           # noqa: BLE001 — a table that will not build
+        return []
+
+
+def entry_status(resource_id: str, study_graph: Any = None) -> Dict[str, Any]:
+    """``{in_use, role, mode, used_by}`` for one entry — the library's answer."""
+    if not table_supported():
+        return {"in_use": False, "role": None, "mode": "", "used_by": []}
+    from s3dgraphy import api
+    try:
+        return api.shelf_entry_status(table_subject(study_graph), resource_id)
+    except Exception:                           # noqa: BLE001
+        return {"in_use": False, "role": None, "mode": "", "used_by": []}
+
+
+def resource_roles() -> List[str]:
+    """The two roles, from the library that validates them (never a list here)."""
+    if not table_supported():
+        return []
+    from s3dgraphy import api
+    try:
+        return list(api.resource_roles())
+    except Exception:                           # noqa: BLE001
+        return []
+
+
 # ── cards (reflect the mapping fields + tier badge) ─────────────────────────────
 def tier_label(origin: Optional[Dict[str, Any]]) -> str:
     """The tier badge derived from source.capabilities / payload scope (design §1c).
@@ -163,13 +292,49 @@ def _card(entry: Dict[str, Any]) -> Dict[str, Any]:
         "size": rec.get("size"),
         "exists": exists,
         "tier": tier_label(entry.get("origin")),
+        # …filled in from the library's table when it can answer (see
+        # `_refresh_cards`). Empty means "not answered", never "no".
+        "role": "",
+        "mode": "",
+        "residence": "",
     }
 
 
-def _refresh_cards() -> None:
+def _refresh_cards(study_graph: Any = None) -> None:
     from s3dgraphy import api
     graph = _active["graph"]
-    _active["cards"] = [_card(e) for e in api.list_shelf(graph)] if graph else []
+    if graph is None:
+        _active["cards"] = []
+        return
+    # ONE table read for the whole list (not one per card): the mode column walks
+    # every graph's edges, and doing that per row would make a 200-entry shelf
+    # quadratic in the size of the study.
+    rows = {str(r.get("ID")): r for r in table_rows(study_graph)}
+    cards = []
+    for entry in api.list_shelf(graph):
+        card = _card(entry)
+        row = rows.get(str(entry.get("id")))
+        if row:
+            # verbatim from the library — this side does not interpret them
+            card["role"] = str(row.get("ROLE") or "")
+            card["mode"] = str(row.get("MODE") or "")
+            card["residence"] = str(row.get("RESIDENCE") or "")
+            if not card.get("media_type"):
+                # a URI-only entry has no file on disk to re-derive it from, and
+                # the library carries what the acquisition recorded
+                card["media_type"] = str(row.get("MEDIA_TYPE") or "")
+            if card.get("size") in (None, 0) and row.get("SIZE"):
+                card["size"] = row.get("SIZE")
+        cards.append(card)
+    _active["cards"] = cards
+
+
+def refresh(study_graph: Any = None) -> List[Dict[str, Any]]:
+    """Re-read the cards (and the library's table) against a study graph. The
+    panel calls this: `mode` cannot be right without the graph the resource may
+    be hatted into."""
+    _refresh_cards(study_graph)
+    return _active["cards"]
 
 
 def cards() -> List[Dict[str, Any]]:

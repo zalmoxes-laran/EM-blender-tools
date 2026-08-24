@@ -176,6 +176,36 @@ class EM_OT_shelf_remove(Operator):
         return {'FINISHED'}
 
 
+class EM_OT_shelf_adopt_project(Operator):
+    bl_idname = "em.shelf_adopt_project"
+    bl_label = "Read the project's shelf"
+    bl_description = ("List the ShelfGraph this project already carries — no "
+                      "file, no import. Blender does not export the shelf: it "
+                      "browses it and brings one entry at a time into the scene")
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        if not shelf_backend.shelf_supported():
+            self.report({'ERROR'}, _STALE)
+            return {'CANCELLED'}
+        report = shelf_backend.adopt_project_shelf()
+        p = context.scene.em_shelf
+        if not report.get("adopted"):
+            p.status = "This project carries no shelf (no ShelfGraph member)"
+            self.report({'WARNING'}, p.status)
+            return {'CANCELLED'}
+        # …and re-read the cards against the ACTIVE STUDY GRAPH, or every entry
+        # would read "only_shelf": the mode is the hatting reference-check, and
+        # the hats live in the study graph, not on the shelf.
+        shelf_backend.refresh(_active_graph(context))
+        properties.sync_items(context.scene)
+        p.status = (f"Reading the project's shelf «{report['graph_id']}» — "
+                    f"{report['count']} resource(s)")
+        for area in context.screen.areas:
+            area.tag_redraw()
+        return {'FINISHED'}
+
+
 def _active_graph(context):
     """The active study graph (the selected GraphML), or None."""
     try:
@@ -527,7 +557,13 @@ class EM_OT_shelf_hat(Operator):
         # every hatted object carries the Resource's stable ID (the R0 hinge)
         for o in objs:
             o["em_resource_id"] = rid
-        p.status = f"Hatted → {msg}"
+        p.status = f"Materialized → {msg}"
+        # …and the LIST has to agree: this entry is now used in the graph, so the
+        # cards are re-read against that graph. Without this the row still says
+        # "only shelf" over an object that is standing in the viewport — the
+        # exact confusion a derived badge exists to prevent.
+        shelf_backend.refresh(graph)
+        properties.sync_items(context.scene)
         for area in context.screen.areas:
             area.tag_redraw()
         return {'FINISHED'}
@@ -539,6 +575,7 @@ classes = (
     EM_OT_shelf_new,
     EM_OT_shelf_save,
     EM_OT_shelf_load,
+    EM_OT_shelf_adopt_project,
     EM_OT_shelf_hat,
     EM_OT_shelf_remove,
 )
