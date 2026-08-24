@@ -27,7 +27,7 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 #: The room this Blender is talking to, for the length of THIS session.
 #: A module-level dict and not a Scene property on purpose: a Scene property is
@@ -202,3 +202,108 @@ def get_asset(ref: str, timeout: float = 60.0) -> Tuple[bytes, str]:
         raise RoomError(f"the asset {ref} does not hash to its own reference — "
                         f"do not use these bytes")
     return data, media
+
+
+# ── the .blend safety archive (opaque snapshots, on demand) ──────────────────
+#
+# A DIFFERENT thing from `put_asset` above, and the difference is the whole
+# design. An asset is PUBLISHED: content-addressed, citable, served under the
+# rights the graph declares — the glTF of record. A `.blend` snapshot is KEPT:
+# opaque, in the room's backup namespace, readable only by the person who kept
+# it, cited by nothing.
+#
+# What this is NOT: it is not versioning of the shared data (em.json and the
+# glTF are already content-addressed — the version IS the hash and the history
+# IS the DTC), and it is not a save hook. Somebody decides "keep this one".
+
+#: What an opaque snapshot is stored as. Generic on purpose.
+BLEND_MEDIA_TYPE = "application/x-blender"
+
+
+def _room_path(path: str) -> str:
+    if not is_configured():
+        raise RoomError("no room configured: set the room address and id first")
+    return (f"{_session['base_url']}/v1/rooms/"
+            f"{urllib.parse.quote(str(_session['room_id']))}/{path}")
+
+
+def _room_json(url: str, *, method: str = "GET", data: Optional[bytes] = None,
+               content_type: Optional[str] = None,
+               timeout: float = 120.0) -> Any:
+    """One JSON call to the room, with the sentence a user can act on.
+
+    The timeout is generous because a `.blend` is not a thumbnail: a snapshot of
+    a reconstruction phase is hundreds of megabytes, and an upload that gave up
+    at 60 s would be a backup that silently never happened.
+    """
+    headers = dict(_auth_headers())
+    if content_type:
+        headers["Content-Type"] = content_type
+    request = urllib.request.Request(url, data=data, method=method,
+                                     headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            body = response.read()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")[:300]
+        raise RoomError(f"the room refused ({exc.code}): {detail}",
+                        status=exc.code) from exc
+    except urllib.error.URLError as exc:
+        raise RoomError(f"could not reach the room: {exc.reason}") from exc
+    return json.loads(body.decode("utf-8")) if body else None
+
+
+def put_blend_backup(data: bytes, *, label: str = "", filename: str = "",
+                     timeout: float = 600.0) -> Dict[str, Any]:
+    """Keep these bytes as an opaque snapshot; return the room's record.
+
+    Idempotent by content, and the answer says so: archiving an unchanged
+    `.blend` returns `created: false` and does **not** make a second snapshot.
+    The digest is computed here as well, and a disagreement is an error rather
+    than a shrug — a backup you cannot verify is a copy you hope exists.
+    """
+    local = hashlib.sha256(data).hexdigest()
+    query = urllib.parse.urlencode({"label": label, "filename": filename})
+    record = _room_json(f"{_room_path('blend-backup')}?{query}", method="PUT",
+                        data=data, content_type=BLEND_MEDIA_TYPE,
+                        timeout=timeout)
+    if not isinstance(record, dict) or record.get("sha256") != local:
+        raise RoomError(f"the room stored a different digest "
+                        f"({(record or {}).get('sha256')}) than the bytes we "
+                        f"sent ({local})")
+    return record
+
+
+def list_blend_backups(timeout: float = 30.0) -> List[Dict[str, Any]]:
+    """The snapshots THIS identity kept in this room, newest first.
+
+    Only your own — the room's register is per author. Being an editor is what
+    let you archive; somebody else's work in progress is not yours to read.
+    """
+    answer = _room_json(_room_path("blend-backups"), timeout=timeout)
+    return list(answer or [])
+
+
+def get_blend_backup(sha256: str, timeout: float = 600.0) -> bytes:
+    """The exact bytes back, digest verified on arrival."""
+    wanted = str(sha256).strip().lower()
+    url = _room_path(f"blend-backup/{urllib.parse.quote(wanted)}")
+    request = urllib.request.Request(url, method="GET", headers=_auth_headers())
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            data = response.read()
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise RoomError(f"no snapshot {wanted[:12]}… kept by you in this "
+                            f"room", status=404) from exc
+        raise RoomError(f"the room refused ({exc.code})", status=exc.code) from exc
+    except urllib.error.URLError as exc:
+        raise RoomError(f"could not reach the room: {exc.reason}") from exc
+    got = hashlib.sha256(data).hexdigest()
+    if got != wanted:
+        # The name IS the content: a mismatch means these are not the bytes that
+        # were kept, and restoring them over anything would be the actual damage.
+        raise RoomError(f"the restored bytes hash to {got[:12]}…, not "
+                        f"{wanted[:12]}… — refusing to hand back a snapshot "
+                        f"that does not verify")
+    return data

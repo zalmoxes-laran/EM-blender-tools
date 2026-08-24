@@ -9,20 +9,25 @@ Modules:
 - operators   : server lifecycle, the bpy.app.timers main-thread pump, toggle op
 - panel       : EM-tab panel (start/stop, status, port)
 - materialise : DP-76's consuming half — the room's geometry into this scene
+- backups     : the `.blend` safety archive — opaque snapshots into the room's
+                store, on demand (NOT versioning of the shared data, which is
+                content-addressed already)
 """
 
 from __future__ import annotations
 
-from . import materialise, operators, panel
+from . import backups, materialise, operators, panel
 
 
 def register():
     operators.register()
     materialise.register()
+    backups.register()
     panel.register()
 
 
 def unregister():
     panel.unregister()
+    backups.unregister()
     materialise.unregister()
     operators.unregister()

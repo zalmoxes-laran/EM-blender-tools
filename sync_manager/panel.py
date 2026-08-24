@@ -102,6 +102,44 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
             geo.label(text="Only what lives in the store; an embargoed model is "
                            "skipped with a reason.", icon="INFO")
 
+            # ── the .blend safety archive ───────────────────────────────────
+            #
+            # The other direction, and a different KIND of thing: the block
+            # above publishes an asset of record, this keeps an opaque copy of
+            # the workshop. Drawn in the room block because it goes through the
+            # room's auth, and folded into its own box because it is not part of
+            # the study — nothing here is citable.
+            safe = box.box()
+            safe.label(text="Blend backups (safety, opaque)", icon="FILE_BACKUP")
+            head = safe.row(align=True)
+            head.operator("em.blend_backup_archive",
+                          text="Archive this .blend", icon="EXPORT")
+            head.operator("em.blend_backup_list", text="", icon="FILE_REFRESH")
+            if bpy.data.is_dirty:
+                safe.label(text="Unsaved changes: a snapshot keeps the file on "
+                                "disk.", icon="ERROR")
+            try:
+                from . import backups as _backups
+                snapshots, why = _backups.listing(), _backups.note()
+            except Exception:  # noqa: BLE001 — a list that will not read is empty
+                snapshots, why = [], ""
+            if why:
+                safe.label(text=why, icon="ERROR")
+            for snap in snapshots[:8]:
+                line = safe.row(align=True)
+                sha = str(snap.get("sha256") or "")
+                name = str(snap.get("label") or snap.get("filename") or "")
+                line.label(text=f"{(name or sha[:12])[:28]} · "
+                                f"{str(snap.get('created_at') or '')[:10]}")
+                line.operator("em.blend_backup_restore", text="",
+                              icon="IMPORT").sha256 = sha
+            if snapshots:
+                safe.label(text="Restore lands BESIDE this file — it never "
+                                "replaces what you are working in.", icon="INFO")
+            else:
+                safe.label(text="Yours only: a room-mate's working file is not "
+                                "yours to read.", icon="INFO")
+
         # ── the acts that change the mode ──────────────────────────────────
         acts = layout.box()
         acts.label(text="Where this Blender is", icon="PREFERENCES")
