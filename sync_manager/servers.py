@@ -1,4 +1,4 @@
-"""Which em-servers this Blender knows about — the saved list, and the probe.
+"""Which StratiGraph Servers this Blender knows about — the saved list, and the probe.
 
 Two questions, and they are not the same one:
 
@@ -12,7 +12,7 @@ Two questions, and they are not the same one:
 
 **mDNS browsing is NOT here, and it is not simulated.** Blender's Python has no
 `zeroconf` (measured: `No module named 'zeroconf'` on 3.13.9), so this addon
-cannot listen for `_em-server._tcp` announcements. What it does instead is what
+cannot listen for `_StratiGraph Server._tcp` announcements. What it does instead is what
 the network already gives us for free: **probe the Bonjour names directly**. The
 walkthrough already tells people to reach the other Mac as `<name>.local`, and a
 directed probe of a candidate name is a real answer about a real host — not a
@@ -151,7 +151,7 @@ def discover(timeout: float = 2.5) -> Dict[str, Any]:
     except ImportError:
         browsing = ("no mDNS browsing in this Blender: `zeroconf` is not "
                     "installed in its Python. The probes below are direct — a "
-                    "real answer from a real host — and an em-server on another "
+                    "real answer from a real host — and an StratiGraph Server on another "
                     "Mac is reachable as <name>.local, which the OS resolves "
                     "without any library.")
     found = [p for p in (probe(url, timeout) for url in candidates()) if p.get("ok")]

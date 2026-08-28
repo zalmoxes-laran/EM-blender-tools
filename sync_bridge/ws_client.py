@@ -1,7 +1,7 @@
 """Minimal, dependency-free WebSocket CLIENT (RFC 6455) — the other direction.
 
 `ws_server.py` let EMStudio connect TO Blender. This lets Blender connect OUT,
-to a room (em-server): the same wire, the same hand-rolled framing, the opposite
+to a room (StratiGraph Server): the same wire, the same hand-rolled framing, the opposite
 role. Blender's bundled Python still has no `websockets` package and a Blender
 addon cannot ask a user to `pip install`, so this is stdlib only — socket,
 threading, base64, hashlib, struct.

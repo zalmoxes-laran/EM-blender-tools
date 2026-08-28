@@ -70,7 +70,7 @@ orthophotos, georeferencing — all attached to the same graph that
 knows the meaning of. It can also **publish** a model into a room's asset store,
 so a `.blend` stops having to be both the workshop and the archive.
 
-**The whole map:** [`ARCHITECTURE-SYSTEM.md`](../em-server/docs/ARCHITECTURE-SYSTEM.md).
+**The whole map:** [`ARCHITECTURE-SYSTEM.md`](../stratigraph-server/docs/ARCHITECTURE-SYSTEM.md).
 
 ## Installation
 

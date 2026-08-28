@@ -1,13 +1,13 @@
-"""P4.4 · Blender joins a room — measured against a REAL em-server.
+"""P4.4 · Blender joins a room — measured against a REAL StratiGraph Server.
 
-Not a mock: the test starts em-server (the sibling checkout, uvicorn) on a free
+Not a mock: the test starts StratiGraph Server (the sibling checkout, uvicorn) on a free
 port and joins it with the addon's own hand-rolled WebSocket client. What is
 measured is the thing that actually breaks in a hand-rolled client — the
 handshake, the masking, the order of the arrival frames — and the thing that
 actually breaks in a room — that an operation sent by one member reaches the
 other and is applied by the library, not by the relay.
 
-The test SKIPS (it does not fail) when the em-server checkout or its virtualenv
+The test SKIPS (it does not fail) when the StratiGraph Server checkout or its virtualenv
 is not there: this repo must remain testable on its own.
 """
 
@@ -25,7 +25,7 @@ import pytest
 
 _REPO = pathlib.Path(__file__).resolve().parent.parent
 _S3D = _REPO.parent / "s3Dgraphy" / "src"
-_SERVER = _REPO.parent / "em-server"
+_SERVER = _REPO.parent / "stratigraph-server"
 _SERVER_PY = _SERVER / ".venv" / "bin" / "python"
 
 if _S3D.is_dir():
@@ -33,7 +33,7 @@ if _S3D.is_dir():
 
 pytestmark = pytest.mark.skipif(
     not _SERVER_PY.is_file() or not _S3D.is_dir(),
-    reason="the em-server checkout (with its venv) is not beside this repo")
+    reason="the StratiGraph Server checkout (with its venv) is not beside this repo")
 
 
 def _load(name, relative):
@@ -53,7 +53,7 @@ def _free_port() -> int:
 
 @pytest.fixture(scope="module")
 def em_server():
-    """A real em-server process, on a free port, in dev/no-auth mode."""
+    """A real StratiGraph Server process, on a free port, in dev/no-auth mode."""
     port = _free_port()
     env = dict(os.environ, PYTHONPATH=str(_S3D))
     process = subprocess.Popen(
@@ -65,7 +65,7 @@ def em_server():
     deadline = time.time() + 25
     while time.time() < deadline:
         if process.poll() is not None:
-            pytest.skip(f"em-server did not start: "
+            pytest.skip(f"StratiGraph Server did not start: "
                         f"{process.stderr.read().decode()[-300:]}")
         try:
             with urllib.request.urlopen(base + "/v1/health", timeout=1) as answer:
@@ -75,7 +75,7 @@ def em_server():
             time.sleep(0.25)
     else:  # pragma: no cover
         process.kill()
-        pytest.skip("em-server did not become healthy in time")
+        pytest.skip("StratiGraph Server did not become healthy in time")
     try:
         yield base
     finally:

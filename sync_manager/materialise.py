@@ -18,7 +18,7 @@ Three rules, and each is a line somebody could have crossed:
 
 * **resident only.** The list comes from `s3dgraphy.api.store_backed_geometry`,
   which excludes `reference` resources: their bytes are on somebody's NAS,
-  outside em-server, and a path from another machine is not something to hand a
+  outside StratiGraph Server, and a path from another machine is not something to hand a
   mesh importer. They are left exactly as they are, and counted in the report so
   the number on screen is not silently the smaller half;
 * **the gate is the server's, and a refusal is a SENTENCE.** An embargoed asset
@@ -298,7 +298,7 @@ def _refusal(status: Optional[int], exc: Exception) -> str:
     """The room said no — in words, and with the right word.
 
     403 is the one that matters: it is not a failure, it is the **embargo gate**
-    doing its job (em-server serves an embargoed asset to editor+ only). Saying
+    doing its job (StratiGraph Server serves an embargoed asset to editor+ only). Saying
     "could not fetch" there would send somebody looking for a network problem
     that does not exist.
     """

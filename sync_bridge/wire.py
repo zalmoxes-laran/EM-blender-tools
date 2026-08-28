@@ -1,6 +1,6 @@
 """The wire ENVELOPE — and why the body travels nested inside it.
 
-The same file as `em-server/app/wire.py` and `EMStudio/src/wire.ts`. Three
+The same file as `stratigraph-server/app/wire.py` and `EMStudio/src/wire.ts`. Three
 speakers, one rule, kept small enough to state three times: a shared module
 across three repositories would be a fourth dependency for a hundred lines of
 agreement, and the day the three disagree is the day a test says so.

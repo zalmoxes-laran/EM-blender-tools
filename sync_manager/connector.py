@@ -63,7 +63,7 @@ CAPABILITIES: List[str] = [
 
 #: How EMtools can be reached. All three, and each is a real path today: a socket
 #: on this machine (EMStudio in a browser next to Blender), the same on the LAN (a
-#: field laptop), and a room on em-server (P4.4's client).
+#: field laptop), and a room on StratiGraph Server (P4.4's client).
 TRANSPORT: List[str] = ["direct", "lan", "cloud"]
 
 #: How what it writes is attributed: a DERIVATION. A materialised proxy comes out

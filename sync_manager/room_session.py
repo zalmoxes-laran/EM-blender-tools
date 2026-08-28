@@ -2,7 +2,7 @@
 
 Until now EMtools was only a host: it opened a socket and EMStudio connected to
 it, which means the study lived in somebody's Blender and everybody else had to
-wait for that laptop. A **room** (em-server) inverts it — the study is in a place
+wait for that laptop. A **room** (StratiGraph Server) inverts it — the study is in a place
 several people reach at once — and this module is Blender taking a seat there.
 
 The wire is the one that already exists (ADR-002): the room speaks `host_info`,

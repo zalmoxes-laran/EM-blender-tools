@@ -1,7 +1,7 @@
 """The ROOM as seen from Blender: where the study lives, and where its bytes go.
 
 Until now EMtools was only a **host**: it ran a socket and EMStudio connected to
-it. A room (em-server, run as a local FCN or as an institutional node) is the
+it. A room (StratiGraph Server, run as a local FCN or as an institutional node) is the
 other arrangement — a place that holds the graph AND the object store, that
 several people reach at once, and that nobody's laptop has to stay awake for.
 

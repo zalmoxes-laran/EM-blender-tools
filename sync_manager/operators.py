@@ -992,7 +992,7 @@ class EM_OT_server_probe(bpy.types.Operator):
 
 
 class EM_OT_server_discover(bpy.types.Operator):
-    """Find an em-server on this network — by asking, not by browsing.
+    """Find an StratiGraph Server on this network — by asking, not by browsing.
 
     Blender's Python has no `zeroconf`, so there is no mDNS browsing here and
     none is simulated. What this does is probe the addresses that are worth
@@ -1055,7 +1055,7 @@ class EM_OT_server_forget(bpy.types.Operator):
 class EM_OT_room_join(bpy.types.Operator):
     bl_idname = "em.room_join"
     bl_label = "Join / leave an EM room"
-    bl_description = ("Connect this Blender to an em-server room: adopt its "
+    bl_description = ("Connect this Blender to an StratiGraph Server room: adopt its "
                       "document, send and receive edits, publish models into "
                       "its store")
 
@@ -1144,7 +1144,7 @@ def register():
     if not hasattr(bpy.types.Scene, "em_room_url"):
         bpy.types.Scene.em_room_url = bpy.props.StringProperty(
             name="Room server", default="",
-            description="Address of the em-server holding the room "
+            description="Address of the StratiGraph Server holding the room "
                         "(e.g. https://em.example.org)")
     if not hasattr(bpy.types.Scene, "em_room_id"):
         bpy.types.Scene.em_room_id = bpy.props.StringProperty(

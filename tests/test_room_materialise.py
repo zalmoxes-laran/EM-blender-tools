@@ -61,7 +61,7 @@ materialise = _load("_emtools_mat", "sync_manager/materialise.py")
 
 class _GatedRoomHandler(http.server.BaseHTTPRequestHandler):
     """Content-addressed like the real one, and it can refuse like it too:
-    `embargoed` holds the digests this token may not have (em-server answers 403
+    `embargoed` holds the digests this token may not have (StratiGraph Server answers 403
     for an embargoed asset to anybody below editor)."""
 
     store: dict = {}

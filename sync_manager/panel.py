@@ -36,7 +36,7 @@ _MODES = (
     (ops.MODE_SIDECAR, "Sidecar", "LINKED",
      "Paired with EMStudio over the local bridge — two screens, one person."),
     (ops.MODE_HUB, "Hub", "WORLD",
-     "In a room on an em-server: the EM Data Tree is that room's container."),
+     "In a room on an StratiGraph Server: the EM Data Tree is that room's container."),
 )
 
 

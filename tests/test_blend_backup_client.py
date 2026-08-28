@@ -1,7 +1,7 @@
 """The `.blend` safety archive, from Blender's side — measured headless.
 
 What is under test is the CLIENT (`sync_manager/room.py`): real HTTP against a
-real socket, with a stand-in room that is content-addressed the way em-server's
+real socket, with a stand-in room that is content-addressed the way StratiGraph Server's
 backup namespace is. Three properties, and each one is a way this could quietly
 fail:
 

@@ -3,7 +3,7 @@
 Two things are under test and they are different in kind:
 
 * `sync_manager/room.py` — real HTTP against a real socket (a stdlib server
-  standing in for em-server's asset endpoint, which is content-addressed the
+  standing in for StratiGraph Server's asset endpoint, which is content-addressed the
   same way). What is measured is that bytes go out, come back byte-identical,
   and that a digest disagreement is REFUSED rather than recorded.
 * `promote_model` — the graph side of the verb, with the two Blender-only steps

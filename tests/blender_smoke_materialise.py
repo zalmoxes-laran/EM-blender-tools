@@ -19,7 +19,7 @@ measure the batch logic, and it leaves two things unmeasured:
   shown by a stub of the property.
 
 This is the repeatable proof of both. The human counter-proof (one press of the
-button in an interactive Blender) is in `em-server/dev-stack/TEST-WALKTHROUGH.md`,
+button in an interactive Blender) is in `stratigraph-server/dev-stack/TEST-WALKTHROUGH.md`,
 step 5 — measured here, seen there.
 
 Exits non-zero on failure. Nothing is written to disk; the objects it imports
