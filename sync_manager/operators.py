@@ -1094,6 +1094,81 @@ class EM_OT_room_join(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class EM_OT_room_open_link(bpy.types.Operator):
+    """Open a room from a HANDOFF LINK — the fourth consumer of one contract.
+
+    `stratigraph://open?server=<addr>&room=<id>`, produced by the room browser on
+    a StratiGraph Server (and by the Catalog for a study). It kills the manual
+    configuration: no address to type, no room name, and above all no token to
+    paste — the link carries a PLACE and never a permission, and this signs in
+    against that server itself (`handoff.py`, PKCE, token in memory).
+
+    **Nothing new is built here.** The link supplies `{server, room}`, the
+    sign-in supplies the token, and `join_room` does exactly what it always did.
+
+    The manual fields stay, and are the declared fallback: a node in a trench with
+    no browser signs in with neither this nor a realm, and taking that away to
+    make a point would break the honest case.
+    """
+
+    bl_idname = "em.room_open_link"
+    bl_label = "Open room from link"
+    bl_description = ("Paste a stratigraph:// handoff link: EMtools reads the "
+                      "server and the room from it, signs you in, and joins — "
+                      "no address, no room name, no token to type")
+
+    link: bpy.props.StringProperty(
+        name="Link", default="",
+        description="stratigraph://open?server=…&room=… (it carries no token)")
+    adopt: bpy.props.BoolProperty(
+        name="Adopt the room's document", default=True,
+        description=("Merge what the room holds into this session (additive — "
+                     "nothing here is replaced)"))
+
+    def invoke(self, context, event):
+        if not self.link:
+            # a link is usually on the clipboard: that is how it arrived
+            try:
+                pasted = str(context.window_manager.clipboard or "").strip()
+            except Exception:  # noqa: BLE001 — no clipboard on some builds
+                pasted = ""
+            if pasted.startswith("stratigraph://"):
+                self.link = pasted
+        return context.window_manager.invoke_props_dialog(self, width=520)
+
+    def execute(self, context):
+        from . import handoff
+
+        try:
+            where = handoff.resolve(self.link)
+        except handoff.HandoffError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        except Exception as exc:  # noqa: BLE001 — the network, the realm
+            self.report({"ERROR"}, f"sign-in did not complete: {exc}")
+            return {"CANCELLED"}
+
+        # …and the panel now SHOWS where we are, so the fallback fields and the
+        # live session never disagree about which room this is
+        context.scene.em_room_url = where["server"]
+        context.scene.em_room_id = where["room"]
+        token = where.get("token") or ""
+        if not token:
+            # a node running open: not an error, but SAID — otherwise a working
+            # laptop is indistinguishable from a token flow that never ran
+            self.report({"INFO"},
+                        f"{where['server']} has no sign-in configured "
+                        f"(running open) — joining without a token")
+        result = join_room(context, where["server"], where["room"], token,
+                           adopt=self.adopt)
+        self.link = ""            # not even in the operator's own memory
+        if not result["ok"]:
+            self.report({"ERROR"}, result["message"])
+            return {"CANCELLED"}
+        self.report({"INFO"}, f"room {result['room']}: {result['message']}")
+        return {"FINISHED"}
+
+
 class EM_OT_sync_toggle(bpy.types.Operator):
     bl_idname = "em.sync_toggle"
     bl_label = "Toggle EMStudio Sync"
@@ -1152,6 +1227,7 @@ def register():
             description="Which room on that server")
     bpy.utils.register_class(EM_OT_sync_toggle)
     bpy.utils.register_class(EM_OT_room_join)
+    bpy.utils.register_class(EM_OT_room_open_link)
     bpy.utils.register_class(EM_OT_server_probe)
     bpy.utils.register_class(EM_OT_server_discover)
     bpy.utils.register_class(EM_OT_server_use)
@@ -1170,6 +1246,7 @@ def unregister():
             bpy.utils.unregister_class(cls)
         except Exception:  # noqa: BLE001 — unregistering must not fail
             pass
+    bpy.utils.unregister_class(EM_OT_room_open_link)
     bpy.utils.unregister_class(EM_OT_room_join)
     bpy.utils.unregister_class(EM_OT_sync_toggle)
     if hasattr(bpy.types.Scene, "em_room_url"):

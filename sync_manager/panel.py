@@ -157,8 +157,18 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
             acts.label(text=f"ws://localhost:{context.scene.em_sync_port} · "
                             f"{ops.client_count()} client(s)", icon="URL")
 
+        # THE LINK FIRST, because it is the way in that needs nothing typed:
+        # `stratigraph://open?server=&room=` carries the place, EMtools signs in
+        # for itself, and the fields below become the fallback rather than the
+        # route. Offered above them deliberately — a panel that showed three
+        # fields first would teach people to fill them.
+        if not status["joined"]:
+            acts.operator("em.room_open_link", text="Open room from link…",
+                          icon="URL")
+
         col = acts.column(align=True)
         col.enabled = not status["joined"]
+        col.label(text="…or by hand:", icon="GREASEPENCIL")
         col.prop(context.scene, "em_room_url", text="Server")
         # WHERE IS IT · a saved list (this installation's, not the .blend's) and
         # a probe. A URL somebody typed is a hope; `/v1/health` makes it a fact,
