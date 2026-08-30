@@ -956,6 +956,53 @@ def join_room(context, base_url: str, room_id: str, token: str,
             "message": note or "joined"}
 
 
+def join_manual(context, base: str, room_id: str, token: str, *,
+                adopt: bool = True, sign_in_with=None) -> dict:
+    """The "…or by hand" door — which now signs in by itself.
+
+    The LAST place a person saw a token. The link door has done its own OIDC for
+    a while (`handoff.sign_in`, loopback + PKCE, stdlib only); this one still
+    asked for a pasted one, so the credential a person had to find, copy and
+    carry existed purely because two doors into the same room were wired
+    differently.
+
+    The rule, and the order matters:
+
+    * a token PASTED wins. It is the declared fallback for a node in a trench
+      with no browser, and signing in over the top of somebody's deliberate
+      paste would be the tool overruling them;
+    * empty + the server has OIDC → sign in, and join with what comes back;
+    * empty + no OIDC → join without one, which is what an open node expects.
+      Reported rather than silent: an open node and a sign-in that never ran
+      are indistinguishable from the outside, and "it worked on my laptop" is
+      what that ambiguity produces.
+
+    Returns `join_room`'s dict plus `signed_in` — how the token was obtained, so
+    the operator can say it and a test can assert it. `sign_in_with` is the seam
+    the suite uses; the default is the real round trip, which needs a browser and
+    a person.
+    """
+    pasted = str(token or "").strip()
+    signed_in = "pasted" if pasted else None
+    if not pasted:
+        from . import handoff
+
+        try:
+            got = (sign_in_with or handoff.sign_in)(base)
+        except Exception as exc:  # noqa: BLE001 — the realm, the network, a timeout
+            return {"ok": False, "signed_in": "failed",
+                    "message": f"sign-in did not complete: {exc}"}
+        if got:
+            pasted, signed_in = got, "signed-in"
+        else:
+            # No OIDC on that node: not an error, and SAID by the caller.
+            signed_in = "open-node"
+
+    result = join_room(context, base, room_id, pasted, adopt=adopt)
+    result["signed_in"] = signed_in
+    return result
+
+
 def leave_room() -> None:
     from . import room as room_cfg
     from .room_session import SESSION
@@ -1061,8 +1108,10 @@ class EM_OT_room_join(bpy.types.Operator):
 
     token: bpy.props.StringProperty(
         name="Token", default="", subtype="PASSWORD",
-        description=("Access token for this room. Kept in memory for this "
-                     "session only — never written to the .blend or to disk"))
+        description=("Leave EMPTY to sign in through your browser — that is the "
+                     "ordinary way now. Fill it in only when this machine has no "
+                     "browser to sign in with. Either way it is kept in memory "
+                     "for this session and never written to the .blend or to disk"))
     adopt: bpy.props.BoolProperty(
         name="Adopt the room's document", default=True,
         description=("Merge what the room holds into this session (additive — "
@@ -1085,11 +1134,20 @@ class EM_OT_room_join(bpy.types.Operator):
         if not base or not room_id:
             self.report({"ERROR"}, "set the room address and id first")
             return {"CANCELLED"}
-        result = join_room(context, base, room_id, self.token, adopt=self.adopt)
+        # An empty token no longer means "no identity": it means "sign me in".
+        # See `join_manual` for why a pasted one still wins.
+        result = join_manual(context, base, room_id, self.token,
+                             adopt=self.adopt)
         self.token = ""          # not even in the operator's own memory
         if not result["ok"]:
             self.report({"ERROR"}, result["message"])
             return {"CANCELLED"}
+        if result.get("signed_in") == "open-node":
+            # said, because an open node and a sign-in that never ran look the
+            # same from here — the same sentence the link door reports
+            self.report({"INFO"},
+                        f"{base} has no sign-in configured (running open) — "
+                        f"joined without a token")
         self.report({"INFO"}, f"room {result['room']}: {result['message']}")
         return {"FINISHED"}
 

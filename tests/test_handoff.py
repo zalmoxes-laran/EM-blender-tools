@@ -363,3 +363,124 @@ def test_the_operator_is_EMIT_only_and_says_so():
 
 
 import re  # noqa: E402 — used by the source checks above
+
+
+# ── 7 · the manual door signs in too ─────────────────────────────────────────
+#
+# The LAST place a person saw a token. The link door has done its own OIDC for a
+# while; this one still asked for a pasted one, so the credential somebody had
+# to find, copy and carry existed purely because two doors into the same room
+# were wired differently.
+#
+# `operators.py` imports `bpy`, so `join_manual` is exercised through the same
+# kind of seam `handoff.resolve` uses: `sign_in_with` for the round trip, and a
+# stand-in for `join_room` (which opens a socket).
+
+def _join_manual(monkeypatch=None, **kwargs):
+    """`join_manual` with `join_room` replaced, since a real join needs a room.
+
+    Loaded by source rather than imported: the module pulls in `bpy` at import
+    time and Blender is not here. What is compiled is the REAL function — the
+    `bpy`-dependent classes below it are simply never referenced.
+    """
+    import types
+
+    source = (_REPO / "sync_manager" / "operators.py").read_text(encoding="utf-8")
+    start = source.index("def join_manual(")
+    end = source.index("def leave_room(")
+    module = types.ModuleType("_join_manual_probe")
+    module.__dict__["handoff"] = handoff
+    calls = {}
+
+    def fake_join_room(context, base, room_id, token, adopt=True):
+        calls["args"] = {"base": base, "room_id": room_id, "token": token,
+                         "adopt": adopt}
+        return {"ok": True, "room": room_id, "message": "joined"}
+
+    module.__dict__["join_room"] = fake_join_room
+    # `from . import handoff` cannot work outside the package: point the import
+    # at the module already loaded above, which is the same file.
+    body = source[start:end].replace("from . import handoff\n", "")
+    exec(compile(body, "operators.py", "exec"), module.__dict__)
+    result = module.join_manual(None, **kwargs)
+    return result, calls.get("args")
+
+
+def test_an_empty_token_signs_in_against_the_server_the_manual_fields_name():
+    asked = []
+    result, passed = _join_manual(
+        base="https://em.example.org", room_id="scavo-cs03", token="",
+        sign_in_with=lambda server: asked.append(server) or "tok-from-oidc")
+    assert result["ok"] and result["signed_in"] == "signed-in"
+    # the sign-in went to the server the FIELDS name, and to nothing else
+    assert asked == ["https://em.example.org"]
+    # …and the token that came back is the one the join used
+    assert passed["token"] == "tok-from-oidc"
+    assert passed["room_id"] == "scavo-cs03"
+
+
+def test_a_pasted_token_WINS_and_no_sign_in_is_attempted():
+    """The declared fallback for a node in a trench with no browser. Signing in
+    over the top of somebody's deliberate paste would be the tool overruling
+    them."""
+    asked = []
+    result, passed = _join_manual(
+        base="https://em.example.org", room_id="r", token="  pasted-tok  ",
+        sign_in_with=lambda server: asked.append(server) or "should-not-be-used")
+    assert asked == []
+    assert result["signed_in"] == "pasted"
+    assert passed["token"] == "pasted-tok"
+
+
+def test_a_node_with_no_oidc_is_joined_without_a_token_and_it_is_REPORTED():
+    """An open node and a sign-in that never ran look the same from outside."""
+    result, passed = _join_manual(base="http://127.0.0.1:8000", room_id="r",
+                                  token="", sign_in_with=lambda _s: None)
+    assert result["ok"] and result["signed_in"] == "open-node"
+    assert passed["token"] == ""
+    operators = (_REPO / "sync_manager" / "operators.py").read_text(encoding="utf-8")
+    assert 'if result.get("signed_in") == "open-node":' in operators
+    assert "running open" in operators
+
+
+def test_a_sign_in_that_fails_refuses_the_join_rather_than_joining_anonymously():
+    def boom(_server):
+        raise handoff.HandoffError("nobody completed the sign-in within 300s")
+
+    result, passed = _join_manual(base="https://em.example.org", room_id="r",
+                                  token="", sign_in_with=boom)
+    assert not result["ok"] and result["signed_in"] == "failed"
+    assert "sign-in did not complete" in result["message"]
+    assert passed is None, "the room was never joined"
+
+
+def test_the_token_property_is_emptied_and_written_nowhere():
+    """Same claim the sign-in makes, at the other door: read out of the source,
+    because the property lives on a `bpy` class."""
+    operators = (_REPO / "sync_manager" / "operators.py").read_text(encoding="utf-8")
+    block = operators[operators.index("class EM_OT_room_join"):
+                      operators.index("class EM_OT_room_open_link")]
+    assert 'self.token = ""' in block
+    for sink in ("json.dump(", ".write_text(", "bpy.types.Scene.em_room_token",
+                 "os.environ["):
+        assert sink not in block, f"{sink} in the manual join"
+
+
+def test_the_token_field_now_reads_as_the_FALLBACK_it_is():
+    """It stays — a node in a trench has no browser — but it no longer asks for
+    something the ordinary path does not need."""
+    operators = (_REPO / "sync_manager" / "operators.py").read_text(encoding="utf-8")
+    block = operators[operators.index("class EM_OT_room_join"):
+                      operators.index("class EM_OT_room_open_link")]
+    assert "Leave EMPTY to sign in through your browser" in block
+    # the description is a wrapped source string, so match a contiguous piece of
+    # it rather than a phrase that spans a line break
+    assert "Fill it in only when this machine has no" in block
+    assert "browser to sign in with" in block
+
+
+def test_no_second_button_appeared_the_door_is_the_same_one():
+    panel = (_REPO / "sync_manager" / "panel.py").read_text(encoding="utf-8")
+    assert panel.count('"em.room_join"') == 1
+    # …and the link is still offered FIRST, so nobody is taught to fill fields
+    assert panel.index('"em.room_open_link"') < panel.index('"em_room_url"')
