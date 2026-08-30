@@ -225,3 +225,61 @@ def resolve(link: str, *, sign_in_with: Optional[Callable[[str], Optional[str]]]
     where = parse(link)
     token = (sign_in_with or sign_in)(where["server"])
     return {"server": where["server"], "room": where["room"], "token": token}
+
+
+# ── emit-only: hand this room to EMStudio ────────────────────────────────────
+#
+# The other direction — RECEIVING a link inside Blender — is deliberately absent
+# and is a job of its own: Blender is not a URL-scheme handler, so it needs a
+# registered launcher or the `ws_server` this addon already exposes. Offering
+# half of it here as if it worked would be the worse half.
+
+def open_targets(base_url: str, room_id: str, *, token: Optional[str] = None,
+                 timeout: float = 10.0) -> Optional[Dict[str, Any]]:
+    """Ask the node how THIS room can be opened — `GET /v1/rooms/{id}/open`.
+
+    The link is asked for and never assembled here: one grammar, on the server,
+    measured against every consumer's copy. `None` when the node cannot be
+    reached or refuses, so the caller can say which of the two happened.
+    """
+    import json
+    import urllib.error
+    import urllib.request
+
+    url = (f"{base_url.rstrip('/')}/v1/rooms/"
+           f"{urllib.parse.quote(str(room_id))}/open")
+    request = urllib.request.Request(url, headers={"Accept": "application/json"})
+    if token:
+        # the token authenticates the QUESTION — a handoff for a room you have no
+        # grant in is refused, because a listing is not a discovery service
+        request.add_header("Authorization", f"Bearer {token}")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as answer:
+            return json.loads(answer.read() or b"{}")
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def emstudio_link(targets: Dict[str, Any]) -> Dict[str, Optional[str]]:
+    """Which door of EMStudio this deployment actually offers.
+
+    The browser one where a web build is hosted, the desktop scheme otherwise —
+    the same rule the room browser follows, and the same reason: no door beats a
+    door that fails after the click. Raises on a link carrying a credential,
+    because forwarding one would end the contract's only property.
+    """
+    card = (targets.get("tools") or {}).get("emstudio") or {}
+    browser = card.get("browser")
+    scheme = card.get("scheme") or targets.get("scheme")
+    link = browser or scheme
+    if link:
+        query = link.split("?", 1)[-1].lower() if "?" in link else ""
+        carried = [k for k in FORBIDDEN
+                   if f"{k}=" in query and (query.startswith(f"{k}=")
+                                            or f"&{k}=" in query)]
+        if carried:
+            raise HandoffError(
+                f"the node offered a link carrying {', '.join(carried)} — a "
+                f"handoff names a place and never a permission. Refusing it.")
+    return {"link": link, "kind": "browser" if browser else "scheme",
+            "web": targets.get("web")}

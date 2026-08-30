@@ -1169,6 +1169,75 @@ class EM_OT_room_open_link(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class EM_OT_room_open_elsewhere(bpy.types.Operator):
+    """Hand THIS room to EMStudio — the round-trip, emit half.
+
+    Not an export and not a transfer: the graph lives in the room, so opening it
+    in EMStudio is another client joining the same room. Whatever is on screen
+    here is already there.
+
+    **Emit-only, and that is a decision rather than an omission.** Receiving a
+    link INSIDE Blender is a job of its own — Blender is not a URL-scheme
+    handler, so it needs a registered launcher or the `ws_server` this addon
+    already exposes — and half of it, offered as if it worked, would be the
+    worse half.
+
+    The link is asked for, never assembled: `GET /v1/rooms/{id}/open`, one
+    grammar on the server. It carries no token; EMStudio signs itself in.
+    """
+
+    bl_idname = "em.room_open_elsewhere"
+    bl_label = "Open room in EMStudio"
+    bl_description = ("Open the SAME room in EMStudio — the graph is the "
+                      "room's, so nothing is transferred and nothing is saved")
+
+    @classmethod
+    def poll(cls, context):
+        from .room_session import SESSION
+        return bool(SESSION.joined)
+
+    def execute(self, context):
+        import webbrowser
+
+        from . import handoff
+        from . import room as room_cfg
+
+        state = room_cfg.room()
+        base, room_id = state.get("base_url"), state.get("room_id")
+        if not base or not room_id:
+            self.report({"ERROR"}, "not in a room: there is nothing to open elsewhere")
+            return {"CANCELLED"}
+
+        targets = handoff.open_targets(base, room_id,
+                                       token=room_cfg._session.get("token"))
+        if targets is None:
+            self.report({"ERROR"},
+                        "could not reach the node to ask how this room opens")
+            return {"CANCELLED"}
+        if targets.get("detail"):
+            self.report({"ERROR"}, str(targets["detail"]))
+            return {"CANCELLED"}
+        try:
+            door = handoff.emstudio_link(targets)
+        except handoff.HandoffError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        if not door["link"]:
+            self.report({"ERROR"},
+                        "this node does not say how to open EMStudio")
+            return {"CANCELLED"}
+
+        # `webbrowser` for BOTH doors: it is what hands a `stratigraph://` URL to
+        # the OS handler as well as an https one to a tab. Blender's own Python
+        # has nothing better, and this keeps the two paths one line.
+        webbrowser.open(door["link"])
+        where = ("EMStudio for the web" if door["kind"] == "browser"
+                 else "EMStudio on this machine")
+        self.report({"INFO"}, f"opening room {room_id} in {where} — "
+                              f"same room, nothing transferred")
+        return {"FINISHED"}
+
+
 class EM_OT_sync_toggle(bpy.types.Operator):
     bl_idname = "em.sync_toggle"
     bl_label = "Toggle EMStudio Sync"
@@ -1228,6 +1297,7 @@ def register():
     bpy.utils.register_class(EM_OT_sync_toggle)
     bpy.utils.register_class(EM_OT_room_join)
     bpy.utils.register_class(EM_OT_room_open_link)
+    bpy.utils.register_class(EM_OT_room_open_elsewhere)
     bpy.utils.register_class(EM_OT_server_probe)
     bpy.utils.register_class(EM_OT_server_discover)
     bpy.utils.register_class(EM_OT_server_use)
@@ -1246,6 +1316,7 @@ def unregister():
             bpy.utils.unregister_class(cls)
         except Exception:  # noqa: BLE001 — unregistering must not fail
             pass
+    bpy.utils.unregister_class(EM_OT_room_open_elsewhere)
     bpy.utils.unregister_class(EM_OT_room_open_link)
     bpy.utils.unregister_class(EM_OT_room_join)
     bpy.utils.unregister_class(EM_OT_sync_toggle)

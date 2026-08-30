@@ -305,3 +305,61 @@ def test_a_LINK_joins_a_real_room_with_no_server_host_typed():
 
 
 import urllib.parse  # noqa: E402  — used by the live test above
+
+
+# ── 6 · the round-trip, emit half ────────────────────────────────────────────
+
+def test_the_browser_door_wins_where_a_web_build_is_hosted():
+    targets = {"scheme": "stratigraph://open?room=r",
+               "web": "https://em.example.org/open?room=r",
+               "tools": {"emstudio": {
+                   "scheme": "stratigraph://open?room=r",
+                   "browser": "http://localhost:5177/?room=r"}}}
+    door = handoff.emstudio_link(targets)
+    assert door == {"link": "http://localhost:5177/?room=r", "kind": "browser",
+                    "web": "https://em.example.org/open?room=r"}
+
+
+def test_the_desktop_scheme_is_the_door_when_no_web_build_is_hosted():
+    targets = {"scheme": "stratigraph://open?room=r",
+               "tools": {"emstudio": {"scheme": "stratigraph://open?room=r"}}}
+    assert handoff.emstudio_link(targets)["kind"] == "scheme"
+
+
+def test_a_link_carrying_a_credential_is_refused_rather_than_forwarded():
+    """Forwarding one would end the contract's only property."""
+    with pytest.raises(handoff.HandoffError) as exc:
+        handoff.emstudio_link({"tools": {"emstudio": {
+            "browser": "http://localhost:5177/?room=r&token=abc"}}})
+    assert "token" in str(exc.value) and "never a permission" in str(exc.value)
+
+
+def test_no_door_at_all_beats_a_door_that_fails_after_the_click():
+    assert handoff.emstudio_link({"tools": {}})["link"] is None
+
+
+def test_the_link_is_ASKED_FOR_never_assembled_here():
+    source = (_REPO / "sync_manager" / "handoff.py").read_text(encoding="utf-8")
+    emit = source[source.index("def open_targets"):]
+    code = re.sub(r'"""[\s\S]*?"""|#.*', "", emit)
+    assert "stratigraph://" not in code, "the emit half writes no scheme of its own"
+    assert "/v1/rooms/" in code and "/open" in code, "it asks the handoff endpoint"
+
+
+def test_the_operator_is_EMIT_only_and_says_so():
+    """Receiving a link inside Blender is a job of its own — Blender is not a
+    URL-scheme handler. Half of it, offered as if it worked, would be the worse
+    half."""
+    source = (_REPO / "sync_manager" / "operators.py").read_text(encoding="utf-8")
+    block = source[source.index("class EM_OT_room_open_elsewhere"):
+                   source.index("class EM_OT_sync_toggle")]
+    assert "Emit-only" in block
+    assert "webbrowser.open(door[\"link\"])" in block
+    # …and it is offered only while joined: off a room it would open nothing
+    assert "return bool(SESSION.joined)" in block
+    panel = (_REPO / "sync_manager" / "panel.py").read_text(encoding="utf-8")
+    assert 'if status["joined"]:' in panel
+    assert '"em.room_open_elsewhere"' in panel
+
+
+import re  # noqa: E402 — used by the source checks above

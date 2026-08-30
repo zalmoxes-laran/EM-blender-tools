@@ -195,6 +195,11 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
             text="Leave the room" if status["joined"] else "Join a room (Hub)…",
             icon="UNLINKED" if status["joined"] else "LINKED",
             depress=status["joined"])
+        # ROUND-TRIP (emit-only): the same room, in EMStudio. Only while joined —
+        # off a room it would open nothing.
+        if status["joined"]:
+            acts.operator("em.room_open_elsewhere",
+                          text="Open room in EMStudio", icon="WINDOW")
         if status.get("error"):
             acts.label(text=str(status["error"])[:60], icon="ERROR")
 
