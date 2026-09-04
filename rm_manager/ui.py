@@ -564,6 +564,24 @@ class VIEW3D_PT_RM_Manager(Panel):
             scene, "rm_list",
             scene, "rm_list_index"
         )
+
+        # RM objects that no container holds are filtered out of the list
+        # above but are still exported with their epochs: say so, instead
+        # of letting a hidden epoch attribution reach the Heriverse JSON.
+        try:
+            from .containers import find_container_for_mesh
+            orphans = [item.name for item in scene.rm_list
+                       if find_container_for_mesh(scene, item.name) is None]
+        except Exception:
+            orphans = []
+        if orphans:
+            box = layout.box()
+            row = box.row(align=True)
+            row.alert = True
+            row.label(
+                text=f"{len(orphans)} RM outside containers (hidden, still exported)",
+                icon='ERROR')
+            row.operator("rm.select_container_orphans", text="", icon='RESTRICT_SELECT_OFF')
         
         # List of associated epochs only if an RM is selected
         if scene.rm_list_index >= 0 and len(scene.rm_list) > 0:
