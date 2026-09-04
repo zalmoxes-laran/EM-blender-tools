@@ -16,11 +16,14 @@ from s3dgraphy.nodes.representation_node import RepresentationModelNode
 
 # ✅ OPTIMIZED: Import object cache for O(1) lookups
 from ..object_cache import get_object_cache
+from .epoch_edges import (iter_epoch_edges, epoch_names_for_model,
+                          remove_epoch_edges, sync_epoch_edges)
 
 __all__ = [
     'RM_OT_detect_orphaned_epochs',
     'RM_OT_fix_orphaned_epoch',
     'RM_OT_select_orphaned_objects',
+    'RM_OT_select_container_orphans',
     'RM_OT_set_active_epoch',
     'RM_OT_select_all_from_active_epoch',
     'RM_OT_select_from_object',
@@ -557,6 +560,44 @@ class RM_OT_select_orphaned_objects(Operator):
                 break
 
         self.report({'INFO'}, f"Selected {selected_count} object(s) with orphaned epoch '{self.orphaned_epoch_name}'")
+        return {'FINISHED'}
+
+
+class RM_OT_select_container_orphans(Operator):
+    """Select the RM objects that no container holds.
+
+    The mesh list is filtered by the active container, so an RM object
+    that belongs to no container is invisible in the panel while its
+    epochs are still exported to Heriverse.  This selects them so the
+    hidden attribution can be inspected and fixed.
+    """
+    bl_idname = "rm.select_container_orphans"
+    bl_label = "Select RM Objects Outside Containers"
+    bl_description = ("Select the RM objects that belong to no container: "
+                      "they are hidden from the list but still exported")
+
+    def execute(self, context):
+        from .containers import find_container_for_mesh
+
+        names = [item.name for item in context.scene.rm_list
+                 if find_container_for_mesh(context.scene, item.name) is None]
+
+        bpy.ops.object.select_all(action='DESELECT')
+        selected = 0
+        for name in names:
+            obj = bpy.data.objects.get(name)
+            if obj is None:
+                continue
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+            selected += 1
+
+        if selected:
+            self.report({'INFO'},
+                        f"Selected {selected} RM object(s) outside containers: "
+                        f"{', '.join(names)}")
+        else:
+            self.report({'INFO'}, "Every RM object belongs to a container")
         return {'FINISHED'}
 
 
@@ -1240,18 +1281,16 @@ class RM_OT_update_list(Operator):
                         # Imposta la pubblicabilità 
                         new_item.is_publishable = node.attributes.get('is_publishable', True)
                         
-                        # Trova le epoche associate
+                        # Trova le epoche associate (edge in una direzione
+                        # qualsiasi: sono scritti epoca -> modello)
                         associated_epochs = []
-                        for edge in graph.edges:
-                            if edge.edge_source == node.node_id and edge.edge_type in ["has_first_epoch", "has_representation_model", "survive_in_epoch"]:
-                                epoch_node = graph.find_node_by_id(edge.edge_target)
-                                if epoch_node and epoch_node.node_type == "EpochNode":
-                                    associated_epochs.append({
-                                        "name": epoch_node.name,
-                                        "node": epoch_node,
-                                        "start_time": getattr(epoch_node, 'start_time', float('inf')),
-                                        "edge_type": edge.edge_type
-                                    })
+                        for edge, epoch_node in iter_epoch_edges(graph, node.node_id):
+                            associated_epochs.append({
+                                "name": epoch_node.name,
+                                "node": epoch_node,
+                                "start_time": getattr(epoch_node, 'start_time', float('inf')),
+                                "edge_type": edge.edge_type
+                            })
                         
                         # Ordina le epoche
                         associated_epochs.sort(key=lambda x: x['start_time'])
@@ -1699,35 +1738,9 @@ class RM_OT_resolve_mismatches(Operator):
                     model_node = graph.find_node_by_id(model_node_id)
                     
                     if model_node:
-                        # Rimuovi tutti gli edge esistenti
-                        edges_to_remove = []
-                        for edge in graph.edges:
-                            if edge.edge_source == model_node_id and edge.edge_type == "has_representation_model":
-                                edges_to_remove.append(edge.edge_id)
-                        
-                        # Rimuovi gli edge
-                        for edge_id in edges_to_remove:
-                            graph.remove_edge(edge_id)
-                        
-                        # Aggiungi i nuovi edge
-                        for epoch_name in obj_epochs:
-                            epoch_node = None
-                            for node in graph.nodes:
-                                if node.node_type == "EpochNode" and node.name == epoch_name:
-                                    epoch_node = node
-                                    break
-                            
-                            if epoch_node:
-                                edge_id = f"{epoch_node.node_id}_has_representation_model_{model_node_id}"
-                                if not graph.find_edge_by_id(edge_id):
-                                    graph.add_edge(
-                                        edge_id=edge_id,
-                                        #edge_source=model_node_id,
-                                        #edge_target=epoch_node.node_id,
-                                        edge_source=epoch_node.node_id,
-                                        edge_target=model_node_id,
-                                        edge_type="has_representation_model"
-                                    )
+                        # Il grafo rispecchia le epoche dell'oggetto:
+                        # aggiunge quelle nuove e toglie quelle staccate
+                        sync_epoch_edges(graph, model_node_id, obj_epochs)
                 
                 # Marca come risolto
                 item.epoch_mismatch = False
@@ -1892,14 +1905,13 @@ class RM_OT_promote_to_rm(Operator):
                 try:
                     model_node_id = f"{obj.name}_model"
                     
-                    # Rimuovi vecchi edge
-                    edges_to_remove = []
-                    for edge in graph.edges:
-                        if edge.edge_source == model_node_id and edge.edge_type in ["has_first_epoch", "has_representation_model", "survive_in_epoch"]:
-                            edges_to_remove.append(edge.edge_id)
-                    
-                    for edge_id in edges_to_remove:
-                        graph.remove_edge(edge_id)
+                    # Rimuovi vecchi edge (in qualsiasi direzione); qui si
+                    # riscrivono solo first/survive, mentre gli edge
+                    # has_representation_model li rispecchia sync_epoch_edges
+                    remove_epoch_edges(graph, model_node_id,
+                                       edge_types=("has_first_epoch",
+                                                   "survive_in_epoch"))
+                    sync_epoch_edges(graph, model_node_id, sorted_epochs)
                     
                     # Aggiungi nuovi edge
                     for i, epoch_name in enumerate(sorted_epochs):
@@ -2055,16 +2067,7 @@ class RM_OT_remove_epoch_from_rm_list(Operator):
                 model_node_id = f"{obj.name}_model"
                 
                 # Rimuovi gli edge per quest'epoch
-                edges_to_remove = []
-                for edge in graph.edges:
-                    if (edge.edge_source == model_node_id and 
-                        edge.edge_type in ["has_first_epoch", "has_representation_model", "survive_in_epoch"]):
-                        epoch_node = graph.find_node_by_id(edge.edge_target)
-                        if epoch_node and epoch_node.name == epoch_name:
-                            edges_to_remove.append(edge.edge_id)
-                
-                for edge_id in edges_to_remove:
-                    graph.remove_edge(edge_id)
+                remove_epoch_edges(graph, model_node_id, [epoch_name])
             except Exception as e:
                 print(f"Warning: Could not update graph: {e}")
         
@@ -2168,16 +2171,7 @@ class RM_OT_remove_epoch_from_selected(Operator):
                     model_node_id = f"{obj.name}_model"
 
                     # Rimuovi gli edge per quest'epoch
-                    edges_to_remove = []
-                    for edge in graph.edges:
-                        if (edge.edge_source == model_node_id and
-                            edge.edge_type in ["has_first_epoch", "has_representation_model", "survive_in_epoch"]):
-                            epoch_node = graph.find_node_by_id(edge.edge_target)
-                            if epoch_node and epoch_node.name == active_epoch.name:
-                                edges_to_remove.append(edge.edge_id)
-
-                    for edge_id in edges_to_remove:
-                        graph.remove_edge(edge_id)
+                    remove_epoch_edges(graph, model_node_id, [active_epoch.name])
                 except Exception as e:
                     print(f"Warning: Could not update graph: {e}")
 
@@ -2296,16 +2290,7 @@ class RM_OT_remove_epoch(Operator):
                     model_node_id = f"{obj.name}_model"
                     
                     # Rimuovi gli edge per quest'epoch
-                    edges_to_remove = []
-                    for edge in graph.edges:
-                        if (edge.edge_source == model_node_id and 
-                            edge.edge_type in ["has_first_epoch", "has_representation_model", "survive_in_epoch"]):
-                            epoch_node = graph.find_node_by_id(edge.edge_target)
-                            if epoch_node and epoch_node.name == self.epoch_name:
-                                edges_to_remove.append(edge.edge_id)
-                    
-                    for edge_id in edges_to_remove:
-                        graph.remove_edge(edge_id)
+                    remove_epoch_edges(graph, model_node_id, [self.epoch_name])
                 except Exception as e:
                     print(f"Warning: Could not update graph: {e}")
             
@@ -2379,18 +2364,7 @@ class RM_OT_remove_from_epoch(Operator):
             
             if rm_node:
                 # Trova e rimuovi gli edge con l'epoca attiva
-                edges_to_remove = []
-                for edge in graph.edges:
-                    if (edge.edge_source == model_node_id and 
-                        edge.edge_type in ["has_first_epoch", "has_representation_model", "survive_in_epoch"]):
-                        # Trova il nodo dell'epoca
-                        epoch_node = graph.find_node_by_id(edge.edge_target)
-                        if epoch_node and epoch_node.name == active_epoch.name:
-                            edges_to_remove.append(edge.edge_id)
-                
-                # Rimuovi gli edge
-                for edge_id in edges_to_remove:
-                    graph.remove_edge(edge_id)
+                remove_epoch_edges(graph, model_node_id, [active_epoch.name])
         
         # Aggiorna la lista RM
         # Rimuovi l'epoch dalla lista delle epoche dell'item
@@ -2889,6 +2863,7 @@ classes = [
     RM_OT_apply_epoch_mapping,
     RM_OT_fix_orphaned_epoch,
     RM_OT_select_orphaned_objects,
+    RM_OT_select_container_orphans,
     RM_OT_set_active_epoch,
     RM_OT_select_all_from_active_epoch,
     RM_OT_select_from_object,

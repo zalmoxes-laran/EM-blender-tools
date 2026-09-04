@@ -4,6 +4,7 @@ from s3dgraphy.nodes.semantic_shape_node import SemanticShapeNode
 from s3dgraphy.nodes.representation_node import RepresentationModelNode, RepresentationModelDocNode
 from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
 from s3dgraphy.nodes.document_node import DocumentNode
+from .rm_manager.epoch_edges import sync_epoch_edges
 import os
 import uuid
 import math
@@ -157,14 +158,35 @@ def update_representation_models(graph):
         if hasattr(node, 'name'):
             epoch_nodes_by_name[node.name] = node
 
+    # Publishable flag per oggetto, come lo leggono i loop di export dei
+    # modelli (default True quando l'oggetto non è nella rm_list).
+    publishable_by_name = {}
+    scene = bpy.context.scene
+    if hasattr(scene, "rm_list"):
+        for rm_item in scene.rm_list:
+            publishable_by_name[rm_item.name] = rm_item.is_publishable
+
     nodes_added = 0
     edges_added = 0
+    edges_removed = 0
 
     for obj in objects_to_check:
         print(f'Object RM is {obj.name}')
         #model_node_id = str(uuid.uuid4())#f"{obj.name}_model"
         model_node_id = f"{obj.name}_model"
         model_node = graph.find_node_by_id(model_node_id)
+
+        # Un oggetto non pubblicabile non viene esportato come file: se il
+        # grafo lo attribuisse comunque a delle epoche, il JSON dichiarerebbe
+        # un modello che non esiste sul disco (era il caso della mesh
+        # sostituita da un tileset). Niente nodo nuovo, e le attribuzioni
+        # eventualmente rimaste vengono tolte.
+        if not publishable_by_name.get(obj.name, True):
+            print(f"  '{obj.name}' is not publishable: skipping (and clearing epochs)")
+            if model_node:
+                model_node.attributes['is_publishable'] = False
+                edges_removed += sync_epoch_edges(graph, model_node_id, [])[1]
+            continue
         
         # Determina il tipo di URL e il tipo di rappresentazione
         if "tileset_path" in obj:
@@ -196,29 +218,24 @@ def update_representation_models(graph):
             graph.add_node(model_node)
             nodes_added += 1
         
-        # Gestisci le epoche usando pre-built lookup dict
-        for ep in obj.EM_ep_belong_ob:
-            if ep.epoch != "no_epoch":
-                # ✅ OPTIMIZATION: O(1) dict lookup instead of O(n) iteration
-                epoch_node = epoch_nodes_by_name.get(ep.epoch)
+        # Gestisci le epoche: il grafo deve RISPECCHIARE la scena, non solo
+        # accumulare. Un'epoca staccata dall'oggetto in Blender lasciava
+        # l'edge nel grafo e il modello continuava a comparire sotto
+        # quell'epoca nel JSON esportato.
+        scene_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob
+                        if ep.epoch and ep.epoch != "no_epoch"]
 
-                if epoch_node:
-                    edge_id = f"{epoch_node.node_id}_has_representation_model_{model_node_id}"
-                    if not graph.find_edge_by_id(edge_id):
-                        graph.add_edge(
-                            edge_id=edge_id,
-                            #edge_source=model_node_id,
-                            #edge_target=epoch_node.node_id,
-                            edge_source=epoch_node.node_id,
-                            edge_target=model_node_id,
-                            edge_type="has_representation_model"
-                        )
-                        edges_added += 1
-                else:
-                    print(f"Warning: No epoch node found for {ep.epoch}")
-    
+        for name in scene_epochs:
+            if name not in epoch_nodes_by_name:
+                print(f"Warning: No epoch node found for {name}")
+
+        added, removed = sync_epoch_edges(graph, model_node_id, scene_epochs)
+        edges_added += added
+        edges_removed += removed
+
     print(f"Added {nodes_added} representation model nodes")
-    print(f"Added {edges_added} representation model edges")
+    print(f"Added {edges_added} representation model edges, "
+          f"removed {edges_removed} stale ones")
 
 
 def update_representation_model_docs(graph):
