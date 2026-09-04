@@ -468,6 +468,18 @@ class EXPORT_OT_heriverse(Operator):
         
         return exported_count + skipped_count
 
+    # Name of the panorama used as project-wide default (defaults.panorama)
+    DEFAULT_PANORAMA_NAME = "defsky.jpg"
+
+    def _addon_root(self):
+        """Absolute path of the addon root.
+
+        This file lives in <addon>/export_operators/heriverse/, so the root is
+        three levels up: with only two the search fell inside export_operators/
+        and never found resources/panorama/defsky.jpg.
+        """
+        return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
     # Miglioramento della funzione export_panorama
     def export_panorama(self, context, project_path):
         """Export default panorama (defsky.jpg) to the project"""
@@ -482,15 +494,16 @@ class EXPORT_OT_heriverse(Operator):
             os.makedirs(panorama_path, exist_ok=True)
             
             # Get addon path to find resources
-            addon_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            addon_path = self._addon_root()
             resources_path = os.path.join(addon_path, "resources")
-            
+
             # Cerca in diversi percorsi possibili per trovare defsky.jpg
+            name = self.DEFAULT_PANORAMA_NAME
             possible_paths = [
-                os.path.join(resources_path, "panorama", "defsky.jpg"),
-                os.path.join(resources_path, "defsky.jpg"),
-                os.path.join(addon_path, "panorama", "defsky.jpg"),
-                os.path.join(addon_path, "defsky.jpg")
+                os.path.join(resources_path, "panorama", name),
+                os.path.join(resources_path, name),
+                os.path.join(addon_path, "panorama", name),
+                os.path.join(addon_path, name)
             ]
             
             source_file = None
@@ -505,14 +518,14 @@ class EXPORT_OT_heriverse(Operator):
                 
                 # Crea un'immagine vuota
                 img = bpy.data.images.new("defsky", 1024, 512)
-                img.filepath = os.path.join(panorama_path, "defsky.jpg")
+                img.filepath = os.path.join(panorama_path, self.DEFAULT_PANORAMA_NAME)
                 img.file_format = 'JPEG'
                 img.save()
                 
                 return True
                 
             # Copy the file
-            dest_file = os.path.join(panorama_path, "defsky.jpg")
+            dest_file = os.path.join(panorama_path, self.DEFAULT_PANORAMA_NAME)
             shutil.copy2(source_file, dest_file)
             em_log(f"Copied default panorama from {source_file} to {dest_file}", "DEBUG")
             return True
@@ -534,15 +547,19 @@ class EXPORT_OT_heriverse(Operator):
         os.makedirs(panorama_dir, exist_ok=True)
 
         epoch_pano_map = {}
+        # Destination names already taken inside the panorama folder.  The
+        # default panorama is reserved up front so an epoch HDR that happens
+        # to be called defsky.jpg cannot overwrite it.
+        claimed = {self.DEFAULT_PANORAMA_NAME: None}
         for epoch in epochs:
             if not epoch.epoch_lighting_enabled or not epoch.epoch_hdr_path:
                 continue
-            abs_path = bpy.path.abspath(epoch.epoch_hdr_path)
+            abs_path = os.path.normpath(bpy.path.abspath(epoch.epoch_hdr_path))
             if not os.path.isfile(abs_path):
                 self.report({'WARNING'},
                             f"Epoch '{epoch.name}': HDR file not found, skipping: {abs_path}")
                 continue
-            filename = os.path.basename(abs_path)
+            filename = self._claim_panorama_filename(claimed, abs_path)
             dest = os.path.join(panorama_dir, filename)
             if not os.path.isfile(dest) or not os.path.samefile(abs_path, dest):
                 shutil.copy2(abs_path, dest)
@@ -550,16 +567,39 @@ class EXPORT_OT_heriverse(Operator):
             epoch_pano_map[epoch.name] = f"panorama/{filename}"
         return epoch_pano_map
 
-    def update_json_with_epoch_lighting(self, json_data, context):
+    def _claim_panorama_filename(self, claimed, abs_path):
+        """Return a free filename for abs_path inside the panorama folder.
+
+        Two epochs can point to different HDR files sharing the same basename
+        (or to a file named like the default panorama): the second one gets a
+        numbered suffix instead of silently overwriting the first.  The same
+        source file reused by several epochs keeps a single copy.
+        """
+        filename = os.path.basename(abs_path)
+        stem, ext = os.path.splitext(filename)
+        candidate = filename
+        index = 1
+        while candidate in claimed and claimed[candidate] != abs_path:
+            index += 1
+            candidate = f"{stem}_{index}{ext}"
+        claimed[candidate] = abs_path
+        return candidate
+
+    def update_json_with_epoch_lighting(self, json_data, context, epoch_pano_map=None):
         """Inject per-epoch panorama/lighting data into the exported JSON.
 
         For each epoch node in the JSON that has custom lighting configured in
         Blender, adds panorama, panorama_rotation, and panorama_intensity
         to its data dict.  Epochs without custom lighting are left untouched
         (the consumer falls back to defaults.panorama).
+
+        The paths come from epoch_pano_map, the map returned by
+        export_epoch_panoramas: it is the only place that knows which file was
+        actually written, including when a name had to be de-duplicated.
         """
         scene = context.scene
         epochs_bl = scene.em_tools.epochs.list
+        epoch_pano_map = epoch_pano_map or {}
 
         # Build lookup: epoch name -> Blender epoch item
         bl_lookup = {ep.name: ep for ep in epochs_bl}
@@ -576,16 +616,12 @@ class EXPORT_OT_heriverse(Operator):
                 bl_epoch = bl_lookup.get(node_name)
                 if bl_epoch is None:
                     continue
-                if not bl_epoch.epoch_lighting_enabled or not bl_epoch.epoch_hdr_path:
+                rel_path = epoch_pano_map.get(node_name)
+                if not rel_path:
                     continue
-                # Resolve relative path for the JSON
-                abs_path = bpy.path.abspath(bl_epoch.epoch_hdr_path)
-                if not os.path.isfile(abs_path):
-                    continue
-                filename = os.path.basename(abs_path)
                 if 'data' not in node_data:
                     node_data['data'] = {}
-                node_data['data']['panorama'] = f"panorama/{filename}"
+                node_data['data']['panorama'] = rel_path
                 node_data['data']['panorama_rotation'] = bl_epoch.epoch_hdr_rotation
                 node_data['data']['panorama_intensity'] = bl_epoch.epoch_hdr_intensity
 
@@ -2061,7 +2097,8 @@ class EXPORT_OT_heriverse(Operator):
                             needs_rewrite = True
 
                         # Inject per-epoch panorama/lighting data
-                        json_data = self.update_json_with_epoch_lighting(json_data, context)
+                        json_data = self.update_json_with_epoch_lighting(
+                            json_data, context, epoch_pano_map)
                         needs_rewrite = True
 
                         if needs_rewrite:
