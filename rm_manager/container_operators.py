@@ -15,6 +15,8 @@ Exposes:
 - :class:`RMCONTAINER_OT_unregister` — drop a container and every
   ``has_representation_model`` edge it implied. Document stays.
 - :class:`RMCONTAINER_OT_sync` — run the sanitisation pass.
+- :class:`RMCONTAINER_OT_assign_unassigned` — adopt container-less
+  RMs (which the UIList filter hides) into a container.
 - :class:`RMCONTAINER_OT_acknowledge_warnings` — clear the warnings.
 """
 
@@ -32,6 +34,8 @@ from .containers import (
     is_rm_candidate,
     remove_mesh_from_container,
     sync_rm_containers,
+    unassigned_rm_names,
+    UNASSIGNED_CONTAINER_LABEL,
     unregister_container,
 )
 
@@ -875,6 +879,79 @@ class RMCONTAINER_OT_bootstrap_legacy(Operator):
         return {'FINISHED'}
 
 
+class RMCONTAINER_OT_assign_unassigned(Operator):
+    """Adopt every container-less RM into a container so it becomes
+    visible (and therefore editable) again.
+
+    An RM that is in ``rm_list`` but in no container has no row in
+    ``RM_UL_List`` — the filter is strict — so its epochs, tileset
+    path and publish flag are unreachable. This is the repair path
+    for files that already contain such orphans.
+    """
+    bl_idname = "rmcontainer.assign_unassigned"
+    bl_label = "Assign unassigned RMs"
+    bl_description = (
+        "Add every Representation Model that belongs to no container "
+        "to the active container, so it shows up in the list again "
+        "and its epochs and tileset path can be edited. With no "
+        "active container, an 'Unassigned RMs' container is created."
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return len(unassigned_rm_names(context.scene)) > 0
+
+    def execute(self, context):
+        scene = context.scene
+        orphans = unassigned_rm_names(scene)
+        if not orphans:
+            self.report({'INFO'}, "No unassigned RMs")
+            return {'CANCELLED'}
+
+        container = active_container(scene)
+        created = False
+        if container is None:
+            container = scene.rm_containers.add()
+            container.label = UNASSIGNED_CONTAINER_LABEL
+            container.doc_node_id = ""
+            container.doc_name = ""
+            scene.rm_containers_index = len(scene.rm_containers) - 1
+            created = True
+
+        added = 0
+        skipped = []
+        for name in orphans:
+            obj = bpy.data.objects.get(name)
+            if obj is None:
+                continue
+            ok, reason = add_mesh_to_container(context, container, obj)
+            if ok:
+                added += 1
+            elif reason:
+                skipped.append(reason)
+
+        for s in skipped[:5]:
+            self.report({'WARNING'}, s)
+        if len(skipped) > 5:
+            self.report({'WARNING'},
+                        f"... and {len(skipped) - 5} more skipped")
+
+        # Put the first adopted RM under the cursor so the per-row
+        # editors (epochs, tileset path) are immediately usable.
+        if added:
+            for i, rm in enumerate(scene.rm_list):
+                if rm.name == orphans[0]:
+                    scene.rm_list_index = i
+                    break
+
+        self.report(
+            {'INFO'},
+            f"Assigned {added} RM(s) to "
+            f"{'new container ' if created else ''}{container.label!r}")
+        return {'FINISHED'}
+
+
 class RMCONTAINER_OT_acknowledge_warnings(Operator):
     """Clear the RM container warnings list after the user has read
     them.
@@ -903,6 +980,7 @@ _CONTAINER_OPS = (
     RMCONTAINER_OT_unregister,
     RMCONTAINER_OT_sync,
     RMCONTAINER_OT_bootstrap_legacy,
+    RMCONTAINER_OT_assign_unassigned,
     RMCONTAINER_OT_acknowledge_warnings,
 )
 
