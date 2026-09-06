@@ -399,6 +399,33 @@ class VIEW3D_PT_RM_Manager(Panel):
             boot_row.operator("rmcontainer.bootstrap_legacy",
                               text="Bootstrap", icon='PACKAGE')
 
+        # Unassigned-RM banner — an RM in no container has no row in
+        # RM_UL_List (the filter is strict), so its epochs and tileset
+        # path are unreachable. Offer the one-click repair.
+        if len(scene.rm_containers) > 0:
+            try:
+                from .containers import unassigned_rm_names
+                _orphans = unassigned_rm_names(scene)
+            except Exception:
+                _orphans = []
+            if _orphans:
+                orph_box = layout.box()
+                orph_box.alert = True
+                orow = orph_box.row(align=True)
+                orow.label(
+                    text=f"{len(_orphans)} RM(s) in no container — hidden "
+                         f"from the list below",
+                    icon='ERROR')
+                orow.operator("rmcontainer.assign_unassigned",
+                              text="Assign", icon='PACKAGE')
+                ocol = orph_box.column(align=True)
+                ocol.scale_y = 0.8
+                for _n in _orphans[:6]:
+                    ocol.label(text=f"  \u2022 {_n}", icon='DOT')
+                if len(_orphans) > 6:
+                    ocol.label(
+                        text=f"  \u2022 ... and {len(_orphans) - 6} more")
+
         # Warnings banner (orphan meshes removed by the sync pass).
         if len(scene.rm_container_warnings) > 0:
             warn_box = layout.box()

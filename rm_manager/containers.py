@@ -35,6 +35,7 @@ import bpy  # type: ignore
 
 
 LEGACY_CONTAINER_LABEL = "Legacy RMs"
+UNASSIGNED_CONTAINER_LABEL = "Unassigned RMs"
 
 
 def is_rm_candidate(obj) -> bool:
@@ -379,3 +380,50 @@ def mesh_names_of_active_container(scene) -> List[str]:
     if ac is None:
         return []
     return [entry.name for entry in ac.mesh_names]
+
+
+def _lod_base_name(name: str) -> str:
+    """LOD-stripped form of ``name`` (``Foo_LOD2`` → ``Foo``).
+
+    Mirrors ``ui._base_name`` so orphan detection matches the very
+    comparison the UIList filter performs. Imported lazily to keep
+    this module free of import cycles with ``operators``.
+    """
+    try:
+        from .operators import _split_lod_name
+        base, _ = _split_lod_name(name or "")
+        return base or name
+    except Exception:
+        return name
+
+
+def unassigned_rm_names(scene) -> List[str]:
+    """Return the names of ``rm_list`` entries that belong to no
+    container — the RMs the UI cannot reach.
+
+    ``RM_UL_List`` filters strictly by the active container's
+    ``mesh_names``, and every per-row editor (epoch sub-list, tileset
+    path, publish flag) keys off ``scene.rm_list_index``. An RM in no
+    container therefore has no selectable row: it cannot be edited,
+    re-assigned to another epoch, or even inspected.
+
+    Orphans appear when an object joins ``rm_list`` outside the
+    container flow (e.g. a Cesium tileset added by ``rm.add_tileset``
+    before EM 1.5.x) or when the container that held it was
+    unregistered. Only reported once at least one container exists —
+    with zero containers the filter falls back to showing everything
+    and the Legacy bootstrap is the right answer instead.
+    """
+    if not scene.rm_containers:
+        return []
+    assigned = set()
+    for container in scene.rm_containers:
+        for entry in container.mesh_names:
+            assigned.add(_lod_base_name(entry.name))
+    orphans = []
+    for rm in scene.rm_list:
+        if not rm.name or rm.name not in bpy.data.objects:
+            continue
+        if _lod_base_name(rm.name) not in assigned:
+            orphans.append(rm.name)
+    return orphans

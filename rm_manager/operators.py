@@ -917,13 +917,37 @@ class RM_OT_add_tileset(Operator):
                             edge_type="has_first_epoch"
                         )
         
+        # Container auto-attach — same invariant the promote path
+        # enforces: an rm_list entry must live in a container, else
+        # RM_UL_List (which filters strictly by the active container)
+        # never draws a row for it and the tileset path / epoch
+        # editors below become unreachable.
+        from .containers import (
+            active_container,
+            add_mesh_to_container,
+            find_container_for_mesh,
+        )
+        attached_to = ""
+        ac = active_container(scene)
+        if ac is not None and find_container_for_mesh(scene, obj.name) is None:
+            ok, reason = add_mesh_to_container(context, ac, obj)
+            if ok:
+                attached_to = ac.label
+            elif reason:
+                self.report({'WARNING'}, reason)
+
         # Find and select the item in the RM list
         for i, item in enumerate(scene.rm_list):
             if item.name == obj.name:
                 scene.rm_list_index = i
                 break
-        
-        self.report({'INFO'}, f"Added tileset '{obj.name}' to epoch '{active_epoch.name}'")
+
+        if attached_to:
+            self.report({'INFO'},
+                        f"Added tileset '{obj.name}' to epoch "
+                        f"'{active_epoch.name}' (container {attached_to!r})")
+        else:
+            self.report({'INFO'}, f"Added tileset '{obj.name}' to epoch '{active_epoch.name}'")
         return {'FINISHED'}
 
 class RM_OT_set_tileset_path(Operator, ImportHelper):
