@@ -187,6 +187,18 @@ class RMContainerItem(PropertyGroup):
         name="Active Mesh Index",
         default=0,
     )  # type: ignore
+    group_node_id: StringProperty(
+        name="Group Node ID",
+        description=(
+            "node_id of the RepresentationModelNodeGroup this container "
+            "projects into the graph (EM16-RMNG). Empty until the projection "
+            "is created — which happens on an explicit user action, never on "
+            "load. The group SITS BESIDE the existing edges: every member "
+            "keeps its own epoch edges and the Document keeps its direct "
+            "edges to each model"
+        ),
+        default="",
+    )  # type: ignore
 
 
 class RMContainerWarning(PropertyGroup):

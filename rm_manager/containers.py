@@ -34,6 +34,11 @@ from typing import List, Optional, Tuple
 import bpy  # type: ignore
 
 
+# EM16-RMNG: la proiezione del container nel grafo. In un modulo suo e senza
+# `bpy` — la stessa ragione che `epoch_edges.py` dà per sé: così la logica sul
+# grafo si misura fuori da Blender.
+from . import group_nodes as _gn
+
 LEGACY_CONTAINER_LABEL = "Legacy RMs"
 UNASSIGNED_CONTAINER_LABEL = "Unassigned RMs"
 
@@ -225,6 +230,14 @@ def add_mesh_to_container(context, container, mesh_obj) -> Tuple[bool, str]:
     # Property-group side.
     entry = container.mesh_names.add()
     entry.name = mesh_obj.name
+    # EM16-RMNG · group side, IN ADDITION to everything above and never
+    # instead of it. Only when the projection already exists: creating it here
+    # would mean writing a new node into the graph as a side effect of adding
+    # a mesh, and the projection is an explicit act (see `rmcontainer.project`).
+    if graph is not None and container.group_node_id:
+        rm_id = mesh_obj.get("em_rm_node_id", "")
+        if rm_id:
+            _gn.add_member(graph, container.group_node_id, rm_id)
     return True, ""
 
 
@@ -269,6 +282,17 @@ def remove_mesh_from_container(context, container, mesh_name: str,
                 del mesh_obj["em_rm_container_doc_id"]
             except KeyError:
                 pass
+    # EM16-RMNG · the membership edge goes, and NOTHING else: the model keeps
+    # its epoch edges and the Document keeps its direct edge to it. Outside the
+    # `drop_edge` guard on purpose — membership mirrors `mesh_names`, which
+    # changed regardless of whether the caller wanted the documentary edge
+    # touched.
+    if container.group_node_id:
+        _graph_info2, graph2 = _active_graph(context)
+        mesh_obj2 = bpy.data.objects.get(mesh_name)
+        rm_id2 = mesh_obj2.get("em_rm_node_id", "") if mesh_obj2 else ""
+        if graph2 is not None and rm_id2:
+            _gn.remove_member(graph2, container.group_node_id, rm_id2)
     return True
 
 
@@ -285,6 +309,14 @@ def unregister_container(context, container_index: int) -> bool:
     mesh_names = [e.name for e in container.mesh_names]
     for mn in mesh_names:
         remove_mesh_from_container(context, container, mn, drop_edge=True)
+    # EM16-RMNG · and the group node with them. What goes is the group, its
+    # membership edges and the Document→GROUP edge; what stays is the
+    # DocumentNode itself and the Document→MODEL direct edges — the behaviour
+    # this function already had (Q_B), preserved to the letter.
+    if container.group_node_id:
+        _graph_info, graph = _active_graph(context)
+        if graph is not None:
+            _gn.remove_group(graph, container.group_node_id)
     scene.rm_containers.remove(container_index)
     if scene.rm_containers_index >= len(scene.rm_containers):
         scene.rm_containers_index = max(0, len(scene.rm_containers) - 1)
@@ -360,6 +392,90 @@ def sync_rm_containers(context) -> None:
 
     # 2. Legacy bootstrap (no-op when containers already exist).
     bootstrap_legacy_container_if_needed(context)
+
+    # 3. EM16-RMNG · reconcile the graph projection with the containers.
+    #
+    # HERE and not on load, and the distinction is the requirement: this
+    # function is reached ONLY from the `rmcontainer.sync` operator — a button
+    # — never from a panel draw and never from a file load. Opening a .blend
+    # therefore never rewrites the graph.
+    #
+    # `project_containers` is what creates the MISSING groups, and it is a
+    # second, separate button (`rmcontainer.project`): a sync on a project
+    # that has no projection yet must not decide to make one. So sync only
+    # reconciles what already exists, and reports divergences.
+    reconcile_container_groups(context, create_missing=False)
+
+
+def reconcile_container_groups(context, create_missing: bool = False) -> dict:
+    """Make the graph's RM groups agree with ``scene.rm_containers``.
+
+    ``mesh_names`` is the input and the graph is the output — never the other
+    way round. Returns a summary the operators turn into a report line.
+
+    ``create_missing=False`` (what sync does) touches only containers that
+    already carry a ``group_node_id``: a project with no projection stays
+    without one until somebody asks for it.
+    ``create_missing=True`` (what the projection button does) is the migration
+    of an existing .blend.
+
+    NOTHING IS DELETED IN SILENCE: every divergence the reconciliation cannot
+    resolve becomes an :class:`RMContainerWarning`, with the same mechanism
+    already used for a mesh that vanished from the scene.
+    """
+    scene = context.scene
+    _graph_info, graph = _active_graph(context)
+    esito = {"created": 0, "added": 0, "removed": 0, "refused": 0,
+             "unknown": 0, "skipped_no_graph": 0}
+    if graph is None:
+        esito["skipped_no_graph"] = len(scene.rm_containers)
+        return esito
+
+    for container in scene.rm_containers:
+        gid = container.group_node_id
+        if not gid:
+            if not create_missing:
+                continue
+            gid = _gn.group_node_id_for(container.label, container.doc_node_id)
+            container.group_node_id = gid
+
+        # The model node ids of this container's meshes, in mesh_names order.
+        model_ids = []
+        for entry in container.mesh_names:
+            obj = bpy.data.objects.get(entry.name)
+            if obj is None:
+                continue            # already reported by the pass above
+            rm_id = obj.get("em_rm_node_id", "")
+            if rm_id:
+                model_ids.append(rm_id)
+
+        rapporto = _gn.reconcile_container(
+            graph, gid,
+            label=container.label or container.doc_name or gid,
+            model_node_ids=model_ids,
+            doc_node_id=container.doc_node_id,
+        )
+        esito["created"] += 1 if rapporto["created"] else 0
+        esito["added"] += len(rapporto["added"])
+        esito["removed"] += len(rapporto["removed"])
+        esito["refused"] += len(rapporto["refused"])
+        esito["unknown"] += len(rapporto.get("unknown") or [])
+        # A model the graph says belongs to ANOTHER group: reported, not
+        # resolved. Resolving it would mean choosing which of two user
+        # intentions to discard.
+        for rm_id in rapporto["refused"]:
+            _add_warning(scene,
+                         container.label or container.doc_name or "<unnamed>",
+                         f"{rm_id} (già in un altro gruppo nel grafo)")
+        # …e i modelli che il grafo non conosce. Misurato sul file di lavoro
+        # di E.D. il 10-09-2026: 98 mesh su 99 portano un `em_rm_node_id` che
+        # non risolve in nessuno dei due grafi caricati. Senza questa riga la
+        # proiezione creerebbe gruppi vuoti senza dire perché.
+        for rm_id in (rapporto.get("unknown") or []):
+            _add_warning(scene,
+                         container.label or container.doc_name or "<unnamed>",
+                         f"{rm_id} (nessun nodo con questo id nel grafo)")
+    return esito
 
 
 def active_container(scene):

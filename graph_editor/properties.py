@@ -123,7 +123,12 @@ def initialize_edge_filters(context):
                 'combines', 'has_documentation', 'is_in_paradata_nodegroup',
                 'has_paradata_nodegroup', 'is_in_activity']
     
-    model = ['has_representation_model', 'has_semantic_shape', 'has_linked_resource']
+    # EM16-RMNG: l'appartenenza a un container RM è della famiglia MODEL —
+    # è un arco fra un modello e il gruppo di modelli che lo pubblica, non
+    # un fatto stratigrafico né di paradato. Senza questa riga cadeva in
+    # 'OTHER' e sarebbe stato filtrato via da chi guarda la categoria.
+    model = ['has_representation_model', 'has_semantic_shape', 'has_linked_resource',
+             'is_in_representation_model_group']
     
     for et in edge_types:
         item = settings.edge_filters.add()

@@ -483,6 +483,20 @@ class GRAPHEDIT_OT_draw_graph(Operator):
 
         # Altrimenti, ordine normale: 3D → UIList → Graph Viewer
 
+        # 0. EM16-RMNG · più oggetti RM dello STESSO container → il nodo di
+        #    gruppo. È il gesto della riunione del 10-09-2026: «seleziono gli
+        #    oggetti, vado in graph, sono sul nodo».
+        #
+        #    PLURALE di proposito, e questo è ciò che lo rende additivo: con UN
+        #    solo oggetto selezionato la risoluzione resta esattamente quella
+        #    di prima (passo 1), perché una selezione singola ha già una
+        #    risposta giusta — il nodo di quell'oggetto. Con due o più che
+        #    condividono un container la risposta giusta è l'insieme.
+        rm_group_id = self._selected_rm_group_id(context)
+        if rm_group_id:
+            print(f"   Selected from 3D (RM container group): {rm_group_id}")
+            return rm_group_id
+
         # 1. Prova da oggetto 3D selezionato
         if context.active_object:
             node_id = find_node_id_from_proxy(context.active_object, context)
@@ -508,6 +522,33 @@ class GRAPHEDIT_OT_draw_graph(Operator):
 
         return None
     
+    def _selected_rm_group_id(self, context):
+        """The RM container group the current 3D selection points at, or None.
+
+        Silent and cheap on every path that is not this case: no selection, one
+        object, objects that are not RMs, or a graph with no projection all
+        return None without touching the graph more than once.
+        """
+        selected = [o for o in (context.selected_objects or [])]
+        if len(selected) < 2:
+            return None
+        model_ids = [o.get("em_rm_node_id", "") for o in selected]
+        model_ids = [m for m in model_ids if m]
+        if len(model_ids) < 2:
+            return None
+        try:
+            from ..rm_manager import group_nodes as gn
+        except Exception:
+            return None
+        # `get_active_graph` è importato dentro `execute` in questo file, non a
+        # livello di modulo: qui si importa da sé invece di appoggiarsi a un
+        # nome che esiste solo in un altro frame.
+        from .utils import get_active_graph
+        graph, _graph_id = get_active_graph(context)
+        if graph is None:
+            return None
+        return gn.common_group_of(graph, model_ids)
+
     def populate_tree(self, tree, graph, filtered_nodes, context):
         """Popola il node tree con wrapper dei nodi s3dgraphy"""
         from .dynamic_nodes import _NODE_TYPE_MAP

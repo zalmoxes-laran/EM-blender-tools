@@ -15,6 +15,8 @@ Exposes:
 - :class:`RMCONTAINER_OT_unregister` — drop a container and every
   ``has_representation_model`` edge it implied. Document stays.
 - :class:`RMCONTAINER_OT_sync` — run the sanitisation pass.
+- :class:`RMCONTAINER_OT_project` — project the containers into the graph
+  as node groups (EM16-RMNG). Explicit: a file load never does it.
 - :class:`RMCONTAINER_OT_assign_unassigned` — adopt container-less
   RMs (which the UIList filter hides) into a container.
 - :class:`RMCONTAINER_OT_acknowledge_warnings` — clear the warnings.
@@ -34,6 +36,7 @@ from .containers import (
     is_rm_candidate,
     remove_mesh_from_container,
     sync_rm_containers,
+    reconcile_container_groups,
     unassigned_rm_names,
     UNASSIGNED_CONTAINER_LABEL,
     unregister_container,
@@ -840,6 +843,57 @@ class RMCONTAINER_OT_sync(Operator):
         return {'FINISHED'}
 
 
+class RMCONTAINER_OT_project(Operator):
+    """EM16-RMNG · project the containers into the graph as node groups.
+
+    THE MIGRATION, AND IT IS A BUTTON ON PURPOSE. Opening a .blend that has
+    containers but a graph without groups must not rewrite that graph: a load
+    that edits the document nobody asked it to edit is how a user stops
+    trusting what is on disk. So the groups an existing project is missing are
+    created here, by somebody pressing this.
+
+    Idempotent: pressed twice on a project already projected, the second press
+    creates nothing and says so.
+    """
+
+    bl_idname = "rmcontainer.project"
+    bl_label = "Project containers into the graph"
+    bl_description = (
+        "Create the graph node group of every RM container that has none "
+        "(EM16-RMNG). Existing edges are untouched: each model keeps its "
+        "epochs and the Document keeps its direct links. Explicit on "
+        "purpose — opening a file never rewrites the graph"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        esito = reconcile_container_groups(context, create_missing=True)
+        if esito["skipped_no_graph"]:
+            self.report({'WARNING'},
+                        "No active graph: nothing was projected.")
+            return {'CANCELLED'}
+        pezzi = []
+        if esito["created"]:
+            pezzi.append(f"{esito['created']} group(s) created")
+        if esito["added"]:
+            pezzi.append(f"{esito['added']} membership(s) added")
+        if esito["removed"]:
+            pezzi.append(f"{esito['removed']} membership(s) dropped")
+        if esito["refused"]:
+            pezzi.append(f"{esito['refused']} refused (see warnings)")
+        if esito["unknown"]:
+            pezzi.append(f"{esito['unknown']} model(s) not in the graph "
+                         f"(see warnings)")
+        if not pezzi:
+            self.report({'INFO'},
+                        "Already projected — nothing to change.")
+        else:
+            livello = ('WARNING' if (esito["refused"] or esito["unknown"])
+                       else 'INFO')
+            self.report({livello}, "Projection: " + ", ".join(pezzi))
+        return {'FINISHED'}
+
+
 class RMCONTAINER_OT_bootstrap_legacy(Operator):
     """Bootstrap the automatic "Legacy RMs" container by bundling every
     existing :class:`RMItem` whose object still exists in the scene.
@@ -979,6 +1033,7 @@ _CONTAINER_OPS = (
     RMCONTAINER_OT_remove_mesh_from_container,
     RMCONTAINER_OT_unregister,
     RMCONTAINER_OT_sync,
+    RMCONTAINER_OT_project,
     RMCONTAINER_OT_bootstrap_legacy,
     RMCONTAINER_OT_assign_unassigned,
     RMCONTAINER_OT_acknowledge_warnings,

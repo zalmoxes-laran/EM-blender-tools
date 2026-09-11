@@ -461,6 +461,14 @@ class VIEW3D_PT_RM_Manager(Panel):
                          text="Add RM container", icon='ADD')
         cmd_row.operator("rmcontainer.sync",
                          text="Sync", icon='FILE_REFRESH')
+        # EM16-RMNG · the projection into the graph is a BUTTON, and that is the
+        # requirement rather than an ergonomic choice: opening a .blend whose
+        # containers have no node group yet must not rewrite the graph. Shown
+        # only when there is something to project, so a project already
+        # projected has no button that does nothing.
+        if any(not c.group_node_id for c in scene.rm_containers):
+            cmd_row.operator("rmcontainer.project",
+                             text="Project", icon='NODETREE')
         # Container UIList
         row = cont_box.row()
         row.template_list(
