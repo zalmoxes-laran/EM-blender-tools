@@ -1,10 +1,11 @@
-"""RM container logic (DP-47 extension / DP-07 wrapper).
+"""RM container logic (DP-47 extension / DP-07).
 
-An **RM container** groups several mesh objects under a single
-DocumentNode. The Document is the graph-side wrapper; the container
-is the EMTools-side PropertyGroup on ``scene.rm_containers`` that
-tracks which Blender mesh objects belong to it. A mesh can belong to
-at most **one** container at a time (user decision, Q_C).
+An **RM container** groups several mesh objects that share one
+document. The DocumentNode is the container's documentary anchor on
+the graph side; the container is the EMTools-side PropertyGroup on
+``scene.rm_containers`` that tracks which Blender mesh objects belong
+to it. A mesh can belong to at most **one** container at a time (user
+decision, Q_C).
 
 Ownership:
 - Authoritative mesh list → ``RMContainerItem.mesh_names``.

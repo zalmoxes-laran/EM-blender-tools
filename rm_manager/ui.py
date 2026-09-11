@@ -449,8 +449,13 @@ class VIEW3D_PT_RM_Manager(Panel):
                          f"more")
 
         cont_box = layout.box()
-        cont_box.label(text="RM Containers (wrapped by DocumentNodes)",
-                       icon='OUTLINER_COLLECTION')
+        cont_box.label(text="RM Containers", icon='OUTLINER_COLLECTION')
+        # Context line: what a container IS for whoever uses it — a group
+        # of models that share one document — rather than how it is
+        # stored on the graph side.
+        cont_hint = cont_box.row()
+        cont_hint.scale_y = 0.8
+        cont_hint.label(text="Model groups linked to a document")
         # Container-level commands ABOVE the UIList (dominating the
         # list). "Add RM container" creates an empty unlinked
         # container; linking/creating documents is then handled by the

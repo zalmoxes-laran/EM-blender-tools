@@ -146,10 +146,11 @@ class RMContainerMeshItem(PropertyGroup):
 
 
 class RMContainerItem(PropertyGroup):
-    """A group of meshes wrapped by a single DocumentNode (DP-07 / DP-47
-    extension). The Document is the graph-side wrapper; the container
-    is the EMTools-side PropertyGroup that tracks which mesh objects
-    belong to it. A mesh can belong to at most ONE container at a time.
+    """A group of meshes that share one document (DP-07 / DP-47
+    extension). The DocumentNode is the container's documentary anchor
+    on the graph side; the container is the EMTools-side PropertyGroup
+    that tracks which mesh objects belong to it. A mesh can belong to
+    at most ONE container at a time.
 
     The Blender Collection is NOT the source of truth — users are free
     to keep meshes in whatever collection structure they prefer. The

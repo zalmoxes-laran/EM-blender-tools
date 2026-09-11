@@ -18,7 +18,7 @@ from .utils import (
     get_model_edge_types
 )
 from .layout import calculate_hierarchical_layout, apply_layout_to_nodes
-from ..us_types import US_PROPER_TYPES
+from ..us_types import US_PROPER_TYPES, SPECIAL_FIND_TYPES
 
 
 def frame_selected_nodes(context):
@@ -64,7 +64,7 @@ class GRAPHEDIT_OT_draw_graph(Operator):
         name="Filter Mode",
         items=[
             ('ALL', "All Nodes", "Show all nodes"),
-            ('STRATIGRAPHIC', "Stratigraphic Only", "Show only stratigraphic nodes (US, USVs, USVn, SF, VSF, USD)"),
+            ('STRATIGRAPHIC', "Stratigraphic Only", "Show only stratigraphic units (US, USVs, USVn, USD); Special Finds are excluded"),
             ('US_ONLY', "US Only", "Show only US nodes"),
             ('FROM_UILIST', "From UI List", "Show only nodes currently in Stratigraphy Manager UI list"),
             ('NEIGHBORHOOD', "Neighborhood", "Show selected node and connected nodes"),
@@ -280,8 +280,13 @@ class GRAPHEDIT_OT_draw_graph(Operator):
             return list(graph.nodes)
         
         elif self.filter_mode == 'STRATIGRAPHIC':
+            # The button that drives this mode reads "US - USV": the
+            # Special Finds (SF/VSF/RSF) are a different family and do
+            # not belong in a stratigraphic-units view. The exclusion
+            # set is the one in ``us_types`` — never a literal list, so
+            # a new octagon subtype is covered without touching this.
             filtered = []
-            for node_type in US_PROPER_TYPES:
+            for node_type in US_PROPER_TYPES - SPECIAL_FIND_TYPES:
                 filtered.extend(graph.get_nodes_by_type(node_type))
             return filtered
         
