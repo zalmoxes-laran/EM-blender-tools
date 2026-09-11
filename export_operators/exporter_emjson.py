@@ -43,6 +43,10 @@ class EM_export_saveas(bpy.types.Operator, ExportHelper):
     @classmethod
     def poll(cls, context):
         ok, _ = is_graph_available(context)
+        if not ok:
+            # UX3/B · vedi `EM_export_save.poll`: spento con la ragione.
+            cls.poll_message_set(
+                "No graph loaded — add a graph, set its Path, then Load")
         return ok
 
     @staticmethod
@@ -120,6 +124,14 @@ class EM_export_save(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         ok, _ = is_graph_available(context)
+        if not ok:
+            # UX3/B · il bottone era già spento (il poll lo spegneva), ma non
+            # diceva PERCHÉ. `poll_message_set` è il modo di Blender per farlo
+            # comparire nel tooltip del bottone spento, e in casa è già usato
+            # (`stratigraphy_manager/operators.py:1386`). Spento con la
+            # ragione insegna; spento muto fa sembrare l'add-on rotto.
+            cls.poll_message_set(
+                "No graph loaded — add a graph, set its Path, then Load")
         return ok
 
     def execute(self, context):

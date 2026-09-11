@@ -5,8 +5,8 @@ EM16-UX (B1) l'ha introdotta come una riga sola; EM16-UX2 (C2) l'ha rifatta a
 sopra `Graph info`, di cui è il parente visivo.
 
     ┌───────────┬───────────┬───────────┬───────────┐
-    │ In scene  │ RMs       │ Groups    │ 3D docs   │
-    │  🔲 203   │  🔲 0     │  🔲 3     │  📄 4     │
+    │ Scene     │ RMs       │ Groups    │ Docs      │
+    │  🔲 223   │  🔲 12    │  🔲 3     │  📄 19    │
     └───────────┴───────────┴───────────┴───────────┘
 
 ## PERCHÉ LE CELLE E NON UNA RIGA
@@ -19,20 +19,29 @@ larghezza. È anche il linguaggio visivo di casa: il vecchio blocco statistiche
 di questo pannello (`US/USV 103 · Epochs 3 · Properties 44 · Documents 19`) era
 fatto così e funzionava.
 
-## LA FRECCIA NON STA NELLE ETICHETTE, E NON PER GUSTO
+## LA FRECCIA NON C'È, E CI SONO VOLUTE TRE MISURE PER CONCLUDERLO
 
-Prima era il prefisso dell'etichetta — `→ Models` — perché l'imbuto è il senso
-della riga e una freccia come colonna a sé, in una griglia, sarebbe fragile.
+Tre tecniche, tutte guardate a video in un Blender vero, nessuna dedotta.
 
-A video quel prefisso era **la causa del troncamento**: `→ Mod…`, `→ Grou…`,
-`→ Docu…`, mentre nel blocco `Graph info`, alla stessa larghezza e nella stessa
-costruzione, `Properties` e `Documents` stanno interi. Misurato due volte: non
-era il contenitore (rifatto identico a `Graph info`, si abbreviavano ancora) ed
-è la freccia, che come glifo costa quanto due o tre caratteri.
+1. **Prefisso dell'etichetta, parole lunghe** (`→ Documents`): l'etichetta si
+   abbreviava — `→ Docu…`.
+2. **Prefisso dell'etichetta, parole corte** (`→ RMs`, `→ Groups`, `→ Docs`):
+   `→ RMs` e `→ Docs` ci stanno, **`→ Groups` no** — a video `→ Grou…`. Il
+   glifo `→` più lo spazio costano quanto due caratteri, e con la freccia il
+   budget di una cella a larghezza normale (280 unità di interfaccia) è di
+   cinque lettere.
+3. **Freccia nella riga del numero**, prima dell'icona: sembrava la via
+   d'uscita, perché il numero è corto. A video **è sparito il numero**: le
+   celle 2-4 mostravano `→` e l'icona, e lo `0` era tagliato. Peggio del
+   difetto di partenza, perché il numero è la cosa che il pannello esiste per
+   dire.
 
-Quindi le etichette sono parole intere, come là. L'imbuto resta nella riga
-compatta di `testo()` — quella che usano prove e log — e nell'ordine delle
-celle, che si legge da sinistra a destra comunque.
+Conclusione misurata: a quattro colonne su questa larghezza la cella non
+porta insieme una freccia e il suo contenuto. Quindi la freccia non c'è, e
+l'imbuto lo dicono **l'ordine** delle celle (che si legge da sinistra a
+destra comunque) e i **tooltip**, che dicono per ognuna da dove viene il
+numero. `FRECCIA` resta definita perché la usa `testo()`, che è una riga sola
+e ha lo spazio.
 
 ## L'INGLESE
 
@@ -91,15 +100,15 @@ GRADINI = (
      "(MESH, CURVE, or an EMPTY that is not a collection instance) — the "
      "same test rm_manager.containers.is_rm_candidate applies. This is a "
      "SCENE number: it does not depend on which graph is active."),
-    ("rms", f"{FRECCIA} RMs", "show_all_RMs", "MESH_DATA",
+    ("rms", "RMs", "show_all_RMs", "MESH_DATA",
      "RepresentationModel nodes, summed over ALL loaded graphs — not just "
      "the active one. The objects already promoted to a model, so they "
      "exist in a graph and not only in the scene."),
-    ("groups", f"{FRECCIA} Groups", "container_on", "OUTLINER_COLLECTION",
+    ("groups", "Groups", "container_on", "OUTLINER_COLLECTION",
      "RM containers (scene.rm_containers): the named sets — «Survey "
      "2015», «Reconstruction» — that group several models under one "
      "document. This is a SCENE number."),
-    ("docs", f"{FRECCIA} Docs", "document", "FILE_TEXT",
+    ("docs", "Docs", "document", "FILE_TEXT",
      "Document nodes, summed over ALL loaded graphs — not just the active "
      "one. These are the sources you have CHOSEN to cite, so the number is "
      "a decision and not an inventory, and being lower than the others is "
@@ -152,9 +161,9 @@ def testo(numeri: dict) -> str:
     """
     pezzi = [f"{numeri.get(k, 0)} {etichetta}"
              for k, etichetta, _c, _i, _t in GRADINI]
-    #: la freccia è già nelle etichette (UX3 le ha accorciate, e con parole
-    #: corte ci sta): qui basta separare.
-    return "  ".join(pezzi)
+    #: qui la freccia SEPARA i gradini: in una riga sola lo spazio c'è, ed è
+    #: l'unico posto dove l'imbuto si può scrivere senza mangiare nulla.
+    return f"  {FRECCIA}  ".join(pezzi)
 
 
 def tooltip_di(chiave: str) -> str:

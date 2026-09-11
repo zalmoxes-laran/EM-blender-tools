@@ -479,10 +479,32 @@ class VIEW3D_PT_RM_Manager(Panel):
         )
         ac = active_container(scene)
         if ac is not None:
-            cont_box.label(
+            # UX3/D · LA RISALITA.
+            #
+            # Il `doc:` era scritto dentro la stessa `label` degli altri due
+            # pezzi, quindi non era cliccabile. Adesso la riga è spezzata e il
+            # documento è un bottone che porta al Document Manager
+            # selezionando QUEL documento: un grafo si impara percorrendolo
+            # nei due versi, in un verso solo resta un albero.
+            #
+            # L'operatore NON è nuovo: `em.rmdoc_jump_to_document` esiste già
+            # e fa esattamente questo (cerca `doc_node_id` in `doc_list` e
+            # muove `doc_list_index`). Era usato dal pannello RMDoc.
+            info = cont_box.row(align=True)
+            info.label(
                 text=f"Active: {ac.label!r}  |  "
-                     f"{len(ac.mesh_names)} mesh(es)  |  "
-                     f"doc: {ac.doc_name or '—'}")
+                     f"{len(ac.mesh_names)} mesh(es)  |  doc:")
+            if ac.doc_node_id:
+                salta = info.operator(
+                    "em.rmdoc_jump_to_document",
+                    text=ac.doc_name or ac.doc_node_id,
+                    icon='FILE_TEXT', emboss=False)
+                salta.doc_node_id = ac.doc_node_id
+            else:
+                #: senza documento collegato non c'è dove andare, e un
+                #: bottone che non porta da nessuna parte è peggio di un
+                #: trattino.
+                info.label(text="—")
 
         # ═══════════════════════════════════════════════════════════════
         # SECTION 2 (MIDDLE) — Mesh-level controls between the two

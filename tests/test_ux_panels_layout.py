@@ -62,8 +62,24 @@ def _pannelli():
 
 
 PANNELLI = _pannelli()
+
+#: il sorgente del pannello d'ingresso, che è dove atterra la maggior parte
+#: di questi giri. Le prove ne prendono FETTE fra marcatori.
 SETUP = (_REPO / "em_setup" / "ui.py").read_text()
+#: il menu EM in testata alla 3D View (EM16-UX punto C)
 MENU = (_REPO / "em_header_menu.py").read_text()
+
+
+def _senza_overview():
+    """Il pannello `VIEW3D_PT_EM_Overview` NON deve esistere.
+
+    UX3/A l'aveva creato per portarci la scala di promozione. E.D. l'ha
+    guardato e l'ha eliminato: «il pannello overview non ha senso per me,
+    eliminalo per ora». Questo aiuto esiste perché la rimozione sia
+    *asserita* e non solo fatta: se un giorno torna, torna di proposito.
+    """
+    assert "class VIEW3D_PT_EM_Overview" not in SETUP
+    return SETUP
 
 
 def _carica(nome, rel):
@@ -147,11 +163,14 @@ def test_NESSUN_PANNELLO_E_SPARITO_NEL_TRASLOCO():
     """Il conto, perché un trasloco perde le cose in silenzio.
 
     30 pannelli prima (i 28 di primo livello più i 4 figli del graph editor e
-    il `Settings` di Surface Areas, meno i doppi), più due: il contenitore
-    `EM_PT_proxy_surface_tools` e `VIEW3D_PT_EM_GraphInfo` (HDT-O, che torna
-    pannello). Nessuno via — verificato contandoli, non stimandoli.
+    il `Settings` di Surface Areas, meno i doppi), più due da EM16-UX: il
+    contenitore `EM_PT_proxy_surface_tools` e `VIEW3D_PT_EM_GraphInfo`
+    (HDT-O, che torna pannello). UX3 ne aveva aggiunto un terzo,
+    `VIEW3D_PT_EM_Overview`, e E.D. l'ha eliminato: quindi si torna a 32.
+    Nessuno via per sbaglio — verificato contandoli, non stimandoli.
     """
     assert len(PANNELLI) == 32, sorted(PANNELLI)
+    assert "VIEW3D_PT_EM_Overview" not in PANNELLI
 
 
 # ═══ A1 · IL CONTENITORE DEGLI STRUMENTI ═════════════════════════════════════
@@ -233,45 +252,53 @@ def test_LE_DUE_SEZIONI_CARTELLO_sono_sparite():
 
 # ═══ B · L'EM DATA TREE ══════════════════════════════════════════════════════
 
-def test_C2_LA_SCALA_STA_SOTTO_IL_PATH_e_sopra_Graph_info():
-    """AGGIORNATA da EM16-UX2/C2, e la posizione È il requisito nuovo.
+def test_A_IL_PANNELLO_EM_OVERVIEW_E_STATO_RIMOSSO():
+    """Storia intera, perché è la parte che si dimentica.
 
-    B1 la metteva in testa al pannello, sopra Author; la revisione a video l'ha
-    spostata dopo la riga di comandi e dopo il Path, subito sopra `Graph info`
-    di cui è il parente visivo. Quel che NON cambia — e che questa prova
-    continua a recintare — è che sta fuori da ogni collassabile.
+    UX3/A aveva creato `VIEW3D_PT_EM_Overview`, primo del tab `EM` e aperto,
+    per portarci la scala di promozione con la somma su tutti i grafi
+    caricati. La ragione era buona (i quattro numeri venivano da scope
+    diversi e in multigrafo due cambiavano e due no), e le prove di quel giro
+    asserivano pannello, ordine, somme e tooltip.
+
+    E.D. l'ha guardato a video e l'ha eliminato: «il pannello overview non ha
+    senso per me, eliminalo per ora». Quindi le prove del pannello sono
+    andate via con lui, e resta questa, che asserisce la rimozione.
+
+    La scala NON è stata rimessa nell'EM Data Tree, da cui UX3 l'aveva tolta:
+    rimetterla lì sarebbe reintrodurre in un altro posto la cosa eliminata.
     """
-    assert "_draw_promotion_scale" in SETUP
-    i_path = SETUP.index('"graphml_path", text="Path"')
-    i_scala = SETUP.index("self._draw_promotion_scale(context, layout)")
-    i_info = SETUP.index('"show_graph_info", text="Graph info"')
-    assert i_path < i_scala < i_info, (
-        "l'ordine deve essere Path → scala → Graph info")
-    #: …e NON è dentro un `if em_tools.show_…`: un riquadro che si può chiudere
-    #: resterebbe chiuso, ed è l'unica cosa nel pannello che insegna la regola
-    prima = SETUP[:i_scala].splitlines()[-14:]
-    assert not any("show_" in r and r.lstrip().startswith("if") for r in prima), prima
+    _senza_overview()
+    assert "VIEW3D_PT_EM_Overview," not in SETUP, "ancora registrato"
+    #: l'operatore c'è ancora — tenuto di proposito, vedi la prova seguente —
+    #: ma nessuno lo DISEGNA più: è la chiamata che conta, non la definizione
+    assert '"em.promotion_step_info"' in SETUP, "l'operatore resta definito"
+    assert 'operator(\n                "em.promotion_step_info"' not in SETUP, (
+        "nessun pannello deve disegnare una cella della scala")
+    #: …e il conto dei pannelli torna a 32
+    assert len(PANNELLI) == 32, sorted(PANNELLI)
+    assert "VIEW3D_PT_EM_Overview" not in PANNELLI
 
 
-def test_B1_IL_TOOLTIP_E_UN_DESCRIPTION_DINAMICO_non_un_bl_description():
-    """Un `layout.label` non ha tooltip, e un bottone operatore lo prende da
-    `bl_description` — che è UNO per classe. Quattro gradini con quattro
-    spiegazioni vogliono quindi un `description()` dinamico, che è il
-    meccanismo che Blender offre per questo. Senza, i quattro numeri avrebbero
-    avuto lo stesso tooltip, cioè nessuna spiegazione — e senza testo il
-    tooltip è l'unica etichetta che resta.
+def test_A_CIO_CHE_RESTA_DEL_GIRO_A_e_dichiarato():
+    """Del punto A restano due cose, e non sono orfane per sbaglio.
 
-    Verificato in un Blender vero: i quattro tooltip sono diversi.
+    `_grafi_caricati()` la usa `_catena` per sapere se la guida a tre passi va
+    disegnata (solo per il primo grafo), e `GRAPH_CODE_SEGNAPOSTO` la usa il
+    banner di warning sul `graph_code`. `_per_grafo()` invece era solo della
+    scala ed è andato via con lei.
+
+    `em_setup/promotion_scale.py` e `EM_OT_promotion_step_info` restano sul
+    disco senza che nessuno li disegni: «per ora» dice che la decisione è
+    reversibile. Se la scala non torna, sono due cose da cancellare — e
+    questa prova è il posto dove sta scritto.
     """
-    assert "class EM_OT_promotion_step_info" in SETUP
-    assert "def description(cls, context, properties)" in SETUP
-    assert 'op.step = chiave' in SETUP
-    #: …e NON si usa `em.help_popup`, il cui tooltip sarebbe lo stesso per tutti
-    i = SETUP.index("def _draw_promotion_scale")
-    j = SETUP.index("def draw(self, context)", i)
-    assert "em.help_popup" not in SETUP[i:j]
-    #: …e l'operatore è registrato PRIMA del pannello che lo usa
-    assert SETUP.index("EM_OT_promotion_step_info,\n    EM_SetupPanel") > 0
+    assert "def _grafi_caricati" in SETUP, "la usa _catena"
+    assert "GRAPH_CODE_SEGNAPOSTO = " in SETUP, "lo usa il banner di warning"
+    assert "def _per_grafo" not in SETUP, "era solo della scala"
+    #: l'operatore è registrato ma non disegnato: dichiarato, non dimenticato
+    assert "EM_OT_promotion_step_info," in SETUP
+    assert (_REPO / "em_setup" / "promotion_scale.py").exists()
 
 
 def test_C2_I_QUATTRO_GRADINI_sono_in_INGLESE_e_sono_PAROLE_INTERE():
@@ -301,14 +328,19 @@ def test_C2_I_QUATTRO_GRADINI_sono_in_INGLESE_e_sono_PAROLE_INTERE():
     ps = _promotion_scale()
 
     chiavi = [k for k, _l, _c, _i, _t in ps.GRADINI]
-    assert chiavi == ["in_scene", "rms", "groups", "docs3d"], chiavi
+    assert chiavi == ["in_scene", "rms", "groups", "docs"], chiavi
 
     etichette = [l for _k, l, _c, _i, _t in ps.GRADINI]
-    assert etichette == ["In scene", "RMs", "Groups", "3D docs"], etichette
-    #: nessuna freccia nelle etichette: è ciò che le troncava
+    assert etichette == ["Scene", "RMs", "Groups", "Docs"], etichette
+    #: NIENTE FRECCIA nella cella, e ci sono volute TRE misure a video:
+    #: prefisso con parole lunghe → `→ Docu…`; prefisso con parole corte →
+    #: `→ Grou…` (`→ RMs` e `→ Docs` invece stavano); freccia nella riga del
+    #: numero → **spariva il numero**, che è la cosa che il pannello esiste
+    #: per dire. A quattro colonne su questa larghezza la cella non porta
+    #: insieme una freccia e il suo contenuto.
     assert not any(ps.FRECCIA in e for e in etichette), (
-        "la freccia nell'etichetta la fa abbreviare: → Mod…")
-    #: …ma l'imbuto non è perso, sta nella riga compatta
+        "la freccia nell'etichetta fa abbreviare Groups")
+    #: …e l'imbuto sta nella riga compatta, che ha lo spazio
     assert ps.FRECCIA in ps.testo({k: 1 for k in chiavi})
 
     #: ogni gradino ha un'icona di Blender valida e un tooltip vero
@@ -328,7 +360,7 @@ def test_C2_I_QUATTRO_GRADINI_sono_in_INGLESE_e_sono_PAROLE_INTERE():
     assert nostre["groups"] == "container_on", nostre["groups"]
     #: `document` e NON `show_all_RMDoc`: qui si contano DOCUMENTI, e l'RMDoc
     #: è un'altra cosa (una lista di oggetti in scena, come gli RMSF)
-    assert nostre["docs3d"] == "document", nostre["docs3d"]
+    assert nostre["docs"] == "document", nostre["docs"]
 
     #: e nessun gradino usa un glifo RETTANGOLARE della palette del grafo:
     #: `US.png` è 253×128 e a 16px Blender lo schiaccia in una barretta
@@ -338,34 +370,36 @@ def test_C2_I_QUATTRO_GRADINI_sono_in_INGLESE_e_sono_PAROLE_INTERE():
 
     #: …e quello di RMDocs dice la cosa che il numero nasconde: che NON è il
     #: numero dei documenti del grafo, e che essere molti meno è normale
-    tip_doc = dict((k, t) for k, _l, _c, _i, t in ps.GRADINI)["docs3d"]
-    assert "3D REPRESENTATION" in tip_doc, tip_doc
-    assert "has_quad" in tip_doc, tip_doc
-    #: dice le due cose che NON è
-    assert "neither the RMDoc list nor the" in tip_doc, tip_doc
-    assert "NOT the «Documents» of Graph info" in tip_doc, tip_doc
+    tip_doc = dict((k, t) for k, _l, _c, _i, t in ps.GRADINI)["docs"]
+    assert "CHOSEN" in tip_doc, tip_doc
+    assert "not a gap" in tip_doc, tip_doc
+    #: …e i due tooltip che sono una SOMMA lo dicono
+    tips = dict((k, t) for k, _l, _c, _i, t in ps.GRADINI)
+    for k in ("rms", "docs"):
+        assert "ALL loaded graphs" in tips[k], (
+            f"{k}: il tooltip non dice che è la somma su tutti i grafi")
+    #: …e i due che sono di scena lo dicono pure
+    for k in ("in_scene", "groups"):
+        assert "SCENE number" in tips[k] or "this .blend" in tips[k], k
     assert "not a gap" in tip_doc, "non dice che un numero più basso non è una mancanza"
 
 
-def test_C2_IL_QUARTO_CONTEGGIO_SONO_I_DOCUMENTI_CON_UN_3D():
-    """AGGIORNATA DUE VOLTE: il quarto gradino ha cambiato INSIEME, non nome.
+def test_A_I_CONTEGGI_ARRIVANO_GIA_SOMMATI_a_conta():
+    """RISCRITTA da UX3/A: `conta()` non conta più i nodi del grafo attivo.
 
-    EM16-UX2 dichiarava `conta()` fuori scope («cambiano le stringhe, non i
-    conteggi»), e il quarto numero era `scene.doc_list`. Poi E.D. ha notato che
-    «Documents così è duplicato»: misurato, `doc_list` si popola dai nodi
-    `document` del grafo (`document_manager/data.py`) ed è lo **stesso
-    insieme** che `Graph info` conta come `document_count`
-    (`populate_lists.py:387`) — lo stesso numero due volte nello stesso
-    pannello.
+    La storia di questo gradino, per intero, perché è stata sbagliata due
+    volte: era `doc_list` intero (che è lo stesso insieme del `Documents` di
+    `Graph info` — un doppione, misurato); poi `rmdoc_list` (sbagliato:
+    object-centric, e l'RMDoc è una cosa sua); poi `doc_list` con `has_quad`
+    (giusto come metrica, ma di SCENA mentre `doc_list` si popola dal grafo
+    ATTIVO); e adesso i nodi `document` sommati su tutti i grafi caricati,
+    che è la metrica che non dipende da quale grafo è attivo.
 
-    Il primo rimedio era `scene.rmdoc_list`, ed era **sbagliato**:
-    `rmdoc_list` è object-centric (un elemento per quad in scena) e gli RMDoc
-    sono una cosa loro, come gli RMSF. Il gradino conta DOCUMENTI.
-
-    Adesso il criterio è quello che il Document Manager ha già: gli elementi di
-    `doc_list` con `has_quad`, cioè il filtro «With 3D Only»
-    (`filter_with_3d`, «documents that have a 3D representation»). Una
-    definizione, due lettori.
+    `conta()` riceve i tre numeri GIÀ SOMMATI e calcola solo `in_scene`, che
+    è l'unico che si possa calcolare senza `bpy`. La somma la fa chi ha `bpy`
+    in mano, con `get_nodes_by_type()`: passare qui la concatenazione dei
+    nodi di tutti i grafi avrebbe voluto dire scorrerli tutti a ogni
+    ridisegno, cioè buttare via l'indice di s3Dgraphy.
     """
     ps = _promotion_scale()
 
@@ -377,36 +411,18 @@ def test_C2_IL_QUARTO_CONTEGGIO_SONO_I_DOCUMENTI_CON_UN_3D():
         return (o.type in ("MESH", "CURVE")
                 or (o.type == "EMPTY" and o.instance_type != "COLLECTION"))
 
-    class N:
-        node_type = "representation_model"
-
     n = ps.conta(oggetti_scena=[O("MESH")] * 203 + [O("LIGHT")] * 5,
-                 nodi_grafo=[N()] * 0, rm_containers=3, docs_con_3d=4,
-                 is_candidato=cand)
-    assert n == {"in_scene": 203, "rms": 0, "groups": 3, "docs3d": 4}
-    assert ps.testo(n) == ("203 In scene  →  0 RMs  →  3 Groups  "
-                           "→  4 3D docs")
+                 is_candidato=cand, rms=12, rm_containers=3, docs=19)
+    assert n == {"in_scene": 203, "rms": 12, "groups": 3, "docs": 19}
+    assert ps.testo(n) == ("203 Scene  →  12 RMs  →  3 Groups  →  19 Docs")
 
-    #: e `doc_list` non è più un argomento: chi lo passasse si accorgerebbe
+    #: `nodi_grafo` non è più un argomento: chi lo passasse se ne accorge
     import pytest
     with pytest.raises(TypeError):
-        ps.conta(oggetti_scena=(), doc_list=19, is_candidato=cand)
+        ps.conta(oggetti_scena=(), nodi_grafo=(), is_candidato=cand)
 
-    #: il pannello conta i documenti con has_quad, NON una lista di oggetti
-    i = SETUP.index("def _draw_promotion_scale")
-    j = SETUP.index("def draw(self, context)", i)
-    corpo = SETUP[i:j]
-    assert 'if getattr(d, "has_quad", False)' in corpo, (
-        "il criterio deve essere has_quad, come filter_with_3d")
-    #: …e NON una lista di oggetti. Sul codice spogliato dei commenti: questo
-    #: metodo PARLA di `rmdoc_list` per dire perché non la usa (la regola del
-    #: pagliaio, imparata il 4 ottobre e ricascataci qui).
-    assert "rmdoc_list" not in _codice(corpo), (
-        "rmdoc_list è object-centric: qui si contano documenti")
-    #: `doc_list=len(` da solo NON basta come aghi: è sottostringa di
-    #: `rmdoc_list=len(` e la prova si mordeva la coda. Serve il confine.
-    assert not re.search(r"(?<![a-z_])doc_list=len\(", corpo), (
-        "il doppione è tornato: il pannello legge di nuovo doc_list")
+    #: il modulo resta misurabile anche senza il pannello che lo disegnava:
+    #: è la ragione per cui `conta()` non importa `bpy`.
 
 
 def test_C2_IL_CASO_ZERO_MODELS_e_un_avviso_e_non_un_allarme():
@@ -419,14 +435,9 @@ def test_C2_IL_CASO_ZERO_MODELS_e_un_avviso_e_non_un_allarme():
     #: …e nemmeno un grafo che ha i suoi modelli
     assert ps.modelli_a_zero_sospetto({"in_scene": 203, "rms": 34}) is False
 
-    #: nel pannello: icona INFO, e MAI rosso
-    i = SETUP.index("def _draw_promotion_scale")
-    j = SETUP.index("def draw(self, context)", i)
-    corpo = SETUP[i:j]
-    assert "modelli_a_zero_sospetto" in corpo
-    assert 'info = (chiave == "rms" and zero_sospetto)' in corpo
-    assert '{"icon": \'INFO\'} if info' in corpo
-    assert "alert" not in corpo, "il rosso è l'errore, e questo non è un errore"
+    #: il DISEGNO di questa cella non c'è più (pannello rimosso da E.D.), ma
+    #: la regola resta nel modulo e resta misurabile: è dove è sempre stata.
+    _senza_overview()
 
 
 def test_C2_E_LA_FRASE_DEL_CASO_ZERO_E_QUELLA_DI_EM16_UX_E():
@@ -453,7 +464,9 @@ def test_C2_E_LA_FRASE_DEL_CASO_ZERO_E_QUELLA_DI_EM16_UX_E():
     assert "excluded from GraphML by design" in nuda
     assert "Promote the meshes first" in nuda
 
-    #: e il pannello la prende da LÀ, nel caso zero e solo lì
+    #: e l'operatore la prende da LÀ, nel caso zero e solo lì. L'operatore
+    #: resta registrato anche dopo la rimozione del pannello Overview, quindi
+    #: questa parte si misura ancora.
     i = SETUP.index("class EM_OT_promotion_step_info")
     j = SETUP.index("def _wrap(", i)
     corpo = SETUP[i:j]
@@ -464,10 +477,6 @@ def test_C2_E_LA_FRASE_DEL_CASO_ZERO_E_QUELLA_DI_EM16_UX_E():
     #: tooltip e popup escono dalla stessa funzione, sennò tornano due
     assert corpo.count("_frase(") >= 3, (
         "description ed execute devono chiamare lo stesso _frase")
-    #: …e chi disegna gli dice se è il caso zero
-    k = SETUP.index("def _draw_promotion_scale")
-    l = SETUP.index("def draw(self, context)", k)
-    assert "op.zero = info" in SETUP[k:l]
     assert "Promote to RM" in frase, "non dice il comando da eseguire prima"
     #: senza conteggi resta vera e non stampa zeri finti
     nuda = gn.no_rm_nodes_yet()
@@ -482,9 +491,18 @@ def test_C2_E_LA_FRASE_DEL_CASO_ZERO_E_QUELLA_DI_EM16_UX_E():
 
 
 def test_B1_IL_CRITERIO_DI_CANDIDATURA_non_e_riscritto():
-    """Si passa `is_rm_candidate`, quello vero: riscriverlo sarebbe la seconda
-    copia da tenere allineata."""
-    assert "from ..rm_manager.containers import is_rm_candidate" in SETUP
+    """AGGIORNATA: `em_setup/ui.py` non importa più `is_rm_candidate`, perché
+    con il pannello Overview rimosso non disegna più la scala e non ha più
+    bisogno del predicato.
+
+    Quello che la prova deve continuare a recintare è l'altra metà, che non è
+    cambiata: `promotion_scale` NON riscrive il criterio: lo riceve iniettato.
+    Una seconda copia di «cosa può diventare un RM» sarebbe la cosa da tenere
+    allineata a mano, e questa prova esiste per impedirla.
+    """
+    assert "is_rm_candidate" not in _codice(SETUP), (
+        "ui.py non disegna più la scala: se importa il predicato, qualcuno "
+        "ha rimesso un conteggio dove non sta più")
     ps = (_REPO / "em_setup" / "promotion_scale.py").read_text()
     corpo = ps.split('"""', 2)[2]
     for spia in ("instance_type", "'MESH'", '"MESH"'):
@@ -519,20 +537,26 @@ def test_C1_LA_RIGA_DI_COMANDI_RIEMPIE_LA_RIGA():
     spazio che avanza.
 
     Quello che la distribuisce è un contenitore a CELLE: `grid_flow` con
-    `columns=6, even_columns=True` dà a ognuno un sesto esatto della riga, e
-    nello scatto successivo i sei bottoni arrivano da bordo a bordo. È lo
-    stesso meccanismo delle quattro celle della scala (C2), che nello stesso
-    scatto riempivano già la larghezza. Quindi la prova asserisce ADESSO il
-    contenitore, non solo l'assenza di `ui_units_x`.
+    `even_columns=True` dà a ognuno la stessa frazione della riga, e nello
+    scatto successivo i sei bottoni arrivano da bordo a bordo. È lo stesso
+    meccanismo delle quattro celle della scala (C2), che nello stesso scatto
+    riempivano già la larghezza.
+
+    AGGIORNATA da UX3/B: le colonne sono **sette** e non sei, perché il
+    separatore che stacca il comando distruttivo (Remove graph) occupa una
+    cella come gli altri. Con `columns=6` la riga andrebbe a capo — ed è il
+    genere di cosa che si vede solo guardando.
     """
     i = SETUP.index("cmd = layout.grid_flow(")
-    j = SETUP.index('_iop.name = "EM_MT_LandscapeInfo"', i)
+    #: fino alla fine del metodo: da UX3 Remove viene DOPO il separatore,
+    #: cioè dopo il menu INFO che prima chiudeva la riga.
+    j = SETUP.index("    def draw(self, context):", i)
     blocco = SETUP[i:j]
 
     assert "ui_units_x" not in blocco, (
         "ui_units_x fissa la larghezza: i bottoni non riempiono più la riga")
     #: il contenitore a celle, che è ciò che DAVVERO riempie la riga
-    assert "columns=6" in blocco, "sei comandi, sei celle"
+    assert "columns=7" in blocco, "sei comandi più il separatore, sette celle"
     assert "even_columns=True" in blocco, (
         "senza even_columns le celle si dimensionano sul contenuto e i "
         "bottoni tornano stretti")
@@ -546,8 +570,19 @@ def test_C1_LA_RIGA_DI_COMANDI_RIEMPIE_LA_RIGA():
                    "em.toggle_landscape_mode", "wm.call_menu"):
         assert idname in blocco, idname
     assert 'text=""' in blocco
-    #: …e nessuna etichetta di testo è tornata
-    for morto in ('text="Add graph"', 'text="Remove graph"', 'text="Save As…"',
+    #: il separatore stacca il distruttivo, che viene per ULTIMO — e sta
+    #: DENTRO la sua cella: come cella a sé mandava la riga a capo su due
+    #: righe (misurato: `grid_flow` decideva quattro colonne e ne impilava
+    #: tre sotto).
+    assert "via.separator()" in blocco, "Remove non è staccato"
+    assert "cmd.separator()" not in blocco, (
+        "il separatore come CELLA manda la riga a capo")
+    assert blocco.index("via.separator()") < blocco.index("em_tools.remove_file")
+    assert blocco.index("em_tools.add_file") < blocco.index("via.separator()")
+
+    #: …e nessuna etichetta di testo è tornata nella RIGA (lo stato vuoto ha
+    #: il suo bottone con il testo, ed è un'altra cosa: vedi le prove B)
+    for morto in ('text="Remove graph"', 'text="Save As…"',
                   'text="Multigraph'):
         assert morto not in blocco, f"{morto} è tornato"
 
@@ -583,8 +618,13 @@ def test_C3_LA_VERSIONE_E_A_DESTRA_col_titolo_intero():
     assert 'bl_label = "EM Data Tree"' in SETUP
     assert 'bl_label = f"EM Data Tree' not in SETUP
     assert "def draw_header_preset" in SETUP
-    i = SETUP.index("def draw_header_preset")
-    j = SETUP.index("def _draw_promotion_scale", i)
+    #: la fetta finiva a `_draw_promotion_scale`, che UX3 ha portato via.
+    #: Adesso il marcatore è il `draw_header_preset` dell'EM Data Tree, che
+    #: è il SECONDO del file: il primo è quello dell'Overview (UX3/A), e
+    #: prendere il primo misurerebbe il pannello sbagliato.
+    i = SETUP.index("def draw_header_preset",
+                    SETUP.index("class EM_SetupPanel"))
+    j = SETUP.index("def _catena", i)
     preset = SETUP[i:j]
     assert "get_em_tools_version()" in preset
     #: …e la clessidra è andata via
@@ -615,14 +655,40 @@ def test_B5_E_IL_RENDERER_NON_E_DUPLICATO():
 
 
 def _codice(testo):
-    """Il sorgente senza commenti: la regola imparata il 4 ottobre.
+    """Il sorgente senza commenti NÉ docstring: la regola del pagliaio.
 
-    Questo file PARLA di `draw_dtc_section` nei suoi commenti — spiega perché
-    il DTC è uscito — e un'asserzione sull'assenza di quel nome morderebbe un
-    commento onesto invece del codice.
+    Imparata il 4 ottobre sui commenti — questo file PARLA di
+    `draw_dtc_section` per spiegare perché il DTC è uscito, e un'asserzione
+    sull'assenza di quel nome morderebbe un commento onesto invece del
+    codice. ALLARGATA da UX3 alle **docstring**, dopo averci ricascato due
+    volte: `ui.py` spiega in una docstring che NON scorre `graph.nodes`, e
+    l'asserzione «`graph.nodes` non c'è» mordeva quella spiegazione.
+
+    Le stringhe normali NON si toccano: un'asserzione come «`rmdoc_list` non
+    compare» deve poter mordere un `getattr(scene, "rmdoc_list")`, che è
+    codice vero anche se il nome è fra virgolette.
+
+    Il taglio delle docstring è a stati sui `\"\"\"`, non via `ast`: questa
+    funzione riceve FETTE di file (il corpo di un metodo, il blocco fra due
+    marcatori) e una fetta non si parsa.
     """
-    return "\n".join(r for r in testo.splitlines()
-                     if not r.lstrip().startswith("#"))
+    fuori, dentro = [], False
+    for r in testo.splitlines():
+        spoglio = r.strip()
+        if dentro:
+            if spoglio.endswith('\"\"\"') or spoglio == '\"\"\"':
+                dentro = False
+            continue
+        if spoglio.startswith("#"):
+            continue
+        if spoglio.startswith('\"\"\"') or spoglio.startswith('r\"\"\"'):
+            #: docstring su una riga sola: apre e chiude qui
+            corpo = spoglio.lstrip("r")
+            if not (len(corpo) > 6 and corpo.endswith('\"\"\"')):
+                dentro = True
+            continue
+        fuori.append(r)
+    return "\n".join(fuori)
 
 
 def test_B6_IL_DTC_E_USCITO_dal_data_tree_e_resta_in_resources():
@@ -785,3 +851,442 @@ def test_E_MA_NEL_CASO_MISTO_la_frase_resta_vera():
     finestra = OPS[i - 1200: i + 1400]
     assert "Caso misto" in finestra
     assert "But {manca}" in finestra
+
+
+# ═══ UX3/B · LA VIA PIÙ CORTA PER VEDERE UN CONTENUTO ════════════════════════
+
+def _data_tree():
+    """Il corpo della classe `EM_SetupPanel`, senza la tupla `classes`."""
+    i = SETUP.index("class EM_SetupPanel")
+    return SETUP[i:SETUP.index("classes = (", i)]
+
+
+def test_B_STATO_VUOTO_una_strada_sola_e_col_testo():
+    """Con zero grafi la riga dei sei bottoni NON si disegna.
+
+    Cinque su sei non hanno nulla su cui agire, e sei icone uguali di cui una
+    sola funziona sono un indovinello. Al suo posto un bottone largo CON IL
+    TESTO: è l'unico punto del pannello dove il testo torna, perché è l'unica
+    cosa da fare e non c'è una riga da riempire.
+    """
+    corpo = _data_tree()
+    assert 'if not _stato["ha_grafo"]:' in corpo
+    i = corpo.index('if not _stato["ha_grafo"]:')
+    j = corpo.index("else:", i)
+    vuoto = corpo[i:j]
+    assert 'text="Add graph"' in vuoto, "lo stato vuoto vuole il TESTO"
+    assert "em_tools.add_file" in vuoto
+    #: e la riga dei sei sta nell'`else`, cioè non si disegna quando è vuoto
+    assert "_riga_comandi" in corpo[j:j + 200]
+    assert "_riga_comandi" not in vuoto
+
+
+def test_B_LA_GUIDA_USA_draw_requirement_row_e_SPARISCE():
+    """Tre passi numerati, col loro stato, e `inactive` per quelli non ancora
+    valutabili — che è la distinzione fra «sbagliato» e «tocca più tardi».
+
+    `ui_helpers.draw_requirement_row` esiste già e fa esattamente questo:
+    scriverne una seconda vorrebbe dire tenerne allineate due.
+    """
+    corpo = _data_tree()
+    #: AGGIORNATA: la condizione non è più «l'attivo non è caricato» ma
+    #: «nessun grafo caricato in tutto», cioè SOLO PER IL PRIMO GRAFO. Con la
+    #: condizione di prima la guida tornava quando si aggiungeva il secondo
+    #: grafo, e lì è pleonastica: la sequenza la si è appena fatta.
+    assert 'if not _stato["grafi_caricati"] and self._guida_richiesta():' in corpo
+    i = corpo.index('if not _stato["grafi_caricati"]')
+    assert "self._guida(layout, _stato)" in corpo[i:i + 200]
+    assert 'if not _stato["caricato"]:' not in corpo, (
+        "la guida non deve tornare per il secondo grafo")
+
+    i = corpo.index("def _guida")
+    j = corpo.index("def _op_carica", i)
+    guida = corpo[i:j]
+    assert "from ..ui_helpers import draw_requirement_row" in guida, (
+        "la guida deve riusare l'aiuto che esiste")
+    #: tre chiamate. L'`import` non ha la parentesi, quindi non conta qui.
+    assert guida.count("draw_requirement_row(") == 3, "tre passi"
+    #: i tre passi, nell'ordine della catena
+    for n, etichetta in ((1, '"Add graph"'), (2, '"Set path"'), (3, '"Load"')):
+        assert f"{n}, {etichetta}" in guida, f"passo {n}"
+    #: …e i passi 2 e 3 si dimmano finché il precedente non è fatto
+    assert 'inactive=not stato["ha_grafo"]' in guida
+    assert 'inactive=not stato["ha_path"]' in guida
+
+
+def test_B_IL_CARICAMENTO_E_IN_EVIDENZA_finche_non_e_fatto():
+    """Con il path dato e il grafo non caricato, Load è a tutta larghezza e
+    col testo; a grafo caricato torna icona nella riga, come Reload."""
+    corpo = _data_tree()
+    assert 'if _stato["ha_path"] and not _stato["caricato"]:' in corpo
+    i = corpo.index('if _stato["ha_path"] and not _stato["caricato"]:')
+    evidenza = corpo[i:i + 400]
+    assert 'testo="Load"' in evidenza
+    assert "scale_y" in evidenza, "in evidenza vuol dire anche più alto"
+    #: …e DOPO il Path, che è l'ordine in cui si legge la catena: a video il
+    #: bottone sopra il campo da riempire prima invertiva i due passi
+    assert corpo.index('"graphml_path", text="Path"') < i
+
+    #: e nella riga, senza testo (quindi icona)
+    i = corpo.index("def _riga_comandi")
+    j = corpo.index("    def draw(self, context):", i)
+    riga = corpo[i:j]
+    #: nella riga, senza `testo=` — quindi icona
+    assert "self._op_carica(ricarica, stato)" in riga
+    assert "testo=" not in riga, "nella riga il caricamento è icona, non testo"
+
+
+def test_B_IL_DISPATCH_DEL_CARICAMENTO_STA_IN_UN_POSTO_SOLO():
+    """Due importer e non uno: un entry `em.json` passato all'importer GraphML
+    verrebbe parsato come XML. E il nome della proprietà dell'indice è
+    DIVERSO fra i due (`file_index` contro `graphml_index`), che è la ragione
+    per cui il dispatch sta in una funzione sola invece che copiato nei due
+    punti che lo usano."""
+    corpo = _data_tree()
+    i = corpo.index("def _op_carica")
+    j = corpo.index("def _riga_comandi", i)
+    op = corpo[i:j]
+    assert "import.em_emjson" in op and "import.em_graphml" in op
+    assert "op.file_index" in op and "op.graphml_index" in op
+    #: e nessun altro punto del pannello chiama gli importer a mano
+    resto = corpo[:i] + corpo[j:]
+    assert "import.em_graphml" not in _codice(resto)
+
+
+def test_B_SPENTO_CON_LA_RAGIONE_non_spento_muto():
+    """`poll_message_set` è il modo di Blender per dire nel tooltip PERCHÉ un
+    bottone è spento, e in casa era già usato
+    (`stratigraphy_manager/operators.py`). I poll di Save/Save As già
+    spegnevano i bottoni; non dicevano la ragione."""
+    src = (_REPO / "export_operators" / "exporter_emjson.py").read_text()
+    assert src.count("cls.poll_message_set(") == 2, (
+        "Save e Save As, entrambi")
+    assert "add a graph, set its Path, then Load" in src, (
+        "il messaggio deve dire la SEQUENZA, non solo che manca qualcosa")
+
+
+def test_B_LO_STATO_DELLA_CATENA_SI_CALCOLA_UNA_VOLTA():
+    """Se ogni pezzo se lo ricalcolasse, i pezzi potrebbero non essere
+    d'accordo fra loro — ed è il modo in cui un'interfaccia a stati si
+    contraddice a video."""
+    corpo = _data_tree()
+    assert corpo.count("self._catena(") == 1, "un solo calcolo per ridisegno"
+    i = corpo.index("def _catena")
+    j = corpo.index("def _guida", i)
+    catena = corpo[i:j]
+    #: `caricato` usa lo stesso test della UIList: presente E con nodi
+    assert "original_id" in catena, "ripiego della UIList dopo un rename"
+    assert 'getattr(g, "nodes", None)' in catena, (
+        "un grafo presente ma VUOTO non è caricato: lo dice anche "
+        "em_tools.populate_lists, che lo rifiuta")
+    for chiave in ("ha_grafo", "ha_path", "caricato", "emjson"):
+        assert f'"{chiave}"' in catena, chiave
+
+
+# ═══ UX3/C · L'ICONA DELLE US ════════════════════════════════════════════════
+
+def test_C_US_USV_USA_proxies_rows_il_segno_di_casa():
+    """`proxies_rows` (64×64, quadrata) è la stessa che lo Stratigraphy
+    Manager mostra accanto a «Total Rows», quindi è già il segno di casa per
+    «unità stratigrafiche». Sostituisce il `MESH_CUBE` di UX2, che era un
+    ripiego preso dal contatore `US:` del Document Manager.
+
+    E NON `US.png`, che è un glifo di palette 253×128: schiacciato in uno
+    slot quadrato si legge come una barretta rossa — misurato in UX2.
+    """
+    i = SETUP.index("def _draw_graph_info")
+    j = SETUP.index("\nclass ", i)
+    gi = SETUP[i:j]
+    assert '_kw_icona("proxies_rows"' in gi
+    assert '_kw_icona("US"' not in gi, "il glifo di palette non torna"
+    #: le altre celle sistemate in UX2 non si toccano
+    assert "icon='TIME'" in gi, "Epochs resta TIME: un'epoca in icons/ non c'è"
+    assert "icon='PROPERTIES'" in gi
+    assert '_kw_icona("document"' in gi
+
+    #: e il file è davvero quadrato, altrimenti è lo stesso errore di prima
+    from struct import unpack
+    d = (_REPO / "icons" / "proxies_rows.png").read_bytes()[:33]
+    w, h = unpack(">II", d[16:24])
+    assert w == h, f"proxies_rows è {w}x{h}: non è un'icona"
+
+
+# ═══ UX3/D · LA CATENA DEL DOCUMENTO ════════════════════════════════════════
+
+DOCUI = (_REPO / "document_manager" / "ui.py").read_text()
+
+
+def test_D_TRE_FASCE_nello_stesso_ordine_col_titolo_anche_se_vuote():
+    """Il pannello è il posto dove si impara la struttura, perché la mostra su
+    un caso concreto. Perché insegni deve leggersi SEMPRE UGUALE.
+
+    Il titolo c'è anche a fascia vuota, ed è il punto: una fascia vuota che
+    porta il titolo insegna che quel posto esiste e che lì manca qualcosa.
+    Prima i blocchi comparivano e sparivano a seconda del documento, e due
+    documenti diversi davano due pannelli di forma diversa.
+    """
+    i = DOCUI.index("UX3/D · TRE FASCE")
+    j = DOCUI.index("# DP-32 propagative metadata", i)
+    corpo = DOCUI[i:j]
+
+    #: l'ordine, che è il senso della cosa
+    a = corpo.index('text="What it is"')
+    b = corpo.index('text="What it documents"')
+    c = corpo.index('text="What represents it"')
+    assert a < b < c, "cosa è → cosa documenta → cosa lo rappresenta"
+
+    #: i titoli NON sono dentro un `if`: si disegnano sempre
+    for titolo in ('text="What it is"', 'text="What it documents"',
+                   'text="What represents it"'):
+        riga = corpo[:corpo.index(titolo)].rsplit("\n", 1)[-1]
+        assert riga.strip().startswith(("f1.", "f2.", "f3.")), riga
+
+    #: e ogni fascia che può essere vuota lo DICE
+    assert "No stratigraphic unit cites this document" in corpo
+    assert "No RM container wraps this document" in corpo
+    assert "Not placed in space (no quad)" in corpo
+
+
+def test_D_I_CONTATORI_DUPLICATI_SONO_VIA():
+    """`RM: n · RMDoc: n · RMSF: n · US: n` se ne va: quei numeri appartengono
+    ai rispettivi pannelli, e ripetuti qui potevano CONTRADDIRE l'EM
+    Overview — la scala conta i nodi `representation_model` dei grafi, questa
+    riga contava `len(scene.rm_list)`, che sono oggetti di scena: sul file di
+    E.D. 0 e 99 nello stesso momento."""
+    codice = _codice(DOCUI)
+    for morto in ('f"RM: {rm_count}"', 'f"RMDoc: {rmdoc_count}"',
+                  'f"RMSF: {rmsf_count}"', 'f"US: {docs_with_us}"'):
+        assert morto not in codice, f"{morto} è ancora lì"
+    assert "rmsf_count" not in codice and "docs_with_us" not in codice
+
+    #: resta il sommario della SUA lista
+    assert 'f"{total} Documents"' in codice
+    assert 'f"Canonicals: {canonicals}"' in codice
+    #: …e il conteggio PER DOCUMENTO, che non è duplicato da nessuno
+    assert "Linked RMs: " in codice
+
+
+def test_D_LA_RISALITA_dal_container_al_documento():
+    """Si impara un grafo percorrendolo nei due versi; in un verso solo resta
+    un albero. L'operatore NON è nuovo: `em.rmdoc_jump_to_document` esiste e
+    fa esattamente questo."""
+    src = (_REPO / "rm_manager" / "ui.py").read_text()
+    assert "em.rmdoc_jump_to_document" in src
+    i = src.index("UX3/D · LA RISALITA")
+    j = src.index("SECTION 2 (MIDDLE)", i)
+    blocco = src[i:j]
+    assert "salta.doc_node_id = ac.doc_node_id" in blocco
+    #: senza documento non c'è dove andare: un trattino, non un bottone morto
+    assert 'if ac.doc_node_id:' in blocco
+    assert 'text="—"' in blocco
+    #: e il `doc:` non è più dentro la stessa label degli altri due pezzi
+    assert 'f"doc: {ac.doc_name' not in src
+
+    #: l'operatore riusato è registrato
+    ops = (_REPO / "document_manager" / "operators.py").read_text()
+    assert "RMDOC_OT_jump_to_document," in ops, "non registrato"
+
+
+# ═══ UX3/E · IL COLLASSO DELLA SEZIONE RDF ══════════════════════════════════
+
+def test_E_RDF_SI_COLLASSA_COL_MECCANISMO_CHE_CE_GIA():
+    """Non c'è un secondo meccanismo, e non ne ho scritto uno.
+
+    `export_manager/panel.py` cerca `f"{provider.id}_expanded"` su ExportVars
+    e, SE la proprietà esiste, disegna il triangolino; se non esiste tiene la
+    sezione sempre aperta (`expanded = True`). Al provider `rdf` mancava solo
+    quella riga — ed è per questo che srotolava formato, path, base URI, box
+    IRI, opzioni avanzate, bottone e le tre righe di «Workflow after export»,
+    più di uno schermo, mentre Tabular si chiudeva.
+    """
+    panel = (_REPO / "export_manager" / "panel.py").read_text()
+    assert 'expand_attr = f"{provider.id}_expanded"' in panel, (
+        "il meccanismo generico è quello, e non si tocca")
+
+    init = (_REPO / "__init__.py").read_text()
+    i = init.index("rdf_expanded: BoolProperty(")
+    j = init.index(")", init.index("default=", i))
+    prop = init[i:j]
+    assert "default=False" in prop, "chiusa di default"
+
+    #: e l'id del provider è quello che la proprietà nomina
+    rdf = (_REPO / "export_manager" / "providers" / "rdf" / "__init__.py").read_text()
+    assert 'id="rdf"' in rdf
+
+
+def test_B_LA_GUIDA_E_SOLO_PER_IL_PRIMO_GRAFO_e_lo_stato_e_DERIVATO():
+    """La parte che decide se questo assetto infragilisce la UI o no.
+
+    Il conteggio dei grafi caricati è **derivato** dallo stato vivo a ogni
+    ridisegno, non memorizzato. Un flag «l'utente ha già visto la guida»
+    salvato da qualche parte sarebbe stato che può mentire: resta acceso dopo
+    che il grafo è stato rimosso, non segue un .blend che cambia mano, e
+    quando mente non c'è modo di accorgersene guardando. Contare i grafi
+    caricati non può desincronizzarsi, perché non è una memoria — è una
+    domanda fatta ogni volta.
+
+    Questa prova recinta proprio quello: nessuna proprietà di scena, nessun
+    contatore, nessun «già visto» da nessuna parte.
+    """
+    corpo = _data_tree()
+    i = corpo.index("def _catena")
+    j = corpo.index("def _guida_richiesta", i)
+    catena = corpo[i:j]
+    assert '"grafi_caricati": len(_grafi_caricati(em_tools))' in catena, (
+        "il conteggio si deriva dalla stessa funzione che usa l'Overview")
+    #: e NON c'è memoria da nessuna parte
+    for memoria in ("guida_vista", "guide_seen", "already_seen",
+                    "guida_mostrata", "first_run"):
+        assert memoria not in _codice(SETUP), (
+            f"{memoria}: uno stato memorizzato è uno stato che può mentire")
+
+
+def test_B_LA_GUIDA_SI_SPEGNE_DALLE_PREFERENZE_e_in_dubbio_resta_accesa():
+    """La preferenza c'è, è raggiungibile, e il ripiego è il comportamento
+    di prima: una preferenza che non si riesce a leggere non deve cambiare
+    ciò che l'utente vede."""
+    prefs = (_REPO / "mapping_preferences.py").read_text()
+    i = prefs.index("show_setup_guide: BoolProperty(")
+    j = prefs.index(")", prefs.index("default=", i))
+    prop = prefs[i:j]
+    assert "default=True" in prop, (
+        "accesa di default: è il comportamento che c'è, e chi apre l'add-on "
+        "per la prima volta è chi ne ha bisogno")
+    #: …e si trova, cioè è disegnata nelle preferenze
+    assert 'ui_box.prop(self, "show_setup_guide")' in prefs
+
+    corpo = _data_tree()
+    i = corpo.index("def _guida_richiesta")
+    j = corpo.index("def _guida(", i)
+    lettore = corpo[i:j]
+    assert "from .. import get_addon_preferences" in lettore, (
+        "l'accessore deve venire dalla RADICE del pacchetto")
+    assert lettore.count("return True") == 2, (
+        "due ripieghi: eccezione e prefs assenti, entrambi verso «come prima»")
+
+
+def test_B_LE_PREFERENZE_SI_LEGGONO_DA_UN_ACCESSORE_SOLO():
+    """È il punto in cui questa cosa si romperebbe, quindi ha una prova sua.
+
+    `context.preferences.addons[<chiave>].preferences` vuole il pacchetto
+    RADICE, quello su cui `EMToolsMappingPreferences` mette
+    `bl_idname = __package__`. Da un sottomodulo `__package__` è
+    `…EM-blender-tools.em_setup`, e quella chiave non esiste: `KeyError`.
+    Spezzarlo sul punto non aiuta — come add-on la radice è un segmento
+    (`EM-blender-tools`), come estensione sono tre
+    (`bl_ext.<repo>.EM-blender-tools`).
+    """
+    root = (_REPO / "__init__.py").read_text()
+    assert "def get_addon_preferences(" in root
+    i = root.index("def get_addon_preferences(")
+    j = root.index("\n\n\n", i)
+    acc = root[i:j]
+    assert "addons[__package__].preferences" in acc
+    assert "except (KeyError, AttributeError)" in acc, (
+        "deve tornare None, non sollevare: una preferenza illeggibile non "
+        "deve spegnere un pannello")
+    assert "return None" in acc
+
+    #: e nessun sottomodulo se lo rifà da sé
+    for f in ("em_setup/ui.py", "document_manager/ui.py", "rm_manager/ui.py"):
+        src = (_REPO / f).read_text()
+        assert "addons[__package__]" not in _codice(src), (
+            f"{f}: da un sottomodulo __package__ non è la chiave giusta")
+
+
+# ═══ LA PROVA CHE AVREBBE PRESO IL GUASTO DI OGGI ════════════════════════════
+
+def test_OGNI_self_METODO_CHIAMATO_ESISTE_NELLA_SUA_CLASSE():
+    """Due volte nello stesso giro ho rotto il disegno così, e a video il
+    sintomo è lo stesso: Blender **smette di disegnare** al punto
+    dell'eccezione e il pannello finisce a metà, senza dire niente.
+
+    Il primo caso: togliendo `_draw_promotion_scale` da `EM_SetupPanel` la
+    fetta si è portata via anche `_kw_icona`, che le stava accanto.
+    `_draw_graph_info` lo chiama, quindi aprire `Graph info` sollevava
+    `AttributeError` e a video restava l'etichetta `US/USV` e poi il vuoto —
+    via Epochs, Properties, Documents, EM Warnings, Auxiliary Resources.
+
+    Il secondo: rimuovendo il pannello Overview è sparita la definizione di
+    `_grafi_caricati`, che `_catena` chiama per decidere se mostrare la guida.
+
+    Nessuna prova se ne accorgeva, perché tutte misuravano il TESTO del
+    sorgente («`_kw_icona("proxies_rows"` compare») e non la struttura. Questa
+    legge le classi con `ast` e verifica che ogni `self._nome(` chiamato sia
+    definito nella stessa classe o in una sua antenata del file.
+    """
+    import ast
+    problemi = []
+    for rel, f in _sorgenti():
+        try:
+            albero = ast.parse(f.read_text(errors="replace"))
+        except SyntaxError:
+            continue
+        for cls in [n for n in ast.walk(albero) if isinstance(n, ast.ClassDef)]:
+            definiti = {n.name for n in cls.body
+                        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+            definiti |= {t.id for n in cls.body
+                         if isinstance(n, ast.Assign)
+                         for t in n.targets if isinstance(t, ast.Name)}
+            #: le annotazioni (le PropertyGroup di Blender: `step: StringProperty`)
+            definiti |= {n.target.id for n in cls.body
+                         if isinstance(n, ast.AnnAssign)
+                         and isinstance(n.target, ast.Name)}
+            #: gli ATTRIBUTI assegnati da qualunque metodo contano come
+            #: definiti: `self._timer = None` in `execute` è legittimo, e una
+            #: prova che lo segnalasse sarebbe rumore
+            for nodo in ast.walk(cls):
+                if (isinstance(nodo, ast.Assign)
+                        and any(isinstance(t, ast.Attribute)
+                                and isinstance(t.value, ast.Name)
+                                and t.value.id == "self" for t in nodo.targets)):
+                    definiti |= {t.attr for t in nodo.targets
+                                 if isinstance(t, ast.Attribute)}
+
+            #: e si guardano solo le CHIAMATE `self._x(...)`, che è la forma
+            #: che rompe il disegno
+            for nodo in ast.walk(cls):
+                if not (isinstance(nodo, ast.Call)
+                        and isinstance(nodo.func, ast.Attribute)
+                        and isinstance(nodo.func.value, ast.Name)
+                        and nodo.func.value.id == "self"):
+                    continue
+                nome = nodo.func.attr
+                #: solo i nostri, cioè quelli con l'underscore: il resto lo
+                #: mette Blender sulla classe base (`layout`, `report`, …)
+                if not nome.startswith("_") or nome.startswith("__"):
+                    continue
+                if nome not in definiti:
+                    problemi.append(f"{rel}: {cls.name}.self.{nome}() "
+                                    f"chiamato ma non definito nella classe")
+    assert not problemi, "\n".join(problemi)
+
+
+def test_OGNI_FUNZIONE_DI_MODULO_CHIAMATA_ESISTE(  ):
+    """La gemella della precedente per le funzioni di modulo: `_catena`
+    chiamava `_grafi_caricati()` dopo che la rimozione del pannello Overview
+    ne aveva portato via la definizione. `py_compile` non se ne accorge —
+    è un `NameError` a tempo di esecuzione, cioè a tempo di DISEGNO.
+
+    Recintata su `em_setup/ui.py`, che è il file dove è capitato e dove i
+    pannelli si dividono gli aiuti a livello di modulo.
+    """
+    import ast
+    albero = ast.parse(SETUP)
+    definiti = {n.name for n in albero.body
+                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    definiti |= {t.id for n in albero.body if isinstance(n, ast.Assign)
+                 for t in n.targets if isinstance(t, ast.Name)}
+    #: i nomi importati contano come definiti
+    for n in ast.walk(albero):
+        if isinstance(n, (ast.Import, ast.ImportFrom)):
+            definiti |= {(a.asname or a.name).split(".")[0] for a in n.names}
+
+    mancanti = set()
+    for n in ast.walk(albero):
+        if (isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                and n.func.id.startswith("_")
+                and not n.func.id.startswith("__")
+                and n.func.id not in definiti):
+            mancanti.add(n.func.id)
+    assert not mancanti, f"chiamate a nomi non definiti nel modulo: {mancanti}"

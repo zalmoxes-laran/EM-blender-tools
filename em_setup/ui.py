@@ -703,31 +703,57 @@ def _wrap(testo, n):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# UX3/A · EM OVERVIEW — cosa c'è in questo .blend, e che senso ha nel grafo
+# UX3/A · EM OVERVIEW — RIMOSSO su richiesta di E.D. (11-09-2026)
 # ══════════════════════════════════════════════════════════════════════
 #
-# PERCHÉ UN PANNELLO SUO, E PERCHÉ QUI
+# Il pannello `VIEW3D_PT_EM_Overview` stava qui e portava la scala di
+# promozione (Scene → RMs → Groups → Docs) con la somma su tutti i grafi
+# caricati. E.D. l'ha guardato e ha deciso che non gli serve: «il pannello
+# overview non ha senso per me, eliminalo per ora».
 #
-# La scala stava in testa all'EM Data Tree, e il difetto era di scope: i
-# quattro numeri venivano da posti diversi — oggetti e `rm_containers` dalla
-# SCENA, i modelli dal GRAFO ATTIVO, i documenti da `doc_list` che il Document
-# Manager popola dal grafo attivo. In multigrafo, cambiando grafo attivo, due
-# numeri su quattro cambiavano e due no, e niente lo diceva. Una riga che
-# esiste per mostrare un RAPPORTO non può mettere in rapporto scope diversi.
+# Rimosso pannello e registrazione. **Non** ho rimesso la scala nell'EM Data
+# Tree, da cui UX3 l'aveva tolta: era una decisione di scope (i suoi numeri
+# venivano da posti diversi) e rimetterla lì sarebbe reintrodurre la cosa
+# eliminata in un altro posto.
 #
-# Quindi: pannello proprio, e i numeri diventano tutti **di questo file**.
-# Modelli e documenti si sommano su TUTTI i grafi caricati; il dettaglio per
-# grafo non si perde, va nel tooltip della cella.
+# Restano sul disco, non più raggiungibili da nessun pannello:
+#   * `em_setup/promotion_scale.py` (etichette, conteggi, `ripartizione()`)
+#   * `EM_OT_promotion_step_info` (registrato, ma nessuno lo disegna più)
+#   * `EM_OT_promotion_step_info` (registrato, ma nessuno lo disegna più)
+# Li ho lasciati perché «per ora» dice che la decisione è reversibile. Se la
+# scala non torna, sono due cose da cancellare.
 #
-# Sta nel tab `EM` e non in `EM Scene`, che sarebbe la sua casa concettuale,
-# perché deve essere la prima cosa che si vede (`bl_order = 0`).
-def _grafi_caricati(em_tools):
-    """`[(nome, grafo), …]` per le entry con un grafo DAVVERO caricato.
+# `_grafi_caricati()` e `GRAPH_CODE_SEGNAPOSTO` invece NON sono orfani e
+# restano qui sotto: il primo lo usa `_catena` per sapere se la guida a tre
+# passi va disegnata (solo per il primo grafo), la seconda il banner di
+# warning sul `graph_code`. `_per_grafo()` era solo della scala ed è andato
+# via con lei.
 
-    Il ripiego su `original_id` è lo stesso che fa la UIList dei grafi
-    (`EMTOOLS_UL_files.draw_item`): dopo un rename l'entry non trova più il
-    grafo col nome nuovo. Copiare quel ripiego qui è meglio che dare un
-    conteggio più basso senza dirlo.
+
+#: I due valori che `graph_code` prende quando un codice vero non c'è.
+#: `MISSINGCODE` lo assegna s3Dgraphy quando il GraphML non ne porta uno
+#: (`importer/import_graphml.py`); `site_id` è il segnaposto del template.
+#: Il banner di warning più sotto li elenca, e la lista sta in un posto solo.
+GRAPH_CODE_SEGNAPOSTO = ("site_id", "MISSINGCODE")
+
+
+def _grafi_caricati(em_tools):
+    """`[(etichetta, grafo), …]` per le entry con un grafo DAVVERO caricato.
+
+    Serve a `EM_SetupPanel._catena` per sapere quanti grafi sono caricati in
+    tutto — cioè se la guida a tre passi va mostrata (solo per il primo
+    grafo) o no.
+
+    Due cose prese dalla UIList dei grafi (`EMTOOLS_UL_files.draw_item`),
+    perché questo pannello e quella lista devono dire la stessa cosa:
+
+    * il **ripiego su `original_id`** quando `get_graph(nome)` non trova
+      nulla: dopo un rename l'entry non trova più il grafo col nome nuovo, e
+      contare un grafo in meno in silenzio è peggio che copiare due righe;
+    * l'**etichetta**, che è `graph_code` e non `name` — dopo un import
+      `name` è l'UUID del grafo. Un `graph_code` SEGNAPOSTO non fa da
+      etichetta: con due entry senza codice si leggeva due volte
+      «MISSINGCODE», che non distingue niente.
     """
     from s3dgraphy import get_graph
     fuori = []
@@ -736,118 +762,11 @@ def _grafi_caricati(em_tools):
         if not g and getattr(gf, "original_id", ""):
             g = get_graph(gf.original_id)
         if g is not None and getattr(g, "nodes", None):
-            fuori.append((gf.name, g))
+            codice = getattr(gf, "graph_code", "")
+            if codice in GRAPH_CODE_SEGNAPOSTO:
+                codice = ""
+            fuori.append((codice or gf.name, g))
     return fuori
-
-
-def _per_grafo(grafi, node_type):
-    """`[(nome, quanti), …]` di un tipo di nodo, grafo per grafo.
-
-    Usa `Graph.get_nodes_by_type()`, che è l'accessore esistente di s3Dgraphy
-    e va a indice (O(1)) quando l'indice è pulito, con ripiego a scansione
-    lineare dentro s3Dgraphy stesso. NON scorre `graph.nodes` a mano: sarebbe
-    buttare via l'indice a ogni ridisegno del pannello.
-    """
-    fuori = []
-    for nome, g in grafi:
-        try:
-            fuori.append((nome, len(g.get_nodes_by_type(node_type))))
-        except Exception:                           # noqa: BLE001
-            fuori.append((nome, 0))
-    return fuori
-
-
-class VIEW3D_PT_EM_Overview(bpy.types.Panel):
-    """La scala di promozione, e nient'altro."""
-
-    bl_label = "EM Overview"
-    bl_idname = "VIEW3D_PT_EM_Overview"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = "EM"
-    bl_order = 0
-    #: NESSUN 'DEFAULT_CLOSED': è l'unica cosa che insegna la regola, e se si
-    #: potesse chiudere resterebbe chiusa.
-
-    def draw_header_preset(self, context):
-        """Quanti grafi ci sono, a destra nella testata.
-
-        `draw_header_preset` disegna A DESTRA; `draw_header` disegnerebbe
-        nella striscia PRIMA del titolo e glielo mangerebbe — misurato in
-        UX2 sul titolo dell'EM Data Tree.
-        """
-        em_tools = getattr(context.scene, "em_tools", None)
-        if em_tools is None:
-            return
-        n = len(_grafi_caricati(em_tools))
-        self.layout.label(text=f"{n} graph" if n == 1 else f"{n} graphs")
-
-    @staticmethod
-    def _kw_icona(custom, builtin):
-        """Gli argomenti-icona per `label`/`operator`: la nostra se c'è.
-
-        Gemella di `EM_SetupPanel._kw_icona` — `get_icon_value()` torna 0
-        quando la collezione previews non è caricata, e `icon_value=0`
-        disegna il vuoto invece di un ripiego.
-        """
-        if custom:
-            valore = icons_manager.get_icon_value(custom)
-            if valore:
-                return {"icon_value": valore}
-        return {"icon": builtin}
-
-    def draw(self, context):
-        from . import promotion_scale as ps
-        layout = self.layout
-        scene = context.scene
-        em_tools = getattr(scene, "em_tools", None)
-        if em_tools is None:
-            layout.label(text="EM Tools not initialised", icon='ERROR')
-            return
-        try:
-            from ..rm_manager.containers import is_rm_candidate
-        except Exception:                           # noqa: BLE001
-            layout.label(text="RM manager unavailable", icon='ERROR')
-            return
-
-        grafi = _grafi_caricati(em_tools)
-        rms_per_grafo = _per_grafo(grafi, "representation_model")
-        docs_per_grafo = _per_grafo(grafi, "document")
-
-        numeri = ps.conta(
-            oggetti_scena=scene.objects,
-            is_candidato=is_rm_candidate,
-            rms=sum(n for _g, n in rms_per_grafo),
-            rm_containers=len(getattr(scene, "rm_containers", ()) or ()),
-            docs=sum(n for _g, n in docs_per_grafo),
-        )
-        zero_sospetto = ps.modelli_a_zero_sospetto(numeri)
-
-        #: il dettaglio per grafo, per le due celle che sono una somma
-        dettagli = {
-            "rms": ps.ripartizione(rms_per_grafo),
-            "docs": ps.ripartizione(docs_per_grafo),
-        }
-
-        # La forma è quella di UX2, che è quella del blocco `Graph info`:
-        # `box` → `row(align=True)` → `split()`, e per cella una `column()`
-        # con la parola sopra e il numero sotto con l'icona dentro la label.
-        box = layout.box()
-        riga = box.row(align=True)
-        split = riga.split()
-        for chiave, etichetta, custom, icona, _tip in ps.GRADINI:
-            cella = split.column()
-            cella.label(text=etichetta)
-            info = (chiave == "rms" and zero_sospetto)
-            kw = ({"icon": 'INFO'} if info
-                  else self._kw_icona(custom, icona))
-            op = cella.operator(
-                "em.promotion_step_info",
-                text=str(numeri[chiave]),
-                emboss=False, **kw)
-            op.step = chiave
-            op.zero = info
-            op.dettaglio = dettagli.get(chiave, "")
 
 
 class EM_SetupPanel(bpy.types.Panel):
@@ -887,6 +806,225 @@ class EM_SetupPanel(bpy.types.Panel):
         layout = self.layout
         layout.label(text=get_em_tools_version())
 
+
+    # ══════════════════════════════════════════════════════════════════
+    # UX3/B · la catena «aggiungi → path → carica», e i pezzi che la dicono
+    # ══════════════════════════════════════════════════════════════════
+
+    @staticmethod
+    def _kw_icona(custom, builtin):
+        """Gli argomenti-icona per `label`/`operator`: la nostra se c'è.
+
+        `icons_manager.get_icon_value()` torna **0** quando la collezione
+        previews non è caricata o il file manca, e `icon_value=0` disegna il
+        vuoto — non un ripiego. Quindi lo zero va controllato qui, e in quel
+        caso si passa l'icona di Blender.
+
+        REGRESSIONE DA NON RIFARE: UX3 aveva portato via questo metodo per
+        sbaglio, insieme al `_draw_promotion_scale` che gli stava accanto.
+        `_draw_graph_info` lo chiama, quindi aprire `Graph info` sollevava
+        `AttributeError` a metà del disegno e Blender smetteva di disegnare
+        lì: a video si vedeva l'etichetta `US/USV` e poi il pannello finiva,
+        senza Epochs, Properties, Documents, EM Warnings e Auxiliary
+        Resources. C'è una prova che adesso verifica che ogni `self._x(`
+        chiamato in una classe sia DEFINITO in quella classe.
+        """
+        if custom:
+            valore = icons_manager.get_icon_value(custom)
+            if valore:
+                return {"icon_value": valore}
+        return {"icon": builtin}
+
+    @staticmethod
+    def _catena(context, em_tools):
+        """Dove siamo nella catena. Un dizionario, letto da tutto il resto.
+
+        Lo stato lo calcolo UNA volta per ridisegno e lo passo in giro: se
+        ogni pezzo se lo ricalcolasse, i pezzi potrebbero non essere
+        d'accordo fra loro — ed è esattamente il modo in cui un'interfaccia
+        a stati si contraddice.
+
+        `caricato` usa lo stesso test della UIList dei grafi (grafo presente
+        E con nodi), ripiego su `original_id` compreso: un grafo «presente»
+        ma vuoto non è caricato, e `em_tools.populate_lists` lo rifiuta per
+        la stessa ragione.
+        """
+        files = getattr(em_tools, "graphml_files", None)
+        idx = getattr(em_tools, "active_file_index", -1)
+        attivo = None
+        if files and 0 <= idx < len(files):
+            attivo = files[idx]
+
+        stato = {
+            "ha_grafo": bool(files and len(files)),
+            "attivo": attivo,
+            "indice": idx,
+            "ha_path": bool(attivo and getattr(attivo, "graphml_path", "")),
+            "caricato": False,
+            "emjson": (attivo is not None
+                       and getattr(attivo, "file_format", "GRAPHML") == "EMJSON"),
+            # Quanti grafi sono caricati IN TUTTO, non solo l'attivo: è ciò
+            # che distingue «non ho ancora mai visto un contenuto» da «ne ho
+            # già uno e sto aggiungendo il secondo».
+            #
+            # È DERIVATO dallo stato vivo, e questa è la parte che conta: un
+            # flag «l'utente ha già visto la guida» salvato da qualche parte
+            # sarebbe stato che può mentire — resta acceso dopo che il grafo
+            # è stato rimosso, non segue un file .blend che cambia mano, e
+            # quando mente non c'è modo di accorgersene guardando. Contare i
+            # grafi caricati non può desincronizzarsi da niente, perché non è
+            # una memoria: è una domanda fatta ogni volta.
+            "grafi_caricati": len(_grafi_caricati(em_tools)),
+        }
+        if attivo is not None:
+            try:
+                from s3dgraphy import get_graph
+                g = get_graph(attivo.name)
+                if not g and getattr(attivo, "original_id", ""):
+                    g = get_graph(attivo.original_id)
+                stato["caricato"] = bool(
+                    g is not None and getattr(g, "nodes", None))
+            except Exception:                       # noqa: BLE001
+                stato["caricato"] = False
+        return stato
+
+    @staticmethod
+    def _guida_richiesta():
+        """La guida è accesa nelle preferenze? In dubbio, SÌ.
+
+        Il ripiego su `True` non è pigrizia: è il comportamento che c'era
+        prima della preferenza, e una preferenza che non si riesce a leggere
+        non deve cambiare quello che l'utente vede. L'accessore sta nella
+        radice del pacchetto perché da un sottomodulo `__package__` non è la
+        chiave giusta — vedi `get_addon_preferences`.
+        """
+        try:
+            from .. import get_addon_preferences
+            prefs = get_addon_preferences()
+        except Exception:                           # noqa: BLE001
+            return True
+        if prefs is None:
+            return True
+        return bool(getattr(prefs, "show_setup_guide", True))
+
+    @staticmethod
+    def _guida(layout, stato):
+        """I tre passi numerati, col loro stato.
+
+        `ui_helpers.draw_requirement_row` esiste già e fa esattamente questo
+        — numero, icona di stato, hint, riga dimmata per i passi non ancora
+        valutabili — quindi non ne scrivo una seconda: `inactive` è il
+        parametro che distingue «sbagliato» da «tocca più tardi», che è la
+        distinzione che rende una lista di passi leggibile.
+        """
+        from ..ui_helpers import draw_requirement_row
+        box = layout.box()
+        box.label(text="To see a content:", icon='INFO')
+        draw_requirement_row(
+            box, 1, "Add graph", stato["ha_grafo"],
+            hint="Press + to create an EM graph slot")
+        draw_requirement_row(
+            box, 2, "Set path", stato["ha_path"],
+            hint="Point Path to a .graphml or .em.json file",
+            inactive=not stato["ha_grafo"])
+        draw_requirement_row(
+            box, 3, "Load", stato["caricato"],
+            hint="Press Load to read the file into the graph",
+            inactive=not stato["ha_path"])
+
+    @staticmethod
+    def _op_carica(layout, stato, testo=""):
+        """Il comando di caricamento, col dispatch sul formato.
+
+        Due importer e non uno: un entry `em.json` passato all'importer
+        GraphML verrebbe parsato come XML («not well-formed»). È lo stesso
+        dispatch che fa la UIList sul bottone FILE_REFRESH — e il nome della
+        proprietà dell'indice è diverso fra i due (`file_index` contro
+        `graphml_index`), che è la ragione per cui questo pezzo sta in una
+        funzione sola invece che copiato nei due punti che lo usano.
+        """
+        if stato["emjson"]:
+            op = layout.operator("import.em_emjson", text=testo,
+                                 icon='IMPORT' if testo else 'FILE_REFRESH')
+            op.file_index = stato["indice"]
+        else:
+            op = layout.operator("import.em_graphml", text=testo,
+                                 icon='IMPORT' if testo else 'FILE_REFRESH')
+            op.graphml_index = stato["indice"]
+        return op
+
+    def _riga_comandi(self, context, layout, em_tools, scene, stato):
+        """I sei comandi sui file EM, tutti della stessa dimensione.
+
+        La larghezza piena la dà `grid_flow(columns=…, even_columns=True)`:
+        un bottone icona-sola (`text=""`) in un `row()` piatto prende la sua
+        larghezza NATURALE — quadrata — e la riga non gli passa lo spazio che
+        avanza. Misurato a video in UX2, dopo che togliere `ui_units_x` non
+        era bastato. `scale_y` per l'altezza.
+
+        Restano icona-sola: i tooltip fanno da etichetta e sono quelli degli
+        operatori (`bl_description`), tutti parlanti. Dove il bottone è
+        spento la ragione la dice `poll_message_set` nei poll di
+        `export.em_save` / `export.em_saveas`: spento con la ragione insegna,
+        spento muto fa sembrare l'add-on rotto.
+
+        Il separatore stacca Remove graph, che è l'unico distruttivo (e
+        conserva la sua conferma), dagli altri.
+        """
+        # Sette celle: sei comandi più Reload, che UX3 ha portato nella riga
+        # (a grafo caricato il caricamento è un'azione ripetibile, non un
+        # passo da fare).
+        #
+        # Il separatore di Remove sta DENTRO la sua cella e non è una cella
+        # sua: come cella ottava mandava la riga a capo su due righe —
+        # misurato a video, `grid_flow` decideva quattro colonne e ne
+        # impilava tre sotto.
+        cmd = layout.grid_flow(row_major=True, columns=7,
+                               even_columns=True, even_rows=False,
+                               align=True)
+        cmd.scale_y = 1.3
+        cmd.row(align=True).operator('em_tools.add_file', text="",
+                                     icon='ADD')
+
+        # Reload: a grafo caricato il comando di caricamento vive QUI, come
+        # icona, perché è un'azione ripetibile e non più un passo da fare.
+        ricarica = cmd.row(align=True)
+        ricarica.enabled = stato["ha_path"]
+        self._op_carica(ricarica, stato)
+
+        cmd.row(align=True).operator('export.em_save', text="",
+                                     icon='FILE_TICK')
+        cmd.row(align=True).operator('export.em_saveas', text="",
+                                     icon='FILE_NEW')
+
+        # Multigraph Mode: è un comando sui file EM come gli altri. Lo stato
+        # lo rende l'icona (WORLD accesa / WORLD_DATA spenta, con `depress`),
+        # non una parola.
+        _loaded = []
+        for _gf in getattr(em_tools, "graphml_files", ()) or ():
+            if getattr(_gf, 'is_graph', False):
+                _loaded.append(_gf)
+            else:
+                from s3dgraphy import get_graph as _gg
+                if _gg(_gf.name):
+                    _loaded.append(_gf)
+        _attiva = getattr(scene, 'landscape_mode_active', False)
+        multi = cmd.row(align=True)
+        multi.enabled = _attiva or len(_loaded) >= 2
+        _op = multi.operator("em.toggle_landscape_mode", text="",
+                             icon='WORLD' if _attiva else 'WORLD_DATA',
+                             depress=_attiva)
+        _op.enable = not _attiva
+
+        _iop = cmd.row(align=True).operator("wm.call_menu", text="",
+                                            icon='INFO')
+        _iop.name = "EM_MT_LandscapeInfo"
+
+        # …e per ultimo il distruttivo, staccato dal separatore che sta
+        # nella sua stessa cella.
+        via = cmd.row(align=True)
+        via.separator()
+        via.operator('em_tools.remove_file', text="", icon='REMOVE')
 
     def draw(self, context):
         layout = self.layout
@@ -964,69 +1102,46 @@ class EM_SetupPanel(bpy.types.Panel):
 
         if em_tools.mode_em_advanced:
 
+            # ── UX3/B · LA VIA PIÙ CORTA PER VEDERE UN CONTENUTO ─────────
+            #
+            # La sequenza vera è: aggiungi un grafo → dai il path → carica.
+            # L'interfaccia non la diceva: su una scena vuota si vedevano sei
+            # bottoni icona uguali, un campo Path e nessun ordine.
+            #
+            # Il principio non è spiegare la sequenza, è fare in modo che a
+            # ogni passo l'unica cosa accesa sia quella giusta.
+            _stato = self._catena(context, em_tools)
+
+            # PASSO 0 · la guida, e SOLO per il primo grafo.
+            #
+            # Prima compariva ogni volta che l'ATTIVO non era caricato,
+            # quindi tornava quando si aggiungeva il secondo grafo — e lì è
+            # pleonastica: la sequenza la si è appena fatta. La condizione è
+            # «nessun grafo caricato in tutto», cioè «non ho ancora mai visto
+            # un contenuto».
+            #
+            # Il secondo grafo non resta senza indicazioni: i comandi spenti
+            # dicono la ragione nel tooltip (`poll_message_set`) e il `Load`
+            # in evidenza compare comunque appena c'è un path.
+            if not _stato["grafi_caricati"] and self._guida_richiesta():
+                self._guida(layout, _stato)
+
             # List of GraphML files
             row = layout.row()
             row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=2)
 
-            # ── C1 (EM16-UX2) · LA RIGA DI COMANDI RIEMPIE LA RIGA ────────
-            #
-            # B3 aveva messo ogni bottone in un `row` con `ui_units_x`: quello
-            # FISSA la larghezza di ciascuno, e il risultato a video era sei
-            # bottoni stretti ammucchiati a sinistra con mezza riga di vuoto a
-            # destra — l'opposto di quel che serviva.
-            #
-            # Togliere `ui_units_x` però NON basta, e non per teoria: si
-            # vede nello scatto. Un bottone icona-sola (`text=""`) in un
-            # `row()` piatto prende la sua larghezza NATURALE — quadrata — e
-            # la riga non gli passa lo spazio che avanza: sei quadratini
-            # ammucchiati a sinistra, cioè il difetto di partenza.
-            #
-            # Quello che distribuisce la larghezza è un contenitore a celle.
-            # `grid_flow(columns=6, even_columns=True)` dà a ogni cella un
-            # sesto esatto della riga e il bottone riempie la sua cella — è lo
-            # stesso meccanismo con cui le quattro celle della scala (C2)
-            # arrivano da bordo a bordo, misurato nello stesso scatto.
-            # `scale_y` per l'altezza, che è la dimensione che li rende comodi
-            # da colpire.
-            #
-            # Restano icona-sola. I tooltip fanno da etichetta e sono quelli
-            # degli operatori: misurati, tutti e cinque hanno un
-            # `bl_description` parlante («Add a new EM graph slot (set its Path
-            # to a .graphml or .em.json)», «Save the active graph to its
-            # .em.json file in place…»). B3 portava una tupla di descrizioni
-            # scritte a mano che NON venivano mai usate: erano dati morti, e
-            # sono andate via con lei.
-            cmd = layout.grid_flow(row_major=True, columns=6,
-                                   even_columns=True, even_rows=False,
-                                   align=True)
-            cmd.scale_y = 1.3
-            cmd.row(align=True).operator('em_tools.add_file', text="", icon='ADD')
-            cmd.row(align=True).operator('em_tools.remove_file', text="", icon='REMOVE')
-            cmd.row(align=True).operator('export.em_save', text="", icon='FILE_TICK')
-            cmd.row(align=True).operator('export.em_saveas', text="", icon='FILE_NEW')
+            if not _stato["ha_grafo"]:
+                # STATO VUOTO · zero grafi, una strada sola. La riga dei sei
+                # bottoni NON si disegna: con la lista vuota cinque su sei non
+                # hanno nulla su cui agire, e sei icone uguali di cui una sola
+                # funziona sono un indovinello.
+                vuoto = layout.row()
+                vuoto.scale_y = 1.5
+                vuoto.operator('em_tools.add_file', text="Add graph",
+                               icon='ADD')
+            else:
+                self._riga_comandi(context, layout, em_tools, scene, _stato)
 
-            # Multigraph Mode nella stessa riga: è un comando sui file EM come
-            # gli altri quattro. Lo stato lo rende l'icona (WORLD accesa /
-            # WORLD_DATA spenta, con `depress`), non una parola.
-            _loaded = []
-            if em_tools.graphml_files:
-                for _gf in em_tools.graphml_files:
-                    if getattr(_gf, 'is_graph', False):
-                        _loaded.append(_gf)
-                    else:
-                        from s3dgraphy import get_graph as _gg
-                        if _gg(_gf.name):
-                            _loaded.append(_gf)
-            _attiva = getattr(scene, 'landscape_mode_active', False)
-            multi = cmd.row(align=True)
-            multi.enabled = _attiva or len(_loaded) >= 2
-            _op = multi.operator("em.toggle_landscape_mode", text="",
-                                 icon='WORLD' if _attiva else 'WORLD_DATA',
-                                 depress=_attiva)
-            _op.enable = not _attiva
-            _iop = cmd.row(align=True).operator("wm.call_menu", text="",
-                                                icon='INFO')
-            _iop.name = "EM_MT_LandscapeInfo"
 
             # Save / Export / Merge buttons (experimental — GraphML write-back not production-ready)
             if em_tools.experimental_features:
@@ -1070,6 +1185,18 @@ class EM_SetupPanel(bpy.types.Panel):
                 # Path to GraphML
                 row = layout.row(align=True)
                 row.prop(active_file, "graphml_path", text="Path")
+
+                # PASSO 3 · il caricamento, in evidenza e CON IL TESTO, finché
+                # il grafo non è caricato. A grafo caricato torna icona nella
+                # riga (come `Reload`), che è dove stava e dove basta che sia.
+                #
+                # Sta DOPO il Path e non prima: la catena si legge lista →
+                # path → carica, e a video il bottone sopra il campo che deve
+                # riempire prima invertiva l'ordine dei due passi.
+                if _stato["ha_path"] and not _stato["caricato"]:
+                    carica = layout.row()
+                    carica.scale_y = 1.5
+                    self._op_carica(carica, _stato, testo="Load")
 
                 # UX3/A · la scala NON sta più qui: è diventata il pannello
                 # `EM Overview`, primo del tab. Il motivo è di scope — i suoi
@@ -1227,7 +1354,7 @@ class EM_SetupPanel(bpy.types.Panel):
         epochs_date_warning = False
 
         if hasattr(active_file, 'graph_code'):
-            if active_file.graph_code in ["site_id","MISSINGCODE"]:
+            if active_file.graph_code in GRAPH_CODE_SEGNAPOSTO:
                 graph_code_warning = True
 
         # Controllo per date delle epoche non valide
@@ -1843,8 +1970,6 @@ classes = (
     EMTOOLS_UL_files,
     # B1 · l'operatore dei tooltip della scala, PRIMA dei pannelli che lo usano
     EM_OT_promotion_step_info,
-    # UX3/A · l'Overview è il primo pannello del tab (`bl_order = 0`)
-    VIEW3D_PT_EM_Overview,
     EM_SetupPanel,
     AUXILIARY_MT_context_menu,
 )

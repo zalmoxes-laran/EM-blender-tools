@@ -447,39 +447,21 @@ class VIEW3D_PT_3DDocumentManager(Panel):
         help_op.url = "panels/document_manager_3d.html#document-manager-3d"
         help_op.project = 'em_tools'
 
-        # --- Summary line 2: RM, RMDoc, RMSF, direct US→Doc ---
-        if total > 0:
-            rm_count = len(scene.rm_list) if hasattr(scene, 'rm_list') else 0
-            rmdoc_count = len(scene.rmdoc_list) if hasattr(scene, 'rmdoc_list') else 0
-            rmsf_count = 0
-            if hasattr(scene.em_tools, 'anastylosis'):
-                rmsf_count = len(scene.em_tools.anastylosis.list)
-
-            # Count documents directly linked to US (has_documentation edges)
-            doc_cache = _build_doc_cache(context)
-            docs_with_us = sum(1 for d in doc_cache.values() if d.get('us_nodes'))
-
-            row2 = layout.row(align=True)
-
-            rm_icon = icons_manager.get_icon_value("show_all_RMs")
-            if rm_icon:
-                row2.label(text=f"RM: {rm_count}", icon_value=rm_icon)
-            else:
-                row2.label(text=f"RM: {rm_count}", icon="OBJECT_DATA")
-
-            rmdoc_icon = icons_manager.get_icon_value("show_all_RMDoc")
-            if rmdoc_icon:
-                row2.label(text=f"RMDoc: {rmdoc_count}", icon_value=rmdoc_icon)
-            else:
-                row2.label(text=f"RMDoc: {rmdoc_count}", icon="FILE_IMAGE")
-
-            sf_icon = icons_manager.get_icon_value("show_all_special_finds")
-            if sf_icon:
-                row2.label(text=f"RMSF: {rmsf_count}", icon_value=sf_icon)
-            else:
-                row2.label(text=f"RMSF: {rmsf_count}", icon="OUTLINER_OB_ARMATURE")
-
-            row2.label(text=f"US: {docs_with_us}", icon="MESH_CUBE")
+        # UX3/D · LA RIGA DI SOMMARIO «RM: n · RMDoc: n · RMSF: n · US: n»
+        # NON C'È PIÙ, e non per far posto.
+        #
+        # Quei numeri appartengono ai rispettivi pannelli, che già li
+        # mostrano. Ripetuti qui potevano CONTRADDIRE l'EM Overview: la scala
+        # conta i nodi `representation_model` dei grafi caricati, mentre
+        # questa riga contava `len(scene.rm_list)`, che sono oggetti di
+        # scena — sul file di E.D. i due numeri erano 0 e 99 nello stesso
+        # momento, e un utente che li vede insieme non impara la differenza,
+        # conclude che uno dei due è rotto.
+        #
+        # Restano il sommario della SUA lista (`N Documents · Canonicals: n`,
+        # sopra) e il conteggio PER DOCUMENTO nel dettaglio
+        # («Linked RMs: N mesh(es) in M container(s)»), che è informazione
+        # vera e non duplicata da nessuno.
 
         # --- Filter row ---
         filter_row = layout.row(align=True)
@@ -504,9 +486,33 @@ class VIEW3D_PT_3DDocumentManager(Panel):
             doc_cache = _build_doc_cache(context)
             doc_info = doc_cache.get(item.node_id, {})
 
+            # ══════════════════════════════════════════════════════════
+            # UX3/D · TRE FASCE, SEMPRE NELLO STESSO ORDINE
+            # ══════════════════════════════════════════════════════════
+            #
+            # Questo pannello è, di fatto, il posto dove si impara la
+            # struttura, perché la mostra su un caso concreto invece di
+            # spiegarla. Perché insegni, però, deve leggersi SEMPRE UGUALE:
+            #
+            #   cosa è  →  cosa documenta  →  cosa lo rappresenta
+            #
+            # I titoli ci sono ANCHE QUANDO LA FASCIA È VUOTA, ed è il punto:
+            # una fascia vuota che porta il titolo insegna che quel posto
+            # esiste e che lì manca qualcosa. Prima i blocchi comparivano e
+            # sparivano a seconda del documento, e due documenti diversi
+            # davano due pannelli di forma diversa — da cui non si impara un
+            # ordine.
+            #
+            # Il materiale è quello che c'era già: qui si riordina e si
+            # intitola, non si aggiunge. Ogni fascia ha il suo `col`, e i
+            # blocchi sono gli stessi di prima che scrivono in un `col`
+            # diverso — per questo il loro rientro non cambia.
             detail_box = layout.box()
-            col = detail_box.column(align=True)
 
+            # ── FASCIA 1 · cosa è ────────────────────────────────────────
+            f1 = detail_box.box()
+            f1.label(text="What it is", icon='INFO')
+            col = f1.column(align=True)
             # Header: name + canonical/instance badge + reference count
             # on a single row so the identity strip stays compact.
             ref_count = doc_info.get('ref_count', 0)
@@ -523,38 +529,6 @@ class VIEW3D_PT_3DDocumentManager(Panel):
             if item.description:
                 col.separator()
                 col.label(text=item.description, icon="TEXT")
-
-            # Linked US nodes — single selector icon per row, no
-            # redundant "entity-type" icon on the left.
-            us_nodes = doc_info.get('us_nodes', [])
-            if us_nodes:
-                col.separator()
-                sf_types = SPECIAL_FIND_TYPES
-                for us_name, us_node_id, us_type in us_nodes:
-                    us_row = col.row(align=True)
-                    us_row.label(text=f"→ {us_name} ({us_type})")
-                    if us_type in sf_types:
-                        sel_icon_val = icons_manager.get_icon_value(
-                            "show_all_special_finds")
-                        sel_fallback = 'OUTLINER_OB_ARMATURE'
-                    else:
-                        sel_icon_val = icons_manager.get_icon_value(
-                            "proxies_select")
-                        sel_fallback = 'RESTRICT_SELECT_OFF'
-                    if sel_icon_val:
-                        op = us_row.operator(
-                            "em.docmanager_select_linked_entity", text="",
-                            icon_value=sel_icon_val, emboss=False)
-                    else:
-                        op = us_row.operator(
-                            "em.docmanager_select_linked_entity", text="",
-                            icon=sel_fallback, emboss=False)
-                    op.node_id = us_node_id
-                    op.entity_type = 'RMSF' if us_type in sf_types else 'US'
-
-            # Document type (commented out for 1.5 — read-only, no editing)
-            # col.separator()
-            # col.prop(item, "doc_type", text="Type")
 
             # Chronology (canonicals only)
             if item.is_canonical:
@@ -603,6 +577,51 @@ class VIEW3D_PT_3DDocumentManager(Panel):
                          f"content: {nature_str}   |   "
                          f"geometry: {geom_str}")
 
+            # URL
+            if item.url:
+                col.separator()
+                col.operator("em.docmanager_open_url", text="Open File", icon="URL")
+
+            # ── FASCIA 2 · cosa documenta ────────────────────────────────
+            f2 = detail_box.box()
+            f2.label(text="What it documents", icon='PARTICLES')
+            col = f2.column(align=True)
+            # Linked US nodes — single selector icon per row, no
+            # redundant "entity-type" icon on the left.
+            us_nodes = doc_info.get('us_nodes', [])
+            if us_nodes:
+                col.separator()
+                sf_types = SPECIAL_FIND_TYPES
+                for us_name, us_node_id, us_type in us_nodes:
+                    us_row = col.row(align=True)
+                    us_row.label(text=f"→ {us_name} ({us_type})")
+                    if us_type in sf_types:
+                        sel_icon_val = icons_manager.get_icon_value(
+                            "show_all_special_finds")
+                        sel_fallback = 'OUTLINER_OB_ARMATURE'
+                    else:
+                        sel_icon_val = icons_manager.get_icon_value(
+                            "proxies_select")
+                        sel_fallback = 'RESTRICT_SELECT_OFF'
+                    if sel_icon_val:
+                        op = us_row.operator(
+                            "em.docmanager_select_linked_entity", text="",
+                            icon_value=sel_icon_val, emboss=False)
+                    else:
+                        op = us_row.operator(
+                            "em.docmanager_select_linked_entity", text="",
+                            icon=sel_fallback, emboss=False)
+                    op.node_id = us_node_id
+                    op.entity_type = 'RMSF' if us_type in sf_types else 'US'
+
+            if not us_nodes:
+                col.label(text="No stratigraphic unit cites this document",
+                          icon='BLANK1')
+
+            # ── FASCIA 3 · cosa lo rappresenta ───────────────────────────
+            f3 = detail_box.box()
+            f3.label(text="What represents it", icon='MESH_DATA')
+            col = f3.column(align=True)
             # Linked RMs (DP-47 — document wraps a set of 3D meshes via
             # one or more RM containers in the RM Manager). Rendered
             # via a template_list backed by scene.doc_detail_linked_meshes
@@ -624,10 +643,22 @@ class VIEW3D_PT_3DDocumentManager(Panel):
                     rows=6, maxrows=14,
                 )
 
-            # URL
-            if item.url:
-                col.separator()
-                col.operator("em.docmanager_open_url", text="Open File", icon="URL")
+            if not rm_containers_for_doc:
+                col.label(text="No RM container wraps this document",
+                          icon='BLANK1')
+
+            # Il quad è l'altra metà del «cosa lo rappresenta»: l'RM è la
+            # cosa documentata messa in 3D, il quad è il DOCUMENTO messo
+            # nello spazio. `has_quad` è lo stesso criterio del filtro
+            # «With 3D Only» di questo pannello.
+            if item.has_quad:
+                q = col.row(align=True)
+                q.label(text=f"Quad: {item.quad_object_name}",
+                        icon='MESH_PLANE')
+                if item.has_camera:
+                    q.label(text=item.camera_object_name, icon='CAMERA_DATA')
+            else:
+                col.label(text="Not placed in space (no quad)", icon='BLANK1')
 
             # DP-32 propagative metadata for this document node
             try:

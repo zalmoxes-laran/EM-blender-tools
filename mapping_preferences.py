@@ -125,6 +125,24 @@ class EMToolsMappingPreferences(AddonPreferences):
     """Preferenze per i percorsi di mapping personalizzati"""
     bl_idname = __package__
     
+    # UX3 · la guida a tre passi dell'EM Data Tree.
+    #
+    # È un'istruzione, e un'istruzione la si deve poter zittire quando si è
+    # imparata. Default ACCESO, perché è il comportamento che c'è adesso e
+    # perché chi apre l'add-on per la prima volta è esattamente chi ne ha
+    # bisogno.
+    #
+    # Spegnerla non lascia il pannello muto: lo stato vuoto conserva il suo
+    # bottone largo `Add graph`, e i comandi spenti continuano a dire la
+    # ragione nel tooltip (`poll_message_set`). La guida è la forma più
+    # esplicita di quell'informazione, non l'unica.
+    show_setup_guide: BoolProperty(
+        name="Show setup guide",
+        description=("Show the three-step guide (Add graph → Set path → "
+                     "Load) in the EM Data Tree while no graph is loaded yet"),
+        default=True
+    )
+
     # Modalità semplice/avanzata
     show_advanced: BoolProperty(
         name="Show Advanced Settings",
@@ -252,7 +270,14 @@ class EMToolsMappingPreferences(AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
-        
+
+        # ===== INTERFACCIA =====
+        # In cima perché è la preferenza che più probabilmente si cerca: le
+        # altre riguardano i percorsi dei mapping, questa quello che si vede.
+        ui_box = layout.box()
+        ui_box.label(text="Interface", icon='WINDOW')
+        ui_box.prop(self, "show_setup_guide")
+
         # ===== SEZIONE PRINCIPALE: USER MAPPINGS =====
         box = layout.box()
         box.label(text="📦 User Custom Mappings", icon='PACKAGE')

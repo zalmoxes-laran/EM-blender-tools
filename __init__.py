@@ -92,6 +92,40 @@ def check_dependencies():
 
 DEPENDENCIES_LOADED = check_dependencies()
 
+
+# ============================
+# PREFERENZE: UN ACCESSORE SOLO
+# ============================
+
+def get_addon_preferences(context=None):
+    """Le preferenze dell'add-on, o `None` se non sono raggiungibili.
+
+    PERCHÉ STA QUI E NON DOVE SERVE
+    --------------------------------
+    Le preferenze si leggono con
+    `context.preferences.addons[<pacchetto RADICE>].preferences`, e la chiave
+    è il pacchetto radice — quello su cui `EMToolsMappingPreferences` mette
+    `bl_idname = __package__`.
+
+    Dentro un SOTTOMODULO `__package__` non è la radice: in `em_setup/ui.py`
+    vale `…EM-blender-tools.em_setup`, e quella chiave nel dizionario non
+    esiste — `KeyError`. Spezzarlo sul punto non aiuta: installato come
+    add-on la radice è `EM-blender-tools` (un segmento), installato come
+    estensione è `bl_ext.<repo>.EM-blender-tools` (tre). Questo modulo è
+    l'unico posto in cui `__package__` È la radice in entrambi i casi, quindi
+    l'accessore sta qui e chi ne ha bisogno lo importa.
+
+    Torna `None` invece di sollevare: una preferenza che non si riesce a
+    leggere non deve spegnere un pannello. Chi chiama decide il ripiego, e
+    il ripiego giusto è quasi sempre «comportati come prima».
+    """
+    import bpy
+    ctx = context or bpy.context
+    try:
+        return ctx.preferences.addons[__package__].preferences
+    except (KeyError, AttributeError):
+        return None
+
 # ============================
 # KEYMAP INTEGRATION
 # ============================
