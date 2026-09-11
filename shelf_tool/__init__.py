@@ -1,6 +1,7 @@
 """shelf_tool — the EM Shelf tool (EMTools, Shelf v2 Session C1).
 
-A SEPARATE N-panel tab ("EM Shelf"), distinct from "EM Scene": an un-hatted
+A CHILD panel of `Resources & Shelf` in the "EM Scene" tab (EM16-UX,
+11-09-2026 — it used to be a tab of its own): an un-hatted
 resource library populated by a 3D-first project-folder search that drives the
 s3dgraphy acquisition pipeline in-process (fs mapping → AcquisitionDescriptor →
 acquire_from_descriptor). Cards reflect the mapping fields (name/media_type/size)

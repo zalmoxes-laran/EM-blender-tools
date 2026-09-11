@@ -785,6 +785,22 @@ class EM_Tools(PropertyGroup):
         default=False
     )  # type: ignore
 
+    # B2 (EM16-UX, 11-09-2026) · «Graph info» e non «Info».
+    #
+    # Quei numeri riguardano il GRAFO, non la scena — ed è esattamente la
+    # distinzione che la riga della scala di promozione, subito sopra, rischia
+    # di confondere: là si contano oggetti in scena, qui US/USV di un grafo.
+    # Chiuso di default: il pannello d'ingresso non deve aprirsi mostrando
+    # informazioni di servizio.
+    show_graph_info: BoolProperty(
+        name="Show Graph info",
+        description=("Numbers and metadata of the ACTIVE GRAPH — US/USV, "
+                     "epochs, properties, author, licence, embargo, language "
+                     "version. Not of the scene: the promotion scale above "
+                     "counts objects, this counts nodes"),
+        default=False
+    )  # type: ignore
+
     show_collection_manager: BoolProperty(
         name="Show Collection Manager",
         description="Toggle the Collection Manager section in the setup panel",

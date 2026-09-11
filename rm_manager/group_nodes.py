@@ -355,3 +355,37 @@ def common_group_of(graph, model_node_ids):
     if solo is None:
         return None
     return solo if find_group(graph, solo) is not None else None
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LA FRASE SU UN GRAFO CHE NON PORTA NODI RM — UNA, IN UN POSTO SOLO
+#
+# EM16-UX punto E l'ha introdotta nell'operatore `rmcontainer.project`;
+# EM16-UX2 punto C2 la vuole anche nel tooltip della cella `Models` quando
+# quella cella è a zero. Due posti, UNA stringa: scriverne una seconda vorrebbe
+# dire che il giorno che la prima cambia l'altra mente.
+#
+# Il fatto che racconta è di disegno e non un guasto: un grafo che viene da
+# import GraphML non porta i nodi RM, perché
+# `graphml_patcher.INTERNAL_NODE_TYPES` li esclude — i representation model non
+# sono lingua formale EM in GraphML.
+
+def no_rm_nodes_yet(mesh=0, container=0) -> str:
+    """Cosa manca e il comando da dare prima.
+
+    Con `mesh`/`container` a zero (il caso del tooltip, che non ha un rapporto
+    di riconciliazione sotto mano) la frase resta vera e omette i conteggi
+    invece di stamparne di finti.
+    """
+    quanti = ""
+    if mesh:
+        quanti = (f"{mesh} mesh(es)"
+                  + (f" in {container} container(s)" if container else "")
+                  + " point at RM ids this graph does not contain. ")
+    return (
+        quanti
+        + "A graph imported from GraphML never carries RM nodes — "
+          "representation models are excluded from GraphML by design. "
+          "Promote the meshes first (RM Manager \u2192 Promote to RM), then "
+          "press Project again."
+    )

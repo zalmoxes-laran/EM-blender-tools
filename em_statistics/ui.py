@@ -5,11 +5,12 @@ from bpy.types import Panel
 
 
 class EM_PT_ExportPanel(Panel):
-    bl_label = "Export statistics (Experimental)"
+    bl_label = "Export statistics"
     bl_idname = "EM_PT_ExportPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'EM Bridge'
+    bl_category = "EM Bridge"
+    bl_order = 2
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod

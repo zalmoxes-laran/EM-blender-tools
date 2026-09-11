@@ -12,7 +12,8 @@ class VIEW3D_PT_ExportPanel(Panel):
     bl_idname = "VIEW3D_PT_ExportPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'EM Bridge'
+    bl_category = "EM Bridge"
+    bl_order = 1
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):

@@ -12,10 +12,11 @@ from . import is_system_available, get_system_status, check_prerequisites
 
 class VIEW3D_PT_proxy_projection_panel(Panel):
     """Panel for Proxy to RM Projection in Visual Manager"""
-    bl_label = "Proxy to RM Projection (Experimental)"
+    bl_label = "Proxy to RM Projection"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "EM"
+    bl_order = 9
     bl_parent_id = "VIEW3D_PT_visual_panel"  # Child of Visual Manager panel
     bl_options = {'DEFAULT_CLOSED'}
 

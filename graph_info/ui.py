@@ -20,6 +20,7 @@ Data Tree panel so HDT-O sits among the other sub-sections (before Utils).
 from __future__ import annotations
 
 from . import hdto_graph
+from ..ui_helpers import draw_s3dgraphy_too_old
 
 
 def draw_graph_info_section(layout, context) -> None:
@@ -54,12 +55,8 @@ def _draw_body(layout, context, p) -> None:
 
     # Blocker surface: the bundled s3dgraphy may be too old for HDT-O.
     if not hdto_graph.hdto_supported():
-        b = layout.box()
-        b.alert = True
-        b.label(text="HDT-O layer unavailable", icon='ERROR')
-        b.label(text="The bundled s3dgraphy is out of date.")
-        b.label(text="Activate the dev/updated s3dgraphy (./em.sh s3d),")
-        b.label(text="then reopen this panel.")
+        # EM16-UX/B7 · una riga, e la frase intera dietro il `?`.
+        draw_s3dgraphy_too_old(layout, "HDT-O layer unavailable", "The HDT-O layer")
         return
 
     # per-graph context: warn if the buffer reflects a different graph
@@ -125,24 +122,64 @@ def _draw_body(layout, context, p) -> None:
     geo.label(text="(geonode positioning — extension point)")
 
 
-# No Panel classes: HDT-O is drawn inline by the EM Data Tree panel.
-def _purge_stale_panel() -> None:
-    """Earlier fetta-3 iterations registered a standalone/child Panel
-    'VIEW3D_PT_EM_GraphInfo'. After switching to an inline section a hot-reload
-    can leave that old class registered → a DUPLICATE panel. Drop it if present.
-    (A full Blender restart also clears it; this makes dev reloads clean.)"""
-    import bpy
-    cls = getattr(bpy.types, "VIEW3D_PT_EM_GraphInfo", None)
-    if cls is not None:
-        try:
-            bpy.utils.unregister_class(cls)
-        except Exception:
-            pass
+# ══════════════════════════════════════════════════════════════════════════════
+# B5 · HDT-O IS A PANEL OF ITS OWN AGAIN (EM16-UX, 11-09-2026)
+#
+# It was a standalone panel, became an inline section of the EM Data Tree, and
+# now goes back out — because the Data Tree is the entry panel and was spending
+# half its height on things that are not the tree. The section renderer
+# (`draw_graph_info_section`) is KEPT and still works: this panel calls the same
+# `_draw_body`, so there is one body and two possible frames, and no copy.
+#
+# The stale-class purge that used to live here is GONE, and deliberately: it
+# existed because the panel had been retired, and unregistering
+# `VIEW3D_PT_EM_GraphInfo` on every register would now remove the panel this
+# module registers one line later.
+import bpy  # noqa: E402  — panel classes need it; the section renderer does not
+
+
+class VIEW3D_PT_EM_GraphInfo(bpy.types.Panel):
+    """HDT-O · Heritage Digital Twin — per-graph metadata.
+
+    Right after the EM Data Tree in the `EM` tab and CLOSED by default: it is
+    optional, non-blocking, and belongs to the graph rather than to the scene.
+    """
+
+    bl_label = "HDT-O · Heritage Digital Twin"
+    bl_idname = "VIEW3D_PT_EM_GraphInfo"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "EM"
+    bl_order = 2
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw_header(self, context):
+        self.layout.label(text="", icon='WORLD_DATA')
+
+    def draw(self, context):
+        p = getattr(context.scene, "em_graph_info", None)
+        if p is None:
+            self.layout.label(text="HDT-O properties not registered.",
+                              icon='INFO')
+            return
+        # The SAME body the inline section draws — one renderer, two frames.
+        _draw_body(self.layout, context, p)
+
+
+_CLASSES = (VIEW3D_PT_EM_GraphInfo,)
 
 
 def register():
-    _purge_stale_panel()
+    for cls in _CLASSES:
+        try:
+            bpy.utils.register_class(cls)
+        except ValueError:
+            pass
 
 
 def unregister():
-    _purge_stale_panel()
+    for cls in reversed(_CLASSES):
+        try:
+            bpy.utils.unregister_class(cls)
+        except (RuntimeError, ValueError):
+            pass

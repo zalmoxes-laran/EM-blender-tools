@@ -437,6 +437,7 @@ class EM_ParadataPanel:
 
 class VIEW3D_PT_ParadataPanel(Panel, EM_ParadataPanel):
     bl_category = "EM"
+    bl_order = 7
     bl_idname = "VIEW3D_PT_ParadataPanel"
 
 

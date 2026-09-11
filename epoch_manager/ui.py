@@ -177,6 +177,7 @@ class EM_BasePanel:
 class VIEW3D_PT_BasePanel(Panel, EM_BasePanel):
     """Panel in the 3D View for the Epoch Manager"""
     bl_category = "EM"
+    bl_order = 4
     bl_idname = "VIEW3D_PT_BasePanel"
 
 def register_ui():

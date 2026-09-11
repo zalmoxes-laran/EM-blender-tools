@@ -27,11 +27,12 @@ class GRAPHEDIT_UL_edge_filters(UIList):
 
 class GRAPHEDIT_PT_main_panel(Panel):
     """Pannello principale nel Node Editor"""
-    bl_label = "EMGraph Tools (Experimental)"
+    bl_label = "EMGraph Tools"
     bl_idname = "GRAPHEDIT_PT_main_panel"
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
-    bl_category = "EM"  # ✅ Stesso category di EMTools
+    bl_category = "EM"
+    bl_order = 11
     
     @classmethod
     def poll(cls, context):
@@ -355,7 +356,7 @@ class GRAPHEDIT_PT_node_info(Panel):
 
 class VIEW3D_PT_graphedit_sync(Panel):
     """Pannello nella 3D View per EMGraph"""
-    bl_label = "EMGraph (Experimental)"
+    bl_label = "EMGraph"
     bl_idname = "VIEW3D_PT_graphedit_sync"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'

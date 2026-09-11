@@ -426,7 +426,7 @@ def reconcile_container_groups(context, create_missing: bool = False) -> dict:
     scene = context.scene
     _graph_info, graph = _active_graph(context)
     esito = {"created": 0, "added": 0, "removed": 0, "refused": 0,
-             "unknown": 0, "skipped_no_graph": 0}
+             "unknown": 0, "unknown_containers": 0, "skipped_no_graph": 0}
     if graph is None:
         esito["skipped_no_graph"] = len(scene.rm_containers)
         return esito
@@ -467,14 +467,24 @@ def reconcile_container_groups(context, create_missing: bool = False) -> dict:
             _add_warning(scene,
                          container.label or container.doc_name or "<unnamed>",
                          f"{rm_id} (già in un altro gruppo nel grafo)")
-        # …e i modelli che il grafo non conosce. Misurato sul file di lavoro
-        # di E.D. il 10-09-2026: 98 mesh su 99 portano un `em_rm_node_id` che
-        # non risolve in nessuno dei due grafi caricati. Senza questa riga la
-        # proiezione creerebbe gruppi vuoti senza dire perché.
-        for rm_id in (rapporto.get("unknown") or []):
-            _add_warning(scene,
-                         container.label or container.doc_name or "<unnamed>",
-                         f"{rm_id} (nessun nodo con questo id nel grafo)")
+        # …e i modelli che il grafo non conosce.
+        #
+        # EM16-UX/E · UN messaggio, non N. Misurato sul file di lavoro di E.D.
+        # il 10-09-2026: 98 mesh su 99 portano un `em_rm_node_id` che non
+        # risolve in nessuno dei due grafi caricati, perché quel grafo viene da
+        # un import GraphML e `graphml_patcher.INTERNAL_NODE_TYPES` esclude i
+        # `representation_model` dal GraphML — per disegno, non per guasto.
+        #
+        # Un warning per mesh darebbe 98 righe che dicono la stessa cosa, e
+        # novantotto volte la stessa frase non è informazione: è rumore che
+        # nasconde le altre. Quindi si contano e si dice una volta, con il
+        # comando da eseguire prima. NESSUNA creazione implicita di nodi.
+        ignoti = rapporto.get("unknown") or []
+        if ignoti:
+            esito["unknown_containers"] += 1
+            esito.setdefault("_ignoti_per_container", []).append(
+                (container.label or container.doc_name or "<unnamed>",
+                 len(ignoti)))
     return esito
 
 

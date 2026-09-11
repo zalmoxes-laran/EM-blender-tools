@@ -91,7 +91,8 @@ class EM_PT_georef(Panel):
     bl_idname = "EM_PT_georef"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "EM"
+    bl_category = "EM Scene"
+    bl_order = 7
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):

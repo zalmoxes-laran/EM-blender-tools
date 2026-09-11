@@ -13,8 +13,9 @@ class VIEW3D_PT_ProxyInflatePanel(Panel):
     bl_label = "Proxy Inflate Manager"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'EM'
-    bl_parent_id = "VIEW3D_PT_visual_panel"
+    bl_category = "EM Scene"
+    bl_parent_id = "EM_PT_proxy_surface_tools"
+    bl_order = 3
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod

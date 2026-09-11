@@ -611,19 +611,281 @@ class EMTOOLS_UL_files(bpy.types.UIList):
             layout.label(text=graph_code)
 
 
+class EM_OT_promotion_step_info(bpy.types.Operator):
+    """B1 · il tooltip di un gradino della scala, e il suo popup.
+
+    PERCHÉ UN OPERATORE E NON UN `label`: un `layout.label` non ha tooltip, e
+    un bottone operatore prende il tooltip da `bl_description` — che è UNO per
+    classe. Quattro gradini con quattro spiegazioni diverse vogliono quindi un
+    `description()` DINAMICO, che è il meccanismo che Blender offre per
+    esattamente questo. Senza, i quattro numeri avrebbero avuto lo stesso
+    tooltip, cioè nessuna spiegazione: e senza testo il tooltip è l'unica
+    etichetta che resta.
+
+    Cliccare apre la stessa frase come popup — nessuna sorpresa: quello che il
+    bottone fa è quello che il tooltip prometteva.
+    """
+
+    bl_idname = "em.promotion_step_info"
+    bl_label = "Promotion step"
+    bl_options = {'INTERNAL'}
+
+    step: bpy.props.StringProperty(default="")  # type: ignore
+    #: la cella `RMs` a zero CON candidati in scena. Lo sa chi disegna, che il
+    #: conto l'ha già fatto: ricalcolarlo qui sarebbe la seconda copia della
+    #: stessa domanda.
+    zero: bpy.props.BoolProperty(default=False)  # type: ignore
+    #: UX3/A · la ripartizione per grafo («GT16: 12 · Shelf: 7») della cella,
+    #: quando la cella è una SOMMA. La compone chi disegna, che i grafi li ha
+    #: già in mano: farla ricalcolare qui vorrebbe dire riaprirli a ogni
+    #: passaggio del mouse.
+    dettaglio: bpy.props.StringProperty(default="")  # type: ignore
+
+    @staticmethod
+    def _frase(step, zero, dettaglio=""):
+        """La spiegazione di un gradino — una sola funzione per tooltip e popup.
+
+        Il caso zero NON ha una frase sua: riusa quella di EM16-UX/E, che sta
+        in `rm_manager/group_nodes.py` e che dice già la cosa giusta (in un
+        grafo da import GraphML i nodi RM non ci sono per disegno, e indica il
+        comando da eseguire). Scriverne una seconda qui vorrebbe dire tenerne
+        allineate due.
+        """
+        from . import promotion_scale as ps
+        if zero and step == "rms":
+            from ..rm_manager import group_nodes as gn
+            base = gn.no_rm_nodes_yet()
+        else:
+            base = ps.tooltip_di(step)
+        if dettaglio:
+            #: «Per graph: GT16: 12 · Shelf: 7» — la somma è nella cella, la
+            #: ripartizione qui, che è il posto dove non toglie spazio.
+            base = f"{base}\n\nPer graph — {dettaglio}"
+        return base
+
+    @classmethod
+    def description(cls, context, properties):
+        return cls._frase(getattr(properties, "step", ""),
+                          getattr(properties, "zero", False),
+                          getattr(properties, "dettaglio", "")) or \
+            "A step of the promotion scale"
+
+    def execute(self, context):
+        from . import promotion_scale as ps
+        testo = self._frase(self.step, self.zero, self.dettaglio)
+        if not testo:
+            return {'CANCELLED'}
+
+        def draw(popup, _ctx):
+            for riga in _wrap(testo, 68):
+                popup.layout.label(text=riga)
+
+        # il titolo è l'ETICHETTA del gradino: `self.step.capitalize()` dava
+        # «Rms» e «Rmdocs», che non sono parole.
+        titolo = next((e for k, e, _c, _i, _t in ps.GRADINI if k == self.step),
+                      self.step)
+        bpy.context.window_manager.popup_menu(draw, title=titolo, icon='INFO')
+        return {'FINISHED'}
+
+
+def _wrap(testo, n):
+    """Spezza una frase in righe da ~n caratteri, sulle parole."""
+    parole, riga, out = testo.split(), "", []
+    for w in parole:
+        if len(riga) + len(w) + 1 > n:
+            out.append(riga)
+            riga = w
+        else:
+            riga = f"{riga} {w}".strip()
+    if riga:
+        out.append(riga)
+    return out
+
+
+# ══════════════════════════════════════════════════════════════════════
+# UX3/A · EM OVERVIEW — cosa c'è in questo .blend, e che senso ha nel grafo
+# ══════════════════════════════════════════════════════════════════════
+#
+# PERCHÉ UN PANNELLO SUO, E PERCHÉ QUI
+#
+# La scala stava in testa all'EM Data Tree, e il difetto era di scope: i
+# quattro numeri venivano da posti diversi — oggetti e `rm_containers` dalla
+# SCENA, i modelli dal GRAFO ATTIVO, i documenti da `doc_list` che il Document
+# Manager popola dal grafo attivo. In multigrafo, cambiando grafo attivo, due
+# numeri su quattro cambiavano e due no, e niente lo diceva. Una riga che
+# esiste per mostrare un RAPPORTO non può mettere in rapporto scope diversi.
+#
+# Quindi: pannello proprio, e i numeri diventano tutti **di questo file**.
+# Modelli e documenti si sommano su TUTTI i grafi caricati; il dettaglio per
+# grafo non si perde, va nel tooltip della cella.
+#
+# Sta nel tab `EM` e non in `EM Scene`, che sarebbe la sua casa concettuale,
+# perché deve essere la prima cosa che si vede (`bl_order = 0`).
+def _grafi_caricati(em_tools):
+    """`[(nome, grafo), …]` per le entry con un grafo DAVVERO caricato.
+
+    Il ripiego su `original_id` è lo stesso che fa la UIList dei grafi
+    (`EMTOOLS_UL_files.draw_item`): dopo un rename l'entry non trova più il
+    grafo col nome nuovo. Copiare quel ripiego qui è meglio che dare un
+    conteggio più basso senza dirlo.
+    """
+    from s3dgraphy import get_graph
+    fuori = []
+    for gf in getattr(em_tools, "graphml_files", ()) or ():
+        g = get_graph(gf.name)
+        if not g and getattr(gf, "original_id", ""):
+            g = get_graph(gf.original_id)
+        if g is not None and getattr(g, "nodes", None):
+            fuori.append((gf.name, g))
+    return fuori
+
+
+def _per_grafo(grafi, node_type):
+    """`[(nome, quanti), …]` di un tipo di nodo, grafo per grafo.
+
+    Usa `Graph.get_nodes_by_type()`, che è l'accessore esistente di s3Dgraphy
+    e va a indice (O(1)) quando l'indice è pulito, con ripiego a scansione
+    lineare dentro s3Dgraphy stesso. NON scorre `graph.nodes` a mano: sarebbe
+    buttare via l'indice a ogni ridisegno del pannello.
+    """
+    fuori = []
+    for nome, g in grafi:
+        try:
+            fuori.append((nome, len(g.get_nodes_by_type(node_type))))
+        except Exception:                           # noqa: BLE001
+            fuori.append((nome, 0))
+    return fuori
+
+
+class VIEW3D_PT_EM_Overview(bpy.types.Panel):
+    """La scala di promozione, e nient'altro."""
+
+    bl_label = "EM Overview"
+    bl_idname = "VIEW3D_PT_EM_Overview"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "EM"
+    bl_order = 0
+    #: NESSUN 'DEFAULT_CLOSED': è l'unica cosa che insegna la regola, e se si
+    #: potesse chiudere resterebbe chiusa.
+
+    def draw_header_preset(self, context):
+        """Quanti grafi ci sono, a destra nella testata.
+
+        `draw_header_preset` disegna A DESTRA; `draw_header` disegnerebbe
+        nella striscia PRIMA del titolo e glielo mangerebbe — misurato in
+        UX2 sul titolo dell'EM Data Tree.
+        """
+        em_tools = getattr(context.scene, "em_tools", None)
+        if em_tools is None:
+            return
+        n = len(_grafi_caricati(em_tools))
+        self.layout.label(text=f"{n} graph" if n == 1 else f"{n} graphs")
+
+    @staticmethod
+    def _kw_icona(custom, builtin):
+        """Gli argomenti-icona per `label`/`operator`: la nostra se c'è.
+
+        Gemella di `EM_SetupPanel._kw_icona` — `get_icon_value()` torna 0
+        quando la collezione previews non è caricata, e `icon_value=0`
+        disegna il vuoto invece di un ripiego.
+        """
+        if custom:
+            valore = icons_manager.get_icon_value(custom)
+            if valore:
+                return {"icon_value": valore}
+        return {"icon": builtin}
+
+    def draw(self, context):
+        from . import promotion_scale as ps
+        layout = self.layout
+        scene = context.scene
+        em_tools = getattr(scene, "em_tools", None)
+        if em_tools is None:
+            layout.label(text="EM Tools not initialised", icon='ERROR')
+            return
+        try:
+            from ..rm_manager.containers import is_rm_candidate
+        except Exception:                           # noqa: BLE001
+            layout.label(text="RM manager unavailable", icon='ERROR')
+            return
+
+        grafi = _grafi_caricati(em_tools)
+        rms_per_grafo = _per_grafo(grafi, "representation_model")
+        docs_per_grafo = _per_grafo(grafi, "document")
+
+        numeri = ps.conta(
+            oggetti_scena=scene.objects,
+            is_candidato=is_rm_candidate,
+            rms=sum(n for _g, n in rms_per_grafo),
+            rm_containers=len(getattr(scene, "rm_containers", ()) or ()),
+            docs=sum(n for _g, n in docs_per_grafo),
+        )
+        zero_sospetto = ps.modelli_a_zero_sospetto(numeri)
+
+        #: il dettaglio per grafo, per le due celle che sono una somma
+        dettagli = {
+            "rms": ps.ripartizione(rms_per_grafo),
+            "docs": ps.ripartizione(docs_per_grafo),
+        }
+
+        # La forma è quella di UX2, che è quella del blocco `Graph info`:
+        # `box` → `row(align=True)` → `split()`, e per cella una `column()`
+        # con la parola sopra e il numero sotto con l'icona dentro la label.
+        box = layout.box()
+        riga = box.row(align=True)
+        split = riga.split()
+        for chiave, etichetta, custom, icona, _tip in ps.GRADINI:
+            cella = split.column()
+            cella.label(text=etichetta)
+            info = (chiave == "rms" and zero_sospetto)
+            kw = ({"icon": 'INFO'} if info
+                  else self._kw_icona(custom, icona))
+            op = cella.operator(
+                "em.promotion_step_info",
+                text=str(numeri[chiave]),
+                emboss=False, **kw)
+            op.step = chiave
+            op.zero = info
+            op.dettaglio = dettagli.get(chiave, "")
+
+
 class EM_SetupPanel(bpy.types.Panel):
 
-    bl_label = f"EM Data Tree {get_em_tools_version()}"
+    bl_label = "EM Data Tree"
     bl_idname = "VIEW3D_PT_EM_Tools_Setup"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM"
+    bl_order = 1
 
 
-    def draw_header(self, context):
+    # ── C3 (EM16-UX2) · LA VERSIONE A DESTRA, E IL TITOLO INTERO ─────────
+    #
+    # B4 aveva tolto la versione dal titolo e messa in `draw_header`. Sbagliato
+    # a video: `draw_header` disegna nella striscia PRIMA del titolo, quindi la
+    # versione finiva a sinistra, troncata, davanti al nome — `⧗ 1.6.0-de… EM
+    # Data Tree`. Con `alignment = 'RIGHT'` si allinea dentro quella striscia,
+    # che resta a sinistra del titolo: allineare non sposta.
+    #
+    # `draw_header_preset` è la striscia a DESTRA (quella dove i pannelli
+    # nativi mettono i preset), e non contende spazio al titolo. Se a pannello
+    # stretto Blender taglia, taglia la versione e non il nome del pannello —
+    # che è il comportamento che si vuole.
+    #
+    # E via l'icona. Era `template_icon(icon_value=get_icon_value("em_logo"))`,
+    # che E.D. legge come «una clessidra che non significa niente». Misurato:
+    # `em_logo` È nell'elenco delle icone caricate (`icons_manager.py:54` →
+    # `em_logo_small.png`, presente), e `template_icon` ha `scale` di default
+    # 1.0 — quindi né icona mancante né icona sovradimensionata. La causa vera
+    # del glifo non l'ho identificata da un Blender in background (gli
+    # `icon_id` delle preview valgono 0 senza GUI), e non l'ho inventata: qui
+    # si fa quello che la revisione chiede, cioè togliere. Se la si vuole
+    # rimettere, la forma giusta è quella che questo stesso file usa alla riga
+    # 483 — `label(text="", icon_value=…)`, che disegna a dimensione icona.
+    def draw_header_preset(self, context):
         layout = self.layout
-        # visualizza un'icona prima del titolo
-        layout.template_icon(icon_value=icons_manager.get_icon_value("em_logo"))
+        layout.label(text=get_em_tools_version())
 
 
     def draw(self, context):
@@ -706,16 +968,65 @@ class EM_SetupPanel(bpy.types.Panel):
             row = layout.row()
             row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=2)
 
-            row = layout.row(align=True)
-            row.operator('em_tools.add_file', text="Add graph", icon="ADD")
-            row.operator('em_tools.remove_file', text="Remove graph", icon="REMOVE")
+            # ── C1 (EM16-UX2) · LA RIGA DI COMANDI RIEMPIE LA RIGA ────────
+            #
+            # B3 aveva messo ogni bottone in un `row` con `ui_units_x`: quello
+            # FISSA la larghezza di ciascuno, e il risultato a video era sei
+            # bottoni stretti ammucchiati a sinistra con mezza riga di vuoto a
+            # destra — l'opposto di quel che serviva.
+            #
+            # Togliere `ui_units_x` però NON basta, e non per teoria: si
+            # vede nello scatto. Un bottone icona-sola (`text=""`) in un
+            # `row()` piatto prende la sua larghezza NATURALE — quadrata — e
+            # la riga non gli passa lo spazio che avanza: sei quadratini
+            # ammucchiati a sinistra, cioè il difetto di partenza.
+            #
+            # Quello che distribuisce la larghezza è un contenitore a celle.
+            # `grid_flow(columns=6, even_columns=True)` dà a ogni cella un
+            # sesto esatto della riga e il bottone riempie la sua cella — è lo
+            # stesso meccanismo con cui le quattro celle della scala (C2)
+            # arrivano da bordo a bordo, misurato nello stesso scatto.
+            # `scale_y` per l'altezza, che è la dimensione che li rende comodi
+            # da colpire.
+            #
+            # Restano icona-sola. I tooltip fanno da etichetta e sono quelli
+            # degli operatori: misurati, tutti e cinque hanno un
+            # `bl_description` parlante («Add a new EM graph slot (set its Path
+            # to a .graphml or .em.json)», «Save the active graph to its
+            # .em.json file in place…»). B3 portava una tupla di descrizioni
+            # scritte a mano che NON venivano mai usate: erano dati morti, e
+            # sono andate via con lei.
+            cmd = layout.grid_flow(row_major=True, columns=6,
+                                   even_columns=True, even_rows=False,
+                                   align=True)
+            cmd.scale_y = 1.3
+            cmd.row(align=True).operator('em_tools.add_file', text="", icon='ADD')
+            cmd.row(align=True).operator('em_tools.remove_file', text="", icon='REMOVE')
+            cmd.row(align=True).operator('export.em_save', text="", icon='FILE_TICK')
+            cmd.row(align=True).operator('export.em_saveas', text="", icon='FILE_NEW')
 
-            # Loading is inline per-row (Add graph → set Path → 🔄 reload,
-            # format auto-detected). Save writes the active graph's em.json in
-            # place; Save As… chooses em.json (full/lossless) or GraphML (legacy).
-            row = layout.row(align=True)
-            row.operator('export.em_save', text="Save", icon="FILE_TICK")
-            row.operator('export.em_saveas', text="Save As…", icon="FILE_NEW")
+            # Multigraph Mode nella stessa riga: è un comando sui file EM come
+            # gli altri quattro. Lo stato lo rende l'icona (WORLD accesa /
+            # WORLD_DATA spenta, con `depress`), non una parola.
+            _loaded = []
+            if em_tools.graphml_files:
+                for _gf in em_tools.graphml_files:
+                    if getattr(_gf, 'is_graph', False):
+                        _loaded.append(_gf)
+                    else:
+                        from s3dgraphy import get_graph as _gg
+                        if _gg(_gf.name):
+                            _loaded.append(_gf)
+            _attiva = getattr(scene, 'landscape_mode_active', False)
+            multi = cmd.row(align=True)
+            multi.enabled = _attiva or len(_loaded) >= 2
+            _op = multi.operator("em.toggle_landscape_mode", text="",
+                                 icon='WORLD' if _attiva else 'WORLD_DATA',
+                                 depress=_attiva)
+            _op.enable = not _attiva
+            _iop = cmd.row(align=True).operator("wm.call_menu", text="",
+                                                icon='INFO')
+            _iop.name = "EM_MT_LandscapeInfo"
 
             # Save / Export / Merge buttons (experimental — GraphML write-back not production-ready)
             if em_tools.experimental_features:
@@ -747,36 +1058,7 @@ class EM_SetupPanel(bpy.types.Panel):
                         text="Bake Auxiliaries → GraphML",
                         icon='FILE_TICK')
 
-            # Multigraph Mode - inline with graph management
-            loaded_graphs = []
-            if em_tools.graphml_files:
-                for graph_file in em_tools.graphml_files:
-                    if hasattr(graph_file, 'is_graph') and graph_file.is_graph:
-                        loaded_graphs.append(graph_file)
-                    else:
-                        from s3dgraphy import get_graph
-                        if get_graph(graph_file.name):
-                            loaded_graphs.append(graph_file)
-
-            is_landscape_active = getattr(scene, 'landscape_mode_active', False)
-            can_enable_landscape = len(loaded_graphs) >= 2
-
-            row = layout.row(align=True)
-            info_op = row.operator("wm.call_menu", text="", icon='INFO')
-            info_op.name = "EM_MT_LandscapeInfo"
-
-            if is_landscape_active:
-                row.label(text="Multigraph Mode", icon='WORLD')
-                disable_op = row.operator("em.toggle_landscape_mode",
-                                        text="Disable", icon='CANCEL')
-                disable_op.enable = False
-            else:
-                row.label(text="Multigraph Mode")
-                button_row = row.row()
-                button_row.enabled = can_enable_landscape
-                enable_op = button_row.operator("em.toggle_landscape_mode",
-                                               text="Enable", icon='FILE_VOLUME')
-                enable_op.enable = True
+            # (Multigraph Mode è nella riga di icone sopra — B3.)
 
             # Details for selected GraphML file (codice esistente)
             if em_tools.active_file_index >= 0 and em_tools.graphml_files:
@@ -789,745 +1071,746 @@ class EM_SetupPanel(bpy.types.Panel):
                 row = layout.row(align=True)
                 row.prop(active_file, "graphml_path", text="Path")
 
-                ############# box con le statistiche del file ##################
-                box = layout.box()
-                row = box.row(align=True)
-                split = row.split()
+                # UX3/A · la scala NON sta più qui: è diventata il pannello
+                # `EM Overview`, primo del tab. Il motivo è di scope — i suoi
+                # quattro numeri venivano da posti diversi (scena / grafo
+                # attivo) e in multigrafo due cambiavano e due no. Vedi
+                # `VIEW3D_PT_EM_Overview` sopra.
 
-                # US/USV count - legge il valore cached
-                col = split.column()
-                col.label(text="US/USV")
-                col.label(text=str(active_file.stratigraphic_count), icon='OUTLINER_OB_MESH')
+                # ── B2 (EM16-UX) · «Graph info», collassabile e chiuso ────
+                #
+                # Da qui al banner di versione: US/USV, Epochs, Properties,
+                # Author, License, Embargo, `GraphML · EM 1.5.4`. Erano sempre
+                # aperti in cima al pannello d'ingresso, e sono informazioni di
+                # servizio.
+                #
+                # «Graph info» e non «Info»: quei numeri riguardano il GRAFO,
+                # non la scena — ed è precisamente la distinzione che il
+                # riquadro della scala, qui sopra, rischia di confondere.
+                gi_box = layout.box()
+                gi_head = gi_box.row(align=True)
+                gi_head.prop(
+                    em_tools, "show_graph_info", text="Graph info",
+                    icon="TRIA_DOWN" if em_tools.show_graph_info else "TRIA_RIGHT",
+                    emboss=False)
+                if em_tools.show_graph_info:
+                    self._draw_graph_info(context, gi_box, active_file)
 
-                # Separatore verticale
-                col.separator()
+                # I warning NON entrano nel collassabile: un avviso che si può
+                # chiudere resta chiuso, ed è lo stesso motivo per cui la riga
+                # della scala sta fuori.
+                self._draw_graph_warnings(context, layout, em_tools, active_file)
 
-                # Epochs count - legge il valore cached
-                col = split.column()
-                col.label(text="Epochs")
-                col.label(text=str(active_file.epoch_count), icon='TIME')
+                # I file ausiliari, che erano in coda a questo blocco.
+                self._draw_auxiliary_files(context, layout, active_file)
 
-                # Properties count - legge il valore cached
-                col = split.column()
-                col.label(text="Properties")
-                col.label(text=str(active_file.property_count), icon='PROPERTIES')
+        else:
+            # La modalità 3D GIS, estratta per la stessa ragione delle
+            # altre: `draw` era un metodo di trecento righe, e il ramo
+            # `else` di un `if` così lontano dal suo `if` non si legge.
+            self._draw_3dgis_mode(context, layout, em_tools)
 
-                # Documents count - legge il valore cached
-                col = split.column()
-                col.label(text="Documents")
-                col.label(text=str(active_file.document_count), icon='FILE_TEXT')
+    def _draw_graph_info(self, context, layout, active_file):
+        """B2 · i numeri e i metadati del grafo attivo."""
+        ############# box con le statistiche del file ##################
+        box = layout.box()
+        row = box.row(align=True)
+        split = row.split()
 
-                # Metadata row: Author, License, Embargo
-                has_meta = (active_file.graph_author or active_file.graph_license
-                            or active_file.graph_embargo)
-                if has_meta:
-                    meta_row = box.row(align=True)
-                    meta_split = meta_row.split()
+        # PERCHÉ QUI LE ICONE NOSTRE SONO SOLO UNA
+        #
+        # Il primo giro le aveva messe tutte e tre (`US`, `property`,
+        # `document`). Misurate le immagini: `US.png` è **253×128** e
+        # `property.png` **225×99** — sono i glifi della palette del grafo, i
+        # rettangoli in stile yEd, non icone. In uno slot quadrato Blender li
+        # schiaccia, e a dimensione d'etichetta `US` si legge come una
+        # barretta rossa e `property` come una macchia. `document.png` invece
+        # è 64×64, cioè un'icona vera, e resta.
+        #
+        # Quindi US/USV e Properties tornano alle icone di Blender. Il disegno
+        # autentico non è stato scartato per gusto: è inservibile a 16px
+        # finché non esiste una versione quadrata, e quella è una cosa da
+        # disegnare, non da programmare.
+        #
+        # UX3/C · US/USV prende `proxies_rows` (64×64, quadrata), che è la
+        # stessa che lo Stratigraphy Manager mostra accanto a «Total Rows»
+        # (`stratigraphy_manager/ui.py:216`): è già il segno di casa per
+        # «unità stratigrafiche», e a differenza di `US.png` è un'icona e non
+        # un glifo di palette. Sostituisce il `MESH_CUBE` di UX2, che era un
+        # ripiego preso dal contatore `US:` del Document Manager.
+        #
+        # `Epochs` resta con `TIME` perché un'icona di epoca in `icons/` non
+        # c'è, e non ne ho riusata una di un altro nodo.
 
-                    if active_file.graph_author:
-                        col = meta_split.column()
-                        col.label(text="Author")
-                        if active_file.graph_author_orcid:
-                            op = col.operator("em.open_author_url",
-                                              text=active_file.graph_author,
-                                              icon='USER')
-                            op.url = active_file.graph_author_orcid
-                        else:
-                            col.label(text=active_file.graph_author, icon='USER')
+        # US/USV count - legge il valore cached
+        col = split.column()
+        col.label(text="US/USV")
+        col.label(text=str(active_file.stratigraphic_count),
+                  **self._kw_icona("proxies_rows", 'MESH_CUBE'))
 
-                    if active_file.graph_license:
-                        col = meta_split.column()
-                        col.label(text="License")
-                        if active_file.graph_license_url:
-                            op = col.operator("em.open_license_url",
-                                              text=active_file.graph_license,
-                                              icon='COPY_ID')
-                            op.url = active_file.graph_license_url
-                        else:
-                            col.label(text=active_file.graph_license, icon='COPY_ID')
+        # Separatore verticale
+        col.separator()
 
-                    if active_file.graph_embargo:
-                        col = meta_split.column()
-                        col.label(text="Embargo")
-                        col.label(text=active_file.graph_embargo, icon='LOCKED')
+        # Epochs count - legge il valore cached
+        col = split.column()
+        col.label(text="Epochs")
+        col.label(text=str(active_file.epoch_count), icon='TIME')
 
-                ####################################################
+        # Properties count - legge il valore cached
+        col = split.column()
+        col.label(text="Properties")
+        col.label(text=str(active_file.property_count), icon='PROPERTIES')
 
-                # Controllo se ci sono warning da mostrare
-                graph_code_warning = False
-                epochs_date_warning = False
+        # Documents count - legge il valore cached
+        col = split.column()
+        col.label(text="Documents")
+        col.label(text=str(active_file.document_count),
+                  **self._kw_icona("document", 'FILE_TEXT'))
 
-                if hasattr(active_file, 'graph_code'):
-                    if active_file.graph_code in ["site_id","MISSINGCODE"]:
-                        graph_code_warning = True
+        # Metadata row: Author, License, Embargo
+        has_meta = (active_file.graph_author or active_file.graph_license
+                    or active_file.graph_embargo)
+        if has_meta:
+            meta_row = box.row(align=True)
+            meta_split = meta_row.split()
 
-                # Controllo per date delle epoche non valide
-                if hasattr(em_tools, "epochs") and len(em_tools.epochs.list) > 0:
-                    for epoch in em_tools.epochs.list:
-                        if epoch.start_time == 10000 or epoch.end_time == 10000:
-                            epochs_date_warning = True
-                            break
+            if active_file.graph_author:
+                col = meta_split.column()
+                col.label(text="Author")
+                if active_file.graph_author_orcid:
+                    op = col.operator("em.open_author_url",
+                                      text=active_file.graph_author,
+                                      icon='USER')
+                    op.url = active_file.graph_author_orcid
+                else:
+                    col.label(text=active_file.graph_author, icon='USER')
 
-                warning_messages = []
+            if active_file.graph_license:
+                col = meta_split.column()
+                col.label(text="License")
+                if active_file.graph_license_url:
+                    op = col.operator("em.open_license_url",
+                                      text=active_file.graph_license,
+                                      icon='COPY_ID')
+                    op.url = active_file.graph_license_url
+                else:
+                    col.label(text=active_file.graph_license, icon='COPY_ID')
 
-                if graph_code_warning:
-                    warning_messages.append("Please add a proper site ID in the header")
+            if active_file.graph_embargo:
+                col = meta_split.column()
+                col.label(text="Embargo")
+                col.label(text=active_file.graph_embargo, icon='LOCKED')
 
-                if epochs_date_warning:
-                    warning_messages.append("Update the epochs placeholder dates (xx)")
+        ####################################################
 
-                # Prefer the structured records: they carry the s3Dgraphy `kind`,
-                # so the digest files them exactly instead of matching English.
-                # The flat strings are the fallback — for a GraphML source, whose
-                # importer emits richer prose than the state families can, and
-                # for anything loaded before the records existed.
-                warning_messages.extend(_imported_warnings(active_file))
 
-                warning_count = len(warning_messages)
+        # …e il banner di versione: sapere con quale versione del
+        # linguaggio stai lavorando è informazione del grafo, non un
+        # avviso — quindi sta qui dentro e non fuori.
 
-                # S6 — version banner. Shown whether or not there are warnings:
-                # knowing which language version you are working with is not
-                # conditional on something having gone wrong.
-                _banner = _format_version_banner(active_file)
-                if _banner:
-                    banner_row = layout.row()
-                    banner_row.label(text=_banner, icon='FILE_TEXT')
+        # S6 — version banner. Shown whether or not there are warnings:
+        # knowing which language version you are working with is not
+        # conditional on something having gone wrong.
+        _banner = _format_version_banner(active_file)
+        if _banner:
+            banner_row = layout.row()
+            banner_row.label(text=_banner, icon='FILE_TEXT')
 
-                # Se ci sono warning, mostra il box di warning
-                if warning_count > 0:
-                    from .warning_digest import digest_warnings, summarise
-                    groups = digest_warnings(warning_messages)
+    def _draw_graph_warnings(self, context, layout, em_tools, active_file):
+        """I warning del grafo, FUORI dal collassabile.
 
-                    warning_box = layout.box()
-                    header_row = warning_box.row(align=True)
-                    icon = 'TRIA_DOWN' if active_file.show_warnings_section else 'TRIA_RIGHT'
-                    header_row.prop(
-                        active_file,
-                        "show_warnings_section",
-                        text=f"EM Warnings ({warning_count}):",
-                        icon=icon,
-                        emboss=False,
-                    )
-                    header_row.label(text="", icon='ERROR')
-                    help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
-                    help_op.title = "EM Warnings"
-                    help_op.text = (
-                        "Issues raised while reading this graph,\n"
-                        "whatever its source (GraphML or em.json).\n"
-                        "Common causes:\n"
-                        "- Missing site ID in the swimlane header\n"
-                        "- Epochs with placeholder dates (xx)\n"
-                        "- Nodes whose shape/colour matches no EM type\n"
-                        "- Groups with no palette colour, hence no role\n"
-                        "- Connections degraded to generic_connection\n"
-                        "Nothing here is guessed for you: fix the SOURCE\n"
-                        "graph, then reload."
-                    )
-                    help_op.url = "panels/em_setup.html#em-warnings"
-                    help_op.project = 'em_tools'
+        Un avviso che si può chiudere resta chiuso: è lo stesso motivo
+        per cui la riga della scala di promozione sta fuori.
+        """
+        # Controllo se ci sono warning da mostrare
+        graph_code_warning = False
+        epochs_date_warning = False
 
-                    # Collapsed: one line saying what the bulk of it is, so the
-                    # panel is informative without being opened.
-                    if not active_file.show_warnings_section:
-                        digest = summarise(groups)
-                        if digest:
-                            _draw_wrapped_text(warning_box, context, digest,
-                                               icon='INFO')
+        if hasattr(active_file, 'graph_code'):
+            if active_file.graph_code in ["site_id","MISSINGCODE"]:
+                graph_code_warning = True
 
-                    if active_file.show_warnings_section:
-                        # Grouped by problem, biggest first. A flat list of ~100
-                        # near-identical lines is unreadable, and unread warnings
-                        # fix nothing.
-                        for group in groups:
-                            grp_box = warning_box.box()
-                            grp_box.label(
-                                text=f"{group.label} ({group.count})",
-                                icon=group.icon)
-                            warning_col = grp_box.column(align=True)
-                            shown = group.messages[:_MAX_WARNINGS_PER_GROUP]
-                            for i, warning_msg in enumerate(shown):
-                                # A warning that names an element gets a button
-                                # that goes there: reading it and going to look
-                                # are the same gesture. A warning with no record
-                                # (a free-form line) simply has no button.
-                                record = (group.records[i]
-                                          if i < len(group.records) else None)
-                                _draw_warning_row(warning_col, context,
-                                                  warning_msg, record)
-                            hidden = group.count - _MAX_WARNINGS_PER_GROUP
-                            if hidden > 0:
-                                # Never let a cap read as "that was all of them".
-                                warning_col.label(
-                                    text=f"… and {hidden} more of the same "
-                                         f"(see the console for the full list)",
-                                    icon='DOT')
+        # Controllo per date delle epoche non valide
+        if hasattr(em_tools, "epochs") and len(em_tools.epochs.list) > 0:
+            for epoch in em_tools.epochs.list:
+                if epoch.start_time == 10000 or epoch.end_time == 10000:
+                    epochs_date_warning = True
+                    break
 
-                        op = warning_box.operator("em.open_docs", text="Data Funnel guide", icon="URL")
-                        op.url = "data_funnel.html#important-considerations"
-                        op.project = 'em'
+        warning_messages = []
 
-                # DEPRECATED: DosCo is now integrated as an Auxiliary Resource type
-                # The legacy DosCo section has been removed. DosCo is now managed
-                # through the Auxiliary Resources UIList with file_type="dosco"
-                # Legacy properties (dosco_dir on GraphMLFileItem) are kept for backward compatibility
+        if graph_code_warning:
+            warning_messages.append("Please add a proper site ID in the header")
 
-                # Expanded settings
-                box = layout.box()
-                box.prop(active_file, "expanded", icon="TRIA_DOWN" if active_file.expanded else "TRIA_RIGHT", emboss=False)
+        if epochs_date_warning:
+            warning_messages.append("Update the epochs placeholder dates (xx)")
 
-                if active_file.expanded:
-                    # Lista dei file ausiliari
-                    row = box.row()
-                    row.template_list("AUXILIARY_UL_files", "", active_file, "auxiliary_files",
-                                    active_file, "active_auxiliary_index", rows=3)
+        # Prefer the structured records: they carry the s3Dgraphy `kind`,
+        # so the digest files them exactly instead of matching English.
+        # The flat strings are the fallback — for a GraphML source, whose
+        # importer emits richer prose than the state families can, and
+        # for anything loaded before the records existed.
+        warning_messages.extend(_imported_warnings(active_file))
 
-                    # Bottoni per aggiungere/rimuovere file ausiliari
-                    row = box.row(align=True)
-                    row.operator('auxiliary.add_file', text="Add", icon="ADD")
-                    row.operator('auxiliary.remove_file', text="Remove", icon="REMOVE")
+        warning_count = len(warning_messages)
 
-                    # Se c'è un file ausiliario selezionato
-                    if active_file.active_auxiliary_index >= 0 and active_file.auxiliary_files:
-                        aux_file = active_file.auxiliary_files[active_file.active_auxiliary_index]
+        # Se ci sono warning, mostra il box di warning
+        if warning_count > 0:
+            from .warning_digest import digest_warnings, summarise
+            groups = digest_warnings(warning_messages)
 
-                        # Tipo (sempre visibile)
-                        row = box.row()
-                        row.prop(aux_file, "file_type", text="Type")
-
-                        # Path: mostra filepath solo per tipi che lo richiedono
-                        if aux_file.file_type not in ("dosco", "resource_collection"):
-                            row = box.row()
-                            row.prop(aux_file, "filepath", text="Path")
-
-                        # EMdb mapping
-                        if aux_file.file_type == "emdb_xlsx":
-                            row = box.row()
-                            row.prop(aux_file, "emdb_mapping", text="Format")
-                            row.operator("emtools.open_mapping_preferences",
-                                        text="",
-                                        icon='PREFERENCES')
-
-                        elif aux_file.file_type == "pyarchinit":
-                            row = box.row()
-                            row.prop(aux_file, "pyarchinit_mapping", text="Table Mapping")
-                            row.operator("emtools.open_mapping_preferences",
-                                        text="",
-                                        icon='PREFERENCES')
-                            row = box.row()
-                            row.prop(aux_file, "pyarchinit_import_geometries")
-                            if aux_file.pyarchinit_import_geometries:
-                                sub = box.row()
-                                sub.alignment = 'RIGHT'
-                                sub.prop(aux_file, "pyarchinit_geom_force_update")
-                                if classify_georef_state(context.scene.em_georef) != STATE_CONFIGURED:
-                                    warn = box.row()
-                                    warn.label(
-                                        text="Set shift in Georeferencing panel first",
-                                        icon='ERROR',
-                                    )
-
-                            # Mapping details (collapsible to reduce clutter)
-                            if aux_file.pyarchinit_mapping != "none":
-                                toggle_row = box.row(align=True)
-                                icon = 'TRIA_DOWN' if aux_file.show_pyarchinit_mapping_info else 'TRIA_RIGHT'
-                                toggle_row.prop(
-                                    aux_file,
-                                    "show_pyarchinit_mapping_info",
-                                    text="Mapping Info",
-                                    icon=icon,
-                                    emboss=False
-                                )
-
-                                if aux_file.show_pyarchinit_mapping_info:
-                                    desc_box = box.box()
-                                    mapping_data = get_mapping_description(aux_file.pyarchinit_mapping, "pyarchinit")
-                                    if mapping_data:
-                                        desc_box.label(text=f"Name: {mapping_data['name']}")
-                                        if "description" in mapping_data:
-                                            desc_box.label(text=mapping_data["description"])
-                                        if "table_settings" in mapping_data:
-                                            desc_box.label(text=f"Table: {mapping_data['table_settings']['table_name']}")
-
-                        elif aux_file.file_type == "dosco":
-                            # DosCo folder path
-                            row = box.row()
-                            row.prop(aux_file, "dosco_folder", text="Set Path")
-
-                            # Help button
-                            op = row.operator("em.open_docs", text="", icon="HELP")
-                            op.url = "panels/em_setup.html#emsetup"
-                            op.project = 'em_tools'
-
-                            # DosCo options
-                            dosco_box = box.box()
-                            _draw_wrapped_text(
-                                dosco_box,
-                                context,
-                                "Populate extractors, documents and combiners using DosCo files:",
-                            )
-
-                            row = dosco_box.row()
-                            row.prop(aux_file, "dosco_overwrite_paths", text="Overwrite paths with DosCo files")
-
-                            row = dosco_box.row()
-                            row.prop(aux_file, "dosco_preserve_web_urls", text="Preserve web URLs (don't overwrite http/https)")
-
-                            # Info box with examples
-                            info_box = dosco_box.box()
-                            _draw_wrapped_text(
-                                info_box,
-                                context,
-                                "When enabled, node paths will be linked to files in DosCo",
-                            )
-                            info_box.label(text="Examples:")
-                            _draw_wrapped_text(
-                                info_box,
-                                context,
-                                "Node GT16.D.01 -> Searches for GT16.D.01 and D.01 in DosCo",
-                            )
-
-                        elif aux_file.file_type == "source_list":
-                            # Source List - simple filepath
-                            source_box = box.box()
-                            _draw_wrapped_text(
-                                source_box,
-                                context,
-                                "Source List updates descriptions for Document nodes",
-                            )
-                            _draw_wrapped_text(
-                                source_box,
-                                context,
-                                "Excel file must contain a 'sources' sheet with:",
-                            )
-                            _draw_wrapped_text(
-                                source_box,
-                                context,
-                                "Column 'Name': node name to match",
-                            )
-                            _draw_wrapped_text(
-                                source_box,
-                                context,
-                                "Column 'Description': description to set",
-                            )
-
-                        elif aux_file.file_type == "resource_collection":
-                            # Resource Collection - standalone resource folder
-                            row = box.row()
-                            row.prop(aux_file, "resource_folder", text="Resources Folder")
-
-                            # Warning if absolute path
-                            if aux_file.resource_folder:
-                                if os.path.isabs(aux_file.resource_folder) and not aux_file.resource_folder.startswith('//'):
-                                    warn_box = box.box()
-                                    warn_box.alert = True
-                                    warn_col = warn_box.column(align=True)
-                                    _draw_wrapped_text(
-                                        warn_col,
-                                        context,
-                                        "Use relative path (// prefix) for cross-PC compatibility",
-                                        icon='ERROR',
-                                    )
-                                    _draw_wrapped_text(
-                                        warn_col,
-                                        context,
-                                        "Example: //Resources or //../../SharedFolder/Resources",
-                                    )
-
-                            # Target node types and scan mode
-                            row = box.row()
-                            row.prop(aux_file, "target_node_types", text="Target Nodes")
-
-                            row = box.row()
-                            row.prop(aux_file, "scan_mode", text="Scan Mode")
-
-                            # Scan & Link button
-                            row = box.row()
-                            row.scale_y = 1.2
-                            row.operator("auxiliary.import_now", text="Scan & Link Resources", icon='VIEWZOOM')
-
-                            # Thumbnails section
-                            box.separator()
-                            box.label(text="Thumbnails Generation:")
-
-                            thumb_row = box.row(align=True)
-
-                            # Thumbnail status indicator
-                            if has_doc_thumbs():
-                                thumb_row.label(text="", icon='KEYTYPE_JITTER_VEC')
-                            else:
-                                thumb_row.label(text="", icon='KEYTYPE_KEYFRAME_VEC')
-
-                            # Thumbnail action buttons
-                            thumb_row.operator("emtools.build_doc_thumbs", text="(Re)generate")
-                            thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
-                            op = thumb_row.operator("em.open_docs", text="", icon="HELP")
-                            op.url = "panels/em_setup.html#setting-up-resource-folders"
-                            op.project = 'em_tools'
-
-                            # Thumbnails path (collapsible)
-                            path_box = box.box()
-                            path_row = path_box.row(align=True)
-                            path_icon = 'TRIA_DOWN' if aux_file.show_thumbs_path_section else 'TRIA_RIGHT'
-                            path_row.prop(aux_file, "show_thumbs_path_section",
-                                          text="Thumbnails Path",
-                                          icon=path_icon,
-                                          emboss=False)
-
-                            if aux_file.show_thumbs_path_section:
-                                path_col = path_box.column()
-                                path_row = path_col.row()
-                                path_row.prop(aux_file, "custom_thumbs_path", text="")
-
-                                if not aux_file.custom_thumbs_path:
-                                    info_row = path_col.row()
-                                    info_row.label(text="Path will be auto-generated on first use", icon='INFO')
-
-                        # ── Hybrid-C lifecycle: attached count, orphan
-                        # list, revert-this-aux (Phase 2). Only shown
-                        # when there is live injector data on the graph
-                        # for this auxiliary file. ──
-                        try:
-                            from ..operators.aux_lifecycle import (
-                                compute_injector_id_for_aux,
-                                count_attached,
-                                iter_orphans_for,
-                            )
-                            from s3dgraphy import get_graph as _sg_get_graph
-                        except ImportError:
-                            compute_injector_id_for_aux = None
-
-                        if compute_injector_id_for_aux:
-                            injector_id = compute_injector_id_for_aux(aux_file)
-                            _graph = _sg_get_graph(active_file.name) if injector_id else None
-                            attached = count_attached(_graph, injector_id) if injector_id else 0
-                            orphan_entries = list(iter_orphans_for(_graph, injector_id)) \
-                                if injector_id else []
-                            if injector_id and (attached or orphan_entries):
-                                life_box = box.box()
-                                header_row = life_box.row(align=True)
-                                header_row.label(
-                                    text=(f"Lifecycle — "
-                                          f"{attached} attached"
-                                          f"{', ' + str(len(orphan_entries)) + ' orphans' if orphan_entries else ''}"),
-                                    icon='FILE_REFRESH')
-                                revert_op = header_row.operator(
-                                    "em.aux_revert_injector",
-                                    text="", icon='LOOP_BACK')
-                                revert_op.injector_id = injector_id
-
-                                if orphan_entries:
-                                    orph_row = life_box.row(align=True)
-                                    orph_icon = ('TRIA_DOWN'
-                                                 if aux_file.show_aux_orphans
-                                                 else 'TRIA_RIGHT')
-                                    orph_row.prop(
-                                        aux_file, "show_aux_orphans",
-                                        text=f"Orphan rows ({len(orphan_entries)})",
-                                        icon=orph_icon, emboss=False)
-                                    if aux_file.show_aux_orphans:
-                                        for entry in orphan_entries:
-                                            kid = str(entry.get("key_id", "?"))
-                                            entry_row = life_box.row(align=True)
-                                            entry_row.label(
-                                                text=kid, icon='ERROR')
-                                            create_op = entry_row.operator(
-                                                "em.aux_create_host_for_orphan",
-                                                text="Create host",
-                                                icon='ADD')
-                                            create_op.injector_id = injector_id
-                                            create_op.key_id = kid
-
-            # HDT-O · Heritage Digital Twin — per-graph metadata (fetta 3).
-            # Inline collapsible section (same box+TRIA style as the sections
-            # above), drawn BEFORE Utils so Utils stays last. Optional/non-blocking.
-            try:
-                from ..graph_info.ui import draw_graph_info_section
-                draw_graph_info_section(layout, context)
-            except Exception as _hdto_exc:  # never break the EM Data Tree panel
-                layout.box().label(text=f"HDT-O section error: {_hdto_exc}", icon='ERROR')
-
-            # DTC · Digital Twin Chain authoring — provenance metadata (ECHOES).
-            # Inline collapsible section, same style; drawn BEFORE Utils.
-            try:
-                from ..dtc_authoring.ui import draw_dtc_section
-                draw_dtc_section(layout, context)
-            except Exception as _dtc_exc:  # never break the EM Data Tree panel
-                layout.box().label(text=f"DTC section error: {_dtc_exc}", icon='ERROR')
-
-            # Advanced Tools section
-            box = layout.box()
-            header = box.row(align=True)
-            header.prop(
-                em_tools,
-                "show_advanced_tools",
-                text="Utils",
-                icon="TRIA_DOWN" if em_tools.show_advanced_tools else "TRIA_RIGHT",
-                emboss=False
+            warning_box = layout.box()
+            header_row = warning_box.row(align=True)
+            icon = 'TRIA_DOWN' if active_file.show_warnings_section else 'TRIA_RIGHT'
+            header_row.prop(
+                active_file,
+                "show_warnings_section",
+                text=f"EM Warnings ({warning_count}):",
+                icon=icon,
+                emboss=False,
             )
+            header_row.label(text="", icon='ERROR')
+            help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
+            help_op.title = "EM Warnings"
+            help_op.text = (
+                "Issues raised while reading this graph,\n"
+                "whatever its source (GraphML or em.json).\n"
+                "Common causes:\n"
+                "- Missing site ID in the swimlane header\n"
+                "- Epochs with placeholder dates (xx)\n"
+                "- Nodes whose shape/colour matches no EM type\n"
+                "- Groups with no palette colour, hence no role\n"
+                "- Connections degraded to generic_connection\n"
+                "Nothing here is guessed for you: fix the SOURCE\n"
+                "graph, then reload."
+            )
+            help_op.url = "panels/em_setup.html#em-warnings"
+            help_op.project = 'em_tools'
 
-            if em_tools.show_advanced_tools:
-                tools_col = box.column(align=True)
+            # Collapsed: one line saying what the bulk of it is, so the
+            # panel is informative without being opened.
+            if not active_file.show_warnings_section:
+                digest = summarise(groups)
+                if digest:
+                    _draw_wrapped_text(warning_box, context, digest,
+                                       icon='INFO')
 
-                # Main utility actions (compact 2x2 grid)
-                row = tools_col.row(align=True)
-                row.scale_y = 0.9
-                split = row.split(factor=0.5, align=True)
-                split.operator(
-                    GRAPHML_OT_convert_borders.bl_idname,
-                    text="Convert 1.x->1.5",
-                    icon='FILE_REFRESH'
-                )
-                split.operator(
-                    "create.collection",
-                    text="Create",
-                    icon="COLLECTION_NEW"
-                )
+            if active_file.show_warnings_section:
+                # Grouped by problem, biggest first. A flat list of ~100
+                # near-identical lines is unreadable, and unread warnings
+                # fix nothing.
+                for group in groups:
+                    grp_box = warning_box.box()
+                    grp_box.label(
+                        text=f"{group.label} ({group.count})",
+                        icon=group.icon)
+                    warning_col = grp_box.column(align=True)
+                    shown = group.messages[:_MAX_WARNINGS_PER_GROUP]
+                    for i, warning_msg in enumerate(shown):
+                        # A warning that names an element gets a button
+                        # that goes there: reading it and going to look
+                        # are the same gesture. A warning with no record
+                        # (a free-form line) simply has no button.
+                        record = (group.records[i]
+                                  if i < len(group.records) else None)
+                        _draw_warning_row(warning_col, context,
+                                          warning_msg, record)
+                    hidden = group.count - _MAX_WARNINGS_PER_GROUP
+                    if hidden > 0:
+                        # Never let a cap read as "that was all of them".
+                        warning_col.label(
+                            text=f"… and {hidden} more of the same "
+                                 f"(see the console for the full list)",
+                            icon='DOT')
 
-                row = tools_col.row(align=True)
-                row.scale_y = 0.9
-                split = row.split(factor=0.5, align=True)
-                split.operator(
-                    "em.manage_object_prefixes",
-                    text="Proxy Prefixes",
-                    icon='SYNTAX_ON'
-                )
-                exp_toggle = split.row(align=True)
-                exp_toggle.alert = em_tools.experimental_features
-                exp_toggle.prop(
-                    em_tools,
-                    "experimental_features",
-                    text="Experimental",
-                    toggle=True,
-                    icon="EXPERIMENTAL"
-                )
+                op = warning_box.operator("em.open_docs", text="Data Funnel guide", icon="URL")
+                op.url = "data_funnel.html#important-considerations"
+                op.project = 'em'
 
-                if em_tools.experimental_features:
-                    _draw_experimental_notice(tools_col, context)
+        # DEPRECATED: DosCo is now integrated as an Auxiliary Resource type
+        # The legacy DosCo section has been removed. DosCo is now managed
+        # through the Auxiliary Resources UIList with file_type="dosco"
+        # Legacy properties (dosco_dir on GraphMLFileItem) are kept for backward compatibility
 
-                    exp_box = tools_col.box()
-                    exp_box.label(text="Experimental tools", icon="EXPERIMENTAL")
 
-                    row = exp_box.row(align=True)
-                    row.scale_y = 0.9
-                    row.operator(
-                        "em.rebuild_graph_indices",
-                        text="Rebuild Indices",
-                        icon='FILE_REFRESH'
+    def _draw_auxiliary_files(self, context, layout, active_file):
+        """I file ausiliari del grafo attivo (era in coda a `draw`)."""
+        # Expanded settings
+        box = layout.box()
+        box.prop(active_file, "expanded", icon="TRIA_DOWN" if active_file.expanded else "TRIA_RIGHT", emboss=False)
+
+        if active_file.expanded:
+            # Lista dei file ausiliari
+            row = box.row()
+            row.template_list("AUXILIARY_UL_files", "", active_file, "auxiliary_files",
+                            active_file, "active_auxiliary_index", rows=3)
+
+            # Bottoni per aggiungere/rimuovere file ausiliari
+            row = box.row(align=True)
+            row.operator('auxiliary.add_file', text="Add", icon="ADD")
+            row.operator('auxiliary.remove_file', text="Remove", icon="REMOVE")
+
+            # Se c'è un file ausiliario selezionato
+            if active_file.active_auxiliary_index >= 0 and active_file.auxiliary_files:
+                aux_file = active_file.auxiliary_files[active_file.active_auxiliary_index]
+
+                # Tipo (sempre visibile)
+                row = box.row()
+                row.prop(aux_file, "file_type", text="Type")
+
+                # Path: mostra filepath solo per tipi che lo richiedono
+                if aux_file.file_type not in ("dosco", "resource_collection"):
+                    row = box.row()
+                    row.prop(aux_file, "filepath", text="Path")
+
+                # EMdb mapping
+                if aux_file.file_type == "emdb_xlsx":
+                    row = box.row()
+                    row.prop(aux_file, "emdb_mapping", text="Format")
+                    row.operator("emtools.open_mapping_preferences",
+                                text="",
+                                icon='PREFERENCES')
+
+                elif aux_file.file_type == "pyarchinit":
+                    row = box.row()
+                    row.prop(aux_file, "pyarchinit_mapping", text="Table Mapping")
+                    row.operator("emtools.open_mapping_preferences",
+                                text="",
+                                icon='PREFERENCES')
+                    row = box.row()
+                    row.prop(aux_file, "pyarchinit_import_geometries")
+                    if aux_file.pyarchinit_import_geometries:
+                        sub = box.row()
+                        sub.alignment = 'RIGHT'
+                        sub.prop(aux_file, "pyarchinit_geom_force_update")
+                        if classify_georef_state(context.scene.em_georef) != STATE_CONFIGURED:
+                            warn = box.row()
+                            warn.label(
+                                text="Set shift in Georeferencing panel first",
+                                icon='ERROR',
+                            )
+
+                    # Mapping details (collapsible to reduce clutter)
+                    if aux_file.pyarchinit_mapping != "none":
+                        toggle_row = box.row(align=True)
+                        icon = 'TRIA_DOWN' if aux_file.show_pyarchinit_mapping_info else 'TRIA_RIGHT'
+                        toggle_row.prop(
+                            aux_file,
+                            "show_pyarchinit_mapping_info",
+                            text="Mapping Info",
+                            icon=icon,
+                            emboss=False
+                        )
+
+                        if aux_file.show_pyarchinit_mapping_info:
+                            desc_box = box.box()
+                            mapping_data = get_mapping_description(aux_file.pyarchinit_mapping, "pyarchinit")
+                            if mapping_data:
+                                desc_box.label(text=f"Name: {mapping_data['name']}")
+                                if "description" in mapping_data:
+                                    desc_box.label(text=mapping_data["description"])
+                                if "table_settings" in mapping_data:
+                                    desc_box.label(text=f"Table: {mapping_data['table_settings']['table_name']}")
+
+                elif aux_file.file_type == "dosco":
+                    # DosCo folder path
+                    row = box.row()
+                    row.prop(aux_file, "dosco_folder", text="Set Path")
+
+                    # Help button
+                    op = row.operator("em.open_docs", text="", icon="HELP")
+                    op.url = "panels/em_setup.html#emsetup"
+                    op.project = 'em_tools'
+
+                    # DosCo options
+                    dosco_box = box.box()
+                    _draw_wrapped_text(
+                        dosco_box,
+                        context,
+                        "Populate extractors, documents and combiners using DosCo files:",
                     )
-                    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-                    help_op.title = "Rebuild Graph Indices"
-                    help_op.text = (
-                        "Regenerates cached indices for faster lookups.\n"
-                        "Useful after large edits to the GraphML."
-                    )
-                    help_op.url = "panels/em_setup.html#emsetup"
 
-                    row = exp_box.row(align=True)
-                    row.scale_y = 0.9
-                    row.operator(
-                        "em.benchmark_property_functions",
-                        text="Benchmark Props",
-                        icon="TIME"
-                    )
-                    help_op = row.operator("em.help_popup", text="", icon='QUESTION')
-                    help_op.title = "Benchmark Property Functions"
-                    help_op.text = (
-                        "Runs internal performance checks for property\n"
-                        "handlers. Expect temporary UI stalls during run."
-                    )
-                    help_op.url = "panels/em_setup.html#emsetup"
-                    #info_row = exp_box.row(align=True)
-                    #info_row.label(text="GraphML Wizard moved to EM Bridge", icon='INFO')
+                    row = dosco_box.row()
+                    row.prop(aux_file, "dosco_overwrite_paths", text="Overwrite paths with DosCo files")
 
+                    row = dosco_box.row()
+                    row.prop(aux_file, "dosco_preserve_web_urls", text="Preserve web URLs (don't overwrite http/https)")
+
+                    # Info box with examples
+                    info_box = dosco_box.box()
+                    _draw_wrapped_text(
+                        info_box,
+                        context,
+                        "When enabled, node paths will be linked to files in DosCo",
+                    )
+                    info_box.label(text="Examples:")
+                    _draw_wrapped_text(
+                        info_box,
+                        context,
+                        "Node GT16.D.01 -> Searches for GT16.D.01 and D.01 in DosCo",
+                    )
+
+                elif aux_file.file_type == "source_list":
+                    # Source List - simple filepath
+                    source_box = box.box()
+                    _draw_wrapped_text(
+                        source_box,
+                        context,
+                        "Source List updates descriptions for Document nodes",
+                    )
+                    _draw_wrapped_text(
+                        source_box,
+                        context,
+                        "Excel file must contain a 'sources' sheet with:",
+                    )
+                    _draw_wrapped_text(
+                        source_box,
+                        context,
+                        "Column 'Name': node name to match",
+                    )
+                    _draw_wrapped_text(
+                        source_box,
+                        context,
+                        "Column 'Description': description to set",
+                    )
+
+                elif aux_file.file_type == "resource_collection":
+                    # Resource Collection - standalone resource folder
+                    row = box.row()
+                    row.prop(aux_file, "resource_folder", text="Resources Folder")
+
+                    # Warning if absolute path
+                    if aux_file.resource_folder:
+                        if os.path.isabs(aux_file.resource_folder) and not aux_file.resource_folder.startswith('//'):
+                            warn_box = box.box()
+                            warn_box.alert = True
+                            warn_col = warn_box.column(align=True)
+                            _draw_wrapped_text(
+                                warn_col,
+                                context,
+                                "Use relative path (// prefix) for cross-PC compatibility",
+                                icon='ERROR',
+                            )
+                            _draw_wrapped_text(
+                                warn_col,
+                                context,
+                                "Example: //Resources or //../../SharedFolder/Resources",
+                            )
+
+                    # Target node types and scan mode
+                    row = box.row()
+                    row.prop(aux_file, "target_node_types", text="Target Nodes")
+
+                    row = box.row()
+                    row.prop(aux_file, "scan_mode", text="Scan Mode")
+
+                    # Scan & Link button
+                    row = box.row()
+                    row.scale_y = 1.2
+                    row.operator("auxiliary.import_now", text="Scan & Link Resources", icon='VIEWZOOM')
+
+                    # Thumbnails section
+                    box.separator()
+                    box.label(text="Thumbnails Generation:")
+
+                    thumb_row = box.row(align=True)
+
+                    # Thumbnail status indicator
+                    if has_doc_thumbs():
+                        thumb_row.label(text="", icon='KEYTYPE_JITTER_VEC')
+                    else:
+                        thumb_row.label(text="", icon='KEYTYPE_KEYFRAME_VEC')
+
+                    # Thumbnail action buttons
+                    thumb_row.operator("emtools.build_doc_thumbs", text="(Re)generate")
+                    thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
+                    op = thumb_row.operator("em.open_docs", text="", icon="HELP")
+                    op.url = "panels/em_setup.html#setting-up-resource-folders"
+                    op.project = 'em_tools'
+
+                    # Thumbnails path (collapsible)
+                    path_box = box.box()
+                    path_row = path_box.row(align=True)
+                    path_icon = 'TRIA_DOWN' if aux_file.show_thumbs_path_section else 'TRIA_RIGHT'
+                    path_row.prop(aux_file, "show_thumbs_path_section",
+                                  text="Thumbnails Path",
+                                  icon=path_icon,
+                                  emboss=False)
+
+                    if aux_file.show_thumbs_path_section:
+                        path_col = path_box.column()
+                        path_row = path_col.row()
+                        path_row.prop(aux_file, "custom_thumbs_path", text="")
+
+                        if not aux_file.custom_thumbs_path:
+                            info_row = path_col.row()
+                            info_row.label(text="Path will be auto-generated on first use", icon='INFO')
+
+                # ── Hybrid-C lifecycle: attached count, orphan
+                # list, revert-this-aux (Phase 2). Only shown
+                # when there is live injector data on the graph
+                # for this auxiliary file. ──
+                try:
+                    from ..operators.aux_lifecycle import (
+                        compute_injector_id_for_aux,
+                        count_attached,
+                        iter_orphans_for,
+                    )
+                    from s3dgraphy import get_graph as _sg_get_graph
+                except ImportError:
+                    compute_injector_id_for_aux = None
+
+                if compute_injector_id_for_aux:
+                    injector_id = compute_injector_id_for_aux(aux_file)
+                    _graph = _sg_get_graph(active_file.name) if injector_id else None
+                    attached = count_attached(_graph, injector_id) if injector_id else 0
+                    orphan_entries = list(iter_orphans_for(_graph, injector_id)) \
+                        if injector_id else []
+                    if injector_id and (attached or orphan_entries):
+                        life_box = box.box()
+                        header_row = life_box.row(align=True)
+                        header_row.label(
+                            text=(f"Lifecycle — "
+                                  f"{attached} attached"
+                                  f"{', ' + str(len(orphan_entries)) + ' orphans' if orphan_entries else ''}"),
+                            icon='FILE_REFRESH')
+                        revert_op = header_row.operator(
+                            "em.aux_revert_injector",
+                            text="", icon='LOOP_BACK')
+                        revert_op.injector_id = injector_id
+
+                        if orphan_entries:
+                            orph_row = life_box.row(align=True)
+                            orph_icon = ('TRIA_DOWN'
+                                         if aux_file.show_aux_orphans
+                                         else 'TRIA_RIGHT')
+                            orph_row.prop(
+                                aux_file, "show_aux_orphans",
+                                text=f"Orphan rows ({len(orphan_entries)})",
+                                icon=orph_icon, emboss=False)
+                            if aux_file.show_aux_orphans:
+                                for entry in orphan_entries:
+                                    kid = str(entry.get("key_id", "?"))
+                                    entry_row = life_box.row(align=True)
+                                    entry_row.label(
+                                        text=kid, icon='ERROR')
+                                    create_op = entry_row.operator(
+                                        "em.aux_create_host_for_orphan",
+                                        text="Create host",
+                                        icon='ADD')
+                                    create_op.injector_id = injector_id
+                                    create_op.key_id = kid
+
+            # ── B5 · HDT-O È USCITA ───────────────────────────────────
+            # È un pannello suo (`graph_info/ui.py::VIEW3D_PT_EM_GraphInfo`),
+            # subito dopo questo nel tab EM e chiuso di default. Il renderer
+            # della sezione resta e non è stato duplicato: quel pannello chiama
+            # lo stesso `_draw_body`.
+            #
+            # ── B6 · DTC È USCITA E NON TORNA ─────────────────────────────
+            # La stessa funzione (`dtc_authoring.ui.draw_dtc_section`) la
+            # disegna già il pannello `Resources & Shelf`, e là resta — in sola
+            # consultazione. La ragione non è di spazio: il DTC è il grafo
+            # dello STORAGE, non dell'interpretazione. L'authoring va a EM
+            # Studio; Blender registra ciò che consuma.
+            #
+            # ── LA SEZIONE UTILS È USCITA ─────────────────────────────────
+            # Convert 1.x→1.5, Create, Proxy Prefixes, Experimental e gli
+            # strumenti sperimentali stanno nel menu EM in testata
+            # (`em_header_menu.py` → EM ▸ Utils): sono comandi RARI e GLOBALI,
+            # e un menu è il posto giusto per quelli. Un pannello d'ingresso
+            # non è un cassetto degli attrezzi.
         ################################################################################
         # 3D GIS MODE SECTION
         ################################################################################
 
-        else:
-            # UI per modalità 3D GIS
-            box = layout.box()
 
-            # Menu a tendina per il tipo di import
-            row = box.row()
-            row.prop(em_tools, "mode_3dgis_import_type",
-                    text="Import Type",
-                    expand=True)
+    def _draw_3dgis_mode(self, context, layout, em_tools):
+        """La modalità 3D GIS di base — l'altro ramo di `mode_em_advanced`."""
+        # UI per modalità 3D GIS
+        box = layout.box()
 
-            # Box specifico per le opzioni del tipo selezionato
-            options_box = box.box()
+        # Menu a tendina per il tipo di import
+        row = box.row()
+        row.prop(em_tools, "mode_3dgis_import_type",
+                text="Import Type",
+                expand=True)
 
-            if em_tools.mode_3dgis_import_type == "generic_xlsx":
-                options_box.label(text="Generic Excel Import Settings:")
+        # Box specifico per le opzioni del tipo selezionato
+        options_box = box.box()
 
-                # File Excel
-                options_box.prop(em_tools, "generic_xlsx_file", text="Excel File")
+        if em_tools.mode_3dgis_import_type == "generic_xlsx":
+            options_box.label(text="Generic Excel Import Settings:")
 
-                # Sheet dropdown (solo se file è selezionato e proprietà esiste)
-                if em_tools.generic_xlsx_file and hasattr(em_tools, 'generic_xlsx_sheet'):
-                    options_box.prop(em_tools, "generic_xlsx_sheet", text="Sheet Name")
+            # File Excel
+            options_box.prop(em_tools, "generic_xlsx_file", text="Excel File")
 
-                    # Colonna ID (solo se sheet è selezionato)
-                    if (hasattr(em_tools, 'generic_xlsx_sheet') and
-                        em_tools.generic_xlsx_sheet and
-                        em_tools.generic_xlsx_sheet != "none" and
-                        hasattr(em_tools, 'xlsx_id_column')):
-                        options_box.prop(em_tools, "xlsx_id_column", text="ID Column")
+            # Sheet dropdown (solo se file è selezionato e proprietà esiste)
+            if em_tools.generic_xlsx_file and hasattr(em_tools, 'generic_xlsx_sheet'):
+                options_box.prop(em_tools, "generic_xlsx_sheet", text="Sheet Name")
 
-                        # Colonna descrizione opzionale (solo se ID è selezionato)
-                        if (hasattr(em_tools, 'xlsx_id_column') and
-                            em_tools.xlsx_id_column and
-                            em_tools.xlsx_id_column != "none" and
-                            hasattr(em_tools, 'generic_xlsx_desc_column')):
-                            options_box.prop(em_tools, "generic_xlsx_desc_column", text="Description Column (Optional)")
-
-            elif em_tools.mode_3dgis_import_type == "pyarchinit":
-                options_box.label(text="pyArchInit Import Settings:")
-                options_box.prop(em_tools, "pyarchinit_connection_mode",
-                                 text="Connection", expand=True)
-                if em_tools.pyarchinit_connection_mode == "postgres":
-                    pg_box = options_box.box()
-                    pg_box.prop(em_tools, "pyarchinit_pg_host", text="Host")
-                    pg_box.prop(em_tools, "pyarchinit_pg_port", text="Port")
-                    pg_box.prop(em_tools, "pyarchinit_pg_dbname", text="Database")
-                    pg_box.prop(em_tools, "pyarchinit_pg_user", text="User")
-                    pg_box.prop(em_tools, "pyarchinit_pg_password", text="Password")
-                    creds = pg_box.row(align=True)
-                    creds.operator("emtools.pyarchinit_pg_save_password",
-                                   text="Save to keychain", icon='LOCKED')
-                    creds.operator("emtools.pyarchinit_pg_forget_password",
-                                   text="Forget", icon='UNLOCKED')
-                else:
-                    options_box.prop(em_tools, "pyarchinit_db_path",
-                                     text="SQLite Database")
-                options_box.prop(em_tools, "pyarchinit_mapping", text="Select Mapping")
-                options_box.operator("emtools.open_mapping_preferences",
-                            text="",
-                            icon='PREFERENCES')
-                row = options_box.row()
-                row.prop(em_tools, "pyarchinit_import_geometries")
-                if em_tools.pyarchinit_import_geometries:
-                    sub = options_box.row()
-                    sub.alignment = 'RIGHT'
-                    sub.prop(em_tools, "pyarchinit_geom_force_update")
-                    if classify_georef_state(context.scene.em_georef) != STATE_CONFIGURED:
-                        warn = options_box.row()
-                        warn.label(
-                            text="Set shift in Georeferencing panel first",
-                            icon='ERROR',
-                        )
-
-                # Mostra info sul mapping selezionato
-                if em_tools.pyarchinit_mapping != "none":
-                    desc_box = options_box.box()
-                    desc_box.label(text="Mapping Info:")
-                    mapping_data = get_mapping_description(em_tools.pyarchinit_mapping, "pyarchinit")
-                    if mapping_data:
-                        row = desc_box.row()
-                        row.label(text=f"Name: {mapping_data['name']}")
-                        if "description" in mapping_data:
-                            desc_box.label(text=mapping_data["description"])
-                        if "table_settings" in mapping_data:
-                            desc_box.label(text=f"Table: {mapping_data['table_settings']['table_name']}")
-
-                # Dynamic filter dropdowns (populated by the mapping's
-                # ``is_filter`` columns — see s3dgraphy 1.6).
-                active_filters = [
-                    i for i in range(1, 6)
-                    if em_tools.get(f"pyarchinit_filter_{i}_column")
-                ]
-                if active_filters:
-                    filter_box = options_box.box()
-                    filter_box.label(text="Filter rows by:", icon='FILTER')
-                    for i in active_filters:
-                        label = em_tools.get(
-                            f"pyarchinit_filter_{i}_label", f"Filter {i}"
-                        )
-                        required = em_tools.get(
-                            f"pyarchinit_filter_{i}_required", False
-                        )
-                        text = label + (" *" if required else "")
-                        row = filter_box.row()
-                        row.prop(em_tools, f"pyarchinit_filter_{i}", text=text)
-
-            elif em_tools.mode_3dgis_import_type == "emdb_xlsx":
-                options_box.label(text="EMdb Excel Import Settings:")
-                options_box.prop(em_tools, "emdb_xlsx_file", text="EMdb Excel File")
-                options_box.prop(em_tools, "emdb_mapping", text="EMdb Format")
-                options_box.operator("emtools.open_mapping_preferences",
-                            text="",
-                            icon='PREFERENCES')
-
-                # Mostra una descrizione del formato selezionato
-                if em_tools.emdb_mapping != "none":
-                    desc_box = options_box.box()
-                    desc_box.label(text="Format Description:")
-                    mapping_data = get_mapping_description(em_tools.emdb_mapping)
-                    if mapping_data:
-                        # Header
-                        row = desc_box.row()
-                        row.label(text=f"Name: {mapping_data['name']}")
-
-                        # Description
-                        if "description" in mapping_data:
-                            desc_box.label(text=mapping_data["description"])
-
-                        # Required Excel columns
-                        if "required_columns" in mapping_data:
-                            col_box = desc_box.box()
-                            col_box.label(text="Required Excel columns:")
-                            for col in mapping_data["required_columns"]:
-                                col_box.label(text=f"- {col}")
-
-            # Tasto Import con operatore unificato
-            row = box.row(align=True)
-            row.scale_y = 1.5  # Bottone più grande
-
-            # Validazione campi obbligatori per abilitare il pulsante Import
-            can_import = False
-
-            if em_tools.mode_3dgis_import_type == "generic_xlsx":
-                # Richiede: file, sheet, ID column
-                can_import = bool(
-                    em_tools.generic_xlsx_file and
-                    hasattr(em_tools, 'generic_xlsx_sheet') and
+                # Colonna ID (solo se sheet è selezionato)
+                if (hasattr(em_tools, 'generic_xlsx_sheet') and
                     em_tools.generic_xlsx_sheet and
                     em_tools.generic_xlsx_sheet != "none" and
-                    hasattr(em_tools, 'xlsx_id_column') and
-                    em_tools.xlsx_id_column and
-                    em_tools.xlsx_id_column != "none"
-                )
-            elif em_tools.mode_3dgis_import_type == "pyarchinit":
-                # Richiede un mapping e una connessione valida: in SQLite
-                # il file DB, in PostgreSQL host+db+user (la password è
-                # verificata all'avvio dell'import, non qui — #27 Sub-2).
-                conn_mode = getattr(em_tools, "pyarchinit_connection_mode", "sqlite")
-                if conn_mode == "postgres":
-                    conn_ok = bool(
-                        (em_tools.pyarchinit_pg_host or "").strip() and
-                        (em_tools.pyarchinit_pg_dbname or "").strip() and
-                        (em_tools.pyarchinit_pg_user or "").strip()
-                    )
-                else:
-                    conn_ok = bool(em_tools.pyarchinit_db_path)
-                can_import = bool(
-                    conn_ok and
-                    em_tools.pyarchinit_mapping != "none"
-                )
-            elif em_tools.mode_3dgis_import_type == "emdb_xlsx":
-                # Richiede: file, mapping
-                can_import = bool(
-                    em_tools.emdb_xlsx_file and
-                    em_tools.emdb_mapping != "none"
-                )
+                    hasattr(em_tools, 'xlsx_id_column')):
+                    options_box.prop(em_tools, "xlsx_id_column", text="ID Column")
 
-            row.enabled = can_import
-            op = row.operator("em.import_3dgis_database",
-                            text="Import Database",
-                            icon='IMPORT')
-            # Impostiamo le proprietà dell'operatore
-            op.auxiliary_mode = False  # Modalità 3DGIS standard
-            op.graphml_index = -1  # Non applicabile in modalità 3DGIS
-            op.auxiliary_index = -1  # Non applicabile in modalità 3DGIS
+                    # Colonna descrizione opzionale (solo se ID è selezionato)
+                    if (hasattr(em_tools, 'xlsx_id_column') and
+                        em_tools.xlsx_id_column and
+                        em_tools.xlsx_id_column != "none" and
+                        hasattr(em_tools, 'generic_xlsx_desc_column')):
+                        options_box.prop(em_tools, "generic_xlsx_desc_column", text="Description Column (Optional)")
+
+        elif em_tools.mode_3dgis_import_type == "pyarchinit":
+            options_box.label(text="pyArchInit Import Settings:")
+            options_box.prop(em_tools, "pyarchinit_connection_mode",
+                             text="Connection", expand=True)
+            if em_tools.pyarchinit_connection_mode == "postgres":
+                pg_box = options_box.box()
+                pg_box.prop(em_tools, "pyarchinit_pg_host", text="Host")
+                pg_box.prop(em_tools, "pyarchinit_pg_port", text="Port")
+                pg_box.prop(em_tools, "pyarchinit_pg_dbname", text="Database")
+                pg_box.prop(em_tools, "pyarchinit_pg_user", text="User")
+                pg_box.prop(em_tools, "pyarchinit_pg_password", text="Password")
+                creds = pg_box.row(align=True)
+                creds.operator("emtools.pyarchinit_pg_save_password",
+                               text="Save to keychain", icon='LOCKED')
+                creds.operator("emtools.pyarchinit_pg_forget_password",
+                               text="Forget", icon='UNLOCKED')
+            else:
+                options_box.prop(em_tools, "pyarchinit_db_path",
+                                 text="SQLite Database")
+            options_box.prop(em_tools, "pyarchinit_mapping", text="Select Mapping")
+            options_box.operator("emtools.open_mapping_preferences",
+                        text="",
+                        icon='PREFERENCES')
+            row = options_box.row()
+            row.prop(em_tools, "pyarchinit_import_geometries")
+            if em_tools.pyarchinit_import_geometries:
+                sub = options_box.row()
+                sub.alignment = 'RIGHT'
+                sub.prop(em_tools, "pyarchinit_geom_force_update")
+                if classify_georef_state(context.scene.em_georef) != STATE_CONFIGURED:
+                    warn = options_box.row()
+                    warn.label(
+                        text="Set shift in Georeferencing panel first",
+                        icon='ERROR',
+                    )
+
+            # Mostra info sul mapping selezionato
+            if em_tools.pyarchinit_mapping != "none":
+                desc_box = options_box.box()
+                desc_box.label(text="Mapping Info:")
+                mapping_data = get_mapping_description(em_tools.pyarchinit_mapping, "pyarchinit")
+                if mapping_data:
+                    row = desc_box.row()
+                    row.label(text=f"Name: {mapping_data['name']}")
+                    if "description" in mapping_data:
+                        desc_box.label(text=mapping_data["description"])
+                    if "table_settings" in mapping_data:
+                        desc_box.label(text=f"Table: {mapping_data['table_settings']['table_name']}")
+
+            # Dynamic filter dropdowns (populated by the mapping's
+            # ``is_filter`` columns — see s3dgraphy 1.6).
+            active_filters = [
+                i for i in range(1, 6)
+                if em_tools.get(f"pyarchinit_filter_{i}_column")
+            ]
+            if active_filters:
+                filter_box = options_box.box()
+                filter_box.label(text="Filter rows by:", icon='FILTER')
+                for i in active_filters:
+                    label = em_tools.get(
+                        f"pyarchinit_filter_{i}_label", f"Filter {i}"
+                    )
+                    required = em_tools.get(
+                        f"pyarchinit_filter_{i}_required", False
+                    )
+                    text = label + (" *" if required else "")
+                    row = filter_box.row()
+                    row.prop(em_tools, f"pyarchinit_filter_{i}", text=text)
+
+        elif em_tools.mode_3dgis_import_type == "emdb_xlsx":
+            options_box.label(text="EMdb Excel Import Settings:")
+            options_box.prop(em_tools, "emdb_xlsx_file", text="EMdb Excel File")
+            options_box.prop(em_tools, "emdb_mapping", text="EMdb Format")
+            options_box.operator("emtools.open_mapping_preferences",
+                        text="",
+                        icon='PREFERENCES')
+
+            # Mostra una descrizione del formato selezionato
+            if em_tools.emdb_mapping != "none":
+                desc_box = options_box.box()
+                desc_box.label(text="Format Description:")
+                mapping_data = get_mapping_description(em_tools.emdb_mapping)
+                if mapping_data:
+                    # Header
+                    row = desc_box.row()
+                    row.label(text=f"Name: {mapping_data['name']}")
+
+                    # Description
+                    if "description" in mapping_data:
+                        desc_box.label(text=mapping_data["description"])
+
+                    # Required Excel columns
+                    if "required_columns" in mapping_data:
+                        col_box = desc_box.box()
+                        col_box.label(text="Required Excel columns:")
+                        for col in mapping_data["required_columns"]:
+                            col_box.label(text=f"- {col}")
+
+        # Tasto Import con operatore unificato
+        row = box.row(align=True)
+        row.scale_y = 1.5  # Bottone più grande
+
+        # Validazione campi obbligatori per abilitare il pulsante Import
+        can_import = False
+
+        if em_tools.mode_3dgis_import_type == "generic_xlsx":
+            # Richiede: file, sheet, ID column
+            can_import = bool(
+                em_tools.generic_xlsx_file and
+                hasattr(em_tools, 'generic_xlsx_sheet') and
+                em_tools.generic_xlsx_sheet and
+                em_tools.generic_xlsx_sheet != "none" and
+                hasattr(em_tools, 'xlsx_id_column') and
+                em_tools.xlsx_id_column and
+                em_tools.xlsx_id_column != "none"
+            )
+        elif em_tools.mode_3dgis_import_type == "pyarchinit":
+            # Richiede un mapping e una connessione valida: in SQLite
+            # il file DB, in PostgreSQL host+db+user (la password è
+            # verificata all'avvio dell'import, non qui — #27 Sub-2).
+            conn_mode = getattr(em_tools, "pyarchinit_connection_mode", "sqlite")
+            if conn_mode == "postgres":
+                conn_ok = bool(
+                    (em_tools.pyarchinit_pg_host or "").strip() and
+                    (em_tools.pyarchinit_pg_dbname or "").strip() and
+                    (em_tools.pyarchinit_pg_user or "").strip()
+                )
+            else:
+                conn_ok = bool(em_tools.pyarchinit_db_path)
+            can_import = bool(
+                conn_ok and
+                em_tools.pyarchinit_mapping != "none"
+            )
+        elif em_tools.mode_3dgis_import_type == "emdb_xlsx":
+            # Richiede: file, mapping
+            can_import = bool(
+                em_tools.emdb_xlsx_file and
+                em_tools.emdb_mapping != "none"
+            )
+
+        row.enabled = can_import
+        op = row.operator("em.import_3dgis_database",
+                        text="Import Database",
+                        icon='IMPORT')
+        # Impostiamo le proprietà dell'operatore
+        op.auxiliary_mode = False  # Modalità 3DGIS standard
+        op.graphml_index = -1  # Non applicabile in modalità 3DGIS
+        op.auxiliary_index = -1  # Non applicabile in modalità 3DGIS
 
 
 class AUXILIARY_MT_context_menu(bpy.types.Menu):
@@ -1558,6 +1841,10 @@ class AUXILIARY_MT_context_menu(bpy.types.Menu):
 classes = (
     AUXILIARY_UL_files,
     EMTOOLS_UL_files,
+    # B1 · l'operatore dei tooltip della scala, PRIMA dei pannelli che lo usano
+    EM_OT_promotion_step_info,
+    # UX3/A · l'Overview è il primo pannello del tab (`bl_order = 0`)
+    VIEW3D_PT_EM_Overview,
     EM_SetupPanel,
     AUXILIARY_MT_context_menu,
 )

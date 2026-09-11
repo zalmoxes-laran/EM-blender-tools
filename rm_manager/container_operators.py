@@ -881,15 +881,37 @@ class RMCONTAINER_OT_project(Operator):
             pezzi.append(f"{esito['removed']} membership(s) dropped")
         if esito["refused"]:
             pezzi.append(f"{esito['refused']} refused (see warnings)")
+        # EM16-UX/E · UN messaggio per tutto il caso, non uno per mesh.
+        #
+        # Un grafo che viene da import GraphML non ha nodi RM affatto — per
+        # disegno: `graphml_patcher.INTERNAL_NODE_TYPES` li esclude. Dirlo 98
+        # volte non aggiunge niente a dirlo una volta, e nasconde il resto del
+        # rapporto. Quindi: cosa manca, e il comando da dare prima.
         if esito["unknown"]:
-            pezzi.append(f"{esito['unknown']} model(s) not in the graph "
-                         f"(see warnings)")
+            # UNA frase, in un posto solo: la stessa che il tooltip della
+            # cella `Models` usa quando quel numero è a zero (EM16-UX2/C2).
+            from . import group_nodes as _gn
+            manca = _gn.no_rm_nodes_yet(esito["unknown"],
+                                        esito["unknown_containers"])
+            if not pezzi:
+                # Niente è stato scritto: la frase può dirlo, ed è il caso del
+                # grafo importato da GraphML — quello misurato.
+                self.report({'WARNING'},
+                            f"This graph has no RM nodes yet. {manca} "
+                            f"Nothing was created.")
+                return {'CANCELLED'}
+            # Caso misto: qualcosa È stato scritto, e allora la frase NON dice
+            # «nothing was created» — sarebbe falsa. Si dicono le due cose.
+            self.report({'WARNING'},
+                        f"Projection: {', '.join(pezzi)}. But {manca}")
+            return {'FINISHED'}
         if not pezzi:
             self.report({'INFO'},
                         "Already projected — nothing to change.")
         else:
-            livello = ('WARNING' if (esito["refused"] or esito["unknown"])
-                       else 'INFO')
+            # `unknown` non si consulta qui: se ce n'erano, il ramo sopra
+            # ha già riportato e restituito.
+            livello = 'WARNING' if esito["refused"] else 'INFO' 
             self.report({livello}, "Projection: " + ", ".join(pezzi))
         return {'FINISHED'}
 

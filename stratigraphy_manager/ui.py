@@ -693,6 +693,7 @@ class EM_ToolsPanel:
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     """Panel in the 3D View for the Stratigraphy Manager"""
     bl_category = "EM"
+    bl_order = 3
     bl_idname = "VIEW3D_PT_ToolsPanel"
 
 def register_ui():

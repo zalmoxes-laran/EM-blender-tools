@@ -89,3 +89,33 @@ def draw_objectmode_required_box(layout):
     box.label(text="Available in Object Mode only", icon='INFO')
     box.label(text="Switch to Object Mode to use this panel.")
     return box
+
+
+def draw_s3dgraphy_too_old(layout, titolo, cosa, extra="", alert=True):
+    """The «bundled s3dgraphy is out of date» message, in ONE row.
+
+    EM16-UX/B7 (11-09-2026). Four panels drew the same four-line box —
+    `graph_info`, `dtc_authoring`, `shelf_tool`, `resources_tab` — for
+    functions each of them declares optional. Four lines of red for an
+    optional feature teaches the reader to skip red, and the day after that a
+    real error goes unread.
+
+    So: one row, and the whole sentence behind the `?` button, which is where a
+    thing you read once and then know belongs.
+
+    ``alert`` is an argument and not a default, for the same reason: red in
+    Blender means error. A panel that cannot function at all without the newer
+    library keeps it; a single action that is merely unavailable does not.
+    """
+    row = layout.box().row(align=True)
+    row.alert = alert
+    row.label(text=titolo, icon='ERROR' if alert else 'INFO')
+    op = row.operator("em.help_popup", text="", icon='QUESTION')
+    op.title = titolo
+    op.text = (f"{cosa} needs a newer bundled s3dgraphy than this build "
+               f"carries.\n\n"
+               f"Activate the development one:\n    ./em.sh s3d\n\n"
+               f"then reopen this panel."
+               + (f"\n\n{extra}" if extra else ""))
+    op.url = "panels/em_setup.html#emsetup"
+    return row

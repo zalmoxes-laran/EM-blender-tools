@@ -181,6 +181,24 @@ class ExportVars(PropertyGroup):
         default=True
     ) # type: ignore
 
+    # UX3/E · il collasso della sezione RDF.
+    #
+    # Non c'è un secondo meccanismo: `export_manager/panel.py` cerca
+    # `f"{provider.id}_expanded"` su ExportVars e, SE la proprietà esiste,
+    # disegna il triangolino; se non esiste tiene la sezione sempre aperta
+    # (`expanded = True`). Al provider `rdf` mancava solo questa riga — ed è
+    # per questo che srotolava formato, path, base URI, box IRI, opzioni
+    # avanzate, bottone e le tre righe di «Workflow after export», più di uno
+    # schermo, mentre Tabular si chiudeva.
+    #
+    # `default=False`: chiusa, come chiede il prompt.
+    rdf_expanded: BoolProperty(
+        name="Show RDF export options",
+        description="Expand/Collapse RDF export options "
+                    "(Turtle / N-Triples / JSON-LD)",
+        default=False
+    ) # type: ignore
+
     heriverse_expanded: BoolProperty(
         name="Show Heriverse export options",
         description="Expand/Collapse Heriverse export options",
@@ -358,7 +376,9 @@ if DEPENDENCIES_LOADED:
             graph_info,  # fetta 3: graph-level HDT-O dataset info panel
             dtc_authoring,  # DTC (Digital Twin Chain) authoring panel (ECHOES)
             resources_tab,  # R4: EM Scene tab over the FS-index resource backend
-            shelf_tool,  # Shelf v2 C1: EM Shelf tab (3D-first search → acquisition pipeline)
+            shelf_tool,  # Shelf v2 C1: absorbed into Resources & Shelf (EM16-UX)
+            proxy_surface_tools,  # EM16-UX: container for the drawing tools
+            em_header_menu,  # EM16-UX/C: the EM menu in the 3D View header
         )
 
         # Import base PropertyGroup classes into this namespace
@@ -651,6 +671,14 @@ def register_modules():
         graph_info,  # fetta 3: HDT-O props/operators (drawn inline by EM Data Tree)
         dtc_authoring,  # DTC authoring props/operators (drawn inline by EM Data Tree)
         resources_tab,  # EM Scene tab (Shelf/RM/DTC/MinIO over FS backend; Documents → Document Manager)
+        # EM16-UX · il contenitore degli strumenti di disegno. In FASE 1 perché
+        # è vuoto e non dipende da niente, e i suoi tre figli (Proxy Box,
+        # Surface Areas, Proxy Inflate) si registrano più tardi: il parent deve
+        # esserci prima di loro, non viceversa.
+        proxy_surface_tools,
+        # EM16-UX/C · il menu EM in testata. Qui perché non dipende da nessun
+        # pannello: si aggancia a `VIEW3D_MT_editor_menus`, che c'è sempre.
+        em_header_menu,
         shelf_tool,  # Shelf v2 C1: EM Shelf tab (3D-first search → acquisition pipeline)
         EMdb_excel,
         visual_manager,
@@ -696,7 +724,10 @@ def register_modules():
     '''
     # FASE 3: Moduli che dipendono dai pannelli del Visual Manager
     ui_dependent_modules = [
-        proxy_inflate_manager,  # Dipende da VIEW3D_PT_visual_panel
+        # EM16-UX: il parent non è più il Visual Manager ma
+        # EM_PT_proxy_surface_tools, registrato in FASE 1. La fase resta
+        # questa perché l'ordine va bene comunque: il parent c'è già.
+        proxy_inflate_manager,  # figlio di EM_PT_proxy_surface_tools
         proxy_to_rm_projection, # Potrebbe dipendere dai pannelli visual
     ]
     

@@ -42,6 +42,7 @@ class CF_PT_CronoFilterPanel(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM"
+    bl_order = 5
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod

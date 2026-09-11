@@ -51,7 +51,8 @@ class EM_ServerPanel:
 
 
 class VIEW3D_PT_ServerPanel(Panel, EM_ServerPanel):
-    bl_category = "EM"
+    bl_category = "EM Bridge"
+    bl_order = 5
     bl_idname = "VIEW3D_PT_ServerPanel"
 
 

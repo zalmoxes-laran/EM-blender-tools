@@ -14,11 +14,12 @@ from bpy.types import Panel
 
 class TAPESTRY_PT_main_panel(Panel):
     """Main Tapestry panel in EM Bridge tab"""
-    bl_label = "Tapestry (Experimental)"
+    bl_label = "Tapestry"
     bl_idname = "TAPESTRY_PT_main_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'EM Bridge'
+    bl_category = "EM Bridge"
+    bl_order = 3
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod

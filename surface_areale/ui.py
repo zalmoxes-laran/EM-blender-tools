@@ -27,13 +27,18 @@ class VIEW3D_PT_SurfaceAreale(Panel):
 
     Top-level panel in the EM Annotator tab (promoted from the former
     RM to Proxy Suite). Sibling of the Proxy Box panel.
+    
+
+    Tool, not manager (EM16-UX). Sibling of Proxy Box under
+    `Proxy & surface tools`; keeps its own `Settings` child.
     """
     bl_label = "Surface Areas"
     bl_idname = "VIEW3D_PT_SurfaceAreale"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM Scene"
-    bl_order = 6
+    bl_parent_id = "EM_PT_proxy_surface_tools"
+    bl_order = 2
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod

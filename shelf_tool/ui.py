@@ -1,4 +1,12 @@
-"""EM Shelf tool UI — a SEPARATE N-panel tab ("EM Shelf"), distinct from EM Scene.
+"""EM Shelf tool UI — a CHILD panel of `Resources & Shelf`, in the EM Scene tab.
+
+EM16-UX (11-09-2026): the `EM Shelf` tab is gone and this panel moved under
+`Resources & Shelf`. Absorbed as a CHILD PANEL and not as a section, and the
+choice is about the one thing of value in here: the **UIList with its built-in
+name filter and sort**. A `template_list` nested in a box inside another panel
+gets squeezed — the filter funnel is the first thing to lose room — while a
+child panel keeps the list at full width and keeps its own collapse state.
+Nothing in the panel body changed.
 
 A 3D-first project-folder search populates a Shelf of acquired resources. The
 resources are shown in a scalable **UIList** (one compact row each, built-in
@@ -16,6 +24,7 @@ from __future__ import annotations
 import bpy
 
 from . import shelf_backend
+from ..ui_helpers import draw_s3dgraphy_too_old
 
 
 class SHELF_UL_resources(bpy.types.UIList):
@@ -58,11 +67,14 @@ class SHELF_UL_resources(bpy.types.UIList):
 
 
 class EM_PT_shelf(bpy.types.Panel):
-    bl_label = "EM Shelf"
+    bl_label = "Shelf"
     bl_idname = "EM_PT_shelf"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "EM Shelf"
+    bl_category = "EM Scene"
+    bl_parent_id = "EM_PT_resources"
+    bl_order = 1
+    bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context):
         layout = self.layout
@@ -75,12 +87,8 @@ class EM_PT_shelf(bpy.types.Panel):
 
         # Blocker: the bundled s3dgraphy may predate the Shelf / acquisition ops.
         if not shelf_backend.shelf_supported():
-            b = layout.box()
-            b.alert = True
-            b.label(text="Shelf unavailable", icon='ERROR')
-            b.label(text="The bundled s3dgraphy is out of date.")
-            b.label(text="Activate the dev/updated s3dgraphy (./em.sh s3d),")
-            b.label(text="then reopen this panel.")
+            # EM16-UX/B7 · una riga, e la frase intera dietro il `?`.
+            draw_s3dgraphy_too_old(layout, "Shelf unavailable", "The Shelf")
             return
 
         # ── project folder + 3D-first scan ────────────────────────────────────

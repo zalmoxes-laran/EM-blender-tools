@@ -36,13 +36,19 @@ class PROXYBOX_PT_main_panel(Panel):
 
     Top-level panel in the EM Annotator tab (promoted from the former
     RM to Proxy Suite wrapper). Sibling of Surface Areas.
+    
+
+    Tool, not manager (EM16-UX): it draws a proxy box. Nested under
+    `Proxy & surface tools` so its rank is visible without moving it away
+    from the managers it serves.
     """
     bl_label = "Proxy Box"
     bl_idname = "PROXYBOX_PT_main_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EM Scene"
-    bl_order = 5
+    bl_parent_id = "EM_PT_proxy_surface_tools"
+    bl_order = 1
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod

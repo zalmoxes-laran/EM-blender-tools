@@ -11,6 +11,7 @@ EM Data Tree panel.
 from __future__ import annotations
 
 from . import dtc_graph
+from ..ui_helpers import draw_s3dgraphy_too_old
 
 
 def draw_dtc_section(layout, context) -> None:
@@ -40,12 +41,8 @@ def _draw_body(layout, context, p) -> None:
 
     # Blocker surface: the bundled s3dgraphy may be too old for the DTC profile.
     if not dtc_graph.dtc_supported():
-        b = layout.box()
-        b.alert = True
-        b.label(text="DTC profile unavailable", icon='ERROR')
-        b.label(text="The bundled s3dgraphy is out of date.")
-        b.label(text="Activate the dev/updated s3dgraphy (./em.sh s3d),")
-        b.label(text="then reopen this panel.")
+        # EM16-UX/B7 · una riga, e la frase intera dietro il `?`.
+        draw_s3dgraphy_too_old(layout, "DTC profile unavailable", "The DTC profile")
         return
 
     # add a process

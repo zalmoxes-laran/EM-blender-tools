@@ -18,7 +18,8 @@ class VIEW3D_PT_activity_manager(Panel):
     bl_idname = "VIEW3D_PT_activity_manager"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'EM'
+    bl_category = "EM"
+    bl_order = 6
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod

@@ -1,17 +1,26 @@
-"""EM Scene tab UI.
+"""`Resources & Shelf` — the face of the shared Resource layer.
 
-A panel in the "EM Scene" N-panel tab, the face of the shared Resource layer.
-Sections:
+EM16-UX (11-09-2026). This panel used to be labelled "EM Scene", i.e. it was
+named after the tab that contains it, which said nothing about what it holds.
+Renamed, and two of its sections removed: **Documents** and **Representation
+Models** were signposts reading *managed in the Document Manager panel* — a
+panel holds only what it owns, and a section whose whole content is a pointer
+elsewhere is a row of height spent on navigation.
 
-  * **Documents** — points to the existing **Document Manager** panel (in this
-    same tab); NOT a duplicate list.
-  * **Representation Models** — RM face (managed by the RM Manager panel here).
-  * **DTC** — the Digital Twin Chain section (reuses the DTC authoring renderer).
-  * **Shelf** — the un-hatted resources (orphans) with a Create-Document (hat)
-    action that ADOPTS the FS stable ID as the node id. (A richer search+library
-    Shelf v2 is a later session.)
+Sections now:
+
+  * **DTC** — the Digital Twin Chain, IN CONSULTATION ONLY. The chain is the
+    graph of the storage, not of the interpretation: authoring moved to EM
+    Studio, and Blender registers what it consumes. A line in the section says
+    so, and the same section no longer appears in the EM Data Tree.
   * **Object store (MinIO)** — the graph's local resources with a **Promote to
     MinIO** action (in-process s3dgraphy; keeps the stable ID; repoints locator).
+
+And the **Shelf** is now a CHILD PANEL (`shelf_tool/ui.py`), absorbed from the
+former `EM Shelf` tab, because its UIList with the built-in name filter is the
+thing of value there and a list nested in a box loses room. The poorer inline
+shelf section this panel used to draw is gone with it: two shelf views in one
+panel is one too many.
 
 The DosCo / scan folder is set with a folder picker (Set DosCo folder). All graph
 reads go through s3dgraphy (em.json = truth).
@@ -22,14 +31,16 @@ from __future__ import annotations
 import bpy
 
 from . import operators, resource_backend
+from ..ui_helpers import draw_s3dgraphy_too_old
 
 
 class EM_PT_resources(bpy.types.Panel):
-    bl_label = "EM Scene"
+    bl_label = "Resources & Shelf"
     bl_idname = "EM_PT_resources"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "EM Scene"
+    bl_order = 5
     bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context):
@@ -42,12 +53,11 @@ class EM_PT_resources(bpy.types.Panel):
 
         # Blocker surface: the bundled s3dgraphy may be too old for R0/R1.
         if not resource_backend.resources_supported():
-            b = layout.box()
-            b.alert = True
-            b.label(text="Resource layer unavailable", icon='ERROR')
-            b.label(text="The bundled s3dgraphy is out of date.")
-            b.label(text="Activate the dev/updated s3dgraphy (./em.sh s3d),")
-            b.label(text="then reopen this panel.")
+            # EM16-UX/B7 · UNA riga più un bottone che apre il dettaglio.
+            # Erano quattro righe per una funzione dichiarata opzionale, e un
+            # box rosso alto quattro righe insegna a non leggere il rosso.
+            draw_s3dgraphy_too_old(layout, "Resource layer unavailable",
+                              "Resource layer")
             return
 
         from ..functions import check_active_graph
@@ -56,8 +66,9 @@ class EM_PT_resources(bpy.types.Panel):
             layout.label(text="No graph selected in EM Setup.", icon='INFO')
             return
 
-        _ok2, _graph, folder, graph_code = operators._active(context)
-        backend = operators.get_cached_backend(folder)
+        # `backend` e `graph_code` servivano alla sezione Shelf, che è diventata
+        # un pannello figlio: qui resta solo la cartella.
+        _ok2, _graph, folder, _graph_code = operators._active(context)
 
         # DosCo / scan folder — folder picker + current path, then Scan.
         fbox = layout.box()
@@ -69,12 +80,15 @@ class EM_PT_resources(bpy.types.Panel):
         if p.status:
             srow.label(text=p.status)
 
-        self._section(layout, p, "show_documents", "Documents", self._draw_documents)
-        self._section(layout, p, "show_rm", "Representation Models", self._draw_rm)
+        # EM16-UX · «Documents» e «Representation Models» sono spariti: erano
+        # due cartelli che dicevano solo «managed in the Document Manager
+        # panel». Un pannello tiene solo ciò che possiede.
+        #
+        # …e la sezione «Shelf» pure, perché lo Shelf è adesso un pannello
+        # FIGLIO (shelf_tool/ui.py) con la sua UIList filtrabile: due viste
+        # dello stesso Shelf nello stesso pannello sono una di troppo.
         self._section(layout, p, "show_dtc", "DTC",
                       lambda box: self._draw_dtc(box, context))
-        self._section(layout, p, "show_shelf", "Shelf",
-                      lambda box: self._draw_shelf(box, graph, backend, graph_code))
         self._section(layout, p, "show_minio", "Object store (MinIO)",
                       lambda box: self._draw_minio(box, graph))
 
@@ -88,15 +102,6 @@ class EM_PT_resources(bpy.types.Panel):
         if getattr(p, prop):
             body(box)
 
-    # ── Documents → the existing Document Manager (no duplicate list) ─────────────
-    def _draw_documents(self, box):
-        box.label(text="Managed in the Document Manager panel (this tab).",
-                  icon='FILE_TEXT')
-
-    # ── Representation Models (managed by the RM Manager panel) ───────────────────
-    def _draw_rm(self, box):
-        box.label(text="Manage RMs in the RM Manager panel (this tab).", icon='MESH_DATA')
-
     # ── DTC (reuse the authoring renderer) ────────────────────────────────────────
     def _draw_dtc(self, box, context):
         try:
@@ -105,32 +110,15 @@ class EM_PT_resources(bpy.types.Panel):
         except Exception:
             box.label(text="DTC authoring available in the EM Data Tree.", icon='NODETREE')
 
-    # ── Shelf (un-hatted resources) ───────────────────────────────────────────────
-    def _draw_shelf(self, box, graph, backend, graph_code):
-        box.label(text="Un-hatted resources (not yet a Document / RM).", icon='UGLYPACKAGE')
-        if backend is None:
-            box.label(text="Press Scan to index the folder.", icon='INFO')
-            return
-        shelf = resource_backend.shelf_entries(graph, backend, graph_code=graph_code)
-        if not shelf:
-            box.label(text="— Shelf empty (all resources hatted / matched)")
-            return
-        for e in shelf:
-            row = box.row(align=True)
-            row.label(text=f"{e['filename']}  ·  {e['key_id']}", icon='FILE_BLANK')
-            op = row.operator("em.resources_hat_document", text="", icon='FILE_NEW')
-            op.resource_id = e["resource_id"]
-            op.key_id = e["key_id"]
-
     # ── Object store (MinIO) — Promote local resources (mirrors EMStudio) ─────────
     def _draw_minio(self, box, graph):
         box.label(text="Upload a local resource; keeps its stable ID.", icon='EXPORT')
         supported = resource_backend.minio_supported()
         if not supported:
-            b = box.box()
-            b.label(text="MinIO promote unavailable", icon='INFO')
-            b.label(text="Needs dev s3dgraphy (./em.sh s3d) + the 'minio' extra,")
-            b.label(text="and S3_* env (source dev-stack/.env).")
+            draw_s3dgraphy_too_old(box, "MinIO promote unavailable", "MinIO promote",
+                              extra="Also needs the 'minio' extra and the S3_* "
+                                    "environment (source dev-stack/.env).",
+                              alert=False)
         resources = resource_backend.list_link_resources(graph)
         if not resources:
             box.label(text="— no resources (link nodes) yet")

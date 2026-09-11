@@ -83,6 +83,29 @@ def load_icons():
         # back to the existing show_all_RMs / show_all_RMs_off icons.
         "RM_on": "RM_on.png",
         "RM_off": "RM_off.png",
+        # I GLIFI DEI NODI stratigrafici. Erano sul disco da sempre e NON
+        # venivano caricati: 54 png nella cartella, 40 nomi qui.
+        #
+        # ATTENZIONE alla forma, misurata: `US.png` è 253×128, `USVs` 256×113,
+        # `USVn` 253×123. Sono i disegni della PALETTE del grafo — rettangoli
+        # in stile yEd con il nome dentro — non icone quadrate. In uno slot
+        # icona Blender li schiaccia e a 16px diventano barrette illeggibili,
+        # quindi NON vanno usati come `icon_value` accanto a un'etichetta.
+        # Servono dove c'è spazio (`template_icon`, elenchi con righe alte).
+        # Per le icone-accanto-al-numero si usano i 64×64 e i 1024×1024
+        # (`document`, `container_on`, `show_all_RMs`, …).
+        #
+        # Registrarli comunque è giusto e innocuo: erano evidentemente
+        # destinati a esserlo, e `load_icons()` salta i file mancanti.
+        "US": "US.png",
+        "USVs": "USVs.png",
+        "USVn": "USVn.png",
+        "USD": "USD.png",
+        "SF": "SF.png",
+        "VSF": "VSF.png",
+        "TSU": "TSU.png",
+        "serSU": "serSU.png",
+        "serUSV": "serUSV.png",
     }
     
     # Carica ogni icona che esiste
