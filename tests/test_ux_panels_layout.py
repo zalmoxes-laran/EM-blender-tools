@@ -149,6 +149,10 @@ def test_OGNI_PANNELLO_DICHIARA_LA_SUA_TAB():
     ("TAPESTRY_PT_main_panel", "EM Bridge"),
     ("VIEW3D_PT_em_sync", "EM Bridge"),
     ("VIEW3D_PT_ServerPanel", "EM Bridge"),
+    # NIGHT-DECK · il Publication Deck: il tab dei ponti è il suo posto, ed è
+    # PRIMO (`bl_order = 0`) perché la domanda che risponde — cosa manca —
+    # viene prima di quella dell'Export Manager, che è come esportare.
+    ("VIEW3D_PT_em_publication_deck", "EM Bridge"),
 ])
 def test_OGNI_PANNELLO_E_DOVE_IL_PROMPT_DICE(classe, categoria):
     assert classe in PANNELLI, f"{classe} non esiste più: sparito nel trasloco?"
@@ -162,10 +166,12 @@ def test_NESSUN_PANNELLO_E_SPARITO_NEL_TRASLOCO():
     il `Settings` di Surface Areas, meno i doppi), più due da EM16-UX: il
     contenitore `EM_PT_proxy_surface_tools` e `VIEW3D_PT_EM_GraphInfo`
     (HDT-O, che torna pannello). UX3 ne aveva aggiunto un terzo,
-    `VIEW3D_PT_EM_Overview`, e E.D. l'ha eliminato: quindi si torna a 32.
+    `VIEW3D_PT_EM_Overview`, e E.D. l'ha eliminato: quindi si era tornati a 32.
+    NIGHT-DECK ne aggiunge uno — `VIEW3D_PT_em_publication_deck`, il
+    Publication Deck in EM Bridge — e siamo a 33.
     Nessuno via per sbaglio — verificato contandoli, non stimandoli.
     """
-    assert len(PANNELLI) == 32, sorted(PANNELLI)
+    assert len(PANNELLI) == 33, sorted(PANNELLI)
     assert "VIEW3D_PT_EM_Overview" not in PANNELLI
 
 
@@ -288,8 +294,8 @@ def test_A_IL_PANNELLO_EM_OVERVIEW_E_STATO_RIMOSSO():
     assert "VIEW3D_PT_EM_Overview," not in SETUP, "ancora registrato"
     #: e l'operatore della scala non c'è più affatto (A5)
     assert "promotion_step_info" not in _codice(SETUP)
-    #: …e il conto dei pannelli torna a 32
-    assert len(PANNELLI) == 32, sorted(PANNELLI)
+    #: …e il conto dei pannelli: 32 dopo la rimozione, 33 da NIGHT-DECK. Qui
+    #: interessa l'ASSENZA di Overview, non il totale — che ha la sua prova.
     assert "VIEW3D_PT_EM_Overview" not in PANNELLI
 
 

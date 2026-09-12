@@ -158,34 +158,68 @@ def stato_risorse(nodi=(), archi=(), impronta_attuale=None) -> dict:
     orfane = diagnosi(nodi, archi)["orfani"]
 
     # ── il giro della derivazione: derivata → processo → grezzo ──────
-    processo_di_derivata = {}
+    #
+    # UNA DERIVATA PUÒ AVERE PIÙ PROCESSI, e ignorarlo era un difetto vero,
+    # trovato dal Publication Deck (NIGHT-DECK) misurando e non leggendo:
+    #
+    #   il bake scrive un D7 (`processo --dtc_had_input--> grezzo`,
+    #   `processo --dtc_had_output--> derivata`); la PUBBLICAZIONE ne scrive
+    #   un secondo, che ha un output e **nessun ingresso** — perché l'atto è
+    #   «questi byte vanno nello store», non «questi byte vengono da lì».
+    #
+    # Con un dizionario semplice vinceva l'ultimo arco visto: si prendeva il
+    # processo di pubblicazione, non si trovava nessun grezzo, e la derivata
+    # finiva fra le `derivate_senza_sorgente` invece che fra le stantie.
+    # **Effetto: pubblicare una derivata stantia la faceva smettere di
+    # risultare stantia** — cioè esattamente il «è aggiornato» sbagliato che
+    # pubblica roba vecchia credendola fresca.
+    #
+    # Quindi si tengono TUTTI i processi di una derivata e TUTTI i loro
+    # ingressi, e si giudica sulle sorgenti che si conoscono.
+    processi_di_derivata = {}
     for e in archi:
         if getattr(e, "edge_type", "") == EDGE_OUTPUT:
-            processo_di_derivata[getattr(e, "edge_target", None)] = \
-                getattr(e, "edge_source", None)
-    grezzo_di_processo = {}
+            processi_di_derivata.setdefault(
+                getattr(e, "edge_target", None), []).append(
+                    getattr(e, "edge_source", None))
+    grezzi_di_processo = {}
     for e in archi:
         if getattr(e, "edge_type", "") == EDGE_INPUT:
-            grezzo_di_processo[getattr(e, "edge_source", None)] = \
-                getattr(e, "edge_target", None)
+            grezzi_di_processo.setdefault(
+                getattr(e, "edge_source", None), []).append(
+                    getattr(e, "edge_target", None))
+
+    def sorgenti_di(derivata_id):
+        """Gli id delle sorgenti note di una derivata, senza ripetizioni."""
+        fuori = []
+        for processo in processi_di_derivata.get(derivata_id, []):
+            for grezzo in grezzi_di_processo.get(processo, []):
+                if grezzo and grezzo not in fuori:
+                    fuori.append(grezzo)
+        return fuori
 
     stantie, senza_sorgente = [], []
     for rid, n in sorted(risorse.items()):
         impronta_al_bake = dati(n).get("source_fingerprint")
         if not impronta_al_bake:
             continue                # non è una derivata registrata: non si giudica
-        grezzo_id = grezzo_di_processo.get(processo_di_derivata.get(rid))
-        grezzo = per_id.get(grezzo_id)
-        if grezzo is None:
-            #: ha l'impronta ma la sorgente non si trova: è un difetto suo,
+        noti = [(gid, per_id[gid]) for gid in sorgenti_di(rid)
+                if gid in per_id]
+        if not noti:
+            #: ha l'impronta ma nessuna sorgente si trova: è un difetto suo,
             #: diverso dallo stantio, e va detto invece di essere contato
             #: come «aggiornata»
             senza_sorgente.append(rid)
             continue
-        adesso = (impronta_attuale(grezzo) if callable(impronta_attuale) else "")
-        if adesso and adesso != impronta_al_bake:
-            stantie.append({"derivata": rid, "grezzo": grezzo_id,
-                            "al_bake": impronta_al_bake, "adesso": adesso})
+        #: basta UNA sorgente cambiata: un tileset accorpa N mesh ed è stantio
+        #: se ne cambia una qualunque. Conservativo nel verso giusto.
+        for grezzo_id, grezzo in noti:
+            adesso = (impronta_attuale(grezzo) if callable(impronta_attuale)
+                      else "")
+            if adesso and adesso != impronta_al_bake:
+                stantie.append({"derivata": rid, "grezzo": grezzo_id,
+                                "al_bake": impronta_al_bake, "adesso": adesso})
+                break
 
     return {
         "risorse_totali": len(risorse),

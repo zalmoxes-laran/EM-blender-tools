@@ -24,6 +24,8 @@ from __future__ import annotations
 import ast
 import pathlib
 
+from spoglia import codice as _spoglia_codice
+
 _REPO = pathlib.Path(__file__).resolve().parent.parent
 _OPERATORS = _REPO / "sync_manager" / "operators.py"
 
@@ -48,45 +50,10 @@ _CONSUMATORI_MODULI = {
 }
 
 
-def _codice(percorso: pathlib.Path) -> str:
-    """Il sorgente senza commenti NÉ docstring — la regola del pagliaio.
-
-    Presa in faccia una quarta volta scrivendo proprio questo file: `operators.py`
-    SPIEGA in due docstring perché `em_sync_direction` e `_sends()` se ne sono
-    andati, e un'asserzione «quel nome non c'è più» mordeva la spiegazione
-    invece del codice. Un commento onesto non deve poter far fallire una prova
-    sull'assenza di un nome.
-
-    Qui si usa `tokenize` e non il taglio a stati riga per riga di
-    `test_ux_panels_layout._codice`: quello riceve FETTE di file, che non si
-    parsano; questo riceve file interi, dove il tokenizzatore non sbaglia mai.
-    Le stringhe NON-docstring restano, perché `getattr(sc, "em_sync_direction")`
-    è codice vero anche se il nome sta fra virgolette.
-    """
-    import io as _io
-    import token as _token
-    import tokenize as _tokenize
-
-    testo = percorso.read_text(errors="replace")
-    fuori, attesa_docstring = [], True
-    precedente = None
-    for tok in _tokenize.generate_tokens(_io.StringIO(testo).readline):
-        if tok.type == _token.COMMENT:
-            continue
-        if tok.type == _token.STRING and attesa_docstring:
-            continue                    # è una docstring: via
-        if tok.type == _token.STRING and precedente in (_token.INDENT,
-                                                        _token.NEWLINE,
-                                                        _token.NL):
-            continue                    # docstring di modulo/funzione/classe
-        if tok.type not in (_token.NEWLINE, _token.NL, _token.INDENT,
-                            _token.DEDENT, _token.ENDMARKER):
-            attesa_docstring = False
-        if tok.type in (_token.INDENT, _token.NEWLINE, _token.NL):
-            attesa_docstring = True
-        precedente = tok.type
-        fuori.append(tok.string)
-    return "\n".join(fuori)
+#: NIGHT-DECK · lo spogliatore è stato estratto in `tests/spoglia.py` alla
+#: quinta volta che la regola del pagliaio mordeva una prova. Qui resta il
+#: nome locale, così le asserzioni di questo file non cambiano.
+_codice = _spoglia_codice
 
 
 def _nomi_di_modulo(percorso: pathlib.Path) -> set:

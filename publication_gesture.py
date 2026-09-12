@@ -59,30 +59,35 @@ def stato_di_pubblicazione(nodo, esiste=None) -> dict:
     Le ragioni sono frasi e non codici: questa funzione esiste perché
     l'interfaccia possa dire **perché** un bottone è spento, e «no» da solo è
     indistinguibile da un guasto.
+
+    **Le frasi sono in INGLESE** perché finiscono a video: il Publication Deck
+    le mostra sotto la riga, e l'interfaccia di casa è in inglese, tooltip
+    compresi. Erano in italiano finché nessuno le leggeva — il momento in cui
+    una stringa interna diventa interfaccia è il momento in cui cambia lingua.
     """
     dati = _dati(nodo)
     url = str(dati.get("url") or "")
     if getattr(nodo, "node_type", "") not in TIPI_RISORSA:
-        return {"si": False, "perche": "non è una risorsa"}
+        return {"si": False, "perche": "not a resource"}
     if _tier(nodo) == "master":
         # Un master si può archiviare, ma non è questo il gesto: pubblicare
         # vuol dire mettere a disposizione ciò che gli altri consumano, e un
         # master è ciò da cui quello si fa. Sono due atti diversi con due
         # ragioni diverse, e confonderli metterebbe un originale
         # fotogrammetrico in un bucket pubblico per sbaglio.
-        return {"si": False, "perche": "è un master: si archivia, non si pubblica"}
+        return {"si": False, "perche": "a master is archived, not published"}
     if not url:
-        return {"si": False, "perche": "non ha un locator"}
+        return {"si": False, "perche": "it has no locator"}
     if url.startswith("blend://"):
-        return {"si": False, "perche": "vive dentro un .blend"}
+        return {"si": False, "perche": "it lives inside a .blend"}
     if url.lower().startswith(SCHEMI_REMOTI):
         gia = bool(dati.get("checksum"))
         return {"si": False,
-                "perche": ("già pubblicata" if gia else
-                           "ha già un indirizzo remoto, ma nessun checksum: "
-                           "è una promessa, non un fatto")}
+                "perche": ("already published" if gia else
+                           "it already has a remote address but no checksum: "
+                           "that is a promise, not a fact")}
     if esiste is not None and not esiste(url):
-        return {"si": False, "perche": "i byte non sono dove il locator dice"}
+        return {"si": False, "perche": "the bytes are not where the locator says"}
     return {"si": True, "perche": ""}
 
 

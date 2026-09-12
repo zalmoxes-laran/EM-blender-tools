@@ -45,7 +45,7 @@ def test_un_master_NON_si_pubblica_e_la_ragione_lo_dice():
     in un bucket per sbaglio."""
     m = Finta("m", url="/Volumi/esterno/rilievo.obj", tier="master")
     esito = PG.stato_di_pubblicazione(m, esiste=lambda p: True)
-    assert not esito["si"] and "archivia" in esito["perche"]
+    assert not esito["si"] and "archived, not published" in esito["perche"]
 
 
 def test_un_locator_blend_non_si_pubblica_anche_senza_tier_dichiarato():
@@ -60,15 +60,15 @@ def test_gia_pubblicata_e_diverso_da_promessa():
     finito, l'altro un riferimento di cui nessuno sa cosa dovrebbe trovare."""
     fatta = Finta("p", url="s3://em/aa", checksum="sha256:aa",
                   tier="distribution")
-    assert PG.stato_di_pubblicazione(fatta)["perche"] == "già pubblicata"
+    assert PG.stato_di_pubblicazione(fatta)["perche"] == "already published"
     promessa = Finta("q", url="https://x/a.glb", tier="distribution")
-    assert "promessa" in PG.stato_di_pubblicazione(promessa)["perche"]
+    assert "promise" in PG.stato_di_pubblicazione(promessa)["perche"]
 
 
 def test_i_byte_che_non_ci_sono_si_dicono():
     d = Finta("d", url="/prog/models/muro.glb", tier="distribution")
     esito = PG.stato_di_pubblicazione(d, esiste=lambda p: False)
-    assert not esito["si"] and "byte" in esito["perche"]
+    assert not esito["si"] and "bytes are not where" in esito["perche"]
 
 
 def test_senza_il_fornitore_non_si_guarda_il_disco():

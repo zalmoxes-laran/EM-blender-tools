@@ -410,6 +410,7 @@ if DEPENDENCIES_LOADED:
             graph_info,  # fetta 3: graph-level HDT-O dataset info panel
             dtc_authoring,  # DTC (Digital Twin Chain) authoring panel (ECHOES)
             resources_tab,  # R4: EM Scene tab over the FS-index resource backend
+            publication_deck_ui,  # NIGHT-DECK: the Publication Deck (EM Bridge)
             shelf_tool,  # Shelf v2 C1: absorbed into Resources & Shelf (EM16-UX)
             proxy_surface_tools,  # EM16-UX: container for the drawing tools
             em_header_menu,  # EM16-UX/C: the EM menu in the 3D View header
@@ -705,6 +706,10 @@ def register_modules():
         graph_info,  # fetta 3: HDT-O props/operators (drawn inline by EM Data Tree)
         dtc_authoring,  # DTC authoring props/operators (drawn inline by EM Data Tree)
         resources_tab,  # EM Scene tab (Shelf/RM/DTC/MinIO over FS backend; Documents → Document Manager)
+        # NIGHT-DECK · il Publication Deck. In FASE 1 perché non dipende da
+        # nessun altro pannello: legge il grafo attivo e una property di scena
+        # sua, e disegna una cache. Il calcolo sta fuori, senza `bpy`.
+        publication_deck_ui,
         # EM16-UX · il contenitore degli strumenti di disegno. In FASE 1 perché
         # è vuoto e non dipende da niente, e i suoi tre figli (Proxy Box,
         # Surface Areas, Proxy Inflate) si registrano più tardi: il parent deve
