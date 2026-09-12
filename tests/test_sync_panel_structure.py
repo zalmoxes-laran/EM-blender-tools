@@ -33,6 +33,20 @@ _CONSUMATORI = {
     "em_header_menu.py": "sync_ops",
 }
 
+#: NIGHT-RES · e la stessa forma, nata stanotte: l'export chiama
+#: `_rl.<nome>` / `_ps.<nome>` su moduli importati DENTRO i metodi. Un
+#: rinominamento di là rompe un export di qua, e nessun compilatore se ne
+#: accorge perché è un `AttributeError` a tempo di esecuzione — dentro un
+#: `try/except` che lo trasforma in un warning, che è come il ramo del tileset
+#: è rimasto morto per un commit intero.
+_CONSUMATORI_MODULI = {
+    "export_operators/heriverse/operator.py": {
+        "_rl": "resource_levels.py",
+        "_ps": "rm_manager/publication_strategy.py",
+    },
+    "resource_levels.py": {},
+}
+
 
 def _codice(percorso: pathlib.Path) -> str:
     """Il sorgente senza commenti NÉ docstring — la regola del pagliaio.
@@ -121,6 +135,49 @@ def test_ogni_ops_PUNTO_nome_usato_dal_pannello_esiste_in_operators():
                 problemi.append(f"{rel}:{n.lineno} · {alias}.{n.attr} "
                                 f"non esiste in sync_manager/operators.py")
     assert not problemi, "\n".join(problemi)
+
+
+def test_ogni_nome_usato_dall_export_esiste_nel_suo_modulo():
+    """NIGHT-RES · la gemella della precedente, per i moduli di stanotte.
+
+    `export_operators/heriverse/operator.py` importa `resource_levels` come
+    `_rl` e `rm_manager/publication_strategy` come `_ps` DENTRO i metodi, e li
+    legge per attributo. La forma è la stessa che il pannello usa con
+    `operators`, e lo è anche il modo in cui si rompe: silenziosamente, e solo
+    quando qualcuno esporta.
+    """
+    problemi = []
+    for rel, alias_map in _CONSUMATORI_MODULI.items():
+        if not alias_map:
+            continue
+        albero = ast.parse((_REPO / rel).read_text(errors="replace"))
+        esposti = {alias: _nomi_di_modulo(_REPO / percorso)
+                   for alias, percorso in alias_map.items()}
+        for n in ast.walk(albero):
+            if not (isinstance(n, ast.Attribute)
+                    and isinstance(n.value, ast.Name)
+                    and n.value.id in esposti):
+                continue
+            if n.attr.startswith("__"):
+                continue
+            if n.attr not in esposti[n.value.id]:
+                problemi.append(f"{rel}:{n.lineno} · {n.value.id}.{n.attr} "
+                                f"non esiste in {alias_map[n.value.id]}")
+    assert not problemi, "\n".join(problemi)
+
+
+def test_nessun_sito_d_export_conia_piu_un_nodo_risorsa_a_mano():
+    """NIGHT-RES/R2 · i sei casi passano tutti da `_registra_bake`.
+
+    Sei copie della stessa idea erano sei posti dove dimenticare il digest, il
+    tier o l'arco — ed è successo: il ramo del tileset è rimasto morto per un
+    commit intero e nessuno se n'era accorto, perché il suo `NameError` veniva
+    trasformato in un warning fra gli altri.
+    """
+    codice = _codice(_REPO / "export_operators" / "heriverse" / "operator.py")
+    assert "ResourceNode(" not in codice.replace("\n", ""), (
+        "un sito d'export conia di nuovo un nodo risorsa a mano invece di "
+        "passare da `_registra_bake`")
 
 
 def test_il_vocabolario_della_direzione_non_e_rimasto_indietro():

@@ -32,6 +32,7 @@ from __future__ import annotations
 from typing import List, Optional, Tuple
 
 import bpy  # type: ignore
+import mathutils  # type: ignore — R5: il bounding box in coordinate di mondo
 
 
 # EM16-RMNG: la proiezione del container nel grafo. In un modulo suo e senza
@@ -264,8 +265,32 @@ def blend_locator_per(obj) -> str:
               "sviluppo: il locator interno resta non risolvibile.")
         return ""
 
-    libreria = getattr(obj, "library", None)
-    sorgente = getattr(libreria, "filepath", "") if libreria else bpy.data.filepath
+    # DOVE VIVE DAVVERO IL DATABLOCK, in ordine di precisione. NIGHT-RES/R2:
+    # per un RM esportato da un'istanza il master **non sta nel file aperto**,
+    # e le tre forme del linking sono diverse:
+    #
+    #   * `obj.library`            — l'oggetto intero è linkato;
+    #   * `obj.data.library`       — l'oggetto è locale ma la MESH è linkata
+    #                                (il modo comune: linka il rilievo,
+    #                                istanzialo qui);
+    #   * `instance_collection`    — un empty che istanzia una collection
+    #                                linkata.
+    #
+    # Lo studio aperto è CONTESTO, non indirizzo. Se il file linkato si sposta
+    # il master diventa irrisolvibile: è un'informazione, non un guasto, e
+    # l'audit la conta fra le irrisolvibili.
+    dati = getattr(obj, "data", None)
+    collezione = getattr(obj, "instance_collection", None)
+    sorgente = ""
+    for candidata in (getattr(obj, "library", None),
+                      getattr(dati, "library", None),
+                      getattr(collezione, "library", None)):
+        percorso_lib = getattr(candidata, "filepath", "") if candidata else ""
+        if percorso_lib:
+            sorgente = percorso_lib
+            break
+    if not sorgente:
+        sorgente = bpy.data.filepath
     if not sorgente:
         return ""
     assoluto = bpy.path.abspath(sorgente)
@@ -285,6 +310,63 @@ def blend_locator_per(obj) -> str:
             percorso = assoluto
 
     return make_blend_locator(percorso, "Object", obj.name)
+
+
+def misura_oggetto(obj) -> dict:
+    """NIGHT-RES/R5 · le misure STRUTTURALI di un oggetto, a costo O(1).
+
+    Conteggi (`len`, che una mesh tiene già), gli otto vertici del bounding box
+    portati in coordinate di mondo, i nomi dei materiali ordinati. Niente viene
+    serializzato e niente viene valutato: è quello che rende questa impronta
+    pagabile a ogni bake e per ogni oggetto.
+
+    **Il bounding box è in coordinate di MONDO, e non è un dettaglio.** Se
+    sposti un muro, il glTF esportato cambia — quindi la derivata *è* stantia,
+    e un'impronta in coordinate locali direbbe di no.
+
+    **LIMITE DICHIARATO**: `obj.data.vertices` è la mesh BASE, non quella
+    valutata. Un cambio di modificatore (il livello di una subdivision, per
+    dire) cambia ciò che l'export produce e **qui non si vede**. Valutare il
+    depsgraph per oggetto non è più O(1), che è l'unica ragione per cui questa
+    funzione si può permettere di girare sempre. È un falso negativo noto, ed è
+    il verso sbagliato in cui sbagliare — va detto, e la cura è un bottone
+    «rifai il bake» che resta sempre disponibile.
+
+    Torna `{}` quando non c'è niente da misurare: chi legge distingue «non so»
+    da «diverso».
+    """
+    if obj is None:
+        return {}
+    misure = {}
+    dati = getattr(obj, "data", None)
+    vertici = getattr(dati, "vertices", None)
+    poligoni = getattr(dati, "polygons", None)
+    if vertici is not None:
+        misure["v"] = len(vertici)
+    if poligoni is not None:
+        misure["f"] = len(poligoni)
+    try:
+        matrice = obj.matrix_world
+        angoli = [matrice @ mathutils.Vector(c) for c in obj.bound_box]
+        misure["bb"] = [
+            min(a.x for a in angoli), min(a.y for a in angoli),
+            min(a.z for a in angoli), max(a.x for a in angoli),
+            max(a.y for a in angoli), max(a.z for a in angoli)]
+    except (AttributeError, TypeError):
+        #: un oggetto senza geometria (un empty) non ha un ingombro: assente,
+        #: non zero. Uno zero direbbe «è un punto nell'origine», che è falso.
+        pass
+    nomi = sorted(str(m.name) for m in (getattr(dati, "materials", None) or [])
+                  if m is not None)
+    if nomi:
+        misure["mat"] = "|".join(nomi)
+    return misure
+
+
+def impronta_di(obj) -> str:
+    """L'impronta strutturale di un oggetto — misura + forma canonica."""
+    from .. import resource_levels as _rl
+    return _rl.impronta_strutturale(misura_oggetto(obj))
 
 
 def percorso_del_grezzo(res_node) -> str:

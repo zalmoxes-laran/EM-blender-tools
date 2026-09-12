@@ -187,6 +187,23 @@ class RMContainerItem(PropertyGroup):
         name="Active Mesh Index",
         default=0,
     )  # type: ignore
+    publication_strategy: EnumProperty(
+        name="Publishes as",
+        description=(
+            "How this container is served. 'Individual members' exports one "
+            "distribution per mesh (the historical behaviour). 'A single "
+            "tileset' means the tileset stands IN PLACE OF the members, which "
+            "then produce no distributions of their own — that is what stops "
+            "the viewer receiving the same geometry twice"
+        ),
+        items=[
+            ("members", "Individual members",
+             "One distribution per mesh — the historical behaviour"),
+            ("tileset", "A single tileset",
+             "The container travels as one tileset; the members produce nothing"),
+        ],
+        default="members",
+    )  # type: ignore
     group_node_id: StringProperty(
         name="Group Node ID",
         description=(

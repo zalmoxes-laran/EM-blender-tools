@@ -211,11 +211,111 @@ class EM_OT_resources_promote_minio(Operator):
         return {'FINISHED'}
 
 
+class EM_OT_publish_distribution(Operator):
+    """R6 · IL GESTO CHE MANCAVA: una distribution diventa PUBBLICATA.
+
+    Il modello ha tre stati e solo due erano raggiungibili — il master nasce
+    alla promozione, la distribution al bake, e la pubblicata non la produceva
+    nessuno: l'export scrive un url relativo e si ferma.
+
+    Qui non si costruisce niente di nuovo. I byte li carica la promozione a
+    MinIO che c'era già; locator, checksum ed evento D7 li scrive
+    `s3Dgraphy/publication.py::promote_resource`, che sa già farlo. Questo
+    operatore è la cucitura fra i due, e l'unica cosa che decide è **quando
+    rifiutare**, che è la parte che `publication_gesture` tiene fuori da
+    Blender perché si possa provare.
+
+    L'ordine conta e non è negoziabile: **prima i byte, poi il grafo**. Se il
+    caricamento fallisce il documento non viene toccato, quindi non resta a
+    dichiarare pubblicata una risorsa che nello store non c'è.
+    """
+
+    bl_idname = "em.publish_distribution"
+    bl_label = "Publish this distribution"
+    bl_description = ("Upload this distribution into the object store and "
+                      "record its address, its checksum and the event that "
+                      "says where it came from")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    resource_id: bpy.props.StringProperty()  # type: ignore
+
+    def execute(self, context):
+        import os
+        from .. import publication_gesture as pg
+        from .. import resource_levels as rl
+
+        ok, graph, _folder, _gc = _active(context)
+        if not ok:
+            self.report({'WARNING'}, "No active graph.")
+            return {'CANCELLED'}
+        nodo = graph.find_node_by_id(self.resource_id) if self.resource_id else None
+        if nodo is None:
+            self.report({'WARNING'}, f"{self.resource_id!r}: not in this graph")
+            return {'CANCELLED'}
+
+        esito = pg.stato_di_pubblicazione(nodo, esiste=os.path.isfile)
+        if not esito["si"]:
+            # la ragione viaggia col rifiuto: «no» da solo è indistinguibile
+            # da un guasto
+            self.report({'WARNING'}, f"{self.resource_id}: {esito['perche']}")
+            return {'CANCELLED'}
+        if not resource_backend.minio_supported():
+            self.report({'ERROR'},
+                        "The object store is unavailable: needs the dev "
+                        "s3dgraphy (./em.sh s3d) AND the 'minio' extra.")
+            return {'CANCELLED'}
+
+        percorso = str((getattr(nodo, "data", None) or {}).get("url") or "")
+        digest = rl.sha256_del_file(percorso)
+        if not digest:
+            self.report({'ERROR'},
+                        f"{percorso}: nothing to digest — a reference without "
+                        f"a checksum is a promise, not a fact")
+            return {'CANCELLED'}
+        try:
+            caricato = resource_backend.promote_resource_to_minio(
+                graph, self.resource_id)
+        except Exception as exc:                       # noqa: BLE001
+            self.report({'ERROR'}, f"Upload failed: {exc}")
+            return {'CANCELLED'}
+
+        try:
+            from s3dgraphy.publication import promote_resource
+        except ImportError as exc:
+            # decisione 14: si dice cosa manca, non si ingoia
+            self.report({'ERROR'},
+                        f"publication.promote_resource unavailable ({exc}): "
+                        f"the bytes are in the store but the event is not "
+                        f"written")
+            return {'CANCELLED'}
+        try:
+            promote_resource(
+                graph, self.resource_id,
+                url=caricato["s3_uri"], sha256=digest,
+                #: `resident`: lo store è quello dello studio, i byte ci sono
+                residency="resident",
+                #: e resta ciò che era — pubblicare non cambia il tier, cambia
+                #: lo stato
+                tier=None,
+                size_bytes=os.path.getsize(percorso))
+        except Exception as exc:                       # noqa: BLE001
+            self.report({'ERROR'}, f"Published, but the event failed: {exc}")
+            return {'CANCELLED'}
+
+        context.scene.em_resources.status = (
+            f"Published → {caricato['s3_uri']}")
+        self.report({'INFO'}, f"{self.resource_id} → {caricato['s3_uri']}")
+        for area in context.screen.areas:
+            area.tag_redraw()
+        return {'FINISHED'}
+
+
 classes = (
     EM_OT_resources_scan,
     EM_OT_resources_set_dosco_folder,
     EM_OT_resources_hat_document,
     EM_OT_resources_promote_minio,
+    EM_OT_publish_distribution,
 )
 
 

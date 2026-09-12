@@ -124,7 +124,20 @@ def shelf_entries(graph: Any, backend, *, graph_code: Optional[str] = None
 # a file:// / s3:// URI, or an http(s) URL. "Promote to MinIO" uploads a LOCAL
 # resource into the shared object store under its OWN stable ID (one ID space
 # FS↔MinIO) and repoints its locator at the returned s3:// URI.
-_LINK_TYPE = "link"
+# NIGHT-RES/R6 · `"resource"`, non `"link"`.
+#
+# MIG1 (06-08-2026) ha rinominato LinkNode → ResourceNode e con esso il
+# `node_type`. Questa costante è rimasta al nome vecchio, quindi
+# `list_link_resources` non trovava **nessuna** risorsa e
+# `promote_resource_to_minio` rifiutava tutto con «is not a resource
+# (LinkNode)». Il pannello mostrava una lista vuota, che è il sintomo di un
+# progetto senza risorse e non quello di un confronto con una stringa morta.
+#
+# Il nome vecchio resta accettato in lettura: un grafo caricato da un em.json
+# pre-MIG1 senza passare dall'importer (che la migrazione la fa) porta ancora
+# `link`, e rifiutarlo qui vorrebbe dire perderlo di vista.
+_LINK_TYPE = "resource"
+_TIPI_RISORSA = ("resource", "link")
 _REMOTE_PREFIXES = ("http://", "https://", "s3://", "file://")
 
 
@@ -165,7 +178,7 @@ def list_link_resources(graph: Any) -> List[Dict[str, Any]]:
     face the promote action acts on. Read-only."""
     out: List[Dict[str, Any]] = []
     for n in getattr(graph, "nodes", []) or []:
-        if getattr(n, "node_type", None) != _LINK_TYPE:
+        if getattr(n, "node_type", None) not in _TIPI_RISORSA:
             continue
         url = _link_url(n)
         out.append({
@@ -186,8 +199,8 @@ def promote_resource_to_minio(graph: Any, resource_id: str) -> Dict[str, Any]:
     resource, or ``MissingDependency`` if the ``minio`` extra is absent."""
     from s3dgraphy import api
     node = graph.find_node_by_id(resource_id)
-    if node is None or getattr(node, "node_type", None) != _LINK_TYPE:
-        raise ValueError(f"{resource_id!r} is not a resource (LinkNode)")
+    if node is None or getattr(node, "node_type", None) not in _TIPI_RISORSA:
+        raise ValueError(f"{resource_id!r} is not a resource node")
     url = _link_url(node)
     if not url or _locator_kind(url) != "local_path":
         raise ValueError("resource has no local path to promote")

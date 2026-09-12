@@ -16,21 +16,11 @@ from bpy.types import Operator
 
 from s3dgraphy import get_graph, get_all_graph_ids
 from s3dgraphy.exporter.json_exporter import JSONExporter
-# NIGHT-RIM/A1 · ResourceNode, non LinkNode.
-#
-# In s3Dgraphy `nodes/link_node.py` NON esiste più (commit f20d2b9, *Rename
-# LinkNode → ResourceNode*): c'è `resource_node.py` con
-# `node_type = "resource"`. Questo import funzionava solo perché il wheel
-# spedito è una build vecchia che porta ancora link_node.py accanto a
-# resource_node.py — con lo STESSO numero di versione del sorgente attuale.
-# Ricostruito il wheel, l'add-on non partiva più.
-#
-# Il ripiego è quello che `functions.py` usa da MIG1-B: prova il nome nuovo,
-# ricade sul vecchio solo per s3Dgraphy pre-1.6.
-try:
-    from s3dgraphy.nodes.resource_node import ResourceNode
-except ImportError:  # pre-1.6 s3Dgraphy still ships link_node.LinkNode
-    from s3dgraphy.nodes.link_node import LinkNode as ResourceNode
+# NIGHT-RES/R2 · qui c'era l'import di `ResourceNode` (col ripiego su
+# `LinkNode` per s3Dgraphy pre-1.6, NIGHT-RIM/A1). Non serve più: **nessuno dei
+# sei siti di questo file conia più un nodo risorsa a mano.** Passano tutti per
+# `_registra_bake`, e la classe la importa `resource_levels.assicura_master`,
+# che è anche il posto dove un ImportError viene DETTO invece che ingoiato.
 from s3dgraphy.nodes.representation_node import RepresentationModelDocNode
 
 from ...functions import *
@@ -50,6 +40,274 @@ class EXPORT_OT_heriverse(Operator):
     bl_description = "Export project in Heriverse format with models, proxies and documentation"
     bl_options = {'REGISTER', 'UNDO'}
 
+
+    # ── NIGHT-RES/R2 · IL BAKE, UNA VOLTA SOLA ─────────────────────────────
+    #
+    # Sei siti di questo file creavano una risorsa durante l'export, ognuno con
+    # il suo `ResourceNode(...)` e il suo arco scritti a mano: sei copie della
+    # stessa idea, divergenti al primo cambiamento. Adesso passano tutti di
+    # qui, e ciò che li distingue è il CASO — chi è il master, e se ce n'è uno.
+    #
+    # La mappa dei sei casi, decisa con E.D.:
+    #
+    #   RM in glTF     master il datablock, distribution il file. 1:1.
+    #   RM da istanza  il master sta nel .blend LINKATO, non in questo.
+    #   proxy          master il datablock, SENZA monte: è nato in Blender.
+    #   tileset        N:1 dal CONTAINER, e viaggia come `archive`.
+    #   RMDoc          DUE catene: l'immagine e l'artefatto spaziale (il quad
+    #                  con la sua camera), che si toccano sulla texture.
+    #   RMSF           come l'RM.
+
+    def _registra_bake(self, graph, model_node_id, obj, *, url,
+                       file_esportato, etichetta,
+                       source_ids=None, packaging=None,
+                       oggetti_sorgente=None, con_master=True):
+        """Un bake: assicura il master, registra la distribution, e lo dice.
+
+        `con_master=False` è per il tileset esterno e per chi il master non ce
+        l'ha in casa: una distribution senza sorgente è un fatto legittimo, e
+        inventarle un master direbbe una cosa falsa su dove sono i byte.
+
+        Non solleva mai: un export non deve fallire perché un verbale non si è
+        potuto scrivere — ma deve **dirlo**, e questa è la riga che lo dice.
+        """
+        from ... import resource_levels as _rl
+        from ...rm_manager.containers import (
+            SUFFISSO_RISORSA_INTERNA as _SUF_MASTER, blend_locator_per,
+            impronta_di, misura_oggetto)
+
+        master_id = f"{model_node_id}{_SUF_MASTER}"
+        sorgente_id = None
+        if con_master and obj is not None:
+            locator = blend_locator_per(obj)
+            if locator:
+                ok_m, perche_m = _rl.assicura_master(
+                    graph, master_id=master_id, url=locator,
+                    name=f"datablock for {obj.name}", link_to=model_node_id,
+                    #: le stesse misure che entrano nell'impronta: dichiararle
+                    #: anche sul master permette a chi legge di confrontarlo
+                    #: con la sua distribution senza aprire Blender
+                    misure=misura_oggetto(obj))
+                if ok_m:
+                    sorgente_id = master_id
+                else:
+                    em_log(f"[bake] master {master_id}: {perche_m}", "WARNING")
+            else:
+                # DETTO, non ingoiato: senza file salvato il locator non è
+                # formabile, e la distribution resterà senza sorgente. È il
+                # caso in cui la staleness non si può calcolare, e saperlo è
+                # metà della cura.
+                em_log(f"[bake] {model_node_id}: il file non è salvato, "
+                       f"nessun master `blend://` e nessuna staleness "
+                       f"calcolabile", "WARNING")
+
+        # R5 · l'impronta STRUTTURALE, non il solo mtime del file. Per il caso
+        # N:1 è quella dell'insieme: un tileset è stantio se cambia UNA
+        # QUALUNQUE delle sue sorgenti.
+        if oggetti_sorgente:
+            impronta = _rl.impronta_insieme([impronta_di(o)
+                                             for o in oggetti_sorgente])
+        else:
+            impronta = impronta_di(obj) if obj is not None else ""
+
+        ok, perche = _rl.registra_derivata(
+            graph, derivata_id=f"{model_node_id}{_rl.SUFFISSO_DERIVATA}",
+            url=url,
+            source_id=sorgente_id,
+            source_ids=source_ids,
+            link_to=model_node_id,
+            name=etichetta,
+            file_esportato=file_esportato,
+            impronta_del_grezzo=impronta,
+            packaging=packaging,
+            misure=(self._misure_insieme(oggetti_sorgente)
+                    if oggetti_sorgente else None))
+        if not ok:
+            em_log(f"[bake] {model_node_id}: {perche}", "WARNING")
+        return ok
+
+    def _catena_immagine(self, graph, doc_node, export_folder):
+        """R2/RMDoc · la catena dell'IMMAGINE. → l'id della distribution, o None.
+
+        Master l'originale nel DosCo (la risorsa che il documento ha già),
+        distribution la versione servita sotto `dosco/`. `export_dosco` copia
+        l'albero con `copytree`, quindi il percorso relativo si conserva e
+        l'indirizzo servito è deterministico.
+
+        **La distribution si scrive solo se il file servito c'è davvero.**
+        Scriverne una perché *dovrebbe* esserci sarebbe inventare un url —
+        precisamente il difetto che `promote_resource` rifiuta quando manca il
+        digest, e per la stessa ragione.
+        """
+        from ... import resource_levels as _rl
+
+        originale = None
+        for edge in graph.edges:
+            if (edge.edge_type == "has_linked_resource"
+                    and edge.edge_source == doc_node.node_id):
+                candidato = graph.find_node_by_id(edge.edge_target)
+                if candidato is not None and getattr(
+                        candidato, "node_type", "") == "resource":
+                    originale = candidato
+                    break
+        if originale is None:
+            return None
+
+        #: il MASTER si dichiara comunque: era nato prima che l'asse
+        #: esistesse, e lasciarlo muto costringerebbe ogni consumatore a
+        #: dedurre che l'originale nel DosCo è una fonte
+        if hasattr(originale, "set_tier"):
+            originale.set_tier("master")
+
+        relativo = str((getattr(originale, "data", None) or {}).get("url") or "")
+        if not relativo:
+            return None
+        servito = os.path.join(os.path.dirname(export_folder), "dosco", relativo)
+        if not os.path.isfile(servito):
+            em_log(f"[bake] {originale.node_id}: l'immagine servita non è "
+                   f"(ancora) in {servito}; la catena dell'immagine resta al "
+                   f"solo master", "DEBUG")
+            return None
+
+        distribuzione_id = f"{originale.node_id}{_rl.SUFFISSO_DERIVATA}"
+        ok, perche = _rl.registra_derivata(
+            graph, derivata_id=distribuzione_id,
+            url=f"dosco/{relativo}",
+            source_id=originale.node_id,
+            link_to=doc_node.node_id,
+            name=f"served image for {doc_node.name}",
+            file_esportato=servito,
+            packaging="file")
+        if not ok:
+            em_log(f"[bake] {distribuzione_id}: {perche}", "WARNING")
+            return None
+        return distribuzione_id
+
+    @staticmethod
+    def _registra_allineamento(graph, rmdoc_node_id, transform):
+        """R2/RMDoc · la camera, sul MASTER spaziale.
+
+        L'allineamento — dove sta la foto nello spazio, con che orientamento e
+        che scala — non è geometria e non si ricalcola da niente: è il lavoro a
+        mano di rimettere una foto storica nel punto da cui fu scattata. Sta
+        sul master perché il master è ciò che non si rifà: la distribuzione si
+        riesporta premendo un bottone, questo no.
+
+        Il nodo RMDoc continua a portarlo com'è sempre stato — non si sposta
+        niente, si AGGIUNGE dove serve. Due copie dello stesso fatto sarebbero
+        un problema se una delle due fosse modificabile a parte; qui il master
+        lo riceve dall'export insieme alla distribuzione, nello stesso atto.
+        """
+        from ...rm_manager.containers import SUFFISSO_RISORSA_INTERNA
+        master = graph.find_node_by_id(f"{rmdoc_node_id}{SUFFISSO_RISORSA_INTERNA}")
+        if master is None or not transform:
+            return
+        master.data["alignment"] = dict(transform)
+
+    @staticmethod
+    def _sostituito_dal_tileset(scene, nome_oggetto) -> bool:
+        """R3 · questa mesh è coperta da un tileset di container?
+
+        Retro-compatibile per costruzione: un container che non dichiara
+        niente normalizza a `members` e questa funzione torna False, quindi
+        l'export continua a decidere con i flag per oggetto — che è
+        esattamente il comportamento storico.
+        """
+        from ...rm_manager import publication_strategy as _ps
+        from ...rm_manager.containers import find_container_for_mesh
+
+        indice = find_container_for_mesh(scene, nome_oggetto)
+        if indice is None:
+            return False
+        container = scene.rm_containers[indice]
+        if not _ps.il_tileset_sostituisce(
+                getattr(container, "publication_strategy", "")):
+            return False
+        #: …e il tileset stesso non è un membro sostituito da sé
+        oggetto = bpy.data.objects.get(nome_oggetto)
+        return oggetto is not None and "tileset_path" not in oggetto
+
+    def _sorgenti_del_tileset(self, context, graph, tileset_obj):
+        """R2+R3 · i master che questo tileset accorpa, e gli oggetti membri.
+
+        Torna `([], [])` quando il tileset **arriva da fuori** e non c'è un
+        container che lo dichiari suo: è il caso frequente, ed è una
+        distribution senza sorgente — un fatto legittimo, non un dato mancante.
+        Inventarle degli ingressi renderebbe la genesi una bugia e la staleness
+        un conto su sorgenti che non esistono.
+
+        Le sorgenti si prendono SOLO quando il container dichiara la strategia
+        `tileset`: è la dichiarazione a dire «questo sta al posto dei membri»,
+        e senza di quella il tileset e le mesh sono due cose che convivono.
+        """
+        from ...rm_manager import publication_strategy as _ps
+        from ...rm_manager.containers import (
+            SUFFISSO_RISORSA_INTERNA as _SUF_MASTER, find_container_for_mesh,
+            resolve_rm_node_id)
+
+        scene = context.scene
+        indice = find_container_for_mesh(scene, tileset_obj.name)
+        if indice is None:
+            return [], []
+        container = scene.rm_containers[indice]
+        if not _ps.il_tileset_sostituisce(
+                getattr(container, "publication_strategy", "")):
+            return [], []
+
+        from ... import resource_levels as _rl
+        from ...rm_manager.containers import blend_locator_per, misura_oggetto
+
+        membri, master_per_membro = [], {}
+        for voce in container.mesh_names:
+            if voce.name == tileset_obj.name:
+                continue                    # il tileset non è sorgente di sé
+            membri.append(voce.name)
+            altro = bpy.data.objects.get(voce.name)
+            if altro is None:
+                continue
+            rm_id = resolve_rm_node_id(graph, altro, scene=scene)
+            if not rm_id:
+                continue
+            master_id = f"{rm_id}{_SUF_MASTER}"
+            # IL MASTER DEL MEMBRO LO SCRIVIAMO QUI, e la ragione è una buca
+            # trovata misurando: con la strategia `tileset` il membro non
+            # passa dal bake, quindi **nessuno gli dava il locator** — e il
+            # processo N:1 finiva col nominare come ingressi dei nodi senza
+            # indirizzo. Una genesi che cita sorgenti irraggiungibili è
+            # peggio di una senza sorgenti: sembra completa.
+            #
+            # Che una mesh abbia i suoi byte in questo .blend è un fatto suo,
+            # e non dipende da come il container sceglie di pubblicarsi.
+            locator = blend_locator_per(altro)
+            if locator:
+                ok_m, perche_m = _rl.assicura_master(
+                    graph, master_id=master_id, url=locator,
+                    name=f"datablock for {altro.name}", link_to=rm_id,
+                    misure=misura_oggetto(altro))
+                if not ok_m:
+                    em_log(f"[bake] master {master_id}: {perche_m}", "WARNING")
+                    continue
+            master_per_membro[voce.name] = master_id
+        sorgenti = _ps.sorgenti_del_tileset(membri, master_per_membro)
+        oggetti = [bpy.data.objects.get(n) for n in membri]
+        return sorgenti, [o for o in oggetti if o is not None]
+
+    @staticmethod
+    def _misure_insieme(oggetti):
+        """I conteggi sommati di N sorgenti — quanto pesa davvero un tileset.
+
+        Sommati e non elencati: a chi sceglie serve sapere l'ordine di
+        grandezza di ciò che sta per scaricare, non la distribuzione fra i
+        membri, che è un fatto sul rilievo e non sulla distribuzione.
+        """
+        from ...rm_manager.containers import misura_oggetto
+        totale = {"tiles": 0, "v": 0, "f": 0}
+        for o in oggetti or []:
+            m = misura_oggetto(o)
+            totale["tiles"] += 1
+            totale["v"] += int(m.get("v") or 0)
+            totale["f"] += int(m.get("f") or 0)
+        return totale if totale["tiles"] else None
 
     def get_stratigraphic_names_from_graphs(self, context, export_all_graphs=False):
         """
@@ -276,34 +534,27 @@ class EXPORT_OT_heriverse(Operator):
                             shape_node.set_url(f"proxies/{clean_name}.glb")
                             em_log(f"    Updated SemanticShape URL: {shape_node_id}", "DEBUG")
 
-                            # Create LinkNode for the proxy (this is created only at export)
-                            link_node_id = f"{shape_node_id}_link"
-                            link_node = graph.find_node_by_id(link_node_id)
-
-                            if not link_node:
-                                link_node = ResourceNode(
-                                    node_id=link_node_id,
-                                    name=f"Proxy Link for {name}",
-                                    description=f"Link to exported proxy for {name}",
-                                    url=f"proxies/{clean_name}.glb",
-                                    url_type="3d_model"
-                                )
-                                graph.add_node(link_node)
-                                em_log(f"    Created Link node: {link_node_id}", "DEBUG")
-                            else:
-                                link_node.url = f"proxies/{clean_name}.glb"
-                                em_log(f"    Updated Link node: {link_node_id}", "DEBUG")
-
-                            # Create edge between semantic shape and link node
-                            edge_id = f"{shape_node_id}_has_linked_resource_{link_node_id}"
-                            if not graph.find_edge_by_id(edge_id):
-                                graph.add_edge(
-                                    edge_id=edge_id,
-                                    edge_source=shape_node_id,
-                                    edge_target=link_node_id,
-                                    edge_type="has_linked_resource"
-                                )
-                                em_log(f"    Created edge: {shape_node_id} -> {link_node_id}", "DEBUG")
+                            # ── NIGHT-RES/R2 · IL PROXY ───────────────────
+                            #
+                            # Master il datablock, **senza monte**: un proxy è
+                            # nato in Blender e non viene da nessuna parte.
+                            # Legittimo, e da DICHIARARE tale invece di
+                            # lasciargli una provenienza vuota che sembra un
+                            # dato mancante.
+                            #
+                            # E il master **non è il nodo US**: un nodo di
+                            # conoscenza non ha byte, e metterlo da quella
+                            # parte della derivazione direbbe che un'unità
+                            # stratigrafica è un file. Il master è il
+                            # datablock, appeso al `SemanticShape` che è la
+                            # forma — che è esattamente ciò che il proxy è.
+                            self._registra_bake(
+                                graph, shape_node_id, proxy,
+                                url=f"proxies/{clean_name}.glb",
+                                #: il GLB esce con l'estensione attaccata dal
+                                #: chiamante: `export_file` è il tronco
+                                file_esportato=export_file + ".glb",
+                                etichetta=f"Proxy for {name}")
                         else:
                             em_log(f"    Warning: SemanticShape node '{shape_node_id}' not found (should have been created by update_graph_with_scene_data)", "WARNING")
 
@@ -431,7 +682,16 @@ class EXPORT_OT_heriverse(Operator):
                     # ripiego finale sull'eredità resta per il caso in cui il
                     # nodo non sia (ancora) nel grafo: qui si sta per crearlo.
                     from ...rm_manager.containers import resolve_rm_node_id
-                    model_node_id = (resolve_rm_node_id(graph, obj, scene=scene)
+                    # `context.scene` e non `scene`: in questo metodo `scene`
+                    # non è mai stato legato, quindi qui si sollevava
+                    # `NameError` e l'`except Exception` di sotto lo
+                    # trasformava in un warning. Effetto: **il ramo del
+                    # tileset non è mai girato** da d1868fd in poi — nessun
+                    # nodo risorsa per nessun tileset, e il sintomo era una
+                    # riga di log fra le altre. Trovato misurando, non
+                    # leggendo.
+                    model_node_id = (resolve_rm_node_id(graph, obj,
+                                                        scene=context.scene)
                                      or f"{obj.name}_model")
                     model_node = graph.find_node_by_id(model_node_id)
                     
@@ -450,34 +710,57 @@ class EXPORT_OT_heriverse(Operator):
                         model_node.transform['rotation'] = ["-1.57079632679", "0.0", "0.0"]
                         model_node.data['transform'] = model_node.transform
                         
-                        # Crea o aggiorna il nodo Link
-                        link_node_id = f"{model_node_id}_link"
-                        link_node = ResourceNode(
-                            node_id=link_node_id,
-                            name=f"Tileset Link for {obj.name}",
-                            description=f"Link to Cesium tileset for {obj.name}",
+                        # ── NIGHT-RES/R2 · IL TILESET ──────────────────────
+                        #
+                        # Un tileset Cesium **fa le veci di un RM container**:
+                        # accorpa in un'entità rigida un insieme di tile che
+                        # singolarmente sono mesh editabili. Due conseguenze,
+                        # e sono tutte e due qui:
+                        #
+                        # (1) IMPACCHETTAMENTO — e qui la misura ha corretto
+                        #     il disegno. Un tileset VIAGGIA come zip, ed è il
+                        #     motivo per cui `archive` è cittadino di prima
+                        #     classe: una cartella da migliaia di tile
+                        #     massacra dischi e banda. Ma **questo export lo
+                        #     scompatta** (`zip_ref.extractall`) e pubblica un
+                        #     albero servito, con `tileset.json` come porta:
+                        #     quindi ciò che il consumatore riceve è una
+                        #     `directory`, non un archivio.
+                        #
+                        #     Dichiarare `archive` qui sarebbe esattamente la
+                        #     bugia che l'asse esiste per impedire — e si
+                        #     vedrebbe subito: Heriverse salta ciò che è
+                        #     impacchettato in archivio, perché scompattare
+                        #     non lo sa fare. Lo zip resta l'input, non la
+                        #     forma della distribuzione.
+                        #
+                        #     Il giorno che la catena servirà lo zip senza
+                        #     aprirlo, questa riga dirà `archive` e il
+                        #     consumatore leggerà il vero.
+                        #
+                        # (2) DERIVAZIONE N:1 quando il container lo dichiara
+                        #     (R3): la sorgente è l'insieme dei master dei
+                        #     membri, non un singolo RM, e il DTC regge un
+                        #     processo con più ingressi nativamente. Stantio se
+                        #     cambia UNA QUALUNQUE delle N sorgenti.
+                        #
+                        # E il caso frequente e diverso: un tileset che **arriva
+                        # da fuori** non ha master in casa. Distribution senza
+                        # sorgente, e l'audit la conta fra quelle — un fatto
+                        # legittimo, non un dato mancante.
+                        sorgenti, membri_ogg = self._sorgenti_del_tileset(
+                            context, graph, obj)
+                        self._registra_bake(
+                            graph, model_node_id, obj,
                             url=relative_tileset_path,
-                            url_type="3d_model"
-                        )
-                        
-                        # Aggiungi o aggiorna il nodo nel grafo
-                        existing_link = graph.find_node_by_id(link_node_id)
-                        if existing_link:
-                            existing_link.url = relative_tileset_path
-                            em_log(f"Updated existing link node for tileset: {obj.name}", "DEBUG")
-                        else:
-                            graph.add_node(link_node)
-                            em_log(f"Created new link node for tileset: {obj.name}", "DEBUG")
-                            
-                            # Crea l'edge tra il nodo RM e il LinkNode
-                            edge_id = f"{model_node_id}_has_linked_resource_{link_node_id}"
-                            if not graph.find_edge_by_id(edge_id):
-                                graph.add_edge(
-                                    edge_id=edge_id,
-                                    edge_source=model_node_id,
-                                    edge_target=link_node_id,
-                                    edge_type="has_linked_resource"
-                                )
+                            file_esportato=abs_path,
+                            etichetta=f"Tileset for {obj.name}",
+                            source_ids=sorgenti,
+                            oggetti_sorgente=membri_ogg,
+                            packaging="directory",
+                            #: nessun master `blend://`: un empty con
+                            #: `tileset_path` non ha byte in questo .blend
+                            con_master=False)
                         
             except Exception as e:
                 self.report({'WARNING'}, f"Failed to export tileset {obj.name}: {str(e)}")
@@ -820,6 +1103,23 @@ class EXPORT_OT_heriverse(Operator):
                 if "tileset_path" in obj:
                     continue
                     
+                # ── R3 · LA STRATEGIA DEL CONTAINER, prima del flag ────
+                #
+                # Se il container di questa mesh dichiara di viaggiare come UN
+                # tileset, il membro non produce una distribuzione propria: il
+                # tileset sta al suo posto, ed è la regola che evita il
+                # doppione al viewer.
+                #
+                # Il flag per oggetto **non viene letto né riscritto** in quel
+                # caso: resta dov'è e torna a contare il giorno che la
+                # strategia torna a `members`. Migrarlo vorrebbe dire
+                # interpretare la volontà di qualcuno e poi cancellarne la
+                # prova.
+                if self._sostituito_dal_tileset(scene, obj.name):
+                    em_log(f"Skipping {obj.name}: its container publishes as a "
+                           f"single tileset", "DEBUG")
+                    continue
+
                 # Skip se oggetto non è pubblicabile
                 is_publishable = True
                 for rm_item in scene.rm_list:
@@ -943,35 +1243,22 @@ class EXPORT_OT_heriverse(Operator):
                                 # Diventerà «pubblicata» quando il suo locator
                                 # risolverà a un URI raggiungibile — non c'è un
                                 # terzo nodo e non si conia vocabolario.
-                                from ... import resource_levels as _rl
-                                from ...rm_manager.containers import (
-                                    SUFFISSO_RISORSA_INTERNA as _SUF_GREZZO)
-
-                                link_node_id = f"{model_node_id}{_rl.SUFFISSO_DERIVATA}"
-                                grezzo_id = f"{model_node_id}{_SUF_GREZZO}"
-                                grezzo = graph.find_node_by_id(grezzo_id)
-
-                                #: l'impronta del grezzo AL MOMENTO del bake:
-                                #: è ciò che rende «stantia» calcolabile (B4)
-                                _impronta = ""
-                                if grezzo is not None:
-                                    from ...rm_manager.containers import (
-                                        percorso_del_grezzo as _pg)
-                                    _impronta = _rl.impronta_sorgente(_pg(grezzo))
-
-                                _ok, _perche = _rl.registra_derivata(
-                                    graph, derivata_id=link_node_id,
+                                # NIGHT-RES/R2 · lo stesso verbale, ma scritto
+                                # da `_registra_bake` invece che qui: era il
+                                # primo dei sei casi a essere convertito e il
+                                # modello su cui si sono misurati gli altri —
+                                # adesso è uno dei sei e non un'eccezione.
+                                #
+                                # L'impronta è cambiata sotto (R5): era
+                                # `mtime:<int>:size:<int>` del file che
+                                # contiene il master, adesso è STRUTTURALE. La
+                                # vecchia rendeva stantie tutte le derivate a
+                                # ogni salvataggio del .blend.
+                                self._registra_bake(
+                                    graph, model_node_id, obj,
                                     url=gltf_path,
-                                    source_id=grezzo_id if grezzo is not None else None,
-                                    link_to=model_node_id,
-                                    name=f"GLTF for {obj.name}",
                                     file_esportato=export_file + ".gltf",
-                                    impronta_del_grezzo=_impronta)
-                                if not _ok:
-                                    #: non si fallisce l'export per un verbale
-                                    #: mancato, ma non lo si nasconde nemmeno
-                                    em_log(f"[bake] {link_node_id}: {_perche}",
-                                           "WARNING")
+                                    etichetta=f"GLTF for {obj.name}")
 
                         # Deselect object
                         obj.select_set(False)
@@ -1058,33 +1345,27 @@ class EXPORT_OT_heriverse(Operator):
                             if model_node:
                                 # Percorso relativo per l'export
                                 gltf_path = f"models/{clean_filename(primary_obj.name)}.gltf"
-                                
-                                # Crea un nuovo LinkNode
-                                link_node_id = f"{model_node_id}_link"
-                                link_node = ResourceNode(
-                                    node_id=link_node_id,
-                                    name=f"GLTF Link for {primary_obj.name}",
-                                    description=f"Link to exported GLTF for {primary_obj.name}",
+
+                                # ── NIGHT-RES/R2 · RM DA ISTANZA ───────────
+                                #
+                                # Il caso che cambia dove sta il master: NON è
+                                # nel file aperto. È nel .blend linkato, e il
+                                # locator deve citare QUEL file
+                                # (`rilievo2015.blend#Object/tile10`) — lo
+                                # studio aperto è contesto, non indirizzo.
+                                # `blend_locator_per` guarda le tre forme del
+                                # linking (oggetto, mesh, collection) in ordine
+                                # di precisione.
+                                #
+                                # Se il file linkato si sposta il master
+                                # diventa irrisolvibile. È informazione, non un
+                                # guasto: l'audit lo conta fra le irrisolvibili
+                                # e nessuno finge che i byte siano altrove.
+                                self._registra_bake(
+                                    graph, model_node_id, primary_obj,
                                     url=gltf_path,
-                                    url_type="3d_model"
-                                )
-                                
-                                # Aggiungi o aggiorna il nodo nel grafo
-                                existing_link = graph.find_node_by_id(link_node_id)
-                                if existing_link:
-                                    existing_link.url = gltf_path
-                                else:
-                                    graph.add_node(link_node)
-                                    
-                                    # Crea l'edge tra il nodo RM e il LinkNode
-                                    edge_id = f"{model_node_id}_has_linked_resource_{link_node_id}"
-                                    if not graph.find_edge_by_id(edge_id):
-                                        graph.add_edge(
-                                            edge_id=edge_id,
-                                            edge_source=model_node_id,
-                                            edge_target=link_node_id,
-                                            edge_type="has_linked_resource"
-                                        )
+                                    file_esportato=export_file + ".gltf",
+                                    etichetta=f"GLTF for {primary_obj.name}")
                         
                         # Step 3.8: Registra il gruppo di istanze per l'esportazione JSON
                         self.exported_models[primary_obj.name] = [obj.name for obj in objects]
@@ -1325,32 +1606,43 @@ class EXPORT_OT_heriverse(Operator):
                                 rmdoc_node.data["transform"] = transform
                                 rmdoc_node.data["url"] = gltf_path
                             
-                            # Crea o aggiorna il nodo Link
-                            link_node_id = f"{rmdoc_node_id}_link"
-                            link_node = ResourceNode(
-                                node_id=link_node_id,
-                                name=f"GLTF Link for {paradata_node.name}",
-                                description=f"Link to exported GLTF for {paradata_node.node_type} {paradata_node.name}",
+                            # ── NIGHT-RES/R2 · L'RMDoc, DUE CATENE ────────
+                            #
+                            # È il caso che non assomiglia agli altri: qui si
+                            # incontrano due catene di natura diversa.
+                            #
+                            # (a) L'IMMAGINE — master l'originale nel DosCo,
+                            #     distribution la versione servita.
+                            #
+                            # (b) L'ARTEFATTO SPAZIALE — master il datablock
+                            #     del quad **con la sua camera**, distribution
+                            #     il glb esportato.
+                            #
+                            # La camera non è geometria: è un **atto di
+                            # allineamento**. Una foto storica rimessa nel
+                            # punto da cui fu scattata, da traguardare in
+                            # trasparenza contro il modello dell'environment.
+                            # Non si ricalcola da niente — è un master a tutti
+                            # gli effetti, e perderla vuol dire rifare a mano
+                            # il lavoro di qualcuno.
+                            #
+                            # E le due catene SI TOCCANO: la texture della
+                            # distribuzione spaziale deriva dalla distribuzione
+                            # dell'immagine.
+                            immagine = self._catena_immagine(
+                                graph, paradata_node, export_folder)
+                            self._registra_bake(
+                                graph, rmdoc_node_id, obj,
                                 url=gltf_path,
-                                url_type="3d_model"
-                            )
-                            
-                            # Aggiungi o aggiorna il nodo nel grafo
-                            existing_link = graph.find_node_by_id(link_node_id)
-                            if existing_link:
-                                existing_link.url = gltf_path
-                            else:
-                                graph.add_node(link_node)
-                                
-                                # Crea l'edge tra il nodo RMDoc e il LinkNode
-                                edge_id = f"{rmdoc_node_id}_has_linked_resource_{link_node_id}"
-                                if not graph.find_edge_by_id(edge_id):
-                                    graph.add_edge(
-                                        edge_id=edge_id,
-                                        edge_source=rmdoc_node_id,
-                                        edge_target=link_node_id,
-                                        edge_type="has_linked_resource"
-                                    )
+                                file_esportato=export_file + ".gltf",
+                                etichetta=f"GLTF for {paradata_node.name}",
+                                #: l'ingresso in più: da dove viene la texture
+                                source_ids=[immagine] if immagine else None)
+                            #: l'allineamento sta sul MASTER spaziale, che è
+                            #: l'unico posto dove non si perde rifacendo il
+                            #: bake — la distribution si rifà, lui no
+                            self._registra_allineamento(
+                                graph, rmdoc_node_id, transform)
                         
                         # Ripristina la trasformazione originale
                         obj.location = original_location
@@ -1853,38 +2145,24 @@ class EXPORT_OT_heriverse(Operator):
                                 )
                                 em_log(f"Created edge: {sf_node.node_id} -> {rmsf_node_id}", "DEBUG")
                         
-                        # Create or update Link node
-                        link_node_id = f"{rmsf_node_id}_link"
+                        # ── NIGHT-RES/R2 · L'RMSF ─────────────────────────
+                        #
+                        # Come l'RM: master il datablock, distribution il file
+                        # esportato, uno a uno.
+                        #
+                        # NOTA STORICA, e conta: è l'unico dei sei che **già
+                        # oggi** crea una risorsa al COLLEGAMENTO e non
+                        # all'export (`anastylosis_manager/operators_link.py`).
+                        # Quel vantaggio non si perde — il nodo che c'è viene
+                        # trovato e aggiornato, non ricreato, perché l'id è
+                        # derivato dall'RMSF come prima. Qui si aggiunge quello
+                        # che mancava: il master, il digest, il verbale.
                         gltf_path = f"models_sf/{clean_filename(obj.name)}.gltf"
-                        
-                        link_node = graph.find_node_by_id(link_node_id)
-                        
-                        if not link_node:
-                            # Create new LinkNode
-                            link_node = ResourceNode(
-                                node_id=link_node_id,
-                                name=f"GLTF Link for {item.name}",
-                                description=f"Link to exported GLTF for {item.sf_node_name or 'Special Find'}",
-                                url=gltf_path,
-                                url_type="3d_model"
-                            )
-                            graph.add_node(link_node)
-                            em_log(f"Created Link node: {link_node_id}", "DEBUG")
-                        else:
-                            # Update existing node
-                            link_node.url = gltf_path
-                            em_log(f"Updated Link node URL to {gltf_path}", "DEBUG")
-                        
-                        # Create edge between RMSF and Link if not exists
-                        edge_id = f"{rmsf_node_id}_has_linked_resource_{link_node_id}"
-                        if not graph.find_edge_by_id(edge_id):
-                            graph.add_edge(
-                                edge_id=edge_id,
-                                edge_source=rmsf_node_id,
-                                edge_target=link_node_id,
-                                edge_type="has_linked_resource"
-                            )
-                            em_log(f"Created edge: {rmsf_node_id} -> {link_node_id}", "DEBUG")
+                        self._registra_bake(
+                            graph, rmsf_node_id, obj,
+                            url=gltf_path,
+                            file_esportato=export_file + ".gltf",
+                            etichetta=f"GLTF for {item.name}")
                     
                     exported_count += 1
                     em_log(f"Successfully exported anastylosis model: {obj.name}", "DEBUG")

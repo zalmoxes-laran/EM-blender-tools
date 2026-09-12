@@ -453,7 +453,19 @@ def show_popup_message(context, title, message, icon='INFO'):
         lines = message.split('\n')
         for line in lines:
             self.layout.label(text=line)
-    
+
+    # SENZA FINESTRA NON SI APRE UN POPUP, e non è una sottigliezza: in
+    # background `window_manager.popup_menu` fa **segfaultare Blender**
+    # (misurato il 14-09-2026 provando un export headless — exit 139, con il
+    # crash report che indica proprio questa riga). Un messaggio d'errore che
+    # ammazza il processo è peggio dell'errore che voleva annunciare, e rende
+    # impossibile qualunque export da riga di comando o da CI.
+    #
+    # Fuori da una finestra il messaggio si stampa: l'informazione è la stessa,
+    # e chi sta guardando una console è esattamente chi la legge.
+    if not getattr(context.window_manager, "windows", None):
+        print(f"[EM {icon}] {title}: {message}")
+        return
     context.window_manager.popup_menu(draw, title=title, icon=icon)
 
 
