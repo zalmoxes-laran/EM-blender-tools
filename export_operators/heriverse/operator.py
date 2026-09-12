@@ -927,32 +927,51 @@ class EXPORT_OT_heriverse(Operator):
                                 # Percorso relativo per l'export
                                 gltf_path = f"models/{clean_filename(obj.name)}.gltf"
                                 
-                                # Crea un nuovo LinkNode
-                                link_node_id = f"{model_node_id}_link"
-                                link_node = ResourceNode(
-                                    node_id=link_node_id,
-                                    name=f"GLTF Link for {obj.name}",
-                                    description=f"Link to exported GLTF for {obj.name}",
+                                # ── NIGHT-RIM3/B3.1 · IL BAKER SCRIVE IL VERBALE
+                                #
+                                # Questo export È il baker: produce le versioni
+                                # ottimizzate. Prima coniava un nodo risorsa
+                                # qualunque e gli metteva un url; adesso
+                                # REGISTRA — id conservato, provenienza dal
+                                # grezzo, digest dei byte prodotti, evento D7 —
+                                # e lo fa chiamando `promote_resource`, che
+                                # tutto questo lo sa già fare.
+                                #
+                                # DUE NODI, TRE STATI (decisione 10): il grezzo
+                                # è la risorsa `blend://` nata alla promozione
+                                # (B2) e NON si tocca; questa è la DERIVATA.
+                                # Diventerà «pubblicata» quando il suo locator
+                                # risolverà a un URI raggiungibile — non c'è un
+                                # terzo nodo e non si conia vocabolario.
+                                from ... import resource_levels as _rl
+                                from ...rm_manager.containers import (
+                                    SUFFISSO_RISORSA_INTERNA as _SUF_GREZZO)
+
+                                link_node_id = f"{model_node_id}{_rl.SUFFISSO_DERIVATA}"
+                                grezzo_id = f"{model_node_id}{_SUF_GREZZO}"
+                                grezzo = graph.find_node_by_id(grezzo_id)
+
+                                #: l'impronta del grezzo AL MOMENTO del bake:
+                                #: è ciò che rende «stantia» calcolabile (B4)
+                                _impronta = ""
+                                if grezzo is not None:
+                                    from ...rm_manager.containers import (
+                                        percorso_del_grezzo as _pg)
+                                    _impronta = _rl.impronta_sorgente(_pg(grezzo))
+
+                                _ok, _perche = _rl.registra_derivata(
+                                    graph, derivata_id=link_node_id,
                                     url=gltf_path,
-                                    url_type="3d_model"
-                                )
-                                
-                                # Aggiungi o aggiorna il nodo nel grafo
-                                existing_link = graph.find_node_by_id(link_node_id)
-                                if existing_link:
-                                    existing_link.url = gltf_path
-                                else:
-                                    graph.add_node(link_node)
-                                    
-                                    # Crea l'edge tra il nodo RM e il LinkNode
-                                    edge_id = f"{model_node_id}_has_linked_resource_{link_node_id}"
-                                    if not graph.find_edge_by_id(edge_id):
-                                        graph.add_edge(
-                                            edge_id=edge_id,
-                                            edge_source=model_node_id,
-                                            edge_target=link_node_id,
-                                            edge_type="has_linked_resource"
-                                        )
+                                    source_id=grezzo_id if grezzo is not None else None,
+                                    link_to=model_node_id,
+                                    name=f"GLTF for {obj.name}",
+                                    file_esportato=export_file + ".gltf",
+                                    impronta_del_grezzo=_impronta)
+                                if not _ok:
+                                    #: non si fallisce l'export per un verbale
+                                    #: mancato, ma non lo si nasconde nemmeno
+                                    em_log(f"[bake] {link_node_id}: {_perche}",
+                                           "WARNING")
 
                         # Deselect object
                         obj.select_set(False)

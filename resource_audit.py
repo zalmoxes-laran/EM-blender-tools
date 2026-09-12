@@ -99,3 +99,111 @@ def riassunto(d: dict) -> str:
     if "link" in d["tipi_visti"]:
         pezzi.append('some are pre-1.6 node_type "link"')
     return " · ".join(pezzi)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# NIGHT-RIM3/B4 · «STANTIA», CALCOLABILE
+# ══════════════════════════════════════════════════════════════════════
+#
+# Tre stati, e sono tre domande diverse:
+#
+# * **irrisolvibile** — la risorsa dice di non sapere dove sono i suoi byte.
+#   Esiste già come stato: è il flag `unresolved` dei nodi nati alla
+#   promozione quando il .blend non era ancora salvato (B2). Qui si conta e si
+#   spiega, non si inventa.
+# * **orfana** — nessun arco `has_linked_resource` la raggiunge. È la
+#   diagnosi che c'era già (`diagnosi()` qui sopra).
+# * **stantia** — la derivata porta l'impronta della sorgente **al momento
+#   del bake** (`source_fingerprint`, scritta da `resource_levels`), e quella
+#   impronta non corrisponde più. Questa è nuova.
+#
+# LA PROVENIENZA NON È UN CAMPO, È UN GIRO. `promote_resource` registra la
+# derivazione come processo DTC (crmdig:D7): `processo --dtc_had_input-->
+# grezzo` e `processo --dtc_had_output--> derivata`. Per sapere da cosa viene
+# una derivata si risale quel giro, e per questo la funzione vuole anche gli
+# ARCHI e non solo i nodi.
+#
+# L'IMPRONTA ARRIVA INIETTATA, come `is_candidato` in `promotion_scale.conta`
+# di EM16: calcolarla vuole il filesystem, e questo modulo non lo tocca — è
+# ciò che lo rende provabile su grafi costruiti a mano.
+
+EDGE_INPUT = "dtc_had_input"
+EDGE_OUTPUT = "dtc_had_output"
+
+
+def stato_risorse(nodi=(), archi=(), impronta_attuale=None) -> dict:
+    """Stantie, orfane e irrisolvibili. Non modifica niente.
+
+    `impronta_attuale(nodo_grezzo) -> str` è il fornitore iniettato: torna
+    l'impronta ATTUALE della sorgente, o `""` se non la sa. Una stringa vuota
+    NON conta come «diversa»: non sapere e sapere-che-è-cambiato sono due
+    cose, e confonderle direbbe «rifai il bake» ogni volta che un file non è
+    raggiungibile.
+    """
+    nodi = list(nodi)
+    archi = list(archi)
+    per_id = {n.node_id: n for n in nodi}
+    risorse = {n.node_id: n for n in nodi
+               if getattr(n, "node_type", "") in TIPI_RISORSA}
+
+    def dati(n):
+        d = getattr(n, "data", None)
+        return d if isinstance(d, dict) else {}
+
+    # ── irrisolvibili ────────────────────────────────────────────────
+    irrisolvibili = sorted(rid for rid, n in risorse.items()
+                           if dati(n).get("unresolved"))
+
+    # ── orfane, dalla diagnosi che c'era già ─────────────────────────
+    orfane = diagnosi(nodi, archi)["orfani"]
+
+    # ── il giro della derivazione: derivata → processo → grezzo ──────
+    processo_di_derivata = {}
+    for e in archi:
+        if getattr(e, "edge_type", "") == EDGE_OUTPUT:
+            processo_di_derivata[getattr(e, "edge_target", None)] = \
+                getattr(e, "edge_source", None)
+    grezzo_di_processo = {}
+    for e in archi:
+        if getattr(e, "edge_type", "") == EDGE_INPUT:
+            grezzo_di_processo[getattr(e, "edge_source", None)] = \
+                getattr(e, "edge_target", None)
+
+    stantie, senza_sorgente = [], []
+    for rid, n in sorted(risorse.items()):
+        impronta_al_bake = dati(n).get("source_fingerprint")
+        if not impronta_al_bake:
+            continue                # non è una derivata registrata: non si giudica
+        grezzo_id = grezzo_di_processo.get(processo_di_derivata.get(rid))
+        grezzo = per_id.get(grezzo_id)
+        if grezzo is None:
+            #: ha l'impronta ma la sorgente non si trova: è un difetto suo,
+            #: diverso dallo stantio, e va detto invece di essere contato
+            #: come «aggiornata»
+            senza_sorgente.append(rid)
+            continue
+        adesso = (impronta_attuale(grezzo) if callable(impronta_attuale) else "")
+        if adesso and adesso != impronta_al_bake:
+            stantie.append({"derivata": rid, "grezzo": grezzo_id,
+                            "al_bake": impronta_al_bake, "adesso": adesso})
+
+    return {
+        "risorse_totali": len(risorse),
+        "stantie": stantie,
+        "orfane": orfane,
+        "irrisolvibili": irrisolvibili,
+        "derivate_senza_sorgente": senza_sorgente,
+    }
+
+
+def riassunto_stato(d: dict) -> str:
+    """Una riga per la console e per il report."""
+    pezzi = [f"{d['risorse_totali']} resource node(s)"]
+    for chiave, parola in (("stantie", "STALE"), ("orfane", "orphan"),
+                           ("irrisolvibili", "unresolved"),
+                           ("derivate_senza_sorgente", "derived-without-source")):
+        if d.get(chiave):
+            pezzi.append(f"{len(d[chiave])} {parola}")
+    if len(pezzi) == 1:
+        pezzi.append("all fresh")
+    return " · ".join(pezzi)

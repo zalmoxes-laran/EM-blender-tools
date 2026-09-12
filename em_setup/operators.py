@@ -192,6 +192,32 @@ class EM_OT_diagnose_resources(Operator):
 
         d = resource_audit.diagnosi(graph.nodes, graph.edges)
         riga = resource_audit.riassunto(d)
+
+        # NIGHT-RIM3/B4 · e i tre stati: stantie, orfane, irrisolvibili.
+        # L'impronta arriva INIETTATA perché `resource_audit` non tocca il
+        # filesystem — è ciò che lo rende provabile su grafi costruiti a mano.
+        try:
+            from .. import resource_levels
+            from ..rm_manager.containers import percorso_del_grezzo
+
+            def _impronta(nodo):
+                return resource_levels.impronta_sorgente(
+                    percorso_del_grezzo(nodo))
+
+            stato = resource_audit.stato_risorse(graph.nodes, graph.edges,
+                                                 _impronta)
+            print(f"[resource audit] {resource_audit.riassunto_stato(stato)}")
+            for s in stato["stantie"]:
+                print(f"[resource audit]   STALE: {s['derivata']} "
+                      f"(from {s['grezzo']}: {s['al_bake']} → {s['adesso']})")
+            for rid in stato["irrisolvibili"]:
+                print(f"[resource audit]   unresolved: {rid}")
+            for rid in stato["derivate_senza_sorgente"]:
+                print(f"[resource audit]   derived but source missing: {rid}")
+            riga = f"{riga} · {resource_audit.riassunto_stato(stato)}"
+        except ImportError as e:
+            #: decisione 14: si dice cosa manca, non si tace
+            print(f"[resource audit] stati non calcolabili ({e})")
         # `print` e non `em_log`: la regola di casa è usare `em_log` per
         # l'output VERBOSO, e quello è giusto — ma qui l'output è il
         # deliverable dell'operatore, non rumore di contorno. L'utente ha

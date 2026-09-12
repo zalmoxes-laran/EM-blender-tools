@@ -287,6 +287,45 @@ def blend_locator_per(obj) -> str:
     return make_blend_locator(percorso, "Object", obj.name)
 
 
+def percorso_del_grezzo(res_node) -> str:
+    """Il percorso ASSOLUTO del file che contiene il grezzo, o `""`.
+
+    NIGHT-RIM3/B4 · serve a impronta­re la sorgente al momento del bake. Il
+    locator `blend://` porta un percorso che può essere **relativo** al
+    .blend corrente (è la scelta di B1), e un'impronta presa su un percorso
+    relativo dipenderebbe dalla cartella di lavoro: qui si risolve una volta
+    sola, contro il file aperto.
+
+    Per una risorsa che non è `blend://` si torna il suo url se è un percorso
+    locale: anche un rilievo `.obj` su disco è un grezzo impronta­bile.
+    """
+    import bpy
+    import os
+    if res_node is None:
+        return ""
+    url = str((getattr(res_node, "data", None) or {}).get("url") or "")
+    if not url:
+        return ""
+    try:
+        from s3dgraphy.resources.resolver import parse_blend_locator
+    except ImportError as e:
+        #: decisione 14: niente `except Exception` che maschera un ImportError
+        print("[EM WARNING] parse_blend_locator non disponibile "
+              f"({e}): impronta del grezzo non calcolabile")
+        return ""
+    pezzi = parse_blend_locator(url)
+    percorso = pezzi[0] if pezzi else url
+    if not percorso:
+        return ""
+    if os.path.isabs(percorso):
+        return percorso
+    corrente = bpy.data.filepath
+    if not corrente:
+        return ""
+    return os.path.normpath(
+        os.path.join(os.path.dirname(bpy.path.abspath(corrente)), percorso))
+
+
 def ensure_rm_and_internal_resource(scene, graph, obj):
     """Il nodo RM di questa mesh e la sua risorsa interna.
 
