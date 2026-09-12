@@ -69,6 +69,31 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         current = next(m for m in _MODES if m[0] == mode)
         layout.label(text=current[3], icon="INFO")
 
+        # ── NIGHT-RIM/C1 · l'ultimo messaggio in ingresso ──────────────────
+        #
+        # Terzo dei tre passi del «prima farlo parlare»: i quattro scarti
+        # adesso loggano, ma la console la guarda chi sviluppa. Chi USA vede
+        # solo che la selezione non arriva. Questa riga rende la diagnosi
+        # visibile dove il problema si manifesta.
+        #
+        # Compare solo quando c'è qualcosa da dire: una riga vuota
+        # permanente sarebbe un'altra cosa da ignorare.
+        ultimo = ops.ULTIMO_MESSAGGIO
+        if ultimo.get("esito"):
+            box = layout.box()
+            testa = box.row(align=True)
+            testa.label(text="Last inbound", icon='IMPORT')
+            testa.label(text=ultimo["ora"])
+            riga = box.row(align=True)
+            #: `alert` solo per un'eccezione: uno scarto legittimo (il nostro
+            #: eco, il cancello chiuso) non è un errore, e colorarlo di rosso
+            #: insegnerebbe a non leggere il rosso.
+            riga.alert = ultimo["esito"].startswith("ECCEZIONE")
+            riga.label(text=f"{ultimo['tipo']}: {ultimo['esito']}")
+            if ultimo.get("chiavi"):
+                box.label(text=f"payload keys: {ultimo['chiavi']}",
+                          icon='BLANK1')
+
         # ── in a room: what the tree is showing, and what you may do ────────
         if mode == ops.MODE_HUB:
             box = layout.box()

@@ -123,6 +123,88 @@ def rename_mesh_in_containers(scene, old_name: str, new_name: str) -> int:
     return updated
 
 
+# ══════════════════════════════════════════════════════════════════════
+# NIGHT-RIM/A4 · UN SOLO IDENTIFICATORE PER L'RM
+# ══════════════════════════════════════════════════════════════════════
+#
+# Decisione di E.D.: **l'identificatore è l'UUID sulla custom property
+# `em_rm_node_id`. Il nome dell'oggetto è un'etichetta.**
+#
+# Prima ne convivevano quattro: `f"{obj.name}_model"` (in nove punti fra
+# `graph_updaters`, `rm_manager/operators`, `heriverse/operator`,
+# `shelf_tool/operators`), l'UUID in `em_rm_node_id`, un terzo UUID in
+# `surface_areale/postprocess`, e il ritorno dal grafo alla scena **per
+# stringa**, con match su sottostringa. Quattro identità dello stesso oggetto
+# significa che due qualsiasi di esse possono divergere senza che nulla lo
+# dica.
+#
+# ## LA MIGRAZIONE È PIGRA, E NON C'È UN PASSAGGIO IN BLOCCO
+#
+# Un oggetto senza la property la ottiene **al primo gesto che lo riguarda**,
+# risalendo per nome UNA VOLTA SOLA e scrivendo la prop. Niente riscrittura
+# all'apertura del file, niente passata su tutta la scena: sono i due modi in
+# cui una migrazione tocca dati che non doveva toccare.
+#
+# Se il nome non risolve, si lascia com'è e si torna `None`: **mai inventare
+# un id.** Un id inventato qui sarebbe un nodo RM fantasma nel grafo.
+ID_MODEL_LEGACY = "_model"
+
+
+def resolve_rm_node_id(graph, mesh_obj, *, scene=None, migra=True):
+    """L'id del nodo RM di questa mesh, o `None`. NON crea nodi.
+
+    Ordine di risoluzione, dal più autorevole al più debole:
+
+    1. `em_rm_node_id` sulla mesh, **se quell'id esiste ancora nel grafo**
+       (una prop che punta al vuoto non è autorevole: il nodo può essere
+       stato rimosso da un'altra parte);
+    2. la voce corrispondente in `scene.rm_list`, che il vecchio RM Manager
+       teneva per mesh;
+    3. l'**eredità** `f"{nome}_model"`, ma solo se quel nodo c'è davvero nel
+       grafo — ed è qui che avviene la migrazione pigra: l'id trovato per
+       nome viene scritto nella property, una volta sola.
+
+    `migra=False` per i chiamanti che non devono scrivere niente (una
+    diagnosi, un pannello in sola lettura): risolve e non tocca la mesh.
+    """
+    if graph is None or mesh_obj is None:
+        return None
+
+    def esiste(nid):
+        if not nid:
+            return False
+        try:
+            return graph.find_node_by_id(nid) is not None
+        except Exception:                           # noqa: BLE001
+            return False
+
+    # 1 · la property, se punta a qualcosa
+    existing = mesh_obj.get("em_rm_node_id", "")
+    if esiste(existing):
+        return existing
+
+    # 2 · rm_list
+    if scene is not None:
+        try:
+            for rm_item in scene.rm_list:
+                if rm_item.name == mesh_obj.name and esiste(rm_item.node_id):
+                    if migra:
+                        mesh_obj["em_rm_node_id"] = rm_item.node_id
+                    return rm_item.node_id
+        except Exception:                           # noqa: BLE001
+            pass
+
+    # 3 · l'eredità per nome, e la migrazione pigra
+    eredita = f"{mesh_obj.name}{ID_MODEL_LEGACY}"
+    if esiste(eredita):
+        if migra:
+            mesh_obj["em_rm_node_id"] = eredita
+        return eredita
+
+    # …e basta. Nessun id inventato.
+    return None
+
+
 def _ensure_rm_node_for_mesh(scene, graph, mesh_obj) -> Optional[str]:
     """Return the node_id of the RepresentationModelNode that
     represents this mesh in the graph. Resolution order:
@@ -137,26 +219,12 @@ def _ensure_rm_node_for_mesh(scene, graph, mesh_obj) -> Optional[str]:
     """
     if graph is None or mesh_obj is None:
         return None
-    # Case 1: custom property on the mesh.
-    existing = mesh_obj.get("em_rm_node_id", "")
-    if existing:
-        try:
-            if graph.find_node_by_id(existing) is not None:
-                return existing
-        except Exception:
-            pass
-    # Case 2: existing rm_list entry with a node_id.
-    try:
-        for rm_item in scene.rm_list:
-            if rm_item.name == mesh_obj.name and rm_item.node_id:
-                try:
-                    if graph.find_node_by_id(rm_item.node_id) is not None:
-                        mesh_obj["em_rm_node_id"] = rm_item.node_id
-                        return rm_item.node_id
-                except Exception:
-                    pass
-    except Exception:
-        pass
+    # NIGHT-RIM/A4 · i primi tre casi (property, rm_list, eredità per nome
+    # con migrazione pigra) sono `resolve_rm_node_id`: erano scritti qui e
+    # sono diventati la risoluzione unica che usano tutti i percorsi.
+    risolto = resolve_rm_node_id(graph, mesh_obj, scene=scene)
+    if risolto:
+        return risolto
     # Case 3: create a fresh RepresentationModelNode.
     try:
         from s3dgraphy.exporter.graphml.utils import generate_uuid

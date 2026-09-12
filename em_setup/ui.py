@@ -611,124 +611,11 @@ class EMTOOLS_UL_files(bpy.types.UIList):
             layout.label(text=graph_code)
 
 
-class EM_OT_promotion_step_info(bpy.types.Operator):
-    """B1 · il tooltip di un gradino della scala, e il suo popup.
-
-    PERCHÉ UN OPERATORE E NON UN `label`: un `layout.label` non ha tooltip, e
-    un bottone operatore prende il tooltip da `bl_description` — che è UNO per
-    classe. Quattro gradini con quattro spiegazioni diverse vogliono quindi un
-    `description()` DINAMICO, che è il meccanismo che Blender offre per
-    esattamente questo. Senza, i quattro numeri avrebbero avuto lo stesso
-    tooltip, cioè nessuna spiegazione: e senza testo il tooltip è l'unica
-    etichetta che resta.
-
-    Cliccare apre la stessa frase come popup — nessuna sorpresa: quello che il
-    bottone fa è quello che il tooltip prometteva.
-    """
-
-    bl_idname = "em.promotion_step_info"
-    bl_label = "Promotion step"
-    bl_options = {'INTERNAL'}
-
-    step: bpy.props.StringProperty(default="")  # type: ignore
-    #: la cella `RMs` a zero CON candidati in scena. Lo sa chi disegna, che il
-    #: conto l'ha già fatto: ricalcolarlo qui sarebbe la seconda copia della
-    #: stessa domanda.
-    zero: bpy.props.BoolProperty(default=False)  # type: ignore
-    #: UX3/A · la ripartizione per grafo («GT16: 12 · Shelf: 7») della cella,
-    #: quando la cella è una SOMMA. La compone chi disegna, che i grafi li ha
-    #: già in mano: farla ricalcolare qui vorrebbe dire riaprirli a ogni
-    #: passaggio del mouse.
-    dettaglio: bpy.props.StringProperty(default="")  # type: ignore
-
-    @staticmethod
-    def _frase(step, zero, dettaglio=""):
-        """La spiegazione di un gradino — una sola funzione per tooltip e popup.
-
-        Il caso zero NON ha una frase sua: riusa quella di EM16-UX/E, che sta
-        in `rm_manager/group_nodes.py` e che dice già la cosa giusta (in un
-        grafo da import GraphML i nodi RM non ci sono per disegno, e indica il
-        comando da eseguire). Scriverne una seconda qui vorrebbe dire tenerne
-        allineate due.
-        """
-        from . import promotion_scale as ps
-        if zero and step == "rms":
-            from ..rm_manager import group_nodes as gn
-            base = gn.no_rm_nodes_yet()
-        else:
-            base = ps.tooltip_di(step)
-        if dettaglio:
-            #: «Per graph: GT16: 12 · Shelf: 7» — la somma è nella cella, la
-            #: ripartizione qui, che è il posto dove non toglie spazio.
-            base = f"{base}\n\nPer graph — {dettaglio}"
-        return base
-
-    @classmethod
-    def description(cls, context, properties):
-        return cls._frase(getattr(properties, "step", ""),
-                          getattr(properties, "zero", False),
-                          getattr(properties, "dettaglio", "")) or \
-            "A step of the promotion scale"
-
-    def execute(self, context):
-        from . import promotion_scale as ps
-        testo = self._frase(self.step, self.zero, self.dettaglio)
-        if not testo:
-            return {'CANCELLED'}
-
-        def draw(popup, _ctx):
-            for riga in _wrap(testo, 68):
-                popup.layout.label(text=riga)
-
-        # il titolo è l'ETICHETTA del gradino: `self.step.capitalize()` dava
-        # «Rms» e «Rmdocs», che non sono parole.
-        titolo = next((e for k, e, _c, _i, _t in ps.GRADINI if k == self.step),
-                      self.step)
-        bpy.context.window_manager.popup_menu(draw, title=titolo, icon='INFO')
-        return {'FINISHED'}
-
-
-def _wrap(testo, n):
-    """Spezza una frase in righe da ~n caratteri, sulle parole."""
-    parole, riga, out = testo.split(), "", []
-    for w in parole:
-        if len(riga) + len(w) + 1 > n:
-            out.append(riga)
-            riga = w
-        else:
-            riga = f"{riga} {w}".strip()
-    if riga:
-        out.append(riga)
-    return out
-
-
-# ══════════════════════════════════════════════════════════════════════
-# UX3/A · EM OVERVIEW — RIMOSSO su richiesta di E.D. (11-09-2026)
-# ══════════════════════════════════════════════════════════════════════
-#
-# Il pannello `VIEW3D_PT_EM_Overview` stava qui e portava la scala di
-# promozione (Scene → RMs → Groups → Docs) con la somma su tutti i grafi
-# caricati. E.D. l'ha guardato e ha deciso che non gli serve: «il pannello
-# overview non ha senso per me, eliminalo per ora».
-#
-# Rimosso pannello e registrazione. **Non** ho rimesso la scala nell'EM Data
-# Tree, da cui UX3 l'aveva tolta: era una decisione di scope (i suoi numeri
-# venivano da posti diversi) e rimetterla lì sarebbe reintrodurre la cosa
-# eliminata in un altro posto.
-#
-# Restano sul disco, non più raggiungibili da nessun pannello:
-#   * `em_setup/promotion_scale.py` (etichette, conteggi, `ripartizione()`)
-#   * `EM_OT_promotion_step_info` (registrato, ma nessuno lo disegna più)
-#   * `EM_OT_promotion_step_info` (registrato, ma nessuno lo disegna più)
-# Li ho lasciati perché «per ora» dice che la decisione è reversibile. Se la
-# scala non torna, sono due cose da cancellare.
-#
-# `_grafi_caricati()` e `GRAPH_CODE_SEGNAPOSTO` invece NON sono orfani e
-# restano qui sotto: il primo lo usa `_catena` per sapere se la guida a tre
-# passi va disegnata (solo per il primo grafo), la seconda il banner di
-# warning sul `graph_code`. `_per_grafo()` era solo della scala ed è andato
-# via con lei.
-
+# NIGHT-RIM/A5 · `EM_OT_promotion_step_info` è cancellato, e con esso
+# `em_setup/promotion_scale.py`. Erano il tooltip e le parole della scala di
+# promozione, non raggiungibili da nessun pannello da quando E.D. ha
+# eliminato l'EM Overview (UX3/A). Git li ricorda; una prova impedisce che
+# tornino per sbaglio.
 
 #: I due valori che `graph_code` prende quando un codice vero non c'è.
 #: `MISSINGCODE` lo assegna s3Dgraphy quando il GraphML non ne porta uno
@@ -754,6 +641,12 @@ def _grafi_caricati(em_tools):
       `name` è l'UUID del grafo. Un `graph_code` SEGNAPOSTO non fa da
       etichetta: con due entry senza codice si leggeva due volte
       «MISSINGCODE», che non distingue niente.
+
+    NIGHT-RIM/A5: questa definizione è stata cancellata per sbaglio insieme
+    all'operatore della scala che le stava accanto, e l'ha ripresa la prova
+    strutturale di UX3 (`test_OGNI_FUNZIONE_DI_MODULO_CHIAMATA_ESISTE`) —
+    la seconda volta che quell'errore capita e la prima che qualcuno lo
+    prende al posto mio.
     """
     from s3dgraphy import get_graph
     fuori = []
@@ -1968,8 +1861,6 @@ class AUXILIARY_MT_context_menu(bpy.types.Menu):
 classes = (
     AUXILIARY_UL_files,
     EMTOOLS_UL_files,
-    # B1 · l'operatore dei tooltip della scala, PRIMA dei pannelli che lo usano
-    EM_OT_promotion_step_info,
     EM_SetupPanel,
     AUXILIARY_MT_context_menu,
 )

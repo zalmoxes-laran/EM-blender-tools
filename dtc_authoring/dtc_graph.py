@@ -27,7 +27,40 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 PROCESS_CLASS = "DTCProcessNode"
-RESOURCE_CLASS = "LinkNode"
+# NIGHT-RIM/A1 · il nome della classe Resource, risolto e non fissato.
+#
+# Era `"LinkNode"`, e questo modulo lo risolve PER NOME
+# (`_node_class` → `getattr(s3dgraphy.nodes, name)`, e il gate
+# `dtc_supported()` fa `hasattr`). MISURATO in un Blender vero: con il wheel
+# attualmente spedito `hasattr(s3dgraphy.nodes, "LinkNode")` è **già False**
+# — `nodes/__init__.py` esporta `ResourceNode` e non importa più `LinkNode`,
+# anche se il file `link_node.py` è ancora dentro il wheel — quindi
+# `dtc_supported()` ritorna False e **tutta la sezione DTC è già spenta
+# adesso**, non «dopo la ricostruzione del wheel».
+#
+# Spenta in silenzio, peraltro: il gate è un `hasattr`, quindi non solleva.
+# La docstring di `dtc_supported` dice «False for the stale vendored copy»:
+# era nato per accorgersi di una copia VECCHIA e scattava sulla nuova.
+#
+# Si risolve il primo nome disponibile, così vale per s3Dgraphy 1.6 e per il
+# pre-1.6, e il giorno che il nome cambia ancora c'è un posto solo da toccare.
+_RESOURCE_CLASS_CANDIDATI = ("ResourceNode", "LinkNode")
+
+
+def _resource_class_name() -> str:
+    """Il nome della classe Resource disponibile in questa s3Dgraphy."""
+    try:
+        from s3dgraphy import nodes as _n
+    except Exception:                              # noqa: BLE001
+        return _RESOURCE_CLASS_CANDIDATI[0]
+    for nome in _RESOURCE_CLASS_CANDIDATI:
+        if hasattr(_n, nome):
+            return nome
+    return _RESOURCE_CLASS_CANDIDATI[0]
+
+
+#: retro-compatibilità per chi lo importava come costante
+RESOURCE_CLASS = _resource_class_name()
 
 # role → the DTC chain edge (structural constants of the profile; verified below)
 EDGE_HAD_INPUT = "dtc_had_input"      # Process → input Resource
@@ -47,7 +80,9 @@ def dtc_supported() -> bool:
         from s3dgraphy import nodes as _n
         from s3dgraphy.utils.utils import get_dtc_kinds
         from s3dgraphy.edges import get_connections_datamodel
-        if not (hasattr(_n, PROCESS_CLASS) and hasattr(_n, RESOURCE_CLASS)):
+        if not hasattr(_n, PROCESS_CLASS):
+            return False
+        if not any(hasattr(_n, nome) for nome in _RESOURCE_CLASS_CANDIDATI):
             return False
         if not get_dtc_kinds():
             return False
@@ -119,7 +154,7 @@ def add_resource(graph: Any, kind: str, url: str = "", name: Optional[str] = Non
     the kind) + an optional file ``url``. Used for both inputs and outputs."""
     if not dtc_supported():
         raise DtcUnavailable("the active s3dgraphy has no DTC profile — re-vendor s3dgraphy")
-    cls = _node_class(RESOURCE_CLASS)
+    cls = _node_class(_resource_class_name())
     node = cls(str(uuid.uuid4()), name=name or _fresh_name(graph, kind or "resource"),
                url=url or "")
     d = _data(node)

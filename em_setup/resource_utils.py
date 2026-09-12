@@ -10,7 +10,21 @@ import uuid
 import bpy
 
 from s3dgraphy.nodes.document_node import DocumentNode
-from s3dgraphy.nodes.link_node import LinkNode
+# NIGHT-RIM/A1 · ResourceNode, non LinkNode.
+#
+# In s3Dgraphy `nodes/link_node.py` NON esiste più (commit f20d2b9, *Rename
+# LinkNode → ResourceNode*): c'è `resource_node.py` con
+# `node_type = "resource"`. Questo import funzionava solo perché il wheel
+# spedito è una build vecchia che porta ancora link_node.py accanto a
+# resource_node.py — con lo STESSO numero di versione del sorgente attuale.
+# Ricostruito il wheel, l'add-on non partiva più.
+#
+# Il ripiego è quello che `functions.py` usa da MIG1-B: prova il nome nuovo,
+# ricade sul vecchio solo per s3Dgraphy pre-1.6.
+try:
+    from s3dgraphy.nodes.resource_node import ResourceNode
+except ImportError:  # pre-1.6 s3Dgraphy still ships link_node.LinkNode
+    from s3dgraphy.nodes.link_node import LinkNode as ResourceNode
 
 
 # ============================================================================
@@ -395,7 +409,7 @@ def create_document_for_resource(graph, target_node, file_path, filename, folder
 
     # Create LinkNode
     link_id = f"LINK.{doc_id}"
-    link_node = LinkNode(
+    link_node = ResourceNode(
         node_id=str(uuid.uuid4()),
         name=link_id,
         url=relative_path

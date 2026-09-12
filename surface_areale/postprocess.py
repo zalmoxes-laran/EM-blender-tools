@@ -234,13 +234,21 @@ def find_rm_node_in_graph(scene, graph, rm_obj, create_if_missing=False):
                 hasattr(node, 'name') and node.name == rm_name):
             return node
 
-    # Strategy 3: Search by partial name match (LOD variants)
-    for node in graph.nodes:
-        if (hasattr(node, 'node_type') and
-                node.node_type == 'representation_model' and
-                hasattr(node, 'name') and isinstance(node.name, str)):
-            if rm_name in node.name or node.name in rm_name:
-                return node
+    # NIGHT-RIM/A4 · IL MATCH PER SOTTOSTRINGA È VIA.
+    #
+    # Era `if rm_name in node.name or node.name in rm_name` — cioè due nomi
+    # si consideravano lo stesso oggetto se uno era contenuto nell'altro. Su
+    # nomi come `muro`, `muro_ovest`, `muro_ovest_2` quella condizione è vera
+    # fra coppie che NON sono lo stesso oggetto, e sceglie il primo che
+    # capita nell'ordine dei nodi. Era il punto più fragile dell'intero
+    # meccanismo, e il prompt di A4 lo dice.
+    #
+    # Al suo posto non c'è una strategia più furba: c'è l'identificatore.
+    # Chi ha bisogno dell'RM di una mesh passa per
+    # `rm_manager.containers.resolve_rm_node_id`, che legge `em_rm_node_id`.
+    # Qui, dove si parte da un NOME e non da un oggetto, si accetta solo la
+    # corrispondenza esatta: meglio non trovare che trovare quello sbagliato.
+
 
     # Strategy 4: Create the RM node if it's in rm_list but missing from graph
     if create_if_missing:

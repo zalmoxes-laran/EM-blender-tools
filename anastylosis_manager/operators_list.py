@@ -577,39 +577,16 @@ classes = (
 )
 
 
-class ANASTYLOSIS_OT_jump_to_document(Operator):
-    """Highlight the linked Document in the Document Manager catalog.
-
-    Mirrors :class:`RMDOC_OT_jump_to_document`: sets
-    ``scene.doc_list_index`` to the matching row so the user can move
-    from the RMSF detail panel to the catalog with a single click.
-    """
-    bl_idname = "anastylosis.jump_to_document"
-    bl_label = "Show in Document Manager"
-    bl_description = (
-        "Highlight this RMSF's linked Document in the Document Manager "
-        "catalog")
-
-    doc_node_id: StringProperty()  # type: ignore
-
-    def execute(self, context):
-        scene = context.scene
-        if not self.doc_node_id:
-            self.report({'WARNING'}, "No linked document")
-            return {'CANCELLED'}
-        doc_list = getattr(scene, 'doc_list', None)
-        if doc_list is None:
-            return {'CANCELLED'}
-        for i, item in enumerate(doc_list):
-            if item.node_id == self.doc_node_id:
-                scene.doc_list_index = i
-                self.report({'INFO'},
-                            f"Jumped to document {item.name}")
-                return {'FINISHED'}
-        self.report({'WARNING'},
-                    "Linked document not found in catalog")
-        return {'CANCELLED'}
-
+# NIGHT-RIM/A5 · `ANASTYLOSIS_OT_jump_to_document` è via: era una copia
+# riga-per-riga di `em.rmdoc_jump_to_document`
+# (`document_manager/operators.py`), stessa proprietà `doc_node_id`, stesso
+# corpo, stesso messaggio. La sua docstring lo diceva pure — «Mirrors
+# RMDOC_OT_jump_to_document» — e due copie della stessa ricerca sono due
+# posti da tenere allineati il giorno che `doc_list` cambia forma.
+#
+# Il pannello RMSF chiama adesso l'originale. Tenuto l'originale, non questa,
+# perché è quello che il Document Manager e (da UX3) anche la riga del
+# container in RM Manager già usano: un lettore, tre chiamanti.
 
 class ANASTYLOSIS_OT_select_sf_proxy(Operator):
     """Select the SF proxy object in the viewport for this RMSF row.
@@ -679,7 +656,6 @@ class ANASTYLOSIS_OT_select_sf_proxy(Operator):
 # Patch the placeholder above with the freshly-defined class so the
 # registration tuple stays a single source of truth.
 classes = tuple(c for c in classes if c is not None) + (
-    ANASTYLOSIS_OT_jump_to_document,
     ANASTYLOSIS_OT_select_sf_proxy,
 )
 

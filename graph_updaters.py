@@ -172,8 +172,18 @@ def update_representation_models(graph):
 
     for obj in objects_to_check:
         print(f'Object RM is {obj.name}')
-        #model_node_id = str(uuid.uuid4())#f"{obj.name}_model"
-        model_node_id = f"{obj.name}_model"
+        # NIGHT-RIM/A4 · l'identificatore è `em_rm_node_id`, il nome è
+        # un'etichetta. `resolve_rm_node_id` legge la property, ripiega su
+        # `rm_list` e infine sull'eredità `f"{nome}_model"` migrandola una
+        # volta sola nella property.
+        #
+        # Se non risolve NIENTE siamo al primo passaggio su questo oggetto e
+        # il nodo va creato: l'id nuovo resta l'eredità e non un UUID, così
+        # un grafo già esistente continua a combaciare. La property la
+        # scrive `_scrivi_prop_rm` qui sotto, subito dopo la creazione.
+        from .rm_manager.containers import resolve_rm_node_id
+        model_node_id = (resolve_rm_node_id(graph, obj, scene=scene)
+                         or f"{obj.name}_model")
         model_node = graph.find_node_by_id(model_node_id)
 
         # Un oggetto non pubblicabile non viene esportato come file: se il
@@ -217,6 +227,18 @@ def update_representation_models(graph):
             
             graph.add_node(model_node)
             nodes_added += 1
+
+        # NIGHT-RIM/A4 · la property è L'IDENTIFICATORE, quindi la si scrive
+        # qui, sull'oggetto, ogni volta che si è risolto un id valido — non
+        # solo alla creazione. Un oggetto che arriva da un file vecchio ha
+        # l'RM nel grafo e la property vuota: questo è «il primo gesto che lo
+        # riguarda», e la migrazione pigra avviene qui.
+        #
+        # Si scrive solo se cambia: toccare una custom property marca il
+        # .blend come modificato, e farlo a ogni passata su ogni oggetto
+        # sporcherebbe il file per niente.
+        if obj.get("em_rm_node_id", "") != model_node_id:
+            obj["em_rm_node_id"] = model_node_id
         
         # Gestisci le epoche: il grafo deve RISPECCHIARE la scena, non solo
         # accumulare. Un'epoca staccata dall'oggetto in Blender lasciava

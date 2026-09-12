@@ -7,7 +7,21 @@ from bpy.types import Operator
 
 from s3dgraphy import get_graph
 from s3dgraphy.nodes.representation_node import RepresentationModelSpecialFindNode
-from s3dgraphy.nodes.link_node import LinkNode
+# NIGHT-RIM/A1 · ResourceNode, non LinkNode.
+#
+# In s3Dgraphy `nodes/link_node.py` NON esiste più (commit f20d2b9, *Rename
+# LinkNode → ResourceNode*): c'è `resource_node.py` con
+# `node_type = "resource"`. Questo import funzionava solo perché il wheel
+# spedito è una build vecchia che porta ancora link_node.py accanto a
+# resource_node.py — con lo STESSO numero di versione del sorgente attuale.
+# Ricostruito il wheel, l'add-on non partiva più.
+#
+# Il ripiego è quello che `functions.py` usa da MIG1-B: prova il nome nuovo,
+# ricade sul vecchio solo per s3Dgraphy pre-1.6.
+try:
+    from s3dgraphy.nodes.resource_node import ResourceNode
+except ImportError:  # pre-1.6 s3Dgraphy still ships link_node.LinkNode
+    from s3dgraphy.nodes.link_node import LinkNode as ResourceNode
 
 from .. import icons_manager
 from ..us_types import SPECIAL_FIND_TYPES
@@ -67,7 +81,7 @@ def _ensure_rmsf_and_link(graph, obj, item_name, sf_node, rmsf_id):
     link_node = graph.find_node_by_id(link_node_id)
     if not link_node:
         gltf_path = f"models_sf/{item_name}.gltf"
-        link_node = LinkNode(
+        link_node = ResourceNode(
             node_id=link_node_id,
             name=f"GLTF Link for {item_name}",
             description=f"Link to exported GLTF for {sf_node.node_type} {sf_node.name}",
@@ -233,7 +247,7 @@ class ANASTYLOSIS_OT_confirm_link(Operator):
         link_node = graph.find_node_by_id(link_node_id)
         if not link_node:
             gltf_path = f"models_sf/{obj_name}.gltf"
-            link_node = LinkNode(
+            link_node = ResourceNode(
                 node_id=link_node_id,
                 name=f"GLTF Link for {obj_name}",
                 description=f"Link to exported GLTF for SpecialFind {obj_name}",

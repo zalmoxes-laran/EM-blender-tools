@@ -145,14 +145,18 @@ class EM_Other_Settings(PropertyGroup):
         name="Selecting a proxy you select the corresponding EM",
         default=False
     )  # type: ignore
-    em_proxy_sync2: BoolProperty(
-        name="Selecting an EM you select the corresponding proxy",
-        default=False
-    )  # type: ignore
-    em_proxy_sync2_zoom: BoolProperty(
-        name="Option to zoom to proxy",
-        default=False
-    )  # type: ignore
+    # NIGHT-RIM/A5 · `em_proxy_sync2` e `em_proxy_sync2_zoom` sono via.
+    #
+    # Erano la vecchia sincronizzazione lista EM → proxy, commentata in
+    # `fe6b55b` e cancellata in `e40e081`. Verificato: nessuna delle due
+    # aveva un `update=`, quindi il loro callback di mutua esclusione
+    # (`functions.sync_Switch_proxy`) non veniva **mai chiamato**, e nessun
+    # punto del codice agiva sul loro valore `True` — le sole letture erano
+    # quel callback morto. `em_proxy_sync`, che invece è viva e la legge
+    # `stratigraphy_manager/ui.py:504`, resta.
+    #
+    # Quello che deve funzionare nei due versi è la selezione del bridge
+    # (NIGHT-RIM/C), che è un'altra cosa e ha lo zoom già cablato.
     soloing_mode: BoolProperty(name="Soloing mode", default=False)  # type: ignore
 
 

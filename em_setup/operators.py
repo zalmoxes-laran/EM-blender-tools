@@ -9,6 +9,7 @@ from bpy.props import EnumProperty, IntProperty, StringProperty
 from s3dgraphy import get_graph, remove_graph, get_all_graph_ids
 
 # Import from parent package
+from ..functions import em_log
 from ..populate_lists import clear_lists, populate_blender_lists_from_graph
 from ..import_operators.importer_graphml import EM_import_GraphML
 
@@ -153,6 +154,58 @@ class EM_OT_benchmark_property_functions(Operator):
         from ..visual_manager.utils import test_optimization_performance
         test_optimization_performance(context)
         self.report({'INFO'}, "Benchmark completed. Check console for results.")
+        return {'FINISHED'}
+
+
+class EM_OT_diagnose_resources(Operator):
+    """NIGHT-RIM/A3 · conta i nodi risorsa orfani o duplicati. SOLA LETTURA.
+
+    Non bonifica, e non ha il codice per farlo: A3 dice che i grafi già
+    sporchi «sono dati dell'utente» e che una bonifica sarà un gesto
+    esplicito di E.D., un'altra volta. Questo operatore serve a sapere
+    QUANTO sporco c'è, prima di decidere.
+
+    La logica sta in `resource_audit.py`, senza `bpy`, così si prova fuori
+    da Blender su grafi costruiti a mano.
+    """
+
+    bl_idname = "em.diagnose_resources"
+    bl_label = "Diagnose Resources"
+    bl_description = ("Count orphan or duplicate resource nodes in the active "
+                      "graph and report them. Read-only: nothing is deleted")
+
+    @classmethod
+    def poll(cls, context):
+        from ..functions import is_graph_available
+        ok, _ = is_graph_available(context)
+        if not ok:
+            cls.poll_message_set("No graph loaded")
+        return ok
+
+    def execute(self, context):
+        from ..functions import is_graph_available
+        from .. import resource_audit
+        ok, graph = is_graph_available(context)
+        if not ok or graph is None:
+            self.report({'ERROR'}, "No active graph")
+            return {'CANCELLED'}
+
+        d = resource_audit.diagnosi(graph.nodes, graph.edges)
+        riga = resource_audit.riassunto(d)
+        # `print` e non `em_log`: la regola di casa è usare `em_log` per
+        # l'output VERBOSO, e quello è giusto — ma qui l'output è il
+        # deliverable dell'operatore, non rumore di contorno. L'utente ha
+        # premuto un bottone che si chiama «diagnose»: se il risultato
+        # dipendesse da `verbose_logging` sembrerebbe che non abbia fatto
+        # niente.
+        print(f"[resource audit] {riga}")
+        for rid in d["orfani"]:
+            print(f"[resource audit]   orphan: {rid}")
+        for coppia, ids in d["duplicati"].items():
+            print(f"[resource audit]   duplicate: {coppia} → {', '.join(ids)}")
+        #: il report all'utente è la riga sola; il dettaglio va in console,
+        #: perché un `report` multiriga in Blender diventa un popup
+        self.report({'INFO'}, riga)
         return {'FINISHED'}
 
 
@@ -1072,6 +1125,7 @@ def _focus_node_in_lists(context, node_id):
 classes = (
     EM_create_collection,
     EM_OT_benchmark_property_functions,
+    EM_OT_diagnose_resources,
     EM_OT_rebuild_graph_indices,
     EM_OT_manage_object_prefixes,
     EMToolsSwitchModeOperator,

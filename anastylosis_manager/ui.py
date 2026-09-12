@@ -262,7 +262,7 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
             sub = actions.row(align=True)
             sub.enabled = bool(item.doc_node_id)
             op = sub.operator(
-                "anastylosis.jump_to_document",
+                "em.rmdoc_jump_to_document",
                 text="Show Document", icon='ZOOM_SELECTED')
             op.doc_node_id = item.doc_node_id
 

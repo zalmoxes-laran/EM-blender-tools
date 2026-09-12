@@ -92,10 +92,6 @@ def _carica(nome, rel):
     return m
 
 
-def _promotion_scale():
-    return _carica("_ps", "em_setup/promotion_scale.py")
-
-
 def _group_nodes():
     return _carica("_gn_ux", "rm_manager/group_nodes.py")
 
@@ -252,6 +248,26 @@ def test_LE_DUE_SEZIONI_CARTELLO_sono_sparite():
 
 # ═══ B · L'EM DATA TREE ══════════════════════════════════════════════════════
 
+def test_A5_LA_SCALA_DI_PROMOZIONE_E_CANCELLATA():
+    """NIGHT-RIM/A5 · `promotion_scale.py` e `EM_OT_promotion_step_info` sono
+    cancellati, e con loro le sei prove che li misuravano.
+
+    Erano codice non raggiungibile dalla rimozione del pannello Overview
+    (UX3/A, decisa da E.D. guardandolo). UX3 li aveva lasciati sul disco
+    perché «per ora» diceva che la decisione era reversibile, e una prova
+    dichiarava quello stato di limbo. A5 chiude il limbo: «cancellali, con le
+    prove che li dichiaravano. Git li ricorda.»
+
+    Questa prova resta a impedire che tornino per sbaglio: se un giorno la
+    scala serve di nuovo, si riprende da git di proposito.
+    """
+    assert not (_REPO / "em_setup" / "promotion_scale.py").exists()
+    #: sul codice spogliato: il commento che spiega la cancellazione NOMINA
+    #: le cose cancellate, ed è giusto che lo faccia (la regola del pagliaio)
+    assert "promotion_scale" not in _codice(SETUP)
+    assert "promotion_step_info" not in _codice(SETUP)
+
+
 def test_A_IL_PANNELLO_EM_OVERVIEW_E_STATO_RIMOSSO():
     """Storia intera, perché è la parte che si dimentica.
 
@@ -270,243 +286,11 @@ def test_A_IL_PANNELLO_EM_OVERVIEW_E_STATO_RIMOSSO():
     """
     _senza_overview()
     assert "VIEW3D_PT_EM_Overview," not in SETUP, "ancora registrato"
-    #: l'operatore c'è ancora — tenuto di proposito, vedi la prova seguente —
-    #: ma nessuno lo DISEGNA più: è la chiamata che conta, non la definizione
-    assert '"em.promotion_step_info"' in SETUP, "l'operatore resta definito"
-    assert 'operator(\n                "em.promotion_step_info"' not in SETUP, (
-        "nessun pannello deve disegnare una cella della scala")
+    #: e l'operatore della scala non c'è più affatto (A5)
+    assert "promotion_step_info" not in _codice(SETUP)
     #: …e il conto dei pannelli torna a 32
     assert len(PANNELLI) == 32, sorted(PANNELLI)
     assert "VIEW3D_PT_EM_Overview" not in PANNELLI
-
-
-def test_A_CIO_CHE_RESTA_DEL_GIRO_A_e_dichiarato():
-    """Del punto A restano due cose, e non sono orfane per sbaglio.
-
-    `_grafi_caricati()` la usa `_catena` per sapere se la guida a tre passi va
-    disegnata (solo per il primo grafo), e `GRAPH_CODE_SEGNAPOSTO` la usa il
-    banner di warning sul `graph_code`. `_per_grafo()` invece era solo della
-    scala ed è andato via con lei.
-
-    `em_setup/promotion_scale.py` e `EM_OT_promotion_step_info` restano sul
-    disco senza che nessuno li disegni: «per ora» dice che la decisione è
-    reversibile. Se la scala non torna, sono due cose da cancellare — e
-    questa prova è il posto dove sta scritto.
-    """
-    assert "def _grafi_caricati" in SETUP, "la usa _catena"
-    assert "GRAPH_CODE_SEGNAPOSTO = " in SETUP, "lo usa il banner di warning"
-    assert "def _per_grafo" not in SETUP, "era solo della scala"
-    #: l'operatore è registrato ma non disegnato: dichiarato, non dimenticato
-    assert "EM_OT_promotion_step_info," in SETUP
-    assert (_REPO / "em_setup" / "promotion_scale.py").exists()
-
-
-def test_C2_I_QUATTRO_GRADINI_sono_in_INGLESE_e_sono_PAROLE_INTERE():
-    """AGGIORNATA DUE VOLTE, e la seconda per una misura che mi ha smentito.
-
-    · **Inglese**, tooltip compresi: l'interfaccia di questo add-on è inglese,
-      e la prima versione era in italiano perché l'esempio del prompt lo era.
-    · **Cinque campi per gradino**: chiave, etichetta, icona NOSTRA, icona di
-      Blender di ripiego, tooltip. Due icone perché le nostre stanno in una
-      `previews` e `get_icon_value()` torna 0 quando non è caricata, e un
-      `icon_value=0` disegna il vuoto.
-    · **`Models` si chiama `RMs`** e il quarto gradino `3D docs`: il quarto ha
-      cambiato *insieme* due volte, e la seconda perché la prima era
-      sbagliata — vedi la prova sui conteggi qui sotto.
-    · **La freccia NON sta più nelle etichette.** Era il prefisso — `→ Models`
-      — e la prova lo asseriva. A video quel prefisso era *la causa del
-      troncamento*: `→ Mod…`, `→ Grou…`, `→ Docu…`, mentre nel blocco
-      `Graph info`, alla stessa larghezza, `Properties` e `Documents` stanno
-      interi. Misurato due volte: non era il contenitore (rifatto identico a
-      `Graph info`, si abbreviavano ancora), è la freccia, che come glifo costa
-      quanto due o tre caratteri.
-
-      L'imbuto resta in `testo()`, dove la freccia SEPARA i gradini e lo spazio
-      c'è. Quindi la prova asserisce adesso parole intere nelle etichette e la
-      freccia nella riga compatta.
-    """
-    ps = _promotion_scale()
-
-    chiavi = [k for k, _l, _c, _i, _t in ps.GRADINI]
-    assert chiavi == ["in_scene", "rms", "groups", "docs"], chiavi
-
-    etichette = [l for _k, l, _c, _i, _t in ps.GRADINI]
-    assert etichette == ["Scene", "RMs", "Groups", "Docs"], etichette
-    #: NIENTE FRECCIA nella cella, e ci sono volute TRE misure a video:
-    #: prefisso con parole lunghe → `→ Docu…`; prefisso con parole corte →
-    #: `→ Grou…` (`→ RMs` e `→ Docs` invece stavano); freccia nella riga del
-    #: numero → **spariva il numero**, che è la cosa che il pannello esiste
-    #: per dire. A quattro colonne su questa larghezza la cella non porta
-    #: insieme una freccia e il suo contenuto.
-    assert not any(ps.FRECCIA in e for e in etichette), (
-        "la freccia nell'etichetta fa abbreviare Groups")
-    #: …e l'imbuto sta nella riga compatta, che ha lo spazio
-    assert ps.FRECCIA in ps.testo({k: 1 for k in chiavi})
-
-    #: ogni gradino ha un'icona di Blender valida e un tooltip vero
-    for k, _l, custom, icona, tip in ps.GRADINI:
-        assert icona and icona.isupper(), f"{k}: ripiego {icona!r}"
-        assert len(tip) >= 60, f"{k}: troppo corto per essere un tooltip"
-        #: …e in inglese: nessuna delle parole italiane che c'erano prima
-        for italiana in ("Oggetti", "della scena", "Nodi", "gli insiemi",
-                         "Le fonti", "hai SCELTO"):
-            assert italiana not in tip, f"{k}: ancora italiano ({italiana})"
-
-    #: le tre icone di NODO sono le nostre, non approssimazioni di Blender;
-    #: `In scene` no, perché conta oggetti di Blender e non nodi del grafo
-    nostre = dict((k, c) for k, _l, c, _i, _t in ps.GRADINI)
-    assert nostre["in_scene"] is None, "In scene conta oggetti, non nodi"
-    assert nostre["rms"] == "show_all_RMs", nostre["rms"]
-    assert nostre["groups"] == "container_on", nostre["groups"]
-    #: `document` e NON `show_all_RMDoc`: qui si contano DOCUMENTI, e l'RMDoc
-    #: è un'altra cosa (una lista di oggetti in scena, come gli RMSF)
-    assert nostre["docs"] == "document", nostre["docs"]
-
-    #: e nessun gradino usa un glifo RETTANGOLARE della palette del grafo:
-    #: `US.png` è 253×128 e a 16px Blender lo schiaccia in una barretta
-    for k, c in nostre.items():
-        assert c not in ("US", "USVs", "USVn", "USD", "SF", "VSF",
-                         "property"), f"{k}: {c} è un glifo di palette, non un'icona"
-
-    #: …e quello di RMDocs dice la cosa che il numero nasconde: che NON è il
-    #: numero dei documenti del grafo, e che essere molti meno è normale
-    tip_doc = dict((k, t) for k, _l, _c, _i, t in ps.GRADINI)["docs"]
-    assert "CHOSEN" in tip_doc, tip_doc
-    assert "not a gap" in tip_doc, tip_doc
-    #: …e i due tooltip che sono una SOMMA lo dicono
-    tips = dict((k, t) for k, _l, _c, _i, t in ps.GRADINI)
-    for k in ("rms", "docs"):
-        assert "ALL loaded graphs" in tips[k], (
-            f"{k}: il tooltip non dice che è la somma su tutti i grafi")
-    #: …e i due che sono di scena lo dicono pure
-    for k in ("in_scene", "groups"):
-        assert "SCENE number" in tips[k] or "this .blend" in tips[k], k
-    assert "not a gap" in tip_doc, "non dice che un numero più basso non è una mancanza"
-
-
-def test_A_I_CONTEGGI_ARRIVANO_GIA_SOMMATI_a_conta():
-    """RISCRITTA da UX3/A: `conta()` non conta più i nodi del grafo attivo.
-
-    La storia di questo gradino, per intero, perché è stata sbagliata due
-    volte: era `doc_list` intero (che è lo stesso insieme del `Documents` di
-    `Graph info` — un doppione, misurato); poi `rmdoc_list` (sbagliato:
-    object-centric, e l'RMDoc è una cosa sua); poi `doc_list` con `has_quad`
-    (giusto come metrica, ma di SCENA mentre `doc_list` si popola dal grafo
-    ATTIVO); e adesso i nodi `document` sommati su tutti i grafi caricati,
-    che è la metrica che non dipende da quale grafo è attivo.
-
-    `conta()` riceve i tre numeri GIÀ SOMMATI e calcola solo `in_scene`, che
-    è l'unico che si possa calcolare senza `bpy`. La somma la fa chi ha `bpy`
-    in mano, con `get_nodes_by_type()`: passare qui la concatenazione dei
-    nodi di tutti i grafi avrebbe voluto dire scorrerli tutti a ogni
-    ridisegno, cioè buttare via l'indice di s3Dgraphy.
-    """
-    ps = _promotion_scale()
-
-    class O:
-        def __init__(s, t, i="NONE"):
-            s.type, s.instance_type = t, i
-
-    def cand(o):
-        return (o.type in ("MESH", "CURVE")
-                or (o.type == "EMPTY" and o.instance_type != "COLLECTION"))
-
-    n = ps.conta(oggetti_scena=[O("MESH")] * 203 + [O("LIGHT")] * 5,
-                 is_candidato=cand, rms=12, rm_containers=3, docs=19)
-    assert n == {"in_scene": 203, "rms": 12, "groups": 3, "docs": 19}
-    assert ps.testo(n) == ("203 Scene  →  12 RMs  →  3 Groups  →  19 Docs")
-
-    #: `nodi_grafo` non è più un argomento: chi lo passasse se ne accorge
-    import pytest
-    with pytest.raises(TypeError):
-        ps.conta(oggetti_scena=(), nodi_grafo=(), is_candidato=cand)
-
-    #: il modulo resta misurabile anche senza il pannello che lo disegnava:
-    #: è la ragione per cui `conta()` non importa `bpy`.
-
-
-def test_C2_IL_CASO_ZERO_MODELS_e_un_avviso_e_non_un_allarme():
-    """Sul file di E.D.: 203 candidati in scena e 0 nodi RM. Non è un guasto —
-    quel grafo viene da import GraphML, che per disegno non porta i nodi RM."""
-    ps = _promotion_scale()
-    assert ps.modelli_a_zero_sospetto({"in_scene": 203, "rms": 0}) is True
-    #: una scena vuota NON è sospetta
-    assert ps.modelli_a_zero_sospetto({"in_scene": 0, "rms": 0}) is False
-    #: …e nemmeno un grafo che ha i suoi modelli
-    assert ps.modelli_a_zero_sospetto({"in_scene": 203, "rms": 34}) is False
-
-    #: il DISEGNO di questa cella non c'è più (pannello rimosso da E.D.), ma
-    #: la regola resta nel modulo e resta misurabile: è dove è sempre stata.
-    _senza_overview()
-
-
-def test_C2_E_LA_FRASE_DEL_CASO_ZERO_E_QUELLA_DI_EM16_UX_E():
-    """«Riusa quella stringa, non scriverne una seconda»: una frase, un posto.
-
-    AGGIORNATA perché la prova di prima NON misurava il requisito: asseriva
-    che `no_rm_nodes_yet()` esiste e compone bene, e da quello io avevo
-    concluso — a torto — che il tooltip della cella la usasse. Non la usava:
-    la chiamava solo `rmcontainer.project`, e la cella mostrava la sua
-    spiegazione generica. Il requisito era scoperto e la prova verde.
-
-    Adesso la prova segue la strada vera: il gradino a zero passa per
-    `EM_OT_promotion_step_info._frase`, che è l'unico punto da cui escono sia
-    il tooltip (`description`) sia il popup (`execute`), e che nel caso zero
-    ritorna la frase di `group_nodes`.
-    """
-    gn = _group_nodes()
-    frase = gn.no_rm_nodes_yet(98, 3)
-    assert "98 mesh(es) in 3 container(s)" in frase
-    assert "excluded from GraphML by design" in frase
-
-    #: la frase generica (senza conteggi) è quella che la cella mostra
-    nuda = gn.no_rm_nodes_yet()
-    assert "excluded from GraphML by design" in nuda
-    assert "Promote the meshes first" in nuda
-
-    #: e l'operatore la prende da LÀ, nel caso zero e solo lì. L'operatore
-    #: resta registrato anche dopo la rimozione del pannello Overview, quindi
-    #: questa parte si misura ancora.
-    i = SETUP.index("class EM_OT_promotion_step_info")
-    j = SETUP.index("def _wrap(", i)
-    corpo = SETUP[i:j]
-    assert "group_nodes as gn" in corpo, "la frase non viene da group_nodes"
-    assert "gn.no_rm_nodes_yet()" in corpo
-    assert 'if zero and step == "rms"' in corpo, (
-        "la frase del caso zero deve valere SOLO per la cella a zero")
-    #: tooltip e popup escono dalla stessa funzione, sennò tornano due
-    assert corpo.count("_frase(") >= 3, (
-        "description ed execute devono chiamare lo stesso _frase")
-    assert "Promote to RM" in frase, "non dice il comando da eseguire prima"
-    #: senza conteggi resta vera e non stampa zeri finti
-    nuda = gn.no_rm_nodes_yet()
-    assert "0 mesh" not in nuda
-    assert "excluded from GraphML by design" in nuda
-
-    #: …e l'operatore la CHIAMA invece di ricomporla
-    ops = (_REPO / "rm_manager" / "container_operators.py").read_text()
-    assert "no_rm_nodes_yet(" in ops
-    assert "excluded from GraphML by design" not in ops, (
-        "l'operatore ha ancora la sua copia della frase")
-
-
-def test_B1_IL_CRITERIO_DI_CANDIDATURA_non_e_riscritto():
-    """AGGIORNATA: `em_setup/ui.py` non importa più `is_rm_candidate`, perché
-    con il pannello Overview rimosso non disegna più la scala e non ha più
-    bisogno del predicato.
-
-    Quello che la prova deve continuare a recintare è l'altra metà, che non è
-    cambiata: `promotion_scale` NON riscrive il criterio: lo riceve iniettato.
-    Una seconda copia di «cosa può diventare un RM» sarebbe la cosa da tenere
-    allineata a mano, e questa prova esiste per impedirla.
-    """
-    assert "is_rm_candidate" not in _codice(SETUP), (
-        "ui.py non disegna più la scala: se importa il predicato, qualcuno "
-        "ha rimesso un conteggio dove non sta più")
-    ps = (_REPO / "em_setup" / "promotion_scale.py").read_text()
-    corpo = ps.split('"""', 2)[2]
-    for spia in ("instance_type", "'MESH'", '"MESH"'):
-        assert spia not in corpo, f"promotion_scale riscrive il criterio ({spia})"
 
 
 def test_B2_GRAPH_INFO_e_collassabile_chiuso_e_si_chiama_cosi():

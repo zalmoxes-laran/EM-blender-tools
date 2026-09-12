@@ -68,10 +68,24 @@ def em_log(message, level="INFO"):
         print(f"{prefix} {message}")
         return
 
-    # INFO e DEBUG solo se verbose è attivo
+    # INFO e DEBUG solo se verbose è attivo.
+    #
+    # NIGHT-RIM/A · questo lookup era
+    # `addons.get(__package__.split('.')[0])`, e MISURATO in un Blender vero
+    # non trovava niente: installato come ESTENSIONE il pacchetto radice è
+    # `bl_ext.<repo>.EM-blender-tools`, quindi `split('.')[0]` dà `"bl_ext"`,
+    # che non è una chiave di `preferences.addons`. Conseguenza: `prefs` era
+    # sempre `None` e **ogni em_log di livello INFO o DEBUG dell'intero
+    # add-on era muto**, anche con `verbose_logging` acceso — provato
+    # accendendolo e non vedendo la riga.
+    #
+    # `get_addon_preferences()` (aggiunto in UX3 per la stessa ragione) è
+    # l'unico posto in cui `__package__` è la radice in entrambe le
+    # installazioni, add-on ed estensione.
     try:
-        prefs = bpy.context.preferences.addons.get(__package__.split('.')[0])
-        if prefs and hasattr(prefs.preferences, 'verbose_logging') and prefs.preferences.verbose_logging:
+        from . import get_addon_preferences
+        _p = get_addon_preferences()
+        if _p is not None and getattr(_p, 'verbose_logging', False):
             prefix = f"[EM {level}]"
             print(f"{prefix} {message}")
     except:
@@ -671,13 +685,12 @@ def is_reconstruction_us(node):
 ##### functions to switch menus in UI  ####
 ### #### #### #### #### #### #### #### ####
 
-def sync_Switch_em(self, context):
-    scene = context.scene
-    em_settings = scene.em_tools.settings
-    if scene.em_tools.settings.em_proxy_sync is True:
-        scene.em_tools.settings.em_proxy_sync2 = False
-        scene.em_tools.settings.em_proxy_sync2_zoom = False
-    return
+# NIGHT-RIM/A5 · `sync_Switch_em` e `sync_Switch_proxy` sono via con le
+# proprietà `em_proxy_sync2` / `em_proxy_sync2_zoom` che gestivano. Erano i
+# due callback di mutua esclusione fra `em_proxy_sync` e `em_proxy_sync2`, e
+# **nessuno dei due era cablato**: le proprietà non avevano `update=`, quindi
+# non venivano mai chiamati. Togliendo le proprietà il loro corpo sarebbe
+# rimasto a puntare a nomi inesistenti.
 
 def sync_update_epoch_soloing(self, context):
     scene = context.scene
@@ -691,13 +704,6 @@ def sync_update_epoch_soloing(self, context):
         for epoch in epochs:
             if epoch is not soloing_epoch:
                 pass
-    return
-
-def sync_Switch_proxy(self, context):
-    scene = context.scene
-    em_settings = scene.em_tools.settings
-    if scene.em_tools.settings.em_proxy_sync2 is True:
-        scene.em_tools.settings.em_proxy_sync = False
     return
 
 ## #### #### #### #### #### #### #### #### #### #### ####

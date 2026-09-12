@@ -16,7 +16,21 @@ from bpy.types import Operator
 
 from s3dgraphy import get_graph, get_all_graph_ids
 from s3dgraphy.exporter.json_exporter import JSONExporter
-from s3dgraphy.nodes.link_node import LinkNode
+# NIGHT-RIM/A1 · ResourceNode, non LinkNode.
+#
+# In s3Dgraphy `nodes/link_node.py` NON esiste più (commit f20d2b9, *Rename
+# LinkNode → ResourceNode*): c'è `resource_node.py` con
+# `node_type = "resource"`. Questo import funzionava solo perché il wheel
+# spedito è una build vecchia che porta ancora link_node.py accanto a
+# resource_node.py — con lo STESSO numero di versione del sorgente attuale.
+# Ricostruito il wheel, l'add-on non partiva più.
+#
+# Il ripiego è quello che `functions.py` usa da MIG1-B: prova il nome nuovo,
+# ricade sul vecchio solo per s3Dgraphy pre-1.6.
+try:
+    from s3dgraphy.nodes.resource_node import ResourceNode
+except ImportError:  # pre-1.6 s3Dgraphy still ships link_node.LinkNode
+    from s3dgraphy.nodes.link_node import LinkNode as ResourceNode
 from s3dgraphy.nodes.representation_node import RepresentationModelDocNode
 
 from ...functions import *
@@ -267,7 +281,7 @@ class EXPORT_OT_heriverse(Operator):
                             link_node = graph.find_node_by_id(link_node_id)
 
                             if not link_node:
-                                link_node = LinkNode(
+                                link_node = ResourceNode(
                                     node_id=link_node_id,
                                     name=f"Proxy Link for {name}",
                                     description=f"Link to exported proxy for {name}",
@@ -281,7 +295,7 @@ class EXPORT_OT_heriverse(Operator):
                                 em_log(f"    Updated Link node: {link_node_id}", "DEBUG")
 
                             # Create edge between semantic shape and link node
-                            edge_id = str(uuid.uuid4())
+                            edge_id = f"{shape_node_id}_has_linked_resource_{link_node_id}"
                             if not graph.find_edge_by_id(edge_id):
                                 graph.add_edge(
                                     edge_id=edge_id,
@@ -410,7 +424,15 @@ class EXPORT_OT_heriverse(Operator):
                 # Se il tileset è stato estratto correttamente (o era già estratto),
                 # aggiorna o crea il nodo Link nel grafo
                 if tileset_extracted and graph:
-                    model_node_id = f"{obj.name}_model"
+                    # NIGHT-RIM/A4 · l'id dell'RM viene da `resolve_rm_node_id`:
+                    # legge `em_rm_node_id` e ripiega sull'eredità
+                    # `f"{nome}_model"` migrandola una volta sola. Il nome
+                    # dell'oggetto è un'etichetta, non un identificatore. Il
+                    # ripiego finale sull'eredità resta per il caso in cui il
+                    # nodo non sia (ancora) nel grafo: qui si sta per crearlo.
+                    from ...rm_manager.containers import resolve_rm_node_id
+                    model_node_id = (resolve_rm_node_id(graph, obj, scene=scene)
+                                     or f"{obj.name}_model")
                     model_node = graph.find_node_by_id(model_node_id)
                     
                     if model_node:
@@ -429,8 +451,8 @@ class EXPORT_OT_heriverse(Operator):
                         model_node.data['transform'] = model_node.transform
                         
                         # Crea o aggiorna il nodo Link
-                        link_node_id = str(uuid.uuid4())
-                        link_node = LinkNode(
+                        link_node_id = f"{model_node_id}_link"
+                        link_node = ResourceNode(
                             node_id=link_node_id,
                             name=f"Tileset Link for {obj.name}",
                             description=f"Link to Cesium tileset for {obj.name}",
@@ -448,7 +470,7 @@ class EXPORT_OT_heriverse(Operator):
                             em_log(f"Created new link node for tileset: {obj.name}", "DEBUG")
                             
                             # Crea l'edge tra il nodo RM e il LinkNode
-                            edge_id =  str(uuid.uuid4())
+                            edge_id = f"{model_node_id}_has_linked_resource_{link_node_id}"
                             if not graph.find_edge_by_id(edge_id):
                                 graph.add_edge(
                                     edge_id=edge_id,
@@ -890,7 +912,15 @@ class EXPORT_OT_heriverse(Operator):
 
                         # Crea o aggiorna il nodo Link
                         if graph:
-                            model_node_id = f"{obj.name}_model"
+                            # NIGHT-RIM/A4 · l'id dell'RM viene da `resolve_rm_node_id`:
+                            # legge `em_rm_node_id` e ripiega sull'eredità
+                            # `f"{nome}_model"` migrandola una volta sola. Il nome
+                            # dell'oggetto è un'etichetta, non un identificatore. Il
+                            # ripiego finale sull'eredità resta per il caso in cui il
+                            # nodo non sia (ancora) nel grafo: qui si sta per crearlo.
+                            from ...rm_manager.containers import resolve_rm_node_id
+                            model_node_id = (resolve_rm_node_id(graph, obj, scene=scene)
+                                             or f"{obj.name}_model")
                             model_node = graph.find_node_by_id(model_node_id)
                             
                             if model_node:
@@ -898,8 +928,8 @@ class EXPORT_OT_heriverse(Operator):
                                 gltf_path = f"models/{clean_filename(obj.name)}.gltf"
                                 
                                 # Crea un nuovo LinkNode
-                                link_node_id = str(uuid.uuid4())
-                                link_node = LinkNode(
+                                link_node_id = f"{model_node_id}_link"
+                                link_node = ResourceNode(
                                     node_id=link_node_id,
                                     name=f"GLTF Link for {obj.name}",
                                     description=f"Link to exported GLTF for {obj.name}",
@@ -915,7 +945,7 @@ class EXPORT_OT_heriverse(Operator):
                                     graph.add_node(link_node)
                                     
                                     # Crea l'edge tra il nodo RM e il LinkNode
-                                    edge_id = str(uuid.uuid4())
+                                    edge_id = f"{model_node_id}_has_linked_resource_{link_node_id}"
                                     if not graph.find_edge_by_id(edge_id):
                                         graph.add_edge(
                                             edge_id=edge_id,
@@ -995,7 +1025,15 @@ class EXPORT_OT_heriverse(Operator):
 
                         # Crea o aggiorna il nodo Link per l'oggetto primario
                         if graph:
-                            model_node_id = f"{primary_obj.name}_model"
+                            # NIGHT-RIM/A4 · l'id dell'RM viene da `resolve_rm_node_id`:
+                            # legge `em_rm_node_id` e ripiega sull'eredità
+                            # `f"{nome}_model"` migrandola una volta sola. Il nome
+                            # dell'oggetto è un'etichetta, non un identificatore. Il
+                            # ripiego finale sull'eredità resta per il caso in cui il
+                            # nodo non sia (ancora) nel grafo: qui si sta per crearlo.
+                            from ...rm_manager.containers import resolve_rm_node_id
+                            model_node_id = (resolve_rm_node_id(graph, primary_obj, scene=scene)
+                                             or f"{primary_obj.name}_model")
                             model_node = graph.find_node_by_id(model_node_id)
                             
                             if model_node:
@@ -1003,8 +1041,8 @@ class EXPORT_OT_heriverse(Operator):
                                 gltf_path = f"models/{clean_filename(primary_obj.name)}.gltf"
                                 
                                 # Crea un nuovo LinkNode
-                                link_node_id = str(uuid.uuid4())
-                                link_node = LinkNode(
+                                link_node_id = f"{model_node_id}_link"
+                                link_node = ResourceNode(
                                     node_id=link_node_id,
                                     name=f"GLTF Link for {primary_obj.name}",
                                     description=f"Link to exported GLTF for {primary_obj.name}",
@@ -1020,7 +1058,7 @@ class EXPORT_OT_heriverse(Operator):
                                     graph.add_node(link_node)
                                     
                                     # Crea l'edge tra il nodo RM e il LinkNode
-                                    edge_id = str(uuid.uuid4())
+                                    edge_id = f"{model_node_id}_has_linked_resource_{link_node_id}"
                                     if not graph.find_edge_by_id(edge_id):
                                         graph.add_edge(
                                             edge_id=edge_id,
@@ -1233,7 +1271,7 @@ class EXPORT_OT_heriverse(Operator):
                             gltf_path = f"models_docs/{clean_filename(obj.name)}.gltf"
                             
                             # ID del nodo RMDoc
-                            rmdoc_node_id = str(uuid.uuid4())
+                            rmdoc_node_id = f"{paradata_node.node_id}_rm_doc"
                             
                             # Verifica se il nodo RMDoc esiste già
                             rmdoc_node = graph.find_node_by_id(rmdoc_node_id)
@@ -1254,7 +1292,7 @@ class EXPORT_OT_heriverse(Operator):
                                 graph.add_node(rmdoc_node)
                                 
                                 # Collega il nodo RMDoc al nodo paradata
-                                edge_id = str(uuid.uuid4())
+                                edge_id = f"{paradata_node.node_id}_has_representation_model_doc_{rmdoc_node_id}"
                                 if not graph.find_edge_by_id(edge_id):
                                     graph.add_edge(
                                         edge_id=edge_id,
@@ -1270,7 +1308,7 @@ class EXPORT_OT_heriverse(Operator):
                             
                             # Crea o aggiorna il nodo Link
                             link_node_id = f"{rmdoc_node_id}_link"
-                            link_node = LinkNode(
+                            link_node = ResourceNode(
                                 node_id=link_node_id,
                                 name=f"GLTF Link for {paradata_node.name}",
                                 description=f"Link to exported GLTF for {paradata_node.node_type} {paradata_node.name}",
@@ -1286,7 +1324,7 @@ class EXPORT_OT_heriverse(Operator):
                                 graph.add_node(link_node)
                                 
                                 # Crea l'edge tra il nodo RMDoc e il LinkNode
-                                edge_id =  str(uuid.uuid4())
+                                edge_id = f"{rmdoc_node_id}_has_linked_resource_{link_node_id}"
                                 if not graph.find_edge_by_id(edge_id):
                                     graph.add_edge(
                                         edge_id=edge_id,
@@ -1786,7 +1824,7 @@ class EXPORT_OT_heriverse(Operator):
                         
                         # Connect SF node to RMSF node if SF node exists
                         if sf_node:
-                            edge_id =  str(uuid.uuid4())
+                            edge_id = f"{sf_node.node_id}_has_representation_model_{rmsf_node_id}"
                             if not graph.find_edge_by_id(edge_id):
                                 graph.add_edge(
                                     edge_id=edge_id,
@@ -1800,12 +1838,11 @@ class EXPORT_OT_heriverse(Operator):
                         link_node_id = f"{rmsf_node_id}_link"
                         gltf_path = f"models_sf/{clean_filename(obj.name)}.gltf"
                         
-                        from s3dgraphy.nodes.link_node import LinkNode
                         link_node = graph.find_node_by_id(link_node_id)
                         
                         if not link_node:
                             # Create new LinkNode
-                            link_node = LinkNode(
+                            link_node = ResourceNode(
                                 node_id=link_node_id,
                                 name=f"GLTF Link for {item.name}",
                                 description=f"Link to exported GLTF for {item.sf_node_name or 'Special Find'}",
@@ -1820,7 +1857,7 @@ class EXPORT_OT_heriverse(Operator):
                             em_log(f"Updated Link node URL to {gltf_path}", "DEBUG")
                         
                         # Create edge between RMSF and Link if not exists
-                        edge_id =  str(uuid.uuid4())
+                        edge_id = f"{rmsf_node_id}_has_linked_resource_{link_node_id}"
                         if not graph.find_edge_by_id(edge_id):
                             graph.add_edge(
                                 edge_id=edge_id,

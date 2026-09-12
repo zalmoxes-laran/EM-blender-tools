@@ -177,12 +177,57 @@ def _redraw():
         pass
 
 
+# ══════════════════════════════════════════════════════════════════════
+# NIGHT-RIM/C1 · PRIMA FARLO PARLARE
+# ══════════════════════════════════════════════════════════════════════
+#
+# Il difetto noto: in sidecar, selezionando un proxy in Blender si seleziona
+# il nodo in EM Studio, ma non il contrario. La catena in ingresso esiste
+# tutta e il trasporto è stato provato in isolamento — quindi il messaggio
+# ARRIVA e qualcosa lo scarta. `_handle_message` aveva **quattro** punti in
+# cui scarta senza dire niente, e con quattro sospetti muti la diagnosi è
+# indovinare.
+#
+# Quindi prima si fa parlare, poi si cura. Questo diario tiene l'ultimo
+# messaggio e il suo esito, e il pannello lo mostra: la diagnosi diventa
+# visibile a chi usa e non solo a chi ha la console aperta.
+#
+# Un dizionario di modulo e non una property di scena: è informazione di
+# sessione, non di documento, e non deve finire nel .blend.
+ULTIMO_MESSAGGIO = {
+    "tipo": "", "esito": "", "ora": "", "chiavi": "", "dettaglio": "",
+}
+
+
+def _annota(tipo, esito, chiavi=(), dettaglio=""):
+    """Registra l'esito di un messaggio in ingresso, e lo stampa."""
+    import time
+    ULTIMO_MESSAGGIO.update({
+        "tipo": tipo or "?",
+        "esito": esito,
+        "ora": time.strftime("%H:%M:%S"),
+        "chiavi": ",".join(sorted(chiavi)) if chiavi else "",
+        "dettaglio": dettaglio,
+    })
+    # `print` e non `em_log`: è una diagnosi che qualcuno sta guardando adesso
+    # perché qualcosa non funziona, e `em_log` a livello INFO è filtrato.
+    coda = f" [{ULTIMO_MESSAGGIO['chiavi']}]" if ULTIMO_MESSAGGIO["chiavi"] else ""
+    extra = f" — {dettaglio}" if dettaglio else ""
+    print(f"[sync in] {tipo or '?'}: {esito}{coda}{extra}")
+
+
 def _apply_incoming_select(node_id: str, context, graph) -> bool:
     """Select + frame the object for an incoming node id. Returns True if a
     matching object was selected."""
     finder = getattr(graph, "find_node_by_id", None)
     node = finder(node_id) if callable(finder) else None
     if not node:
+        # SCARTO 4 · il nodo non è in questo grafo. Era un `return False`
+        # muto, e chi guardava non poteva distinguere «non è arrivato
+        # niente» da «è arrivato un id che qui non esiste» — che sono due
+        # diagnosi opposte.
+        _annota("select", "node_id non trovato nel grafo attivo",
+                dettaglio=str(node_id))
         return False
     select_3D_obj(node.name, context=context, graph=graph)
     _frame_selected()
@@ -456,7 +501,12 @@ def _handle_message(raw: str, context, graph, ok: bool):
     except (ValueError, TypeError):
         return
     if msg.get("source") == _SOURCE:
-        return  # our own echo
+        # SCARTO 1 · il nostro stesso eco. Giusto scartarlo, ma va detto:
+        # se EM Studio spedisse `source: "emtools"` per un suo messaggio,
+        # tutto sparirebbe qui e sembrerebbe che non arrivi niente.
+        _annota(msg.get("type", "?"), "scartato: source == emtools (eco)",
+                chiavi=tuple(msg.keys()))
+        return
     try:
         mtype, payload = read(msg)
     except WireError as exc:
@@ -464,6 +514,9 @@ def _handle_message(raw: str, context, graph, ok: bool):
         return
     # MODES1 · the ephemeral channels are gated; the requests below are not.
     if mtype in ("select", "op") and not _receives():
+        # SCARTO 2 · il cancello `em_sync_direction` non accetta in ingresso.
+        _annota(mtype, "scartato: em_sync_direction non riceve",
+                chiavi=tuple(payload.keys()))
         return
     if mtype == "select" and ok and (payload.get("node_id") or payload.get("node_ids")):
         node_ids = payload.get("node_ids")
@@ -477,6 +530,8 @@ def _handle_message(raw: str, context, graph, ok: bool):
         # suppress the echo the outbound msgbus callback would otherwise send
         active = getattr(context.view_layer.objects, "active", None)
         _last_active_name = active.name if active else _last_active_name
+        _annota(mtype, "select applicato", chiavi=tuple(payload.keys()),
+                dettaglio=str(active_id or node_ids))
     elif mtype == "op" and ok:
         _apply_op(payload, context, graph)
     elif mtype == "request_snapshot" and ok:
@@ -485,6 +540,23 @@ def _handle_message(raw: str, context, graph, ok: bool):
         _save_emjson_on_host()
     elif mtype == "command":
         _handle_command(payload, context, graph if ok else None)
+        _annota(mtype, "command gestito", chiavi=tuple(payload.keys()))
+    elif mtype == "select":
+        # SCARTO 3 · era un `select` e non è entrato nel ramo sopra. Le due
+        # ragioni possibili sono diversissime e prima erano indistinguibili,
+        # perché il messaggio cadeva fuori da tutti gli `elif` senza una
+        # riga: o non c'è un grafo caricato, o il payload non porta le
+        # chiavi che il ramo pretende (`node_id` / `node_ids`) — una
+        # `nodeId` in camelCase finirebbe esattamente qui.
+        if not ok:
+            _annota(mtype, "scartato: nessun grafo caricato",
+                    chiavi=tuple(payload.keys()))
+        else:
+            _annota(mtype, "scartato: payload senza node_id/node_ids",
+                    chiavi=tuple(payload.keys()))
+    else:
+        _annota(mtype, "nessun ramo lo gestisce",
+                chiavi=tuple(payload.keys()))
 
 
 def _handle_command(msg, context, graph):
@@ -545,6 +617,24 @@ def _save_emjson_on_host():
 # INBOUND — one-shot drain (scheduled from the server thread)
 # --------------------------------------------------------------------------- #
 
+def _sicuro(raw, context, graph, ok):
+    """`_handle_message` che non uccide il ciclo.
+
+    NIGHT-RIM/C1 · `_drain_inbox` è un callback di `bpy.app.timers`, e
+    `select_3D_obj` chiama `bpy.ops` e può aprire un popup
+    (`functions.py:758,793`). Dentro un timer un'eccezione non finisce a
+    video: Blender de-registra il timer e il ciclo in ingresso muore in
+    silenzio — dopodiché NESSUN messaggio arriva più, e il sintomo è
+    indistinguibile da «il trasporto non funziona».
+    """
+    try:
+        _handle_message(raw, context, graph, ok)
+    except Exception as exc:                        # noqa: BLE001
+        import traceback
+        _annota("?", f"ECCEZIONE: {type(exc).__name__}: {exc}")
+        traceback.print_exc()
+
+
 def _drain_inbox():
     """One-shot timer callback (MAIN thread): drain + apply every queued
     message, then unregister (return None).
@@ -569,7 +659,7 @@ def _drain_inbox():
             raw = srv.inbox.get_nowait()
         except Exception:
             break
-        _handle_message(raw, context, graph, ok)
+        _sicuro(raw, context, graph, ok)
     for message in SESSION.drain():
         # the room's frames are the same wire; `select` from a room carries a
         # `connection_id` (somebody else's awareness) and must NOT move our own
@@ -577,7 +667,7 @@ def _drain_inbox():
         if (message.get("type") == "select"
                 and (message.get("payload") or {}).get("connection_id")):
             continue
-        _handle_message(json.dumps(message), context, graph, ok)
+        _sicuro(json.dumps(message), context, graph, ok)
     if SESSION.joined:
         SESSION.ack()
     if _pending_repop:  # batch: one list rebuild for the whole drained burst

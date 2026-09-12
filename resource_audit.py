@@ -1,0 +1,101 @@
+"""Diagnosi dei nodi risorsa di un grafo — SOLA LETTURA.
+
+NIGHT-RIM/A3 chiede di contare i nodi risorsa **orfani o duplicati** e di
+riportarli, e dice esplicitamente di non bonificare: «sono dati dell'utente.
+Se E.D. vorrà una bonifica sarà un gesto suo, esplicito, un'altra volta».
+Questo modulo quindi **non cancella niente** e non ha nemmeno il codice per
+farlo: non è una dimenticanza, è il confine.
+
+Senza `bpy`, come `rm_manager/epoch_edges.py` e `rm_manager/group_nodes.py`:
+così la logica si prova fuori da Blender, che è l'unico modo di provarla
+davvero su grafi costruiti a mano.
+
+## COSA CONTA COME DIFETTO, E PERCHÉ
+
+**Orfano** — un nodo risorsa che nessun arco `has_linked_resource` raggiunge.
+Sono i nodi che l'export coniava con `uuid.uuid4()` a ogni giro: il ramo di
+aggiornamento non scattava mai, nessuno li rimuoveva (grep `remove_node` in
+`export_operators/`: zero) e un commento diceva di non richiamare l'updater
+per non cancellarli. Un grafo passato per N export porta N-1 di questi.
+
+**Duplicato** — due o più risorse appese allo STESSO nodo sorgente con lo
+STESSO url. Non è la stessa cosa di un orfano: qui l'arco c'è, ma la risorsa
+è stata creata due volte perché l'id era coniato. Due risorse con url
+diversi sullo stesso sorgente NON sono un duplicato — un modello può
+legittimamente avere un gltf e un tileset.
+"""
+
+from __future__ import annotations
+
+#: I due `node_type` che valgono come risorsa. `"link"` è il nome pre-1.6
+#: (`LinkNode`), e i grafi già salvati ne sono pieni: una diagnosi che
+#: guardasse solo `"resource"` direbbe «tutto a posto» proprio sui grafi
+#: che il difetto ha sporcato.
+TIPI_RISORSA = ("resource", "link")
+
+ARCO_RISORSA = "has_linked_resource"
+
+
+def diagnosi(nodi=(), archi=()) -> dict:
+    """Conta orfani e duplicati. Non modifica niente.
+
+    `nodi` e `archi` sono iterabili di oggetti con gli attributi di
+    s3Dgraphy (`node_id`, `node_type`, `data`; `edge_source`, `edge_target`,
+    `edge_type`). Bastano dei sosia con gli stessi attributi, ed è quello che
+    rende questa funzione provabile.
+    """
+    risorse = {}
+    for n in nodi:
+        if getattr(n, "node_type", "") in TIPI_RISORSA:
+            risorse[n.node_id] = n
+
+    #: sorgente → [id risorsa], seguendo solo gli archi giusti
+    per_sorgente = {}
+    raggiunte = set()
+    for e in archi:
+        if getattr(e, "edge_type", "") != ARCO_RISORSA:
+            continue
+        tgt = getattr(e, "edge_target", None)
+        if tgt in risorse:
+            raggiunte.add(tgt)
+            per_sorgente.setdefault(getattr(e, "edge_source", None), []).append(tgt)
+
+    orfani = sorted(set(risorse) - raggiunte)
+
+    duplicati = {}
+    for sorgente, ids in per_sorgente.items():
+        per_url = {}
+        for rid in ids:
+            n = risorse[rid]
+            dati = getattr(n, "data", None) or {}
+            url = dati.get("url", "") if isinstance(dati, dict) else ""
+            if not url:
+                url = getattr(n, "url", "") or ""
+            per_url.setdefault(url, []).append(rid)
+        for url, gruppo in per_url.items():
+            if len(gruppo) > 1:
+                duplicati[f"{sorgente} → {url or '(senza url)'}"] = sorted(gruppo)
+
+    return {
+        "risorse_totali": len(risorse),
+        "orfani": orfani,
+        "duplicati": duplicati,
+        "tipi_visti": sorted({getattr(n, "node_type", "") for n in risorse.values()}),
+    }
+
+
+def riassunto(d: dict) -> str:
+    """Una riga per la console e per il report."""
+    if not d["risorse_totali"]:
+        return "Resources: none in this graph."
+    pezzi = [f"{d['risorse_totali']} resource node(s)"]
+    if d["orfani"]:
+        pezzi.append(f"{len(d['orfani'])} ORPHAN (no has_linked_resource edge)")
+    if d["duplicati"]:
+        quanti = sum(len(v) for v in d["duplicati"].values())
+        pezzi.append(f"{quanti} DUPLICATE across {len(d['duplicati'])} source/url pair(s)")
+    if not d["orfani"] and not d["duplicati"]:
+        pezzi.append("no orphans, no duplicates")
+    if "link" in d["tipi_visti"]:
+        pezzi.append('some are pre-1.6 node_type "link"')
+    return " · ".join(pezzi)
