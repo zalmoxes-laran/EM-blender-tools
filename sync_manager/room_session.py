@@ -49,6 +49,48 @@ CLIENT_TOOL = "EMtools (Blender)"
 CLIENT_SOURCE = "emtools"
 
 
+#: C3 · i tre esiti possibili di un `select` che arriva da una stanza.
+SELECT_COMANDO = "command"
+SELECT_ECO = "echo"
+SELECT_AWARENESS = "awareness"
+
+
+def classifica_select(payload: Optional[Dict[str, Any]],
+                      mio_connection_id: Optional[str]) -> str:
+    """C3 · di chi è questa selezione, e quindi cosa farne.
+
+    Fino a stanotte i tre casi erano scartati insieme: `operators._drain_inbox`
+    buttava via OGNI `select` che portasse un `connection_id`. Non era
+    arbitrario — il commento citava un difetto misurato in P4.3, «la selezione
+    altrui non deve muovere la tua» — ma era una rete a maglie troppo larghe,
+    perché sotto c'erano tre fatti diversi:
+
+    * **comando** — nessun `connection_id`: nessuno lo ha marcato come
+      awareness di qualcuno, quindi è un ordine diretto (il sidecar parla
+      così) e deve passare;
+    * **eco** — il `connection_id` è il MIO: è la mia stessa selezione che
+      torna indietro, e applicarla sarebbe un giro a vuoto;
+    * **awareness** — il `connection_id` è di un altro: è dove sta guardando
+      lui, e non deve muovere il mio viewport.
+
+    Il `connection_id` non va inventato: `stratigraph-server/app/ws.py:466` lo
+    conia al join e `:474` lo rimanda, e `RoomSession._absorb` lo conserva già.
+
+    MISURATO, e cambia cosa ci si deve aspettare: il server **salta il
+    mittente** nel fanout (`_fanout(..., skip=member.connection_id)`), quindi
+    da una stanza il caso «eco» non arriva mai davvero. Resta scritto lo stesso,
+    e non per simmetria: è l'unica riga che rende la regola leggibile senza
+    conoscere il fanout del server, e un relay che smettesse di saltare il
+    mittente troverebbe qui la guardia invece di un viewport che sobbalza.
+    """
+    chi = str((payload or {}).get("connection_id") or "")
+    if not chi:
+        return SELECT_COMANDO
+    if mio_connection_id and chi == str(mio_connection_id):
+        return SELECT_ECO
+    return SELECT_AWARENESS
+
+
 def plan_rejoin(base: Optional[str], gc_watermark: Optional[str]) -> str:
     """`resume` or `resync` — the one rule, written the same way on both ends.
 

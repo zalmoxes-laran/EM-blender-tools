@@ -57,50 +57,102 @@ _drain_scheduled = False
 
 
 # --------------------------------------------------------------------------- #
-# MODES1 · what THIS side does on the channel (mirror of EMStudio's control)
+# C2 · UN CANCELLO SOLO, E STA DA CHI RICEVE
 # --------------------------------------------------------------------------- #
 #
-# Four states, described from Blender's point of view — each side describes
-# itself, so "send" always means "out of here":
+# Era una DIREZIONE a quattro stati (`off`/`send`/`receive`/`both`) e chiudeva
+# in tutti e due i versi. La decisione del 12-09-2026 (§6) la riduce a una sola
+# politica, **di ingresso**, e l'argomento non è il consenso ma
+# l'**osservabilità**:
 #
-#   off      no echo at all
-#   send     Blender's selection reaches EMStudio; EMStudio's does not land here
-#   receive  EMStudio's selection lands here; Blender's does not leave
-#   both     the two follow each other
+#   In sidecar i due strumenti sono PARI — un utente solo su due schermi, o due
+#   che si parlano — quindi non c'è nessuno che subisce. Ma un cancello in
+#   USCITA è invisibile all'altro capo: chi non riceve non distingue «non ha
+#   mandato» da «si è perso», ed è il terzo dei silenzi indistinguibili che
+#   questa notte esiste per separare. Un cancello in ENTRATA lo dichiara sempre
+#   chi lo chiude — lo vede nel proprio pannello, e la riga «Last inbound» gli
+#   dice che sta scartando.
 #
-# Why it exists: **nobody has somebody else's state imposed on them without
-# having chosen it.** One person on two screens wants `both`; two people working
-# at once want `off` or one direction — and without this the Blender user could
-# only unplug the whole server.
+# Tre valori e non quattro, perché sull'INGRESSO «send» e «off» erano lo stesso
+# fatto (non accetto niente) mentre selezione e operazione sono due cose diverse
+# in natura: una selezione altrui muove il mio viewport, un'operazione altrui
+# **cambia il mio grafo**. Metterle nella stessa casella era una conseguenza
+# del vocabolario vecchio, non una scelta.
 #
-# It gates the EPHEMERAL traffic (selection + ops). `request_snapshot` and
-# `request_save` are NOT gated: they are requests the client makes, not an echo,
-# and refusing them would make a connected EMStudio look broken.
+#   nothing     non entra niente
+#   selection   entra la selezione, NON le modifiche al grafo
+#   everything  entra tutto — il comportamento di sempre, e il default
+#
+# `request_snapshot`, `request_save`, `client_info` e `command` NON sono
+# governati da qui: i primi tre sono domande, non echi, e il quarto ha il suo
+# consenso (`em_accept_commands`), che è una domanda più forte e separata.
 
-SYNC_DIRECTIONS = (
-    ("off", "Off", "No echo: nothing leaves, nothing is applied"),
-    ("send", "Send", "Blender's selection reaches EMStudio; EMStudio's does not land here"),
-    ("receive", "Receive", "EMStudio's selection lands here; Blender's does not leave"),
-    ("both", "Both", "The two screens follow each other"),
+SYNC_ACCEPT = (
+    ("nothing", "Nothing", "Refuse the echo: nothing from EMStudio lands here"),
+    ("selection", "Selection", "EMStudio's selection lands here; its graph edits do not"),
+    ("everything", "Everything", "Selection and graph edits both land here"),
 )
 
+#: Il valore che vale quanto il comportamento di prima di questo controllo.
+#: Deve restare il default: un utente che non ha scelto niente non deve
+#: accorgersi che qualcuno ha cambiato le regole.
+ACCETTA_TUTTO = "everything"
 
-def _direction() -> str:
-    """The current channel direction. Defaults to `both` — which IS the
-    behaviour that existed before this control, so nothing changes for anyone
-    until they choose."""
+
+def _preferenza(nome: str, ripiego):
+    """C5 · una preferenza dell'add-on, col ripiego dichiarato.
+
+    `get_addon_preferences()` vive nel pacchetto RADICE perché è l'unico posto
+    in cui `__package__` è la radice sia da add-on sia da estensione — vedi la
+    sua docstring. Torna `None` invece di sollevare, e il ripiego giusto qui è
+    sempre «comportati come prima».
+    """
     try:
-        return str(getattr(bpy.context.scene, "em_sync_direction", "both") or "both")
-    except Exception:  # noqa: BLE001 — no scene (headless import): assume both
-        return "both"
+        from .. import get_addon_preferences
+    except ImportError as exc:      # DICHIARATO, mai ingoiato (decisione 14)
+        print(f"[sync] preferences unreachable ({exc}): using {nome}={ripiego}")
+        return ripiego
+    prefs = get_addon_preferences()
+    if prefs is None:
+        return ripiego
+    return getattr(prefs, nome, ripiego)
 
 
-def _sends() -> bool:
-    return _direction() in ("send", "both")
+def porta_sidecar() -> int:
+    """La porta su cui questo Blender serve il ponte. C5 · è una PREFERENZA
+    dell'installazione: dipende da cosa gira su questa macchina, non da quale
+    scavo si sta studiando."""
+    try:
+        return int(_preferenza("sync_port", 8788))
+    except (TypeError, ValueError):
+        return 8788
 
 
-def _receives() -> bool:
-    return _direction() in ("receive", "both")
+def _accept() -> str:
+    """Cosa questo Blender accetta in ingresso.
+
+    NOTA MISURATA (12-09-2026), perché il codice non lo lascia vedere: una
+    property RNA registrata su `bpy.types.Scene` **non compare mai** in
+    `scene.keys()`, nemmeno dopo essere stata scritta — sta nello strato RNA e
+    non fra le custom property dell'ID. Quindi il valore che un .blend
+    conservava sotto il vecchio `em_sync_direction` non è leggibile da qui, e
+    una migrazione di sola lettura è impossibile: chi aveva scelto `off` o
+    `send` si ritrova il default. È il verso giusto in cui perdere (il default
+    È il comportamento storico), ma va detto.
+    """
+    try:
+        return str(getattr(bpy.context.scene, "em_sync_accept", ACCETTA_TUTTO)
+                   or ACCETTA_TUTTO)
+    except Exception:  # noqa: BLE001 — nessuna scena (import headless)
+        return ACCETTA_TUTTO
+
+
+def _accetta_selezione() -> bool:
+    return _accept() in ("selection", "everything")
+
+
+def _accetta_operazioni() -> bool:
+    return _accept() == "everything"
 
 
 def _on_accept_commands_changed(self, context):
@@ -115,6 +167,21 @@ def _on_accept_commands_changed(self, context):
         _send_host_info(context, graph if ok else None)
     except Exception as exc:  # noqa: BLE001
         print(f"[sync] could not announce the consent change: {exc}")
+
+
+def _on_accept_changed(self, context):
+    """C2 · la politica di ingresso è cambiata → dillo subito all'altro capo.
+
+    Stessa ragione del consenso ai comandi: senza questa riga l'altro capo
+    saprebbe cosa rifiuto solo alla riconnessione, e nel frattempo vedrebbe
+    sparire i propri messaggi senza sapere perché — cioè esattamente il difetto
+    che spostare il cancello in ingresso doveva togliere di mezzo.
+    """
+    try:
+        ok, graph = is_graph_available(context)
+        _send_host_info(context, graph if ok else None)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[sync] could not announce the accept policy: {exc}")
 
 
 def _accepts_commands() -> bool:
@@ -199,6 +266,36 @@ ULTIMO_MESSAGGIO = {
 }
 
 
+#: C1 · quello che l'ALTRO CAPO ha dichiarato di avere aperto, per questa
+#: sessione. Un dizionario di modulo come `ULTIMO_MESSAGGIO` e per la stessa
+#: ragione: è informazione di sessione e non di documento, e non deve finire
+#: nel .blend di nessuno.
+PARI = {}
+
+
+def dichiarazione_del_pari() -> dict:
+    """Cosa ha detto l'altro capo di avere aperto. Vuoto = non ha detto niente,
+    che NON è la stessa cosa di «ha detto qualcosa di diverso»."""
+    return dict(PARI)
+
+
+def disallineamento(context=None, graph=None) -> dict:
+    """C1 · i due documenti a confronto, per il pannello e per il log.
+
+    Ritorna l'esito di `alignment.confronta`; con nessun pari che ha parlato
+    ritorna un esito `noto: False`, cioè «non si conclude niente» — che è
+    diverso da «siamo allineati» e va detto diversamente.
+    """
+    from . import alignment
+
+    if context is None:
+        context = bpy.context
+    if graph is None:
+        ok, graph = is_graph_available(context)
+        graph = graph if ok else None
+    return alignment.confronta(_documento(context, graph), PARI)
+
+
 def _annota(tipo, esito, chiavi=(), dettaglio=""):
     """Registra l'esito di un messaggio in ingresso, e lo stampa."""
     import time
@@ -226,7 +323,14 @@ def _apply_incoming_select(node_id: str, context, graph) -> bool:
         # muto, e chi guardava non poteva distinguere «non è arrivato
         # niente» da «è arrivato un id che qui non esiste» — che sono due
         # diagnosi opposte.
-        _annota("select", "node_id non trovato nel grafo attivo",
+        # C1 · …e DOVE ha cercato. «Non c'è» e «stai guardando altrove» sono
+        # due diagnosi opposte, e senza il nome del grafo producevano la stessa
+        # riga. Se il pari ha dichiarato un documento diverso, la frase lo dice
+        # qui — dove il sintomo si manifesta — invece di lasciarlo al pannello.
+        dove = _etichetta_del_grafo(graph)
+        esito = disallineamento(context, graph)
+        coda = f" — {esito['frase']}" if not esito["allineati"] else ""
+        _annota("select", f"node_id non trovato in {dove}{coda}",
                 dettaglio=str(node_id))
         return False
     select_3D_obj(node.name, context=context, graph=graph)
@@ -242,8 +346,14 @@ def _apply_incoming_select_many(node_ids, active_id, context, graph) -> bool:
     if not callable(finder):
         return False
     active_node = finder(active_id) if active_id else None
+    #: quanti degli id in arrivo questo grafo conosce davvero. Serve a non
+    #: raccontare «select applicato» per una selezione che non ha toccato
+    #: niente: con documenti diversi ai due capi è il caso NORMALE, non
+    #: l'eccezione, e dirlo bene è metà di C1.
+    trovati = 0
     if active_node is not None:
         select_3D_obj(active_node.name, context=context, graph=graph)
+        trovati += 1
     else:
         try:
             bpy.ops.object.select_all(action="DESELECT")
@@ -255,6 +365,7 @@ def _apply_incoming_select_many(node_ids, active_id, context, graph) -> bool:
         node = finder(nid)
         if node is None:
             continue
+        trovati += 1
         obj = bpy.data.objects.get(
             node_name_to_proxy_name(node.name, context=context, graph=graph))
         if obj is not None:
@@ -262,6 +373,13 @@ def _apply_incoming_select_many(node_ids, active_id, context, graph) -> bool:
                 obj.select_set(True)
             except Exception:
                 pass
+    if not trovati:
+        dove = _etichetta_del_grafo(graph)
+        esito = disallineamento(context, graph)
+        coda = f" — {esito['frase']}" if not esito["allineati"] else ""
+        _annota("select", f"nessuno dei {len(node_ids)} node_id è in {dove}{coda}",
+                dettaglio=str(active_id or ""))
+        return False
     _frame_selected()
     return True
 
@@ -391,13 +509,14 @@ def emit_op(op: dict):
     never collide with a word of the envelope (an `add_edge` carries
     `source`/`target` as its endpoints; the wire's `source` is who sent it).
 
-    P4.4 · the same operation goes to the ROOM when we are in one. Same gate
-    (`_sends()`): the direction control governs what leaves this Blender, and it
-    would be a strange control that stopped the message to the person next to
-    you and let it through to the server.
+    P4.4 · the same operation goes to the ROOM when we are in one.
+
+    C2 · NOTHING IS HELD BACK HERE ANY MORE. There used to be a `_sends()` gate,
+    and it was the wrong place: what this Blender does not send is invisible to
+    whoever is waiting for it, and «has not sent» looks exactly like «got lost».
+    Whoever does not want this traffic refuses it on arrival, where refusing is
+    something they can see themselves doing.
     """
-    if not _sends():          # MODES1 · off / receive: nothing leaves
-        return
     from .room_session import SESSION
 
     srv = _server
@@ -421,7 +540,15 @@ def _host_info(context, graph):
     # CMD1 · the client cannot guess whether commands will be executed, and an
     # affordance that is offered and then refused is worse than one that is
     # greyed out. So the host DECLARES it, and EMStudio reads it.
-    info = {"tool": "Blender · EMtools", "accepts_commands": _accepts_commands()}
+    # C2 · `accept` è dichiarato accanto agli altri: un cancello in ingresso è
+    # meglio di uno in uscita SOLO se l'altro capo può venirne a sapere,
+    # altrimenti «ho chiuso» e «il filo è rotto» si somigliano di nuovo.
+    info = {"tool": "Blender · EMtools", "accepts_commands": _accepts_commands(),
+            "accept": _accept(),
+            # C4 · e IN CHE MODO sta lavorando. Quello REALE, non quello
+            # dichiarato: all'altro capo serve sapere cosa c'è, non cosa
+            # qualcuno ha chiesto.
+            "mode": session_mode(context)}
     # CONNECTOR · and the DESCRIPTOR: what this host is, how it can be reached,
     # what it speaks and what it can do — declared before anything happens, so
     # EMStudio's registry can accept it (or refuse it with a reason) instead of
@@ -454,7 +581,62 @@ def _host_info(context, graph):
         label = getattr(graph, "name", None) or getattr(graph, "graph_id", "")
         if label:
             info["label"] = str(label)
+    # C1 · WHICH DOCUMENT, said as an ID and not as a file name.
+    #
+    # `file` above is a basename, and a basename identifies nothing: two people
+    # can each have a `TempluMare.em.json` on their own disk and not be on the
+    # same document, and a graph that arrived over a socket has no file at all.
+    # So the descriptor carries the graph's id — which is what a `node_id`
+    # belongs to — and the name stays as the LABEL a human reads.
+    info.update(_documento(context, graph))
     return info
+
+
+def _etichetta_del_grafo(graph) -> str:
+    """Come si chiama, per un umano, il grafo in cui abbiamo cercato."""
+    from . import alignment
+    if graph is None:
+        return "no graph loaded here"
+    return alignment.etichetta(str(getattr(graph, "graph_id", "") or ""),
+                               str(getattr(graph, "name", "") or "")) or "this graph"
+
+
+def _documento(context, graph) -> dict:
+    """What this Blender has open, in the three keys `alignment` compares.
+
+    `graph_ids` is the list of everything loaded, because Blender is
+    multigraph: "your document is in my second tab" and "I do not have your
+    document at all" are two different situations with two different cures,
+    and a single id could not tell them apart.
+    """
+    from . import alignment
+
+    detto = {}
+    ident = str(getattr(graph, "graph_id", "") or "") if graph is not None else ""
+    nome = str(getattr(graph, "name", "") or "") if graph is not None else ""
+    if ident:
+        detto[alignment.CHIAVE_ID] = ident
+    if nome:
+        detto[alignment.CHIAVE_NOME] = nome
+    tutti = []
+    try:
+        from s3dgraphy import get_graph
+        for entry in context.scene.em_tools.graphml_files:
+            altro = get_graph(entry.name)
+            altro_id = str(getattr(altro, "graph_id", "") or "") if altro else ""
+            if altro_id and altro_id not in tutti:
+                tutti.append(altro_id)
+    except ImportError as exc:
+        # DICHIARATO e non ingoiato (decisione 14): senza la libreria l'elenco
+        # è vuoto, e un elenco vuoto qui significherebbe «non ho nient'altro» —
+        # che è una risposta, non un'assenza di risposta.
+        print(f"[sync] s3dgraphy non importabile, elenco dei grafi omesso: {exc}")
+        return detto
+    except AttributeError:
+        return detto            # nessuna scena / nessun em_tools: headless
+    if tutti:
+        detto[alignment.CHIAVE_TUTTI] = tutti
+    return detto
 
 
 def _send_host_info(context, graph):
@@ -512,26 +694,38 @@ def _handle_message(raw: str, context, graph, ok: bool):
     except WireError as exc:
         print(f"[sync] refused a message: {exc}")
         return
-    # MODES1 · the ephemeral channels are gated; the requests below are not.
-    if mtype in ("select", "op") and not _receives():
-        # SCARTO 2 · il cancello `em_sync_direction` non accetta in ingresso.
-        _annota(mtype, "scartato: em_sync_direction non riceve",
+    # C2 · IL CANCELLO, e sta solo qui. Selezione e operazione sono separate
+    # perché sono diverse in natura: una muove il mio viewport, l'altra cambia
+    # il mio grafo.
+    if ((mtype == "select" and not _accetta_selezione())
+            or (mtype == "op" and not _accetta_operazioni())):
+        # SCARTO 2 · detto per esteso, col valore vero: «non riceve» non
+        # bastava a sapere quale delle due cose stavo rifiutando.
+        _annota(mtype, f"scartato: em_sync_accept = {_accept()}",
                 chiavi=tuple(payload.keys()))
         return
     if mtype == "select" and ok and (payload.get("node_id") or payload.get("node_ids")):
         node_ids = payload.get("node_ids")
         active_id = payload.get("node_id")
+        applicato = False
         if node_ids:
-            _apply_incoming_select_many(node_ids, active_id, context, graph)
+            applicato = _apply_incoming_select_many(node_ids, active_id, context, graph)
             _last_selection = frozenset(node_ids)
         elif active_id:
-            _apply_incoming_select(active_id, context, graph)
+            applicato = _apply_incoming_select(active_id, context, graph)
             _last_selection = frozenset([active_id])
         # suppress the echo the outbound msgbus callback would otherwise send
         active = getattr(context.view_layer.objects, "active", None)
         _last_active_name = active.name if active else _last_active_name
-        _annota(mtype, "select applicato", chiavi=tuple(payload.keys()),
-                dettaglio=str(active_id or node_ids))
+        # C1 · …e SOLO SE È ANDATA. Questa riga era incondizionata, e riscriveva
+        # sopra la diagnosi che `_apply_incoming_select` aveva appena scritto:
+        # un id che il grafo non conosce finiva annotato «select applicato».
+        # Trovato misurando, non leggendo — è esattamente il caso per cui la
+        # strumentazione della prima notte era stata messa, e la strumentazione
+        # si cancellava da sola.
+        if applicato:
+            _annota(mtype, "select applicato", chiavi=tuple(payload.keys()),
+                    dettaglio=str(active_id or node_ids))
     elif mtype == "op" and ok:
         _apply_op(payload, context, graph)
     elif mtype == "request_snapshot" and ok:
@@ -541,6 +735,25 @@ def _handle_message(raw: str, context, graph, ok: bool):
     elif mtype == "command":
         _handle_command(payload, context, graph if ok else None)
         _annota(mtype, "command gestito", chiavi=tuple(payload.keys()))
+    elif mtype == "client_info":
+        # C1 · L'ALTRA METÀ DELLA STRETTA DI MANO. `host_info` è come questo
+        # capo si descrive; `client_info` è come si descrive chi si è
+        # collegato — il verbo esiste già nel vocabolario dell'ecosistema
+        # (`stratigraph-server/app/ws.py`), quindi non si conia un messaggio
+        # nuovo per una domanda che ne aveva già uno.
+        #
+        # NON è governato dalla politica di ingresso: sapere cosa guarda
+        # l'altro non è un eco del suo lavoro, ed è proprio la frase che serve
+        # a chi ha chiuso il cancello per capire perché non arriva niente.
+        PARI.clear()
+        PARI.update({k: v for k, v in payload.items() if v not in (None, "")})
+        esito = disallineamento(context, graph if ok else None)
+        _annota(mtype,
+                esito["frase"] if not esito["allineati"]
+                else ("stesso documento" if esito["noto"]
+                      else "il pari non dichiara un documento"),
+                chiavi=tuple(payload.keys()))
+        _redraw()
     elif mtype == "select":
         # SCARTO 3 · era un `select` e non è entrato nel ramo sopra. Le due
         # ragioni possibili sono diversissime e prima erano indistinguibili,
@@ -647,12 +860,15 @@ def _drain_inbox():
     global _drain_scheduled, _pending_repop
     with _drain_lock:
         _drain_scheduled = False  # cleared first: messages arriving now re-arm
+    from . import room_session as _rs
     from .room_session import SESSION
     srv = _server
     if srv is None and not SESSION.joined:
         return None
     context = bpy.context
     ok, graph = is_graph_available(context)
+    # C1 · la cintura: è cambiato il documento da quando l'abbiamo detto?
+    _forse_annuncia_documento(context)
     _pending_repop = False
     while srv is not None:
         try:
@@ -661,12 +877,23 @@ def _drain_inbox():
             break
         _sicuro(raw, context, graph, ok)
     for message in SESSION.drain():
-        # the room's frames are the same wire; `select` from a room carries a
-        # `connection_id` (somebody else's awareness) and must NOT move our own
-        # selection — the bug P4.3 found in EMStudio, not repeated here
-        if (message.get("type") == "select"
-                and (message.get("payload") or {}).get("connection_id")):
-            continue
+        # C3 · I TRE CASI, adesso distinti invece che scartati insieme.
+        #
+        # Qui c'era un `continue` su OGNI `select` con un `connection_id`. Non
+        # era arbitrario (citava un difetto misurato in P4.3: la selezione
+        # altrui non deve muovere la tua) ma buttava via anche il comando
+        # diretto. Lo scarto se ne va adesso, e non prima, perché prima la
+        # distinzione non esisteva — `room_session.classifica_select` la fa, e
+        # il `connection_id` che le serve la stanza lo manda dal join.
+        if message.get("type") == "select":
+            caso = _rs.classifica_select(message.get("payload"),
+                                         SESSION.connection_id)
+            if caso != _rs.SELECT_COMANDO:
+                _annota("select", f"stanza: {caso} (non muove il viewport)",
+                        chiavi=tuple((message.get("payload") or {}).keys()),
+                        dettaglio=str((message.get("payload") or {})
+                                      .get("connection_id") or ""))
+                continue
         _sicuro(json.dumps(message), context, graph, ok)
     if SESSION.joined:
         SESSION.ack()
@@ -704,9 +931,10 @@ def _on_selection_changed(*_args):
     srv = _server
     if srv is None or not srv.running:
         return
-    if not _sends():          # MODES1 · off / receive: my selection stays here
-        return
+    # C2 · nessun cancello in uscita: vedi `emit_op`. La selezione parte sempre,
+    # e chi non la vuole la rifiuta all'arrivo — dove il rifiuto si vede.
     context = bpy.context
+    _forse_annuncia_documento(context)      # C1 · la cintura, l'altro momento
     ok, graph = is_graph_available(context)
     if not ok:
         return
@@ -750,27 +978,111 @@ def _unsubscribe_selection():
         pass
 
 
+#: L'ultimo documento ANNUNCIATO, per non ripetere lo stesso `host_info`.
+_documento_annunciato = None
+
+
+def _forse_annuncia_documento(context=None) -> bool:
+    """C1 · se il documento attivo è cambiato da quando l'abbiamo detto, ridillo.
+
+    LA CINTURA, e serve. La strada principale è la sottoscrizione `msgbus` su
+    `active_file_index`, ma msgbus è una notifica che Blender **pubblica quando
+    gli pare**: in una istanza `-b` non c'è ciclo di UI che la spurghi, e
+    misurato è esattamente lì che non arriva. Un avviso di disallineamento che
+    dipende da una notifica che può non arrivare è un avviso che a volte non
+    c'è — cioè peggio di nessuno, perché il suo silenzio verrebbe letto come
+    «siamo allineati».
+
+    Quindi si guarda anche qui, dove il costo è un confronto fra stringhe:
+    ogni volta che arriva qualcosa dal pari, e ogni volta che la selezione si
+    muove. Sono i due momenti in cui uno dei due capi sta facendo qualcosa, e
+    quindi i due momenti in cui sapere di guardare altrove serve davvero.
+    """
+    global _documento_annunciato
+    srv = _server
+    if srv is None or not srv.running:
+        _documento_annunciato = None
+        return False
+    context = context or bpy.context
+    try:
+        ok, graph = is_graph_available(context)
+        detto = _documento(context, graph if ok else None)
+    except Exception as exc:  # noqa: BLE001 — una nota non ferma il ciclo
+        print(f"[sync] could not read the active document: {exc}")
+        return False
+    impronta = json.dumps(detto, sort_keys=True)
+    if impronta == _documento_annunciato:
+        return False
+    _documento_annunciato = impronta
+    _send_host_info(context, graph if ok else None)
+    return True
+
+
+def _on_documento_changed(*_args):
+    """C1 · il documento attivo è cambiato → ridillo, subito.
+
+    Senza questa riga il descrittore veniva spedito solo alla connessione (e
+    quando cambiava il consenso), quindi cambiare scheda in Blender rendeva la
+    barra di stato di EM Studio una fotografia vecchia — e il confronto di C1
+    avrebbe confrontato con quella. Un avviso che si basa su un dato stantìo è
+    peggio di nessun avviso.
+    """
+    srv = _server
+    if srv is None or not srv.running:
+        return
+    # La stessa funzione della cintura: due strade, un solo posto che decide,
+    # e l'impronta condivisa fa sì che chi arriva secondo non ripeta.
+    _forse_annuncia_documento(bpy.context)
+
+
+def _subscribe_documento():
+    """msgbus sull'indice del documento attivo. Sottoscritto solo mentre il
+    ponte è servito: fuori da lì non c'è nessuno a cui dirlo."""
+    try:
+        from ..em_props import EM_Tools
+        bpy.msgbus.subscribe_rna(
+            key=(EM_Tools, "active_file_index"),
+            owner=_msgbus_owner,          # lo stesso proprietario: `_stop` le
+            args=(),                      # toglie entrambe con una chiamata
+            notify=_on_documento_changed,
+        )
+    except Exception as exc:  # noqa: BLE001
+        # DETTO: senza questa sottoscrizione C1 funziona lo stesso alla
+        # connessione, e smette di aggiornarsi quando si cambia scheda. È una
+        # degradazione, non un guasto, e va saputa.
+        print(f"[sync] no subscription on the active document ({exc}): "
+              f"the declared document will only refresh on connect")
+
+
 # --------------------------------------------------------------------------- #
 # lifecycle
 # --------------------------------------------------------------------------- #
 
 def _start(port: int):
     global _server, _last_active_name, _last_selection, _drain_scheduled
+    global _documento_annunciato
     if is_running():
         return
     _last_active_name = None
     _last_selection = frozenset()
+    PARI.clear()              # C1 · una sessione nuova, nessuna dichiarazione
+    _documento_annunciato = None
     with _drain_lock:
         _drain_scheduled = False
     srv = WsServer(port=port, on_message=_schedule_drain)
     srv.start()
     _server = srv
     _subscribe_selection()
+    _subscribe_documento()
 
 
 def _stop():
     global _server, _drain_scheduled
     _unsubscribe_selection()
+    # C1 · quello che il pari aveva dichiarato vale finché il pari è lì. Un
+    # avviso di disallineamento che sopravvive alla disconnessione parlerebbe
+    # di una sessione che non esiste più.
+    PARI.clear()
     if bpy.app.timers.is_registered(_drain_inbox):
         try:
             bpy.app.timers.unregister(_drain_inbox)
@@ -813,17 +1125,17 @@ MODE_HUB = "hub"
 
 
 def session_mode(context=None) -> str:
-    """Which mode this Blender is in — DERIVED, never chosen.
+    """Which mode this Blender is ACTUALLY in — read off reality, every time.
 
-    The design turn (EM_design_room-come-workspace §3) is that the ROOM is the
-    primitive and the mode follows from belonging: join a room and you are in
-    Hub mode because you are in a room, not because somebody pressed a third
-    button that then has to be kept in agreement with reality. Leave, and the
-    mode goes back on its own.
+    C4 changes what sits beside this, not this: the mode is now **declared**
+    (`em_session_mode`) and the declaration **commands**. But the declaration is
+    an order, not a fact, and an order can fail — a room can drop, a port can be
+    taken. So this function keeps reading the world, and where the two disagree
+    the panel says so instead of one of them quietly winning.
 
     The order is the precedence, and it is the honest one: being in a room is a
-    stronger fact than serving a bridge, so a Blender doing both reads as Hub —
-    that is where the shared document is.
+    stronger fact than serving a bridge. After C4 the two are EXCLUSIVE anyway,
+    so the precedence only ever decides a moment of transition.
     """
     from .room_session import SESSION
 
@@ -832,6 +1144,208 @@ def session_mode(context=None) -> str:
     if is_running():
         return MODE_SIDECAR
     return MODE_STANDALONE
+
+
+# --------------------------------------------------------------------------- #
+# C4 · IL MODO SI DICHIARA E COMANDA
+# --------------------------------------------------------------------------- #
+#
+# `session_mode()` sopra DERIVA il modo, e i tre chip del pannello erano
+# disegnati disabilitati: un referto, non un interruttore. Funzionava finché
+# c'era un solo modo alla volta per caso — e non c'era: Hub non spegneva il
+# sidecar, e i due drenavano la stessa coda.
+#
+# Adesso il modo è uno stato dichiarato che ESEGUE: scegliere Sidecar accende il
+# ponte, Standalone lo spegne, Hub richiede una stanza. I chip continuano a
+# mostrare il modo attivo — cioè `session_mode()`, la realtà — ma adesso dicono
+# la verità perché la verità è stata dichiarata da qualcuno.
+#
+# **La transizione è annunciata.** Chi era collegato in sidecar riceve un
+# ultimo `host_info` che dice dove sta andando questo Blender, prima che la
+# presa si chiuda: staccarsi in silenzio è indistinguibile da un crash, ed è il
+# quarto dei silenzi che questa notte esiste per separare.
+#
+# **QUESTIONE APERTA, e non la decido io** (`questioni-NON-decise.md` §E: «cosa
+# succede esattamente a chi era connesso in sidecar quando si passa a Room»).
+# Qui c'è il minimo che non la pregiudica: l'altro capo viene AVVISATO, con il
+# nome della stanza, e cosa farne — riconnettersi alla stanza, restare
+# standalone, aspettare — resta una decisione di E.D. e una riga di EMStudio.
+
+#: Guardia contro la ricorsione: l'`update` di una property che in certi casi
+#: riscrive la property stessa (il rifiuto) rientrerebbe qui.
+_modo_in_corso = False
+
+SESSION_MODES = (
+    (MODE_STANDALONE, "Standalone", "This Blender alone: no bridge, no room"),
+    (MODE_SIDECAR, "Sidecar", "Serve the local bridge EMStudio connects to"),
+    (MODE_HUB, "Hub", "Work in a room on an StratiGraph Server"),
+)
+
+
+def modo_dichiarato(context=None) -> str:
+    """Il modo che qualcuno ha CHIESTO. Diverso da `session_mode()`, che è
+    quello che c'è davvero."""
+    try:
+        sc = (context or bpy.context).scene
+        return str(getattr(sc, "em_session_mode", MODE_STANDALONE)
+                   or MODE_STANDALONE)
+    except Exception:  # noqa: BLE001 — nessuna scena
+        return MODE_STANDALONE
+
+
+def divergenza(context=None) -> str:
+    """Una frase quando dichiarato e reale non coincidono, "" quando coincidono.
+
+    Non si "ripara" scrivendo la dichiarazione da un `draw`: una property
+    scritta mentre si disegna è un file che diventa sporco da solo, e
+    soprattutto cancellerebbe la prova che qualcosa è andato storto. Si dice.
+    """
+    detto, vero = modo_dichiarato(context), session_mode(context)
+    if detto == vero:
+        return ""
+    return f"declared {detto}, actually {vero}"
+
+
+def _annuncia_transizione(verso: str, perche: str) -> int:
+    """Ultimo `host_info` prima che la presa si chiuda. → quanti erano collegati.
+
+    Riusa il frame che c'è, con una riga in più (`mode`): non si conia un
+    messaggio per una notizia che quel descrittore già esiste per dare.
+
+    `broadcast` scrive con `sendall`, quindi il frame è nel buffer del kernel
+    prima che `stop()` chiuda: su localhost una close (non un abort) lo
+    consegna. Non è una garanzia del protocollo e va detto — ma il caso in cui
+    si perde è quello in cui il socket era già morto, dove non c'era niente da
+    annunciare.
+    """
+    srv = _server
+    if srv is None or not srv.running:
+        return 0
+    quanti = srv.client_count()
+    if not quanti:
+        return 0
+    try:
+        info = _host_info(bpy.context, None)
+        info["mode"] = verso
+        info["label"] = perche
+        srv.broadcast(json.dumps(envelope("host_info", info, source=_SOURCE)))
+    except Exception as exc:  # noqa: BLE001 — l'annuncio non blocca l'uscita
+        print(f"[sync] could not announce the transition: {exc}")
+    return quanti
+
+
+def applica_modo(context, richiesto: str) -> dict:
+    """C4 · ESEGUE la dichiarazione. → `{'ok', 'message', 'mode'}`.
+
+    Fuori dall'`update` callback perché sia provabile e perché un operatore
+    possa chiamarla e riportare la frase. **Non** apre dialoghi: entrare in una
+    stanza vuole un token e un indirizzo, e quello resta `em.room_join`.
+    """
+    from .room_session import SESSION
+
+    vero = session_mode(context)
+    if richiesto == vero:
+        return {"ok": True, "message": f"already {vero}", "mode": vero}
+
+    if richiesto == MODE_STANDALONE:
+        detto = []
+        if is_running():
+            quanti = _annuncia_transizione(MODE_STANDALONE,
+                                           "the host is going standalone")
+            _stop()
+            detto.append(f"bridge stopped ({quanti} client(s) told)")
+        if SESSION.joined:
+            leave_room()
+            detto.append("left the room")
+        return {"ok": True, "message": "; ".join(detto) or "already standalone",
+                "mode": MODE_STANDALONE}
+
+    if richiesto == MODE_SIDECAR:
+        # ESCLUSIVITÀ · la stanza se ne va prima che il ponte si accenda.
+        # Prima i due convivevano e drenavano la stessa coda, il che voleva
+        # dire che lo stesso `op` poteva arrivare per due strade con due
+        # ordini diversi.
+        lasciata = ""
+        if SESSION.joined:
+            lasciata = str(SESSION.room_id or "the room")
+            leave_room()
+        port = porta_sidecar()
+        try:
+            _start(port)
+        except OSError as exc:
+            return {"ok": False, "mode": session_mode(context),
+                    "message": (f"port {port} is not free ({exc}) — "
+                                f"choose another one and try again")}
+        coda = f" (left {lasciata})" if lasciata else ""
+        return {"ok": True, "mode": MODE_SIDECAR,
+                "message": f"serving the bridge on {port}{coda}"}
+
+    if richiesto == MODE_HUB:
+        if not SESSION.joined:
+            # RICHIEDE UNA STANZA, e lo dice invece di fingere. Una
+            # dichiarazione che non si può eseguire non si accetta: sarebbe di
+            # nuovo un modo che mente, che è esattamente ciò che C4 toglie.
+            return {"ok": False, "mode": vero,
+                    "message": ("Hub means being in a room: join one first "
+                                "(EM Bridge ▸ Open room from link…, or Join a "
+                                "room)")}
+        if is_running():
+            quanti = _annuncia_transizione(
+                MODE_HUB, f"the host is moving into the room "
+                          f"{SESSION.room_id or ''}".strip())
+            _stop()
+            return {"ok": True, "mode": MODE_HUB,
+                    "message": f"in the room; bridge stopped "
+                               f"({quanti} client(s) told)"}
+        return {"ok": True, "mode": MODE_HUB, "message": "in the room"}
+
+    return {"ok": False, "mode": vero, "message": f"unknown mode {richiesto!r}"}
+
+
+def _dichiara(context, modo: str) -> None:
+    """Allinea la property dichiarata a un modo che è GIÀ successo.
+
+    Con la guardia alzata, perché qui la transizione l'ha già fatta chi chiama:
+    lasciare che l'`update` la rifaccia vorrebbe dire spegnere il ponte che si
+    è appena acceso.
+    """
+    global _modo_in_corso
+    _modo_in_corso = True
+    try:
+        (context or bpy.context).scene.em_session_mode = modo
+    except Exception as exc:  # noqa: BLE001 — nessuna scena, o property assente
+        print(f"[sync] could not record the declared mode: {exc}")
+    finally:
+        _modo_in_corso = False
+
+
+def _on_modo_changed(self, context):
+    """`update` della property dichiarata: esegue, e RIFIUTA rimettendo a posto.
+
+    Il rifiuto riscrive la property, quindi rientrerebbe qui: la guardia di
+    modulo è il motivo per cui non lo fa.
+    """
+    global _modo_in_corso
+    if _modo_in_corso:
+        return
+    richiesto = str(getattr(self, "em_session_mode", MODE_STANDALONE))
+    _modo_in_corso = True
+    try:
+        esito = applica_modo(context, richiesto)
+        if not esito["ok"]:
+            self.em_session_mode = esito["mode"]
+        print(f"[sync] mode {richiesto}: {esito['message']}")
+        ULTIMA_TRANSIZIONE.update({"ok": esito["ok"],
+                                   "message": esito["message"]})
+    finally:
+        _modo_in_corso = False
+    _redraw()
+
+
+#: L'esito dell'ultima transizione, per il pannello: un `report` da un `update`
+#: callback non ha un operatore in cui atterrare, quindi la frase finirebbe solo
+#: in console — cioè invisibile a chi ha appena cliccato.
+ULTIMA_TRANSIZIONE = {"ok": True, "message": ""}
 
 
 def _list_adopted_graphs(context) -> list:
@@ -944,7 +1458,7 @@ def _adopt_snapshot(doc: dict, context) -> str:
     consequence, for the same reason the command channel is opt-in: downloading
     somebody's meshes into your file is more than reading their graph. Whoever
     wants it at adoption time says so once, with
-    `Scene.em_materialise_on_adopt`, and this function honours it — with the
+    the add-on preference `materialise_on_adopt`, and this honours it — with the
     same rules as the manual action (resident only, embargo skipped with a
     reason, content-addressed so it never duplicates).
 
@@ -991,7 +1505,7 @@ def _adopt_snapshot(doc: dict, context) -> str:
         # …and, only if somebody asked for it, the geometry (DP-76). A failure
         # here must not undo an adoption that worked: the document IS adopted,
         # and the meshes are a second act reported beside it.
-        if ok and getattr(context.scene, "em_materialise_on_adopt", False):
+        if ok and bool(_preferenza("materialise_on_adopt", False)):
             try:
                 from .materialise import materialise, summarise
                 note += " · geometry: " + summarise(materialise(graph))
@@ -1024,6 +1538,19 @@ def join_room(context, base_url: str, room_id: str, token: str,
         arrival = SESSION.join(since=SESSION.last_applied)
     except Exception as exc:  # noqa: BLE001 — the reason belongs to the user
         return {"ok": False, "message": str(exc)}
+    # C4 · ESCLUSIVITÀ, e DOPO che la stanza ha risposto: spegnere il ponte
+    # prima significherebbe che un join fallito lascia questo Blender senza
+    # niente — staccato dal sidecar E fuori dalla stanza, per un indirizzo
+    # sbagliato. Chi era collegato viene avvisato con la stanza per nome prima
+    # che la presa si chiuda.
+    #
+    # Cosa EM Studio debba FARE di quell'avviso è la questione aperta §E e non
+    # la decido io: qui c'è il minimo che non la pregiudica, cioè che lo sappia.
+    congedati = 0
+    if is_running():
+        congedati = _annuncia_transizione(
+            MODE_HUB, f"the host is moving into the room {room_id}")
+        _stop()
     _schedule_drain()
     SESSION.client._on_message = lambda _raw: _schedule_drain()
 
@@ -1041,6 +1568,10 @@ def join_room(context, base_url: str, room_id: str, token: str,
         note = (note + " · " if note else "") + \
             "re-synced from the room's document (our base was older than its " \
             "compaction point)"
+    if congedati:
+        note = (note + " · " if note else "") + \
+            f"the bridge stopped and {congedati} sidecar client(s) were told"
+    _dichiara(context, MODE_HUB)
     return {"ok": True, "plan": plan, "room": SESSION.room_id,
             "members": len(SESSION.members), "host": SESSION.host_tool,
             "message": note or "joined"}
@@ -1099,6 +1630,11 @@ def leave_room() -> None:
 
     SESSION.leave()
     room_cfg.forget_token()      # the credential goes when the membership does
+    # C4 · e la dichiarazione segue il fatto. Senza questa riga il pannello
+    # direbbe «declared hub, actually standalone» per una stanza che abbiamo
+    # lasciato noi — una divergenza vera segnalata per un motivo falso, che è
+    # il modo più rapido di rendere inutile la segnalazione.
+    _dichiara(None, session_mode())
 
 
 class EM_OT_server_probe(bpy.types.Operator):
@@ -1392,30 +1928,76 @@ class EM_OT_sync_toggle(bpy.types.Operator):
     bl_description = "Start/stop the WebSocket server EMStudio connects to for live selection sync"
 
     def execute(self, context):
-        if is_running():
-            _stop()
-            self.report({"INFO"}, "EMStudio sync stopped")
-        else:
-            port = int(getattr(context.scene, "em_sync_port", 8788))
-            try:
-                _start(port)
-            except OSError as exc:
-                self.report({"ERROR"}, f"Could not start sync server on {port}: {exc}")
-                return {"CANCELLED"}
-            self.report({"INFO"}, f"EMStudio sync listening on ws://localhost:{port}")
+        # C4 · UNA SOLA STRADA. Questo bottone c'era prima della dichiarazione
+        # del modo, e lasciarlo accendere il ponte per conto suo vorrebbe dire
+        # due meccanismi per lo stesso fatto — cioè la coabitazione con la
+        # stanza che C4 esiste per togliere. Adesso è una scorciatoia per la
+        # stessa regola, e la regola annuncia, spegne l'altra metà e dichiara.
+        verso = MODE_STANDALONE if is_running() else MODE_SIDECAR
+        esito = applica_modo(context, verso)
+        if not esito["ok"]:
+            self.report({"ERROR"}, esito["message"])
+            return {"CANCELLED"}
+        _dichiara(context, esito["mode"])
+        self.report({"INFO"}, esito["message"])
+        return {"FINISHED"}
+
+
+class EM_OT_set_mode(bpy.types.Operator):
+    """C4 · dichiara il modo, da un menu.
+
+    Un operatore e non `layout.prop` nel menu: la property ha un `update` che
+    può RIFIUTARE (Hub senza stanza), e un rifiuto ha bisogno di un posto dove
+    atterrare. `layout.prop` non ne ha uno — la frase finirebbe in console,
+    cioè invisibile a chi ha appena scelto — mentre un operatore ha `report`.
+    """
+
+    bl_idname = "em.set_mode"
+    bl_label = "Set the session mode"
+    bl_description = ("Standalone, Sidecar or Hub. Choosing one DOES it: "
+                      "Sidecar starts the bridge, Standalone stops it, Hub "
+                      "needs a room you have already joined")
+
+    mode: bpy.props.StringProperty(default="")  # type: ignore
+
+    def execute(self, context):
+        esito = applica_modo(context, self.mode)
+        if not esito["ok"]:
+            self.report({"WARNING"}, esito["message"])
+            ULTIMA_TRANSIZIONE.update(esito)
+            return {"CANCELLED"}
+        _dichiara(context, esito["mode"])
+        ULTIMA_TRANSIZIONE.update(esito)
+        self.report({"INFO"}, esito["message"])
         return {"FINISHED"}
 
 
 def register():
-    if not hasattr(bpy.types.Scene, "em_sync_direction"):
-        bpy.types.Scene.em_sync_direction = bpy.props.EnumProperty(
-            name="Sync",
-            items=SYNC_DIRECTIONS,
-            default="both",
+    # C4 · il modo DICHIARATO. Non è una fotografia dello stato — quella la dà
+    # `session_mode()` — ma l'ordine che qualcuno ha dato, e che `_on_modo_changed`
+    # esegue. Sta sulla scena e non nelle preferenze perché «in che modo sto
+    # lavorando su questo progetto» è una proprietà della sessione su QUESTO
+    # documento, non dell'installazione.
+    if not hasattr(bpy.types.Scene, "em_session_mode"):
+        bpy.types.Scene.em_session_mode = bpy.props.EnumProperty(
+            name="Mode",
+            items=SESSION_MODES,
+            default=MODE_STANDALONE,
+            description=("Standalone, Sidecar or Hub. Choosing one DOES it: "
+                         "Sidecar starts the bridge, Standalone stops it, Hub "
+                         "needs a room you have already joined"),
+            update=_on_modo_changed)
+    if not hasattr(bpy.types.Scene, "em_sync_accept"):
+        bpy.types.Scene.em_sync_accept = bpy.props.EnumProperty(
+            name="Accept from EMStudio",
+            items=SYNC_ACCEPT,
+            default=ACCETTA_TUTTO,
             description=(
-                "What this side does on the live channel. Alone on two screens: "
-                "Both. Somebody else working at the same time: Off, or one "
-                "direction"))
+                "What EMStudio is allowed to land in THIS Blender. Nothing "
+                "leaves this side gated any more: what you do not send is "
+                "invisible to whoever is waiting for it, and refusing on "
+                "arrival is something you can see yourself doing"),
+            update=_on_accept_changed)
     if not hasattr(bpy.types.Scene, "em_accept_commands"):
         bpy.types.Scene.em_accept_commands = bpy.props.BoolProperty(
             name="Accept commands from EMStudio",
@@ -1425,10 +2007,6 @@ def register():
                 "geometry). Off by default: a command changes your scene, which "
                 "is more than mirroring a selection"),
             update=_on_accept_commands_changed)
-    if not hasattr(bpy.types.Scene, "em_sync_port"):
-        bpy.types.Scene.em_sync_port = bpy.props.IntProperty(
-            name="Sync Port", default=8788, min=1024, max=65535,
-            description="WebSocket port EMStudio connects to")
     # P4.4 · the room. The address and the id are saved with the project (they
     # are not secrets and re-typing them every session is friction); the TOKEN
     # is not a property at all — it lives in memory in `room.py`, because a
@@ -1443,6 +2021,7 @@ def register():
             name="Room", default="",
             description="Which room on that server")
     bpy.utils.register_class(EM_OT_sync_toggle)
+    bpy.utils.register_class(EM_OT_set_mode)
     bpy.utils.register_class(EM_OT_room_join)
     bpy.utils.register_class(EM_OT_room_open_link)
     bpy.utils.register_class(EM_OT_room_open_elsewhere)
@@ -1468,13 +2047,17 @@ def unregister():
     bpy.utils.unregister_class(EM_OT_room_open_link)
     bpy.utils.unregister_class(EM_OT_room_join)
     bpy.utils.unregister_class(EM_OT_sync_toggle)
+    try:
+        bpy.utils.unregister_class(EM_OT_set_mode)
+    except Exception:  # noqa: BLE001 — unregistering must not fail
+        pass
     if hasattr(bpy.types.Scene, "em_room_url"):
         del bpy.types.Scene.em_room_url
     if hasattr(bpy.types.Scene, "em_room_id"):
         del bpy.types.Scene.em_room_id
-    if hasattr(bpy.types.Scene, "em_sync_port"):
-        del bpy.types.Scene.em_sync_port
-    if hasattr(bpy.types.Scene, "em_sync_direction"):
-        del bpy.types.Scene.em_sync_direction
+    if hasattr(bpy.types.Scene, "em_session_mode"):
+        del bpy.types.Scene.em_session_mode
+    if hasattr(bpy.types.Scene, "em_sync_accept"):
+        del bpy.types.Scene.em_sync_accept
     if hasattr(bpy.types.Scene, "em_accept_commands"):
         del bpy.types.Scene.em_accept_commands

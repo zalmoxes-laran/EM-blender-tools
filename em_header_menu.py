@@ -92,6 +92,47 @@ class EM_MT_utils(bpy.types.Menu):
                             text="Benchmark property functions", icon='TIME')
 
 
+class EM_MT_mode(bpy.types.Menu):
+    """EM ▸ Mode — Standalone · Sidecar · Hub (C4, 13-09-2026).
+
+    Qui e non solo nel pannello perché è **raro e globale**, che è il criterio
+    di questo menu: in che modo sto lavorando si sceglie una volta per sessione,
+    e riguarda tutto il progetto e non l'oggetto selezionato.
+
+    **Operatori e non `layout.prop` sull'enum**, contro l'abitudine del resto di
+    questo file: `prop` in un menu disegna già la spunta, ma una dichiarazione
+    di modo può essere RIFIUTATA (Hub senza una stanza), e un rifiuto ha bisogno
+    di un posto dove atterrare. `prop` non ne ha uno. La spunta la disegniamo
+    noi, e mostra il modo **reale** — se dichiarato e reale divergono, la riga
+    sotto lo dice invece di far finta.
+    """
+
+    bl_idname = "EM_MT_mode"
+    bl_label = "Mode"
+
+    def draw(self, context):
+        from .sync_manager import operators as sync_ops
+
+        layout = self.layout
+        vero = sync_ops.session_mode(context)
+        for valore, etichetta, spiega in sync_ops.SESSION_MODES:
+            riga = layout.row()
+            op = riga.operator(
+                "em.set_mode",
+                text=("● " if valore == vero else "    ") + etichetta,
+                icon=('RADIOBUT_ON' if valore == vero else 'RADIOBUT_OFF'))
+            op.mode = valore
+        scarto = sync_ops.divergenza(context)
+        if scarto:
+            layout.separator()
+            layout.label(text=scarto, icon='ERROR')
+        ultima = sync_ops.ULTIMA_TRANSIZIONE
+        if ultima.get("message"):
+            layout.separator()
+            layout.label(text=str(ultima["message"])[:70],
+                         icon='INFO' if ultima.get("ok") else 'CANCEL')
+
+
 class EM_MT_settings(bpy.types.Menu):
     """EM ▸ Settings — le preferenze, che oggi si raggiungono per vie traverse."""
 
@@ -141,6 +182,7 @@ class EM_MT_header(bpy.types.Menu):
 
     def draw(self, context):
         layout = self.layout
+        layout.menu("EM_MT_mode", icon='LINKED')
         layout.menu("EM_MT_utils", icon='TOOL_SETTINGS')
         layout.menu("EM_MT_settings", icon='PREFERENCES')
         layout.menu("EM_MT_about", icon='INFO')
@@ -173,6 +215,7 @@ def _draw_in_header(self, context):
 _CLASSES = (
     EM_OT_open_addon_preferences,
     EM_MT_utils,
+    EM_MT_mode,
     EM_MT_settings,
     EM_MT_about,
     EM_MT_header,

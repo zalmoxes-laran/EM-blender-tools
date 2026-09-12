@@ -257,3 +257,69 @@ def test_leaving_closes_the_socket(session):
     client.leave()
     assert not client.joined
     assert client.send_op({"op": "add_node", "node": {"id": "x"}}) is False
+
+
+# ── C3 · i tre casi di un `select`, provati contro una stanza VERA ───────────
+#
+# Fino a stanotte `operators._drain_inbox` scartava OGNI `select` che portasse
+# un `connection_id`. Non era arbitrario — dietro c'è un difetto misurato in
+# P4.3, «la selezione altrui non deve muovere la tua» — ma era una rete a
+# maglie troppo larghe: sotto c'erano tre fatti diversi, e il comando diretto
+# finiva nel cestino insieme all'awareness.
+#
+# Questi test non asseriscono la classificazione su buste che mi scrivo da solo:
+# fanno parlare due membri di una stanza vera e guardano cosa ne esce, perché
+# la domanda «che forma ha il `select` che arriva da una stanza» è una domanda
+# sul server, non sul mio codice.
+
+def test_c3_il_select_di_un_altro_membro_arriva_marcato_con_il_SUO_id(session):
+    """Il fatto su cui poggia tutto il resto, misurato e non assunto."""
+    one, two = session.new_session(), session.new_session()
+    one.join()
+    two.join()
+    assert one.connection_id and two.connection_id
+    assert one.connection_id != two.connection_id
+    one.send_select(["US-1"], active="US-1")
+    arrivato = _wait_for(two, "select")
+    assert arrivato is not None, "la stanza non ha passato la selezione"
+    marchio = arrivato["payload"].get("connection_id")
+    assert marchio == one.connection_id, (
+        "la stanza marca la selezione col connection_id di CHI L'HA FATTA")
+    # …e per chi riceve è awareness: non è né un comando né la propria eco
+    assert session.classifica_select(
+        arrivato["payload"], two.connection_id) == session.SELECT_AWARENESS
+
+
+def test_c3_la_propria_selezione_non_torna_indietro(session):
+    """MISURATO: il server salta il mittente nel fanout, quindi il caso «eco»
+    da una stanza NON arriva mai. È il motivo per cui la guardia sull'eco non
+    si può provare facendo parlare la stanza — e resta scritta lo stesso,
+    perché è l'unica riga che rende la regola leggibile senza conoscere il
+    fanout, e perché un relay che smettesse di saltare il mittente troverebbe
+    qui una guardia invece di un viewport che sobbalza."""
+    one, two = session.new_session(), session.new_session()
+    one.join()
+    two.join()
+    one.send_select(["US-9"], active="US-9")
+    assert _wait_for(two, "select") is not None       # è partita davvero
+    assert _wait_for(one, "select", timeout=1.5) is None, (
+        "il mittente non deve ricevere la propria selezione")
+    # la guardia c'è comunque, e questo è il caso che coprirebbe
+    finta = {"connection_id": one.connection_id, "node_id": "US-9"}
+    assert session.classifica_select(finta, one.connection_id) == session.SELECT_ECO
+
+
+def test_c3_un_select_senza_connection_id_e_un_comando_e_passa(session):
+    """Il terzo caso — quello che lo scarto indiscriminato buttava via.
+
+    È la forma che parla il sidecar (`EMStudio/frontend/src/sync.ts`: il
+    payload porta `node_id`/`node_ids` e basta), e in una stanza è ciò che
+    resta se nessuno ha marcato la busta come awareness di qualcuno."""
+    client = session.new_session()
+    client.join()
+    assert session.classifica_select({"node_id": "US-1"},
+                                     client.connection_id) == session.SELECT_COMANDO
+    assert session.classifica_select({}, client.connection_id) == session.SELECT_COMANDO
+    # e un id che non è il mio resta awareness anche se non conosco nessuno
+    assert session.classifica_select({"connection_id": "qualcunaltro"},
+                                     None) == session.SELECT_AWARENESS

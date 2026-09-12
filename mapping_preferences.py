@@ -143,6 +143,33 @@ class EMToolsMappingPreferences(AddonPreferences):
         default=True
     )
 
+    # ── C5 · LIVE SYNC — le due cose che non cambiano quasi mai ───────────
+    #
+    # Il criterio della ricollocazione è **quanto spesso cambiano davvero**.
+    # Queste due si impostano una volta e non si toccano più: stavano nel
+    # pannello, dove occupavano lo spazio che serve a ciò che si guarda ogni
+    # sessione (la stanza, il modo, cosa accetto).
+    #
+    # Erano property di SCENA. Diventando preferenze cambia una cosa vera e va
+    # detta: la porta era per-progetto e adesso è per-installazione. È il verso
+    # giusto — la porta dipende da cosa gira su QUESTA macchina, non da quale
+    # scavo si sta studiando — ma un .blend che portava la sua porta non la
+    # porta più.
+    sync_port: IntProperty(
+        name="Sidecar port",
+        description=("The WebSocket port EMStudio connects to when this "
+                     "Blender serves the bridge"),
+        default=8788, min=1024, max=65535,
+    )
+
+    materialise_on_adopt: BoolProperty(
+        name="Materialise geometry when adopting a room",
+        description=("Download the room's meshes into this file as soon as its "
+                     "document is adopted. Off by default: adopting a document "
+                     "is reading, downloading somebody's meshes is more"),
+        default=False,
+    )
+
     # Modalità semplice/avanzata
     show_advanced: BoolProperty(
         name="Show Advanced Settings",
@@ -277,6 +304,16 @@ class EMToolsMappingPreferences(AddonPreferences):
         ui_box = layout.box()
         ui_box.label(text="Interface", icon='WINDOW')
         ui_box.prop(self, "show_setup_guide")
+
+        # ===== LIVE SYNC (C5) =====
+        # Qui perché non cambiano quasi mai. Ciò che si guarda ogni sessione —
+        # il modo, la stanza, cosa questo Blender accetta — resta nel pannello.
+        sync_box = layout.box()
+        sync_box.label(text="Live sync", icon='LINKED')
+        sync_box.prop(self, "sync_port")
+        sync_box.prop(self, "materialise_on_adopt")
+        sync_box.label(text="The port is this installation's, not this "
+                            "project's.", icon='INFO')
 
         # ===== SEZIONE PRINCIPALE: USER MAPPINGS =====
         box = layout.box()

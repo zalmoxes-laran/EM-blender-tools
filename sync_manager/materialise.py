@@ -387,14 +387,10 @@ def register():
     _CLASSES = _operator_classes()
     for cls in _CLASSES:
         bpy.utils.register_class(cls)
-    if not hasattr(bpy.types.Scene, "em_materialise_on_adopt"):
-        bpy.types.Scene.em_materialise_on_adopt = bpy.props.BoolProperty(
-            name="Materialise geometry on adopt",
-            default=False,
-            description=(
-                "When joining a room, also fetch the models it describes into "
-                "this scene. Off by default: adopting a document is reading, "
-                "and downloading somebody's meshes into your file is more"))
+    # C5 · `em_materialise_on_adopt` non sta più qui: è diventata una
+    # preferenza dell'add-on (`EMToolsMappingPreferences.materialise_on_adopt`)
+    # perché è una di quelle che non cambiano quasi mai, e il pannello serve a
+    # ciò che si guarda ogni sessione. La legge `operators._preferenza`.
 
 
 def unregister():
@@ -405,5 +401,3 @@ def unregister():
             bpy.utils.unregister_class(cls)
         except Exception:                   # noqa: BLE001 — unregistering must not fail
             pass
-    if hasattr(bpy.types.Scene, "em_materialise_on_adopt"):
-        del bpy.types.Scene.em_materialise_on_adopt

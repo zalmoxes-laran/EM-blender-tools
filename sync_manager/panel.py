@@ -1,26 +1,35 @@
 """Panel for the live-sync bridge and the room (tab "EM").
 
-**One control, three states, and the state is DERIVED.**
+**C4 · il modo si DICHIARA, e comanda.**
 
-EMStudio has had this for a while: a session is Standalone, Sidecar or Hub, and
-those are exclusive — one thing at a time, shown as one thing. Here there used
-to be two boxes that did not know about each other ("EMStudio Sync" with a
-Start/Stop, "Room" with a Join) and no way to say "neither", which is the state
-Blender is in most of the time.
+Fino a stanotte questo pannello *riferiva* il modo: i tre chip erano disegnati
+disabilitati, perché il modo era derivato («sei in Hub perché sei in una
+stanza») e un controllo che pretendesse altro avrebbe lasciato scegliere «Hub»
+senza essere in nessuna stanza. Era onesto e non bastava: i due modi non erano
+esclusivi — Hub non spegneva il sidecar, e i due drenavano la stessa coda —
+quindi il referto descriveva uno stato che non c'era.
 
-The design turn behind the change (`EM_design_room-come-workspace` §3): the
-**room is the primitive**, the mode **follows from belonging**, and the EM Data
-Tree becomes the room's container. So the panel does not offer a mode to pick —
-it *reports* the one the session is in, and the buttons underneath are the acts
-that change it (serve the bridge; join a room). Join a room and the mode becomes
-Hub by itself; leave and it goes back to Standalone. A mode you can set
-independently of what is true is a mode that will eventually lie.
+Adesso il modo è dichiarato e la dichiarazione ESEGUE (`operators.applica_modo`).
+I chip mostrano ancora il modo **attivo**, cioè la realtà; ma sono premibili,
+perché adesso premerli la cambia. E quando dichiarato e reale divergono — una
+stanza che cade, una porta occupata — il pannello lo DICE, invece di far vincere
+in silenzio uno dei due.
 
-**The names are EMStudio's**: Standalone · Sidecar · Hub. One vocabulary across
-the two applications — somebody switching between them should not have to learn
-that "Room" here is "Hub" there. The *place* stays a room ("in {room} · N
-present"), the *mode* is Hub: the room is where the work is, the hub is the
-service that holds it.
+**C5 · l'ordine è quanto spesso una cosa cambia davvero.**
+
+Dall'alto in basso: il **modo attivo** (a ogni sessione, ed è la prima domanda);
+la **stanza** e il suo esito (a ogni sessione); i **permessi** — cosa accetto,
+e se EM Studio può modellare qui — presentati come permessi e non come
+impostazioni, ognuno con la riga che dice cosa consente; il **server** e la
+lista (ogni tanto). La porta e «materializza all'adozione» non sono più qui: non
+cambiano quasi mai, e sono diventate preferenze dell'add-on (**EM ▸ Settings**).
+
+Sotto il modo attivo compare solo ciò che quel modo rende pertinente.
+
+**I nomi sono quelli di EM Studio**: Standalone · Sidecar · Hub. Un vocabolario
+solo fra le due applicazioni. Il *posto* resta una stanza («in {room} · N
+present»), il *modo* è Hub: la stanza è dove sta il lavoro, l'hub è il servizio
+che lo tiene.
 """
 
 from __future__ import annotations
@@ -55,139 +64,231 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         status = ops.room_status(context)
         mode = ops.session_mode(context)
 
-        # ── the three states, at the top ────────────────────────────────────
-        # Drawn as a segmented row of the three, with the current one pressed.
-        # They are NOT buttons that set the mode: the mode is derived, and a
-        # control that pretended otherwise would let somebody choose "Hub"
-        # without being in a room.
+        self._modo(layout, context, mode, running)
+        self._allineamento(layout, context)
+        self._ultimo_in_ingresso(layout)
+        if mode == ops.MODE_HUB:
+            self._in_stanza(layout, context, status)
+        self._permessi(layout, context, running)
+        self._dove(layout, context, status, running)
+
+    # ── 1 · IL MODO, in testa ───────────────────────────────────────────────
+
+    def _modo(self, layout, context, mode, running):
+        """I tre chip. C4 · adesso si premono, e premerli fa la transizione."""
         row = layout.row(align=True)
         for value, label, icon, _tip in _MODES:
             cell = row.row(align=True)
-            cell.enabled = False          # a report, not a switch
-            cell.operator("em.mode_explain", text=label, icon=icon,
+            cell.operator("em.set_mode", text=label, icon=icon,
                           depress=(value == mode)).mode = value
         current = next(m for m in _MODES if m[0] == mode)
         layout.label(text=current[3], icon="INFO")
 
-        # ── NIGHT-RIM/C1 · l'ultimo messaggio in ingresso ──────────────────
-        #
-        # Terzo dei tre passi del «prima farlo parlare»: i quattro scarti
-        # adesso loggano, ma la console la guarda chi sviluppa. Chi USA vede
-        # solo che la selezione non arriva. Questa riga rende la diagnosi
-        # visibile dove il problema si manifesta.
-        #
-        # Compare solo quando c'è qualcosa da dire: una riga vuota
-        # permanente sarebbe un'altra cosa da ignorare.
+        # LA DIVERGENZA · dichiarato e reale non coincidono. Non si "ripara"
+        # scrivendo la property da qui — scrivere mentre si disegna sporca il
+        # file da solo, e soprattutto cancellerebbe la prova che qualcosa è
+        # andato storto. Si dice.
+        scarto = ops.divergenza(context)
+        if scarto:
+            riga = layout.box()
+            riga.alert = True
+            riga.label(text=scarto, icon="ERROR")
+            riga.label(text="The declaration did not take: the panel shows "
+                            "what is actually true.", icon="BLANK1")
+
+        # L'ESITO DELL'ULTIMA TRANSIZIONE. Un rifiuto («Hub vuole una stanza»)
+        # da un `update` callback non ha un operatore in cui atterrare, quindi
+        # finirebbe solo in console — invisibile a chi ha appena scelto.
+        ultima = ops.ULTIMA_TRANSIZIONE
+        if ultima.get("message"):
+            riga = layout.row()
+            riga.alert = not ultima.get("ok", True)
+            riga.label(text=str(ultima["message"])[:70],
+                       icon="INFO" if ultima.get("ok") else "CANCEL")
+
+    # ── 2 · C1 · i due capi guardano lo stesso documento? ───────────────────
+
+    def _allineamento(self, layout, context):
+        """Un avviso, non un errore: lavorare su documenti diversi con il canale
+        aperto è legittimo (uno modella, l'altra scrive la narrazione). Non
+        saperlo no — perché il sintomo è lo stesso di un canale chiuso.
+
+        Compare SOLO quando l'altro capo ha dichiarato qualcosa di diverso: se
+        non ha dichiarato niente non si conclude nulla e non si scrive nulla, e
+        un «forse» permanente è la prima cosa che si impara a ignorare.
+        """
+        allineamento = ops.disallineamento(context)
+        if allineamento["allineati"]:
+            return
+        avviso = layout.box()
+        avviso.alert = True
+        avviso.label(text="Different documents", icon="ERROR")
+        avviso.label(text=allineamento["frase"], icon="BLANK1")
+        avviso.label(text="A node id from over there will not be found here.",
+                     icon="INFO")
+
+    # ── 3 · NIGHT-RIM/C1 · l'ultimo messaggio in ingresso ───────────────────
+
+    def _ultimo_in_ingresso(self, layout):
+        """Gli scarti loggano, ma la console la guarda chi sviluppa: chi USA
+        vede solo che la selezione non arriva. Questa riga rende la diagnosi
+        visibile dove il problema si manifesta, e compare solo quando c'è
+        qualcosa da dire."""
         ultimo = ops.ULTIMO_MESSAGGIO
-        if ultimo.get("esito"):
-            box = layout.box()
-            testa = box.row(align=True)
-            testa.label(text="Last inbound", icon='IMPORT')
-            testa.label(text=ultimo["ora"])
-            riga = box.row(align=True)
-            #: `alert` solo per un'eccezione: uno scarto legittimo (il nostro
-            #: eco, il cancello chiuso) non è un errore, e colorarlo di rosso
-            #: insegnerebbe a non leggere il rosso.
-            riga.alert = ultimo["esito"].startswith("ECCEZIONE")
-            riga.label(text=f"{ultimo['tipo']}: {ultimo['esito']}")
-            if ultimo.get("chiavi"):
-                box.label(text=f"payload keys: {ultimo['chiavi']}",
-                          icon='BLANK1')
+        if not ultimo.get("esito"):
+            return
+        box = layout.box()
+        testa = box.row(align=True)
+        testa.label(text="Last inbound", icon="IMPORT")
+        testa.label(text=ultimo["ora"])
+        riga = box.row(align=True)
+        #: `alert` solo per un'eccezione: uno scarto legittimo (il nostro eco,
+        #: il cancello chiuso) non è un errore, e colorarlo di rosso
+        #: insegnerebbe a non leggere il rosso.
+        riga.alert = ultimo["esito"].startswith("ECCEZIONE")
+        riga.label(text=f"{ultimo['tipo']}: {ultimo['esito']}")
+        if ultimo.get("chiavi"):
+            box.label(text=f"payload keys: {ultimo['chiavi']}", icon="BLANK1")
 
-        # ── in a room: what the tree is showing, and what you may do ────────
-        if mode == ops.MODE_HUB:
-            box = layout.box()
-            box.label(text=f"In {status['room_id']} · "
-                           f"{status['members']} present", icon="COMMUNITY")
-            if status.get("author"):
-                box.label(text=f"As {status['author']}", icon="USER")
-            else:
-                box.label(text="No identity in the token: edits are dated, "
-                               "not signed", icon="INFO")
-            # THE ROLE, believed rather than assumed. A panel that offered
-            # editing the server refuses would read as a broken addon instead of
-            # as a study somebody let you read (same rule as EMStudio's badge).
-            role = status.get("role")
-            if status.get("can_write") is False:
-                box.label(text=f"Read-only here ({role or 'viewer'}): the room "
-                               f"refuses edits from this Blender", icon="LOCKED")
-            elif role:
-                box.label(text=f"Role: {role}", icon="CHECKMARK")
-            box.label(text="The EM Data Tree is this room's container.",
-                      icon="OUTLINER")
-            # DP-76, consuming half. An ACTION and not a consequence of joining:
-            # adopting a document is reading, downloading somebody's meshes into
-            # your file is more. The toggle beside it is for whoever wants it at
-            # adoption time — a decision they made, not one made for them.
-            geo = box.column(align=True)
-            geo.operator("em.materialise_geometry",
-                         text="Materialise geometry from the store",
-                         icon="IMPORT")
-            geo.prop(context.scene, "em_materialise_on_adopt",
-                     text="…also when adopting")
-            geo.label(text="Only what lives in the store; an embargoed model is "
-                           "skipped with a reason.", icon="INFO")
+    # ── 4 · in una stanza: cosa mostra l'albero, e cosa puoi fare ───────────
 
-            # ── the .blend safety archive ───────────────────────────────────
-            #
-            # The other direction, and a different KIND of thing: the block
-            # above publishes an asset of record, this keeps an opaque copy of
-            # the workshop. Drawn in the room block because it goes through the
-            # room's auth, and folded into its own box because it is not part of
-            # the study — nothing here is citable.
-            safe = box.box()
-            safe.label(text="Blend backups (safety, opaque)", icon="FILE_BACKUP")
-            head = safe.row(align=True)
-            head.operator("em.blend_backup_archive",
-                          text="Archive this .blend", icon="EXPORT")
-            head.operator("em.blend_backup_list", text="", icon="FILE_REFRESH")
-            if bpy.data.is_dirty:
-                safe.label(text="Unsaved changes: a snapshot keeps the file on "
-                                "disk.", icon="ERROR")
-            try:
-                from . import backups as _backups
-                snapshots, why = _backups.listing(), _backups.note()
-            except Exception:  # noqa: BLE001 — a list that will not read is empty
-                snapshots, why = [], ""
-            if why:
-                safe.label(text=why, icon="ERROR")
-            for snap in snapshots[:8]:
-                line = safe.row(align=True)
-                sha = str(snap.get("sha256") or "")
-                name = str(snap.get("label") or snap.get("filename") or "")
-                line.label(text=f"{(name or sha[:12])[:28]} · "
-                                f"{str(snap.get('created_at') or '')[:10]}")
-                line.operator("em.blend_backup_restore", text="",
-                              icon="IMPORT").sha256 = sha
-            if snapshots:
-                safe.label(text="Restore lands BESIDE this file — it never "
-                                "replaces what you are working in.", icon="INFO")
-            else:
-                safe.label(text="Yours only: a room-mate's working file is not "
-                                "yours to read.", icon="INFO")
+    def _in_stanza(self, layout, context, status):
+        box = layout.box()
+        box.label(text=f"In {status['room_id']} · "
+                       f"{status['members']} present", icon="COMMUNITY")
+        if status.get("author"):
+            box.label(text=f"As {status['author']}", icon="USER")
+        else:
+            box.label(text="No identity in the token: edits are dated, "
+                           "not signed", icon="INFO")
+        # THE ROLE, believed rather than assumed. A panel that offered editing
+        # the server refuses would read as a broken addon instead of as a study
+        # somebody let you read (same rule as EMStudio's badge).
+        role = status.get("role")
+        if status.get("can_write") is False:
+            box.label(text=f"Read-only here ({role or 'viewer'}): the room "
+                           f"refuses edits from this Blender", icon="LOCKED")
+        elif role:
+            box.label(text=f"Role: {role}", icon="CHECKMARK")
+        box.label(text="The EM Data Tree is this room's container.",
+                  icon="OUTLINER")
+        # DP-76, consuming half. An ACTION and not a consequence of joining:
+        # adopting a document is reading, downloading somebody's meshes into
+        # your file is more.
+        geo = box.column(align=True)
+        geo.operator("em.materialise_geometry",
+                     text="Materialise geometry from the store", icon="IMPORT")
+        # C5 · «…anche all'adozione» non è più qui: è una preferenza
+        # dell'add-on, perché si decide una volta e non a ogni sessione.
+        geo.label(text="Only what lives in the store; an embargoed model is "
+                       "skipped with a reason.", icon="INFO")
 
-        # ── the acts that change the mode ──────────────────────────────────
+        self._archivio(box)
+
+    def _archivio(self, box):
+        """L'altra direzione, e un tipo di cosa DIVERSO: sopra si pubblica un
+        bene di record, qui si tiene una copia opaca dell'officina. Disegnato
+        nel blocco stanza perché passa dall'autenticazione della stanza, e
+        piegato in una sua scatola perché non fa parte dello studio — niente,
+        qui, è citabile."""
+        safe = box.box()
+        safe.label(text="Blend backups (safety, opaque)", icon="FILE_BACKUP")
+        head = safe.row(align=True)
+        head.operator("em.blend_backup_archive", text="Archive this .blend",
+                      icon="EXPORT")
+        head.operator("em.blend_backup_list", text="", icon="FILE_REFRESH")
+        if bpy.data.is_dirty:
+            safe.label(text="Unsaved changes: a snapshot keeps the file on "
+                            "disk.", icon="ERROR")
+        try:
+            from . import backups as _backups
+            snapshots, why = _backups.listing(), _backups.note()
+        except Exception:  # noqa: BLE001 — a list that will not read is empty
+            snapshots, why = [], ""
+        if why:
+            safe.label(text=why, icon="ERROR")
+        for snap in snapshots[:8]:
+            line = safe.row(align=True)
+            sha = str(snap.get("sha256") or "")
+            name = str(snap.get("label") or snap.get("filename") or "")
+            line.label(text=f"{(name or sha[:12])[:28]} · "
+                            f"{str(snap.get('created_at') or '')[:10]}")
+            line.operator("em.blend_backup_restore", text="",
+                          icon="IMPORT").sha256 = sha
+        if snapshots:
+            safe.label(text="Restore lands BESIDE this file — it never "
+                            "replaces what you are working in.", icon="INFO")
+        else:
+            safe.label(text="Yours only: a room-mate's working file is not "
+                            "yours to read.", icon="INFO")
+
+    # ── 5 · C5 · I PERMESSI, e sono permessi ───────────────────────────────
+
+    def _permessi(self, layout, context, running):
+        """Non «impostazioni»: **permessi**, e ognuno con la riga che dice cosa
+        consente. Solo mentre c'è un canale da governare — un permesso su un
+        canale che non c'è è mobilia."""
+        if not running:
+            return
+        box = layout.box()
+        box.label(text="Permissions", icon="CHECKMARK")
+
+        # C2 · UN CANCELLO SOLO, E STA DA CHI RICEVE.
+        col = box.column(align=True)
+        col.label(text="What EMStudio may land here", icon="IMPORT")
+        col.prop(context.scene, "em_sync_accept", expand=True)
+        col.label(text="Nothing leaves this side gated: what you do not send "
+                       "looks lost.", icon="INFO")
+        col.label(text="Refusing on arrival is something you can see yourself "
+                       "doing.")
+
+        # …E COSA RIFIUTA L'ALTRO CAPO. È la metà che rende vera la regola: un
+        # cancello in ingresso è meglio di uno in uscita solo se chi sta
+        # dall'altra parte può saperlo. Compare solo se l'ha dichiarato.
+        suo = ops.dichiarazione_del_pari().get("accept")
+        if suo and suo != "everything":
+            riga = col.row()
+            riga.alert = True
+            riga.label(text=f"EMStudio accepts: {suo}", icon="CANCEL")
+            col.label(text="What you send is arriving and being refused there "
+                           "— not lost here.", icon="BLANK1")
+        elif suo:
+            col.label(text=f"EMStudio accepts: {suo}", icon="CHECKMARK")
+
+        # CMD1 · il consenso ai comandi: un permesso più forte e separato —
+        # questo lascia che EM Studio MODELLI IN QUESTA SCENA. Spento di
+        # default, e mai implicato dal fatto che il canale sia aperto.
+        cmd = box.column(align=True)
+        cmd.prop(context.scene, "em_accept_commands",
+                 text="EMStudio may model in this scene")
+        if context.scene.em_accept_commands:
+            cmd.label(text="It may create proxies and import geometry here.",
+                      icon="CHECKMARK")
+        else:
+            cmd.label(text="Commands are refused (and EMStudio is told).",
+                      icon="LOCKED")
+
+    # ── 6 · dove sta questo Blender: la stanza (ogni sessione), il server ───
+
+    def _dove(self, layout, context, status, running):
         acts = layout.box()
         acts.label(text="Where this Blender is", icon="PREFERENCES")
 
-        row = acts.row()
-        row.prop(context.scene, "em_sync_port", text="Port")
-        row.enabled = not running
-        acts.operator(
-            "em.sync_toggle",
-            text="Stop serving the bridge" if running else "Serve the bridge (Sidecar)",
-            icon="RADIOBUT_ON" if running else "RADIOBUT_OFF",
-            depress=running,
-        )
         if running:
-            acts.label(text=f"ws://localhost:{context.scene.em_sync_port} · "
+            acts.label(text=f"ws://localhost:{ops.porta_sidecar()} · "
                             f"{ops.client_count()} client(s)", icon="URL")
+        # C5 · la porta non si imposta più qui: non cambia quasi mai, e sta
+        # nelle preferenze dell'add-on. Detto, con la strada per arrivarci —
+        # una impostazione che sparisce senza una riga è una impostazione che
+        # sembra rimossa.
+        porta = acts.row(align=True)
+        porta.label(text=f"Sidecar port {ops.porta_sidecar()}", icon="PLUGIN")
+        porta.operator("em.open_addon_preferences", text="", icon="PREFERENCES")
 
         # THE LINK FIRST, because it is the way in that needs nothing typed:
         # `stratigraph://open?server=&room=` carries the place, EMtools signs in
         # for itself, and the fields below become the fallback rather than the
-        # route. Offered above them deliberately — a panel that showed three
-        # fields first would teach people to fill them.
+        # route.
         if not status["joined"]:
             acts.operator("em.room_open_link", text="Open room from link…",
                           icon="URL")
@@ -195,13 +296,14 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         col = acts.column(align=True)
         col.enabled = not status["joined"]
         col.label(text="…or by hand:", icon="GREASEPENCIL")
+        # C5 · LA STANZA PRIMA DEL SERVER: il nome della stanza cambia a ogni
+        # sessione, l'indirizzo del server ogni tanto. L'ordine è quello.
+        col.prop(context.scene, "em_room_id", text="Room")
         col.prop(context.scene, "em_room_url", text="Server")
         # WHERE IS IT · a saved list (this installation's, not the .blend's) and
-        # a probe. A URL somebody typed is a hope; `/v1/health` makes it a fact,
-        # and the failures are the useful half. mDNS browsing is absent and NOT
-        # simulated — Blender's Python has no `zeroconf` — so what is offered is
-        # a direct probe of the addresses worth trying, and the Bonjour name of
-        # the other machine, which the OS resolves on its own.
+        # a probe. A URL somebody typed is a hope; `/v1/health` makes it a fact.
+        # mDNS browsing is absent and NOT simulated — Blender's Python has no
+        # `zeroconf`.
         find = col.row(align=True)
         find.operator("em.server_discover", text="Find", icon="VIEWZOOM")
         find.operator("em.server_probe", text="Probe", icon="CHECKMARK")
@@ -215,56 +317,30 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
             line.operator("em.server_use", text=entry.get("label") or entry["url"],
                           icon="WORLD").url = entry["url"]
             line.operator("em.server_forget", text="", icon="X").url = entry["url"]
-        col.prop(context.scene, "em_room_id", text="Room")
         acts.operator(
             "em.room_join",
             text="Leave the room" if status["joined"] else "Join a room (Hub)…",
             icon="UNLINKED" if status["joined"] else "LINKED",
             depress=status["joined"])
-        # ROUND-TRIP (emit-only): the same room, in EMStudio. Only while joined —
-        # off a room it would open nothing.
+        # ROUND-TRIP (emit-only): the same room, in EMStudio. Only while joined.
         if status["joined"]:
             acts.operator("em.room_open_elsewhere",
                           text="Open room in EMStudio", icon="WINDOW")
         if status.get("error"):
             acts.label(text=str(status["error"])[:60], icon="ERROR")
 
-        # ── what THIS side does on the channel (MODES1) ────────────────────
-        # Only while there is a channel to govern: a control over a channel that
-        # is not there is furniture.
-        if running:
-            col = layout.column(align=True)
-            col.label(text="Sync direction")
-            col.prop(context.scene, "em_sync_direction", expand=True)
-            col.label(text="Alone on two screens: Both.", icon="INFO")
-            col.label(text="Someone else working too: Off or one way.")
-
-            # CMD1 · consent for the command channel — a separate, stronger
-            # permission than the selection mirror: this one lets EMStudio
-            # MODEL IN THIS SCENE. Off by default, and never implied by the
-            # connection being up.
-            box = layout.box()
-            box.prop(context.scene, "em_accept_commands",
-                     text="Accept commands from EMStudio")
-            if context.scene.em_accept_commands:
-                box.label(text="EMStudio may model proxies / import geometry here.",
-                          icon="CHECKMARK")
-            else:
-                box.label(text="Commands are refused (and EMStudio is told).",
-                          icon="LOCKED")
-
 
 class EM_OT_mode_explain(bpy.types.Operator):
-    """The mode chips are a REPORT, and this is what they would say if they
-    could be pressed. Registered because a disabled `operator()` still needs
-    something to point at — and because the sentence belongs somewhere a user
-    can reach rather than only in a comment."""
+    """C4 · Restava da quando i chip erano un REFERTO: adesso sono premibili e
+    chiamano `em.set_mode`. Tenuto registrato perché la frase che diceva è
+    diventata la descrizione di quell'operatore, e perché un `bl_idname` che
+    sparisce rompe un keymap di chi l'aveva legato."""
 
     bl_idname = "em.mode_explain"
     bl_label = "What this mode means"
-    bl_description = ("Standalone / Sidecar / Hub — the mode follows what is "
-                      "true: serve the bridge to be a Sidecar, join a room to "
-                      "be in Hub. It is not a switch.")
+    bl_description = ("Standalone / Sidecar / Hub — choosing one DOES it: "
+                      "Sidecar starts the bridge, Standalone stops it, Hub "
+                      "needs a room you have already joined.")
 
     mode: bpy.props.StringProperty(default="")  # type: ignore
 
