@@ -460,8 +460,18 @@ class EM_OT_shelf_hat(Operator):
         obj = objs[0]
         ordered = [c for c in _candidates(context, 'RM')
                    if c["id"] in set(self.epoch_targets)]
+        # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome è
+        # un'etichetta. Se questa mesh ha già un RM nel grafo — perché
+        # promossa altrove, o perché arriva da un file precedente — lo shelf
+        # deve APPENDERSI a quello, non coniarne un secondo con la
+        # convenzione del nome. Il ripiego sull'eredità resta per il caso in
+        # cui l'RM non esista ancora: lì `hat_as_rm` lo crea, e quell'id è
+        # quello che la convenzione ha sempre usato.
+        from ..rm_manager.containers import resolve_rm_node_id
+        rm_id = (resolve_rm_node_id(graph, obj, scene=context.scene)
+                 or f"{obj.name}_model")
         out = shelf_backend.hat_as_rm(
-            graph, rid, rm_id=f"{obj.name}_model",   # RM Manager convention
+            graph, rid, rm_id=rm_id,
             name=f"Model for {obj.name}",            # …and its name convention
             epochs=[c["id"] for c in ordered])
         _bind_epochs(obj, [c["name"] for c in ordered])

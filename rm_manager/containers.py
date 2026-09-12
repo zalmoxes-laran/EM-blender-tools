@@ -205,6 +205,164 @@ def resolve_rm_node_id(graph, mesh_obj, *, scene=None, migra=True):
     return None
 
 
+# ══════════════════════════════════════════════════════════════════════
+# NIGHT-RIM2/B2 · LA PROMOZIONE CREA IL NODO, E LA RISORSA INTERNA
+# ══════════════════════════════════════════════════════════════════════
+#
+# Decisione di E.D.: `rm.promote_to_rm` deve creare il nodo RM nel grafo,
+# **subito**. Prima non lo creava: il `representation_model` compariva solo
+# dopo l'export, perché lo fabbricava `update_graph_with_scene_data` —
+# misurato la notte scorsa, l'oggetto risultava promosso e nel grafo non
+# c'era niente.
+#
+# Insieme al nodo nasce la RISORSA INTERNA, con locator `blend://` e l'arco
+# `has_linked_resource` dall'RM. Il pattern è quello di
+# `s3Dgraphy/shelf/core.py::_hat_facet`: riusa-o-crea, e l'arco si mette solo
+# se non c'è già — così richiamarla è idempotente, che è la condizione perché
+# l'export possa ripassarci sopra senza fare doppioni.
+#
+# DUE NODI, NON DUE INDIRIZZI (decisione 2 di E.D.): la risorsa interna e
+# quella pubblicata sono nodi distinti, legati da una derivazione. Un solo
+# nodo con un url che a volte è `blend://` romperebbe Heriverse, che si
+# aspetta un url di formato adeguato.
+
+#: Il suffisso dell'id della risorsa interna. Derivato dall'id dell'RM, come
+#: ogni altro id di questa notte: così il secondo passaggio la TROVA.
+SUFFISSO_RISORSA_INTERNA = "_res_blend"
+
+
+def blend_locator_per(obj) -> str:
+    """Il locator `blend://` di questo oggetto, o `""` se non è formabile.
+
+    Il locator cita il file dove il datablock **vive davvero** (decisione 5):
+    per un oggetto linkato da una libreria è il file della libreria — un
+    rilievo resta `rilievo2015.blend`, non lo studio aperto che lo linka.
+
+    PERCORSO RELATIVO O ASSOLUTO è una questione **non decisa** (elenco delle
+    questioni aperte, voce B). Qui c'è il minimo che non la pregiudica:
+    relativo al .blend corrente quando si può, assoluto altrimenti, e la
+    scelta sta in questa funzione sola — cambiarla resta una modifica sola.
+
+    Torna `""` quando il file non è mai stato salvato: **non** si inventa un
+    percorso temporaneo. Chi chiama lo sa e lo dice.
+    """
+    import bpy
+    import os
+    try:
+        from s3dgraphy.resources.resolver import make_blend_locator
+    except ImportError as e:
+        # NON un ripiego muto. Questo `except` ha già nascosto una volta la
+        # sua stessa causa: la s3Dgraphy caricata da Blender è la copia del
+        # WHEEL, che non ha `make_blend_locator` finché il wheel non viene
+        # ricostruito (`python scripts/rebundle_s3dgraphy.py`) o la libreria
+        # di sviluppo vendorizzata (`./em.sh s3d`). Tornavo "" e il locator
+        # risultava «non formabile» come se il file non fosse salvato — due
+        # diagnosi opposte con lo stesso sintomo, che è esattamente il difetto
+        # che questa notte esiste per togliere di mezzo.
+        print("[EM WARNING] blend:// non disponibile in questa s3Dgraphy "
+              f"({e}). Ricostruisci il wheel o vendorizza la libreria di "
+              "sviluppo: il locator interno resta non risolvibile.")
+        return ""
+
+    libreria = getattr(obj, "library", None)
+    sorgente = getattr(libreria, "filepath", "") if libreria else bpy.data.filepath
+    if not sorgente:
+        return ""
+    assoluto = bpy.path.abspath(sorgente)
+
+    corrente = bpy.data.filepath
+    percorso = assoluto
+    if corrente:
+        try:
+            base = os.path.dirname(bpy.path.abspath(corrente))
+            relativo = os.path.relpath(assoluto, base)
+            #: relativo solo se non esce dal volume e non è un labirinto di
+            #: `..`: un relativo peggiore dell'assoluto non è un vantaggio
+            if not relativo.startswith(".." + os.sep + ".."):
+                percorso = relativo
+        except ValueError:
+            #: volumi diversi su Windows: `relpath` solleva, l'assoluto regge
+            percorso = assoluto
+
+    return make_blend_locator(percorso, "Object", obj.name)
+
+
+def ensure_rm_and_internal_resource(scene, graph, obj):
+    """Il nodo RM di questa mesh e la sua risorsa interna.
+
+    Torna `(rm_id, res_id, avvisi)`. `res_id` è `None` quando la risorsa non
+    si è potuta formare; `avvisi` è una lista di stringhe da mostrare in UNA
+    riga, mai in un popup.
+
+    Idempotente: chiamarla due volte non crea doppioni, perché gli id sono
+    derivati e si cercano prima di creare.
+    """
+    avvisi = []
+    if graph is None or obj is None:
+        return None, None, avvisi
+
+    try:
+        from s3dgraphy.nodes.representation_node import RepresentationModelNode
+        from s3dgraphy.nodes.resource_node import ResourceNode
+    except Exception as e:                          # noqa: BLE001
+        return None, None, [f"s3Dgraphy non disponibile: {e}"]
+
+    # ── il nodo RM ────────────────────────────────────────────────────
+    rm_id = resolve_rm_node_id(graph, obj, scene=scene)
+    if not rm_id:
+        rm_id = f"{obj.name}{ID_MODEL_LEGACY}"
+    rm_node = graph.find_node_by_id(rm_id)
+    if rm_node is None:
+        rm_node = RepresentationModelNode(
+            node_id=rm_id,
+            name=f"Model for {obj.name}",
+            type="RM",
+            description="",
+        )
+        graph.add_node(rm_node)
+    #: l'identificatore è la property, e qui è «il primo gesto che riguarda
+    #: l'oggetto». Si scrive solo se cambia: toccarla marca il .blend come
+    #: modificato.
+    if obj.get("em_rm_node_id", "") != rm_id:
+        obj["em_rm_node_id"] = rm_id
+
+    # ── la risorsa interna ────────────────────────────────────────────
+    res_id = f"{rm_id}{SUFFISSO_RISORSA_INTERNA}"
+    locator = blend_locator_per(obj)
+    res_node = graph.find_node_by_id(res_id)
+    if res_node is None:
+        res_node = ResourceNode(
+            node_id=res_id,
+            name=f"Blend datablock for {obj.name}",
+            url=locator,
+            url_type="3d_model",
+            description=f"The mesh as it lives inside the .blend ({obj.name})",
+        )
+        graph.add_node(res_node)
+    elif locator and res_node.data.get("url") != locator:
+        #: il file è stato salvato dopo, o rinominato: il locator si fissa
+        #: adesso, e l'id NON cambia
+        res_node.data["url"] = locator
+
+    if not locator:
+        #: NON si inventa un percorso temporaneo. La risorsa esiste, e dice
+        #: di non essere ancora risolvibile.
+        res_node.data["unresolved"] = True
+        avvisi.append("Save the .blend to fix the internal resource locator")
+    else:
+        res_node.data.pop("unresolved", None)
+
+    # ── l'arco, solo se non c'è ───────────────────────────────────────
+    if not _has_edge(graph, rm_id, res_id, "has_linked_resource"):
+        graph.add_edge(
+            edge_id=f"{rm_id}_has_linked_resource_{res_id}",
+            edge_source=rm_id,
+            edge_target=res_id,
+            edge_type="has_linked_resource",
+        )
+    return rm_id, res_id, avvisi
+
+
 def _ensure_rm_node_for_mesh(scene, graph, mesh_obj) -> Optional[str]:
     """Return the node_id of the RepresentationModelNode that
     represents this mesh in the graph. Resolution order:

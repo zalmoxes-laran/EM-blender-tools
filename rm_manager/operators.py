@@ -451,7 +451,15 @@ class RM_OT_fix_orphaned_epoch(Operator):
                 # Update graph if available
                 if graph:
                     try:
-                        model_node_id = f"{obj.name}_model"
+                        # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome
+                        # è un'etichetta. Il resolver legge la property, ripiega su
+                        # `rm_list` e infine sull'eredità `f"{nome}_model"`,
+                        # scrivendola nella property una volta sola (migrazione pigra).
+                        # Il ripiego finale resta per quando il nodo non è ancora nel
+                        # grafo: lì l'eredità È l'id che si sta per creare.
+                        from .containers import resolve_rm_node_id as _risolvi
+                        model_node_id = (_risolvi(graph, obj, scene=context.scene)
+                                        or f"{obj.name}_model")
 
                         # Find the replacement epoch node
                         replacement_epoch_node = None
@@ -504,7 +512,15 @@ class RM_OT_fix_orphaned_epoch(Operator):
                 # Update graph if available
                 if graph:
                     try:
-                        model_node_id = f"{obj.name}_model"
+                        # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome
+                        # è un'etichetta. Il resolver legge la property, ripiega su
+                        # `rm_list` e infine sull'eredità `f"{nome}_model"`,
+                        # scrivendola nella property una volta sola (migrazione pigra).
+                        # Il ripiego finale resta per quando il nodo non è ancora nel
+                        # grafo: lì l'eredità È l'id che si sta per creare.
+                        from .containers import resolve_rm_node_id as _risolvi
+                        model_node_id = (_risolvi(graph, obj, scene=context.scene)
+                                        or f"{obj.name}_model")
 
                         # Remove all edges (since we're removing the only epoch)
                         edges_to_remove = []
@@ -880,7 +896,15 @@ class RM_OT_add_tileset(Operator):
                 # Ottieni il nome base del tileset senza estensione
                 tileset_filename = os.path.basename(self.tileset_path)
                 tileset_name = os.path.splitext(tileset_filename)[0]
-                model_node_id = f"{obj.name}_model"
+                # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome
+                # è un'etichetta. Il resolver legge la property, ripiega su
+                # `rm_list` e infine sull'eredità `f"{nome}_model"`,
+                # scrivendola nella property una volta sola (migrazione pigra).
+                # Il ripiego finale resta per quando il nodo non è ancora nel
+                # grafo: lì l'eredità È l'id che si sta per creare.
+                from .containers import resolve_rm_node_id as _risolvi
+                model_node_id = (_risolvi(graph, obj, scene=context.scene)
+                                or f"{obj.name}_model")
 
                 model_node = RepresentationModelNode(
                     node_id=model_node_id,
@@ -986,7 +1010,15 @@ class RM_OT_set_tileset_path(Operator, ImportHelper):
                 graph = get_graph(graphml.name)
                 
                 if graph:
-                    model_node_id = f"{obj.name}_model"
+                    # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome
+                    # è un'etichetta. Il resolver legge la property, ripiega su
+                    # `rm_list` e infine sull'eredità `f"{nome}_model"`,
+                    # scrivendola nella property una volta sola (migrazione pigra).
+                    # Il ripiego finale resta per quando il nodo non è ancora nel
+                    # grafo: lì l'eredità È l'id che si sta per creare.
+                    from .containers import resolve_rm_node_id as _risolvi
+                    model_node_id = (_risolvi(graph, obj, scene=context.scene)
+                                    or f"{obj.name}_model")
                     model_node = graph.find_node_by_id(model_node_id)
                     
                     if model_node:
@@ -1218,7 +1250,15 @@ class RM_OT_update_list(Operator):
                     # Crea un nuovo elemento per l'oggetto
                     item = rm_list.add()
                     item.name = obj.name
-                    item.node_id = f"{obj.name}_model"
+                    # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome
+                    # è un'etichetta. Il resolver legge la property, ripiega su
+                    # `rm_list` e infine sull'eredità `f"{nome}_model"`,
+                    # scrivendola nella property una volta sola (migrazione pigra).
+                    # Il ripiego finale resta per quando il nodo non è ancora nel
+                    # grafo: lì l'eredità È l'id che si sta per creare.
+                    from .containers import resolve_rm_node_id as _risolvi
+                    item.node_id = (_risolvi(graph, obj, scene=context.scene)
+                                   or f"{obj.name}_model")
                     item.object_exists = True
                     
                     # Ordina le epoche per tempo di inizio
@@ -1758,7 +1798,15 @@ class RM_OT_resolve_mismatches(Operator):
                     obj_epochs = [ep.epoch for ep in obj.EM_ep_belong_ob if ep.epoch != "no_epoch"]
                     
                     # Aggiorna il grafo con le epoche dell'oggetto
-                    model_node_id = f"{obj.name}_model"
+                    # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome
+                    # è un'etichetta. Il resolver legge la property, ripiega su
+                    # `rm_list` e infine sull'eredità `f"{nome}_model"`,
+                    # scrivendola nella property una volta sola (migrazione pigra).
+                    # Il ripiego finale resta per quando il nodo non è ancora nel
+                    # grafo: lì l'eredità È l'id che si sta per creare.
+                    from .containers import resolve_rm_node_id as _risolvi
+                    model_node_id = (_risolvi(graph, obj, scene=context.scene)
+                                    or f"{obj.name}_model")
                     model_node = graph.find_node_by_id(model_node_id)
                     
                     if model_node:
@@ -1927,8 +1975,36 @@ class RM_OT_promote_to_rm(Operator):
             # Aggiorna il grafo se disponibile (opzionale)
             if graph:
                 try:
-                    model_node_id = f"{obj.name}_model"
-                    
+                    # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome
+                    # è un'etichetta. Il resolver legge la property, ripiega su
+                    # `rm_list` e infine sull'eredità `f"{nome}_model"`,
+                    # scrivendola nella property una volta sola (migrazione pigra).
+                    # Il ripiego finale resta per quando il nodo non è ancora nel
+                    # grafo: lì l'eredità È l'id che si sta per creare.
+                    from .containers import resolve_rm_node_id as _risolvi
+                    # NIGHT-RIM2/B2 · la promozione CREA il nodo RM e la
+                    # sua risorsa interna, invece di limitarsi a scrivere
+                    # archi verso un nodo che nessuno aveva creato.
+                    #
+                    # Prima il `representation_model` compariva solo dopo
+                    # l'export, perché lo fabbricava
+                    # `update_graph_with_scene_data`: l'oggetto risultava
+                    # promosso e nel grafo non c'era niente. Misurato la
+                    # notte scorsa, e decisione 1 di E.D.
+                    #
+                    # È idempotente (id derivati, riusa-o-crea), quindi se
+                    # l'export richiama l'updater il nodo viene TROVATO e
+                    # non rifatto.
+                    from .containers import ensure_rm_and_internal_resource
+                    model_node_id, _res_id, _avvisi = (
+                        ensure_rm_and_internal_resource(scene, graph, obj))
+                    for _a in _avvisi:
+                        #: una riga, non un popup
+                        self.report({'INFO'}, _a)
+                    if not model_node_id:
+                        model_node_id = (_risolvi(graph, obj, scene=context.scene)
+                                        or f"{obj.name}_model")
+
                     # Rimuovi vecchi edge (in qualsiasi direzione); qui si
                     # riscrivono solo first/survive, mentre gli edge
                     # has_representation_model li rispecchia sync_epoch_edges
@@ -2088,7 +2164,15 @@ class RM_OT_remove_epoch_from_rm_list(Operator):
         # Aggiorna il grafo se disponibile
         if graph:
             try:
-                model_node_id = f"{obj.name}_model"
+                # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome
+                # è un'etichetta. Il resolver legge la property, ripiega su
+                # `rm_list` e infine sull'eredità `f"{nome}_model"`,
+                # scrivendola nella property una volta sola (migrazione pigra).
+                # Il ripiego finale resta per quando il nodo non è ancora nel
+                # grafo: lì l'eredità È l'id che si sta per creare.
+                from .containers import resolve_rm_node_id as _risolvi
+                model_node_id = (_risolvi(graph, obj, scene=context.scene)
+                                or f"{obj.name}_model")
                 
                 # Rimuovi gli edge per quest'epoch
                 remove_epoch_edges(graph, model_node_id, [epoch_name])
@@ -2192,7 +2276,15 @@ class RM_OT_remove_epoch_from_selected(Operator):
             # Aggiorna il grafo se disponibile
             if graph:
                 try:
-                    model_node_id = f"{obj.name}_model"
+                    # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome
+                    # è un'etichetta. Il resolver legge la property, ripiega su
+                    # `rm_list` e infine sull'eredità `f"{nome}_model"`,
+                    # scrivendola nella property una volta sola (migrazione pigra).
+                    # Il ripiego finale resta per quando il nodo non è ancora nel
+                    # grafo: lì l'eredità È l'id che si sta per creare.
+                    from .containers import resolve_rm_node_id as _risolvi
+                    model_node_id = (_risolvi(graph, obj, scene=context.scene)
+                                    or f"{obj.name}_model")
 
                     # Rimuovi gli edge per quest'epoch
                     remove_epoch_edges(graph, model_node_id, [active_epoch.name])
@@ -2311,7 +2403,15 @@ class RM_OT_remove_epoch(Operator):
             # Aggiorna il grafo se disponibile
             if graph:
                 try:
-                    model_node_id = f"{obj.name}_model"
+                    # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome
+                    # è un'etichetta. Il resolver legge la property, ripiega su
+                    # `rm_list` e infine sull'eredità `f"{nome}_model"`,
+                    # scrivendola nella property una volta sola (migrazione pigra).
+                    # Il ripiego finale resta per quando il nodo non è ancora nel
+                    # grafo: lì l'eredità È l'id che si sta per creare.
+                    from .containers import resolve_rm_node_id as _risolvi
+                    model_node_id = (_risolvi(graph, obj, scene=context.scene)
+                                    or f"{obj.name}_model")
                     
                     # Rimuovi gli edge per quest'epoch
                     remove_epoch_edges(graph, model_node_id, [self.epoch_name])
@@ -2383,7 +2483,15 @@ class RM_OT_remove_from_epoch(Operator):
         # Gestisci il grafo se disponibile
         if graph:
             # Identificativo del nodo RM
-            model_node_id = f"{obj.name}_model"
+            # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome
+            # è un'etichetta. Il resolver legge la property, ripiega su
+            # `rm_list` e infine sull'eredità `f"{nome}_model"`,
+            # scrivendola nella property una volta sola (migrazione pigra).
+            # Il ripiego finale resta per quando il nodo non è ancora nel
+            # grafo: lì l'eredità È l'id che si sta per creare.
+            from .containers import resolve_rm_node_id as _risolvi
+            model_node_id = (_risolvi(graph, obj, scene=context.scene)
+                            or f"{obj.name}_model")
             rm_node = graph.find_node_by_id(model_node_id)
             
             if rm_node:
@@ -2458,7 +2566,15 @@ class RM_OT_demote_from_rm(Operator):
             
             # Se il grafo è disponibile, rimuovi anche il nodo e gli edge dal grafo
             if graph:
-                model_node_id = f"{obj.name}_model"
+                # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome
+                # è un'etichetta. Il resolver legge la property, ripiega su
+                # `rm_list` e infine sull'eredità `f"{nome}_model"`,
+                # scrivendola nella property una volta sola (migrazione pigra).
+                # Il ripiego finale resta per quando il nodo non è ancora nel
+                # grafo: lì l'eredità È l'id che si sta per creare.
+                from .containers import resolve_rm_node_id as _risolvi
+                model_node_id = (_risolvi(graph, obj, scene=context.scene)
+                                or f"{obj.name}_model")
                 model_node = graph.find_node_by_id(model_node_id)
                 
                 if model_node:
@@ -2831,7 +2947,15 @@ class RM_OT_apply_epoch_mapping(Operator):
 
                         # Update graph edges if graph is available
                         if graph:
-                            model_node_id = f"{obj.name}_model"
+                            # NIGHT-RIM2/A2 · l'identificatore è `em_rm_node_id`; il nome
+                            # è un'etichetta. Il resolver legge la property, ripiega su
+                            # `rm_list` e infine sull'eredità `f"{nome}_model"`,
+                            # scrivendola nella property una volta sola (migrazione pigra).
+                            # Il ripiego finale resta per quando il nodo non è ancora nel
+                            # grafo: lì l'eredità È l'id che si sta per creare.
+                            from .containers import resolve_rm_node_id as _risolvi
+                            model_node_id = (_risolvi(graph, obj, scene=context.scene)
+                                            or f"{obj.name}_model")
 
                             # Find replacement epoch node
                             replacement_epoch_node = None
