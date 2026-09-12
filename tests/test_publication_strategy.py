@@ -152,3 +152,38 @@ def test_le_due_famiglie_di_impronta_si_distinguono_a_occhio():
     nuova = RL.impronta_strutturale({"v": 8})
     assert not vecchia.startswith(RL.PREFISSO_STRUTTURALE)
     assert nuova.startswith(RL.PREFISSO_STRUTTURALE)
+
+
+# ── T1 · le due distribuzioni del tileset ──────────────────────────────────
+
+def test_i_due_suffissi_sono_distinti_e_quello_storico_non_e_cambiato():
+    """Dallo stesso insieme di master nascono due distribution con id distinti
+    e stabili. `_link` resta com'era di proposito: cambiarlo renderebbe orfano
+    il nodo di ogni grafo già scritto."""
+    assert RL.SUFFISSO_DERIVATA == "_link"
+    assert RL.SUFFISSO_ARCHIVIO == "_archive"
+    assert RL.SUFFISSO_DERIVATA != RL.SUFFISSO_ARCHIVIO
+    base = "muro_model"
+    assert (f"{base}{RL.SUFFISSO_DERIVATA}", f"{base}{RL.SUFFISSO_ARCHIVIO}") \
+        == ("muro_model_link", "muro_model_archive")
+
+
+def test_gli_id_sono_STABILI_cioe_derivati_e_non_coniati():
+    """La proprietà su cui si regge «zero nodi nuovi al secondo export»: un id
+    derivato dal nodo RM è lo stesso a ogni giro, un id coniato no."""
+    for base in ("a", "b_model", "US001_shape"):
+        due_volte = {f"{base}{RL.SUFFISSO_DERIVATA}"
+                     for _ in range(2)}
+        assert len(due_volte) == 1
+
+
+# ── T2 · l'impronta dichiara su quale mesh è stata presa ───────────────────
+
+def test_l_impronta_della_mesh_valutata_si_distingue_da_quella_base():
+    """Due impronte prese su mesh diverse non sono confrontabili come se
+    fossero la stessa cosa — la stessa regola che distingue `struct:` da
+    `mtime:`. `ev=1` è il marcatore, e viaggia dentro le misure."""
+    base = RL.impronta_strutturale({"v": 8, "f": 6})
+    valutata = RL.impronta_strutturale({"v": 8, "f": 6, "ev": 1})
+    assert base != valutata
+    assert "ev=1" in valutata and "ev=" not in base

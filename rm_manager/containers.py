@@ -312,55 +312,126 @@ def blend_locator_per(obj) -> str:
     return make_blend_locator(percorso, "Object", obj.name)
 
 
+def _misure_da_mesh(mesh, oggetto) -> dict:
+    """Conteggi, ingombro in coordinate di mondo e materiali, da una mesh e
+    dall'oggetto che le dà la trasformazione. Una funzione sola perché le due
+    strade — base e valutata — devono misurare **le stesse cose**: se
+    divergessero, confrontare due impronte non vorrebbe dire più niente."""
+    misure = {}
+    vertici = getattr(mesh, "vertices", None)
+    poligoni = getattr(mesh, "polygons", None)
+    if vertici is not None:
+        misure["v"] = len(vertici)
+    if poligoni is not None:
+        misure["f"] = len(poligoni)
+    # L'INGOMBRO SOLO SE ABBIAMO MISURATO DELLA GEOMETRIA.
+    #
+    # Un empty ha un `bound_box` di otto zeri, che trasformato dà otto volte
+    # la sua posizione: non solleva, quindi il vecchio `try/except` non lo
+    # prendeva e il commento accanto — «un empty non ha un ingombro: assente,
+    # non zero» — diceva una cosa che il codice non faceva. Misurato
+    # (NIGHT-FIN/T2): un empty usciva con `bb=0,0,0,0,0,0`.
+    #
+    # Adesso è vero: senza conteggi non c'è geometria, e senza geometria un
+    # ingombro è un numero su niente. L'impronta di un empty resta vuota, che
+    # vuol dire «non so» — e per un tileset esterno è la risposta giusta: la
+    # sua sorgente non è in questo file.
+    if misure:
+        try:
+            matrice = oggetto.matrix_world
+            angoli = [matrice @ mathutils.Vector(c) for c in oggetto.bound_box]
+            misure["bb"] = [
+                min(a.x for a in angoli), min(a.y for a in angoli),
+                min(a.z for a in angoli), max(a.x for a in angoli),
+                max(a.y for a in angoli), max(a.z for a in angoli)]
+        except (AttributeError, TypeError):
+            pass
+    nomi = sorted(str(m.name) for m in (getattr(mesh, "materials", None) or [])
+                  if m is not None)
+    if nomi:
+        misure["mat"] = "|".join(nomi)
+    return misure
+
+
 def misura_oggetto(obj) -> dict:
-    """NIGHT-RES/R5 · le misure STRUTTURALI di un oggetto, a costo O(1).
+    """Le misure STRUTTURALI di un oggetto — e su QUALE mesh, che è la
+    domanda che NIGHT-FIN/T2 ha chiuso.
 
-    Conteggi (`len`, che una mesh tiene già), gli otto vertici del bounding box
-    portati in coordinate di mondo, i nomi dei materiali ordinati. Niente viene
-    serializzato e niente viene valutato: è quello che rende questa impronta
-    pagabile a ogni bake e per ogni oggetto.
+    Conteggi, gli otto vertici del bounding box portati in coordinate di
+    mondo, i nomi dei materiali. Niente viene serializzato.
 
-    **Il bounding box è in coordinate di MONDO, e non è un dettaglio.** Se
-    sposti un muro, il glTF esportato cambia — quindi la derivata *è* stantia,
-    e un'impronta in coordinate locali direbbe di no.
+    **DUE STRADE, e la scelta è il numero di modificatori.**
 
-    **LIMITE DICHIARATO**: `obj.data.vertices` è la mesh BASE, non quella
-    valutata. Un cambio di modificatore (il livello di una subdivision, per
-    dire) cambia ciò che l'export produce e **qui non si vede**. Valutare il
-    depsgraph per oggetto non è più O(1), che è l'unica ragione per cui questa
-    funzione si può permettere di girare sempre. È un falso negativo noto, ed è
-    il verso sbagliato in cui sbagliare — va detto, e la cura è un bottone
-    «rifai il bake» che resta sempre disponibile.
+    Senza modificatori la mesh base *è* quella valutata, quindi valutarla
+    sarebbe pagare per niente. Con almeno un modificatore no: NIGHT-RES aveva
+    misurato un falso negativo — alzare il livello di una subdivision cambia
+    ciò che l'export scrive e l'impronta non se ne accorgeva — e nella
+    pubblicazione un falso negativo costa più di un falso positivo: un «è
+    aggiornato» sbagliato pubblica roba vecchia credendola fresca, mentre un
+    «rifai il bake» di troppo costa un bottone.
+
+    **I costi, misurati** (14-09-2026, per oggetto, media su molti giri):
+
+    ====================================  ========  ==========
+    scena                                 base      valutata
+    ====================================  ========  ==========
+    10 cubi, nessun modificatore          5,31 µs   7,80 µs
+    10 cubi + subsurf 2 (96 facce)        5,13 µs   13,35 µs
+    20 mesh da 3750 facce, nessun mod.    5,00 µs   8,27 µs
+    …le stesse + subsurf 1 (15k facce)    5,25 µs   217,12 µs
+    ====================================  ========  ==========
+
+    Il costo della valutata cresce con la mesh RISULTANTE, non con quella
+    base: 217 µs su 15 000 facce valutate sono 0,2 s su mille oggetti, e si
+    pagano **solo dove i modificatori ci sono**. Sono anche una frazione di
+    ciò che l'export sta già spendendo su quegli stessi oggetti, visto che per
+    scrivere il glTF la mesh valutata gli serve comunque.
+
+    **`ev=1` viaggia nelle misure** quando la strada è stata la seconda. Due
+    impronte prese su mesh diverse non sono confrontabili come se fossero la
+    stessa cosa, ed è la regola che già distingue `struct:` da `mtime:`.
+    Effetto laterale voluto: aggiungere un modificatore che non cambia niente
+    rende la derivata stantia. È un falso positivo, cioè il verso giusto.
+
+    **LIMITE CHE RESTA** (e sta anche in `resource_levels.impronta_strutturale`,
+    perché è lì che qualcuno potrebbe credere il contrario): l'impronta **non è
+    crittografica**. Spostare un vertice dentro il bounding box senza cambiare
+    conteggi né materiali dà la stessa impronta — misurato. Il suo mestiere è
+    spegnere il rumore, non dimostrare l'identità; per quella c'è lo sha256
+    dei byte prodotti, che il verbale scrive già.
 
     Torna `{}` quando non c'è niente da misurare: chi legge distingue «non so»
     da «diverso».
     """
     if obj is None:
         return {}
-    misure = {}
-    dati = getattr(obj, "data", None)
-    vertici = getattr(dati, "vertices", None)
-    poligoni = getattr(dati, "polygons", None)
-    if vertici is not None:
-        misure["v"] = len(vertici)
-    if poligoni is not None:
-        misure["f"] = len(poligoni)
+    if not getattr(obj, "modifiers", None):
+        return _misure_da_mesh(getattr(obj, "data", None), obj)
+
+    # ── la strada della mesh VALUTATA ──────────────────────────────────────
+    valutato = None
     try:
-        matrice = obj.matrix_world
-        angoli = [matrice @ mathutils.Vector(c) for c in obj.bound_box]
-        misure["bb"] = [
-            min(a.x for a in angoli), min(a.y for a in angoli),
-            min(a.z for a in angoli), max(a.x for a in angoli),
-            max(a.y for a in angoli), max(a.z for a in angoli)]
-    except (AttributeError, TypeError):
-        #: un oggetto senza geometria (un empty) non ha un ingombro: assente,
-        #: non zero. Uno zero direbbe «è un punto nell'origine», che è falso.
-        pass
-    nomi = sorted(str(m.name) for m in (getattr(dati, "materials", None) or [])
-                  if m is not None)
-    if nomi:
-        misure["mat"] = "|".join(nomi)
-    return misure
+        grafo = bpy.context.evaluated_depsgraph_get()
+        valutato = obj.evaluated_get(grafo)
+        mesh = valutato.to_mesh()
+    except (AttributeError, RuntimeError) as exc:
+        # DETTO, non ingoiato: senza un depsgraph (un contesto che non ce
+        # l'ha, un oggetto che non sa produrre una mesh) si ripiega sulla
+        # base, che è la misura di prima — ma allora il falso negativo del
+        # modificatore torna, e chi legge deve saperlo.
+        print(f"[EM WARNING] {getattr(obj, 'name', '?')}: mesh valutata non "
+              f"disponibile ({exc}); impronta sulla mesh base, un cambio di "
+              f"modificatore non si vedrà")
+        return _misure_da_mesh(getattr(obj, "data", None), obj)
+    try:
+        misure = _misure_da_mesh(mesh, valutato)
+        misure["ev"] = 1
+        return misure
+    finally:
+        try:
+            valutato.to_mesh_clear()
+        except (AttributeError, RuntimeError):
+            pass
 
 
 def impronta_di(obj) -> str:

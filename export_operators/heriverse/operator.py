@@ -40,6 +40,97 @@ class EXPORT_OT_heriverse(Operator):
     bl_description = "Export project in Heriverse format with models, proxies and documentation"
     bl_options = {'REGISTER', 'UNDO'}
 
+    #: Gli esiti dell'export in corso. Attributi di CLASSE come default, così
+    #: `_fallito` e `_saltato` non esplodono se qualcuno li chiama da un
+    #: percorso che non è passato da `execute` — una prova, per esempio. Li
+    #: rimpiazza `_azzera_esiti` con liste di istanza a ogni export.
+    _esiti_falliti = ()
+    _esiti_saltati = ()
+
+    # ── NIGHT-FIN/T4 · FALLITO NON È SALTATO ───────────────────────────────
+    #
+    # Regola 24, nata dal ramo del tileset rimasto morto per un intero commit
+    # range: `export_tilesets` usava `scene` senza averlo mai legato, il
+    # `NameError` finiva nell'`except Exception` di turno e usciva come un
+    # warning fra i warning. Nessuno se n'è accorto perché **non c'era niente
+    # da accorgersi**: la riga diceva la stessa cosa che dice un tileset
+    # legittimamente saltato.
+    #
+    # Due cose, e sono separate.
+    #
+    # (1) Le eccezioni di PROGRAMMAZIONE non vengono catturate: emergono.
+    # (2) Il canale dei warning distingue «è fallito» da «l'ho saltato».
+
+    #: I difetti del CODICE, che non sono condizioni del dato.
+    #:
+    #: Un `NameError` è sempre un bug. `AttributeError` e `TypeError` possono
+    #: nascere anche da un dato storto (un nodo senza `.data`), quindi
+    #: rilanciarli **è un compromesso e va detto**: un export che prima
+    #: sopravviveva a un oggetto malformato adesso si ferma con un traceback.
+    #: È il verso giusto — il gestore esterno di `execute` lo raccoglie e lo
+    #: stampa per intero, quindi il difetto si vede invece di nascondersi — e
+    #: la cura, quando morde su un dato, è mettere una guardia in QUEL punto,
+    #: non rimettere il cappuccio su tutti.
+    DIFETTI_DI_PROGRAMMAZIONE = (NameError, AttributeError, TypeError,
+                                 ImportError)
+
+    def _fallito(self, cosa, perche, exc=None):
+        """Qualcosa si è ROTTO: doveva riuscire e non è riuscito."""
+        self._esiti_falliti.append(str(cosa))
+        messaggio = f"[export] FALLITO · {cosa}: {perche}"
+        em_log(messaggio, "ERROR")
+        self.report({'WARNING'}, messaggio)
+        if exc is not None:
+            import traceback
+            traceback.print_exception(type(exc), exc, exc.__traceback__)
+
+    def _saltato(self, cosa, perche, avvisa=False):
+        """Qualcosa NON è stato fatto, e andava bene così: non pubblicabile,
+        sostituito da un tileset, già estratto, nessun oggetto in scena.
+
+        Voce diversa da `_fallito` perché è una notizia diversa: una la si
+        legge e si va avanti, l'altra va guardata. Finché parlavano uguale,
+        guardarle tutte costava troppo e non le guardava nessuno.
+
+        `avvisa=True` è il terzo caso, che questa distinzione ha fatto
+        emergere: **saltato, ma l'avevi chiesto tu**. Se manca Pillow, la
+        compressione delle texture non si fa — non è rotto niente, ma chi ha
+        acceso quella casella non deve scoprirlo dai byte. Resta un salto (non
+        conta fra i fallimenti) e si fa sentire una volta."""
+        self._esiti_saltati.append(str(cosa))
+        em_log(f"[export] saltato · {cosa}: {perche}", "INFO")
+        if avvisa:
+            self.report({'WARNING'}, f"Skipped · {cosa}: {perche}")
+
+    def _azzera_esiti(self):
+        self._esiti_falliti = []
+        self._esiti_saltati = []
+
+    def _resoconto_esiti(self):
+        """Il conto finale, SEMPRE visibile — e questo è il punto.
+
+        MISURATO, e per poco non restava una dichiarazione (decisione 21: la
+        strumentazione va provata come il codice). `_saltato` scrive a livello
+        INFO, e `em_log` filtra INFO e DEBUG se `verbose_logging` è spento:
+        alla prima corsa vera **nessuna delle righe «saltato» compariva**.
+        Avevo costruito una distinzione invisibile, che è esattamente il
+        difetto che T4 esisteva per togliere.
+
+        Quindi il DETTAGLIO dei saltati resta a INFO — è roba da chi sta
+        cercando un perché — ma il CONTO esce sempre, con `print`, che non
+        passa da nessun filtro. «3 saltati» è un numero che si vede; tre righe
+        in mezzo a duecento no.
+        """
+        print(f"=== Export: {len(self._esiti_falliti)} failed, "
+              f"{len(self._esiti_saltati)} skipped on purpose ===")
+        if self._esiti_falliti:
+            self.report({'WARNING'},
+                        f"Export finished with {len(self._esiti_falliti)} "
+                        f"failure(s): {', '.join(self._esiti_falliti[:5])}"
+                        + (" …" if len(self._esiti_falliti) > 5 else ""))
+        if self._esiti_saltati:
+            em_log(f"[export] skipped on purpose: "
+                   f"{', '.join(self._esiti_saltati[:10])}", "INFO")
 
     # ── NIGHT-RES/R2 · IL BAKE, UNA VOLTA SOLA ─────────────────────────────
     #
@@ -61,12 +152,19 @@ class EXPORT_OT_heriverse(Operator):
     def _registra_bake(self, graph, model_node_id, obj, *, url,
                        file_esportato, etichetta,
                        source_ids=None, packaging=None,
-                       oggetti_sorgente=None, con_master=True):
+                       oggetti_sorgente=None, con_master=True,
+                       suffisso=None, checksum_of=None):
         """Un bake: assicura il master, registra la distribution, e lo dice.
 
         `con_master=False` è per il tileset esterno e per chi il master non ce
         l'ha in casa: una distribution senza sorgente è un fatto legittimo, e
         inventarle un master direbbe una cosa falsa su dove sono i byte.
+
+        `suffisso` sceglie QUALE distribution si sta scrivendo. Dallo stesso
+        insieme di master possono nascerne due — l'albero servito e l'archivio
+        che viaggia (NIGHT-FIN/T1) — con id distinti e stabili, e il default
+        resta quello di sempre perché cambiarlo renderebbe orfano il nodo di
+        ogni grafo già scritto.
 
         Non solleva mai: un export non deve fallire perché un verbale non si è
         potuto scrivere — ma deve **dirlo**, e questa è la riga che lo dice.
@@ -110,8 +208,9 @@ class EXPORT_OT_heriverse(Operator):
         else:
             impronta = impronta_di(obj) if obj is not None else ""
 
+        derivata_id = f"{model_node_id}{suffisso or _rl.SUFFISSO_DERIVATA}"
         ok, perche = _rl.registra_derivata(
-            graph, derivata_id=f"{model_node_id}{_rl.SUFFISSO_DERIVATA}",
+            graph, derivata_id=derivata_id,
             url=url,
             source_id=sorgente_id,
             source_ids=source_ids,
@@ -120,10 +219,11 @@ class EXPORT_OT_heriverse(Operator):
             file_esportato=file_esportato,
             impronta_del_grezzo=impronta,
             packaging=packaging,
+            checksum_of=checksum_of,
             misure=(self._misure_insieme(oggetti_sorgente)
                     if oggetti_sorgente else None))
         if not ok:
-            em_log(f"[bake] {model_node_id}: {perche}", "WARNING")
+            em_log(f"[bake] {derivata_id}: {perche}", "WARNING")
         return ok
 
     def _catena_immagine(self, graph, doc_node, export_folder):
@@ -226,6 +326,80 @@ class EXPORT_OT_heriverse(Operator):
         #: …e il tileset stesso non è un membro sostituito da sé
         oggetto = bpy.data.objects.get(nome_oggetto)
         return oggetto is not None and "tileset_path" not in oggetto
+
+    def _due_distribuzioni_del_tileset(self, graph, obj, model_node_id, *,
+                                       zip_sorgente, cartella_export,
+                                       nome_tileset, url_albero, porta,
+                                       sorgenti, membri_ogg):
+        """NIGHT-FIN/T1 · un tileset ha DUE distribuzioni, non una.
+
+        La notte scorsa `packaging="archive"` è stato giustamente rifiutato:
+        questo export scompatta lo zip e serve un albero, e dichiarare un
+        archivio sarebbe stata una bugia. Ma l'intenzione — *il tileset viaggia
+        come zip, per non demolire dischi e banda con inflating e deflating* —
+        riguarda il **trasporto e l'archiviazione**, non ciò che il viewer
+        carica. Le due cose convivono, e il modello le regge già: dallo stesso
+        insieme di master nascono due distribution con id distinti e stabili,
+        ciascuna col suo checksum.
+
+        * `…_link` — `directory`, l'albero servito, la porta è `tileset.json`.
+          È quella che Heriverse carica.
+        * `…_archive` — `archive`, lo zip, per viaggiare e per l'archivio.
+
+        **COME SONO PRODOTTI I BYTE, dichiarato**: lo zip si **copia**, non si
+        ricomprime dall'albero. Ricomprimere darebbe byte diversi per lo stesso
+        contenuto a ogni export — compressori, timestamp, ordine delle voci —
+        quindi un checksum diverso ogni volta, e con lui un nodo nuovo a ogni
+        giro: addio idempotenza, che è la proprietà su cui si regge tutto il
+        resto. Lo zip di partenza esiste già ed è esattamente quei byte.
+
+        **NESSUNA DELLE DUE DICHIARA CIÒ CHE SU DISCO NON C'È**: ognuna si
+        scrive solo dopo aver visto il proprio file. Se la copia non riesce,
+        l'archivio non viene scritto e lo si dice.
+        """
+        import shutil
+        from ... import resource_levels as _rl
+
+        # ── (1) l'albero servito ───────────────────────────────────────────
+        if os.path.isfile(porta):
+            self._registra_bake(
+                graph, model_node_id, obj,
+                url=url_albero,
+                #: il digest è quello della PORTA, non dell'albero intero:
+                #: percorrere migliaia di file è precisamente il costo che
+                #: impacchettare esiste per evitare. Dichiarato, perché un
+                #: checksum parziale non dichiarato mente su cosa verifica.
+                file_esportato=porta,
+                checksum_of="entry-point",
+                etichetta=f"Tileset for {obj.name}",
+                source_ids=sorgenti, oggetti_sorgente=membri_ogg,
+                packaging="directory", con_master=False)
+        else:
+            self._saltato(f"tileset {obj.name}",
+                          f"l'albero servito non c'è ({porta}): nessuna "
+                          f"distribuzione `directory` scritta")
+
+        # ── (2) l'archivio che viaggia ─────────────────────────────────────
+        zip_servito = os.path.join(cartella_export, f"{nome_tileset}.zip")
+        if not os.path.isfile(zip_servito):
+            try:
+                shutil.copy2(zip_sorgente, zip_servito)
+            except OSError as exc:
+                # DETTO, e la distribuzione NON si scrive: un locator che punta
+                # a un file che non c'è è peggio di un locator assente, perché
+                # sembra un indirizzo.
+                self._fallito(f"tileset {obj.name}",
+                              f"copia dell'archivio fallita ({exc}): nessuna "
+                              f"distribuzione `archive` scritta")
+                return
+        self._registra_bake(
+            graph, model_node_id, obj,
+            url=f"tilesets/{nome_tileset}.zip",
+            file_esportato=zip_servito,
+            etichetta=f"Tileset archive for {obj.name}",
+            source_ids=sorgenti, oggetti_sorgente=membri_ogg,
+            packaging="archive", con_master=False,
+            suffisso=_rl.SUFFISSO_ARCHIVIO)
 
     def _sorgenti_del_tileset(self, context, graph, tileset_obj):
         """R2+R3 · i master che questo tileset accorpa, e gli oggetti membri.
@@ -480,7 +654,12 @@ class EXPORT_OT_heriverse(Operator):
 
                 # Debug dettagliato
                 if not proxy:
-                    em_log(f"  Proxy '{name}': NOT FOUND in scene (tried exact match and '*.{name}')", "WARNING")
+                    # T4 · un proxy che non c'è NON è un fallimento: il grafo
+                    # nomina un'unità che in questa scena nessuno ha modellato,
+                    # che è una situazione ordinaria a metà lavoro.
+                    self._saltato(f"proxy {name}",
+                                  "nessun oggetto in scena (né esatto né "
+                                  f"«*.{name}»)")
                     skipped_count += 1
                     continue
 
@@ -498,7 +677,8 @@ class EXPORT_OT_heriverse(Operator):
                             break
 
                 if not is_publishable:
-                    em_log(f"  Proxy '{proxy.name}': Not publishable, skipping", "WARNING")
+                    self._saltato(f"proxy {proxy.name}",
+                                  "marcato non pubblicabile")
                     skipped_count += 1
                     continue
 
@@ -558,9 +738,10 @@ class EXPORT_OT_heriverse(Operator):
                         else:
                             em_log(f"    Warning: SemanticShape node '{shape_node_id}' not found (should have been created by update_graph_with_scene_data)", "WARNING")
 
+                except self.DIFETTI_DI_PROGRAMMAZIONE:
+                    raise          # T4 · un difetto del codice non si maschera
                 except Exception as e:
-                    em_log(f"  Failed to export proxy {name}: {str(e)}", "ERROR")
-                    self.report({'WARNING'}, f"Failed to export proxy {name}: {str(e)}")
+                    self._fallito(f"proxy {name}", str(e), e)
 
                 proxy.select_set(False)
 
@@ -630,13 +811,14 @@ class EXPORT_OT_heriverse(Operator):
                     break
             
             if not is_publishable:
-                em_log(f"Skipping tileset {obj.name} (not publishable)", "WARNING")
+                self._saltato(f"tileset {obj.name}", "marcato non pubblicabile")
                 continue
                 
             try:
                 tileset_path = obj["tileset_path"]
                 if not tileset_path:
-                    em_log(f"Skipping tileset {obj.name} (empty path)", "WARNING")
+                    self._saltato(f"tileset {obj.name}",
+                                  "`tileset_path` vuoto")
                     continue
                     
                 # Percorso assoluto
@@ -659,7 +841,9 @@ class EXPORT_OT_heriverse(Operator):
                 tileset_extracted = False
                 
                 if export_vars.heriverse_skip_extracted_tilesets and os.path.exists(tileset_json_path):
-                    em_log(f"Skipping extraction of tileset '{filename}' (already extracted)", "WARNING")
+                    self._saltato(f"tileset {filename}",
+                                  "già estratto (le distribuzioni si scrivono "
+                                  "lo stesso: i byte ci sono)")
                     skipped_count += 1
                     tileset_extracted = True
                 else:
@@ -750,22 +934,22 @@ class EXPORT_OT_heriverse(Operator):
                         # legittimo, non un dato mancante.
                         sorgenti, membri_ogg = self._sorgenti_del_tileset(
                             context, graph, obj)
-                        self._registra_bake(
-                            graph, model_node_id, obj,
-                            url=relative_tileset_path,
-                            file_esportato=abs_path,
-                            etichetta=f"Tileset for {obj.name}",
-                            source_ids=sorgenti,
-                            oggetti_sorgente=membri_ogg,
-                            packaging="directory",
-                            #: nessun master `blend://`: un empty con
-                            #: `tileset_path` non ha byte in questo .blend
-                            con_master=False)
+                        self._due_distribuzioni_del_tileset(
+                            graph, obj, model_node_id,
+                            zip_sorgente=abs_path,
+                            cartella_export=export_folder,
+                            nome_tileset=tileset_name,
+                            url_albero=relative_tileset_path,
+                            porta=tileset_json_path,
+                            sorgenti=sorgenti, membri_ogg=membri_ogg)
                         
+            except self.DIFETTI_DI_PROGRAMMAZIONE:
+                # T4 · QUI è dove il `NameError` su `scene` è rimasto a
+                # travestirsi da warning per un intero commit range. Adesso
+                # emerge.
+                raise
             except Exception as e:
-                self.report({'WARNING'}, f"Failed to export tileset {obj.name}: {str(e)}")
-                import traceback
-                traceback.print_exc()
+                self._fallito(f"tileset {obj.name}", str(e), e)
 
         # Mostra un resoconto
         if exported_count > 0 or skipped_count > 0:
@@ -1026,7 +1210,8 @@ class EXPORT_OT_heriverse(Operator):
             return total_processed
             
         except ImportError:
-            em_log("PIL (Pillow) library not available, skipping texture compression", "WARNING")
+            self._saltato("texture compression",
+                          "Pillow non è installato", avvisa=True)
             return 0
         except Exception as e:
             em_log(f"Error during texture compression: {str(e)}", "ERROR")
@@ -1116,8 +1301,9 @@ class EXPORT_OT_heriverse(Operator):
                 # interpretare la volontà di qualcuno e poi cancellarne la
                 # prova.
                 if self._sostituito_dal_tileset(scene, obj.name):
-                    em_log(f"Skipping {obj.name}: its container publishes as a "
-                           f"single tileset", "DEBUG")
+                    self._saltato(obj.name,
+                                  "il suo container si pubblica come UN "
+                                  "tileset: il tileset sta al suo posto")
                     continue
 
                 # Skip se oggetto non è pubblicabile
@@ -1266,8 +1452,11 @@ class EXPORT_OT_heriverse(Operator):
                         exported_count += 1
                         em_log(f"Exported RM: {obj.name}", "DEBUG")
                         
+                    except self.DIFETTI_DI_PROGRAMMAZIONE:
+                        obj.select_set(False)
+                        raise          # T4
                     except Exception as e:
-                        self.report({'WARNING'}, f"Failed to export RM {obj.name}: {str(e)}")
+                        self._fallito(f"RM {obj.name}", str(e), e)
                         obj.select_set(False)
 
                 elif len(objects) > 1 and export_vars.heriverse_use_gpu_instancing:
@@ -1373,10 +1562,10 @@ class EXPORT_OT_heriverse(Operator):
                         em_log(f"Exported instanced group: {primary_obj.name} with {len(objects)} instances", "DEBUG")
                         exported_count += 1
                         
+                    except self.DIFETTI_DI_PROGRAMMAZIONE:
+                        raise          # T4
                     except Exception as e:
-                        self.report({'WARNING'}, f"Failed to export instanced group {mesh_name}: {str(e)}")
-                        import traceback
-                        traceback.print_exc()
+                        self._fallito(f"instanced group {mesh_name}", str(e), e)
                     
                     finally:
                         # Deselect all objects in group
@@ -1661,10 +1850,10 @@ class EXPORT_OT_heriverse(Operator):
                         exported_count += 1
                         em_log(f"Exported Paradata RM: {obj.name}", "DEBUG")
                         
+                    except self.DIFETTI_DI_PROGRAMMAZIONE:
+                        raise          # T4
                     except Exception as e:
-                        self.report({'WARNING'}, f"Failed to export Paradata RM {obj.name}: {str(e)}")
-                        import traceback
-                        traceback.print_exc()
+                        self._fallito(f"paradata RM {obj.name}", str(e), e)
                         
                         # Tenta di ripristinare l'oggetto in caso di errore
                         try:
@@ -1720,7 +1909,8 @@ class EXPORT_OT_heriverse(Operator):
             from PIL import Image
             pil_available = True
         except ImportError:
-            self.report({'WARNING'}, "PIL (Pillow) library not available, skipping ParaData texture compression")
+            self._saltato("ParaData texture compression",
+                          "Pillow non è installato", avvisa=True)
             return
         
         max_res = scene.heriverse_rmdoc_texture_max_res
@@ -1939,8 +2129,10 @@ class EXPORT_OT_heriverse(Operator):
                                     else:
                                         # Simple copy without compression
                                         shutil.copy2(src_path, dst_path)
+                        except self.DIFETTI_DI_PROGRAMMAZIONE:
+                            raise          # T4
                         except Exception as e:
-                            self.report({'WARNING'}, f"Failed to export texture for {obj.name}: {str(e)}")
+                            self._fallito(f"texture for {obj.name}", str(e), e)
 
     def export_dosco(self, context, graph_id, dosco_path):
         """Export DosCo files for a graph"""
@@ -2058,7 +2250,8 @@ class EXPORT_OT_heriverse(Operator):
                 # Important: Use item.name which refers to the actual 3D object
                 obj = bpy.data.objects.get(item.name)
                 if not obj:
-                    em_log(f"Object '{item.name}' not found in scene, skipping export", "WARNING")
+                    self._saltato(f"anastylosis {item.name}",
+                                  "oggetto non in scena")
                     continue
                 
                 em_log(f"Processing object '{item.name}' linked to SF/VSF '{item.sf_node_name}'", "DEBUG")
@@ -2167,10 +2360,10 @@ class EXPORT_OT_heriverse(Operator):
                     exported_count += 1
                     em_log(f"Successfully exported anastylosis model: {obj.name}", "DEBUG")
                     
+                except self.DIFETTI_DI_PROGRAMMAZIONE:
+                    raise          # T4
                 except Exception as e:
-                    self.report({'WARNING'}, f"Failed to export anastylosis model {obj.name}: {str(e)}")
-                    import traceback
-                    traceback.print_exc()
+                    self._fallito(f"anastylosis model {obj.name}", str(e), e)
                     
                 # Deselect object
                 obj.select_set(False)
@@ -2205,6 +2398,7 @@ class EXPORT_OT_heriverse(Operator):
         self.instanced_objects = set()
         self.exported_models = {}
         self.stato_collezioni = {}
+        self._azzera_esiti()          # T4 · fallito e saltato, contati a parte
         
         scene = context.scene
         export_vars = context.window_manager.export_vars
@@ -2472,11 +2666,25 @@ class EXPORT_OT_heriverse(Operator):
                     self.report({'WARNING'}, "ZIP creation failed, original folder preserved")
 
 
-            print("\n=== Export Completed Successfully ===")
+            # T4 · «completato» non vuol dire «tutto riuscito». Un export che
+            # dice solo «completed» dopo tre fallimenti è come i warning che
+            # non distinguevano fallito da saltato: vero e inutile.
+            self._resoconto_esiti()
+            print("\n=== Export Completed ===")
             self.report({'INFO'}, f"Export completed to {project_path}")
             
             return {'FINISHED'}
-                
+
+        except self.DIFETTI_DI_PROGRAMMAZIONE:
+            # T4 · un difetto del CODICE non diventa un messaggio: emerge
+            # intero, con il suo traceback, fino a chi sta guardando. È
+            # esattamente ciò che non è successo al `NameError` di
+            # `export_tilesets`, rimasto un warning fra i warning per un
+            # intero commit range.
+            em_log("\n!!! Export Failed — DIFETTO DI PROGRAMMAZIONE !!!", "ERROR")
+            import traceback
+            em_log(traceback.format_exc(), "ERROR")
+            raise
         except Exception as e:
             em_log(f"\n!!! Export Failed !!!", "ERROR")
             em_log(f"Error: {str(e)}", "ERROR")

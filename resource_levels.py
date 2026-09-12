@@ -28,6 +28,18 @@ import os
 #: invece di rifare, e per cui al secondo giro i nodi nuovi sono zero.
 SUFFISSO_DERIVATA = "_link"
 
+#: NIGHT-FIN/T1 · il suffisso della SECONDA distribuzione, quella che viaggia.
+#:
+#: Dallo stesso insieme di master nascono due distribution con id distinti e
+#: stabili: l'albero servito (`_link`, che Heriverse carica) e l'archivio
+#: (`_archive`, che viaggia e si archivia). Non sono in alternativa e non sono
+#: due versioni della stessa: sono due **forme** della stessa cosa, ciascuna
+#: col suo checksum, e ogni consumatore prende quella che sa aprire.
+#:
+#: `_link` resta il suffisso di prima di proposito: cambiarlo trasformerebbe
+#: in orfano il nodo di ogni grafo già scritto.
+SUFFISSO_ARCHIVIO = "_archive"
+
 
 def sha256_del_file(percorso: str) -> str:
     """`sha256:<hex>` del file, o `""` se non c'è.
@@ -234,7 +246,7 @@ def _arco(graph, sorgente, destinazione, tipo):
 def registra_derivata(graph, *, derivata_id, url, source_id=None,
                       source_ids=None, link_to=None, name=None,
                       file_esportato="", impronta_del_grezzo="",
-                      packaging=None, misure=None):
+                      packaging=None, misure=None, checksum_of=None):
     """Il baker scrive il verbale: la derivata, la sua provenienza, il digest.
 
     Non crea un baker nuovo — l'export Heriverse **è** il baker. Questa
@@ -259,6 +271,14 @@ def registra_derivata(graph, *, derivata_id, url, source_id=None,
     **scegliibile** (R1). Un tileset che viaggia come zip deve dire
     `packaging="archive"`: leggerlo dall'estensione funziona finché qualcuno non
     serve un archivio senza `.zip` nel nome, e allora fallisce in silenzio.
+
+    `checksum_of` dice **su cosa** è stato preso il digest quando non copre
+    tutto. Un albero servito non ha un digest solo — per averlo servirebbe
+    percorrere migliaia di file, cioè precisamente il costo che impacchettare
+    esiste per evitare — quindi si digerisce la sua PORTA (`tileset.json`) e
+    lo si **dichiara**. Assente vuol dire «copre l'intera risorsa», che è il
+    caso normale di un file e di un archivio. Un checksum parziale non
+    dichiarato sarebbe un checksum che mente su cosa verifica.
 
     Torna `(ok, messaggio)`. Non solleva: un export non deve fallire perché
     il verbale non si è potuto scrivere, ma deve **dirlo**.
@@ -310,4 +330,6 @@ def registra_derivata(graph, *, derivata_id, url, source_id=None,
     nodo = graph.find_node_by_id(derivata_id)
     if nodo is not None and impronta_del_grezzo:
         nodo.data["source_fingerprint"] = impronta_del_grezzo
+    if nodo is not None and checksum_of:
+        nodo.data["checksum_of"] = str(checksum_of)
     return True, ""
