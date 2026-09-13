@@ -479,6 +479,69 @@ def percorso_del_grezzo(res_node) -> str:
         os.path.join(os.path.dirname(bpy.path.abspath(corrente)), percorso))
 
 
+def basi_dei_locator(context=None) -> list:
+    """Le cartelle rispetto a cui un locator relativo può essere scritto.
+
+    D5 · Accanto a :func:`percorso_del_grezzo`, che risolve un `blend://`, e
+    per lo stesso motivo: **un percorso relativo non dipende dalla cartella di
+    lavoro del processo**, dipende da dove il modello dice che sta. Qui si
+    raccolgono le basi che esistono davvero, nell'ordine in cui hanno più
+    probabilità di essere quella giusta:
+
+    1. la cartella **DosCo** del grafo attivo — i documenti ci vivono dentro e
+       il loro url è relativo a lei (`functions.py`);
+    2. la cartella del **progetto esportato** — le derivate portano
+       `dosco/…`, `proxies/…`, `tilesets/…`, relativi a lei;
+    3. la cartella dell'**export**, un gradino sopra la precedente;
+    4. la cartella del **.blend** aperto, che è la base di riferimento di
+       Blender per tutto il resto.
+
+    Lista vuota = nessuna base nota, e chi chiama deve dire «non ho potuto
+    guardare», non «non ci sono».
+    """
+    import bpy
+    import os
+    ctx = context or bpy.context
+    scene = getattr(ctx, "scene", None)
+    basi = []
+
+    em_tools = getattr(scene, "em_tools", None) if scene else None
+    voce = None
+    if em_tools is not None and getattr(em_tools, "graphml_files", None):
+        indice = getattr(em_tools, "active_file_index", -1)
+        if 0 <= indice < len(em_tools.graphml_files):
+            voce = em_tools.graphml_files[indice]
+    if voce is not None:
+        try:
+            from ..em_setup.resource_utils import resolve_dosco_dir
+            basi.append(resolve_dosco_dir(voce) or "")
+        except ImportError as exc:
+            #: decisione 14: un ImportError si dichiara, non si ingoia
+            print(f"[EM WARNING] resolve_dosco_dir non disponibile ({exc}): "
+                  f"i locator relativi ai documenti non si risolvono")
+            basi.append(bpy.path.abspath(getattr(voce, "dosco_dir", "") or "")
+                        if getattr(voce, "dosco_dir", "") else "")
+
+    export = getattr(scene, "heriverse_export_path", "") if scene else ""
+    if export:
+        radice = os.path.normpath(bpy.path.abspath(export))
+        nome = (getattr(scene, "heriverse_project_name", "")
+                or os.path.splitext(os.path.basename(bpy.data.filepath))[0])
+        if nome:
+            basi.append(os.path.join(radice, f"{nome}_multigraph"))
+        basi.append(radice)
+
+    if bpy.data.filepath:
+        basi.append(os.path.dirname(bpy.path.abspath(bpy.data.filepath)))
+
+    fuori = []
+    for b in basi:
+        b = str(b or "")
+        if b and b not in fuori and os.path.isdir(b):
+            fuori.append(b)
+    return fuori
+
+
 def ensure_rm_and_internal_resource(scene, graph, obj):
     """Il nodo RM di questa mesh e la sua risorsa interna.
 

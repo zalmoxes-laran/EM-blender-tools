@@ -101,3 +101,45 @@ def test_il_nome_vecchio_del_tipo_resta_leggibile():
     (pre-MIG1), e rifiutarlo qui vorrebbe dire perderlo di vista."""
     vecchia = Finta("v", tipo="link", url="/p/a.glb")
     assert PG.stato_di_pubblicazione(vecchia, esiste=lambda p: True)["si"]
+
+
+# ── D5 · un locator relativo non dice dove sono i byte ──────────────────────
+
+def test_un_percorso_relativo_si_risolve_contro_le_BASI(tmp_path):
+    """Nel modello ci sono due basi diverse, scritte in due posti diversi e per
+    due ragioni legittime: la cartella DosCo per i documenti
+    (`os.path.relpath(file_path, dosco_dir)` in `functions.py`) e la cartella
+    del progetto esportato per le derivate. La cartella di lavoro del processo
+    non è mai nessuna delle due."""
+    dosco = tmp_path / "DosCo" / "Schede"
+    dosco.mkdir(parents=True)
+    (dosco / "US_001.pdf").write_bytes(b"%PDF")
+    basi = [str(tmp_path / "DosCo"), str(tmp_path / "export")]
+    assert PG.risolvi("Schede/US_001.pdf", basi).endswith("US_001.pdf")
+    assert PG.risolvi("Schede/assente.pdf", basi) == ""
+
+
+def test_senza_nessuna_base_la_risposta_e_NON_LO_SO_e_non_un_NO():
+    """Il difetto misurato: con `os.path.isfile` nudo un progetto di
+    diciannove documenti riportava diciannove volte «the bytes are not where
+    the locator says» — un difetto del controllo, non un fatto del progetto.
+    Dichiarare falso ciò che non si è potuto misurare è la bugia di T3."""
+    assert PG.esistenza([])("Schede/US_001.pdf") is None
+
+
+def test_un_NON_LO_SO_non_spegne_il_bottone():
+    nodo = Finta("d1", url="Schede/US_001.pdf", tier="distribution")
+    esito = PG.stato_di_pubblicazione(nodo, esiste=PG.esistenza([]))
+    assert esito["si"] is True
+
+
+def test_un_NO_misurato_invece_lo_spegne():
+    nodo = Finta("d1", url="Schede/US_001.pdf", tier="distribution")
+    esito = PG.stato_di_pubblicazione(nodo, esiste=lambda p: False)
+    assert esito["si"] is False
+    assert esito["perche"] == "the bytes are not where the locator says"
+
+
+def test_un_locator_remoto_non_si_risolve_su_disco():
+    for url in ("s3://b/x.glb", "https://x/y.gltf", "blend://a.blend#Object/x"):
+        assert PG.risolvi(url, ["/tmp"]) == ""

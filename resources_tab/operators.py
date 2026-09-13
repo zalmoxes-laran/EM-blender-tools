@@ -253,7 +253,14 @@ class EM_OT_publish_distribution(Operator):
             self.report({'WARNING'}, f"{self.resource_id!r}: not in this graph")
             return {'CANCELLED'}
 
-        esito = pg.stato_di_pubblicazione(nodo, esiste=os.path.isfile)
+        # D5 · le basi contro cui un locator relativo si risolve. Con
+        # `os.path.isfile` nudo — la forma di prima — un documento DosCo
+        # risultava sempre «the bytes are not where the locator says», perché
+        # il suo url è relativo alla cartella DosCo e non alla cartella da cui
+        # Blender è stato lanciato.
+        from ..rm_manager.containers import basi_dei_locator
+        basi = basi_dei_locator(context)
+        esito = pg.stato_di_pubblicazione(nodo, esiste=pg.esistenza(basi))
         if not esito["si"]:
             # la ragione viaggia col rifiuto: «no» da solo è indistinguibile
             # da un guasto
@@ -265,7 +272,8 @@ class EM_OT_publish_distribution(Operator):
                         "s3dgraphy (./em.sh s3d) AND the 'minio' extra.")
             return {'CANCELLED'}
 
-        percorso = str((getattr(nodo, "data", None) or {}).get("url") or "")
+        locator = str((getattr(nodo, "data", None) or {}).get("url") or "")
+        percorso = pg.risolvi(locator, basi) or locator
         digest = rl.sha256_del_file(percorso)
         if not digest:
             self.report({'ERROR'},
@@ -274,7 +282,7 @@ class EM_OT_publish_distribution(Operator):
             return {'CANCELLED'}
         try:
             caricato = resource_backend.promote_resource_to_minio(
-                graph, self.resource_id)
+                graph, self.resource_id, percorso=percorso)
         except Exception as exc:                       # noqa: BLE001
             self.report({'ERROR'}, f"Upload failed: {exc}")
             return {'CANCELLED'}

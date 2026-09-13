@@ -48,13 +48,82 @@ def _tier(nodo) -> str:
     return "master" if url.startswith("blend://") else "distribution"
 
 
+def risolvi(url, basi) -> str:
+    """Il percorso ASSOLUTO di un locator relativo, provando le basi. → `""`.
+
+    **D5 · un locator relativo non dice dove sono i byte: dice dove sono
+    RISPETTO A QUALCOSA**, e quel qualcosa non è mai la cartella da cui Blender
+    è stato lanciato. Nel modello esistono due basi diverse, scritte in due
+    posti diversi e per due ragioni legittime:
+
+    * un documento DosCo porta un url relativo alla **cartella DosCo**
+      (`functions.py`, `os.path.relpath(file_path, dosco_dir)`);
+    * una derivata porta un url relativo alla **cartella del progetto
+      esportato** (`dosco/…`, `proxies/…`, `tilesets/…`).
+
+    Quindi le basi si provano in ordine e la prima che trova i byte vince. Non
+    è un indovinello: un locator relativo è ambiguo per costruzione, e l'unica
+    risposta onesta è cercarlo dove il modello dice che può stare.
+
+    Un percorso già assoluto torna com'è, senza interrogare il disco: la
+    domanda «esiste?» è di chi chiama.
+    """
+    import os
+    testo = str(url or "").strip()
+    if not testo or testo.startswith(("blend://", "http://", "https://",
+                                      "s3://", "file://")):
+        return ""
+    if os.path.isabs(testo):
+        return os.path.normpath(testo)
+    for base in basi or ():
+        if not base:
+            continue
+        candidato = os.path.normpath(os.path.join(str(base), testo))
+        if os.path.exists(candidato):
+            return candidato
+    return ""
+
+
+def esistenza(basi):
+    """Il fornitore `esiste` da dare a :func:`stato_di_pubblicazione`.
+
+    Torna `True` / `False` / **`None`**, e il `None` è il punto: senza nessuna
+    base nota un locator relativo non si può né confermare né smentire, e
+    rispondere `False` significherebbe dire «i byte non ci sono» per non aver
+    guardato. È il difetto che ha marcato diciannove documenti di fila.
+    """
+    import os
+    basi = [b for b in (basi or ()) if b]
+
+    def guarda(url):
+        testo = str(url or "")
+        if os.path.isabs(testo):
+            return os.path.isfile(testo)
+        if not basi:
+            return None
+        return bool(risolvi(testo, basi))
+
+    return guarda
+
+
 def stato_di_pubblicazione(nodo, esiste=None) -> dict:
     """Questa risorsa si può pubblicare? → `{'si': bool, 'perche': str}`.
 
-    `esiste(percorso) -> bool` è il fornitore iniettato che dice se i byte
-    locali ci sono. Senza di lui il file non si guarda e la risposta è
+    `esiste(percorso) -> bool | None` è il fornitore iniettato che dice se i
+    byte locali ci sono. Senza di lui il file non si guarda e la risposta è
     sull'indirizzo soltanto — che è già metà del lavoro e non richiede un
     disco.
+
+    **`None` vuol dire «non l'ho potuto guardare», e non è un no.** Un locator
+    relativo non si risolve senza sapere rispetto a COSA: i documenti DosCo
+    portano un url relativo alla cartella DosCo (`functions.py`), le derivate
+    uno relativo alla cartella di export. Chi chiama senza quelle basi non può
+    dire che i byte non ci sono — può dire solo che non ha guardato, ed è la
+    stessa lezione di T3: dichiarare falso ciò che non si è potuto misurare è
+    una bugia piccola. Misurata: con `esiste=os.path.isfile` passato nudo, un
+    progetto di diciannove documenti riportava diciannove volte «the bytes are
+    not where the locator says» — che era un difetto del controllo, non un
+    fatto del progetto.
 
     Le ragioni sono frasi e non codici: questa funzione esiste perché
     l'interfaccia possa dire **perché** un bottone è spento, e «no» da solo è
@@ -86,8 +155,11 @@ def stato_di_pubblicazione(nodo, esiste=None) -> dict:
                 "perche": ("already published" if gia else
                            "it already has a remote address but no checksum: "
                            "that is a promise, not a fact")}
-    if esiste is not None and not esiste(url):
-        return {"si": False, "perche": "the bytes are not where the locator says"}
+    if esiste is not None:
+        ci_sono = esiste(url)
+        if ci_sono is False:
+            return {"si": False,
+                    "perche": "the bytes are not where the locator says"}
     return {"si": True, "perche": ""}
 
 

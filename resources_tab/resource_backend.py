@@ -190,7 +190,8 @@ def list_link_resources(graph: Any) -> List[Dict[str, Any]]:
     return out
 
 
-def promote_resource_to_minio(graph: Any, resource_id: str) -> Dict[str, Any]:
+def promote_resource_to_minio(graph: Any, resource_id: str,
+                              percorso: Optional[str] = None) -> Dict[str, Any]:
     """Upload a LOCAL resource's bytes into the shared MinIO under its OWN stable
     ID (in-process s3dgraphy; api.ingest_minio_resource reads S3_* from env), then
     repoint its LinkNode locator to the returned ``s3_uri``. The stable ID and every
@@ -204,8 +205,13 @@ def promote_resource_to_minio(graph: Any, resource_id: str) -> Dict[str, Any]:
     url = _link_url(node)
     if not url or _locator_kind(url) != "local_path":
         raise ValueError("resource has no local path to promote")
-    # preserve the stable ID: pass resource_id through to the MinIO backend
-    res = api.ingest_minio_resource(url, resource_id=resource_id)
+    # D5 · i byte si leggono dal percorso RISOLTO quando il chiamante ce l'ha:
+    # un locator relativo (un documento DosCo, una derivata dell'export) non
+    # punta a niente rispetto alla cartella di lavoro del processo, e caricare
+    # «quello che il locator dice» significherebbe non caricare nulla. Il
+    # locator nel grafo resta quello che è: qui cambia solo da dove si leggono
+    # i byte.
+    res = api.ingest_minio_resource(percorso or url, resource_id=resource_id)
     # repoint the locator at the shared-store URI (id + refs unchanged)
     d = getattr(node, "data", None)
     if not isinstance(d, dict):
