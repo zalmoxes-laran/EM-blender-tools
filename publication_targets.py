@@ -37,6 +37,14 @@ import re
 #: confine è un vocabolario che si traduce male.
 YES, NO, UNKNOWN = "yes", "no", "unknown"
 
+#: **Il quarto verdetto, che non è una capacità.** `yes`/`no`/`unknown` dicono
+#: cosa una destinazione SA fare; `n/a` dice che la domanda non si pone — un
+#: pdf verso un viewer di modelli non è «non pronto», è fuori dal discorso.
+#: Serve un nome suo perché `no` in quella colonna sembra un lavoro da fare, e
+#: diciannove documenti marcati «no» manderebbero qualcuno a cercare un guasto
+#: che non c'è.
+NA = "n/a"
+
 #: Dove cercare il checkout di Heriverse, relativo a questo add-on. Un elenco e
 #: non un percorso: chi tiene i repo affiancati (la disposizione di casa) lo
 #: trova al primo tentativo, e chi non ce l'ha ottiene `unknown` con la ragione.
@@ -44,6 +52,30 @@ POSTI_DI_HERIVERSE = (
     os.path.join("..", "Heriverse"),
     os.path.join("..", "heriverse"),
 )
+
+
+def _tipi_consumati(testo: str) -> list:
+    """Quali `url_type` la destinazione accetta, letti dal suo GUARDIANO.
+
+    **D5 · il difetto che questa funzione esiste per chiudere.** Il giudizio
+    qui rispondeva `ready = yes` a ogni pdf di un progetto, perché un pdf non
+    chiede nessuna capacità nota e la regola di chiusura dice che un locator
+    sconosciuto è un endpoint. Ma la prima riga di `canConsumeResource`, di là,
+    è
+
+        if (data.url_type !== "3d_model") return {ok:false, why:"not a 3d model"}
+
+    e quella riga non era stata letta. Cioè esattamente la malattia contro cui
+    il commento in testa a questo modulo mette in guardia — due fonti per un
+    fatto solo — comparsa una notte dopo averla scritta. Il rimedio non è
+    ricopiare «3d_model» qui: è **leggere anche il guardiano**.
+
+    → la lista dei tipi accettati, o `[]` quando la forma non si riconosce (e
+    allora non si filtra niente, invece di dedurre un elenco sbagliato).
+    """
+    import re as _re
+    return [m for m in _re.findall(
+        r"""data\.url_type\s*!==\s*["']([^"']+)["']""", testo)]
 
 
 def _estensione(url: str) -> str:
@@ -99,12 +131,12 @@ def leggi_capacita_heriverse(radice=None) -> dict:
             with open(sorgente, "r", encoding="utf-8") as f:
                 testo = f.read()
         except OSError as exc:
-            return {"capacita": {}, "da": "",
+            return {"capacita": {}, "tipi": [], "da": "",
                     "perche": f"Heriverse.js found but unreadable ({exc})"}
         blocco = re.search(r"Heriverse\.CAPABILITIES\s*=\s*\{(.*?)\n\};",
                            testo, re.S)
         if not blocco:
-            return {"capacita": {}, "da": sorgente,
+            return {"capacita": {}, "tipi": [], "da": sorgente,
                     "perche": ("Heriverse.js does not declare CAPABILITIES in "
                                "the shape this reader knows — look at "
                                "Heriverse.CAPABILITIES")}
@@ -119,10 +151,11 @@ def leggi_capacita_heriverse(radice=None) -> dict:
             else:
                 capacita[nome] = UNKNOWN
         if not capacita:
-            return {"capacita": {}, "da": sorgente,
+            return {"capacita": {}, "tipi": [], "da": sorgente,
                     "perche": "CAPABILITIES is declared but empty"}
-        return {"capacita": capacita, "da": sorgente, "perche": ""}
-    return {"capacita": {}, "da": "",
+        return {"capacita": capacita, "tipi": _tipi_consumati(testo),
+                "da": sorgente, "perche": ""}
+    return {"capacita": {}, "tipi": [], "da": "",
             "perche": ("no Heriverse checkout beside this add-on — "
                        "its capabilities are declared in "
                        "Heriverse/src/Heriverse.js")}
@@ -141,16 +174,33 @@ def _come_nodo(dati):
     return _ComeNodo(dati)
 
 
-def giudice(capacita: dict, mancante: str = "") -> callable:
+def giudice(capacita: dict, mancante: str = "", tipi=None) -> callable:
     """Un giudice per una destinazione, dalle sue capacità. → `(dati) -> {ok, why}`.
 
     `mancante` è la ragione per cui le capacità non si sono potute leggere: se
     c'è, ogni risposta è un `unknown` che la riporta. Un giudice senza
     informazioni non dice `no`: dice che non sa, e dove guardare.
+
+    `tipi` sono gli `url_type` che la destinazione accetta, letti dal suo
+    guardiano (`_tipi_consumati`). Una lista vuota vuol dire «non dichiarato»
+    e **non filtra**: dedurre un elenco da un guardiano che non si è
+    riconosciuto sarebbe peggio del difetto che questo parametro chiude.
     """
     capacita = dict(capacita or {})
+    tipi = [str(t) for t in (tipi or [])]
 
     def giudica(dati):
+        # D5 · LA PORTA D'INGRESSO, che qui mancava. Un pdf non chiede nessuna
+        # capacità nota, quindi la regola di chiusura lo faceva passare per un
+        # endpoint e la colonna diceva `ready = yes` a diciannove documenti —
+        # mentendo esattamente dove doveva aiutare. La destinazione dichiara
+        # cosa consuma; ciò che sta fuori da quell'elenco non è «non pronto»,
+        # è fuori dal discorso, e il verdetto ha un nome suo.
+        tipo = str(dict(dati or {}).get("url_type") or "")
+        if tipi and tipo not in tipi:
+            comodo = tipi[0].replace("_", " ") + "s"
+            return {"ok": False, "state": NA,
+                    "why": f"this destination only takes {comodo}"}
         # UN MASTER NON È PRONTO PER NESSUNO, e non è un difetto suo: è ciò da
         # cui le distribution vengono fatte. Sta qui e non in
         # `capacita_richieste` perché è una proprietà del TIER e non del
@@ -203,10 +253,12 @@ def destinazioni(radice_heriverse=None) -> dict:
     heri = leggi_capacita_heriverse(radice_heriverse)
     return {
         "heriverse": {
-            "giudice": giudice(heri["capacita"], heri["perche"]),
+            "giudice": giudice(heri["capacita"], heri["perche"],
+                               heri.get("tipi")),
             "da": heri["da"],
             "perche": heri["perche"],
             "capacita": heri["capacita"],
+            "tipi": heri.get("tipi") or [],
         },
         "room": {
             "giudice": giudice({}, "the StratiGraph room does not declare its "
@@ -214,5 +266,8 @@ def destinazioni(radice_heriverse=None) -> dict:
             "da": "",
             "perche": "the StratiGraph room does not declare its capabilities yet",
             "capacita": {},
+            #: la stanza non dichiara nemmeno CHE COSA consuma: nessun filtro,
+            #: e la ragione la porta già `mancante`
+            "tipi": [],
         },
     }
