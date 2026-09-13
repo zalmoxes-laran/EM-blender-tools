@@ -28,6 +28,8 @@ from bpy.props import (BoolProperty, CollectionProperty, EnumProperty,
                        IntProperty, StringProperty)
 from bpy.types import PropertyGroup
 
+from . import flags
+
 
 class EM_PublicationDistribution(PropertyGroup):
     """Un file di un asset: **solo testo già calcolato**, come la riga.
@@ -82,19 +84,30 @@ class EM_PublicationRow(PropertyGroup):
     membri: IntProperty(default=0)  # type: ignore
     tier: StringProperty(default="")  # type: ignore
 
-    #: **D4 · LA SPUNTA È IL FLAG CHE ESISTE GIÀ.** Qui non c'è nessun
-    #: booleano: c'è l'INDICE della voce di `scene.rm_list` il cui
-    #: `is_publishable` governa questo asset, e la UIList disegna quella
-    #: property direttamente. Un terzo flag darebbe due impostazioni per lo
-    #: stesso fatto — la malattia dei cancelli del sync, che è costata due
-    #: giorni. `-1` = nessun flag lo governa, e allora non si disegna una
-    #: casella: una casella che si spunta e poi non fa niente è peggio di
-    #: nessuna casella.
-    flag_indice: IntProperty(default=-1)  # type: ignore
+    #: **D2 · LA SPUNTA, e stavolta su un fatto suo.** DECK2 la aveva legata a
+    #: `RMItem.is_publishable`, che l'exporter legge come «questo RM entra nel
+    #: bundle»: giusto nello spirito (non inventare uno stato di UI parallelo)
+    #: e sbagliato nel bersaglio, perché un documento non è un RM e quindi non
+    #: poteva portarla. Adesso l'intenzione di pubblicare è un fatto
+    #: dell'ASSET, tenuto in `scene.em_publication_flags` e chiavato per id —
+    #: e questo booleano è una **finestra** su quello, non una copia:
+    #: `get`/`set` leggono e scrivono la scena, quindi non esiste un momento in
+    #: cui i due possano dire cose diverse.
+    pubblica: BoolProperty(
+        name="Publish",
+        description=("Put these bytes outside, with an address and a "
+                     "checksum. This is about the asset, not about any one "
+                     "reader: what a viewer cannot open stays publishable"),
+        get=flags._leggi, set=flags._scrivi)  # type: ignore
+
     #: l'indice del container, quando l'asset è un container: la sua
     #: `publication_strategy` è l'altra impostazione che governa davvero cosa
     #: l'export farà, e la scheda la mostra così com'è.
     container_indice: IntProperty(default=-1)  # type: ignore
+    #: e l'indice della voce di `scene.rm_list`, quando ce n'è una: serve alla
+    #: scheda per mostrare `is_publishable` — che resta dell'exporter e non è
+    #: più la spunta del deck
+    flag_indice: IntProperty(default=-1)  # type: ignore
 
     pubblicata_il: StringProperty(default="")  # type: ignore
     cosa_e_cambiato: StringProperty(default="")  # type: ignore
@@ -143,13 +156,39 @@ class EM_PublicationDeck(PropertyGroup):
     spuntati: IntProperty(default=0)  # type: ignore
     nota: StringProperty(default="")  # type: ignore
 
-    #: La destinazione di cui si mostra la colonna «pronto per». Un enum e non
-    #: un booleano `heriverse`: le destinazioni sono N dall'inizio.
+    #: **D5 · il glifo dello stato si mostra solo quando DISTINGUE.** Su un
+    #: progetto di soli documenti è identico su tutte e diciannove le righe:
+    #: una colonna il cui valore non varia mai costa larghezza e non dice
+    #: niente, e quella cosa la dice meglio — e una volta sola — la sintesi.
+    stati_differiscono: BoolProperty(default=True)  # type: ignore
+
+    #: **D3 · il filtro, in UN posto solo.** Lo legge la lista che disegna e lo
+    #: legge l'operatore che scrive in blocco: due copie della stessa
+    #: intenzione divergono al primo cambiamento.
+    filtro: StringProperty(
+        name="Filter",
+        description="Show only assets whose name contains this",
+        default="", options={'TEXTEDIT_UPDATE'})  # type: ignore
+
+    #: **D6 · lo stato del GRAFO**, in sola lettura. Il grafo è ciò che dice
+    #: cosa un glb rappresenta: senza di lui una derivata pubblicata è un file
+    #: orfano. Il deck lo MOSTRA e non lo pubblica — quel gesto è il push nella
+    #: stanza, e vive altrove.
+    grafo_stato: StringProperty(default="")  # type: ignore
+    grafo_frase: StringProperty(default="")  # type: ignore
+
+    #: **D1 · quale LETTORE annota le righe** — e non più chi governa il
+    #: pannello. Il verbo del deck è mettere i byte nello store con un
+    #: indirizzo e un'impronta; che poi un certo visore sappia aprirli è un
+    #: fatto sulla coppia asset-lettore, utile da vedere e mai un cancello.
+    #: Resta un enum e non un booleano `heriverse`: i lettori sono N
+    #: dall'inizio.
     destinazione: EnumProperty(
-        name="Ready for",
-        description=("Which consumer the readiness column is about. Each "
-                     "destination declares what it can open; the graph "
-                     "declares what a resource is"),
+        name="Readable by",
+        description=("Which reader the annotation on each row is about. It "
+                     "never blocks publishing: what a reader cannot open "
+                     "still goes to the store, with its address and its "
+                     "checksum"),
         items=[("heriverse", "Heriverse", "The Heriverse web viewer"),
                ("room", "StratiGraph room", "A room on an StratiGraph Server")],
         default="heriverse")  # type: ignore

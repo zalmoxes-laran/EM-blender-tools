@@ -231,17 +231,56 @@ def test_ogni_media_ha_la_sua_icona():
 
 # ── D4 · la spunta È il flag che esiste già ─────────────────────────────────
 
-def test_la_spunta_e_is_publishable_e_non_un_terzo_flag():
-    """Se il deck si crea una spunta propria, ci ritroviamo due impostazioni
-    che governano lo stesso fatto — la stessa malattia dei cancelli del sync,
-    che è costata due giorni."""
-    assert 'prop(elenco[item.flag_indice], "is_publishable"' in _SORGENTE
+def test_la_spunta_e_l_intenzione_dell_ASSET_non_il_flag_dell_exporter():
+    """**Questa prova è cambiata di bersaglio, e la ragione è la decisione 35.**
+
+    DECK2 asseriva che la spunta fosse `RMItem.is_publishable`: giusto nello
+    spirito — non inventare uno stato di UI parallelo a uno che esiste — e
+    sbagliato nel bersaglio. `is_publishable` lo legge l'**exporter Heriverse**
+    e significa «questo RM entra nel bundle»: un'inclusione per un consumatore.
+    Un documento DosCo non è un RM, quindi non poteva portarla, e su un
+    progetto di diciannove documenti diciannove righe erano senza casella.
+
+    Adesso la spunta è l'intenzione di pubblicare — un fatto dell'asset,
+    identico per un pdf e per un glb — e sta in `scene.em_publication_flags`.
+    """
+    assert 'prop(item, "pubblica"' in _SORGENTE
+    assert 'is_publishable' not in _codice(_UI), (
+        "il flag dell'exporter non si disegna più nella riga del deck")
 
 
-def test_la_cache_NON_dichiara_un_booleano_di_selezione():
-    """La prova che il terzo flag non è tornato dalla finestra: nel gruppo di
-    proprietà del deck non c'è nessun booleano che significhi «scelto»."""
+def test_il_deck_NON_scrive_is_publishable_da_nessuna_parte():
+    """Il flag dell'exporter resta **intatto**: sono due concetti, e il giorno
+    che il deck cominciasse a scriverlo tornerebbero a essere uno."""
+    import pathlib as _pl
+    for f in sorted((_REPO / "publication_deck_ui").glob("*.py")):
+        codice = _codice(f)
+        assert "is_publishable =" not in codice, f
+        assert '"is_publishable"' not in codice or f.name == "ui.py", f
+
+
+def test_la_spunta_NON_ha_una_memoria_PROPRIA():
+    """La prova che il terzo flag non è tornato dalla finestra: `pubblica` è un
+    booleano con `get` e `set` — una **finestra** sulla collezione della scena,
+    non una copia. Due memorie dello stesso fatto divergono al primo Refresh,
+    e le righe del deck sono una cache che si svuota ogni volta."""
     props = _codice(_REPO / "publication_deck_ui" / "properties.py")
+    i = props.index("pubblica: BoolProperty(")
+    #: fino alla parentesi che chiude, contate: ancorarsi a `# type: ignore`
+    #: non si può più, perché `spoglia` toglie i commenti — ed è giusto che li
+    #: tolga
+    profondita, fine = 0, i
+    for fine in range(i, len(props)):
+        if props[fine] == "(":
+            profondita += 1
+        elif props[fine] == ")":
+            profondita -= 1
+            if profondita == 0:
+                break
+    dichiarazione = props[i:fine]
+    assert "get=" in dichiarazione and "set=" in dichiarazione
+    assert "default=" not in dichiarazione, (
+        "un default è una memoria, e questa property non ne deve avere una")
     for vietato in ("selezionata", "selected", "scelta:", "da_pubblicare"):
         assert vietato not in props, f"«{vietato}» è un terzo flag"
 

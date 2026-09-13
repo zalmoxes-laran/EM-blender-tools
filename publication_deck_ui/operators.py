@@ -145,6 +145,27 @@ def _calcola(context):
     return esito, info.get("perche", "")
 
 
+def _stato_del_grafo() -> dict:
+    """D6 · lo stato del grafo rispetto alla stanza. → `{"stato", "frase"}`.
+
+    Legge la sessione di sync **che già esiste**: nessuna connessione nuova e
+    nessun client di database, come il prompt chiede e come il buon senso
+    vuole — un pannello che apre un socket per disegnarsi è un pannello che
+    blocca Blender quando la rete è lenta.
+    """
+    from .. import publication_room
+    try:
+        from ..sync_manager.room_session import SESSION
+    except ImportError as exc:
+        #: decisione 14: un ImportError si dichiara, non si ingoia. E lo stato
+        #: che ne esce è `unknown` con la ragione, non «nessuna stanza»: non
+        #: saper leggere non è la stessa cosa di non esserci.
+        em_log(f"[deck] sessione di stanza non leggibile ({exc})", "WARNING")
+        return {"stato": "unknown",
+                "frase": "the sync session could not be read"}
+    return publication_room.dalla_sessione(SESSION)
+
+
 def _flag_per_rm(context) -> dict:
     """`{rm_node_id: indice in scene.rm_list}` — **dove sta la spunta del deck**.
 
@@ -257,6 +278,17 @@ class EM_OT_deck_refresh(Operator):
         deck.pubblicabili = s["pubblicabili"]
         deck.distribuzioni = s["distribuzioni"]
         deck.spuntati = _spuntati(context, deck)
+
+        #: D5 · il glifo dello stato si mostra solo quando DISTINGUE. Su un
+        #: progetto di soli documenti è identico su tutte le righe, e una
+        #: colonna che non varia mai costa larghezza senza dire niente.
+        deck.stati_differiscono = len({r.stato for r in deck.righe}) > 1
+
+        #: D6 · lo stato del grafo, letto da quello che la sessione di sync già
+        #: sa. Nessuna connessione nuova, nessun client di database.
+        stanza = _stato_del_grafo()
+        deck.grafo_stato = stanza["stato"]
+        deck.grafo_frase = stanza["frase"]
         deck.calcolato_alle = time.strftime("%H:%M")
         deck.destinazione_nota = nota_destinazione
         deck.nota = ""
@@ -274,25 +306,26 @@ def _basi(context):
 
 
 def _spuntati(context, deck) -> int:
-    """Quanti asset sono spuntati **adesso**, letti dal flag vero.
+    """Quanti asset sono spuntati **adesso**, letti dalla loro casa vera.
 
-    Il numero finisce nel bottone, e il bottone lo ricalcola al Refresh e a
-    ogni pubblicazione: fra un giro e l'altro qualcuno può aver tolto una
-    spunta dall'RM Manager, che è lo stesso flag visto da un'altra finestra.
+    Il numero finisce nel bottone, e si ricalcola al Refresh e dopo ogni
+    pubblicazione. Si contano solo quelli che hanno davvero qualcosa da
+    pubblicare: offrire «Publish 19» quando diciannove sono già pubblicati
+    sarebbe un gesto che poi rifiuta riga per riga.
     """
-    elenco = getattr(context.scene, "rm_list", ()) or ()
+    from . import flags
+
+    scelti = flags.spuntati(context.scene)
     return sum(1 for r in deck.righe
-               if 0 <= r.flag_indice < len(elenco)
-               and elenco[r.flag_indice].is_publishable
-               and r.n_pubblicabili)
+               if r.asset_id in scelti and r.n_pubblicabili)
 
 
 def _da_pubblicare(context, deck) -> list:
     """Gli asset spuntati, nell'ordine della lista."""
-    elenco = getattr(context.scene, "rm_list", ()) or ()
-    return [r for r in deck.righe
-            if 0 <= r.flag_indice < len(elenco)
-            and elenco[r.flag_indice].is_publishable]
+    from . import flags
+
+    scelti = flags.spuntati(context.scene)
+    return [r for r in deck.righe if r.asset_id in scelti]
 
 
 def _pubblica_molti(operatore, context, righe):
@@ -368,6 +401,81 @@ def _pubblica_molti(operatore, context, righe):
 # ─────────────────────────────────────────────────────────────────────────────
 # i verbi
 # ─────────────────────────────────────────────────────────────────────────────
+
+class EM_OT_deck_flag_visible(Operator):
+    """**D3 · flagga tutto quello che è IN VISTA. Additivo, e annullabile.**
+
+    DECK2 aveva tolto i verbi collettivi perché un «seleziona tutto» che scrive
+    una property di progetto cancella in un colpo le esclusioni messe a mano
+    (decisione 31). Il ragionamento era giusto e la cura sbagliata: il rimedio
+    a una scrittura massiva è **l'annullamento**, non l'amputazione — e
+    diciannove documenti da spuntare a mano sono diciannove click.
+
+    Quindi: **unisce e non toglie mai**, agisce su ciò che il filtro corrente
+    lascia vedere e non sull'intero progetto, e porta `UNDO` così che Ctrl+Z
+    riprenda davvero quelle scritture.
+    """
+
+    bl_idname = "em.deck_flag_visible"
+    bl_label = "Flag all in view"
+    bl_description = ("Add the publish flag to every asset the filter is "
+                      "showing. It only adds: nothing already flagged is "
+                      "cleared, and Ctrl+Z takes it back")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        deck = getattr(context.scene, "em_publication_deck", None)
+        if deck is None or not len(deck.righe):
+            cls.poll_message_set("Nothing in the deck yet")
+            return False
+        return True
+
+    def execute(self, context):
+        from .. import publication_flags
+        from . import flags
+
+        deck = context.scene.em_publication_deck
+        ids = publication_flags.in_vista(deck.righe, deck.filtro)
+        aggiunti = flags.aggiungi(context.scene, ids)
+        deck.spuntati = _spuntati(context, deck)
+        self.report({'INFO'}, f"{aggiunti} flagged ({len(ids)} in view)")
+        return {'FINISHED'}
+
+
+class EM_OT_deck_unflag_visible(Operator):
+    """Il gesto opposto, **nominato per quello che fa**.
+
+    Non è il rovescio silenzioso del precedente, e non si chiama «none»:
+    toglie i flag di ciò che è in vista, lo dice, e si annulla come l'altro.
+    Un verbo che cancella deve avere un nome che lo ammette.
+    """
+
+    bl_idname = "em.deck_unflag_visible"
+    bl_label = "Clear flags in view"
+    bl_description = ("Remove the publish flag from every asset the filter is "
+                      "showing. Ctrl+Z takes it back")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        deck = getattr(context.scene, "em_publication_deck", None)
+        if deck is None or not len(deck.righe):
+            cls.poll_message_set("Nothing in the deck yet")
+            return False
+        return True
+
+    def execute(self, context):
+        from .. import publication_flags
+        from . import flags
+
+        deck = context.scene.em_publication_deck
+        ids = publication_flags.in_vista(deck.righe, deck.filtro)
+        tolti = flags.togli(context.scene, ids)
+        deck.spuntati = _spuntati(context, deck)
+        self.report({'INFO'}, f"{tolti} cleared ({len(ids)} in view)")
+        return {'FINISHED'}
+
 
 class EM_OT_deck_publish(Operator):
     """**Publish** su ciò che è SPUNTATO — e non è un secondo baker.
@@ -502,8 +610,10 @@ class EM_OT_deck_copy_uri(Operator):
         return {'FINISHED'}
 
 
-_CLASSI = (EM_OT_deck_refresh, EM_OT_deck_publish, EM_OT_deck_publish_one,
-           EM_OT_deck_rebake, EM_OT_deck_reveal, EM_OT_deck_copy_uri)
+_CLASSI = (EM_OT_deck_refresh, EM_OT_deck_flag_visible,
+           EM_OT_deck_unflag_visible, EM_OT_deck_publish,
+           EM_OT_deck_publish_one, EM_OT_deck_rebake, EM_OT_deck_reveal,
+           EM_OT_deck_copy_uri)
 
 
 def register():

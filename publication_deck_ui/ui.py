@@ -79,10 +79,21 @@ _ICONA_MEDIA = {
     "other": "DOT",
 }
 
+#: D6 · lo stato del grafo rispetto alla stanza. Nessuna è `ERROR`: non essere
+#: in una stanza non è un guasto, è la situazione in cui vive la maggior parte
+#: degli studi.
+_ICONA_GRAFO = {"no_room": "UNLINKED", "aligned": "LINKED",
+                "room_ahead": "IMPORT", "unknown": "QUESTION"}
+
 _ICONA_PRONTO = {"yes": "CHECKMARK", "no": "CANCEL", "unknown": "QUESTION",
                  #: `n/a` non è un rifiuto: la domanda non si pone, e un'icona
-                 #: di rifiuto manderebbe qualcuno a cercare un guasto
-                 "n/a": "BLANK1"}
+                 #: di rifiuto manderebbe qualcuno a cercare un guasto. Ma
+                 #: nemmeno `BLANK1`: a video quella riga usciva rientrata e
+                 #: senza glifo, e sembrava la continuazione della frase sopra
+                 #: invece di un'annotazione sua. `HIDE_ON` è un occhio chiuso:
+                 #: questo lettore non guarda questa roba, e non c'è niente da
+                 #: aggiustare.
+                 "n/a": "HIDE_ON"}
 
 
 #: **Quanti caratteri entrano, per unità di interfaccia.** Due misure prese a
@@ -192,6 +203,12 @@ class EM_UL_publication_deck(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data,
                   active_propname, index):
         stretto = _quanti_caratteri(context) < 22
+        #: **D5 · il glifo dello stato si mostra solo quando DISTINGUE.** Su un
+        #: progetto di soli documenti è identico su tutte e diciannove le
+        #: righe: una colonna il cui valore non varia mai costa larghezza e non
+        #: dice niente, e quella cosa la dice meglio — e una volta sola — la
+        #: riga di sintesi. L'icona del media resta sempre.
+        glifo = getattr(data, "stati_differiscono", True) and not stretto
 
         #: A LARGHEZZA FISSA TUTTO TRANNE IL NOME. Misurato tre volte, e ogni
         #: giro ha tolto un'ipotesi: in una `row` le voci si spartiscono lo
@@ -200,18 +217,12 @@ class EM_UL_publication_deck(bpy.types.UIList):
         #: sotto una certa larghezza, smette di disegnare il testo del tutto —
         #: a 149 unità restavano due icone mute. Con `split` le proporzioni
         #: sono dichiarate e restano quelle a ogni larghezza.
-        #:
-        #: **E A PANNELLO STRETTO IL GLIFO DELLO STATO SE NE VA.** A 149 unità
-        #: la riga è di nove caratteri: due icone e una spunta se li mangiano
-        #: tutti, e un nome ridotto a «v» non è un nome. Lo stato lo dicono già
-        #: il conto in testa e la scheda; l'icona del media no, ed è quella che
-        #: E.D. ha chiesto — quindi è quella che resta.
-        if stretto:
-            riga = layout.split(factor=0.82)
-        else:
+        if glifo:
             fuori = layout.split(factor=0.12)
             fuori.label(text="", icon=_ICONA_STATO.get(item.stato, 'DOT'))
             riga = fuori.split(factor=0.86)
+        else:
+            riga = layout.split(factor=0.86 if not stretto else 0.82)
 
         #: il nome porta l'icona del media, così quella non consuma una voce
         #: sua. Una `label` e non un campo: una label tronca, un campo sparisce.
@@ -223,16 +234,13 @@ class EM_UL_publication_deck(bpy.types.UIList):
         cella.label(text=item.name,
                     icon=_ICONA_MEDIA.get(item.media, 'DOT'))
 
+        #: **D2 · LA SPUNTA, e stavolta ce l'hanno tutti.** È una finestra su
+        #: `scene.em_publication_flags`, non su `is_publishable`: quello resta
+        #: dell'exporter e vuol dire «questo RM entra nel bundle», che è un
+        #: altro fatto. Adesso anche un documento può portarla, ed è per questo
+        #: che diciannove righe non sono più senza casella.
         coda = riga.row(align=True)
-        elenco = getattr(context.scene, "rm_list", None)
-        if elenco is not None and 0 <= item.flag_indice < len(elenco):
-            coda.prop(elenco[item.flag_indice], "is_publishable", text="")
-        else:
-            #: nessun flag governa questo asset (un documento non ne ha uno):
-            #: niente casella, perché una casella che si spunta e poi non
-            #: cambia niente è una promessa che non si mantiene. La scheda
-            #: dice perché.
-            coda.label(text="", icon='BLANK1')
+        coda.prop(item, "pubblica", text="")
 
 
 class VIEW3D_PT_em_publication_deck(bpy.types.Panel):
@@ -284,42 +292,44 @@ class VIEW3D_PT_em_publication_deck(bpy.types.Panel):
         pannello. **Senza rosso**: si vede perché ha una riga sua, un'icona di
         tempo e un verbo accanto — non perché è colorato come un errore, che
         errore non è.
+
+        **D4 · il Refresh è il controllo meno usato del pannello** e si
+        prendeva metà della sua riga. Adesso è icona sola in una cella stretta
+        di una `split` — non di una `row`, dove le voci si dividono lo spazio
+        in parti uguali qualunque cosa contengano.
         """
         _frase(layout, deck.sintesi or "—", larghezza, icona='EXPORT')
 
         if deck.calcolato_alle:
             #: L'ORA DEL CONTO, accanto ai numeri. Un numero vecchio che dice
             #: di essere vecchio è informazione.
-            #: IL REFRESH STA QUI, non accanto alla sintesi e non
-            #: nell'intestazione. Misurato: accanto alla sintesi le rubava la
-            #: larghezza e a 149 unità usciva «9 assets …»; nell'intestazione
-            #: si sovrapponeva al titolo, che a quella larghezza è già
-            #: troncato. Sulla riga dell'ora non dà fastidio a nessuno.
             quando = f"as of {deck.calcolato_alle}"
             if deck.distribuzioni and larghezza >= 20:
                 quando += f" · {deck.distribuzioni} files"
-            #: `split` e non `row`: in una `row` il bottone si prende metà
-            #: della riga e l'ora esce «as of 17:…»
-            riga = layout.split(factor=0.78, align=True)
-            _frase(riga, quando, int(larghezza * 0.78), icona='BLANK1')
+            riga = layout.split(factor=0.88, align=True)
+            _frase(riga, quando, int(larghezza * 0.88), icona='BLANK1')
             riga.operator("em.deck_refresh", text="", icon='FILE_REFRESH')
 
         if deck.stale:
             #: LA RIGA CHE CONTA, e si vede perché è SUA — non perché è rossa.
-            box = layout.box()
-            box.label(text=f"{deck.stale} stale", icon='TEMP')
-            _frase(box, "sources changed", larghezza)
-            #: senza icona: a 149 unità l'icona si mangiava due caratteri e il
-            #: verbo usciva «Re-bake st…»
-            box.operator("em.deck_rebake")
+            #: D4 · una riga e il verbo, non una scatola di tre.
+            riga = layout.split(factor=0.45, align=True)
+            riga.label(text=f"{deck.stale} stale", icon='TEMP')
+            riga.operator("em.deck_rebake", text="Re-bake")
 
-        # D5 · UNA RAGIONE CHE VALE PER TUTTI SI DICE UNA VOLTA, IN TESTA.
-        # Diciannove righe che ripetono la stessa frase non la rendono più
-        # vera: la rendono illeggibile, e nascondono che il problema è UNO.
+        # D5/D4 · UNA RAGIONE CHE VALE PER TUTTI SI DICE UNA VOLTA, IN TESTA —
+        # e in UNA RIGA, non in una scatola da centottanta pixel per un
+        # messaggio che riguarda due righe su diciannove.
         for blocco in deck.blocchi:
-            box = layout.box()
-            box.label(text=f"{blocco.quanti} held back:", icon='INFO')
-            _frase(box, blocco.name, larghezza)
+            _frase(layout, f"{blocco.quanti} held back: {blocco.name}",
+                   larghezza, icona='INFO')
+
+        # D6 · LO STATO DEL GRAFO, in sola lettura e senza verbi. Il grafo è
+        # ciò che dice cosa un glb rappresenta; il deck lo mostra e non lo
+        # pubblica, perché quel gesto è il push nella stanza e vive altrove.
+        if deck.grafo_frase:
+            _frase(layout, deck.grafo_frase, larghezza,
+                   icona=_ICONA_GRAFO.get(deck.grafo_stato, 'QUESTION'))
 
     # ── lo stato vuoto ─────────────────────────────────────────────────────
 
@@ -345,8 +355,23 @@ class VIEW3D_PT_em_publication_deck(bpy.types.Panel):
     # ── la lista ───────────────────────────────────────────────────────────
 
     def _lista(self, layout, deck):
+        """**D4 · la lista cresce con il contenuto, fino a un tetto.**
+
+        Sei righe fisse mentre la scheda ne occupava venti erano un pannello
+        che dedicava il 20% dell'altezza alla domanda («quali asset ho») e il
+        63% alla risposta su uno solo — misurato, e il conto di E.D. sullo
+        stesso progetto diceva 19% e 42%.
+
+        **Il tetto è dieci**, e non è un numero tondo a caso: a 280 unità, in
+        una sidebar da 1734 px, dieci righe lasciano ancora vedere l'inizio
+        della scheda. A quattordici la scheda finiva sotto il bordo, e cliccare
+        una riga voleva dire scrollare per vederne la risposta — cioè rompere
+        proprio il gesto che la lista serve a rendere veloce.
+        """
+        layout.prop(deck, "filtro", text="", icon='VIEWZOOM')
         layout.template_list("EM_UL_publication_deck", "",
-                             deck, "righe", deck, "riga_attiva", rows=6)
+                             deck, "righe", deck, "riga_attiva",
+                             rows=min(max(len(deck.righe), 5), 10))
 
     # ── i comandi in batch ─────────────────────────────────────────────────
 
@@ -360,6 +385,18 @@ class VIEW3D_PT_em_publication_deck(bpy.types.Panel):
         spunta è anche il modo di scegliere — ed è la stessa spunta che
         governa l'export, non una seconda.
         """
+        #: D3 · i verbi collettivi, ADDITIVI e annullabili. Icone sole in una
+        #: `grid_flow`, che è l'unico modo misurato perché riempiano la riga.
+        collettivi = layout.grid_flow(row_major=True, columns=2,
+                                      even_columns=True, even_rows=False,
+                                      align=True)
+        collettivi.row(align=True).operator(
+            "em.deck_flag_visible", icon='CHECKBOX_HLT',
+            text="Flag in view" if larghezza >= 20 else "")
+        collettivi.row(align=True).operator(
+            "em.deck_unflag_visible", icon='CHECKBOX_DEHLT',
+            text="Clear in view" if larghezza >= 20 else "")
+
         riga = layout.row(align=True)
         riga.scale_y = 1.2
         #: IL NUMERO NEL BOTTONE non si perde mai: è la parte che dice su cosa
@@ -374,8 +411,12 @@ class VIEW3D_PT_em_publication_deck(bpy.types.Panel):
         """**D3 · quello che stava nel box, per UNA riga sola.**
 
         Dove stanno i byte, formato, impacchettamento, tier, dimensione,
-        locator, le date, la ragione quando non è pronta — più l'elenco delle
-        sue distribuzioni e i verbi che riguardano quel singolo asset.
+        locator, le date, l'annotazione del lettore — più l'elenco delle sue
+        distribuzioni e i verbi che riguardano quel singolo asset.
+
+        **D4 · e in molte meno righe.** La scheda si prendeva il 42%
+        dell'altezza del pannello: la griglia due-per-due con l'etichetta sopra
+        il valore erano otto righe per quattro fatti, e uno era vuoto.
         """
         if not (0 <= deck.riga_attiva < len(deck.righe)):
             return
@@ -400,21 +441,24 @@ class VIEW3D_PT_em_publication_deck(bpy.types.Panel):
                 box.prop(elenco[riga.container_indice],
                          "publication_strategy", text="")
 
-        if riga.pronto:
-            box.label(text=f"ready: {riga.pronto}",
-                      icon=_ICONA_PRONTO.get(riga.pronto, 'QUESTION'))
-            _frase(box, riga.pronto_perche, larghezza, icona='BLANK1')
+        # D4 · **UNA sola negazione**, non tre. `ready: n/a` + «this
+        # destination only takes 3d models» + «no publish flag governs this»
+        # dicevano la stessa cosa in tre modi, e il terzo adesso non esiste
+        # nemmeno più (D2: la spunta ce l'hanno tutti). Resta quella che
+        # aggiunge informazione: COSA quel lettore non sa fare — e non
+        # impedisce niente, perché il deck pubblica byte.
+        if riga.pronto and riga.pronto != "yes":
+            _frase(box, riga.pronto_perche or f"not readable: {riga.pronto}",
+                   larghezza, icona=_ICONA_PRONTO.get(riga.pronto, 'QUESTION'))
+        elif riga.pronto == "yes":
+            box.label(text=f"readable by {deck.destinazione}",
+                      icon='CHECKMARK')
 
         _frase(box, riga.cosa_e_cambiato, larghezza, icona='TEMP')
         _frase(box, riga.perche_no, larghezza, icona='INFO')
-        if riga.flag_indice < 0:
-            #: niente spunta su questa riga, e si dice perché: un controllo
-            #: assente senza una ragione sembra un guasto
-            _frase(box, "no publish flag governs this", larghezza,
-                   icona='BLANK1')
 
         self._distribuzioni(box, riga, larghezza)
-        self._verbi(box, riga)
+        self._verbi(box, riga, larghezza)
 
     def _distribuzioni(self, layout, riga, larghezza):
         """Le distribuzioni dell'asset: i FILE, dove la riga è la COSA.
@@ -422,53 +466,62 @@ class VIEW3D_PT_em_publication_deck(bpy.types.Panel):
         Un tileset ha il suo zip (per viaggiare) e il suo albero servito (per
         essere caricato): due file, due checksum, e una sola decisione. È
         questa la ragione per cui stanno qui e non nella lista.
+
+        **D4 · i fatti su UNA riga**, `disk · pdf · distribution · 39 KB`, e i
+        campi vuoti non si disegnano affatto. La griglia a due colonne con
+        l'etichetta sopra il valore costava otto righe per dire quattro cose,
+        una delle quali era `Size / —`: cioè due righe per dire che non si sa
+        quanto pesa.
         """
         for d in riga.distribuzioni:
             box = layout.box()
             _frase(box, d.name, larghezza,
                    icona=_ICONA_STATO.get(d.stato, 'DOT'))
-            griglia = box.grid_flow(row_major=True, columns=2,
-                                    even_columns=True, even_rows=False,
-                                    align=False)
-            _cella(griglia, "Bytes are", d.dove)
-            _cella(griglia, "Format", f"{d.formato}"
-                   + (f" · {d.packaging}" if d.packaging else ""))
-            _cella(griglia, "Tier", d.tier)
-            _cella(griglia, "Size", d.peso)
-            if d.residency or d.scope:
-                _cella(griglia, "Residency", d.residency)
-                _cella(griglia, "Scope", d.scope)
+            fatti = [d.dove, d.formato, d.packaging, d.tier, d.peso,
+                     d.residency, d.scope]
+            _frase(box, " · ".join(x for x in fatti if x), larghezza,
+                   icona='BLANK1')
             if d.pubblicata_il:
-                #: SOLO IL GIORNO. Con l'ora, la cella si tronca
-                #: («2026-09-10 17:…») e si perde proprio la parte che
-                #: distingue due pubblicazioni.
-                _cella(griglia, "Published", d.pubblicata_il[:10])
-            if d.url:
-                _frase(box, d.url.rsplit("/", 1)[-1], larghezza, icona='URL')
+                #: SOLO IL GIORNO. Con l'ora la riga si allunga e si perde
+                #: proprio la parte che distingue due pubblicazioni.
+                box.label(text=f"published {d.pubblicata_il[:10]}",
+                          icon='BLANK1')
+            coda = d.url.rsplit("/", 1)[-1]
+            if coda and coda != d.name:
+                #: il nome del file solo quando AGGIUNGE qualcosa: per un
+                #: documento la distribuzione si chiama già `US_001.pdf`, e
+                #: scriverlo due volte di fila è una riga che non dice niente
+                _frase(box, coda, larghezza, icona='URL')
 
-    def _verbi(self, layout, riga):
-        """I verbi del singolo asset: una riga di bottoni icona che riempie la
-        larghezza.
+    def _verbi(self, layout, riga, larghezza):
+        """I verbi del singolo asset, e **con un'etichetta** quando ci sta.
 
-        `grid_flow(even_columns=True)` e non una `row` piatta: misurato in
-        EM16-UX2 che in una riga piatta i bottoni solo-icona NON si allargano,
-        e restano schiacciati a sinistra qualunque sia la larghezza.
+        D4 · a video erano quattro icone mute: il tooltip c'è (è la
+        `bl_description` dell'operatore) ma va cercato col mouse fermo, e un
+        verbo che si scopre solo passandoci sopra è un verbo che non si usa.
+        Sotto le 20 unità-carattere restano icone, perché lì un'etichetta si
+        troncherebbe e un verbo troncato è peggio di un'icona.
         """
         principale = riga.distribuzioni[0] if len(riga.distribuzioni) else None
-        verbi = layout.grid_flow(row_major=True, columns=4, even_columns=True,
-                                 even_rows=False, align=True)
+        con_testo = larghezza >= 20
+        verbi = layout.grid_flow(row_major=True, columns=2 if con_testo else 4,
+                                 even_columns=True, even_rows=False, align=True)
         verbi.scale_y = 1.2
         url = principale.url if principale else ""
         percorso = principale.percorso if principale else ""
         verbi.row(align=True).operator(
-            "em.deck_reveal", text="", icon='FILE_FOLDER').percorso = percorso
+            "em.deck_reveal", text="Reveal" if con_testo else "",
+            icon='FILE_FOLDER').percorso = percorso
         verbi.row(align=True).operator(
-            "em.deck_copy_uri", text="", icon='COPYDOWN').url = url
+            "em.deck_copy_uri", text="Copy URI" if con_testo else "",
+            icon='COPYDOWN').url = url
         verbi.row(align=True).operator(
-            "em.deck_rebake", text="", icon='FILE_REFRESH')
+            "em.deck_rebake", text="Re-bake" if con_testo else "",
+            icon='FILE_REFRESH')
         uno = verbi.row(align=True)
         uno.enabled = bool(riga.n_pubblicabili)
-        uno.operator("em.deck_publish_one", text="",
+        uno.operator("em.deck_publish_one",
+                     text="Publish" if con_testo else "",
                      icon='EXPORT').asset_id = riga.asset_id
 
 
