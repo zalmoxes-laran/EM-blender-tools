@@ -36,6 +36,41 @@ STATI = ("unresolved", "master", "baked", "published", "stale", "orphan")
 #: Le due specie di riga.
 GRANULARITA = ("rm", "container")
 
+#: **D1 · la riga è l'ASSET, non la distribuzione.** La decisione «questo va
+#: pubblicato» riguarda LA COSA, non il formato: un tileset con il suo zip e il
+#: suo albero servito sono due distribuzioni e **una sola decisione**, e come
+#: due righe avrebbero due spunte che si accendono insieme — incomprensibile.
+#: Le distribuzioni si vedono nella scheda.
+#:
+#: L'ordine in cui uno stato di distribuzione diventa lo stato dell'asset. Il
+#: primo presente vince, e il criterio è **quanto lavoro resta**: un asset con
+#: una stantia è stantio anche se ha altre due distribuzioni a posto, perché
+#: quella stantia è il lavoro; un asset con una pubblicata e uno zip ancora
+#: locale è `baked`, perché qualcosa non è ancora uscito. `master` per ultimo:
+#: un asset fatto di soli master non ha niente sulla soglia.
+ORDINE_RIASSUNTO = ("stale", "baked", "unresolved", "published", "orphan",
+                    "master")
+
+#: I tipi di media che il deck distingue a colpo d'occhio. È il PRIMO colpo
+#: d'occhio della riga — prima ancora dello stato — perché «di che cosa stiamo
+#: parlando» viene prima di «a che punto è».
+MEDIA = ("mesh", "tileset", "pointcloud", "image", "document", "other")
+
+#: Le estensioni che decidono il media quando `url_type` non basta. Non è un
+#: elenco chiuso di ciò che si può pubblicare (quello sarebbe il difetto che
+#: `canConsumeResource` evita di proposito): è solo l'icona da mostrare, e chi
+#: non è riconosciuto prende `other` senza perdere nessun diritto.
+_ESTENSIONI_MEDIA = {
+    "gltf": "mesh", "glb": "mesh", "obj": "mesh", "fbx": "mesh",
+    "ply": "pointcloud", "las": "pointcloud", "laz": "pointcloud",
+    "e57": "pointcloud", "pcd": "pointcloud",
+    "jpg": "image", "jpeg": "image", "png": "image", "tif": "image",
+    "tiff": "image", "webp": "image", "exr": "image",
+    "pdf": "document", "doc": "document", "docx": "document",
+    "odt": "document", "txt": "document", "md": "document",
+    "csv": "document", "xlsx": "document",
+}
+
 #: L'arco che lega una risorsa a ciò che rappresenta.
 EDGE_RISORSA = "has_linked_resource"
 
@@ -63,6 +98,36 @@ def _formato(dati: dict) -> str:
     if "." in coda:
         return coda.rsplit(".", 1)[-1].lower()
     return _testo(dati.get("url_type")) or "?"
+
+
+def _media(dati: dict) -> str:
+    """Di che cosa stiamo parlando: mesh, tileset, nuvola, immagine, documento.
+
+    È il primo colpo d'occhio della riga, e si legge da DUE fonti che dicono
+    cose diverse: `url_type` è la categoria dichiarata dal modello
+    (`3d_model`, `image`, `document`) e l'estensione è il formato vero. La
+    categoria vince dove c'è, perché è ciò che l'autore ha dichiarato; sotto
+    `3d_model` l'estensione decide fra mesh, tileset e nuvola, che il modello
+    non distingue e che a video sono tre cose diversissime.
+    """
+    url = _testo(dati.get("url"))
+    basso = url.lower().split("?")[0]
+    if basso.endswith("tileset.json") or _testo(dati.get("packaging")) == "archive" \
+            and "tileset" in basso:
+        return "tileset"
+    tipo = _testo(dati.get("url_type")).lower()
+    estensione = _formato(dati)
+    if tipo == "3d_model" or url.startswith("blend://"):
+        #: un `blend://` è un datablock: una mesh, finché il modello non dice
+        #: altro. Nessuna estensione da leggere, e inventarne una sarebbe una
+        #: misura al posto di un'assenza.
+        return _ESTENSIONI_MEDIA.get(estensione, "mesh")
+    per_estensione = _ESTENSIONI_MEDIA.get(estensione)
+    if per_estensione:
+        return per_estensione
+    if tipo in ("image", "document"):
+        return tipo
+    return "other"
 
 
 def _peso_leggibile(byte) -> str:
@@ -238,6 +303,13 @@ def righe(nodi=(), archi=(), *, impronta_attuale=None, container_di=None,
                 or _testo(getattr(rm, "name", "")) or rm_id or "—"),
             "granularita": "container" if gruppo else "rm",
             "membri": int((gruppo or {}).get("membri") or 0),
+            #: LA CHIAVE DELL'ASSET. Il container quando c'è, altrimenti l'RM,
+            #: altrimenti la risorsa stessa (un'orfana è un asset di una riga:
+            #: nessuno la raggiunge, e appenderla a un proprietario inventato
+            #: la nasconderebbe proprio dove il deck deve mostrarla).
+            "asset_id": (gruppo or {}).get("id") or rm_id or rid,
+            "rm_id": rm_id or "",
+            "media": _media(dati),
             "tier": publication_gesture._tier(nodo),
             "residency": _testo(dati.get("residency")),
             "scope": _testo(dati.get("scope")),
@@ -267,29 +339,167 @@ def righe(nodi=(), archi=(), *, impronta_attuale=None, container_di=None,
             for nome, giudice in (destinazioni or {}).items()}
         fuori.append(riga)
 
-    return {"righe": fuori, "sommario": sommario(fuori)}
+    assets = per_asset(fuori)
+    return {"righe": fuori, "assets": assets, "sommario": sommario(assets)}
 
 
-def sommario(righe_) -> dict:
+def per_asset(righe_) -> list:
+    """**D1 · da una riga per distribuzione a una riga per ASSET.**
+
+    La decisione «questo va pubblicato» riguarda LA COSA, non il formato. Un
+    tileset con il suo zip e il suo albero servito sono due distribuzioni e una
+    sola decisione: come due righe avrebbero due spunte che si accendono
+    insieme, che non vuol dire niente. Le distribuzioni restano, intere, dentro
+    l'asset — la scheda le mostra.
+
+    Effetto collaterale, e non è il motivo ma si sente: su un progetto vero le
+    righe crollano, e la lista dei nomi si vede tutta.
+
+    L'ordine degli asset è quello che il deck vuole far leggere: prima ciò che
+    manca (`ORDINE_RIASSUNTO`), poi il nome. Un elenco ordinato per id sarebbe
+    ordinato per un fatto che non interessa a nessuno.
+    """
+    per_chiave = {}
+    for r in righe_ or []:
+        per_chiave.setdefault(r["asset_id"], []).append(r)
+
+    fuori = []
+    for chiave, distribuzioni in per_chiave.items():
+        distribuzioni = sorted(distribuzioni, key=lambda d: (d["tier"] != "distribution",
+                                                            d["nome"]))
+        stati = {d["stato"] for d in distribuzioni}
+        stato = next((s for s in ORDINE_RIASSUNTO if s in stati),
+                     distribuzioni[0]["stato"])
+        prima = distribuzioni[0]
+        #: il nome dell'asset è quello del PROPRIETARIO — il container o l'RM —
+        #: perché è la cosa di cui si sta decidendo. Un'orfana non ha un
+        #: proprietario e allora porta il proprio nome: è un asset di una riga.
+        nome = (prima["etichetta_proprietario"]
+                if prima["etichetta_proprietario"] not in ("", "—")
+                else prima["nome"])
+        pubblicabili_qui = [d for d in distribuzioni if d["pubblicabile"]["si"]]
+        ragioni = [d["pubblicabile"]["perche"] for d in distribuzioni
+                   if not d["pubblicabile"]["si"] and d["pubblicabile"]["perche"]]
+        fuori.append({
+            "id": chiave,
+            "nome": nome,
+            "media": _media_dell_asset(distribuzioni),
+            "stato": stato,
+            "granularita": prima["granularita"],
+            "membri": prima["membri"],
+            "rm_id": prima["rm_id"],
+            "distribuzioni": distribuzioni,
+            "pubblicabili": [d["id"] for d in pubblicabili_qui],
+            #: la ragione si dice UNA volta per asset, e solo quando NESSUNA
+            #: delle sue distribuzioni si può pubblicare: con una pubblicabile
+            #: e una no, il «no» è un dettaglio della scheda, non il verdetto
+            #: dell'asset
+            "perche_no": ("" if pubblicabili_qui
+                          else (ragioni[0] if ragioni else "")),
+            "tier": ("master" if all(d["tier"] == "master" for d in distribuzioni)
+                     else "distribution"),
+            "pubblicata_il": max((d["pubblicata_il"] for d in distribuzioni), default=""),
+            "cosa_e_cambiato": next((d["cosa_e_cambiato"] for d in distribuzioni
+                                     if d["cosa_e_cambiato"]), ""),
+            "pronto_per": _pronto_dell_asset(distribuzioni),
+        })
+    ordine = {s: i for i, s in enumerate(ORDINE_RIASSUNTO)}
+    fuori.sort(key=lambda a: (ordine.get(a["stato"], 99), a["nome"].lower()))
+    return fuori
+
+
+def _media_dell_asset(distribuzioni) -> str:
+    """Il media dell'asset: quello della distribuzione che lo rappresenta.
+
+    Si preferisce una `distribution` al master, perché è la cosa che esce; fra
+    più distribuzioni vince il media più specifico (un tileset con dentro delle
+    mesh è un tileset, non una mesh), e l'ordine di specificità è quello di
+    `MEDIA`.
+    """
+    candidate = [d for d in distribuzioni if d["tier"] != "master"] or list(distribuzioni)
+    rango = {m: i for i, m in enumerate(MEDIA)}
+    return min((d["media"] for d in candidate), key=lambda m: rango.get(m, 99))
+
+
+def _pronto_dell_asset(distribuzioni) -> dict:
+    """«Pronto per» dell'asset: `{destinazione: {state, why}}`.
+
+    Basta **una** distribuzione che la destinazione sappia aprire: è
+    esattamente ciò che `getLinkFromRepresentationModel` fa dall'altra parte —
+    raccoglie le candidate e ne sceglie una. Un asset con uno zip che Heriverse
+    non scompatta e un albero servito che carica è pronto, e dirlo «no» per lo
+    zip sarebbe rispondere di una distribuzione invece che della cosa.
+    """
+    nomi = set()
+    for d in distribuzioni:
+        nomi.update(d["pronto_per"])
+    fuori = {}
+    for nome in sorted(nomi):
+        verdetti = [d["pronto_per"].get(nome) or {} for d in distribuzioni
+                    if nome in d["pronto_per"]]
+        if any(v.get("ok") for v in verdetti):
+            fuori[nome] = {"state": "yes", "why": ""}
+            continue
+        #: fra i no, si riporta lo stato MENO definitivo: un «non lo so» detto
+        #: accanto a un «no» resta un non lo so, e appiattirlo su «no» sarebbe
+        #: la bugia di T3 rifatta un livello più su
+        for stato in ("unknown", "no", "n/a"):
+            scelto = next((v for v in verdetti if v.get("state") == stato), None)
+            if scelto:
+                fuori[nome] = {"state": stato, "why": scelto.get("why", "")}
+                break
+        else:
+            primo = verdetti[0] if verdetti else {}
+            fuori[nome] = {"state": str(primo.get("state") or "no"),
+                           "why": primo.get("why", "")}
+    return fuori
+
+
+def sommario(assets) -> dict:
     """*N assets · M published · K stale*, e i conti che la testa mostra.
+
+    Conta **asset**, non distribuzioni, da quando la riga è l'asset: «19 assets»
+    e «26 distributions» sono due numeri veri e uno solo risponde alla domanda
+    «quante cose devo decidere».
 
     `K` è il numero che conta: quando è diverso da zero, è la cosa più
     importante del pannello.
     """
-    righe_ = list(righe_ or [])
+    assets = list(assets or [])
     per_stato = {}
-    for r in righe_:
-        per_stato[r["stato"]] = per_stato.get(r["stato"], 0) + 1
+    for a in assets:
+        per_stato[a["stato"]] = per_stato.get(a["stato"], 0) + 1
     return {
-        "assets": len(righe_),
+        "assets": len(assets),
+        "distribuzioni": sum(len(a["distribuzioni"]) for a in assets),
         "published": per_stato.get("published", 0),
         "stale": per_stato.get("stale", 0),
         "per_stato": per_stato,
         #: quanti si possono pubblicare adesso: è ciò che un bottone
-        #: «Bake & publish» può davvero fare, e dirlo evita di offrire un
-        #: gesto che poi rifiuta riga per riga
-        "pubblicabili": sum(1 for r in righe_ if r["pubblicabile"]["si"]),
+        #: «Publish» può davvero fare, e dirlo evita di offrire un gesto che
+        #: poi rifiuta riga per riga
+        "pubblicabili": sum(1 for a in assets if a["pubblicabili"]),
+        "blocchi": blocchi(assets),
     }
+
+
+def blocchi(assets) -> list:
+    """Le ragioni per cui NON si pubblica, contate. → `[(ragione, quanti), …]`.
+
+    **D5 · una ragione che vale per tutti si dice una volta in testa, non
+    diciannove volte nelle righe.** Quando tutti gli asset di un progetto
+    riportano la stessa frase, quella frase non è un fatto sull'asset: è un
+    fatto sul progetto — e diciannove copie della stessa riga non lo rendono
+    più vero, lo rendono illeggibile.
+
+    Ordinato per quanti ne tiene fermi: chi ne blocca di più va letto per primo.
+    """
+    conta = {}
+    for a in assets or []:
+        if a["pubblicabili"] or not a["perche_no"]:
+            continue
+        conta[a["perche_no"]] = conta.get(a["perche_no"], 0) + 1
+    return sorted(conta.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
 def riga_di_sintesi(s: dict) -> str:

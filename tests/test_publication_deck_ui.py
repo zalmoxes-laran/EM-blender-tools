@@ -1,24 +1,30 @@
-"""P2 · Le convenzioni del pannello, difese strutturalmente.
+"""P2/D2-D6 · Le convenzioni del pannello, difese strutturalmente.
 
-Un pannello **va guardato**, e lo è stato: due screenshot in istanza isolata,
-allegati al referto. Questo file difende ciò che uno screenshot vede una volta
-e poi smette di guardare — e in particolare la regola che a video è costata
-tre correzioni: **le celle non si troncano**.
+Un pannello **va guardato**, e lo è stato: tre screenshot in istanza isolata a
+**280, 202 e 149 unità** di interfaccia, allegati al referto. Questo file
+difende ciò che uno screenshot vede una volta e poi smette di guardare — e in
+particolare la regola che a video è costata sei correzioni: **le celle non si
+troncano**.
 
-**IL BUDGET DI CARATTERI, e da dove viene.** Non è un'opinione: a 280 unità di
-UI — la larghezza che la sidebar ha nell'istanza di prova — una stringa di 55
-caratteri è uscita troncata a metà parola («made, but its locat…ething on this
-disk») e una di 36 è entrata intera. Il budget è fissato a 40 per le etichette
-a tutta larghezza e a 20 per i valori nelle celle (che stanno in una griglia a
-due colonne, quindi metà larghezza): il margine fra 40 e il vero limite è lo
-spazio per una sidebar più stretta di quella misurata.
+**LA LARGHEZZA STRETTA SI VEDE, e la notte scorsa aveva detto il contrario.**
+Il referto di NIGHT-DECK dichiarava impossibile stringere la sidebar dopo
+cinque tentativi, mentre la ricetta era già scritta da EM16-UX2 e stava in
+`.claude/wip/context/misure-e-tecniche-note.md`: `Region.width` è readonly, e
+quello che funziona è **spezzare l'area 3D** (`area_split`) e guardare l'area
+NUOVA, la più a destra. Stanotte ha funzionato al primo colpo, con due
+inciampi misurati e risolti: lo scatto arriva dal framebuffer e dopo lo split
+contiene ancora il disegno di prima (si forzano dei `redraw_timer`), e la
+categoria dei pannelli va scelta **dopo** che l'area nuova ha disegnato almeno
+una volta, perché quelle categorie sono generate a runtime.
 
-**Perché un budget e non un altro screenshot**: la sidebar NON si stringe da
-uno script. Cinque leve provate stanotte e nessuna la muove sotto le 280
-unità — `ui_scale` (si auto-dimensiona), `area_split`, `--window-geometry`
-(macOS non porta la finestra sotto ~1045 px), `region_scale` in EXEC (è
-modale, mossa dal mouse) e la geometria della finestra in punti logici. Un
-budget asserito gira a ogni giro di prove; uno screenshot no.
+**IL BUDGET DI CARATTERI, e da dove viene.** Non è un'opinione: **38** caratteri
+a 280 unità e **14** a 149, misurati a video. Fra i due punti il pannello
+interpola (`_quanti_caratteri`) e manda a capo invece di troncare, perché a 149
+unità qualunque frase inglese utile è più lunga di quattordici caratteri: o si
+manda a capo, o si rinuncia a dirla.
+
+Il budget delle costanti resta a 40 perché quelle stringhe sono scritte per la
+larghezza normale; le frasi lunghe passano da `_frase`, che le spezza.
 """
 
 from __future__ import annotations
@@ -33,7 +39,8 @@ _REPO = pathlib.Path(__file__).resolve().parent.parent
 _UI = _REPO / "publication_deck_ui" / "ui.py"
 _SORGENTE = _UI.read_text(errors="replace")
 
-#: MISURATI: 55 caratteri si troncano a 280 unità, 36 entrano.
+#: MISURATI: 55 caratteri si troncano a 280 unità, 36 entrano; il budget vero
+#: a quella larghezza è 38.
 BUDGET_LARGHEZZA_PIENA = 40
 BUDGET_CELLA = 20
 
@@ -180,3 +187,117 @@ def test_l_interfaccia_e_in_inglese():
                      stringa):
             italiane.append(stringa)
     assert not italiane, italiane
+
+
+# ── D2/D3 · UIList più scheda ───────────────────────────────────────────────
+
+def test_c_e_una_UIList_e_la_scheda_sta_sotto():
+    """La forma che Blender usa per gli elenchi lunghi, e che il RM Manager già
+    usa in casa. Il box-per-risorsa faceva quasi trecento righe di pannello su
+    un progetto vero."""
+    assert "class EM_UL_publication_deck" in _SORGENTE
+    assert "template_list(" in _SORGENTE
+    assert "def _scheda(" in _SORGENTE
+
+
+def test_la_riga_della_lista_NON_porta_frasi():
+    """Le frasi stanno nella scheda. Una riga che le porta è una riga che si
+    tronca, ed è il difetto che questa forma esiste per togliere."""
+    i = _SORGENTE.index("def draw_item(")
+    corpo = _SORGENTE[i:_SORGENTE.index("class VIEW3D_PT_", i)]
+    for vietato in ("_SPIEGA_STATO", "perche", "pronto_perche",
+                    "cosa_e_cambiato"):
+        assert vietato not in corpo, f"«{vietato}» non va nella riga"
+
+
+def test_la_riga_porta_l_icona_del_MEDIA():
+    i = _SORGENTE.index("def draw_item(")
+    corpo = _SORGENTE[i:_SORGENTE.index("class VIEW3D_PT_", i)]
+    assert "_ICONA_MEDIA" in corpo
+
+
+def test_ogni_media_ha_la_sua_icona():
+    from importlib.util import module_from_spec, spec_from_file_location
+    import sys, types
+    pkg = types.ModuleType("emt_pd2"); pkg.__path__ = [str(_REPO)]
+    sys.modules["emt_pd2"] = pkg
+    for n in ("resource_audit", "publication_gesture", "publication_deck"):
+        sp = spec_from_file_location(f"emt_pd2.{n}", _REPO / f"{n}.py")
+        m = module_from_spec(sp); sys.modules[f"emt_pd2.{n}"] = m
+        sp.loader.exec_module(m)
+    media = set(sys.modules["emt_pd2.publication_deck"].MEDIA)
+    assert set(_stringhe_di("_ICONA_MEDIA")) == media
+
+
+# ── D4 · la spunta È il flag che esiste già ─────────────────────────────────
+
+def test_la_spunta_e_is_publishable_e_non_un_terzo_flag():
+    """Se il deck si crea una spunta propria, ci ritroviamo due impostazioni
+    che governano lo stesso fatto — la stessa malattia dei cancelli del sync,
+    che è costata due giorni."""
+    assert 'prop(elenco[item.flag_indice], "is_publishable"' in _SORGENTE
+
+
+def test_la_cache_NON_dichiara_un_booleano_di_selezione():
+    """La prova che il terzo flag non è tornato dalla finestra: nel gruppo di
+    proprietà del deck non c'è nessun booleano che significhi «scelto»."""
+    props = _codice(_REPO / "publication_deck_ui" / "properties.py")
+    for vietato in ("selezionata", "selected", "scelta:", "da_pubblicare"):
+        assert vietato not in props, f"«{vietato}» è un terzo flag"
+
+
+def test_il_numero_sta_NEL_bottone():
+    """Mai un «publish selected» che agisce su una selezione invisibile perché
+    si è scrollato: è il modo in cui si pubblica ciò che non si voleva."""
+    assert 'text=(f"Publish {deck.spuntati} flagged"' in _SORGENTE
+
+
+# ── D2 · le frasi vanno a capo, non si troncano ────────────────────────────
+
+def _ui_modulo():
+    """Il modulo del pannello caricato SENZA `bpy`: qui si prova `_frase`, che
+    è una funzione di stringhe e non ha bisogno di Blender."""
+    import sys, types
+    from importlib.util import module_from_spec, spec_from_file_location
+    if "bpy" not in sys.modules:
+        sys.modules["bpy"] = types.ModuleType("bpy")
+        sys.modules["bpy"].types = types.SimpleNamespace(
+            UIList=type("UIList", (), {}), Panel=type("Panel", (), {}))
+    sp = spec_from_file_location("emt_ui_frase", _UI)
+    m = module_from_spec(sp)
+    sp.loader.exec_module(m)
+    return m
+
+
+def test_una_frase_lunga_va_a_capo_e_ogni_riga_sta_nel_budget():
+    """A 149 unità entrano quattordici caratteri: qualunque frase inglese utile
+    è più lunga. O si manda a capo, o si rinuncia a dirla."""
+    class FintaColonna:
+        def __init__(s): s.righe = []
+        def column(s, **k): return s
+        def label(s, text="", icon='NONE'): s.righe.append(text)
+    c = FintaColonna()
+    ui = _ui_modulo()
+    ui._frase(c, "the bytes are not where the locator says", 14)
+    assert len(c.righe) > 1
+    assert all(len(r) <= 14 for r in c.righe), c.righe
+    assert " ".join(c.righe) == "the bytes are not where the locator says"
+
+
+def test_una_parola_piu_lunga_del_budget_non_sparisce():
+    class FintaColonna:
+        def __init__(s): s.righe = []
+        def column(s, **k): return s
+        def label(s, text="", icon='NONE'): s.righe.append(text)
+    c = FintaColonna()
+    _ui_modulo()._frase(c, "supercalifragilistico", 8)
+    assert c.righe == ["supercalifragilistico"]
+
+
+def test_il_budget_viene_dalle_MISURE_e_non_da_un_numero_a_caso():
+    """Due punti misurati a video: 280 unità → 38 caratteri, 149 → 14."""
+    ui = _ui_modulo()
+    assert ui._caratteri_per(280) == 38
+    assert ui._caratteri_per(149) == 14
+    #: e a 202 unità — la terza foto — sta in mezzo, come deve
+    assert 20 < ui._caratteri_per(202) < 30

@@ -11,10 +11,14 @@ pannello la mostra: «as of 14:32». Un numero vecchio che dice di essere vecchi
 è informazione; un numero vecchio che si spaccia per fresco è il difetto che
 questa settimana è passata a togliere.
 
-Le righe stanno in un `CollectionProperty` e non in un dizionario di modulo
-perché il pannello deve poterle SELEZIONARE, e una selezione è stato che
-Blender sa già disegnare (UIList, `prop` sul booleano). Lo stato di sessione
-che non si seleziona — l'ora, il sommario — sta accanto, nello stesso gruppo.
+**D1 · LA CACHE HA DUE LIVELLI, come il deck.** Una riga è un **asset** — la
+cosa di cui si decide — e dentro porta le sue **distribuzioni**, che sono i
+file. Erano una riga per distribuzione, e su un progetto vero facevano
+diciannove box da quindici righe l'uno: quasi trecento righe di pannello per
+dire quattro cose, e la sola lista dei nomi non si vedeva mai tutta.
+
+Le righe stanno in un `CollectionProperty` perché è la forma che una `UIList`
+sa disegnare, e la UIList è la forma che Blender usa per gli elenchi lunghi.
 """
 
 from __future__ import annotations
@@ -25,26 +29,16 @@ from bpy.props import (BoolProperty, CollectionProperty, EnumProperty,
 from bpy.types import PropertyGroup
 
 
-class EM_PublicationRow(PropertyGroup):
-    """Una riga del deck: **solo testo già calcolato**.
+class EM_PublicationDistribution(PropertyGroup):
+    """Un file di un asset: **solo testo già calcolato**, come la riga.
 
-    Nessun campo qui viene derivato mentre si disegna. È la regola che rende
-    il `draw` gratuito, ed è anche il motivo per cui i campi sono stringhe già
-    formattate invece dei numeri da cui vengono: formattare è lavoro, e il
-    lavoro si fa una volta sola, quando si riempie la cache.
+    Sta nella scheda e non nella lista, perché un tileset con il suo zip e il
+    suo albero servito è **una** decisione: come due righe avrebbe due spunte
+    che si accendono insieme, e nessuno saprebbe cosa vuol dire spuntarne una.
     """
 
     name: StringProperty(default="")  # type: ignore
     node_id: StringProperty(default="")  # type: ignore
-    selezionata: BoolProperty(
-        name="Select",
-        description="Include this asset in the next Bake & publish",
-        default=False)  # type: ignore
-
-    proprietario: StringProperty(default="")  # type: ignore
-    granularita: StringProperty(default="rm")  # type: ignore
-    membri: IntProperty(default=0)  # type: ignore
-
     stato: StringProperty(default="")  # type: ignore
     dove: StringProperty(default="")  # type: ignore
     tier: StringProperty(default="")  # type: ignore
@@ -53,25 +47,88 @@ class EM_PublicationRow(PropertyGroup):
     formato: StringProperty(default="")  # type: ignore
     packaging: StringProperty(default="")  # type: ignore
     peso: StringProperty(default="")  # type: ignore
+    url: StringProperty(default="")  # type: ignore
+    #: il locator RISOLTO contro le basi note (D5). Vuoto = non risolto, che
+    #: non è la stessa cosa di «non c'è»: la frase la porta `perche_no`.
+    percorso: StringProperty(default="")  # type: ignore
     pubblicata_il: StringProperty(default="")  # type: ignore
     cosa_e_cambiato: StringProperty(default="")  # type: ignore
-    url: StringProperty(default="")  # type: ignore
-
-    #: perché NON è pubblicabile, quando non lo è. La frase viaggia col no
-    #: perché un bottone spento senza una ragione è un bottone che sembra rotto.
-    perche_no: StringProperty(default="")  # type: ignore
     pubblicabile: BoolProperty(default=False)  # type: ignore
-
-    #: «pronto per» la destinazione scelta: stato + ragione, già risolti
+    perche_no: StringProperty(default="")  # type: ignore
     pronto: StringProperty(default="")  # type: ignore
     pronto_perche: StringProperty(default="")  # type: ignore
+
+
+class EM_PublicationRow(PropertyGroup):
+    """Un ASSET del deck: **solo testo già calcolato**.
+
+    Nessun campo qui viene derivato mentre si disegna. È la regola che rende
+    il `draw` gratuito, ed è anche il motivo per cui i campi sono stringhe già
+    formattate invece dei numeri da cui vengono: formattare è lavoro, e il
+    lavoro si fa una volta sola, quando si riempie la cache.
+    """
+
+    name: StringProperty(default="")  # type: ignore
+    asset_id: StringProperty(default="")  # type: ignore
+
+    #: il primo colpo d'occhio della riga: mesh, tileset, nuvola, immagine,
+    #: documento. Prima ancora dello stato, perché «di che cosa parliamo»
+    #: viene prima di «a che punto è».
+    media: StringProperty(default="other")  # type: ignore
+    stato: StringProperty(default="")  # type: ignore
+
+    proprietario: StringProperty(default="")  # type: ignore
+    granularita: StringProperty(default="rm")  # type: ignore
+    membri: IntProperty(default=0)  # type: ignore
+    tier: StringProperty(default="")  # type: ignore
+
+    #: **D4 · LA SPUNTA È IL FLAG CHE ESISTE GIÀ.** Qui non c'è nessun
+    #: booleano: c'è l'INDICE della voce di `scene.rm_list` il cui
+    #: `is_publishable` governa questo asset, e la UIList disegna quella
+    #: property direttamente. Un terzo flag darebbe due impostazioni per lo
+    #: stesso fatto — la malattia dei cancelli del sync, che è costata due
+    #: giorni. `-1` = nessun flag lo governa, e allora non si disegna una
+    #: casella: una casella che si spunta e poi non fa niente è peggio di
+    #: nessuna casella.
+    flag_indice: IntProperty(default=-1)  # type: ignore
+    #: l'indice del container, quando l'asset è un container: la sua
+    #: `publication_strategy` è l'altra impostazione che governa davvero cosa
+    #: l'export farà, e la scheda la mostra così com'è.
+    container_indice: IntProperty(default=-1)  # type: ignore
+
+    pubblicata_il: StringProperty(default="")  # type: ignore
+    cosa_e_cambiato: StringProperty(default="")  # type: ignore
+    perche_no: StringProperty(default="")  # type: ignore
+    n_pubblicabili: IntProperty(default=0)  # type: ignore
+
+    pronto: StringProperty(default="")  # type: ignore
+    pronto_perche: StringProperty(default="")  # type: ignore
+
+    distribuzioni: CollectionProperty(type=EM_PublicationDistribution)  # type: ignore
+
+
+class EM_PublicationBlocco(PropertyGroup):
+    """Una ragione che ferma più asset, con quanti ne ferma.
+
+    D5 · Quando tutti gli asset di un progetto riportano la stessa frase,
+    quella frase non è un fatto sull'asset: è un fatto sul **progetto**, e va
+    detta una volta in testa. Diciannove copie non la rendono più vera.
+    """
+
+    name: StringProperty(default="")  # type: ignore
+    quanti: IntProperty(default=0)  # type: ignore
 
 
 class EM_PublicationDeck(PropertyGroup):
     """Lo stato del deck per questa scena."""
 
     righe: CollectionProperty(type=EM_PublicationRow)  # type: ignore
+    #: quale riga sto GUARDANDO. Effimera, e serve solo alla scheda: le UIList
+    #: di Blender non hanno multi-selezione, quindi scegliere su cosa agire è
+    #: mestiere della spunta, non di questa.
     riga_attiva: IntProperty(default=0)  # type: ignore
+
+    blocchi: CollectionProperty(type=EM_PublicationBlocco)  # type: ignore
 
     #: L'ORA DEL CONTO. Vuota = mai calcolato, ed è uno stato diverso da «zero
     #: risorse»: il pannello li dice in due modi diversi perché sono due
@@ -80,6 +137,10 @@ class EM_PublicationDeck(PropertyGroup):
     sintesi: StringProperty(default="")  # type: ignore
     stale: IntProperty(default=0)  # type: ignore
     pubblicabili: IntProperty(default=0)  # type: ignore
+    distribuzioni: IntProperty(default=0)  # type: ignore
+    #: quanti asset sono spuntati: il numero che sta NEL bottone, così non si
+    #: pubblica mai una selezione invisibile perché si è scrollato
+    spuntati: IntProperty(default=0)  # type: ignore
     nota: StringProperty(default="")  # type: ignore
 
     #: La destinazione di cui si mostra la colonna «pronto per». Un enum e non
@@ -94,16 +155,9 @@ class EM_PublicationDeck(PropertyGroup):
         default="heriverse")  # type: ignore
     destinazione_nota: StringProperty(default="")  # type: ignore
 
-    mostra_master: BoolProperty(
-        name="Show masters",
-        description=("Masters are the sources the distributions are made "
-                     "from. They are never published — they are archived, "
-                     "which is a different act — but seeing that a chain has "
-                     "its source safe is half the answer to «what is missing»"),
-        default=True)  # type: ignore
 
-
-_CLASSI = (EM_PublicationRow, EM_PublicationDeck)
+_CLASSI = (EM_PublicationDistribution, EM_PublicationRow,
+           EM_PublicationBlocco, EM_PublicationDeck)
 
 
 def register():

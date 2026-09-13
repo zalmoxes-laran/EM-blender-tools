@@ -203,11 +203,13 @@ def test_la_riga_porta_le_sorgenti_della_sua_derivazione():
 
 def test_il_sommario_conta_quello_che_la_testa_mostra():
     s = calcola()["sommario"]
-    #: SETTE risorse: tre master (muro, vecchio, il muto), tre distribution
-    #: (muro, porta, vecchio) e il tileset. Il primo giro di questa prova ne
-    #: contava sei — avevo contato le RIGHE che avevo in mente invece dei nodi
-    #: che avevo scritto.
-    assert s["assets"] == 7
+    #: CINQUE asset da SETTE risorse, e il numero è cambiato perché è cambiata
+    #: l'unità: `muro` porta il suo master e la sua gltf, `vecchio` idem, e
+    #: quelle sono due cose da decidere, non quattro. Le sette risorse ci sono
+    #: ancora e si contano ancora — sotto `distribuzioni`, che è l'altro numero
+    #: vero, quello che risponde a «quanti file» invece che a «quante scelte».
+    assert s["assets"] == 5
+    assert s["distribuzioni"] == 7
     #: UNA sola pubblicata: `porta`, che sta nello store. Il tileset ha il suo
     #: checksum ma un url relativo, quindi è `baked` — e questa prova al primo
     #: giro pretendeva due, cioè ripeteva esattamente l'euristica sbagliata di
@@ -215,7 +217,7 @@ def test_il_sommario_conta_quello_che_la_testa_mostra():
     #: ragione e l'aspettativa no.
     assert s["published"] == 1
     assert s["stale"] == 1
-    assert PD.riga_di_sintesi(s) == "7 assets · 1 published · 1 stale"
+    assert PD.riga_di_sintesi(s) == "5 assets · 1 published · 1 stale"
 
 
 def test_un_CHECKSUM_da_solo_non_fa_una_pubblicata():
@@ -310,3 +312,118 @@ def test_una_derivata_con_PIU_sorgenti_e_stantia_se_ne_cambia_una():
     esito = PD.righe(nodi, archi, impronta_attuale=solo_il_secondo,
                      container_di=container_di, esiste=lambda p: True)
     assert per_id(esito)["vecchio_model_link"]["stato"] == "stale"
+
+
+# ── D1 · la riga è l'ASSET, non la distribuzione ────────────────────────────
+
+def per_asset(esito):
+    return {a["id"]: a for a in esito["assets"]}
+
+
+def test_un_asset_con_DUE_distribuzioni_e_UNA_riga():
+    """Il caso che decide la forma: un master e la sua gltf sono due file e
+    **una** decisione. Come due righe avrebbero due spunte che si accendono
+    insieme, e nessuno saprebbe cosa vuol dire spuntarne una."""
+    a = per_asset(calcola())["muro_model"]
+    assert [d["id"] for d in a["distribuzioni"]] == \
+        ["muro_model_link", "muro_model_res_blend"]
+    #: e la distribution viene PRIMA del master: è la cosa che esce
+    assert a["distribuzioni"][0]["tier"] == "distribution"
+
+
+def test_le_righe_crollano_quando_diventano_asset():
+    esito = calcola()
+    assert len(esito["righe"]) == 7 and len(esito["assets"]) == 5
+
+
+def test_lo_stato_dell_asset_e_il_RIASSUNTO_delle_sue_distribuzioni():
+    """`stale` vince su tutto: è il caso che il deck esiste per mostrare.
+    `baked` vince su `published`, perché vuol dire che qualcosa non è ancora
+    uscito — e il deck guarda cosa MANCA."""
+    assets = per_asset(calcola())
+    #: master + stantia → stantio
+    assert assets["vecchio_model"]["stato"] == "stale"
+    #: master + bakeata → bakeato, non «master»
+    assert assets["muro_model"]["stato"] == "baked"
+    assert assets["porta_model"]["stato"] == "published"
+
+
+def test_un_orfana_e_un_asset_di_una_riga():
+    """Nessuno la raggiunge: appenderla a un proprietario inventato la
+    nasconderebbe proprio dove il deck deve mostrarla."""
+    a = per_asset(calcola())["muto_model_res_blend"]
+    assert len(a["distribuzioni"]) == 1 and a["nome"]
+
+
+def test_il_tileset_e_un_asset_di_CONTAINER_e_porta_i_membri():
+    a = per_asset(calcola())["c0"]
+    assert a["granularita"] == "container" and a["membri"] == 2
+    assert a["nome"] == "Reconstruction"
+
+
+# ── D2 · il tipo di media ───────────────────────────────────────────────────
+
+def test_il_media_si_legge_da_url_type_E_dall_estensione():
+    """`url_type` dice la categoria, l'estensione dice il formato: sotto
+    `3d_model` stanno mesh, tileset e nuvole, che a video sono tre cose
+    diversissime e che il modello non distingue."""
+    m = PD._media
+    assert m({"url": "a/b.gltf", "url_type": "3d_model"}) == "mesh"
+    assert m({"url": "t/tileset.json", "url_type": "3d_model"}) == "tileset"
+    assert m({"url": "r/nuvola.laz", "url_type": "3d_model"}) == "pointcloud"
+    assert m({"url": "d/scheda.pdf", "url_type": "document"}) == "document"
+    assert m({"url": "d/foto.jpg", "url_type": "image"}) == "image"
+    assert m({"url": "blend://s.blend#Object/x"}) == "mesh"
+    assert m({"url": "qualcosa/senza-estensione"}) == "other"
+
+
+def test_il_media_dell_asset_e_quello_della_distribuzione_PIU_specifica():
+    """Un tileset con dentro delle mesh è un tileset, non una mesh."""
+    assert per_asset(calcola())["c0"]["media"] == "tileset"
+
+
+# ── D5 · una ragione che vale per tutti si dice una volta ──────────────────
+
+def test_le_ragioni_condivise_si_contano_e_si_ordinano():
+    """Diciannove righe che ripetono la stessa frase non la rendono più vera:
+    la rendono illeggibile, e nascondono che il problema è UNO."""
+    nodi, archi = un_grafo()
+    for nome in ("persa_a", "persa_b"):
+        nodi.append(N(nome, nome=nome, url=f"models/{nome}.gltf",
+                      tier="distribution"))
+    esito = PD.righe(nodi, archi, impronta_attuale=impronta_cambiata,
+                     container_di=container_di, esiste=lambda p: False)
+    blocchi = dict(esito["sommario"]["blocchi"])
+    assert blocchi["the bytes are not where the locator says"] >= 2
+
+
+def test_un_asset_con_UNA_pubblicabile_non_e_bloccato():
+    """Con una distribuzione pubblicabile e una no, il «no» è un dettaglio
+    della scheda e non il verdetto dell'asset."""
+    a = per_asset(calcola())["muro_model"]
+    assert a["pubblicabili"] and a["perche_no"] == ""
+
+
+def test_basta_UNA_distribuzione_che_la_destinazione_sappia_aprire():
+    """È ciò che `getLinkFromRepresentationModel` fa dall'altra parte: raccoglie
+    le candidate e ne sceglie una."""
+    def giudica(dati):
+        ok = str(dati.get("url", "")).endswith(".gltf")
+        return {"ok": ok, "state": "yes" if ok else "no", "why": "" if ok else "no"}
+    esito = PD.righe(*un_grafo(), impronta_attuale=impronta_cambiata,
+                     container_di=container_di, esiste=lambda p: True,
+                     destinazioni={"x": giudica})
+    a = per_asset(esito)["muro_model"]
+    assert a["pronto_per"]["x"]["state"] == "yes"
+
+
+def test_fra_i_no_vince_il_meno_definitivo():
+    """Un «non lo so» detto accanto a un «no» resta un non lo so: appiattirlo
+    su «no» sarebbe la bugia di T3 rifatta un livello più su."""
+    def giudica(dati):
+        stato = "unknown" if str(dati.get("url", "")).endswith(".gltf") else "no"
+        return {"ok": False, "state": stato, "why": stato}
+    esito = PD.righe(*un_grafo(), impronta_attuale=impronta_cambiata,
+                     container_di=container_di, esiste=lambda p: True,
+                     destinazioni={"x": giudica})
+    assert per_asset(esito)["muro_model"]["pronto_per"]["x"]["state"] == "unknown"
