@@ -340,3 +340,102 @@ def test_il_budget_viene_dalle_MISURE_e_non_da_un_numero_a_caso():
     assert ui._caratteri_per(149) == 14
     #: e a 202 unità — la terza foto — sta in mezzo, come deve
     assert 20 < ui._caratteri_per(202) < 30
+
+
+# ── D1 · la destinazione non governa più ───────────────────────────────────
+
+def test_la_destinazione_ANNOTA_e_non_spegne_niente():
+    """**Decisione 34.** Il verbo del deck è mettere i byte fuori con un
+    indirizzo e un'impronta: un fatto sull'asset, identico per un pdf e per un
+    glb. «Heriverse sa caricarlo?» è un fatto su una coppia asset-lettore, e
+    non deve disabilitare nessun comando.
+
+    Si guarda che nessun `enabled` dipenda dal verdetto del lettore.
+    """
+    codice = _codice(_UI)
+    #: si guardano gli `enabled`, non i rami: scegliere QUALE annotazione
+    #: mostrare in base al verdetto è giusto, spegnere un comando no
+    for riga in codice.splitlines():
+        if ".enabled" in riga or riga.strip().startswith("enabled"):
+            assert "pronto" not in riga, riga
+    #: l'unico `enabled` del pannello guarda quanto c'è da pubblicare, che è
+    #: un fatto sull'asset
+    assert "enabled = bool(riga.n_pubblicabili)" in codice
+
+
+def test_l_enum_del_lettore_si_chiama_per_quello_che_fa():
+    props = _codice(_REPO / "publication_deck_ui" / "properties.py")
+    assert 'name="Readable by"' in props
+    assert 'name="Ready for"' not in props
+
+
+# ── D5 · il glifo sparisce quando non distingue ────────────────────────────
+
+def test_il_glifo_si_disegna_solo_quando_gli_stati_DIFFERISCONO():
+    """Su un progetto di soli documenti è identico su tutte e diciannove le
+    righe: una colonna il cui valore non varia mai costa larghezza e non dice
+    niente."""
+    i = _SORGENTE.index("def draw_item(")
+    corpo = _SORGENTE[i:_SORGENTE.index("class VIEW3D_PT_", i)]
+    assert "stati_differiscono" in corpo
+    #: e l'icona del media resta SEMPRE: è il primo colpo d'occhio
+    assert "_ICONA_MEDIA" in corpo
+
+
+# ── D6 · la riga del grafo è in sola lettura ───────────────────────────────
+
+def test_la_riga_del_grafo_non_ha_verbi():
+    """Il deck mostra lo stato del grafo e non lo pubblica: quel gesto è il
+    push nella stanza e vive altrove. Un secondo posto da cui spingere sarebbe
+    un secondo posto da cui sbagliare."""
+    i = _SORGENTE.index("if deck.grafo_frase:")
+    pezzo = _SORGENTE[i:i + 300]
+    assert "operator(" not in pezzo and "prop(" not in pezzo
+
+
+def test_il_pannello_NON_apre_connessioni():
+    """Le informazioni vengono da quello che la sessione di sync già sa: un
+    pannello che apre un socket per disegnarsi blocca Blender quando la rete è
+    lenta."""
+    codice = _codice(_UI)
+    for vietato in ("socket", "urlopen", "requests", "WsClient", "SESSION.join"):
+        assert vietato not in codice, vietato
+
+
+# ── D4 · il disboscamento ──────────────────────────────────────────────────
+
+def test_i_fatti_di_una_distribuzione_stanno_su_UNA_riga():
+    """La griglia due-per-due con l'etichetta sopra il valore erano otto righe
+    per quattro fatti, uno dei quali vuoto (`Size / —`): due righe per dire
+    che non si sa quanto pesa."""
+    i = _SORGENTE.index("def _distribuzioni(")
+    corpo = _SORGENTE[i:_SORGENTE.index("    def _verbi(", i)]
+    assert "_cella(" not in corpo, "le celle a due righe non stanno più qui"
+    assert 'join(x for x in fatti if x)' in corpo, (
+        "i campi vuoti non si disegnano affatto")
+
+
+def test_i_verbi_della_scheda_hanno_un_ETICHETTA_quando_ci_sta():
+    """A video erano quattro icone mute: il tooltip c'è, ma va cercato col
+    mouse fermo, e un verbo che si scopre solo passandoci sopra non si usa."""
+    i = _SORGENTE.index("def _verbi(")
+    corpo = _SORGENTE[i:i + 1800]
+    for verbo in ("Reveal", "Copy URI", "Re-bake", "Publish"):
+        assert f'"{verbo}"' in corpo, verbo
+
+
+def test_la_lista_CRESCE_col_contenuto_fino_a_un_tetto():
+    assert "rows=min(max(len(deck.righe)" in _SORGENTE
+
+
+def test_il_filtro_sta_in_UN_posto_solo():
+    """Lo legge la lista che disegna e lo legge l'operatore che scrive in
+    blocco: due copie della stessa intenzione divergono al primo cambiamento."""
+    ops = _codice(_REPO / "publication_deck_ui" / "operators.py")
+    ui = _codice(_UI)
+    #: la LISTA filtra davvero (non basta disegnare il campo di ricerca: la
+    #: prima versione lo disegnava e la lista mostrava tutto lo stesso)
+    assert "def filter_items(" in ui
+    assert "publication_flags" in ui and "in_vista(" in ui
+    #: e l'operatore chiama la STESSA funzione, non una copia della regola
+    assert "in_vista(" in ops

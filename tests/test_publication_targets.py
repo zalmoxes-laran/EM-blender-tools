@@ -73,6 +73,9 @@ def test_un_pdf_verso_un_visore_di_modelli_e_n_a_e_NON_un_si():
     esito = PT.giudice(CAP, "", ["3d_model"])(PDF)
     assert esito["ok"] is False and esito["state"] == PT.NA
     assert "3d model" in esito["why"]
+    #: e la frase parla di un LETTORE, non di una destinazione: da DECK3 la
+    #: destinazione del deck è lo store, e questo annota soltanto
+    assert "destination" not in esito["why"]
 
 
 def test_n_a_NON_e_un_rifiuto():

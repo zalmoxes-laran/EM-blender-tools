@@ -198,9 +198,13 @@ def giudice(capacita: dict, mancante: str = "", tipi=None) -> callable:
         # è fuori dal discorso, e il verdetto ha un nome suo.
         tipo = str(dict(dati or {}).get("url_type") or "")
         if tipi and tipo not in tipi:
+            #: «reader» e non «destination»: da DECK3 la destinazione del deck
+            #: è lo store, e questo è il LETTORE che annota la riga. Una parola
+            #: che dice ancora «destinazione» rimette il consumatore al posto
+            #: di comando, che è proprio quello da cui è stato tolto.
             comodo = tipi[0].replace("_", " ") + "s"
             return {"ok": False, "state": NA,
-                    "why": f"this destination only takes {comodo}"}
+                    "why": f"this reader only takes {comodo}"}
         # UN MASTER NON È PRONTO PER NESSUNO, e non è un difetto suo: è ciò da
         # cui le distribution vengono fatte. Sta qui e non in
         # `capacita_richieste` perché è una proprietà del TIER e non del

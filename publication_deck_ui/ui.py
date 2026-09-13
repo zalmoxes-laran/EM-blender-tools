@@ -242,6 +242,33 @@ class EM_UL_publication_deck(bpy.types.UIList):
         coda = riga.row(align=True)
         coda.prop(item, "pubblica", text="")
 
+    def filter_items(self, context, data, nome_proprieta):
+        """**Il filtro, applicato dove si guarda.**
+
+        Senza questo il campo di ricerca c'era e non faceva niente: la lista
+        mostrava tutto e l'operatore in blocco agiva su ciò che il filtro
+        diceva. Due letture della stessa intenzione che non coincidono — e chi
+        avesse filtrato per «US_0» avrebbe premuto «Flag in view» vedendo
+        diciannove righe e flaggandone due. Se ne è accorta la prova che
+        chiedeva che il filtro stesse in un posto solo.
+
+        La regola di cosa è in vista sta in `publication_flags.in_vista`, ed è
+        la **stessa** che l'operatore chiama: qui si traduce soltanto in
+        maschera di bit, che è la forma che Blender vuole.
+        """
+        from .. import publication_flags
+
+        righe = getattr(data, nome_proprieta)
+        filtro = str(getattr(data, "filtro", "") or "")
+        if not filtro:
+            return [], []
+        visibili = set(publication_flags.in_vista(righe, filtro))
+        maschera = [
+            self.bitflag_filter_item
+            if (r.asset_id or r.name) in visibili else 0
+            for r in righe]
+        return maschera, []
+
 
 class VIEW3D_PT_em_publication_deck(bpy.types.Panel):
     bl_label = "Publication Deck"
@@ -306,16 +333,29 @@ class VIEW3D_PT_em_publication_deck(bpy.types.Panel):
             quando = f"as of {deck.calcolato_alle}"
             if deck.distribuzioni and larghezza >= 20:
                 quando += f" · {deck.distribuzioni} files"
-            riga = layout.split(factor=0.88, align=True)
-            _frase(riga, quando, int(larghezza * 0.88), icona='BLANK1')
+            #: la cella del bottone è una frazione, quindi a pannello stretto
+            #: vale meno pixel: a 149 unità con 0,88 l'ora usciva «as of 20:…».
+            #: Misurato, e corretto con la frazione e non con una frase più
+            #: corta — l'ora è già la cosa più corta che si possa dire.
+            fattore = 0.88 if larghezza >= 20 else 0.78
+            riga = layout.split(factor=fattore, align=True)
+            _frase(riga, quando, int(larghezza * fattore), icona='BLANK1')
             riga.operator("em.deck_refresh", text="", icon='FILE_REFRESH')
 
         if deck.stale:
             #: LA RIGA CHE CONTA, e si vede perché è SUA — non perché è rossa.
-            #: D4 · una riga e il verbo, non una scatola di tre.
-            riga = layout.split(factor=0.45, align=True)
-            riga.label(text=f"{deck.stale} stale", icon='TEMP')
-            riga.operator("em.deck_rebake", text="Re-bake")
+            #: D4 · una riga e il verbo, non una scatola di tre. A pannello
+            #: stretto il conto e il verbo NON stanno sulla stessa riga: con
+            #: la `split` a 0,45 il numero usciva «1…», e perdere la cifra è
+            #: perdere tutto — è il numero più importante del pannello.
+            if larghezza >= 20:
+                riga = layout.split(factor=0.45, align=True)
+                riga.label(text=f"{deck.stale} stale", icon='TEMP')
+                riga.operator("em.deck_rebake", text="Re-bake")
+            else:
+                colonna = layout.column(align=True)
+                colonna.label(text=f"{deck.stale} stale", icon='TEMP')
+                colonna.operator("em.deck_rebake", text="Re-bake")
 
         # D5/D4 · UNA RAGIONE CHE VALE PER TUTTI SI DICE UNA VOLTA, IN TESTA —
         # e in UNA RIGA, non in una scatola da centottanta pixel per un
