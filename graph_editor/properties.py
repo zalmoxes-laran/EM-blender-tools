@@ -103,7 +103,7 @@ class GraphEditorSettings(PropertyGroup):
 
 def initialize_edge_filters(context):
     """Inizializza i filtri edge dalla configurazione s3dgraphy"""
-    from .utils import get_edge_types
+    from .utils import get_edge_types, STRATIGRAPHIC_RELATIONS, with_spellings
     
     settings = context.scene.graph_editor_settings
     settings.edge_filters.clear()
@@ -111,10 +111,9 @@ def initialize_edge_filters(context):
     edge_types = get_edge_types()
     
     # Categorizza gli edge types
-    stratigraphic = ['is_before', 'is_after', 'has_same_time', 'changed_from',
-                     'overlies', 'is_overlain_by', 'abuts', 'is_abutted_by',
-                     'cuts', 'is_cut_by', 'fills', 'is_filled_by', 'rests_on',
-                     'is_bonded_to', 'is_physically_equal_to']
+    # una lista sola (utils.STRATIGRAPHIC_RELATIONS); le grafie accettate
+    # (bonded_to / is_bonded_to …) le aggiunge il datamodel, non questa riga
+    stratigraphic = with_spellings(STRATIGRAPHIC_RELATIONS)
     
     temporal = ['has_first_epoch', 'survive_in_epoch', 'has_timebranch', 
                 'is_in_timebranch', 'contrasts_with']

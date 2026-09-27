@@ -183,16 +183,30 @@ def set_em_list_active_index(context, index):
 
 def get_connection_rules():
     """
-    Carica le regole di connessione da s3dgraphy.
-    Returns: list di dict con le regole di connessione
+    Carica le regole di connessione dal datamodel delle connessioni di s3dgraphy.
+    Returns: list di dict con type, label, description, allowed_connections
+
+    Legge ``ConnectionsDatamodel`` (``s3dgraphy.edges``), cioè il JSON che è la
+    fonte di verità. Prima importava ``s3dgraphy.graph.connection_rules``, che
+    s3Dgraphy ha tolto il 2026-04-03 (d2eab12): l'ImportError veniva inghiottito
+    e il graph editor riceveva una lista vuota, quindi filtri e contesto non
+    trovavano nessun arco. I nomi comprendono i reverse e le grafie accettate.
     """
     try:
-        # ✅ Import diretto da s3dgraphy (già caricato all'import)
-        from s3dgraphy.graph import connection_rules
-        return connection_rules
-    except ImportError as e:
-        print(f"Warning: Could not import connection_rules from s3dgraphy: {e}")
+        from s3dgraphy.edges import get_connections_datamodel
+        dm = get_connections_datamodel()
+    except Exception as e:
+        print(f"Warning: Could not load the s3dgraphy connections datamodel: {e}")
         return []
+    return [{
+        'type': name,
+        'label': dm.get_label(name) or name,
+        'description': dm.get_description(name),
+        'allowed_connections': {
+            'source': dm.get_allowed_sources(name),
+            'target': dm.get_allowed_targets(name),
+        },
+    } for name in dm.get_all_edge_names()]
 
 def get_edge_types():
     """
@@ -214,16 +228,52 @@ def get_edge_types():
     print(f"   Loaded {len(edge_types)} edge types from s3dgraphy")
     return edge_types
 
+# Le relazioni stratigrafiche, per NOME DI RELAZIONE. Non sono le grafie: quelle
+# le dice il datamodel (`spelling_of`, connections 1.6.20) e le aggiunge
+# `with_spellings`. È l'UNICA lista: `properties.initialize_edge_filters` la
+# importa da qui.
+STRATIGRAPHIC_RELATIONS = (
+    'is_before', 'is_after', 'has_same_time', 'changed_from',
+    'overlies', 'is_overlain_by', 'abuts', 'is_abutted_by',
+    'cuts', 'is_cut_by', 'fills', 'is_filled_by', 'rests_on',
+    'bonded_to', 'equals',
+)
+
+# Usato SOLO quando s3dgraphy non ha `spellings()` (prima di connections 1.6.20,
+# es. il wheel dev17 del manifest): è lo stesso fallback letterale che s3dgraphy
+# tiene per un datamodel illeggibile. Col datamodel nuovo non viene letto.
+# Da togliere quando il wheel pinnato sarà ≥ 1.6.20.
+_SPELLINGS_BEFORE_1620 = {
+    'bonded_to': ('is_bonded_to',),
+    'equals': ('is_physically_equal_to',),
+}
+
+def with_spellings(names):
+    """I nomi dati più ogni grafia che il datamodel accetta per la stessa
+    relazione: ``with_spellings(['bonded_to']) == {'bonded_to', 'is_bonded_to'}``.
+
+    Chiede a ``ConnectionsDatamodel.spellings()`` (s3dgraphy ≥ connections
+    1.6.20): una terza grafia aggiunta in s3Dgraphy arriva qui senza toccare
+    EMtools. Senza il metodo si usa ``_SPELLINGS_BEFORE_1620``.
+    """
+    out = set(names)
+    try:
+        from s3dgraphy.edges import get_connections_datamodel
+        spellings = getattr(get_connections_datamodel(), 'spellings', None)
+    except Exception:
+        spellings = None
+    for name in names:
+        if spellings:
+            out |= set(spellings(name))
+        else:
+            out |= set(_SPELLINGS_BEFORE_1620.get(name, ()))
+    return out
+
 def get_stratigraphic_edge_types():
-    """Ottiene solo i tipi di edge stratigrafici"""
+    """Ottiene solo i tipi di edge stratigrafici (in ogni grafia accettata)"""
     all_types = get_edge_types()
-    stratigraphic_keywords = [
-        'is_before', 'is_after', 'has_same_time', 'changed_from',
-        'overlies', 'is_overlain_by', 'abuts', 'is_abutted_by',
-        'cuts', 'is_cut_by', 'fills', 'is_filled_by', 'rests_on',
-        'is_bonded_to', 'is_physically_equal_to'
-    ]
-    return [et for et in all_types if et['type'] in stratigraphic_keywords]
+    stratigraphic = with_spellings(STRATIGRAPHIC_RELATIONS)
+    return [et for et in all_types if et['type'] in stratigraphic]
 
 def get_paradata_edge_types():
     """Ottiene solo i tipi di edge per paradata"""
