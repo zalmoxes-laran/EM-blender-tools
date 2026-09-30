@@ -129,6 +129,24 @@ def refresh_bundled_s3dgraphy(python_version: str = '3.11') -> None:
               "see above. Building anyway; fix it before publishing.")
 
 
+def unreleased_suffix(root_dir: Path) -> str:
+    """``-unreleased-<commit>`` (and ``-dirty`` with uncommitted tracked
+    changes) for a dev build's FILE NAME.
+
+    The version in the manifest is the last published one (a dev build does not
+    bump it), so `em_tools-v1.6.0-dev.9.blext` built from later commits carried
+    exactly the name of the published dev.9 — a file that is not that release,
+    under its name. The suffix goes on the file only: the manifest version, the
+    one Blender reads, is unchanged.
+    """
+    def git(*args):
+        out = subprocess.run(['git', *args], cwd=root_dir, capture_output=True, text=True)
+        return out.stdout.strip() if out.returncode == 0 else ""
+    sha = git('rev-parse', '--short', 'HEAD') or "nogit"
+    dirty = "-dirty" if git('status', '--porcelain', '--untracked-files=no') else ""
+    return f"-unreleased-{sha}{dirty}"
+
+
 def build_extension(mode: str = 'dev', platform: str = None, python_version: str = '3.11'):
     """Costruisce l'extension in modalità specificata"""
     root_dir = Path(__file__).parent.parent
@@ -215,6 +233,8 @@ def build_extension(mode: str = 'dev', platform: str = None, python_version: str
     # Crea il package blext con nome appropriato
     if platform and mode != 'dev':
         package_name = f"em_tools-v{version}-{platform}-{blender_tag}.blext"
+    elif mode == 'dev':
+        package_name = f"em_tools-v{version}{unreleased_suffix(root_dir)}.blext"
     else:
         package_name = f"em_tools-v{version}.blext"
     
