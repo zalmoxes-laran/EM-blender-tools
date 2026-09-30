@@ -117,6 +117,7 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
   - A ResourceNode is the resource; its files are ResourceFileNodes (implicit when there is one file). Representations are sibling ResourceNodes tied by derivation, with `tier` (master | distribution) and `packaging` (file, file_set, directory, archive, datablock).
   - The internal resource of an RM (`blend://…`, `ensure_rm_and_internal_resource`) becomes the master with `packaging: datablock`; an OBJ/glTF export or a tileset is a distribution derived from it.
   - Container publication as a tileset: evaluate writing a single-file 3D Tiles archive (`.3tz`) alongside or instead of the folder/zip.
+  - `.3tz` support (measured by 3DSC, 30 Sep 2026): the file browser filters `*.zip`, the archive distribution renames `.3tz` → `.zip`, `publication_targets` classifies it as `unpackArchive` instead of `tiles3d`, the rotation looks for `tileset.json`. Needed: `filter_glob`, keep the extension, serve the 3tz as is (one distribution with its full sha256), extend rotation and capabilities; Heriverse must declare the 3tz capability (3DR).
 
 - [ ] **3D GIS Mode**  
   - UI section for simple 3D GIS switching  
