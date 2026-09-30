@@ -108,6 +108,16 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
   - Document type icons in UIList
   - Content import for documents (OBJ, images, DOSCo links)
 
+- [ ] **Merge RM Containers into the Document Manager** (to verify — E.D., 30 Sep 2026)
+  - Today an RM Container (`scene.rm_containers`, RM Manager panel) groups meshes under ONE DocumentNode: in the graph a `RepresentationModelNodeGroup` (`<doc>_rmgroup`), members via `is_in_representation_model_group`, Document → group via `has_representation_model`. Logically a container IS the 3D body of a document (e.g. all TempluMare tiles with their LODs = one survey document).
+  - Two panels for one idea (Document Manager, RM Manager → containers) split the user's logic: evaluate one place where a Document shows its 3D body (container, members, LOD sets, publication strategy members | tileset) next to its DosCo files.
+  - Measure first: who reads `scene.rm_containers` (publication deck, Heriverse export, surface areale, handlers), the "one mesh in at most one container" rule, legacy/unassigned containers.
+
+- [ ] **Resources as ResourceNode + ResourceFileNode** (after the s3Dgraphy datamodel change, decided 30 Sep 2026)
+  - A ResourceNode is the resource; its files are ResourceFileNodes (implicit when there is one file). Representations are sibling ResourceNodes tied by derivation, with `tier` (master | distribution) and `packaging` (file, file_set, directory, archive, datablock).
+  - The internal resource of an RM (`blend://…`, `ensure_rm_and_internal_resource`) becomes the master with `packaging: datablock`; an OBJ/glTF export or a tileset is a distribution derived from it.
+  - Container publication as a tileset: evaluate writing a single-file 3D Tiles archive (`.3tz`) alongside or instead of the folder/zip.
+
 - [ ] **3D GIS Mode**  
   - UI section for simple 3D GIS switching  
   - XLSX/CSV parser with JSON mapping schema  
