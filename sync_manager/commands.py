@@ -98,18 +98,21 @@ def build_delta(graph: Any, node_ids: List[str], edge_ids: List[str]) -> Dict[st
 # ── verb: create_proxy_for_unit ──────────────────────────────────────────────
 
 def _bbox_hull(obj) -> List[float]:
-    """The object's world-space bounding box as a flat convex-hull point list.
+    """The object's world-space bounding box as a flat convex-hull point list,
+    in the SCENE frame (Y-up, metres).
 
     A box is a legitimate proxy — it is what the EM proxy workflow produces by
     hand — and its eight corners are the honest description of the volume this
     command asserts. The numbers are WORLD space: a hull in local coordinates
-    would describe a shape nobody could place.
+    would describe a shape nobody could place. And they are the scene's world,
+    not Blender's: the graph keeps geometry in the frame of the model's glb
+    (``(x, y, z)`` Blender → ``(x, z, -y)``, `scene_space`), which is what
+    s3Dgraphy writes verbatim into glTF — a Z-up hull would stand up sideways
+    next to the model it bounds.
     """
-    flat: List[float] = []
-    for corner in obj.bound_box:
-        world = obj.matrix_world @ __import__("mathutils").Vector(corner)
-        flat.extend([round(world.x, 6), round(world.y, 6), round(world.z, 6)])
-    return flat
+    from mathutils import Vector  # type: ignore
+    from ..scene_space import flat_to_scene
+    return flat_to_scene(obj.matrix_world @ Vector(corner) for corner in obj.bound_box)
 
 
 def _proxy_object_for(node_name: str, context, graph):
