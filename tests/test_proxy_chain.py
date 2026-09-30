@@ -248,13 +248,25 @@ def test_la_forma_vecchia_in_memoria_si_migra_prima_di_cercare():
 
 
 def test_una_risorsa_gia_3d_non_fa_nascere_un_secondo_proxy():
-    """Misurato in s3Dgraphy: una risorsa `3d_model` resta tale dopo la
-    migrazione, e `linked_proxy_resources` non la vede. L'aggiornamento la
-    riconosce lo stesso dal percorso `proxies/…` invece di coniare un doppione."""
+    """s3Dgraphy dev23: la migrazione ritipizza `proxy_model` la risorsa della
+    forma che fa da proxy, anche se era `3d_model`. `glb_proxy` la trova per
+    tipo, senza il ripiego sul percorso `proxies/…` che serviva con la dev22."""
     g = _old_graph()
     g.find_node_by_id("US01_shape_link").data["url_type"] = "3d_model"
     PC.migrate_old_proxies(g)
+    link = g.find_node_by_id("US01_shape_link")
+    assert link.data["url_type"] == "proxy_model"
     r = PC.ensure_unit_proxy(g, "us-1", "US01")
     assert r["created"] is False
     assert r["resource_id"] == "US01_shape_link"
     assert len(PC.geometry_shapes(g, "us-1")) == 1
+
+
+def test_una_risorsa_proxies_non_proxy_model_non_e_un_proxy_glb():
+    """Tolto il ripiego: una risorsa col percorso `proxies/…` che la
+    migrazione non ha ritipizzato non passa per un proxy-glb."""
+    g = _graph()
+    PC.ensure_unit_proxy(g, "us-1", "US01")
+    shape, res = PC.glb_proxy(g, "us-1")
+    res.data["url_type"] = "3d_model"
+    assert PC.glb_proxy(g, "us-1") == (None, None)

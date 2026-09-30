@@ -15,13 +15,17 @@ tzdata>=2025.1
 et-xmlfile==2.0.0
 fonttools>=4.57.0
 packaging==25.0
-s3dgraphy>=1.6.0.dev6,<1.7.0
+s3dgraphy>=1.6.0.dev23,<1.7.0
 # Constraint syntax (PEP 440):
-#   - `.dev6` lower bound EXPLICITLY allows pre-release versions for this
-#     package only (1.6.0.dev6, 1.6.0a1, 1.6.0rc1, 1.6.0, 1.6.1, ...).
-#     dev6 is the first build carrying the PyArchInit Postgres backend
-#     (PyArchInitImporter connection_url=) and s3dgraphy.sync.GraphIngestor
-#     that EM-tools Sub-2 / Sub-3 (issue #27) consume.
+#   - `.dev23` lower bound EXPLICITLY allows pre-release versions for this
+#     package only (1.6.0.dev23, 1.6.0a1, 1.6.0rc1, 1.6.0, 1.6.1, ...).
+#     dev23 is the first PyPI build that IS the source EMtools is written
+#     against (checked by content with `wheel_drift --wheel`): geometry/gltf.py
+#     with the stitched polyline, the proxy_model retype in migrate_shape_urls,
+#     link_proxy_resource. The dev22 on PyPI (44820e1) lacks all three, so a
+#     lower pin let `em.sh setup` satisfy it with the wrong code.
+#     (dev6 was the first with the PyArchInit Postgres backend and
+#     s3dgraphy.sync.GraphIngestor, issue #27 — included.)
 #     No need for `--pre` globally (which would affect ALL packages).
 #   - `<1.7.0` upper bound prevents breaking-change surprises from a
 #     hypothetical future major release on the same minor line.

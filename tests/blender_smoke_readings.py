@@ -12,7 +12,9 @@ modello (glTF Y-up → Blender Z-up: ``(x, y, z) → (x, -z, y)``, la stessa
 conversione che subisce il glb del modello). Poi: si sposta un oggetto → la
 lettura è marcata spostata e il grafo non cambia; un secondo «mostra» la
 rimette dov'era. E il ritorno misurato: l'exporter di Blender con
-``use_mesh_vertices`` / ``use_mesh_edges`` e `gltf_to_geometry`.
+``use_mesh_vertices`` / ``use_mesh_edges`` / ``export_extras`` e
+`gltf_to_geometry` senza kind — dalla dev23 la polilinea torna ricucita, 4
+vertici su 4.
 
 Exits non-zero on failure.
 """
@@ -117,7 +119,9 @@ check("show again: point back where the graph says, flag cleared",
       pt is not None and close(rv_ops.world_points(pt), [to_blender(p) for p in PT])
       and not pt.get(rv_core.PROP_MOVED))
 
-# ── il ritorno, misurato (è il sync dell'authoring, qui non si scrive) ─────
+# ── il ritorno, misurato: dalla dev23 la polilinea torna ricucita ──────────
+# export con le custom property del nodo (`em_reading_kind`), e
+# `gltf_to_geometry` senza kind: lo legge dagli extras del nodo
 work = tempfile.mkdtemp(prefix="em_readings_")
 for rid, kind, coords in (("reg-pt", "point", PT), ("reg-pl", "polyline", PL)):
     obj = objs[rid]
@@ -126,17 +130,14 @@ for rid, kind, coords in (("reg-pt", "point", PT), ("reg-pl", "polyline", PL)):
     obj.select_set(True)
     path = os.path.join(work, rid + ".glb")
     bpy.ops.export_scene.gltf(filepath=path, use_selection=True, export_format='GLB',
-                              use_mesh_vertices=True, use_mesh_edges=True)
-    back = gltf_to_geometry(open(path, "rb").read(), kind)
-    print(f"[SMOKE] INFO: {kind} back from Blender: {back['coords']}")
-    if kind == "point":
-        check("point comes back exact", close(back["coords"], coords))
-    else:
-        # LINES a coppie: ogni vertice interno torna due volte (misurato)
-        dedup = [p for i, p in enumerate(back["coords"])
-                 if i == 0 or p != back["coords"][i - 1]]
-        check("polyline comes back as LINES pairs (inner vertices doubled)",
-              len(back["coords"]) == 2 * (len(coords) - 1) and close(dedup, coords))
+                              use_mesh_vertices=True, use_mesh_edges=True,
+                              export_extras=True)
+    back = gltf_to_geometry(open(path, "rb").read())
+    print(f"[SMOKE] INFO: {kind} back from Blender: {back}")
+    check(f"{kind}: kind read from the node extras",
+          back.get("geometry_kind") == kind and not back.get("warnings"), str(back.get("warnings")))
+    check(f"{kind} comes back exact ({len(coords)} vertices, in order)",
+          close(back.get("coords") or [], coords))
 
 print(f"[SMOKE] {'OK' if not FAILURES else 'FAILED: ' + ', '.join(FAILURES)}")
 sys.exit(1 if FAILURES else 0)

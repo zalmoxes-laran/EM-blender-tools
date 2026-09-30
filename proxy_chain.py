@@ -96,18 +96,11 @@ def glb_proxy(graph, unit_id: str) -> Tuple[Optional[Any], Optional[Any]]:
         linked = linked_proxy_resources(graph, shape.node_id)
         if linked:
             return shape, linked[0]
-    # Misurato (s3Dgraphy 0573ea4): la migrazione lascia com'è una risorsa
-    # già tipizzata «3D» (`3d_model`, `point_cloud`) e le toglie l'url della
-    # forma, ma `linked_proxy_resources` riconosce solo `proxy_model`. Senza
-    # questo ripiego l'aggiornamento non la vedrebbe e conierebbe un secondo
-    # proxy accanto al primo. Si riconosce, non si ritipizza: il tipo lo ha
-    # scritto qualcuno.
-    for shape in shapes:
-        for res in _targets(graph, shape.node_id, _HAS_LINKED_RESOURCE):
-            data = getattr(res, "data", None) or {}
-            if getattr(res, "node_type", None) == "resource" and \
-                    str(data.get("url") or "").startswith(f"{PROXY_DIR}/"):
-                return shape, res
+    # Niente ripiego sul percorso `proxies/…`: dalla dev23 `migrate_shape_urls`
+    # ritipizza `proxy_model` la risorsa della forma che è payload di una
+    # proprietà geometry, qualunque tipo avesse («External link» dell'export
+    # di prima di 21dcf93, `3d_model`, e la distribution di un grafo già
+    # aperto con la dev22 ribundlata). Chi chiama migra prima di cercare.
     return None, None
 
 
