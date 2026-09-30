@@ -1,6 +1,5 @@
 import bpy # type: ignore
 from s3dgraphy import get_graph, get_all_graph_ids
-from s3dgraphy.nodes.semantic_shape_node import SemanticShapeNode
 from s3dgraphy.nodes.representation_node import RepresentationModelNode, RepresentationModelDocNode
 from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
 from s3dgraphy.nodes.document_node import DocumentNode
@@ -84,17 +83,40 @@ def update_graph_with_scene_data(graph_id=None, update_all_graphs=False, context
             return False
 
 def update_semantic_shapes(graph):
-    """Updates semantic shape nodes in the graph based on scene proxies."""
+    """Il proxy di ogni US che ha un oggetto in scena, come proprietà.
+
+    L'abbinamento resta per NOME dell'oggetto (esatto, o suffisso ``.<US>``
+    per il prefisso di grafo): è quello che conosce chi modella. Cambia solo
+    cosa si scrive nel grafo — la catena di s3Dgraphy (`proxy_chain`)::
+
+        US ─has_property→ Property(geometry) ─has_semantic_shape→ SemanticShape
+                                                   └─has_linked_resource→ Resource(proxies/<US>.glb, proxy_model)
+
+    e non più ``US ─has_semantic_shape→ '<US>_shape'(url)``, che s3Dgraphy
+    migra in lettura e che questa funzione, prima, riscriveva a ogni click.
+    """
+    from .proxy_chain import ensure_unit_proxy, migrate_old_proxies
+
     print("\n--- Updating Semantic Shapes ---")
-    
-    stratigraphic_nodes = [node for node in graph.nodes 
+
+    # La forma vecchia già nel grafo in memoria (sessione aperta col codice di
+    # prima, o grafo da GraphML) diventa la nuova PRIMA di cercare i proxy:
+    # così un proxy migrato è ritrovato, non duplicato.
+    migrated = migrate_old_proxies(graph)
+    if migrated["properties"] or migrated["resources"]:
+        print(f"Migrated {migrated['properties']} legacy proxies to properties, "
+              f"{migrated['resources']} shape urls to proxy_model resources")
+    for warning in migrated["warnings"]:
+        print(f"  ⚠ {warning}")
+
+    stratigraphic_nodes = [node for node in graph.nodes
                           if isinstance(node, StratigraphicNode)]
-    mesh_objects = [obj for obj in bpy.data.objects 
+    mesh_objects = [obj for obj in bpy.data.objects
                    if obj.type == 'MESH']
-    
-    nodes_added = 0
-    edges_added = 0
-    
+
+    created = 0
+    kept = 0
+
     for strat_node in stratigraphic_nodes:
         # Try exact match first
         matching_proxy = next((obj for obj in mesh_objects
@@ -108,37 +130,18 @@ def update_semantic_shapes(graph):
                                  if obj.name.endswith(suffix)), None)
 
         if matching_proxy:
-            shape_node_name = f"{strat_node.name}_shape"
-            shape_node = graph.find_node_by_id(shape_node_name)
-            print(f'Try to create node semantic {shape_node_name} for proxy {matching_proxy.name}')
-            if not shape_node:
-                # Use stratigraphic name (without prefix) for the GLB filename
-                shape_node = SemanticShapeNode(
-                    node_id= shape_node_name,
-                    name=f"Shape for {strat_node.name}",
-                    type="proxy",
-                    url=f"proxies/{strat_node.name}.glb"  # Use strat name, not proxy name
-                )
-                print(f'Created node semantic {shape_node_name}')
-                graph.add_node(shape_node)
-                nodes_added += 1
+            # il glb porta il nome dell'unità, non quello dell'oggetto
+            result = ensure_unit_proxy(graph, strat_node.node_id, strat_node.name)
+            if result["created"]:
+                created += 1
+                print(f"Created proxy of {strat_node.name} for object "
+                      f"{matching_proxy.name}: shape {result['shape_id']}")
             else:
-                # Update URL to use stratigraphic name (without prefix)
-                shape_node.url = f"proxies/{strat_node.name}.glb"
-                shape_node.set_url(f"proxies/{strat_node.name}.glb")
-            
-            #edge_id = str(uuid.uuid4())#f"{strat_node.node_id}_has_shape_{shape_node_name}"
-            edge_id = f"{strat_node.node_id}_has_shape_{shape_node_name}"
-            if not graph.find_edge_by_id(edge_id):
-                graph.add_edge(
-                    edge_id=edge_id,
-                    edge_source=strat_node.node_id,
-                    edge_target=shape_node_name,
-                    edge_type="has_semantic_shape"
-                )
-                edges_added += 1
-    
-    print(f"Added {nodes_added} semantic shape nodes and {edges_added} edges")
+                kept += 1
+            for warning in result["warnings"]:
+                print(f"  ⚠ {warning}")
+
+    print(f"Proxies: {created} created, {kept} already in the graph")
 
 def update_representation_models(graph):
     """Updates representation model nodes in the graph based on scene objects."""

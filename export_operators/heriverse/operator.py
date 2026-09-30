@@ -153,7 +153,7 @@ class EXPORT_OT_heriverse(Operator):
                        file_esportato, etichetta,
                        source_ids=None, packaging=None,
                        oggetti_sorgente=None, con_master=True,
-                       suffisso=None, checksum_of=None):
+                       suffisso=None, checksum_of=None, derivata_id=None):
         """Un bake: assicura il master, registra la distribution, e lo dice.
 
         `con_master=False` è per il tileset esterno e per chi il master non ce
@@ -208,7 +208,11 @@ class EXPORT_OT_heriverse(Operator):
         else:
             impronta = impronta_di(obj) if obj is not None else ""
 
-        derivata_id = f"{model_node_id}{suffisso or _rl.SUFFISSO_DERIVATA}"
+        #: `derivata_id` dato è una risorsa che c'è già e che È la
+        #: distribution (il `proxy_model` di un proxy): la si registra lì
+        #: invece di coniarne una seconda con lo stesso file
+        derivata_id = derivata_id or \
+            f"{model_node_id}{suffisso or _rl.SUFFISSO_DERIVATA}"
         ok, perche = _rl.registra_derivata(
             graph, derivata_id=derivata_id,
             url=url,
@@ -700,19 +704,24 @@ class EXPORT_OT_heriverse(Operator):
                     exported_count += 1
                     em_log(f"  Successfully exported proxy: {clean_name}.glb", "DEBUG")
 
-                    # Update SemanticShapeNode URL and create LinkNode in the graph
-                    # (SemanticShapeNode should already exist from update_graph_with_scene_data)
+                    # Il glb scritto va nella RISORSA `proxy_model` del proxy
+                    # (connections 1.6.28), non più nell'`url` della forma.
+                    # La catena la crea `update_graph_with_scene_data`
+                    # (graph_updaters → proxy_chain); qui la si ritrova per
+                    # unità e le si scrive il percorso del file vero, che è
+                    # quello pulito da `clean_filename`.
                     if graph:
-                        from s3dgraphy.nodes.semantic_shape_node import SemanticShapeNode
+                        from ...proxy_chain import (proxy_resource_for_export,
+                                                    units_named)
 
-                        # Find the existing SemanticShapeNode
-                        shape_node_id = f"{name}_shape"
-                        shape_node = graph.find_node_by_id(shape_node_id)
+                        glb_url = f"proxies/{clean_name}.glb"
+                        shape_node_id, resource_id, changed = \
+                            proxy_resource_for_export(
+                                graph, units_named(graph, name), glb_url)
 
-                        if shape_node:
-                            # Update URL (should already be set, but update to be sure)
-                            shape_node.set_url(f"proxies/{clean_name}.glb")
-                            em_log(f"    Updated SemanticShape URL: {shape_node_id}", "DEBUG")
+                        if shape_node_id:
+                            if changed:
+                                em_log(f"    Proxy resource {resource_id} → {glb_url}", "DEBUG")
 
                             # ── NIGHT-RES/R2 · IL PROXY ───────────────────
                             #
@@ -728,15 +737,20 @@ class EXPORT_OT_heriverse(Operator):
                             # stratigrafica è un file. Il master è il
                             # datablock, appeso al `SemanticShape` che è la
                             # forma — che è esattamente ciò che il proxy è.
+                            #
+                            # La distribution È la risorsa `proxy_model`:
+                            # stesso glb, un nodo solo (prima ce n'erano due,
+                            # la forma con l'url e il `<forma>_link`).
                             self._registra_bake(
                                 graph, shape_node_id, proxy,
-                                url=f"proxies/{clean_name}.glb",
+                                url=glb_url,
                                 #: il GLB esce con l'estensione attaccata dal
                                 #: chiamante: `export_file` è il tronco
                                 file_esportato=export_file + ".glb",
-                                etichetta=f"Proxy for {name}")
+                                etichetta=f"Proxy for {name}",
+                                derivata_id=resource_id)
                         else:
-                            em_log(f"    Warning: SemanticShape node '{shape_node_id}' not found (should have been created by update_graph_with_scene_data)", "WARNING")
+                            em_log(f"    Warning: no proxy_model resource for '{name}' (should have been created by update_graph_with_scene_data)", "WARNING")
 
                 except self.DIFETTI_DI_PROGRAMMAZIONE:
                     raise          # T4 · un difetto del codice non si maschera
