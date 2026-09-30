@@ -20,20 +20,21 @@ class VIEW3D_PT_em_readings(Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("em.show_readings", icon='CURVE_PATH')
+        row = layout.row(align=True)
+        row.operator("em.show_readings", icon='CURVE_PATH')
+        row.operator("em.readings_to_graph", icon='EXPORT')
         coll = bpy.data.collections.get(core.COLLECTION)
         if coll is None:
             return
         objs = [o for o in coll.objects if o.get(core.PROP_ID)]
-        layout.label(text=f"{len(objs)} in {core.COLLECTION} · read-only",
-                     icon='LOCKED')
+        layout.label(text=f"{len(objs)} in {core.COLLECTION}", icon='OUTLINER_COLLECTION')
         moved = [o for o in objs if o.get(core.PROP_MOVED)]
         if moved:
             box = layout.box()
             box.label(text="Moved in Blender, not in the graph:", icon='ERROR')
             for o in moved[:8]:
                 box.label(text=o.name)
-            box.label(text="Show again to put them back.")
+            box.label(text="Bring back to graph, or Show again to reset.")
 
 
 classes = (VIEW3D_PT_em_readings,)
