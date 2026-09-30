@@ -168,10 +168,13 @@ def test_NESSUN_PANNELLO_E_SPARITO_NEL_TRASLOCO():
     (HDT-O, che torna pannello). UX3 ne aveva aggiunto un terzo,
     `VIEW3D_PT_EM_Overview`, e E.D. l'ha eliminato: quindi si era tornati a 32.
     NIGHT-DECK ne aggiunge uno — `VIEW3D_PT_em_publication_deck`, il
-    Publication Deck in EM Bridge — e siamo a 33.
+    Publication Deck in EM Bridge — e siamo a 33. MICRO-EMTOOLS-PROXY ne
+    aggiunge uno, `VIEW3D_PT_em_readings` (le letture 3D, figlio del Visual
+    Manager perché è la lente): 34.
     Nessuno via per sbaglio — verificato contandoli, non stimandoli.
     """
-    assert len(PANNELLI) == 33, sorted(PANNELLI)
+    assert len(PANNELLI) == 34, sorted(PANNELLI)
+    assert PANNELLI["VIEW3D_PT_em_readings"]["parent"] == "VIEW3D_PT_visual_panel"
     assert "VIEW3D_PT_EM_Overview" not in PANNELLI
 
 

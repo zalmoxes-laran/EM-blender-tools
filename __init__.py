@@ -405,6 +405,7 @@ if DEPENDENCIES_LOADED:
             debug_graph_connections,  # Debug operator
             tapestry_integration,  # Tapestry AI reconstruction
             surface_areale,  # Surface Areale proxy creation
+            readings_view,  # 3D readings (point/line/polyline) via s3Dgraphy glTF, read-only
             georef_manager,  # DP-56: Georeferencing (shift + EPSG, BGIS/3DSC orchestration)
             sync_manager,  # ADR-002: live selection bridge to EMStudio (WS host)
             graph_info,  # fetta 3: graph-level HDT-O dataset info panel
@@ -812,6 +813,13 @@ def register_modules():
     except Exception as e:
         logger.error(f"Error registering sync manager: {e}")
 
+    # FASE 9: le letture 3D (figlio del Visual Manager, quindi dopo di lui)
+    try:
+        readings_view.register()
+        logger.debug("Registered readings view")
+    except Exception as e:
+        logger.error(f"Error registering readings view: {e}")
+
     # Registra il keymap manager per ultimo
     if KEYMAP_MANAGER_LOADED:
         try:
@@ -867,6 +875,13 @@ def unregister_modules():
         logger.debug("Unregistered sync manager")
     except Exception as e:
         logger.warning(f"Error unregistering sync manager: {e}")
+
+    # FASE 0: le letture 3D (figlio del Visual Manager, va via prima di lui)
+    try:
+        readings_view.unregister()
+        logger.debug("Unregistered readings view")
+    except Exception as e:
+        logger.warning(f"Error unregistering readings view: {e}")
 
     # FASE 0: Georef Manager (DP-56)
     try:
