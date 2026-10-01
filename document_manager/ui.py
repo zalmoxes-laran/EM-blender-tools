@@ -380,6 +380,28 @@ class DOCMANAGER_UL_linked_rms(UIList):
         return filter_flags, []
 
 
+def _draw_languages(col, context, node_id):
+    """``la · it ✓ · en ✦`` for a document with translations; nothing otherwise."""
+    try:
+        from s3dgraphy import get_graph
+        from .. import translation_tags
+        em_tools = context.scene.em_tools
+        graph = get_graph(em_tools.graphml_files[em_tools.active_file_index].name)
+        node = graph.find_node_by_id(node_id) if graph else None
+        text = translation_tags.line(graph, node) if node is not None else ""
+    except Exception:                                  # noqa: BLE001
+        return
+    if not text:
+        return
+    col.separator()
+    row = col.row(align=True)
+    row.label(text=text, icon='WORLD')
+    hint = col.column(align=True)
+    hint.enabled = False
+    hint.label(text=translation_tags.HINT, icon='BLANK1')
+    hint.label(text="✦ AI unverified · ? review · ↻ realign")
+
+
 class VIEW3D_PT_3DDocumentManager(Panel):
     """Document Manager — catalog of all documents from the graph."""
     bl_label = "Document Manager"
@@ -529,6 +551,10 @@ class VIEW3D_PT_3DDocumentManager(Panel):
             if item.description:
                 col.separator()
                 col.label(text=item.description, icon="TEXT")
+
+            # Le lingue del testo (MICRO-EMTOOLS-DEV26): l'originale e le sue
+            # traduzioni, in sola lettura — si traducono in EMStudio.
+            _draw_languages(col, context, item.node_id)
 
             # Chronology (canonicals only)
             if item.is_canonical:

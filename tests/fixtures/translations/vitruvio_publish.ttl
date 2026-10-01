@@ -1,0 +1,93 @@
+@prefix crm: <http://www.cidoc-crm.org/cidoc-crm/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix em: <https://w3id.org/em/ontology#> .
+@prefix hdto: <https://w3id.org/hdto/ontology#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://example.org/em/graph/vitruvio> a crm:E73_Information_Object,
+        prov:Bundle,
+        em:EMGraph,
+        hdto:HC16_Heritage_Proposition_Set ;
+    dcterms:language "it" .
+
+<https://example.org/em/graph/vitruvio/node/anon> a crm:E21_Person,
+        prov:Person,
+        em:Author,
+        em:HumanAuthor ;
+    rdfs:label "Anon" ;
+    dcterms:identifier "anon" .
+
+<https://example.org/em/graph/vitruvio/node/claude> a crm:E39_Actor,
+        prov:SoftwareAgent,
+        em:AIAuthor,
+        em:Author ;
+    rdfs:label "Claude" ;
+    dcterms:identifier "claude" .
+
+<https://example.org/em/graph/vitruvio/node/ed> a crm:E21_Person,
+        prov:Person,
+        em:Author,
+        em:HumanAuthor ;
+    rdfs:label "Emanuel" ;
+    dcterms:identifier "ed" ;
+    crm:P1_is_identified_by "D" ;
+    crm:P48_has_preferred_identifier "0000-0002-1825-0097" .
+
+<https://example.org/em/graph/vitruvio/node/geo_vitruvio> a crm:E53_Place,
+        em:GeoPositionNode ;
+    rdfs:label "geo_position" ;
+    dcterms:identifier "geo_vitruvio" ;
+    crm:P2_has_type "EPSG:4326" ;
+    em:rotation 0e+00 ;
+    em:shift_x 0e+00 ;
+    em:shift_y 0e+00 ;
+    em:shift_z 0e+00 .
+
+<https://example.org/em/graph/vitruvio/node/vitruvio_graphroot> a crm:E73_Information_Object,
+        prov:Bundle,
+        em:EMGraph,
+        hdto:HC16_Heritage_Proposition_Set ;
+    rdfs:label "Graph" ;
+    dcterms:identifier "vitruvio_graphroot" .
+
+<https://example.org/em/graph/vitruvio/node/97e6fa49-30ff-5d3b-b3a8-145f7661c952> a crm:E33_Linguistic_Object ;
+    rdfs:label "D.1@it" ;
+    dcterms:identifier "97e6fa49-30ff-5d3b-b3a8-145f7661c952" ;
+    crm:P190_has_symbolic_content "solidità, utilità, bellezza"@it ;
+    crm:P67_refers_to <https://example.org/em/graph/vitruvio/node/ed_fg> ;
+    crm:P72_has_language "it" ;
+    prov:generatedAtTime "2026-10-29T09:00:00+00:00"^^xsd:dateTime ;
+    prov:wasAttributedTo <https://example.org/em/graph/vitruvio/node/sb>,
+        <https://orcid.org/0000-0001-5109-3700> ;
+    prov:wasDerivedFrom <https://example.org/em/graph/vitruvio/node/d1> ;
+    em:createdBy <https://orcid.org/0000-0001-5109-3700> ;
+    em:hasAuthor <https://example.org/em/graph/vitruvio/node/sb> ;
+    em:sourceDigest "sha256:01a68aac2498ee7f8b26b65485e6e56a04ea7bbc880a701852c35266476ea8f8" ;
+    em:sourceLanguage "la" ;
+    em:translatedField "description" ;
+    em:translationMethod "edition" .
+
+<https://example.org/em/graph/vitruvio/node/d1> a crm:E31_Document ;
+    rdfs:label "D.1" ;
+    dcterms:description "solidità, utilità, bellezza"@it,
+        "firmitatis, utilitatis, venustatis"@la ;
+    dcterms:identifier "d1" ;
+    crm:P73_has_translation <https://example.org/em/graph/vitruvio/node/97e6fa49-30ff-5d3b-b3a8-145f7661c952> ;
+    em:originalLanguage "la" .
+
+<https://example.org/em/graph/vitruvio/node/ed_fg> a crm:E31_Document ;
+    rdfs:label "Vitruvio, ed. Gros 1997" ;
+    dcterms:description "edizione"@it ;
+    dcterms:identifier "ed_fg" .
+
+<https://example.org/em/graph/vitruvio/node/sb> a crm:E21_Person,
+        prov:Person,
+        em:Author,
+        em:HumanAuthor ;
+    rdfs:label "Simone" ;
+    dcterms:identifier "sb" ;
+    crm:P1_is_identified_by "B" ;
+    crm:P48_has_preferred_identifier "0000-0001-5109-3700" .
+

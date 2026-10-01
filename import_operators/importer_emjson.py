@@ -176,6 +176,16 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
         ensure_valid_index(em_tools.epochs.list, "list_index", context,
                            show_popup=False, data_object=em_tools.epochs)
 
+        # The Document Manager reads `scene.doc_list`, synced from
+        # em_sources_list — the GraphML import ends the same way. Without it a
+        # project opened from an em.json showed an empty Document Manager
+        # (measured, MICRO-EMTOOLS-DEV26).
+        try:
+            from ..document_manager.data import sync_doc_list
+            sync_doc_list(context.scene)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[em.json import] WARN doc_list sync: {exc}")
+
         n_warn = len(warnings) if warnings else 0
         n_graphs = len(container.graph_ids())
         project = f"{n_graphs} graphs" if n_graphs > 1 else "1 graph"
