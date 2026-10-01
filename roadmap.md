@@ -112,6 +112,8 @@ This document outlines the development roadmap for EM Tools and the Extended Mat
   - Today an RM Container (`scene.rm_containers`, RM Manager panel) groups meshes under ONE DocumentNode: in the graph a `RepresentationModelNodeGroup` (`<doc>_rmgroup`), members via `is_in_representation_model_group`, Document → group via `has_representation_model`. Logically a container IS the 3D body of a document (e.g. all TempluMare tiles with their LODs = one survey document).
   - Two panels for one idea (Document Manager, RM Manager → containers) split the user's logic: evaluate one place where a Document shows its 3D body (container, members, LOD sets, publication strategy members | tileset) next to its DosCo files.
   - Measure first: who reads `scene.rm_containers` (publication deck, Heriverse export, surface areale, handlers), the "one mesh in at most one container" rule, legacy/unassigned containers.
+  - Measured 1 Oct 2026 (report `.claude/wip/reports/2026-10-25-risorsa-file/`). Proposal: a Document with two new bands, «Its files (DosCo)» and «Its 3D body» (container, members by LOD set, strategy, tileset, revisions).
+  - Five gaps to close before merging: the LOD rule matches exact names; one document can have several containers; phantom members; a stale Document Manager cache; selection works one way only.
 
 - [ ] **Resources as ResourceNode + ResourceFileNode** (after the s3Dgraphy datamodel change, decided 30 Sep 2026)
   - A ResourceNode is the resource; its files are ResourceFileNodes (implicit when there is one file). Representations are sibling ResourceNodes tied by derivation, with `tier` (master | distribution) and `packaging` (file, file_set, directory, archive, datablock).
