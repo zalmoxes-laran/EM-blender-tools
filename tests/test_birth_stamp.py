@@ -186,3 +186,45 @@ def test_il_rapporto_conta(tmp_path):
     rows = [{"state": "stamped", "line": ""}, {"state": "revised", "line": ""},
             {"state": "failed", "line": "not stamped: boom"}]
     assert bs.report_line(rows) == "Stamps: 1 stamped, 1 revised, 1 not stamped (not stamped: boom)"
+
+
+# ── VLONG-DEV28 · E2 — the local identity ──
+
+import local_identity as li  # noqa: E402
+
+GOOD = "0000-0002-1825-0097"         # ORCID's own example iD
+SWAPPED = "0000-0002-1825-0079"      # two digits swapped: the check digit fails
+
+
+def test_l_identita_locale_controlla_la_cifra():
+    assert li.orcid_problem(GOOD) is None
+    assert li.orcid_problem(f"https://orcid.org/{GOOD}") is None
+    assert li.orcid_problem("0000 0002 1825 0097") is None
+    assert li.orcid_problem(SWAPPED) == li.CHECKSUM
+    assert li.orcid_problem("1234") == li.SHAPE
+    assert li.orcid_problem("") == li.EMPTY
+    # the same algorithm as EMStudio's identity.ts, on iDs with an X
+    assert li.is_valid_orcid("0000-0002-9079-593X")
+
+
+def test_un_timbro_con_l_identita_locale(tmp_path):
+    glb = tmp_path / "a.glb"
+    glb.write_bytes(b"glTF" + b"\x04" * 50)
+    op = li.declared_operator(GOOD, "Emanuel Demetrescu")
+    assert op == {"id": f"https://orcid.org/{GOOD}", "label": "Emanuel Demetrescu",
+                  "auth": {"mode": "declared"}}
+    res = bs.stamp_export(str(glb), how=HOW, operator=op)
+    assert res["stamp"]["by"]["operator"] == op
+    assert rd.dtcstamp().validate_stamp(res["stamp"])
+
+
+def test_un_timbro_senza_identita_resta_senza_operatore(tmp_path):
+    glb = tmp_path / "a.glb"
+    glb.write_bytes(b"glTF" + b"\x05" * 50)
+    res = bs.stamp_export(str(glb), how=HOW, operator=bs.local_operator())
+    assert "operator" not in res["stamp"]["by"]     # no Blender prefs here: nobody
+
+
+def test_un_iD_con_la_cifra_sbagliata_non_firma():
+    assert li.declared_operator(SWAPPED, "Qualcuno") is None
+    assert li.declared_operator("", "Qualcuno") is None

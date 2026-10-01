@@ -27,9 +27,10 @@ What the format decides and this module follows (``dtcstamp/stamp-format.md``):
   ``emstruct1:``, so it is NOT written as a ``digest``: it travels in
   ``from[].state.fingerprint``, beside the sha256 of the ``.blend`` as it is on
   disk at that moment and whether it was saved (``blend_saved``);
-* ``by.operator`` is written only when EMtools knows who is exporting (the
-  identity a room reports for the token). Otherwise it is omitted, and the
-  agent is the software in ``how`` — the format's own rule.
+* ``by.operator`` is who is exporting: the identity a room reports for the
+  token, else (dev28) the LOCAL identity of the preferences, an ORCID iD
+  declared and checked by nobody (``auth: {mode: declared}``). Without either
+  it is omitted, and the agent is the software in ``how`` — the format's rule.
 
 ``bpy``-free above the line marked «Blender»: the stamps are measured outside
 Blender, by pytest.
@@ -220,6 +221,9 @@ def stamp_export(path: str, *, masters: Optional[List[Dict[str, Any]]] = None,
             op = {"id": str(operator["id"])}
             if operator.get("label"):
                 op["label"] = str(operator["label"])
+            if isinstance(operator.get("auth"), dict) and operator["auth"].get("mode"):
+                # dtcstamp 0.1.3 `by.operator.auth`: how the operator had entered
+                op["auth"] = dict(operator["auth"])
             by = {"operator": op, **by}
         stamp["by"] = by
 
@@ -376,20 +380,40 @@ def blender_software(producer: Optional[Dict[str, str]] = None) -> List[Dict[str
     return out
 
 
-def current_operator() -> Optional[Dict[str, str]]:
-    """Who is exporting, if EMtools knows: the identity a room reports for the
-    token (``sync_manager``). Otherwise None — and the stamp names no operator."""
+def current_operator() -> Optional[Dict[str, Any]]:
+    """Who is exporting, if EMtools knows.
+
+    * in a ROOM, the identity the room reports for the token (``sync_manager``);
+    * otherwise (dev28, decision 17) the LOCAL identity of the preferences: an
+      iD declared and checked by nobody, so ``auth: {mode: declared}``;
+    * otherwise None — and the stamp names no operator (the format's rule: the
+      agent is the software in ``how``)."""
     try:
         from .sync_manager.operators import SESSION
+        author = str(getattr(SESSION, "author", "") or "").strip()
     except Exception:                               # noqa: BLE001 — no room module
+        author = ""
+    if author:
+        orcid = author.rsplit("/", 1)[-1]
+        if len(orcid) == 19 and orcid.count("-") == 3:
+            return {"id": f"https://orcid.org/{orcid}"}
+        return {"id": author}
+    return local_operator()
+
+
+def local_operator() -> Optional[Dict[str, Any]]:
+    """The local identity of the preferences as ``by.operator``, or None."""
+    try:
+        from . import local_identity
+    except ImportError:
+        import local_identity  # type: ignore  # tests: repo root on the path
+    try:
+        import bpy
+        prefs = bpy.context.preferences.addons[_addon_package()].preferences
+        return local_identity.declared_operator(getattr(prefs, "local_orcid", ""),
+                                                getattr(prefs, "local_name", ""))
+    except Exception:                               # noqa: BLE001 — no prefs: nobody
         return None
-    author = str(getattr(SESSION, "author", "") or "").strip()
-    if not author:
-        return None
-    orcid = author.rsplit("/", 1)[-1]
-    if len(orcid) == 19 and orcid.count("-") == 3:
-        return {"id": f"https://orcid.org/{orcid}"}
-    return {"id": author}
 
 
 def master_of(obj, *, graph=None, scene=None) -> Optional[Dict[str, Any]]:

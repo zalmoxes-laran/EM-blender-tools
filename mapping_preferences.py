@@ -183,6 +183,24 @@ class EMToolsMappingPreferences(AddonPreferences):
         default=True,
     )
 
+    # VLONG-DEV28/E2 · l'identità locale (E.D., 1 ott, decisione 17): un iD
+    # ORCID DICHIARATO, come in EMStudio — firma i timbri nati in Blender
+    # fuori da una stanza (`by.operator`, modo `declared`). In una stanza vale
+    # l'identità della stanza, quella del token.
+    local_orcid: StringProperty(
+        name="ORCID iD",
+        description=("Your ORCID iD, declared here and checked by nobody: it "
+                     "signs the stamps Blender writes outside a room. The check "
+                     "digit is verified (a swapped pair would name somebody "
+                     "else)"),
+        default="",
+    )
+    local_name: StringProperty(
+        name="Name",
+        description="How the stamp names you beside the iD (a courtesy, never the identity)",
+        default="",
+    )
+
     # Modalità semplice/avanzata
     show_advanced: BoolProperty(
         name="Show Advanced Settings",
@@ -334,6 +352,22 @@ class EMToolsMappingPreferences(AddonPreferences):
         stamp_box.prop(self, "stamp_exports")
         stamp_box.label(text="A .stamp.json beside each export: what it is, the "
                              "object it comes from, how.", icon='INFO')
+        # VLONG-DEV28/E2 · who signs them outside a room
+        from . import local_identity as _li
+        who = stamp_box.column(align=True)
+        who.label(text="Local identity", icon='USER')
+        row = who.row(align=True)
+        row.prop(self, "local_orcid")
+        problem = _li.orcid_problem(self.local_orcid)
+        if problem == _li.EMPTY:
+            row.label(text="none: the stamps name no operator")
+        elif problem is None:
+            row.label(text="declared, not verified", icon='CHECKMARK')
+        else:
+            row.alert = True
+            row.label(text="refused", icon='ERROR')
+            who.label(text=_li.PROBLEM_TEXT[problem], icon='BLANK1')
+        who.prop(self, "local_name")
 
         # ===== SEZIONE PRINCIPALE: USER MAPPINGS =====
         box = layout.box()
