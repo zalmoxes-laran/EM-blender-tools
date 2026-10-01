@@ -98,6 +98,11 @@ tex.image = img
 mat.node_tree.links.new(tex.outputs["Color"],
                         mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"])
 obj.data.materials.append(mat)
+if dsc_key:
+    #: set BEFORE saving: in 5.0.1 a property set from Python marks the file
+    #: modified (in 5.2 it does not — measured), and «saved» must be true
+    scene.model_export_dir = OUT
+    scene.author_sign_model = "CC-BY smoke"
 BLEND = os.path.join(TMP, "scavo.blend")
 bpy.ops.wm.save_as_mainfile(filepath=BLEND)
 scene = bpy.context.scene
@@ -111,9 +116,6 @@ def select_only(o):
 
 
 if dsc_key:
-    scene.model_export_dir = OUT
-    scene.author_sign_model = "CC-BY smoke"
-
     # ── 1 · glb: a file, its master by identity ─────────────────────────────
     select_only(obj)
     r = bpy.ops.glb.exportbatch()

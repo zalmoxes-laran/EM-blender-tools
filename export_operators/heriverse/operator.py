@@ -123,6 +123,10 @@ class EXPORT_OT_heriverse(Operator):
     # dello zip, che così li porta con sé.
     def _accoda_timbro(self, graph, derivata_id, obj, *, file_esportato,
                        packaging, master_id, oggetti_sorgente, etichetta):
+        #: chi chiama i metodi fuori da `execute` (le prove copiano gli
+        #: attributi della classe) trova la tupla di default: una lista sua
+        if not isinstance(self._timbri_in_attesa, list):
+            self._timbri_in_attesa = []
         self._timbri_in_attesa.append(dict(
             graph=graph, derivata_id=derivata_id, obj=obj,
             file_esportato=file_esportato, packaging=packaging,
@@ -138,6 +142,8 @@ class EXPORT_OT_heriverse(Operator):
                    f"{len(self._timbri_in_attesa)} file(s) left unstamped", "INFO")
             self._timbri_in_attesa = []
             return
+        if not isinstance(self._timbri, list):
+            self._timbri = []
         from s3dgraphy import api as _s3d_api
         how_base = {"dtc_kind": _bs.KIND_EXPORT,
                     "software": _bs.blender_software()}
