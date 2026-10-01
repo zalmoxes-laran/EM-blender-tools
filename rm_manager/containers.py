@@ -557,8 +557,8 @@ def ensure_rm_and_internal_resource(scene, graph, obj):
         return None, None, avvisi
 
     try:
+        from s3dgraphy import api as _s3d_api
         from s3dgraphy.nodes.representation_node import RepresentationModelNode
-        from s3dgraphy.nodes.resource_node import ResourceNode
     except Exception as e:                          # noqa: BLE001
         return None, None, [f"s3Dgraphy non disponibile: {e}"]
 
@@ -586,14 +586,18 @@ def ensure_rm_and_internal_resource(scene, graph, obj):
     locator = blend_locator_per(obj)
     res_node = graph.find_node_by_id(res_id)
     if res_node is None:
-        res_node = ResourceNode(
-            node_id=res_id,
+        #: la risorsa interna è il MASTER, e i suoi byte sono un datablock: lo
+        #: si DICHIARA alla nascita (s3Dgraphy lo leggerebbe comunque dal
+        #: `blend://`, ma un fatto letto non è un fatto detto). Un grafo di
+        #: prima, che ha il nodo senza tier né packaging, non viene riscritto
+        #: qui: lo legge `effective_tier` / `effective_packaging`.
+        res_node = _s3d_api.add_resource(
+            graph, resource_id=res_id,
             name=f"Blend datablock for {obj.name}",
-            url=locator,
-            url_type="3d_model",
+            kind="3d_model", tier="master", packaging="datablock",
+            files=[{"url": locator}] if locator else [],
             description=f"The mesh as it lives inside the .blend ({obj.name})",
         )
-        graph.add_node(res_node)
     elif locator and res_node.data.get("url") != locator:
         #: il file è stato salvato dopo, o rinominato: il locator si fissa
         #: adesso, e l'id NON cambia

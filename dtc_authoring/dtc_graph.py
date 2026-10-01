@@ -149,24 +149,34 @@ def add_process(graph: Any, kind: Optional[str] = None, name: Optional[str] = No
     return node.node_id
 
 
-def add_resource(graph: Any, kind: str, url: str = "", name: Optional[str] = None) -> str:
-    """Create a Resource (LinkNode) carrying ``dtc_kind`` + ``resource_type`` (=
-    the kind) + an optional file ``url``. Used for both inputs and outputs."""
+def add_dtc_resource(graph: Any, kind: str, url: str = "",
+                     name: Optional[str] = None) -> str:
+    """A DTC Resource (input or output) → its id. A THIN WRAPPER of
+    ``s3dgraphy.api.add_resource``, the one constructor of a resource.
+
+    Measured (MICRO risorsa-file, 25 Oct 2026) against the library's
+    ``add_resource``, this added four things and nothing else: the
+    ``dtc_supported`` gate, a fresh name (``<kind> N``), ``dtc_kind`` and
+    ``resource_type`` set to the DTC kind, and the id as return value. Those are
+    DTC authoring, not resource making, so they stay here; the node itself is
+    made by the library (uuid4 id, the implicit form for its one file, the
+    constructor's ``url_type``), exactly as before. Renamed from
+    ``add_resource``: two functions of the same name doing different things
+    were one confusion away from a wrong import.
+    """
     if not dtc_supported():
         raise DtcUnavailable("the active s3dgraphy has no DTC profile — re-vendor s3dgraphy")
-    cls = _node_class(_resource_class_name())
-    node = cls(str(uuid.uuid4()), name=name or _fresh_name(graph, kind or "resource"),
-               url=url or "")
-    d = _data(node)
-    d["dtc_kind"] = kind
-    d["resource_type"] = kind
-    graph.add_node(node)
+    from s3dgraphy import api as _s3d_api
+    node = _s3d_api.add_resource(
+        graph, name=name or _fresh_name(graph, kind or "resource"),
+        files=[{"url": url}] if url else [],
+        data={"dtc_kind": kind, "resource_type": kind})
     return node.node_id
 
 
 def add_input(graph: Any, process_id: str, kind: str, url: str = "") -> str:
     """Add an INPUT Resource and wire Process ─dtc_had_input→ it."""
-    res_id = add_resource(graph, kind, url=url)
+    res_id = add_dtc_resource(graph, kind, url=url)
     _wire(graph, process_id, res_id, EDGE_HAD_INPUT)
     return res_id
 
@@ -175,7 +185,7 @@ def add_output(graph: Any, process_id: str, kind: str, url: str = "",
                derive_from_inputs: bool = True) -> str:
     """Add an OUTPUT Resource, wire Process ─dtc_had_output→ it, and (optionally)
     wire the output ─dtc_derived_from→ each of the process's current inputs."""
-    res_id = add_resource(graph, kind, url=url)
+    res_id = add_dtc_resource(graph, kind, url=url)
     _wire(graph, process_id, res_id, EDGE_HAD_OUTPUT)
     if derive_from_inputs:
         for in_id in _resource_ids(graph, process_id, EDGE_HAD_INPUT):

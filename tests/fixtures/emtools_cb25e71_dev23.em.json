@@ -1,0 +1,323 @@
+{
+  "active_graph_id": "old_emtools",
+  "graphs": {
+    "old_emtools": {
+      "edges": [
+        {
+          "edge_type": "has_linked_resource",
+          "id": "M_model_has_linked_resource_M_model_res_blend",
+          "source": "M_model",
+          "target": "M_model_res_blend"
+        },
+        {
+          "edge_type": "dtc_had_output",
+          "id": "c39fb70a-4956-5b66-934b-96fc6c9460fb",
+          "source": "c1ab8f27-6ee0-5ce1-aede-52bfa458c8f1",
+          "target": "M_model_link"
+        },
+        {
+          "edge_type": "dtc_had_input",
+          "id": "ca358741-7545-5cc3-a009-048ea3c1355e",
+          "source": "c1ab8f27-6ee0-5ce1-aede-52bfa458c8f1",
+          "target": "M_model_res_blend"
+        },
+        {
+          "edge_type": "dtc_derived_from",
+          "id": "46388ac3-5ac9-5727-a611-32810d28c004",
+          "source": "M_model_link",
+          "target": "M_model_res_blend"
+        },
+        {
+          "edge_type": "has_linked_resource",
+          "id": "10a6fa22-e1f2-5d8f-842b-84f35adeffc6",
+          "source": "M_model",
+          "target": "M_model_link"
+        },
+        {
+          "edge_type": "dtc_had_output",
+          "id": "a64462bc-258d-5c13-a656-1578d99a1533",
+          "source": "3e7023fe-ce19-5a58-bb9b-8930f27fd564",
+          "target": "T_model_link"
+        },
+        {
+          "edge_type": "has_linked_resource",
+          "id": "0fad7204-98ae-5271-a6e3-c3ee192311cf",
+          "source": "T_model",
+          "target": "T_model_link"
+        },
+        {
+          "edge_type": "dtc_had_output",
+          "id": "2d9b6570-585c-5588-9c88-d2e71c2eeeec",
+          "source": "79f3fd07-6f4b-5665-b688-4614d46f69e0",
+          "target": "T_model_archive"
+        },
+        {
+          "edge_type": "has_linked_resource",
+          "id": "a90a488e-91eb-544a-ba8c-fcca25e8a1ee",
+          "source": "T_model",
+          "target": "T_model_archive"
+        },
+        {
+          "edge_type": "has_linked_resource",
+          "id": "doc-1_has_linked_resource_link-1",
+          "source": "doc-1",
+          "target": "link-1"
+        },
+        {
+          "edge_type": "dtc_had_input",
+          "id": "928160d4-3f93-4f99-b1fe-1546d7749478__dtc_had_input__df3ba2f0-35d3-455b-9c80-1552cb91a106",
+          "source": "928160d4-3f93-4f99-b1fe-1546d7749478",
+          "target": "df3ba2f0-35d3-455b-9c80-1552cb91a106"
+        },
+        {
+          "edge_type": "dtc_had_output",
+          "id": "928160d4-3f93-4f99-b1fe-1546d7749478__dtc_had_output__6538941a-cf7d-40e0-b207-8e8eccf94bbd",
+          "source": "928160d4-3f93-4f99-b1fe-1546d7749478",
+          "target": "6538941a-cf7d-40e0-b207-8e8eccf94bbd"
+        },
+        {
+          "edge_type": "dtc_derived_from",
+          "id": "6538941a-cf7d-40e0-b207-8e8eccf94bbd__dtc_derived_from__df3ba2f0-35d3-455b-9c80-1552cb91a106",
+          "source": "6538941a-cf7d-40e0-b207-8e8eccf94bbd",
+          "target": "df3ba2f0-35d3-455b-9c80-1552cb91a106"
+        }
+      ],
+      "graph_id": "old_emtools",
+      "nodes": [
+        {
+          "data": {
+            "epsg": 4326,
+            "rotation": 0.0,
+            "shift_x": 0.0,
+            "shift_y": 0.0,
+            "shift_z": 0.0
+          },
+          "id": "geo_old_emtools",
+          "name": "geo_position",
+          "node_type": "geo_position"
+        },
+        {
+          "data": {
+            "transform": {
+              "position": [
+                "0.0",
+                "0.0",
+                "0.0"
+              ],
+              "rotation": [
+                "0.0",
+                "0.0",
+                "0.0"
+              ],
+              "scale": [
+                "1.0",
+                "1.0",
+                "1.0"
+              ]
+            }
+          },
+          "id": "M_model",
+          "name": "Model for M",
+          "node_type": "representation_model"
+        },
+        {
+          "data": {
+            "description": "The mesh as it lives inside the .blend (M)",
+            "primitives": {
+              "f": 6,
+              "v": 8
+            },
+            "residency": "resident",
+            "tier": "master",
+            "url": "blend://scene.blend#Object/M",
+            "url_type": "3d_model"
+          },
+          "id": "M_model_res_blend",
+          "name": "datablock for M",
+          "node_type": "resource"
+        },
+        {
+          "data": {
+            "checksum": "sha256:3b9fd1a17d56b5607e61db1df1b0c1606a125b8b7951ee9fda8309682aebe66e",
+            "description": "",
+            "residency": "resident",
+            "size_bytes": 101,
+            "source_fingerprint": "v1:abc",
+            "tier": "distribution",
+            "url": "models/M.gltf",
+            "url_type": "External link"
+          },
+          "id": "M_model_link",
+          "name": "GLTF for M",
+          "node_type": "resource"
+        },
+        {
+          "data": {
+            "created_at": "2026-10-01T06:50:20Z",
+            "dtc_kind": "transformation",
+            "modified_at": "2026-10-01T06:50:20Z"
+          },
+          "description": "working model → published asset",
+          "id": "c1ab8f27-6ee0-5ce1-aede-52bfa458c8f1",
+          "name": "published GLTF for M",
+          "node_type": "dtc_process"
+        },
+        {
+          "data": {
+            "transform": {
+              "position": [
+                "0.0",
+                "0.0",
+                "0.0"
+              ],
+              "rotation": [
+                "0.0",
+                "0.0",
+                "0.0"
+              ],
+              "scale": [
+                "1.0",
+                "1.0",
+                "1.0"
+              ]
+            }
+          },
+          "id": "T_model",
+          "name": "Model for T",
+          "node_type": "representation_model"
+        },
+        {
+          "data": {
+            "checksum": "sha256:08e7648cc4cb08ecc7a510f622152ea40787387a04c8d2ffe9291e2e3c010b05",
+            "checksum_of": "entry-point",
+            "description": "",
+            "packaging": "directory",
+            "residency": "resident",
+            "size_bytes": 106,
+            "tier": "distribution",
+            "url": "tilesets/T/tileset.json",
+            "url_type": "External link"
+          },
+          "id": "T_model_link",
+          "name": "Tileset for T",
+          "node_type": "resource"
+        },
+        {
+          "data": {
+            "created_at": "2026-10-01T06:50:20Z",
+            "dtc_kind": "transformation",
+            "modified_at": "2026-10-01T06:50:20Z"
+          },
+          "description": "working model → published asset",
+          "id": "3e7023fe-ce19-5a58-bb9b-8930f27fd564",
+          "name": "published Tileset for T",
+          "node_type": "dtc_process"
+        },
+        {
+          "data": {
+            "checksum": "sha256:3e67edf7b33b7097f4dca01610d2ebebef2bfda5fe0cf94afb8097f6d5f13a82",
+            "description": "",
+            "packaging": "archive",
+            "residency": "resident",
+            "size_bytes": 549,
+            "tier": "distribution",
+            "url": "tilesets/T.zip",
+            "url_type": "External link"
+          },
+          "id": "T_model_archive",
+          "name": "Tileset archive for T",
+          "node_type": "resource"
+        },
+        {
+          "data": {
+            "created_at": "2026-10-01T06:50:20Z",
+            "dtc_kind": "transformation",
+            "modified_at": "2026-10-01T06:50:20Z"
+          },
+          "description": "working model → published asset",
+          "id": "79f3fd07-6f4b-5665-b688-4614d46f69e0",
+          "name": "published Tileset archive for T",
+          "node_type": "dtc_process"
+        },
+        {
+          "data": {
+            "url": "DosCo/D.01.jpg"
+          },
+          "id": "doc-1",
+          "name": "DOC.US1.001",
+          "node_type": "document"
+        },
+        {
+          "data": {
+            "description": "",
+            "filename": "D.01.jpg",
+            "url": "DosCo/D.01.jpg",
+            "url_type": "External link"
+          },
+          "id": "link-1",
+          "name": "LINK.DOC.US1.001",
+          "node_type": "resource"
+        },
+        {
+          "id": "928160d4-3f93-4f99-b1fe-1546d7749478",
+          "name": "DTC process 1",
+          "node_type": "dtc_process"
+        },
+        {
+          "data": {
+            "description": "",
+            "dtc_kind": "photo",
+            "resource_type": "photo",
+            "url": "photos/",
+            "url_type": "External link"
+          },
+          "id": "df3ba2f0-35d3-455b-9c80-1552cb91a106",
+          "name": "photo 1",
+          "node_type": "resource"
+        },
+        {
+          "data": {
+            "description": "",
+            "dtc_kind": "pointcloud",
+            "resource_type": "pointcloud",
+            "url": "out.glb",
+            "url_type": "External link"
+          },
+          "id": "6538941a-cf7d-40e0-b207-8e8eccf94bbd",
+          "name": "pointcloud 1",
+          "node_type": "resource"
+        }
+      ]
+    }
+  },
+  "header": {
+    "datamodel_versions": {
+      "connections": "1.6.29",
+      "nodes": "1.6.16",
+      "qualia": "1.6.2"
+    },
+    "format": "em.json",
+    "generator": {
+      "tool": "s3dgraphy",
+      "version": "1.6.0.dev23"
+    },
+    "ontology_versions": {
+      "CIDOC-CRM": "7.1.3",
+      "CRMarchaeo": "2.1.1",
+      "CRMdig": "5.0",
+      "CRMem": "1.6.8",
+      "CRMgeo": "1.2",
+      "CRMinf": "1.2.1",
+      "CRMsci": "3.2",
+      "HDT-O": "1.0",
+      "PROV-O": "W3C Recommendation 2013-04-30"
+    },
+    "schema_version": 2,
+    "version": "1.0"
+  },
+  "version": {
+    "id": "sha256:565b07dfdace",
+    "modified_at": "2026-10-01T06:50:20Z",
+    "number": 1
+  }
+}

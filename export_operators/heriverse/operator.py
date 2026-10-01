@@ -213,6 +213,18 @@ class EXPORT_OT_heriverse(Operator):
         #: invece di coniarne una seconda con lo stesso file
         derivata_id = derivata_id or \
             f"{model_node_id}{suffisso or _rl.SUFFISSO_DERIVATA}"
+        #: MICRO risorsa-file · un `.gltf` (export GLTF_SEPARATE) non è un file
+        #: solo: è la porta di un `file_set`, e i suoi membri sono quelli che il
+        #: `.gltf` stesso nomina (buffers e images), non quelli che stanno
+        #: nella cartella. Un `.glb` resta un `file`.
+        membri = None
+        if str(file_esportato).lower().endswith(".gltf") and os.path.isfile(file_esportato):
+            try:
+                from ...resource_digest import gltf_members
+                membri = gltf_members(file_esportato)
+            except (OSError, ValueError) as exc:
+                em_log(f"[bake] {derivata_id}: il glTF non si legge ({exc}); "
+                       f"registrato come un file solo", "WARNING")
         ok, perche = _rl.registra_derivata(
             graph, derivata_id=derivata_id,
             url=url,
@@ -224,9 +236,10 @@ class EXPORT_OT_heriverse(Operator):
             impronta_del_grezzo=impronta,
             packaging=packaging,
             checksum_of=checksum_of,
+            membri=membri,
             misure=(self._misure_insieme(oggetti_sorgente)
                     if oggetti_sorgente else None))
-        if not ok:
+        if perche:
             em_log(f"[bake] {derivata_id}: {perche}", "WARNING")
         return ok
 

@@ -41,6 +41,16 @@ SUFFISSO_DERIVATA = "_link"
 SUFFISSO_ARCHIVIO = "_archive"
 
 
+def _resource_digest():
+    """`resource_digest` (dtcstamp, installato o vendorizzato), dentro l'add-on
+    come pacchetto e nei test come modulo di primo livello."""
+    try:
+        from . import resource_digest
+    except ImportError:
+        import resource_digest  # type: ignore
+    return resource_digest
+
+
 def sha256_del_file(percorso: str) -> str:
     """`sha256:<hex>` del file, o `""` se non c'è.
 
@@ -192,18 +202,22 @@ def assicura_master(graph, *, master_id, url, name=None, link_to=None,
     non deve fallire perché un nodo non si è potuto scrivere, ma deve dirlo.
     """
     try:
-        from s3dgraphy.nodes.resource_node import ResourceNode
+        from s3dgraphy import api as _s3d_api
     except ImportError as e:
         # decisione 14: si cattura ciò che si sa gestire, e si dice cosa manca
-        return False, f"ResourceNode non disponibile ({e}): master non scritto"
+        return False, f"s3dgraphy.api non disponibile ({e}): master non scritto"
     if not url:
         return False, f"{master_id}: nessun locator, master non scritto"
+    #: un master `blend://` è un DATABLOCK: lo si dichiara, come fa la
+    #: risorsa interna di `ensure_rm_and_internal_resource`
+    if packaging is None and str(url).startswith("blend://"):
+        packaging = "datablock"
 
     nodo = graph.find_node_by_id(master_id)
     if nodo is None:
-        nodo = ResourceNode(node_id=master_id, name=name or master_id,
-                            url=url, url_type="3d_model")
-        graph.add_node(nodo)
+        nodo = _s3d_api.add_resource(graph, resource_id=master_id,
+                                     name=name or master_id, kind="3d_model",
+                                     files=[{"url": url}])
     else:
         nodo.data["url"] = url
         if name:
@@ -243,10 +257,77 @@ def _arco(graph, sorgente, destinazione, tipo):
                        edge_target=destinazione, edge_type=tipo)
 
 
+def specifiche_del_file_set(url, file_esportato, membri):
+    """I `files` di `api.add_resource` per un export di più file (glTF separato).
+
+    La porta è il file esportato (`entry_point`, al suo `url`); ogni membro è
+    un `{path, file}` relativo alla porta (`resource_digest.gltf_members`), con
+    l'url costruito accanto a quello della porta. Ognuno porta il SUO digest e
+    il suo peso: un membro che su disco non c'è non entra, e lo si dice.
+    → `(specifiche, mancanti)`.
+    """
+    import posixpath
+    cartella = posixpath.dirname(url)
+    specifiche = [{"path": posixpath.basename(url), "url": url,
+                   "checksum": sha256_del_file(file_esportato),
+                   "size_bytes": os.path.getsize(file_esportato),
+                   "role": "entry_point"}]
+    mancanti = []
+    for m in membri or []:
+        if not os.path.isfile(m["file"]):
+            mancanti.append(m["path"])
+            continue
+        specifiche.append({"path": m["path"],
+                           "url": posixpath.join(cartella, m["path"]) if cartella else m["path"],
+                           "checksum": sha256_del_file(m["file"]),
+                           "size_bytes": os.path.getsize(m["file"]),
+                           "role": "member"})
+    return specifiche, mancanti
+
+
+def _gli_stessi_file(graph, res_id, specifiche) -> bool:
+    """La risorsa ha esattamente questi file (percorso, ruolo, digest)?"""
+    from s3dgraphy import api as _s3d_api
+    attuali = {(f["path"], f["role"], (f["node"].data or {}).get("checksum"))
+               for f in _s3d_api.resource_files(graph, res_id) if not f["implicit"]}
+    return attuali == {(f["path"], f["role"], f["checksum"]) for f in specifiche}
+
+
+def _scrivi_i_file(graph, derivata_id, specifiche):
+    """I file di una distribuzione `file_set`. → bool, se il nodo ora descrive
+    QUESTI byte (e il suo digest è quindi la lista canonica di `specifiche`).
+
+    * nodo nuovo: `api.add_resource(packaging="file_set", files=…)`;
+    * nodo con gli stessi file: niente da fare;
+    * nodo di un grafo di prima, registrato come un file solo (il `.gltf` col
+      suo digest) e con la stessa porta: gli stessi byte descritti per intero,
+      non una revisione — il primo `add_file` sposta url e digest della porta
+      nel suo nodo (una volta sola), gli altri aggiungono i membri;
+    * altrimenti i byte sono cambiati, e il nodo non si tocca qui (False).
+    """
+    from s3dgraphy import api as _s3d_api
+    nodo = graph.find_node_by_id(derivata_id)
+    if nodo is None:
+        _s3d_api.add_resource(graph, resource_id=derivata_id, name=derivata_id,
+                              kind="3d_model", packaging="file_set",
+                              files=specifiche)
+        return True
+    if _gli_stessi_file(graph, derivata_id, specifiche):
+        return True
+    attuali = _s3d_api.resource_files(graph, derivata_id)
+    if attuali and attuali[0]["implicit"] and \
+            (nodo.data.get("checksum") or "") == specifiche[0]["checksum"]:
+        for spec in specifiche[1:]:
+            _s3d_api.add_file(graph, derivata_id, **spec)
+        return True
+    return False
+
+
 def registra_derivata(graph, *, derivata_id, url, source_id=None,
                       source_ids=None, link_to=None, name=None,
                       file_esportato="", impronta_del_grezzo="",
-                      packaging=None, misure=None, checksum_of=None):
+                      packaging=None, misure=None, checksum_of=None,
+                      membri=None):
     """Il baker scrive il verbale: la derivata, la sua provenienza, il digest.
 
     Non crea un baker nuovo — l'export Heriverse **è** il baker. Questa
@@ -303,6 +384,26 @@ def registra_derivata(graph, *, derivata_id, url, source_id=None,
     if file_esportato and os.path.isfile(file_esportato):
         peso = os.path.getsize(file_esportato)
 
+    #: MICRO risorsa-file · un export di PIÙ file (glTF separato: `.gltf` +
+    #: `.bin` + texture) è UNA risorsa `file_set`: i suoi file con i loro
+    #: digest, e come digest della risorsa la lista canonica di dtcstamp. Prima
+    #: era registrato come un file solo col digest del solo `.gltf`, cioè un
+    #: checksum che non verificava i byte che contano di più.
+    #:
+    #: Il `url` della risorsa resta quello della porta: è dove Heriverse guarda
+    #: (`canConsumeResource` legge `data.url`), e Heriverse non si tocca.
+    avvisi = ""
+    if membri is not None:
+        specifiche, mancanti = specifiche_del_file_set(url, file_esportato, membri)
+        if mancanti:
+            avvisi = (f"{len(mancanti)} file nominati dal glTF non ci sono: "
+                      f"{', '.join(mancanti[:5])}")
+        if _scrivi_i_file(graph, derivata_id, specifiche):
+            digest = _resource_digest().members_digest(specifiche)
+            peso = sum(int(f["size_bytes"]) for f in specifiche)
+            packaging = "file_set"
+            checksum_of = "members"
+
     try:
         promote_resource(
             graph, derivata_id,
@@ -332,4 +433,4 @@ def registra_derivata(graph, *, derivata_id, url, source_id=None,
         nodo.data["source_fingerprint"] = impronta_del_grezzo
     if nodo is not None and checksum_of:
         nodo.data["checksum_of"] = str(checksum_of)
-    return True, ""
+    return True, avvisi

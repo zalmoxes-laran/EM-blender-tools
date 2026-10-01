@@ -10,21 +10,9 @@ import uuid
 import bpy
 
 from s3dgraphy.nodes.document_node import DocumentNode
-# NIGHT-RIM/A1 · ResourceNode, non LinkNode.
-#
-# In s3Dgraphy `nodes/link_node.py` NON esiste più (commit f20d2b9, *Rename
-# LinkNode → ResourceNode*): c'è `resource_node.py` con
-# `node_type = "resource"`. Questo import funzionava solo perché il wheel
-# spedito è una build vecchia che porta ancora link_node.py accanto a
-# resource_node.py — con lo STESSO numero di versione del sorgente attuale.
-# Ricostruito il wheel, l'add-on non partiva più.
-#
-# Il ripiego è quello che `functions.py` usa da MIG1-B: prova il nome nuovo,
-# ricade sul vecchio solo per s3Dgraphy pre-1.6.
-try:
-    from s3dgraphy.nodes.resource_node import ResourceNode
-except ImportError:  # pre-1.6 s3Dgraphy still ships link_node.LinkNode
-    from s3dgraphy.nodes.link_node import LinkNode as ResourceNode
+# Una risorsa nasce da un posto solo: `s3dgraphy.api.add_resource` (MICRO
+# risorsa-file, 25 ott 2026). Niente costruttore di `ResourceNode` qui.
+from s3dgraphy import api as _s3d_api
 
 
 # ============================================================================
@@ -409,14 +397,10 @@ def create_document_for_resource(graph, target_node, file_path, filename, folder
 
     # Create LinkNode
     link_id = f"LINK.{doc_id}"
-    link_node = ResourceNode(
-        node_id=str(uuid.uuid4()),
-        name=link_id,
-        url=relative_path
-    )
-    link_node.data['filename'] = filename
-
-    graph.add_node(link_node)
+    link_node = _s3d_api.add_resource(
+        graph, resource_id=str(uuid.uuid4()), name=link_id,
+        files=[{"path": relative_path}] if relative_path else [],
+        data={"filename": filename})
 
     # Create edge between DocumentNode and LinkNode
     link_edge_id = f"{doc_node.node_id}_has_linked_resource_{link_node.node_id}"
