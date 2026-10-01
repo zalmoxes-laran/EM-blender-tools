@@ -57,14 +57,23 @@ def test_un_glb_e_un_file_col_suo_master(tmp_path):
     parent = stamp["from"][0]
     assert parent["resource_id"] == "US01_model_res_blend"
     assert parent["tier"] == "master" and parent["packaging"] == "datablock"
-    assert parent["state"] == {"blend": MASTER["blend_digest"], "blend_saved": True,
+    # dtcstamp 0.1.3 `from[].state`: fingerprint · sha256 · saved
+    assert parent["state"] == {"sha256": MASTER["blend_digest"], "saved": True,
                                "fingerprint": "struct:f=12:v=8"}
     #: from names by identity, never by path: the locator is a private hint
     assert "blend://" not in json.dumps(stamp["from"])
+    # …in the ONE <asset>.hints.json (0.1.3): the asset seen here, the master under from
+    assert res["hints_path"].endswith("OB_US01.glb.hints.json")
     hints = json.loads(pathlib.Path(res["hints_path"]).read_text(encoding="utf-8"))
-    assert hints["seen"][0]["locator"] == MASTER["locator"]
-    assert hints["seen"][0]["kind"] == "blend" and hints["seen"][0]["scope"] == "private"
-    assert stamp["how"]["dtc_kind"] == "format_conversion"
+    assert hints["digest"] == me["digest"]
+    assert hints["seen"][0]["locator"] == str(glb) and hints["seen"][0]["scope"] == "private"
+    master_seen = hints["from"]["US01_model_res_blend"]
+    assert master_seen[0]["locator"] == MASTER["locator"]
+    assert master_seen[0]["kind"] == "blend" and master_seen[0]["scope"] == "private"
+    assert not pathlib.Path(str(glb) + ".from.hints.json").exists()
+    # the gesture, or its dev27 equivalent when the bundled vocabulary lacks it
+    assert stamp["how"]["dtc_kind"] == bs.resolve_kind(bs.KIND_EXPORT)
+    assert stamp["how"]["dtc_kind"] in ("export", "format_conversion")
     assert stamp["by"] == {"at": "2026-10-31T10:00:00Z"}     # nobody named: no operator
     assert rd.dtcstamp().validate_stamp(stamp) is stamp
 
@@ -74,7 +83,7 @@ def test_un_blend_non_salvato_lo_dice(tmp_path):
     glb.write_bytes(b"glTF" + b"\x02" * 50)
     res = bs.stamp_export(str(glb), masters=[{**MASTER, "blend_saved": False}], how=HOW)
     state = res["stamp"]["from"][0]["state"]
-    assert state["blend_saved"] is False and "unsaved" in state["note"]
+    assert state["saved"] is False and "unsaved" in state["note"]
 
 
 def test_l_operatore_c_e_solo_se_emtools_lo_conosce(tmp_path):
@@ -188,7 +197,9 @@ def test_il_rapporto_conta(tmp_path):
     assert bs.report_line(rows) == "Stamps: 1 stamped, 1 revised, 1 not stamped (not stamped: boom)"
 
 
-# ── VLONG-DEV28 · E2 — the local identity ──
+# ── VLONG-DEV28 · E2/E3 — the local identity, the 0.1.3 format, the gestures ──
+
+import importlib.util  # noqa: E402
 
 import local_identity as li  # noqa: E402
 
@@ -228,3 +239,89 @@ def test_un_timbro_senza_identita_resta_senza_operatore(tmp_path):
 def test_un_iD_con_la_cifra_sbagliata_non_firma():
     assert li.declared_operator(SWAPPED, "Qualcuno") is None
     assert li.declared_operator("", "Qualcuno") is None
+
+
+def test_due_master_due_chiavi(tmp_path):
+    """The defect of the first form: two masters under the first one's id."""
+    tileset = tmp_path / "tiles"
+    tileset.mkdir()
+    (tileset / "tileset.json").write_text('{"asset": {"version": "1.0"}}')
+    other = {**MASTER, "resource_id": "US02_model_res_blend",
+             "locator": "blend://scavo.blend#Object/OB_US02"}
+    res = bs.stamp_export(str(tileset), masters=[MASTER, other],
+                          how={**HOW, "dtc_kind": bs.KIND_TILING})
+    hints = json.loads(pathlib.Path(res["hints_path"]).read_text(encoding="utf-8"))
+    assert {k: [e["locator"] for e in v] for k, v in hints["from"].items()} == {
+        "US01_model_res_blend": [MASTER["locator"]],
+        "US02_model_res_blend": [other["locator"]]}
+
+
+def test_il_file_vecchio_delle_piste_si_ripiega(tmp_path):
+    glb = tmp_path / "a.glb"
+    glb.write_bytes(b"glTF" + b"\x06" * 50)
+    legacy = tmp_path / "a.glb.from.hints.json"
+    legacy.write_text(json.dumps({"hints": 1, "digest": "blend:old",
+                                  "seen": [{"locator": "blend://old.blend#Object/X",
+                                            "kind": "blend", "scope": "private",
+                                            "when": "2026-10-01T10:00:00Z"}]}))
+    res = bs.stamp_export(str(glb), masters=[MASTER], how=HOW)
+    hints = json.loads(pathlib.Path(res["hints_path"]).read_text(encoding="utf-8"))
+    assert hints["from"]["blend:old"][0]["locator"] == "blend://old.blend#Object/X"
+    assert legacy.exists()                          # folded in, never deleted
+
+
+def test_una_revisione_dice_cosa_rivede(tmp_path):
+    glb = tmp_path / "a.glb"
+    glb.write_bytes(b"glTF" + b"\x07" * 50)
+    first = bs.stamp_export(str(glb), masters=[MASTER], how=HOW)
+    glb.write_bytes(b"glTF" + b"\x08" * 50)
+    second = bs.stamp_export(str(glb), masters=[MASTER], how=HOW)
+    assert second["state"] == "revised"
+    assert second["stamp"]["self"]["was_revision_of"] == {
+        "resource_id": first["stamp"]["self"]["resource_id"],
+        "digest": first["stamp"]["self"]["digest"]}
+
+
+def test_i_gesti_e_il_vocabolario():
+    old = ["photogrammetry", "transformation", "decimation", "format_conversion"]
+    new = old + ["export", "lod_generation", "tiling", "packing"]
+    assert [bs.resolve_kind(k, old) for k in (bs.KIND_EXPORT, bs.KIND_LOD, bs.KIND_TILING, bs.KIND_PACKING)] \
+        == ["format_conversion", "decimation", "transformation", "format_conversion"]
+    assert [bs.resolve_kind(k, new) for k in (bs.KIND_EXPORT, bs.KIND_LOD, bs.KIND_TILING, bs.KIND_PACKING)] \
+        == ["export", "lod_generation", "tiling", "packing"]
+    assert bs.resolve_kind("georeferencing", old) == "georeferencing"
+
+
+def _dtcstamp_013():
+    src = ROOT.parent / "dtcstamp" / "dtcstamp.py"
+    if not src.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location("dtcstamp_013", src)
+    mod = importlib.util.module_from_spec(spec)
+    import sys
+    sys.modules["dtcstamp_013"] = mod           # a dataclass asks for its module
+    spec.loader.exec_module(mod)
+    return mod if hasattr(mod, "note_parent_seen") else None
+
+
+def test_con_dtcstamp_013_le_stesse_piste_e_lo_stato_si_leggono(tmp_path, monkeypatch):
+    """Written by hand with 0.1.2, through note_parent_seen with 0.1.3: one shape,
+    and 0.1.3 reads back the state and the revision it fixes."""
+    import pytest
+    d13 = _dtcstamp_013()
+    if d13 is None:
+        pytest.skip("no dtcstamp 0.1.3 checkout beside this one")
+    glb = tmp_path / "a.glb"
+    glb.write_bytes(b"glTF" + b"\x09" * 50)
+    by_hand = bs.stamp_export(str(glb), masters=[MASTER], how=HOW, when="2026-11-01T10:00:00Z")
+    hand = json.loads(pathlib.Path(by_hand["hints_path"]).read_text(encoding="utf-8"))
+    monkeypatch.setattr(rd, "dtcstamp", lambda: d13)
+    glb2 = tmp_path / "b.glb"
+    glb2.write_bytes(glb.read_bytes())
+    lib = bs.stamp_export(str(glb2), masters=[MASTER], how=HOW, when="2026-11-01T10:00:00Z")
+    via = json.loads(pathlib.Path(lib["hints_path"]).read_text(encoding="utf-8"))
+    assert via["from"] == hand["from"]
+    assert d13.parent_state(lib["stamp"]["from"][0]) == {
+        "fingerprint": "struct:f=12:v=8", "sha256": MASTER["blend_digest"], "saved": True}
+    assert d13.parent_hints(via, "US01_model_res_blend")["seen"][0]["locator"] == MASTER["locator"]
+

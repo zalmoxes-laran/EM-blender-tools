@@ -20,13 +20,15 @@ What the format decides and this module follows (``dtcstamp/stamp-format.md``):
 
 * ``from`` names its inputs **by identity, never by path**. The master's
   ``blend://`` locator is a path, so it does NOT go in the stamp: it is a
-  private hint (``kind: blend``), written beside the stamp as
-  ``<asset>.from.hints.json`` — the same rule as ``new_datablock_stamp``;
+  private hint (``kind: blend``) in ``<asset>.hints.json``, under ``from``,
+  one key per master (dtcstamp 0.1.3; before, ``<asset>.from.hints.json``);
 * a datablock has no digest of bytes. EMtools' structural fingerprint is
   ``struct:…`` (``resource_levels.impronta_strutturale``), not dtcstamp's
   ``emstruct1:``, so it is NOT written as a ``digest``: it travels in
-  ``from[].state.fingerprint``, beside the sha256 of the ``.blend`` as it is on
-  disk at that moment and whether it was saved (``blend_saved``);
+  ``from[].state`` (dtcstamp 0.1.3) as ``fingerprint``, beside ``sha256`` (the
+  ``.blend`` as it is on disk at that moment) and ``saved``;
+* a second export with new bytes is a revision: ``self.was_revision_of``
+  ``{resource_id, digest}`` of the previous distribution (dtcstamp 0.1.3);
 * ``by.operator`` is who is exporting: the identity a room reports for the
   token, else (dev28) the LOCAL identity of the preferences, an ORCID iD
   declared and checked by nobody (``auth: {mode: declared}``). Without either
@@ -42,18 +44,47 @@ import os
 import shutil
 from typing import Any, Dict, List, Optional
 
-#: what a stamp says about the kind of step. The dev26 vocabulary
-#: (``em_visual_rules.json`` → ``dtc_kinds.process``) has no «export», «LOD» or
-#: «tiling»: the nearest kinds are used, the step is said in ``technique``,
-#: and the three are a proposal for the dev28.
-KIND_EXPORT = "format_conversion"      # datablock → glb/gltf/obj/fbx, folder → 3tz
-KIND_LOD = "decimation"                # a LOD baked from the master
-KIND_TILING = "transformation"         # a mesh split into a 3D Tiles tree
+#: what a stamp says about the kind of step: the GESTURE. s3Dgraphy dev28
+#: (``em_visual_rules`` 1.6.29, ``dtc_kinds.process``) has the four words; a
+#: bundled s3dgraphy before it does not, and there :func:`resolve_kind` writes
+#: the equivalent of the dev27 vocabulary, the gesture staying in
+#: ``technique``. Measured at the moment of the stamp, so the rebundle of the
+#: dev28 switches it with no change here.
+KIND_EXPORT = "export"                 # datablock → glb/gltf/obj/fbx
+KIND_LOD = "lod_generation"            # a LOD baked from the master
+KIND_TILING = "tiling"                 # a mesh split into a 3D Tiles tree
+KIND_PACKING = "packing"               # a tree packed into a .3tz
+
+#: the dev27 equivalents, for a vocabulary that lacks the gesture
+_BEFORE_DEV28 = {KIND_EXPORT: "format_conversion", KIND_LOD: "decimation",
+                 KIND_TILING: "transformation", KIND_PACKING: "format_conversion"}
+
+
+def process_kinds() -> List[str]:
+    """The ``process`` kinds of the s3dgraphy this Blender runs (empty when it
+    cannot be read)."""
+    try:
+        from s3dgraphy.utils.utils import get_dtc_kinds
+        return list(get_dtc_kinds().get("process") or ())
+    except Exception:                               # noqa: BLE001
+        return []
+
+
+def resolve_kind(kind: Optional[str], known: Optional[List[str]] = None) -> Optional[str]:
+    """``kind`` when the vocabulary has it; the dev27 equivalent of a gesture
+    it lacks; anything else as it is (the graph's builder validates)."""
+    if not kind:
+        return kind
+    vocabulary = process_kinds() if known is None else known
+    if kind in vocabulary or kind not in _BEFORE_DEV28:
+        return kind
+    return _BEFORE_DEV28[kind]
 
 #: the suffix of the previous stamp when the bytes change: it stays beside the
 #: file, a true statement about bytes that are no longer there
 PREVIOUS_INFIX = ".prev-"
-#: the private hint of the master, beside the stamp
+#: where the masters' hints went before dtcstamp 0.1.3 — READ only, to fold an
+#: old file in; they are now in ``<asset>.hints.json`` under ``from``
 FROM_HINTS_SUFFIX = ".from.hints.json"
 
 #: archives that are not a 3tz: a plain zip has no index to read the content
@@ -146,16 +177,19 @@ def master_entry(master: Dict[str, Any]) -> Dict[str, Any]:
         entry["label"] = str(master["label"])
     entry["tier"] = "master"
     entry["packaging"] = "datablock"
+    # dtcstamp 0.1.3 `from[].state`: fingerprint · sha256 (of the container,
+    # the .blend) · saved — the spelling of the format (it was blend /
+    # blend_saved on 1 Oct, before the format had the field)
     state: Dict[str, Any] = {}
+    if master.get("fingerprint"):
+        state["fingerprint"] = master["fingerprint"]
     if master.get("blend_digest"):
-        state["blend"] = master["blend_digest"]
+        state["sha256"] = master["blend_digest"]
     if master.get("blend_saved") is not None:
-        state["blend_saved"] = bool(master["blend_saved"])
+        state["saved"] = bool(master["blend_saved"])
         if not master["blend_saved"]:
             state["note"] = ("the .blend had unsaved changes: the object exported "
                              "is not the one in this file on disk")
-    if master.get("fingerprint"):
-        state["fingerprint"] = master["fingerprint"]
     if state:
         entry["state"] = state
     return entry
@@ -215,7 +249,9 @@ def stamp_export(path: str, *, masters: Optional[List[Dict[str, Any]]] = None,
         entries = [master_entry(m) for m in (masters or [])] + list(parents or [])
         stamp["from"] = entries
         if how:
-            stamp["how"] = how
+            stamp["how"] = dict(how)
+            if how.get("dtc_kind"):
+                stamp["how"]["dtc_kind"] = resolve_kind(how["dtc_kind"])
         by: Dict[str, Any] = {"at": when or dtc.now_iso()}
         if operator and operator.get("id"):
             op = {"id": str(operator["id"])}
@@ -244,15 +280,10 @@ def stamp_export(path: str, *, masters: Optional[List[Dict[str, Any]]] = None,
             out.update(revision_of=itself["was_revision_of"], previous_path=keep)
 
         dtc.write_stamp(stamp, target)
-        locators = [m for m in (masters or []) if m.get("locator")]
-        if locators:
-            hints_path = target[:-len(dtc.STAMP_SUFFIX)] + FROM_HINTS_SUFFIX
-            hints = dtc.new_hints(str(locators[0]["resource_id"]))
-            for m in locators:
-                dtc.note_seen(hints, m["locator"], kind="blend", scope="private",
-                              machine=machine, when=by["at"])
-            dtc.write_hints(hints, hints_path)
-            out["hints_path"] = hints_path
+        hints_path = write_hints(path, target, itself["digest"],
+                                 [m for m in (masters or []) if m.get("locator")],
+                                 machine=machine, when=by["at"])
+        out["hints_path"] = hints_path
         out.update(state="revised" if previous is not None else "stamped",
                    stamp=dtc.clean_stamp(stamp),
                    line=(f"stamped {os.path.basename(target)} "
@@ -263,6 +294,58 @@ def stamp_export(path: str, *, masters: Optional[List[Dict[str, Any]]] = None,
     except Exception as exc:                        # noqa: BLE001 — said, not raised
         out["line"] = f"not stamped: {exc}"
         return out
+
+
+def write_hints(path: str, stamp_path: str, digest: str, masters: List[Dict[str, Any]],
+                *, machine: Optional[str] = None, when: Optional[str] = None) -> str:
+    """``<asset>.hints.json`` beside the stamp (dtcstamp 0.1.3): the asset's own
+    register — seen HERE, now, private — and the masters' ``blend://``
+    locators under ``from``, ONE KEY PER MASTER (its ``resource_id`` in the
+    stamp). Read before it is written: a register is updated, never replaced.
+
+    Before 0.1.3 the masters went in ``<asset>.from.hints.json`` under the
+    first master's id (two masters shared one key, a defect); a file of that
+    shape found beside it is folded in under its own id, and left where it is.
+    With a dtcstamp that predates ``note_parent_seen`` the same JSON is written
+    by hand: the shape is the format's, additive, and 0.1.2 keeps it."""
+    dtc = _dtcstamp()
+    hints_path = stamp_path[:-len(dtc.STAMP_SUFFIX)] + dtc.HINTS_SUFFIX
+    hints = None
+    if os.path.isfile(hints_path):
+        try:
+            hints = dtc.read_hints(hints_path)
+        except (OSError, ValueError):
+            hints = None
+    if not isinstance(hints, dict) or hints.get("digest") != digest:
+        hints = dtc.new_hints(digest)
+    dtc.note_seen(hints, os.path.abspath(path), kind="local", scope="private",
+                  machine=machine, when=when)
+
+    def note_parent(parent_id: str, locator: str, kind: str = "blend",
+                    seen_when: Optional[str] = None) -> None:
+        if hasattr(dtc, "note_parent_seen"):
+            dtc.note_parent_seen(hints, parent_id, locator, kind=kind, scope="private",
+                                 machine=machine, when=seen_when or when)
+            return
+        register = {"seen": list((hints.setdefault("from", {})).get(parent_id) or [])}
+        dtc.note_seen(register, locator, kind=kind, scope="private",
+                      machine=machine, when=seen_when or when)
+        hints["from"][parent_id] = register["seen"]
+
+    legacy = stamp_path[:-len(dtc.STAMP_SUFFIX)] + FROM_HINTS_SUFFIX
+    if os.path.isfile(legacy):
+        try:
+            old = dtc.read_hints(legacy)
+            for entry in old.get("seen") or []:
+                if isinstance(entry, dict) and entry.get("locator"):
+                    note_parent(str(old.get("digest") or ""), entry["locator"],
+                                entry.get("kind") or "blend", entry.get("when"))
+        except (OSError, ValueError, AttributeError):
+            pass
+    for m in masters:
+        note_parent(str(m["resource_id"]), m["locator"])
+    dtc.write_hints(hints, hints_path)
+    return hints_path
 
 
 def file_sha256(path: str) -> str:

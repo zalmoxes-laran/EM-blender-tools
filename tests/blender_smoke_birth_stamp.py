@@ -137,24 +137,30 @@ if dsc_key:
         #: and the smoke can only check the digest.
         dirty_after_save = bpy.data.is_dirty
         check("glb: .blend digest and saved",
-              parent.get("state", {}).get("blend") == dtcstamp.file_digest(BLEND)
-              and parent["state"].get("blend_saved") is (not dirty_after_save),
+              parent.get("state", {}).get("sha256") == dtcstamp.file_digest(BLEND)
+              and parent["state"].get("saved") is (not dirty_after_save),
               json.dumps(parent.get("state")) + (" (this Blender: dirty after save)"
                                                  if dirty_after_save else ""))
         check("glb: no path in from", "blend://" not in json.dumps(st["from"])
               and TMP not in json.dumps(st["from"]))
-        hints = read(glb + ".from.hints.json")
-        check("glb: blend:// in the private hints",
-              hints["seen"][0]["locator"].startswith("blend://")
-              and hints["seen"][0]["scope"] == "private", hints["seen"][0]["locator"])
+        # dtcstamp 0.1.3: ONE <asset>.hints.json, the master under `from`
+        hints = read(glb + ".hints.json")
+        master_seen = (hints.get("from") or {}).get(parent.get("resource_id"), [])
+        check("glb: blend:// in the private hints, under from",
+              bool(master_seen) and master_seen[0]["locator"].startswith("blend://")
+              and master_seen[0]["scope"] == "private"
+              and not os.path.exists(glb + ".from.hints.json"),
+              master_seen[0]["locator"] if master_seen else json.dumps(hints)[:160])
         names = [s["name"] for s in st["how"]["software"]]
         check("glb: software Blender, 3DSC, EM Tools, dtcstamp",
               names == ["Blender", "3D Survey Collection", "EM Tools", "dtcstamp"], str(names))
         emt = st["how"]["software"][2]
         check("glb: EM Tools has a version and a commit", bool(emt.get("version"))
               and bool(emt.get("commit")), json.dumps(emt))
-        check("glb: dtc_kind and operator", st["how"]["dtc_kind"] == "format_conversion"
-              and st["how"]["parameters"]["operator"] == "glb.exportbatch")
+        check("glb: dtc_kind and operator", st["how"]["dtc_kind"] == bs.resolve_kind(bs.KIND_EXPORT)
+              and st["how"]["parameters"]["operator"] == "glb.exportbatch",
+              f"({st['how']['dtc_kind']}; the bundled vocabulary has export: "
+              f"{'export' in bs.process_kinds()})")
         check("glb: dtcstamp validates it", dtcstamp.validate_stamp(st) is st)
         FIRST = st
 
@@ -192,7 +198,7 @@ if dsc_key:
     check("revision: the previous stamp kept", os.path.isfile(prev)
           and read(prev)["self"]["digest"] == old["digest"])
     state = st2["from"][0].get("state", {})
-    check("revision: the .blend not saved, said", state.get("blend_saved") is False
+    check("revision: the .blend not saved, said", state.get("saved") is False
           and "unsaved" in state.get("note", ""), json.dumps(state))
     check("revision: the same master", st2["from"][0]["resource_id"]
           == FIRST["from"][0]["resource_id"])
@@ -234,8 +240,9 @@ if dsc_key:
         check("cesium: same_content", dtcstamp.same_content(f, t))
         check("cesium: archive digest is the file's",
               t["self"]["digest"] == dtcstamp.file_digest(folder + ".3tz"))
-        check("cesium: from the sphere, dtc_kind transformation",
-              f["from"][0]["label"] == "TZ_probe" and f["how"]["dtc_kind"] == "transformation")
+        check("cesium: from the sphere, dtc_kind tiling (or its dev27 equivalent)",
+              f["from"][0]["label"] == "TZ_probe"
+              and f["how"]["dtc_kind"] == bs.resolve_kind(bs.KIND_TILING), f["how"]["dtc_kind"])
         CONTENT = content
 
     # ── 5 · pack an existing folder: the .3tz names the folder ──────────────
@@ -263,6 +270,28 @@ if dsc_key:
     check("preference off: no stamp", os.path.isfile(os.path.join(OUT, "TILE_OFF.glb"))
           and not os.path.isfile(os.path.join(OUT, "TILE_OFF.glb.stamp.json")))
     prefs.stamp_exports = True
+    obj.name = "TILE"
+
+    # ── 6b · VLONG-DEV28/E2 · the local identity signs: declared, not verified
+    prefs.local_orcid = "https://orcid.org/0000-0002-1825-0097"
+    prefs.local_name = "Emanuel Demetrescu"
+    obj.name = "TILE_ME"
+    select_only(obj)
+    bpy.ops.glb.exportbatch()
+    me_sp = os.path.join(OUT, "TILE_ME.glb.stamp.json")
+    op = read(me_sp)["by"].get("operator") if os.path.isfile(me_sp) else None
+    check("identity: by.operator is the local identity, declared", op == {
+        "id": "https://orcid.org/0000-0002-1825-0097", "label": "Emanuel Demetrescu",
+        "auth": {"mode": "declared"}}, json.dumps(op))
+    prefs.local_orcid = "0000-0002-1825-0079"          # two digits swapped
+    obj.name = "TILE_BAD"
+    select_only(obj)
+    bpy.ops.glb.exportbatch()
+    bad_sp = os.path.join(OUT, "TILE_BAD.glb.stamp.json")
+    check("identity: a wrong check digit signs nothing", os.path.isfile(bad_sp)
+          and "operator" not in read(bad_sp)["by"])
+    prefs.local_orcid = ""
+    prefs.local_name = ""
     obj.name = "TILE"
 
 # ── 7 · the Heriverse bake stamps with the graph's ids ──────────────────────
