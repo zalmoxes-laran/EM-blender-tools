@@ -170,6 +170,19 @@ class EMToolsMappingPreferences(AddonPreferences):
         default=False,
     )
 
+    # VLONG-DEV27/D2 · il timbro alla nascita. E.D. (1 ott): «laddove Blender
+    # CREA asset nuovi, li può già timbrare». Acceso di partenza: un file
+    # esportato senza timbro è la provenienza che si perde in silenzio. Vale
+    # anche per gli export di 3DSC, che timbrano attraverso EMtools.
+    stamp_exports: BoolProperty(
+        name="Stamp what you export",
+        description=("Write a .stamp.json (dtcstamp) beside every file, folder "
+                     "or .3tz that Blender exports — EM Tools and 3D Survey "
+                     "Collection — with the object it comes from, the operator "
+                     "and its parameters"),
+        default=True,
+    )
+
     # Modalità semplice/avanzata
     show_advanced: BoolProperty(
         name="Show Advanced Settings",
@@ -314,6 +327,13 @@ class EMToolsMappingPreferences(AddonPreferences):
         sync_box.prop(self, "materialise_on_adopt")
         sync_box.label(text="The port is this installation's, not this "
                             "project's.", icon='INFO')
+
+        # ===== PROVENANCE (VLONG-DEV27/D2) =====
+        stamp_box = layout.box()
+        stamp_box.label(text="Provenance", icon='KEYTYPE_KEYFRAME_VEC')
+        stamp_box.prop(self, "stamp_exports")
+        stamp_box.label(text="A .stamp.json beside each export: what it is, the "
+                             "object it comes from, how.", icon='INFO')
 
         # ===== SEZIONE PRINCIPALE: USER MAPPINGS =====
         box = layout.box()

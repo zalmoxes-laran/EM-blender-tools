@@ -167,6 +167,23 @@ def unreleased_suffix(root_dir: Path) -> str:
     return f"-unreleased-{sha}{dirty}"
 
 
+def write_build_info(root_dir: Path, build_dir: Path) -> None:
+    """``build_info.json`` in the package: the commit it was built from.
+
+    VLONG-DEV27/D2 · the stamp born in Blender names the software that made a
+    file with its COMMIT, not only its version (dtcstamp: «"EM Tools 1.6" does
+    not say which build»). The installed add-on has no ``.git``; this file is
+    how it knows (``birth_stamp.addon_commit``)."""
+    import json
+    def git(*args):
+        out = subprocess.run(['git', *args], cwd=root_dir, capture_output=True, text=True)
+        return out.stdout.strip() if out.returncode == 0 else ""
+    info = {"commit": git('rev-parse', '--short', 'HEAD'),
+            "dirty": bool(git('status', '--porcelain', '--untracked-files=no'))}
+    (build_dir / "build_info.json").write_text(json.dumps(info) + "\n", encoding="utf-8")
+    print(f"build_info.json: {info}")
+
+
 def build_extension(mode: str = 'dev', platform: str = None, python_version: str = '3.11'):
     """Costruisce l'extension in modalità specificata"""
     root_dir = Path(__file__).parent.parent
@@ -212,6 +229,7 @@ def build_extension(mode: str = 'dev', platform: str = None, python_version: str
     
     # Copia file sorgente (ESCLUSI i vecchi wheels/build)
     copy_source_files(root_dir, build_dir)
+    write_build_info(root_dir, build_dir)
     
     # VERIFICA WHEELS PRIMA DELLA COPIA
     wheels_dir = root_dir / "wheels"

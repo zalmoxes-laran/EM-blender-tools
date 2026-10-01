@@ -46,6 +46,10 @@ class EXPORT_OT_heriverse(Operator):
     #: rimpiazza `_azzera_esiti` con liste di istanza a ogni export.
     _esiti_falliti = ()
     _esiti_saltati = ()
+    #: VLONG-DEV27/D2 · i timbri da scrivere a fine export (dopo la
+    #: compressione delle texture, che cambia i byte dei membri) e i loro esiti
+    _timbri_in_attesa = ()
+    _timbri = ()
 
     # ── NIGHT-FIN/T4 · FALLITO NON È SALTATO ───────────────────────────────
     #
@@ -105,6 +109,77 @@ class EXPORT_OT_heriverse(Operator):
     def _azzera_esiti(self):
         self._esiti_falliti = []
         self._esiti_saltati = []
+        self._timbri_in_attesa = []
+        self._timbri = []
+
+    # ── VLONG-DEV27/D2 · IL TIMBRO ALLA NASCITA ───────────────────────────
+    #
+    # Ogni distribution che `_registra_bake` mette nel grafo è un file che
+    # Blender ha appena fatto: gli si scrive accanto il suo `.stamp.json`
+    # (`birth_stamp`, dtcstamp). NON subito: lo STEP 6 comprime le texture
+    # DOPO l'export dei modelli, e un timbro preso prima direbbe byte che non
+    # ci sono più (misurato: `compress_textures_in_folder` riscrive i png di
+    # `models/`). Quindi si accodano qui e si scrivono dopo lo STEP 6, prima
+    # dello zip, che così li porta con sé.
+    def _accoda_timbro(self, graph, derivata_id, obj, *, file_esportato,
+                       packaging, master_id, oggetti_sorgente, etichetta):
+        self._timbri_in_attesa.append(dict(
+            graph=graph, derivata_id=derivata_id, obj=obj,
+            file_esportato=file_esportato, packaging=packaging,
+            master_id=master_id, oggetti_sorgente=list(oggetti_sorgente or []),
+            etichetta=etichetta))
+
+    def _timbra_in_attesa(self, context):
+        from ... import birth_stamp as _bs
+        if not self._timbri_in_attesa:
+            return
+        if not _bs.stamping_enabled():
+            em_log("[stamp] stamping is off (Preferences ▸ EM Tools): "
+                   f"{len(self._timbri_in_attesa)} file(s) left unstamped", "INFO")
+            self._timbri_in_attesa = []
+            return
+        from s3dgraphy import api as _s3d_api
+        how_base = {"dtc_kind": _bs.KIND_EXPORT,
+                    "software": _bs.blender_software()}
+        operatore = _bs.current_operator()
+        for job in self._timbri_in_attesa:
+            path = job["file_esportato"]
+            if job["packaging"] == "directory":
+                #: l'albero si timbra come cartella: la porta è tileset.json
+                path = os.path.dirname(path)
+            try:
+                rid = _s3d_api.current_revision(job["graph"], job["derivata_id"])
+            except ValueError:
+                rid = job["derivata_id"]
+            obj = job["obj"]
+            sorgenti = ([obj] if (job["master_id"] and obj is not None)
+                        else job["oggetti_sorgente"])
+            masters = []
+            for o in sorgenti:
+                try:
+                    m = _bs.master_of(o, graph=job["graph"], scene=context.scene)
+                except Exception as exc:            # noqa: BLE001 — a stamp never stops an export
+                    em_log(f"[stamp] master of {getattr(o, 'name', '?')}: {exc}", "WARNING")
+                    m = None
+                if m is None:
+                    continue
+                if job["master_id"] and o is obj:
+                    m["resource_id"] = job["master_id"]
+                masters.append(m)
+            how = dict(how_base, technique=f"Heriverse export · {job['etichetta']}",
+                       parameters={"operator": _bs.python_idname(self.bl_idname),
+                                   "packaging": job["packaging"] or "file"})
+            res = _bs.stamp_export(path, masters=masters, how=how,
+                                   operator=operatore, resource_id=rid,
+                                   label=job["etichetta"])
+            self._timbri.append(res)
+            if res["state"] == "failed":
+                em_log(f"[stamp] {job['derivata_id']}: {res['line']}", "WARNING")
+        self._timbri_in_attesa = []
+        riga = _bs.report_line(self._timbri)
+        if riga:
+            print(f"=== {riga} ===")
+            self.report({'INFO'}, riga)
 
     def _resoconto_esiti(self):
         """Il conto finale, SEMPRE visibile — e questo è il punto.
@@ -243,6 +318,13 @@ class EXPORT_OT_heriverse(Operator):
                     if oggetti_sorgente else None))
         if perche:
             em_log(f"[bake] {derivata_id}: {perche}", "WARNING")
+        #: `getattr`: chi chiama il bake senza l'operatore (le prove, con un
+        #: `SimpleNamespace` al posto di `self`) non accoda timbri
+        accoda = getattr(self, "_accoda_timbro", None)
+        if ok and file_esportato and accoda is not None:
+            accoda(graph, derivata_id, obj, file_esportato=file_esportato,
+                   packaging=packaging, master_id=sorgente_id,
+                   oggetti_sorgente=oggetti_sorgente, etichetta=etichetta)
         return ok
 
     def _catena_immagine(self, graph, doc_node, export_folder):
@@ -2686,6 +2768,9 @@ class EXPORT_OT_heriverse(Operator):
                 if scene.heriverse_enable_compression and models_exported and models_path:
                     em_log("\n--- Starting Texture Compression ---", "INFO")
                     self.compress_textures_in_folder(models_path, scene)
+
+                # VLONG-DEV27/D2 · i timbri, ora che i byte sono quelli finali
+                self._timbra_in_attesa(context)
 
                 # STEP 7: Export JSON
                 if export_vars.heriverse_overwrite_json:
