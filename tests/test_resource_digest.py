@@ -1,6 +1,6 @@
 """MICRO risorsa-file, parte 3 — il tileset: stesso contenuto, due forme, e il .3tz.
 
-I digest sono di dtcstamp (installato o vendorizzato in `_vendor/`): qui si
+I digest sono di dtcstamp (la ruota installata, >= 0.1.2): qui si
 riproducono i suoi casi di conformità 20 e 23, e si misura la base di prova
 TempluMare, cartella e `.3tz`.
 """
@@ -30,14 +30,16 @@ BASE = pathlib.Path.home() / ("Library/CloudStorage/OneDrive-CNR/Extended Matrix
                               "EM_CaseStudies/01_EM_Tempio Grande/_base_EMStudio/RM")
 
 
-def test_il_vendorizzato_e_il_file_del_commit():
-    readme = (ROOT / "_vendor" / "README.md").read_text(encoding="utf-8")
-    digest = hashlib.sha256((ROOT / "_vendor" / "dtcstamp.py").read_bytes()).hexdigest()
-    assert digest in readme
-    sibling = ROOT.parent / "dtcstamp" / "dtcstamp.py"
-    if sibling.is_file() and hashlib.sha256(sibling.read_bytes()).hexdigest() != digest:
-        pytest.skip("the dtcstamp checkout moved past the vendored commit — "
-                    "copy it again and rewrite _vendor/README.md")
+def test_e_il_dtcstamp_installato_con_le_due_funzioni():
+    """La copia in `_vendor/` non c'è più: i digest vengono dalla ruota di PyPI."""
+    import dtcstamp
+    module = rd.dtcstamp()
+    assert module is dtcstamp
+    assert "_vendor" not in module.__name__ and "_vendor" not in module.__file__
+    version = tuple(int(p) for p in dtcstamp.__version__.split(".")[:3])
+    assert version >= rd.MIN_DTCSTAMP
+    assert callable(module.content_digest) and callable(module.members_digest)
+    assert not (ROOT / "_vendor").exists()
 
 
 def _materialise(case, folder):

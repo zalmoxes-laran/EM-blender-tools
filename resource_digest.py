@@ -8,9 +8,10 @@ E.D., 30 Sep 2026 (brain: *La risorsa e i suoi file*):
 * a tree (a tileset) has a ``content_digest`` that is **the same for the folder
   and for its .3tz**, whatever the archive's dates or compression.
 
-Neither rule is written here. This module only finds dtcstamp: an installed one
-that has the two functions, otherwise the copy in ``_vendor/`` (see its
-README for why it is a copy). ``bpy``-free, so it is measured outside Blender.
+Neither rule is written here. This module only finds dtcstamp: the installed
+one, a wheel in the bundle since 0.1.2 (the first release on PyPI with the two
+functions; the copy once in ``_vendor/`` is gone). ``bpy``-free, so it is
+measured outside Blender.
 """
 
 from __future__ import annotations
@@ -22,26 +23,28 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
 
+#: the first dtcstamp on PyPI with ``content_digest`` and ``members_digest``
+MIN_DTCSTAMP = (0, 1, 2)
+
+
 def dtcstamp():
-    """The dtcstamp module in use: installed if it can, vendored otherwise."""
-    try:
-        import dtcstamp as installed  # type: ignore
-        if hasattr(installed, "content_digest") and hasattr(installed, "members_digest"):
-            return installed
-    except ImportError:
-        pass
-    try:
-        from ._vendor import dtcstamp as vendored  # inside the addon package
-    except ImportError:
-        from _vendor import dtcstamp as vendored  # type: ignore  # tests: repo root on the path
-    return vendored
+    """The installed dtcstamp. Raises, saying which, if it is older than 0.1.2.
+
+    An explicit error rather than an ``AttributeError`` inside a click: a 0.1.1
+    left in the user's site-packages would otherwise look like a bug here."""
+    import dtcstamp as installed  # type: ignore
+    if not (hasattr(installed, "content_digest") and hasattr(installed, "members_digest")):
+        raise ImportError(
+            f"dtcstamp {getattr(installed, '__version__', '?')} at "
+            f"{getattr(installed, '__file__', '?')} has no content_digest/members_digest: "
+            f"EMtools needs dtcstamp >= 0.1.2 (the wheel in the bundle)")
+    return installed
 
 
 def dtcstamp_origin() -> str:
-    """Where the dtcstamp in use comes from, for a log line or a report."""
+    """Which dtcstamp is in use, for a log line or a report."""
     module = dtcstamp()
-    where = "vendored c05bb1f" if "_vendor" in (module.__name__ or "") else "installed"
-    return f"dtcstamp {getattr(module, '__version__', '?')} ({where})"
+    return f"dtcstamp {getattr(module, '__version__', '?')} ({module.__file__})"
 
 
 def content_digest(path: str, *, entry_point: Optional[str] = "tileset.json") -> str:

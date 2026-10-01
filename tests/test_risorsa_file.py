@@ -49,7 +49,7 @@ FIXTURE = ROOT / "tests" / "fixtures" / "emtools_cb25e71_dev23.em.json"
 
 # ── la guardia: nessuno costruisce una risorsa da sé ─────────────────────────
 
-_SKIP_DIRS = {".venv", "build", "wheels", "tests", "_vendor", "__pycache__", ".git",
+_SKIP_DIRS = {".venv", "build", "wheels", "tests", "__pycache__", ".git",
               ".claude", "scripts"}
 
 

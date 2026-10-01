@@ -42,7 +42,7 @@ SUFFISSO_ARCHIVIO = "_archive"
 
 
 def _resource_digest():
-    """`resource_digest` (dtcstamp, installato o vendorizzato), dentro l'add-on
+    """`resource_digest` (dtcstamp, la ruota installata), dentro l'add-on
     come pacchetto e nei test come modulo di primo livello."""
     try:
         from . import resource_digest

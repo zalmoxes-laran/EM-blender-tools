@@ -15,11 +15,14 @@ tzdata>=2025.1
 et-xmlfile==2.0.0
 fonttools>=4.57.0
 packaging==25.0
-s3dgraphy>=1.6.0.dev25,<1.7.0
+s3dgraphy>=1.6.0.dev26,<1.7.0
 # Constraint syntax (PEP 440):
-#   - `.dev25` lower bound EXPLICITLY allows pre-release versions for this
-#     package only (1.6.0.dev25, 1.6.0a1, 1.6.0rc1, 1.6.0, 1.6.1, ...).
-#     dev25 carries the resource and its files (add_resource, ResourceFileNode,
+#   - `.dev26` lower bound EXPLICITLY allows pre-release versions for this
+#     package only (1.6.0.dev26, 1.6.0a1, 1.6.0rc1, 1.6.0, 1.6.1, ...).
+#     dev26 carries the language of the data and the translations
+#     (TranslationNode, has_translation = crm:P73, api.to_review, the RDF
+#     exporter's summary()) and requires dtcstamp>=0.1.2 (below).
+#     dev25 carried the resource and its files (add_resource, ResourceFileNode,
 #     has_file, replace_file, was_revision_of), the .3tz reader and
 #     api.datamodel_fingerprint() — the datamodel EMtools checks at startup
 #     against em_setup/datamodel.fingerprint.json.
@@ -42,6 +45,14 @@ s3dgraphy>=1.6.0.dev25,<1.7.0
 # When v1.6.3 ships pyoxigraph for embedded SPARQL, add an explicit
 # pyoxigraph wheel here.
 rdflib>=7.0
+
+# dtcstamp: the stamp and the digests of a resource of several files
+# (content_digest, members_digest — resource_digest.py) and s3dgraphy.stamp
+# (stamp_title, stamp_description, receipt). Listed EXPLICITLY for the same
+# reason as rdflib: --no-deps means s3dgraphy's own `dtcstamp>=0.1.2` is not
+# pulled in. 0.1.2 is the first PyPI release with all of them; it replaced the
+# copy that lived in _vendor/ (MICRO-EMTOOLS-DEV26, 1 Oct 2026).
+dtcstamp>=0.1.2
 
 PyMuPDF>=1.24.0,<1.25.0
 
