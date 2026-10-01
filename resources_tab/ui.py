@@ -87,6 +87,17 @@ class EM_PT_resources(bpy.types.Panel):
         # …e la sezione «Shelf» pure, perché lo Shelf è adesso un pannello
         # FIGLIO (shelf_tool/ui.py) con la sua UIList filtrabile: due viste
         # dello stesso Shelf nello stesso pannello sono una di troppo.
+        # MICRO risorsa-file · le revisioni ancora citate: i byte sono cambiati,
+        # e qualcuno punta ancora a quelli vecchi. Si chiede, non si sposta.
+        from .. import resource_revisions as _rr
+        try:
+            in_attesa = _rr.pending_revisions(graph)
+        except Exception:                          # noqa: BLE001
+            in_attesa = []
+        if in_attesa:
+            self._section(layout, p, "show_revisions",
+                          f"Revisions ({len(in_attesa)} waiting)",
+                          lambda box: self._draw_revisions(box, in_attesa))
         self._section(layout, p, "show_dtc", "DTC",
                       lambda box: self._draw_dtc(box, context))
         self._section(layout, p, "show_minio", "Object store (MinIO)",
@@ -101,6 +112,18 @@ class EM_PT_resources(bpy.types.Panel):
                     emboss=False)
         if getattr(p, prop):
             body(box)
+
+    # ── Revisions — pointing_at_old, and the question ─────────────────────────
+    def _draw_revisions(self, box, in_attesa):
+        box.label(text="New bytes made a new revision; these still cite the old one.",
+                  icon='INFO')
+        for r in in_attesa:
+            row = box.row(align=True)
+            row.label(text=f"{r['old_name']} → {r['new_name']}  ·  "
+                           f"{len(r['citing'])} citation(s)", icon='FILE_REFRESH')
+            op = row.operator("em.move_citations", text="Move…")
+            op.old_id = r["old_id"]
+            op.new_id = r["new_id"]
 
     # ── DTC (reuse the authoring renderer) ────────────────────────────────────────
     def _draw_dtc(self, box, context):

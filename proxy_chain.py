@@ -146,6 +146,13 @@ def proxy_resource_for_export(graph, unit_ids: Iterable[str], url: str
     esportato) e ne scrive il percorso nella RISORSA — non più nell'``url``
     della forma. Returns ``(shape_id, resource_id, changed)``; ``(None, None,
     False)`` se nessuna unità ha un proxy-glb.
+
+    Il percorso si scrive qui solo su una risorsa che non ha ancora byte
+    misurati (nessun ``checksum``: un segnaposto). Una risorsa con il suo
+    digest è un fatto su certi byte: chi la aggiorna è il bake che segue
+    (`resource_levels.registra_derivata`), che fa una REVISIONE se i byte sono
+    cambiati invece di spostare il locator di quella vecchia (MICRO
+    risorsa-file, parte 2). ``changed`` dice comunque se il percorso è diverso.
     """
     for unit_id in unit_ids:
         shape, resource = glb_proxy(graph, unit_id)
@@ -153,7 +160,7 @@ def proxy_resource_for_export(graph, unit_ids: Iterable[str], url: str
             continue
         data = resource.data if isinstance(getattr(resource, "data", None), dict) else {}
         changed = str(data.get("url") or "") != url
-        if changed:
+        if changed and not data.get("checksum"):
             data["url"] = url
             resource.data = data
             if hasattr(resource, "url"):

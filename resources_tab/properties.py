@@ -18,13 +18,21 @@ class EM_ResourcesProps(PropertyGroup):
     show_dtc: BoolProperty(name="DTC", default=False)
     show_shelf: BoolProperty(name="Shelf", default=True)
     show_minio: BoolProperty(name="Object store (MinIO)", default=False)
+    show_revisions: BoolProperty(name="Revisions", default=True)
 
     # status line + last-scan summary (filled by the scan operator)
     status: StringProperty(name="", default="")
     scanned_folder: StringProperty(name="", default="")
 
 
-classes = (EM_ResourcesProps,)
+class EM_CitationChoice(PropertyGroup):
+    """One citation of an old revision, in the «which ones move» dialog."""
+    edge_id: StringProperty()
+    label: StringProperty()
+    move: BoolProperty(name="Move", default=True)
+
+
+classes = (EM_CitationChoice, EM_ResourcesProps,)
 
 
 def register():

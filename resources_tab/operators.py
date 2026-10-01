@@ -15,7 +15,7 @@ import os
 import bpy
 from bpy.types import Operator
 
-from . import resource_backend
+from . import properties, resource_backend
 
 # Session cache: folder → scanned FSIndexBackend. The manifest on disk keeps IDs
 # stable across sessions; this cache keeps the SAME backend instance between
@@ -272,7 +272,18 @@ class EM_OT_publish_distribution(Operator):
                         "s3dgraphy (./em.sh s3d) AND the 'minio' extra.")
             return {'CANCELLED'}
 
-        locator = str((getattr(nodo, "data", None) or {}).get("url") or "")
+        dati = getattr(nodo, "data", None) or {}
+        #: MICRO risorsa-file · una risorsa di PIÙ file (un glTF separato, un
+        #: albero) si carica membro per membro, e questo bottone carica un file
+        #: solo: caricarne la porta e dirla pubblicata lascerebbe nello store
+        #: un `.gltf` che chiama `.bin` e texture che non ci sono.
+        if dati.get("packaging") in ("file_set", "directory"):
+            self.report({'WARNING'},
+                        f"{self.resource_id}: a {dati.get('packaging')} is several "
+                        f"files, and publishing them one by one is not done yet — "
+                        f"publish its archive form, if it has one")
+            return {'CANCELLED'}
+        locator = str(dati.get("url") or "")
         percorso = pg.risolvi(locator, basi) or locator
         digest = rl.sha256_del_file(percorso)
         if not digest:
@@ -280,6 +291,24 @@ class EM_OT_publish_distribution(Operator):
                         f"{percorso}: nothing to digest — a reference without "
                         f"a checksum is a promise, not a fact")
             return {'CANCELLED'}
+        #: SOSTITUIRE, NON SOVRASCRIVERE: se il file al locator non è più quello
+        #: registrato (riesportato dopo), si pubblica una REVISIONE, e la
+        #: risorsa vecchia resta col suo digest. Stessi byte → stessa risorsa:
+        #: passare da un percorso locale all'indirizzo dello store è un cambio
+        #: di locator, non di contenuto.
+        registrato = str(dati.get("checksum") or "")
+        if registrato and registrato != digest:
+            from .. import resource_revisions as rr
+            esito = rr.revise_files(graph, self.resource_id, [{
+                "path": os.path.basename(locator), "url": locator,
+                "checksum": digest, "size_bytes": os.path.getsize(percorso)}])
+            if esito["new_resource_id"]:
+                citanti, _ = rr.split_pointers(esito["pointing_at_old"])
+                self.report({'INFO'},
+                            f"{self.resource_id}: the file changed since it was "
+                            f"recorded — publishing a revision; {len(citanti)} "
+                            f"citations stay on the old one (Resources → Revisions)")
+                self.resource_id = esito["new_resource_id"]
         try:
             caricato = resource_backend.promote_resource_to_minio(
                 graph, self.resource_id, percorso=percorso)
@@ -318,7 +347,68 @@ class EM_OT_publish_distribution(Operator):
         return {'FINISHED'}
 
 
+class EM_OT_move_citations(Operator):
+    """Move the citations of an old revision to its newest one.
+
+    MICRO risorsa-file, parte 2 — the question `replace_file` leaves to the
+    caller, asked the way EMStudio asks it: every citation (an RM, a document,
+    a property) is listed with «all» as the proposal; the DTC chain of the old
+    bytes (`dtc_had_output`…) is shown as staying, and never moves."""
+
+    bl_idname = "em.move_citations"
+    bl_label = "Move citations to the new revision"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    old_id: bpy.props.StringProperty()  # type: ignore
+    new_id: bpy.props.StringProperty()  # type: ignore
+    choices: bpy.props.CollectionProperty(type=properties.EM_CitationChoice)  # type: ignore
+    staying: bpy.props.StringProperty()  # type: ignore
+
+    def invoke(self, context, event):
+        from .. import resource_revisions as rr
+        ok, graph, _f, _g = _active(context)
+        if not ok:
+            return {'CANCELLED'}
+        citing, staying = rr.split_pointers(rr.pointing_at(graph, self.old_id))
+        self.choices.clear()
+        for ptr in citing:
+            src = graph.find_node_by_id(ptr["source"])
+            item = self.choices.add()
+            item.edge_id = ptr["edge_id"]
+            item.label = (f"{getattr(src, 'name', ptr['source'])} "
+                          f"─{ptr['edge_type']}→")
+            item.move = True
+        self.staying = ", ".join(sorted({p["edge_type"] for p in staying}))
+        return context.window_manager.invoke_props_dialog(self, width=420)
+
+    def draw(self, context):
+        col = self.layout.column(align=True)
+        col.label(text=f"{self.old_id} → {self.new_id}", icon='FILE_REFRESH')
+        for item in self.choices:
+            col.prop(item, "move", text=item.label)
+        if self.staying:
+            col.separator()
+            col.label(text=f"Stays with the old bytes: {self.staying}", icon='LINKED')
+
+    def execute(self, context):
+        from .. import resource_revisions as rr
+        ok, graph, _f, _g = _active(context)
+        if not ok:
+            return {'CANCELLED'}
+        if len(self.choices):
+            chosen = [c.edge_id for c in self.choices if c.move]
+        else:   # called without the dialog: «all» is the proposal
+            chosen = [p["edge_id"] for p in rr.split_pointers(
+                rr.pointing_at(graph, self.old_id))[0]]
+        moved = rr.move_citations(graph, self.old_id, self.new_id, chosen)
+        self.report({'INFO'}, f"{moved} citation(s) moved to {self.new_id}")
+        for area in context.screen.areas:
+            area.tag_redraw()
+        return {'FINISHED'}
+
+
 classes = (
+    EM_OT_move_citations,
     EM_OT_resources_scan,
     EM_OT_resources_set_dosco_folder,
     EM_OT_resources_hat_document,

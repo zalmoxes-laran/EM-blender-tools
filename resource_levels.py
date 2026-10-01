@@ -51,6 +51,15 @@ def _resource_digest():
     return resource_digest
 
 
+def _resource_revisions():
+    """`resource_revisions`, come `_resource_digest`."""
+    try:
+        from . import resource_revisions
+    except ImportError:
+        import resource_revisions  # type: ignore
+    return resource_revisions
+
+
 def sha256_del_file(percorso: str) -> str:
     """`sha256:<hex>` del file, o `""` se non c'è.
 
@@ -392,25 +401,66 @@ def registra_derivata(graph, *, derivata_id, url, source_id=None,
     #:
     #: Il `url` della risorsa resta quello della porta: è dove Heriverse guarda
     #: (`canConsumeResource` legge `data.url`), e Heriverse non si tocca.
-    avvisi = ""
+    from s3dgraphy import api as _s3d_api
+    #: MICRO risorsa-file · SOSTITUIRE, NON SOVRASCRIVERE. Il verbale si
+    #: scrive sulla revisione CORRENTE della distribuzione (`{rm}_link` è
+    #: l'id della prima: le revisioni hanno un id derivato). Se i byte sono
+    #: cambiati, si fa una revisione (`replace_file`); chi citava la vecchia
+    #: non si sposta da solo — lo chiede il pannello (`resource_revisions`).
+    bersaglio = derivata_id
+    if graph.find_node_by_id(derivata_id) is not None:
+        try:
+            bersaglio = _s3d_api.current_revision(graph, derivata_id)
+        except ValueError as e:
+            return False, f"{derivata_id}: {e}"
+
+    avvisi = []
+    specifiche = None
+    descritta = False
     if membri is not None:
         specifiche, mancanti = specifiche_del_file_set(url, file_esportato, membri)
         if mancanti:
-            avvisi = (f"{len(mancanti)} file nominati dal glTF non ci sono: "
-                      f"{', '.join(mancanti[:5])}")
-        if _scrivi_i_file(graph, derivata_id, specifiche):
-            digest = _resource_digest().members_digest(specifiche)
-            peso = sum(int(f["size_bytes"]) for f in specifiche)
-            packaging = "file_set"
-            checksum_of = "members"
+            avvisi.append(f"{len(mancanti)} file nominati dal glTF non ci sono: "
+                          f"{', '.join(mancanti[:5])}")
+        descritta = _scrivi_i_file(graph, bersaglio, specifiche)
+        digest = _resource_digest().members_digest(specifiche)
+        peso = sum(int(f["size_bytes"]) for f in specifiche)
+        packaging = "file_set"
+        checksum_of = "members"
+
+    revisione = None
+    nodo = graph.find_node_by_id(bersaglio)
+    if nodo is not None:
+        if specifiche is not None:
+            cambiato = not descritta
+        else:
+            vecchio = str((nodo.data or {}).get("checksum") or "")
+            cambiato = bool(vecchio) and vecchio != digest
+        if cambiato:
+            import posixpath
+            _rr = _resource_revisions()
+            revisione = _rr.revise_files(
+                graph, bersaglio,
+                specifiche or [{"path": posixpath.basename(url), "url": url,
+                                "checksum": digest, "size_bytes": peso}])
+            if revisione["new_resource_id"]:
+                bersaglio = revisione["new_resource_id"]
+                citanti, _catena = _rr.split_pointers(revisione["pointing_at_old"])
+                avvisi.append(
+                    f"i byte sono cambiati: revisione {bersaglio} di "
+                    f"{derivata_id}; "
+                    f"{len(citanti)} citazioni restano sulla vecchia finché "
+                    f"non le si sposta (Resources → Revisions)")
 
     try:
         promote_resource(
-            graph, derivata_id,
+            graph, bersaglio,
             url=url, sha256=digest,
             source_id=source_id,
             source_ids=source_ids,
-            link_to=link_to,
+            #: una revisione NON si lega da sola a chi citava la vecchia: è
+            #: la domanda che il pannello fa
+            link_to=link_to if revisione is None or not revisione["new_resource_id"] else None,
             name=name,
             residency="resident",
             #: R1 · una derivata del bake è una DISTRIBUTION per definizione:
@@ -428,9 +478,9 @@ def registra_derivata(graph, *, derivata_id, url, source_id=None,
     #: l'impronta del grezzo AL MOMENTO DEL BAKE: è l'unico dato che rende
     #: «stantia» calcolabile invece che sospettabile (B4). Sta sulla
     #: derivata, perché è lei a ricordare da cosa è stata fatta e quando.
-    nodo = graph.find_node_by_id(derivata_id)
+    nodo = graph.find_node_by_id(bersaglio)
     if nodo is not None and impronta_del_grezzo:
         nodo.data["source_fingerprint"] = impronta_del_grezzo
     if nodo is not None and checksum_of:
         nodo.data["checksum_of"] = str(checksum_of)
-    return True, avvisi
+    return True, "; ".join(avvisi)

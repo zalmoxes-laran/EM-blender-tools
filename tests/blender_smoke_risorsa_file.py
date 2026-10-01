@@ -124,5 +124,36 @@ if dist is not None:
         and e.edge_target == res_id for e in graph.edges))
     check("the door stays where Heriverse looks", dist.data.get("url") == "models/TILE.gltf")
 
+# ── 2 · una texture riesportata dà una revisione; «tutti» sposta l'RM ────────
+revisions = importlib.import_module(pkg + ".resource_revisions")
+img.pixels[0] = 0.25                       # la texture cambia davvero
+img.save()
+gltf_mod.export_gltf_with_animation_support(filepath=stem, export_vars=export_vars,
+                                            scene=scene, use_selection=True)
+Op._registra_bake(fake, graph, rm_id, obj, url="models/TILE.gltf",
+                  file_esportato=stem + ".gltf", etichetta="GLTF for TILE")
+new_id = api.current_revision(graph, link_id)
+check("re-exported texture → a revision", new_id != link_id, new_id)
+waiting = revisions.pending_revisions(graph)
+check("the RM still cites the old one, and it is said",
+      [w["old_id"] for w in waiting] == [link_id], str(waiting))
+# the operator, as the panel calls it (no dialog: «all» is the proposal)
+graph_id = "smoke"
+from s3dgraphy.multigraph.multigraph import multi_graph_manager  # noqa: E402
+multi_graph_manager.graphs[graph_id] = graph
+item = scene.em_tools.graphml_files.add()
+item.name = graph_id
+scene.em_tools.active_file_index = len(scene.em_tools.graphml_files) - 1
+res = bpy.ops.em.move_citations(old_id=link_id, new_id=new_id)
+check("move_citations ran", res == {'FINISHED'}, str(res))
+check("the RM follows to the revision", any(
+    e.edge_type == "has_linked_resource" and e.edge_source == rm_id
+    and e.edge_target == new_id for e in graph.edges))
+check("the old one stays citable, with its files",
+      graph.find_node_by_id(link_id) is not None
+      and len(api.resource_files(graph, link_id)) == 3)
+check("the DTC chain of the old bytes stayed", any(
+    e.edge_type == "dtc_had_output" and e.edge_target == link_id for e in graph.edges))
+
 print(f"[SMOKE] {'OK' if not FAILURES else 'FAILED: ' + ', '.join(FAILURES)}")
 sys.exit(1 if FAILURES else 0)

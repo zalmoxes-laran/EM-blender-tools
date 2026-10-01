@@ -551,6 +551,16 @@ def ensure_rm_and_internal_resource(scene, graph, obj):
 
     Idempotente: chiamarla due volte non crea doppioni, perché gli id sono
     derivati e si cercano prima di creare.
+
+    **Il locator che cambia NON è una revisione** (MICRO risorsa-file, parte
+    2). Quando il `.blend` si salva per la prima volta, o si rinomina, il
+    `blend://` della risorsa interna si aggiorna QUI, sulla risorsa che c'è:
+    l'identità del datablock (lo stesso oggetto, nello stesso file) non
+    cambia, cambia solo dove lo si trova. È il contrario di una texture
+    riesportata — byte nuovi, quindi una risorsa nuova con `was_revision_of`
+    (`resource_levels.registra_derivata` → `api.replace_file`). Un datablock non
+    ha un digest di byte da confrontare: ciò che lo identifica è il suo nome
+    nel file, e quello è il locator.
     """
     avvisi = []
     if graph is None or obj is None:
