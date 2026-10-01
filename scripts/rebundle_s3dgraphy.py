@@ -38,6 +38,14 @@ than the library" impossible rather than detectable: the wheel is produced from
     python scripts/rebundle_s3dgraphy.py --python 3.13      # just that one
     python scripts/rebundle_s3dgraphy.py --source ~/src/s3Dgraphy
     python scripts/rebundle_s3dgraphy.py --check            # verify only, build nothing
+    python scripts/rebundle_s3dgraphy.py --pypi 1.6.0.dev25 # the PUBLISHED wheel, not a build
+
+`--pypi` is the release path: what `em.sh setup` installs for anybody else is
+the PyPI wheel, so the bundle must be that file byte for byte (measured on 1 Oct
+2026: a wheel built here from the same dev25 source still carried the renamed
+`nodes/link_node.py` — the PyPI one does not). Both paths then write
+`em_setup/datamodel.fingerprint.json`, the datamodel the bundled wheel carries,
+which EMtools compares with the imported wheel at startup.
 
 s3dgraphy is pure Python (`py3-none-any`), so the same file serves both
 interpreter directories — they exist because the *other* wheels in the bundle are
@@ -122,6 +130,56 @@ def _has_setuptools() -> bool:
     return True
 
 
+def download_wheel(version: str, into: Path) -> Path:
+    """The published wheel of `version`, from PyPI, as is (no build)."""
+    print(f"▶ downloading s3dgraphy=={version} from PyPI", flush=True)
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "download", f"s3dgraphy=={version}",
+         "--no-deps", "--only-binary", ":all:", "-d", str(into)],
+        capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"pip could not download s3dgraphy=={version}:\n"
+                           f"{result.stdout[-2000:]}\n{result.stderr[-2000:]}")
+    found = sorted(into.glob(f"s3dgraphy-{version}-*.whl"))
+    if not found:
+        raise RuntimeError(f"no s3dgraphy {version} wheel on PyPI")
+    return found[-1]
+
+
+FINGERPRINT_FILE = ADDON / "em_setup" / "datamodel.fingerprint.json"
+
+
+def write_fingerprint(wheel: Path) -> None:
+    """`em_setup/datamodel.fingerprint.json` from the datamodel IN `wheel`.
+
+    Computed by the wheel's own `api.datamodel_fingerprint()`, in a subprocess
+    with only the unpacked wheel on the path — the expectation must be what the
+    bundle carries, not what the checkout or this interpreter happens to hold."""
+    import json
+    import os
+    import zipfile
+    with tempfile.TemporaryDirectory() as tmp:
+        with zipfile.ZipFile(wheel) as archive:
+            archive.extractall(tmp)
+        code = ("import json, s3dgraphy; from s3dgraphy import api; "
+                "fp = api.datamodel_fingerprint(); fp['s3dgraphy'] = s3dgraphy.__version__; "
+                "print(json.dumps(fp))")
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True,
+                                text=True, env={**os.environ, "PYTHONPATH": tmp})
+    if result.returncode != 0:
+        print(f"  ! cannot fingerprint {wheel.name} (a wheel before dev25 has no "
+              f"datamodel_fingerprint):\n{result.stderr[-800:]}")
+        return
+    fp = json.loads(result.stdout)
+    fp["_note"] = ("the datamodel the pinned s3dgraphy wheel carries; written by "
+                   "scripts/rebundle_s3dgraphy.py --fingerprint, checked at startup "
+                   "by em_setup/version_banner.check_datamodel. Never edit by hand.")
+    FINGERPRINT_FILE.write_text(json.dumps(fp, indent=2, ensure_ascii=False) + "\n",
+                                encoding="utf-8")
+    print(f"  ✓ {FINGERPRINT_FILE.relative_to(ADDON)} ({fp['digest'][:19]}…, "
+          f"s3dgraphy {fp['s3dgraphy']})")
+
+
 def install_into(wheel: Path, target: Path) -> Path:
     """Put `wheel` in `target`, removing any older s3dgraphy beside it."""
     target.mkdir(parents=True, exist_ok=True)
@@ -169,6 +227,11 @@ def main() -> int:
                         help="the s3Dgraphy checkout to build from")
     parser.add_argument("--check", action="store_true",
                         help="verify the bundled wheels by content and build nothing")
+    parser.add_argument("--pypi", metavar="VERSION",
+                        help="bundle the PUBLISHED wheel of VERSION instead of building")
+    parser.add_argument("--fingerprint", action="store_true",
+                        help="only (re)write em_setup/datamodel.fingerprint.json "
+                             "from the bundled wheel")
     args = parser.parse_args()
 
     source = Path(args.source).expanduser().resolve()
@@ -181,11 +244,23 @@ def main() -> int:
         return verify(source)
 
     targets = [wheels_dir(p) for p in (args.python or list(PYTHONS))]
+    if args.fingerprint:
+        bundled = sorted(targets[0].glob("s3dgraphy-*.whl"))
+        if not bundled:
+            print(f"✗ no s3dgraphy wheel in {targets[0]}")
+            return 2
+        write_fingerprint(bundled[-1])
+        return 0
     with tempfile.TemporaryDirectory() as tmp:
-        built = build_wheel(source, Path(tmp))
-        print(f"  built {built.name}")
+        if args.pypi:
+            built = download_wheel(args.pypi, Path(tmp))
+            print(f"  downloaded {built.name}")
+        else:
+            built = build_wheel(source, Path(tmp))
+            print(f"  built {built.name}")
         for target in targets:
             install_into(built, target)
+        write_fingerprint(built)
 
     print("\nthe manifest lists wheels BY NAME: a rebuild at the same version "
           "needs nothing;\nafter a version bump run  ./em.sh manifest 3.11  "

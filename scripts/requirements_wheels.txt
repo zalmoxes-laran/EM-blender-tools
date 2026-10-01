@@ -15,11 +15,15 @@ tzdata>=2025.1
 et-xmlfile==2.0.0
 fonttools>=4.57.0
 packaging==25.0
-s3dgraphy>=1.6.0.dev23,<1.7.0
+s3dgraphy>=1.6.0.dev25,<1.7.0
 # Constraint syntax (PEP 440):
-#   - `.dev23` lower bound EXPLICITLY allows pre-release versions for this
-#     package only (1.6.0.dev23, 1.6.0a1, 1.6.0rc1, 1.6.0, 1.6.1, ...).
-#     dev23 is the first PyPI build that IS the source EMtools is written
+#   - `.dev25` lower bound EXPLICITLY allows pre-release versions for this
+#     package only (1.6.0.dev25, 1.6.0a1, 1.6.0rc1, 1.6.0, 1.6.1, ...).
+#     dev25 carries the resource and its files (add_resource, ResourceFileNode,
+#     has_file, replace_file, was_revision_of), the .3tz reader and
+#     api.datamodel_fingerprint() — the datamodel EMtools checks at startup
+#     against em_setup/datamodel.fingerprint.json.
+#     dev23 was the first PyPI build that IS the source EMtools is written
 #     against (checked by content with `wheel_drift --wheel`): geometry/gltf.py
 #     with the stitched polyline, the proxy_model retype in migrate_shape_urls,
 #     link_proxy_resource. The dev22 on PyPI (44820e1) lacks all three, so a

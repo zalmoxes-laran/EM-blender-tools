@@ -950,6 +950,18 @@ class EM_SetupPanel(bpy.types.Panel):
         except Exception:  # noqa: BLE001 — the tree must draw without the bridge
             pass
 
+        # The datamodel the wheel carries, when it is not the one the pin
+        # promises (aligned draws nothing: a quiet panel is the normal case).
+        try:
+            from .version_banner import datamodel_check_once, format_datamodel_check
+            _dm_line = format_datamodel_check(datamodel_check_once())
+            if _dm_line:
+                dm_col = layout.box().column(align=True)
+                dm_col.alert = datamodel_check_once()["state"] == "differs"
+                _draw_wrapped_text(dm_col, context, _dm_line, icon='ERROR')
+        except Exception:  # noqa: BLE001 — the panel must draw without it
+            pass
+
         # ========================================================================
         # WORKING METHODS SECTION
         # ========================================================================

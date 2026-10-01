@@ -1014,6 +1014,14 @@ def register():
         try:
             em_setup.register()
             logger.info("Registered em_setup (AuxiliaryFileProperties, GraphMLFileItem, etc.)")
+            # Which datamodel does the wheel carry? Said once, never blocking.
+            from .em_setup.version_banner import (
+                datamodel_check_once, format_datamodel_check)
+            _dm = datamodel_check_once()
+            if _dm["state"] == "aligned":
+                logger.info(f"Datamodel aligned with the pin (s3dgraphy {_dm['found_version']})")
+            else:
+                logger.warning(format_datamodel_check(_dm))
         except Exception as e:
             logger.error(f"Error registering em_setup: {e}")
             import traceback
