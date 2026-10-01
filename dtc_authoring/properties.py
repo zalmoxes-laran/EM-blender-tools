@@ -23,15 +23,44 @@ _output_kind_cache = [("", "—", "")]
 _process_cache = [("", "— none —", "")]
 
 
+def _kind_label(kind: str) -> str:
+    """The kind's name from the datamodel's translations, else its id."""
+    try:
+        from s3dgraphy.tools.datamodel_i18n import dtc_kind_label
+        return dtc_kind_label(kind, "en") or kind
+    except Exception:
+        return kind
+
+
 def _kind_items(axis: str, cache: list):
     try:
         kinds = dtc_graph.dtc_kinds().get(axis, [])
     except Exception:
         kinds = []
-    items = [(k, k, f"{axis} kind: {k}") for k in kinds] or [("", "—", "")]
+    items = [(k, _kind_label(k), f"{axis} kind: {k}") for k in kinds] or [("", "—", "")]
     cache.clear()
     cache.extend(items)
     return cache
+
+
+# NAMED functions, not lambdas, and this is the fix of a measured defect (dev27
+# report, part D, «Aperti»). With `from __future__ import annotations` above, a
+# class annotation is a STRING that Blender evaluates; a lambda written inside it
+# is created there, and when Blender calls it at draw time its globals do not
+# hold this module's names: `NameError: name '_kind_items' is not defined`, the
+# three drop-downs empty. A function referenced by name is resolved when the
+# annotation is evaluated, and keeps its own module's globals (measured in
+# Blender 5.2.0: the lambda raises, the named function lists its items).
+def _process_kind_items(self, context):
+    return _kind_items("process", _process_kind_cache)
+
+
+def _input_kind_items(self, context):
+    return _kind_items("input", _input_kind_cache)
+
+
+def _output_kind_items(self, context):
+    return _kind_items("output", _output_kind_cache)
 
 
 def _process_items(self, context):
@@ -59,14 +88,14 @@ class EM_DtcProps(PropertyGroup):
         name="Process", items=_process_items,
         description="The DTC process (transformation event) to author")
     process_kind: EnumProperty(
-        name="Process kind", items=lambda s, c: _kind_items("process", _process_kind_cache),
+        name="Process kind", items=_process_kind_items,
         description="Kind of processing step (data-driven from dtc_kinds)")
     input_kind: EnumProperty(
-        name="Input kind", items=lambda s, c: _kind_items("input", _input_kind_cache),
+        name="Input kind", items=_input_kind_items,
         description="Acquisition kind (data-driven from dtc_kinds)")
     input_url: StringProperty(name="Input file", description="URL / path of the input Resource")
     output_kind: EnumProperty(
-        name="Output kind", items=lambda s, c: _kind_items("output", _output_kind_cache),
+        name="Output kind", items=_output_kind_items,
         description="Produced object kind (data-driven from dtc_kinds)")
     output_url: StringProperty(name="Output file", description="URL / path of the output Resource")
     derive_output: BoolProperty(
