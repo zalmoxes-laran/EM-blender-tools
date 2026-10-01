@@ -77,6 +77,9 @@ def load_icons():
         "container_off": "container_off.png",
         "container_on": "container_on.png",
         "surface_area": "surface_area.png",
+        # the wax seal of a stamped resource (scripts/draw_seal_icon.py, the
+        # same edge and reds as EMStudio's sealMini)
+        "seal": "seal.png",
         # RM presence indicator (loaded lazily — filenames provided by
         # the user as RM_on.png / RM_off.png). load_icons() skips any
         # missing file, so if they aren't on disk yet the code falls

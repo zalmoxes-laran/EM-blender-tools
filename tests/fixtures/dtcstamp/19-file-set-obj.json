@@ -1,0 +1,57 @@
+{
+ "case": "a file_set: an obj, its mtl, two textures — found by following references",
+ "why": "The folder does not delimit the asset: the members are what the entry point calls (mtllib, then map_* with their options, a file name with a space included). A texture nobody calls stays out and is named. The digest is members_digest of the list.",
+ "file_set": {
+  "files": {
+   "model.obj": {
+    "text": "# a triangle\nmtllib model.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nusemtl stone\nf 1/1 2/2 3/3\n"
+   },
+   "model.mtl": {
+    "text": "newmtl stone\nKd 1 1 1\nmap_Kd textures/stone_diffuse.png\nmap_Bump -bm 0.5 textures/stone normal.png\n"
+   },
+   "textures/stone_diffuse.png": {
+    "base64": "iVBORyBkaWZmdXNl"
+   },
+   "textures/stone normal.png": {
+    "base64": "iVBORyBub3JtYWw="
+   },
+   "textures/unused.png": {
+    "base64": "iVBORyBub2JvZHkgY2FsbHMgbWU="
+   }
+  },
+  "entry_point": "model.obj"
+ },
+ "expect": {
+  "members": [
+   {
+    "role": "member",
+    "path": "model.mtl",
+    "digest": "sha256:240c27b5ade3b53e1131c840adbac4ed8398e9f72609a4a1e766ff777af659f5",
+    "size_bytes": 99
+   },
+   {
+    "role": "entry_point",
+    "path": "model.obj",
+    "digest": "sha256:bdb32097159d4e2761554516cb7ff4747aeb809d28dc7fe60477e6aa89ec06cf",
+    "size_bytes": 102
+   },
+   {
+    "role": "member",
+    "path": "textures/stone normal.png",
+    "digest": "sha256:7a7db3314596a49eba5bb40029cf6daac743f74a9f7d34cd4b09649990ff875a",
+    "size_bytes": 11
+   },
+   {
+    "role": "member",
+    "path": "textures/stone_diffuse.png",
+    "digest": "sha256:d00bff52846829bfc2c318d03899e4954865a175094bea405ca5898407d3d572",
+    "size_bytes": 12
+   }
+  ],
+  "members_digest": "sha256:e57c0de53f44198eef18ce286e4e9ecc5c41169cef28c0c59a3e935df0440c75",
+  "unclaimed": [
+   "textures/unused.png"
+  ],
+  "warnings": []
+ }
+}

@@ -407,7 +407,93 @@ class EM_OT_move_citations(Operator):
         return {'FINISHED'}
 
 
+def _entry_point(graph, resource_id):
+    try:
+        from s3dgraphy import api
+        files = api.resource_files(graph, resource_id)
+    except Exception:                              # noqa: BLE001 — older wheel
+        return ""
+    door = next((f for f in files if f.get("role") == "entry_point"), None)
+    return str((door or {}).get("path") or "")
+
+
+def stamped_resources(context, graph):
+    """``[(resource, path, seal)]`` for the local resources with a ``.stamp.json``
+    beside them (``resource_seal.seal_of``). The locator is resolved against the
+    same bases as the publication (D5), so a DosCo-relative one is found."""
+    from .. import publication_gesture as pg
+    from .. import resource_seal
+    from ..rm_manager.containers import basi_dei_locator
+    basi = basi_dei_locator(context)
+    out = []
+    for r in resource_backend.list_link_resources(graph):
+        locator = r["locator"]
+        if not locator:
+            #: a file set keeps no url of its own: its door is the entry_point
+            #: among its files (has_file), and the stamp sits beside the door
+            locator = _entry_point(graph, r["id"])
+        if not locator or resource_backend._locator_kind(locator) != "local_path":
+            continue
+        path = pg.risolvi(locator, basi) or locator
+        seal = resource_seal.seal_of(path)
+        if seal is not None:
+            out.append((r, path, seal))
+    return out
+
+
+class EM_OT_seal_open(Operator):
+    """Open (or close) the seal of this resource"""
+    bl_idname = "em.seal_open"
+    bl_label = "Seal"
+    bl_options = {'INTERNAL'}
+
+    resource_id: bpy.props.StringProperty()  # type: ignore
+
+    def execute(self, context):
+        p = context.scene.em_resources
+        p.active_seal = "" if p.active_seal == self.resource_id else self.resource_id
+        return {'FINISHED'}
+
+
+class EM_OT_seal_copy_json(Operator):
+    """Copy this resource's .stamp.json to the clipboard, as it is on disk"""
+    bl_idname = "em.seal_copy_json"
+    bl_label = "Copy JSON"
+    bl_options = {'INTERNAL'}
+
+    resource_id: bpy.props.StringProperty()  # type: ignore
+
+    def execute(self, context):
+        ok, graph, _folder, _gc = _active(context)
+        if not ok:
+            return {'CANCELLED'}
+        for r, _path, seal in stamped_resources(context, graph):
+            if r["id"] == self.resource_id and seal.get("raw"):
+                context.window_manager.clipboard = seal["raw"]
+                self.report({'INFO'}, f"Copied {os.path.basename(seal['stamp_path'])}")
+                return {'FINISHED'}
+        self.report({'WARNING'}, f"{self.resource_id}: no readable stamp")
+        return {'CANCELLED'}
+
+
+class EM_OT_seal_verify_again(Operator):
+    """Check the bytes against the stamps again (results are kept until a file changes)"""
+    bl_idname = "em.seal_verify_again"
+    bl_label = "Verify again"
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        from .. import resource_seal
+        resource_seal.forget()
+        for area in context.screen.areas if context.screen else ():
+            area.tag_redraw()
+        return {'FINISHED'}
+
+
 classes = (
+    EM_OT_seal_open,
+    EM_OT_seal_copy_json,
+    EM_OT_seal_verify_again,
     EM_OT_move_citations,
     EM_OT_resources_scan,
     EM_OT_resources_set_dosco_folder,

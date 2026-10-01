@@ -19,6 +19,11 @@ class EM_ResourcesProps(PropertyGroup):
     show_shelf: BoolProperty(name="Shelf", default=True)
     show_minio: BoolProperty(name="Object store (MinIO)", default=False)
     show_revisions: BoolProperty(name="Revisions", default=True)
+    show_seals: BoolProperty(name="Seals", default=True)
+    #: the resource whose seal card is open ("" = none): one at a time
+    active_seal: StringProperty(name="", default="")
+    #: «Technical details» under the seal, closed to begin with
+    show_seal_tech: BoolProperty(name="Technical details", default=False)
 
     # status line + last-scan summary (filled by the scan operator)
     status: StringProperty(name="", default="")
