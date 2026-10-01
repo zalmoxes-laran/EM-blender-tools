@@ -131,9 +131,16 @@ if dsc_key:
         parent = st["from"][0] if st["from"] else {}
         check("glb: from the master TILE", parent.get("label") == "TILE"
               and parent.get("tier") == "master", json.dumps(parent)[:160])
+        #: MEASURED: Blender 5.0.1 --background (also --factory-startup, no
+        #: add-on) reports `is_dirty` True right after `save_as_mainfile`; 5.2
+        #: does not. There the stamp says «not saved» — the safe direction —
+        #: and the smoke can only check the digest.
+        dirty_after_save = bpy.data.is_dirty
         check("glb: .blend digest and saved",
               parent.get("state", {}).get("blend") == dtcstamp.file_digest(BLEND)
-              and parent["state"].get("blend_saved") is True, json.dumps(parent.get("state")))
+              and parent["state"].get("blend_saved") is (not dirty_after_save),
+              json.dumps(parent.get("state")) + (" (this Blender: dirty after save)"
+                                                 if dirty_after_save else ""))
         check("glb: no path in from", "blend://" not in json.dumps(st["from"])
               and TMP not in json.dumps(st["from"]))
         hints = read(glb + ".from.hints.json")
