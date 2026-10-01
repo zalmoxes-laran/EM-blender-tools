@@ -21,7 +21,8 @@ def copy_source_files(source_dir: Path, build_dir: Path):
         '.git', '.github', '__pycache__', '*.pyc', 'build', 'dist',
         'scripts', '.gitignore', '.vscode', '.DS_Store', '*.blext',
         'blender_manifest_template.toml', 'version.json', 'em.bat', 'em.sh',
-        '*.backup', 'lib'  # Escludi 'lib' (vecchio approccio) ma NON 'wheels'!
+        '*.backup', 'lib',  # Escludi 'lib' (vecchio approccio) ma NON 'wheels'!
+
     }
     
     exclude_extensions = {'.blext', '.backup'}  # Escludi per estensione
@@ -56,7 +57,8 @@ def copy_source_files(source_dir: Path, build_dir: Path):
                 skipped_files += 1
                 continue
             print(f"  Copying directory: {item.name}")
-            shutil.copytree(item, dest, ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '*.blext'))
+            shutil.copytree(item, dest, ignore=shutil.ignore_patterns(
+                '__pycache__', '*.pyc', '*.blext', '.backup'))
         else:
             print(f"  Copying file: {item.name}")
             shutil.copy2(item, dest)
@@ -120,9 +122,27 @@ def refresh_bundled_s3dgraphy(python_version: str = '3.11') -> None:
         print(f"ℹ️  no s3Dgraphy checkout at {source}: keeping the bundled wheel "
               f"as it is (run scripts/rebundle_s3dgraphy.py where the source is)")
         return
-    print("🔁 rebuilding the bundled s3dgraphy wheel from source…")
-    result = subprocess.run([sys.executable, str(script),
-                             '--python', python_version, '--source', str(source)])
+    # MICRO risorsa-file (1 Oct 2026) · when the source IS the pinned version,
+    # the bundle is the PUBLISHED wheel of that version, byte for byte: that is
+    # what `em.sh setup` installs for everybody else, and a wheel rebuilt here
+    # from the "same" version measured different (a renamed module still in it).
+    # Only a source that has moved past the pin (unpublished) is built.
+    import re as _re
+    pin = _re.search(r"^s3dgraphy>=([^,\s]+)",
+                     (Path(__file__).parent / 'requirements_wheels.txt').read_text(),
+                     _re.MULTILINE)
+    here = _re.search(r'^version\s*=\s*"([^"]+)"',
+                      (source / 'pyproject.toml').read_text(), _re.MULTILINE)
+    if pin and here and pin.group(1) == here.group(1):
+        print(f"🔁 bundling the published s3dgraphy {pin.group(1)} (PyPI)…")
+        argv = [sys.executable, str(script), '--pypi', pin.group(1),
+                '--source', str(source)]
+    else:
+        print("🔁 rebuilding the bundled s3dgraphy wheel from source "
+              f"({here.group(1) if here else '?'}, pin {pin.group(1) if pin else '?'})…")
+        argv = [sys.executable, str(script), '--python', python_version,
+                '--source', str(source)]
+    result = subprocess.run(argv)
     if result.returncode != 0:
         # The script's own output already said what is stale or why pip failed.
         print("⚠️  the bundled s3dgraphy wheel is NOT aligned with the source — "
