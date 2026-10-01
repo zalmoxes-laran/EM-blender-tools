@@ -94,6 +94,12 @@ def capacita_richieste(dati: dict) -> list:
     url = str(dati.get("url") or "")
     richieste = []
     packaging = str(dati.get("packaging") or "")
+    #: MICRO risorsa-file · un `.3tz` è un ARCHIVIO che non si scompatta: è un
+    #: tileset (3D Tiles Archive), letto attraverso il suo indice e servito
+    #: così com'è. Chiede `tiles3d`, non `unpackArchive`.
+    if _estensione(url) == "3tz" or str(dati.get("media_type") or "") == \
+            "application/vnd.maxar.archive.3tz+zip":
+        return ["tiles3d"]
     if packaging == "archive" or _estensione(url) == "zip":
         richieste.append("unpackArchive")
     if url.lower().split("?")[0].endswith("tileset.json"):

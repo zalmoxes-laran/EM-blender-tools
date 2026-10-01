@@ -829,7 +829,7 @@ class RM_OT_add_tileset(Operator):
     
     tileset_path: StringProperty(
         name="Tileset Path",
-        description="Path to the Cesium tileset zip file (relative or absolute)",
+        description="Path to the Cesium tileset archive, .zip or .3tz (relative or absolute)",
         default="",
         subtype='FILE_PATH',
         options={'PATH_SUPPORTS_BLEND_RELATIVE'} if bpy.app.version >= (4, 5, 0) else set()
@@ -977,10 +977,11 @@ class RM_OT_add_tileset(Operator):
 class RM_OT_set_tileset_path(Operator, ImportHelper):
     bl_idname = "rm.set_tileset_path"
     bl_label = "Set Tileset Path"
-    bl_description = "Set the path to the Cesium tileset zip file"
+    bl_description = "Set the path to the Cesium tileset archive (.zip or .3tz)"
     
     filter_glob: StringProperty(
-        default="*.zip",
+        #: un `.3tz` (3D Tiles Archive, lo scrive 3DSC) è un tileset come lo zip
+        default="*.zip;*.3tz",
         options={'HIDDEN'}
     ) # type: ignore
     
@@ -1022,7 +1023,12 @@ class RM_OT_set_tileset_path(Operator, ImportHelper):
                     model_node = graph.find_node_by_id(model_node_id)
                     
                     if model_node:
-                        model_node.url = f"tilesets/{os.path.basename(self.filepath)}"
+                        #: lo stesso url che scrivono l'export e
+                        #: `graph_updaters`: la porta dell'albero servito
+                        #: (l'archivio, `.zip` o `.3tz`, è la distribuzione
+                        #: `_archive` accanto)
+                        _stem = os.path.splitext(os.path.basename(self.filepath))[0]
+                        model_node.url = f"tilesets/{_stem}/tileset.json"
                         model_node.attributes['tileset_path'] = tileset_path
                         print(f"Updated tileset path in graph node: {model_node.node_id}")
         except Exception as e:
@@ -1030,6 +1036,62 @@ class RM_OT_set_tileset_path(Operator, ImportHelper):
         
         self.report({'INFO'}, f"Updated tileset path: {tileset_path}")
         return {'FINISHED'}
+
+class RM_OT_pack_tileset_3tz(Operator):
+    """Pack a tileset folder into a canonical .3tz with 3D Survey Collection.
+
+    MICRO risorsa-file, parte 3 · EMtools collega e pubblica, NON scrive
+    archivi: lo scrittore `.3tz` sta in 3DSC (`object.cesium_pack_3tz`) e in
+    EMStudio, col profilo canonico (dtcstamp/profiles/3tz.md). Se 3DSC c'è,
+    lo si chiama; se no, lo si dice — un secondo scrittore qui sarebbe un
+    secondo profilo che prima o poi diverge."""
+
+    bl_idname = "rm.pack_tileset_3tz"
+    bl_label = "Pack a tileset folder into .3tz"
+    bl_description = ("Pack a folder with tileset.json at its root into a "
+                      "canonical .3tz, with 3D Survey Collection")
+
+    object_name: StringProperty(default="")  # type: ignore
+    directory: StringProperty(subtype='DIR_PATH')  # type: ignore
+    filter_folder: bpy.props.BoolProperty(default=True, options={'HIDDEN'})  # type: ignore
+
+    @staticmethod
+    def three_dsc_available():
+        #: `bpy.ops.object.x` esiste sempre come stub: registrato o no lo dice
+        #: solo il suo tipo RNA
+        try:
+            bpy.ops.object.cesium_pack_3tz.get_rna_type()
+            return True
+        except (KeyError, AttributeError):
+            return False
+
+    def invoke(self, context, event):
+        if not self.three_dsc_available():
+            self.report({'WARNING'},
+                        "Packing a .3tz needs 3D Survey Collection (its "
+                        "'Pack a tileset into .3tz'): EMtools links and "
+                        "publishes archives, it does not write them")
+            return {'CANCELLED'}
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        if not self.three_dsc_available():
+            self.report({'WARNING'}, "3D Survey Collection is not enabled: "
+                                     "no .3tz writer here")
+            return {'CANCELLED'}
+        folder = os.path.normpath(bpy.path.abspath(self.directory))
+        result = bpy.ops.object.cesium_pack_3tz(directory=folder)
+        if result != {'FINISHED'}:
+            return {'CANCELLED'}
+        #: 3DSC scrive l'archivio accanto alla cartella, con lo stesso nome
+        archive = folder.rstrip(os.sep) + ".3tz"
+        obj = get_object_cache().get_object(self.object_name) if self.object_name else None
+        if obj is not None and os.path.isfile(archive):
+            obj["tileset_path"] = bpy.path.relpath(archive)
+            self.report({'INFO'}, f"{obj.name} → {os.path.basename(archive)}")
+        return {'FINISHED'}
+
 
 class RM_OT_demote_from_rm_list(Operator):
     bl_idname = "rm.demote_from_rm_list"
@@ -3017,6 +3079,7 @@ classes = [
     RM_OT_select_from_object,
     RM_OT_add_tileset,
     RM_OT_set_tileset_path,
+    RM_OT_pack_tileset_3tz,
     RM_OT_demote_from_rm_list,
     RM_OT_update_list,
     RM_OT_resolve_mismatches,

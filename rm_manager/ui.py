@@ -750,6 +750,10 @@ class VIEW3D_PT_RM_Manager(Panel):
                     op = row.operator("rm.set_tileset_path", text="",
                                       icon='FILEBROWSER')
                     op.object_name = obj.name
+                    #: impacchettare una cartella in `.3tz` lo fa 3DSC
+                    op = row.operator("rm.pack_tileset_3tz", text="",
+                                      icon='PACKAGE')
+                    op.object_name = obj.name
 
                     path = obj.get("tileset_path", "")
                     if path and not os.path.exists(bpy.path.abspath(path)):

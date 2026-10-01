@@ -90,3 +90,34 @@ def gltf_members(gltf_path: str) -> List[Dict[str, str]]:
             out.append({"path": rel,
                         "file": os.path.normpath(os.path.join(base, *rel.split("/")))})
     return out
+
+
+# ── the tileset, in either form ─────────────────────────────────────────────
+
+#: the media type of a 3D Tiles Archive (dtcstamp.MEDIA_TYPE_3TZ)
+MEDIA_TYPE_3TZ = "application/vnd.maxar.archive.3tz+zip"
+#: the 3tz index entry: never a member, never extracted
+INDEX_NAME_3TZ = "@3dtilesIndex1@"
+
+
+def is_3tz(path: str) -> bool:
+    """A 3D Tiles Archive, by its extension (how the file is named and served)."""
+    return str(path or "").lower().split("?")[0].endswith(".3tz")
+
+
+def tileset_json(path: str) -> Optional[Dict[str, Any]]:
+    """The parsed ``tileset.json`` of a tileset, whatever its form: a folder, the
+    ``tileset.json`` itself, or a ``.3tz`` — read THROUGH the archive's index with
+    s3Dgraphy's reader (`api.read_3tz_entry`), nothing extracted. None when there
+    is none or it does not parse."""
+    try:
+        if os.path.isdir(path):
+            path = os.path.join(path, "tileset.json")
+        if is_3tz(path):
+            from s3dgraphy import api
+            raw = api.read_3tz_entry(path, "tileset.json")
+            return json.loads(raw.decode("utf-8")) if raw else None
+        with open(path, "r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        return None

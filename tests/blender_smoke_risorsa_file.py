@@ -14,6 +14,7 @@ extension enabled:
 Exits non-zero on failure. Everything is written in a temporary folder.
 """
 import importlib
+import json
 import os
 import sys
 import tempfile
@@ -154,6 +155,77 @@ check("the old one stays citable, with its files",
       and len(api.resource_files(graph, link_id)) == 3)
 check("the DTC chain of the old bytes stayed", any(
     e.edge_type == "dtc_had_output" and e.edge_target == link_id for e in graph.edges))
+
+# ── 3 · un tileset .3tz in un container: due forme, un contenuto, niente rinomina
+import shutil  # noqa: E402
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+src_3tz = os.path.join(TMP, "small.3tz")
+shutil.copy2(os.path.join(REPO, "tests", "fixtures", "dtcstamp", "data",
+                          "small-tileset-canonical.3tz"), src_3tz)
+expect = json.load(open(os.path.join(REPO, "tests", "fixtures", "dtcstamp",
+                                     "20-tileset-folder-and-3tz.json")))["expect"]
+bpy.ops.object.empty_add(type="PLAIN_AXES")
+ts_obj = bpy.context.active_object
+ts_obj.name = "small"
+ts_obj["tileset_path"] = src_3tz
+cont = scene.rm_containers.add()
+cont.label = "D.01 survey"
+cont.publication_strategy = "tileset"
+for o in (obj, ts_obj):
+    cont.mesh_names.add().name = o.name
+from s3dgraphy.nodes.representation_node import RepresentationModelNode  # noqa: E402
+graph.add_node(RepresentationModelNode(node_id="small_model", name="Model for small",
+                                       type="RM", description=""))
+ts_obj["em_rm_node_id"] = "small_model"
+
+
+class Fake:
+    DIFETTI_DI_PROGRAMMAZIONE = Op.DIFETTI_DI_PROGRAMMAZIONE
+
+    def report(self, level, msg):
+        print(f"[report] {level} {msg}")
+
+
+for _name in ("_registra_bake", "_due_distribuzioni_del_tileset", "_sorgenti_del_tileset",
+              "_misure_insieme", "_saltato", "_fallito", "_azzera_esiti",
+              "export_tilesets", "_e_un_tileset"):
+    setattr(Fake, _name, Op.__dict__[_name])
+fake3 = Fake()
+fake3._azzera_esiti()
+tilesets = os.path.join(TMP, "export", "tilesets")
+n = fake3.export_tilesets(bpy.context, tilesets)
+check("tileset exported", n == 1, str(n))
+check("the index is not extracted", not os.path.exists(
+    os.path.join(tilesets, "small", "@3dtilesIndex1@")), str(os.listdir(os.path.join(tilesets, "small"))))
+check("the archive keeps its .3tz name", os.path.isfile(os.path.join(tilesets, "small.3tz"))
+      and not os.path.exists(os.path.join(tilesets, "small.zip")), str(os.listdir(tilesets)))
+link = graph.find_node_by_id("small_model_link")
+arch = graph.find_node_by_id("small_model_archive")
+check("both forms registered", link is not None and arch is not None)
+if link is not None and arch is not None:
+    check("folder: the content is the digest", link.data.get("checksum") == expect["content_digest"]
+          and "checksum_of" not in link.data, link.data.get("checksum"))
+    check("archive: the same content_digest", arch.data.get("content_digest") == expect["content_digest"])
+    check("archive: the full sha256, served as is", arch.data.get("checksum") == expect["archive_sha256"]
+          and arch.data.get("url") == "tilesets/small.3tz", arch.data.get("url"))
+    check("archive: 3tz media type", arch.data.get("media_type") ==
+          "application/vnd.maxar.archive.3tz+zip")
+    # N:1 · the container declares `tileset`: its members' masters are the
+    # inputs of the tileset's genesis
+    inputs = {e.edge_target for e in graph.edges
+              if e.edge_type in ("dtc_derived_from", "dtc_had_input")}
+    check("the members' masters are the sources", res_id in inputs, str(sorted(inputs)))
+check("rotation: a .3tz url is a tileset, read inside the archive",
+      fake3._e_un_tileset("tilesets/small.3tz") and not fake3._e_un_tileset("tilesets/none.3tz"))
+pt = importlib.import_module(pkg + ".publication_targets")
+check("a .3tz asks tiles3d, not unpackArchive", pt.capacita_richieste(arch.data) == ["tiles3d"])
+check("3DSC packer is detected or its absence said",
+      isinstance(importlib.import_module(pkg + ".rm_manager.operators")
+                 .RM_OT_pack_tileset_3tz.three_dsc_available(), bool))
+from s3dgraphy.exporter.emjson_exporter import export_emjson  # noqa: E402
+probe = os.path.join(os.environ.get("EM_SMOKE_OUT") or TMP, "heriverse_probe.em.json")
+export_emjson(graph, probe)
+print(f"[SMOKE] em.json for 3DR: {probe}")
 
 print(f"[SMOKE] {'OK' if not FAILURES else 'FAILED: ' + ', '.join(FAILURES)}")
 sys.exit(1 if FAILURES else 0)

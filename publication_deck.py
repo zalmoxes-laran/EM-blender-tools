@@ -112,8 +112,8 @@ def _media(dati: dict) -> str:
     """
     url = _testo(dati.get("url"))
     basso = url.lower().split("?")[0]
-    if basso.endswith("tileset.json") or _testo(dati.get("packaging")) == "archive" \
-            and "tileset" in basso:
+    if basso.endswith("tileset.json") or basso.endswith(".3tz") \
+            or _testo(dati.get("packaging")) == "archive" and "tileset" in basso:
         return "tileset"
     tipo = _testo(dati.get("url_type")).lower()
     estensione = _formato(dati)

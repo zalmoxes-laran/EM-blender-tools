@@ -153,7 +153,8 @@ class EXPORT_OT_heriverse(Operator):
                        file_esportato, etichetta,
                        source_ids=None, packaging=None,
                        oggetti_sorgente=None, con_master=True,
-                       suffisso=None, checksum_of=None, derivata_id=None):
+                       suffisso=None, checksum_of=None, derivata_id=None,
+                       contenuto=None, peso_contenuto=None):
         """Un bake: assicura il master, registra la distribution, e lo dice.
 
         `con_master=False` è per il tileset esterno e per chi il master non ce
@@ -237,6 +238,7 @@ class EXPORT_OT_heriverse(Operator):
             packaging=packaging,
             checksum_of=checksum_of,
             membri=membri,
+            contenuto=contenuto, peso_contenuto=peso_contenuto,
             misure=(self._misure_insieme(oggetti_sorgente)
                     if oggetti_sorgente else None))
         if perche:
@@ -374,20 +376,34 @@ class EXPORT_OT_heriverse(Operator):
         scrive solo dopo aver visto il proprio file. Se la copia non riesce,
         l'archivio non viene scritto e lo si dice.
         """
-        import shutil
         from ... import resource_levels as _rl
+        from ... import resource_digest as _rd
+
+        #: MICRO risorsa-file · LO STESSO CONTENUTO, DUE FORME. Il digest di
+        #: un albero è il `content_digest` di dtcstamp, lo stesso per la
+        #: cartella e per il suo `.3tz`; lo si misura sulla cartella servita
+        #: (che è l'estrazione dell'archivio), e lo portano tutte e due.
+        contenuto, peso_albero = "", None
+        cartella_albero = os.path.dirname(porta)
+        if os.path.isdir(cartella_albero):
+            try:
+                contenuto = _rd.content_digest(cartella_albero)
+                peso_albero = _rd.tree_size(cartella_albero)
+            except (OSError, ValueError) as exc:
+                self._saltato(f"tileset {obj.name}",
+                              f"content_digest non misurabile ({exc}): resta "
+                              f"il digest della porta", avvisa=True)
 
         # ── (1) l'albero servito ───────────────────────────────────────────
         if os.path.isfile(porta):
             self._registra_bake(
                 graph, model_node_id, obj,
                 url=url_albero,
-                #: il digest è quello della PORTA, non dell'albero intero:
-                #: percorrere migliaia di file è precisamente il costo che
-                #: impacchettare esiste per evitare. Dichiarato, perché un
-                #: checksum parziale non dichiarato mente su cosa verifica.
                 file_esportato=porta,
-                checksum_of="entry-point",
+                #: il digest è il CONTENUTO (dtcstamp), non più la sola porta;
+                #: se non si è potuto misurare, la porta — e lo si dichiara
+                checksum_of=None if contenuto else "entry-point",
+                contenuto=contenuto or None, peso_contenuto=peso_albero,
                 etichetta=f"Tileset for {obj.name}",
                 source_ids=sorgenti, oggetti_sorgente=membri_ogg,
                 packaging="directory", con_master=False)
@@ -396,27 +412,51 @@ class EXPORT_OT_heriverse(Operator):
                           f"l'albero servito non c'è ({porta}): nessuna "
                           f"distribuzione `directory` scritta")
 
-        # ── (2) l'archivio che viaggia ─────────────────────────────────────
-        zip_servito = os.path.join(cartella_export, f"{nome_tileset}.zip")
-        if not os.path.isfile(zip_servito):
+        # ── (2) l'archivio che viaggia, servito così com'è ─────────────────
+        #: un `.3tz` resta `.3tz` (non si rinomina in `.zip`): è un tileset
+        #: che si legge senza estrarre, col suo sha256 completo
+        try:
+            archivio, url_archivio, _copiato = _rl.archivio_servito(
+                zip_sorgente, cartella_export, nome_tileset)
+        except OSError as exc:
+            # DETTO, e la distribuzione NON si scrive: un locator che punta
+            # a un file che non c'è è peggio di un locator assente, perché
+            # sembra un indirizzo.
+            self._fallito(f"tileset {obj.name}",
+                          f"copia dell'archivio fallita ({exc}): nessuna "
+                          f"distribuzione `archive` scritta")
+            return
+        contenuto_archivio = contenuto
+        if _rd.is_3tz(archivio) and contenuto:
+            #: misurato anche dentro l'archivio, attraverso il suo indice: se
+            #: non coincide con la cartella, le due forme NON sono lo stesso
+            #: contenuto, e lo si dice invece di dichiararlo
             try:
-                shutil.copy2(zip_sorgente, zip_servito)
-            except OSError as exc:
-                # DETTO, e la distribuzione NON si scrive: un locator che punta
-                # a un file che non c'è è peggio di un locator assente, perché
-                # sembra un indirizzo.
+                contenuto_archivio = _rd.content_digest(archivio)
+            except (OSError, ValueError) as exc:
+                contenuto_archivio = ""
+                em_log(f"[bake] {nome_tileset}: il .3tz non si legge ({exc})",
+                       "WARNING")
+            if contenuto_archivio and contenuto_archivio != contenuto:
                 self._fallito(f"tileset {obj.name}",
-                              f"copia dell'archivio fallita ({exc}): nessuna "
-                              f"distribuzione `archive` scritta")
-                return
+                              f"la cartella e il .3tz hanno contenuti diversi "
+                              f"({contenuto[:19]}… / {contenuto_archivio[:19]}…)")
         self._registra_bake(
             graph, model_node_id, obj,
-            url=f"tilesets/{nome_tileset}.zip",
-            file_esportato=zip_servito,
+            url=url_archivio,
+            file_esportato=archivio,
+            contenuto=contenuto_archivio or None,
             etichetta=f"Tileset archive for {obj.name}",
             source_ids=sorgenti, oggetti_sorgente=membri_ogg,
             packaging="archive", con_master=False,
             suffisso=_rl.SUFFISSO_ARCHIVIO)
+        if _rd.is_3tz(archivio):
+            from s3dgraphy import api as _s3d_api
+            archivio_id = f"{model_node_id}{_rl.SUFFISSO_ARCHIVIO}"
+            nodo = (graph.find_node_by_id(_s3d_api.current_revision(graph, archivio_id))
+                    if graph.find_node_by_id(archivio_id) is not None else None)
+            if nodo is not None:
+                nodo.data["media_type"] = _rd.MEDIA_TYPE_3TZ
 
     def _sorgenti_del_tileset(self, context, graph, tileset_obj):
         """R2+R3 · i master che questo tileset accorpa, e gli oggetti membri.
@@ -482,6 +522,24 @@ class EXPORT_OT_heriverse(Operator):
         sorgenti = _ps.sorgenti_del_tileset(membri, master_per_membro)
         oggetti = [bpy.data.objects.get(n) for n in membri]
         return sorgenti, [o for o in oggetti if o is not None]
+
+    def _e_un_tileset(self, url):
+        """La rotazione dei tileset (Z-up → Y-up) vale per questo url?
+
+        Un `tileset.json` lo dice il nome. Un `.3tz` è un tileset se dentro
+        c'è un `tileset.json` alla radice: lo si legge ATTRAVERSO l'indice
+        dell'archivio (il lettore di s3Dgraphy), senza estrarre — l'archivio
+        sta accanto alla cartella dei tileset dell'export.
+        """
+        basso = str(url or "").lower().split("?")[0]
+        if "tileset.json" in basso:
+            return True
+        from ... import resource_digest as _rd
+        if not _rd.is_3tz(basso):
+            return False
+        radice = getattr(self, "_radice_export", "") or ""
+        percorso = os.path.join(radice, *str(url).split("?")[0].split("/")) if radice else ""
+        return bool(percorso and _rd.tileset_json(percorso))
 
     @staticmethod
     def _misure_insieme(oggetti):
@@ -807,6 +865,9 @@ class EXPORT_OT_heriverse(Operator):
         
         # Create tilesets directory if it doesn't exist
         os.makedirs(export_folder, exist_ok=True)
+        #: la radice del progetto esportato: gli url `tilesets/…` vi si
+        #: risolvono (la rotazione legge il `tileset.json` dentro un `.3tz`)
+        self._radice_export = os.path.dirname(os.path.normpath(export_folder))
         
         # Get export variables
         export_vars = context.window_manager.export_vars
@@ -877,8 +938,17 @@ class EXPORT_OT_heriverse(Operator):
                     # Estrai il file ZIP
                     em_log(f"Extracting tileset '{filename}' - this may take some time...", "DEBUG")
                     import zipfile
+                    from ...resource_digest import INDEX_NAME_3TZ
                     with zipfile.ZipFile(abs_path, 'r') as zip_ref:
-                        zip_ref.extractall(tileset_dir)
+                        #: un `.3tz` è uno zip con un indice in coda
+                        #: (`@3dtilesIndex1@`): l'indice serve a leggere
+                        #: l'archivio, non è un file del tileset, e la
+                        #: cartella estratta deve avere lo stesso
+                        #: contenuto (e lo stesso `content_digest`)
+                        #: dell'archivio
+                        zip_ref.extractall(tileset_dir, members=[
+                            m for m in zip_ref.namelist()
+                            if m != INDEX_NAME_3TZ])
                     em_log(f"Extracted tileset: {obj.name} -> {tileset_dir}", "DEBUG")
                     exported_count += 1
                     tileset_extracted = True
@@ -2041,7 +2111,7 @@ class EXPORT_OT_heriverse(Operator):
                     for rm_name, rm_node in rm_nodes.items():
                         if 'data' in rm_node and 'url' in rm_node['data']:
                             url = rm_node['data']['url']
-                            if url and 'tileset.json' in url:
+                            if url and self._e_un_tileset(url):
                                 if 'transform' not in rm_node['data']:
                                     rm_node['data']['transform'] = {
                                         'rotation': ["-1.57079632679", "0.0", "0.0"]

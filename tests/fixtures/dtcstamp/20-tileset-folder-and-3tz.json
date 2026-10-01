@@ -1,0 +1,44 @@
+{
+ "case": "a small tileset as a folder and as a canonical .3tz: one content, two forms",
+ "why": "A tileset has two identities. The sha256 of the .3tz names that file, and is stable only because the archive follows the one profile (profiles/3tz.md). The content_digest names what is inside, and the folder and the archive must give the same one. EVERY WRITER (3DSC, EMStudio) reproduces this case: materialise `tree.files` into a folder, pack it with its own writer, and get `archive_sha256` byte for byte.",
+ "tree": {
+  "files": {
+   "Data/c01/e0001.b3dm": {
+    "base64": "YjNkbQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
+   },
+   "Data/c02/e0002.b3dm": {
+    "base64": "YjNkbQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIC"
+   },
+   "tileset.json": {
+    "text": "{\"asset\": {\"version\": \"1.0\"}, \"geometricError\": 10, \"root\": {\"content\": {\"uri\": \"Data/c01/e0001.b3dm\"}, \"geometricError\": 1, \"refine\": \"REPLACE\", \"boundingVolume\": {\"sphere\": [0, 0, 0, 10]}}}"
+   }
+  },
+  "archive": "data/small-tileset-canonical.3tz"
+ },
+ "expect": {
+  "archive_sha256": "sha256:75b111b73bbd230e5083091304a53e19d1ad4495763b16f318c803bdec86f0bf",
+  "content_digest": "sha256:fefca8bcbc5a4f20573a8134d9c7c631dddb84c6dd40d664c7a25f9bc33373a8",
+  "files": 3,
+  "members": [
+   {
+    "role": "member",
+    "path": "Data/c01/e0001.b3dm",
+    "digest": "sha256:31534225299539ca88983f5c50b519861c6debddec61810c22df623b42b9bb30",
+    "size_bytes": 104
+   },
+   {
+    "role": "member",
+    "path": "Data/c02/e0002.b3dm",
+    "digest": "sha256:54f7c66716fe5f1d691e58f80056352953bc672f4022a456783ce27270230864",
+    "size_bytes": 204
+   },
+   {
+    "role": "entry_point",
+    "path": "tileset.json",
+    "digest": "sha256:f34e76610733ce1ba0f8f79448169d5e60cc85722391fe39113609b2a8be4b6c",
+    "size_bytes": 191
+   }
+  ],
+  "canonical": true
+ }
+}

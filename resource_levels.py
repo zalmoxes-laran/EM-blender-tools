@@ -266,6 +266,28 @@ def _arco(graph, sorgente, destinazione, tipo):
                        edge_target=destinazione, edge_type=tipo)
 
 
+def archivio_servito(sorgente, cartella, nome):
+    """L'archivio di un tileset come lo si serve: COPIATO, con la sua estensione.
+
+    Un `.3tz` resta un `.3tz` (prima diventava `X.zip`: stessi byte, un nome che
+    mente su cosa sono), uno zip resta uno zip. La copia si rifà quando manca
+    o quando i byte della sorgente non sono più quelli copiati — la guardia di
+    prima (`not isfile`) teneva la copia vecchia e la registrava col suo sha.
+    → `(percorso, url, copiato)`.
+    """
+    import shutil
+    estensione = os.path.splitext(sorgente)[1].lower() or ".zip"
+    percorso = os.path.join(cartella, f"{nome}{estensione}")
+    url = f"tilesets/{nome}{estensione}"
+    copiato = False
+    if not os.path.isfile(percorso) or (
+            os.path.getsize(percorso) != os.path.getsize(sorgente)
+            or sha256_del_file(percorso) != sha256_del_file(sorgente)):
+        shutil.copy2(sorgente, percorso)
+        copiato = True
+    return percorso, url, copiato
+
+
 def specifiche_del_file_set(url, file_esportato, membri):
     """I `files` di `api.add_resource` per un export di più file (glTF separato).
 
@@ -336,7 +358,7 @@ def registra_derivata(graph, *, derivata_id, url, source_id=None,
                       source_ids=None, link_to=None, name=None,
                       file_esportato="", impronta_del_grezzo="",
                       packaging=None, misure=None, checksum_of=None,
-                      membri=None):
+                      membri=None, contenuto=None, peso_contenuto=None):
     """Il baker scrive il verbale: la derivata, la sua provenienza, il digest.
 
     Non crea un baker nuovo — l'export Heriverse **è** il baker. Questa
@@ -428,13 +450,34 @@ def registra_derivata(graph, *, derivata_id, url, source_id=None,
         packaging = "file_set"
         checksum_of = "members"
 
+    #: MICRO risorsa-file, parte 3 · un ALBERO (un tileset, in cartella o in
+    #: `.3tz`) si identifica col suo `content_digest` di dtcstamp: lo stesso per
+    #: la cartella e per l'archivio. La forma `directory` ha COME digest il
+    #: contenuto — prima era quello della sola porta, con `checksum_of:
+    #: entry-point` a dirlo —; la forma `archive` ha lo sha256 del file, e il
+    #: `content_digest` accanto.
+    porta = digest
+    if contenuto and packaging == "directory":
+        digest = contenuto
+        if peso_contenuto is not None:
+            peso = peso_contenuto
+        checksum_of = None
+
     revisione = None
     nodo = graph.find_node_by_id(bersaglio)
     if nodo is not None:
+        dati = nodo.data or {}
+        vecchio = str(dati.get("checksum") or "")
         if specifiche is not None:
             cambiato = not descritta
+        elif dati.get("checksum_of") == "entry-point" and contenuto:
+            #: un albero registrato ieri col digest della porta: se la porta è
+            #: la stessa, sono gli stessi byte descritti meglio (non una
+            #: revisione); il `checksum_of` di ieri non vale più
+            cambiato = bool(vecchio) and vecchio != porta
+            if not cambiato:
+                dati.pop("checksum_of", None)
         else:
-            vecchio = str((nodo.data or {}).get("checksum") or "")
             cambiato = bool(vecchio) and vecchio != digest
         if cambiato:
             import posixpath
@@ -442,7 +485,13 @@ def registra_derivata(graph, *, derivata_id, url, source_id=None,
             revisione = _rr.revise_files(
                 graph, bersaglio,
                 specifiche or [{"path": posixpath.basename(url), "url": url,
-                                "checksum": digest, "size_bytes": peso}])
+                                #: un albero si descrive con la sua porta:
+                                #: il file è `tileset.json`, il contenuto è
+                                #: il digest della risorsa
+                                "checksum": porta,
+                                "size_bytes": (os.path.getsize(file_esportato)
+                                               if contenuto else peso)}],
+                force=bool(contenuto))
             if revisione["new_resource_id"]:
                 bersaglio = revisione["new_resource_id"]
                 citanti, _catena = _rr.split_pointers(revisione["pointing_at_old"])
@@ -483,4 +532,6 @@ def registra_derivata(graph, *, derivata_id, url, source_id=None,
         nodo.data["source_fingerprint"] = impronta_del_grezzo
     if nodo is not None and checksum_of:
         nodo.data["checksum_of"] = str(checksum_of)
+    if nodo is not None and contenuto:
+        nodo.data["content_digest"] = str(contenuto)
     return True, "; ".join(avvisi)
