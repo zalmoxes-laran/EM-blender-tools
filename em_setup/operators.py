@@ -980,6 +980,49 @@ class EM_OT_open_license_url(Operator):
         return {'FINISHED'}
 
 
+class EM_OT_set_study_language(Operator):
+    """Declare the language the study's texts are written in"""
+    bl_idname = "em.set_study_language"
+    bl_label = "Study language"
+    bl_description = (
+        "Declare the study's working language (a BCP 47 tag: it, la, en, "
+        "grc…), written on the graph node (GraphNode.data.language). Texts "
+        "without a language of their own leave the RDF export with this tag; "
+        "with none declared they leave untagged. Empty retracts it")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    tag: StringProperty(
+        name="Language",
+        description="BCP 47 tag, e.g. it, la, en, grc, und (declared unknown)",
+    )  # type: ignore
+
+    def invoke(self, context, event):
+        from ..functions import check_active_graph
+        ok, graph = check_active_graph(context)
+        if not ok:
+            return {'CANCELLED'}
+        from s3dgraphy import api
+        self.tag = api.working_language(graph) or ""
+        return context.window_manager.invoke_props_dialog(self)
+
+    def execute(self, context):
+        from ..functions import check_active_graph
+        ok, graph = check_active_graph(context)
+        if not ok:
+            return {'CANCELLED'}
+        from s3dgraphy import api
+        try:
+            now = api.set_working_language(graph, self.tag.strip())
+        except ValueError as exc:
+            self.report({'ERROR'}, f"Not a language tag: {exc}")
+            return {'CANCELLED'}
+        self.report({'INFO'}, f"Study language: {now}" if now
+                    else "Study language retracted")
+        for area in context.screen.areas if context.screen else ():
+            area.tag_redraw()
+        return {'FINISHED'}
+
+
 class EM_OT_pyarchinit_pg_save_password(Operator):
     """Store the PostgreSQL password in the OS keychain.
 
@@ -1165,6 +1208,7 @@ classes = (
     AUXILIARY_OT_import_now,
     EM_OT_open_author_url,
     EM_OT_open_license_url,
+    EM_OT_set_study_language,
     EM_OT_pyarchinit_pg_save_password,
     EM_OT_pyarchinit_pg_forget_password,
     EM_OT_reveal_warning_node,

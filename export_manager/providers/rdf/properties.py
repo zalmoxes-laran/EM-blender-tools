@@ -66,6 +66,19 @@ def _scene_props():
             ),
             default="",
         )),
+        ("rdf_mode", EnumProperty(
+            name="Mode",
+            description="What the export is for",
+            items=[
+                ('publish', 'Publish',
+                 'For a triplestore or LOD: tombstones and AI-made content that no '
+                 'person verified (translations included) are left out'),
+                ('round_trip', 'Round trip',
+                 'Everything travels, AI marks included, so the file reads back as '
+                 'the same graph (em.json → TTL → em.json)'),
+            ],
+            default='publish',
+        )),
         ("rdf_export_advanced", BoolProperty(
             name="Advanced RDF options",
             description="Show advanced RDF export options",

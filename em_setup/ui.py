@@ -662,6 +662,16 @@ def _grafi_caricati(em_tools):
     return fuori
 
 
+def _study_language(active_file):
+    """The working language of the active graph, or "" (also without a graph)."""
+    try:
+        from s3dgraphy import get_graph, api
+        graph = get_graph(active_file.name)
+        return (api.working_language(graph) or "") if graph is not None else ""
+    except Exception:  # noqa: BLE001 — a panel never fails on a lookup
+        return ""
+
+
 class EM_SetupPanel(bpy.types.Panel):
 
     bl_label = "EM Data Tree"
@@ -1232,6 +1242,20 @@ class EM_SetupPanel(bpy.types.Panel):
                 col = meta_split.column()
                 col.label(text="Embargo")
                 col.label(text=active_file.graph_embargo, icon='LOCKED')
+
+        # La lingua dello studio (GraphNode.data.language): sempre visibile,
+        # anche quando manca, perché è quando manca che serve — l'export RDF
+        # lascia senza lingua i testi, e il suo avviso rimanda qui.
+        study_lang = _study_language(active_file)
+        lang_row = box.row(align=True)
+        lang_row.label(text="Language")
+        if study_lang:
+            lang_row.label(text=study_lang, icon='WORLD')
+        else:
+            lang_row.label(text="not declared", icon='ERROR')
+        lang_row.operator("em.set_study_language",
+                          text="Change" if study_lang else "Declare",
+                          icon='GREASEPENCIL')
 
         ####################################################
 

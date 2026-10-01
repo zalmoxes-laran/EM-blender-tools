@@ -196,12 +196,17 @@ class EXPORT_OT_rdf(Operator):
 
         # 7) Run export — parent_hdt_iri is wired through to the exporter
         #    which emits the hdto:HP33i_is_proposition_set_of triple per graph.
+        #    `publish` (the default here) leaves out tombstones and what AI made
+        #    without a person verifying it, translations included; `round_trip`
+        #    carries everything, so the .ttl reads back as the same graph.
+        mode = getattr(scene, "rdf_mode", "publish") or "publish"
         try:
             exporter = RDFExporter(
                 output_path=output_path,
                 format=format_key,
                 base_uri=base_uri,
                 parent_hdt_iri=parent_hdt,
+                mode=mode,
             )
             written_path = exporter.export_graphs(graph_ids)
         except ValueError as e:
@@ -212,21 +217,21 @@ class EXPORT_OT_rdf(Operator):
             self.report({'ERROR'}, f"RDF export failed: {e}")
             return {'CANCELLED'}
 
-        # 8) Report
-        stats = exporter.stats
-        summary = (
-            f"RDF export OK: {written_path} "
-            f"({stats['graphs']} graphs, {stats['nodes']} nodes, "
-            f"{stats['edges_emitted']} edges emitted, "
-            f"{stats['edges_skipped_deprecated']} deprecated skipped, "
-            f"{stats['nodes_unmapped']} nodes unmapped, "
-            f"{stats['edges_unmapped']} edges unmapped"
-        )
-        if parent_hdt:
-            summary += f", {stats.get('parent_hdt_bindings', 0)} HDT bindings to {parent_hdt}"
-        summary += ")"
-        self.report({'INFO'}, summary)
-        print(f"[RDF export] {summary}")
+        # 8) Report — the short line in Blender, the detail beside the file
+        from . import report as rdf_report
+        from s3dgraphy import get_graph
+        graphs = [g for g in (get_graph(gid) for gid in graph_ids) if g is not None]
+        result = rdf_report.build(exporter, written_path, graphs, mode=mode)
+        try:
+            detail = rdf_report.write(result)
+        except OSError as e:
+            detail = None
+            self.report({'WARNING'}, f"Report not written: {e}")
+        line = result["line"]
+        if detail:
+            line += f" (detail: {os.path.basename(detail)})"
+        self.report({result["level"]}, line)
+        print(f"[RDF export] {line}")
         return {'FINISHED'}
 
 

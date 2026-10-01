@@ -17,6 +17,9 @@ def draw(box, context):
     row = box.row()
     row.prop(scene, "rdf_export_path", text="Output Path")
 
+    row = box.row()
+    row.prop(scene, "rdf_mode", expand=True)
+
     # ── Base URI ──────────────────────────────────────────────────────────
     row = box.row()
     row.prop(scene, "rdf_base_uri", text="Base URI")
@@ -59,6 +62,10 @@ def draw(box, context):
     row = box.row(align=True)
     row.scale_y = 1.3
     row.operator("export.rdf", text="Export to RDF", icon='EXPORT')
+    hint = box.row()
+    hint.scale_y = 0.7
+    hint.label(text="A report is written beside the file (.export-report.txt)",
+               icon='TEXT')
 
     # ── Quick post-export workflow tip ────────────────────────────────────
     tip = box.box()
