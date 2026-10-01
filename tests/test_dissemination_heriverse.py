@@ -67,10 +67,10 @@ def _graph(resurrect=False):
     section = {"graph_id": "heriverse-tomb", "nodes": [], "edges": []}
     ops = [
         s3d_api.make_op("add_node", id="us1",
-                        node={"node_type": "US", "name": "US 1"},
+                        node={"node_type": "US", "name": "US 1", "data": {"lang": "it"}},
                         ts=BORN, author="scavatrice"),
         s3d_api.make_op("add_node", id="us2",
-                        node={"node_type": "US", "name": "US 2"},
+                        node={"node_type": "US", "name": "US 2", "data": {"lang": "it"}},
                         ts=BORN, author="scavatrice"),
         s3d_api.make_op("add_edge", source="us1", target="us2",
                         edge_type="is_after", ts=BORN, author="scavatrice"),
