@@ -115,12 +115,12 @@ class EM_PT_resources(bpy.types.Panel):
 
     # ── Revisions — pointing_at_old, and the question ─────────────────────────
     def _draw_revisions(self, box, in_attesa):
-        box.label(text="New bytes made a new revision; these still cite the old one.",
-                  icon='INFO')
+        box.label(text="New bytes, new revision — still cited:", icon='INFO')
         for r in in_attesa:
-            row = box.row(align=True)
-            row.label(text=f"{r['old_name']} → {r['new_name']}  ·  "
-                           f"{len(r['citing'])} citation(s)", icon='FILE_REFRESH')
+            col = box.column(align=True)
+            col.label(text=r["old_name"], icon='FILE_REFRESH')
+            row = col.row(align=True)
+            row.label(text=f"{len(r['citing'])} citation(s)")
             op = row.operator("em.move_citations", text="Move…")
             op.old_id = r["old_id"]
             op.new_id = r["new_id"]
