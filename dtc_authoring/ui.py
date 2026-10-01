@@ -66,6 +66,15 @@ def _draw_body(layout, context, p) -> None:
         layout.label(text="Selected process no longer in the graph.", icon='ERROR')
         return
 
+    #: VLONG-DEV27/D4 · the small seal beside a stamped resource, as in
+    #: EMStudio; a click opens its card in Resources & Shelf ▸ Seals
+    try:
+        from ..resources_tab import operators as _res_ops
+        from ..rm_manager.containers import basi_dei_locator
+        _basi = basi_dei_locator(context)
+    except Exception:                              # noqa: BLE001 — no seal, the row stays
+        _res_ops, _basi = None, []
+
     def _resource_rows(parent, resources, empty):
         if not resources:
             parent.label(text=empty)
@@ -76,6 +85,14 @@ def _draw_body(layout, context, p) -> None:
             if r["url"]:
                 lbl += "  (file)"
             row.label(text=lbl, icon='FILE')
+            if _res_ops is not None:
+                try:
+                    stamped = _res_ops.stamp_path_of_resource(
+                        context, graph, r["id"], r.get("url") or "", basi=_basi)
+                except Exception:                  # noqa: BLE001
+                    stamped = ""
+                if stamped:
+                    _res_ops.draw_seal_button(row, r["id"])
             rm = row.operator("em.dtc_remove_node", text="", icon='X')
             rm.node_id = r["id"]
 

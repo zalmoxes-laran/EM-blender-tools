@@ -438,7 +438,67 @@ def stamped_resources(context, graph):
         seal = resource_seal.seal_of(path)
         if seal is not None:
             out.append((r, path, seal))
+    #: VLONG-DEV27/D4 · the seal opened from a Shelf row (not a graph resource)
+    p = getattr(getattr(context, "scene", None), "em_resources", None)
+    extra = getattr(p, "seal_extra_path", "") if p is not None else ""
+    if extra and not any(r["id"] == p.seal_extra_id for r, _x, _y in out):
+        seal = resource_seal.seal_of(extra)
+        if seal is not None:
+            out.append(({"id": p.seal_extra_id, "name": p.seal_extra_name,
+                         "locator": extra, "kind": "local_path"}, extra, seal))
     return out
+
+
+def stamp_path_of_resource(context, graph, resource_id, url, *, basi=None):
+    """The ``.stamp.json`` beside a graph resource's file, or ``""`` — for the
+    small seal on a row (VLONG-DEV27/D4). Only an ``isfile``: the check (which
+    hashes) is the Seals card's, once it is opened."""
+    from .. import publication_gesture as pg
+    from .. import resource_seal
+    from ..rm_manager.containers import basi_dei_locator
+    locator = url or _entry_point(graph, resource_id)
+    if not locator or resource_backend._locator_kind(locator) != "local_path":
+        return ""
+    if basi is None:
+        basi = basi_dei_locator(context)
+    path = pg.risolvi(locator, basi) or locator
+    return resource_seal.find_stamp(path) or ""
+
+
+def draw_seal_button(layout, resource_id, *, path="", name=""):
+    """The small seal beside a stamped resource: a click opens its card in
+    Resources & Shelf ▸ Seals (the panel of ``cfd0df7``)."""
+    from ..icons_manager import get_custom_icon
+    icon = get_custom_icon("seal")
+    kw = {"icon_value": icon} if icon else {"icon": 'KEYTYPE_KEYFRAME_VEC'}
+    op = layout.operator("em.seal_show", text="", emboss=False, **kw)
+    op.resource_id = resource_id
+    op.path = path
+    op.name = name
+
+
+class EM_OT_seal_show(Operator):
+    """This resource is stamped: open its seal in Resources & Shelf ▸ Seals"""
+    bl_idname = "em.seal_show"
+    bl_label = "Show the seal"
+    bl_options = {'INTERNAL'}
+
+    resource_id: bpy.props.StringProperty()  # type: ignore
+    #: the file beside which the stamp sits, for a Shelf entry
+    path: bpy.props.StringProperty()  # type: ignore
+    name: bpy.props.StringProperty()  # type: ignore
+
+    def execute(self, context):
+        p = context.scene.em_resources
+        p.show_seals = True
+        p.active_seal = self.resource_id
+        if self.path:
+            p.seal_extra_id = self.resource_id
+            p.seal_extra_name = self.name
+            p.seal_extra_path = self.path
+        for area in context.screen.areas if context.screen else ():
+            area.tag_redraw()
+        return {'FINISHED'}
 
 
 class EM_OT_seal_open(Operator):
@@ -492,6 +552,7 @@ class EM_OT_seal_verify_again(Operator):
 
 classes = (
     EM_OT_seal_open,
+    EM_OT_seal_show,
     EM_OT_seal_copy_json,
     EM_OT_seal_verify_again,
     EM_OT_move_citations,

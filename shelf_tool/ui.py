@@ -50,6 +50,18 @@ class SHELF_UL_resources(bpy.types.UIList):
                     item.residence, 'QUESTION'))
             row.label(text=item.name or item.resource_id[:8],
                       icon='MESH_DATA' if item.exists else 'ERROR')
+            #: VLONG-DEV27/D4 · the small seal of a stamped entry (an isfile
+            #: per row: the check that hashes is the Seals card's)
+            if item.locator and item.exists:
+                try:
+                    from ..resource_seal import find_stamp
+                    from ..resources_tab.operators import draw_seal_button
+                    if find_stamp(bpy.path.abspath(item.locator)):
+                        draw_seal_button(row, item.resource_id,
+                                         path=bpy.path.abspath(item.locator),
+                                         name=item.name)
+                except Exception:                  # noqa: BLE001 — no seal, the row stays
+                    pass
             badge = row.row()
             badge.alignment = 'RIGHT'
             if item.role:

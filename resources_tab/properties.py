@@ -24,6 +24,12 @@ class EM_ResourcesProps(PropertyGroup):
     active_seal: StringProperty(name="", default="")
     #: «Technical details» under the seal, closed to begin with
     show_seal_tech: BoolProperty(name="Technical details", default=False)
+    #: VLONG-DEV27/D4 · a seal opened from a row of the DTC or of the Shelf.
+    #: A shelf entry is not a resource of the graph, so the Seals section would
+    #: not list it: the clicked one is carried here and shown with the others.
+    seal_extra_id: StringProperty(name="", default="")
+    seal_extra_name: StringProperty(name="", default="")
+    seal_extra_path: StringProperty(name="", default="")
 
     # status line + last-scan summary (filled by the scan operator)
     status: StringProperty(name="", default="")
