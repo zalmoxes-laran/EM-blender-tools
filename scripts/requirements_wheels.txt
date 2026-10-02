@@ -52,7 +52,7 @@ rdflib>=7.0
 # reason as rdflib: --no-deps means s3dgraphy's own `dtcstamp>=0.1.2` is not
 # pulled in. 0.1.2 is the first PyPI release with all of them; it replaced the
 # copy that lived in _vendor/ (MICRO-EMTOOLS-DEV26, 1 Oct 2026).
-dtcstamp>=0.1.2
+dtcstamp>=0.1.3
 
 PyMuPDF>=1.24.0,<1.25.0
 
