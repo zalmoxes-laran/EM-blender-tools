@@ -97,13 +97,13 @@ def push_to_geonode(
             data = {}
             node.data = data
 
-        # EPSG resta INTERO come in s3Dgraphy (default 4326). Una stringa non
-        # numerica — 'NotSet', vuota — lascia il valore precedente: è lo stato
-        # "l'utente non ha ancora scelto un CRS", non un ordine di azzerare.
+        # EPSG resta INTERO come in s3Dgraphy. Una stringa non numerica —
+        # 'NotSet', vuota — lascia il valore precedente: è lo stato "l'utente
+        # non ha ancora scelto un CRS", non un ordine di azzerare. Senza un
+        # EPSG il nodo resta SENZA la chiave: per s3Dgraphy 1.6.0.dev29 (A6)
+        # è così che un grafo dice «non georiferito», mai con 4326 a 0,0.
         if epsg and str(epsg).strip().isdigit():
             data['epsg'] = int(str(epsg).strip())
-        elif 'epsg' not in data:
-            data['epsg'] = 4326
 
         data['shift_x'] = float(shift_x)
         data['shift_y'] = float(shift_y)
@@ -117,6 +117,8 @@ def push_to_geonode(
         # facesse `node.epsg` continua a vedere lo stesso valore. Mai la
         # sorgente — solo un riflesso di `data`.
         for key in ('epsg', 'shift_x', 'shift_y', 'shift_z', 'rotation'):
+            if key not in data:
+                continue
             try:
                 setattr(node, key, data[key])
             except Exception:
@@ -148,7 +150,9 @@ def pull_from_geonode(graph):
 
     try:
         return {
-            'epsg': str(_read('epsg', 4326)),
+            # None = non georiferito (s3Dgraphy dev29, A6): mai 4326 per difetto.
+            'epsg': (None if _read('epsg', None) is None
+                     else str(_read('epsg', None))),
             'shift_x': float(_read('shift_x', 0.0)),
             'shift_y': float(_read('shift_y', 0.0)),
             'shift_z': float(_read('shift_z', 0.0)),

@@ -132,7 +132,8 @@ def test_the_field_names_are_s3dgraphys_own():
     beside them (`azimuth`, `rot`, `epsg_code`…) that nothing downstream reads."""
     from s3dgraphy.nodes.geo_position_node import GeoPositionNode
 
-    reference = set(GeoPositionNode(node_id="geo_ref").data)
+    # A push with an EPSG names it; a fresh node without one omits it (dev29, A6).
+    reference = set(GeoPositionNode(node_id="geo_ref", epsg=int(EPSG)).data)
     pushed = set(graph_sync.get_geo_node(_graph_with_pushed_georef()).data)
     assert pushed == reference, (
         f"push_to_geonode writes {pushed - reference or '{}'} that s3Dgraphy does "
@@ -183,3 +184,12 @@ def test_a_node_without_a_data_dict_still_exports():
 def test_no_graph_no_crash():
     assert graph_sync.push_to_geonode(None, EPSG, *SHIFT) is False
     assert graph_sync.pull_from_geonode(None) is None
+
+
+def test_without_an_epsg_the_graph_stays_not_georeferenced():
+    """s3Dgraphy 1.6.0.dev29 (A6): no EPSG means «not georeferenced», said by the
+    absence of the key — a push that was not given one never writes 4326."""
+    graph = Graph(graph_id="ng")
+    assert graph_sync.push_to_geonode(graph, "NotSet", 0.0, 0.0, 0.0) is True
+    assert "epsg" not in graph_sync.get_geo_node(graph).data
+    assert graph_sync.pull_from_geonode(graph)["epsg"] is None
