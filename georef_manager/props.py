@@ -24,14 +24,7 @@ def _on_georef_changed(self, context):
     NON sposta oggetti di default (move_objects=False). L'utente può
     attivare la traslazione via toggle "move_objects_on_change".
     '''
-    from . import bgis_adapter, dsc_adapter
-
-    scene = context.scene
-    g = scene.em_georef
-    epsg = g.epsg or '4326'
-
-    move_objects = bool(g.move_objects_on_change)
-    sync_latlon = bool(g.sync_lat_lon)
+    from . import bgis_adapter, dsc_adapter, propagation
 
     try:
         from ..functions import em_log
@@ -39,18 +32,11 @@ def _on_georef_changed(self, context):
         def em_log(msg, level="INFO"):
             pass
 
-    if bgis_adapter.is_available():
-        ok, msg = bgis_adapter.write_state(
-            scene, epsg, g.shift_x, g.shift_y,
-            move_objects=move_objects, sync_lat_lon=sync_latlon,
-        )
-        em_log(f"[georef] BGIS push: {msg}", "DEBUG" if ok else "WARNING")
-
-    if dsc_adapter.is_available():
-        ok, msg = dsc_adapter.write_state(
-            scene, epsg, g.shift_x, g.shift_y, g.shift_z,
-        )
-        em_log(f"[georef] 3DSC push: {msg}", "DEBUG" if ok else "WARNING")
+    # Senza EPSG nessun EPSG viaggia (mai 4326 per difetto): vedi propagation.
+    propagation.push_to_addons(
+        context.scene, context.scene.em_georef, bgis_adapter, dsc_adapter,
+        log=em_log,
+    )
 
 
 class EMGeorefProperties(PropertyGroup):

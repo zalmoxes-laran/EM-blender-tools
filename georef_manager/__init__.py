@@ -17,6 +17,7 @@ Moduli:
 - bgis_adapter  : lazy import, read/write GeoScene senza side effect
 - dsc_adapter   : lazy read/write di scene.BL_* props di 3DSC
 - graph_sync    : accesso grafo attivo + push/pull GeoPositionNode
+- propagation   : push verso BGIS/3DSC; EPSG vuoto = non georiferito, mai 4326
 - props         : EMGeorefProperties su Scene (+ update callbacks)
 - operators     : Import/Export/Sync/Pull/PushGeoNode
 - panel         : EM_PT_georef (tab "EM", default closed)

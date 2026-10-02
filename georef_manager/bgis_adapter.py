@@ -76,6 +76,11 @@ def write_state(
     '''
     if not is_available():
         return False, "BlenderGIS not available"
+    # Senza EPSG non si scrive nessun CRS (mai 'EPSG:' né 4326 per difetto):
+    # la scena non è georiferita e lo stato di BGIS resta com'era.
+    if epsg is None or not str(epsg).strip():
+        return False, "no EPSG: BlenderGIS CRS left untouched"
+    epsg = str(epsg).strip()
     try:
         gs = _get_geoscene(scene)
 

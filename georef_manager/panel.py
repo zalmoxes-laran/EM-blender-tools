@@ -20,7 +20,7 @@ from __future__ import annotations
 import bpy
 from bpy.types import Panel
 
-from . import bgis_adapter, dsc_adapter, graph_sync
+from . import bgis_adapter, dsc_adapter, graph_sync, propagation
 
 
 # Tolleranza numerica per considerare "uguali" due valori di shift.
@@ -124,6 +124,11 @@ class EM_PT_georef(Panel):
         # are read by different consumers (BGIS/3DSC take the shift only).
         col.separator(factor=0.4)
         col.prop(g, "rotation", text="Azimuth °")
+
+        # Without an EPSG the scene is not georeferenced, and the panel says
+        # so: no CRS is passed to BlenderGIS or 3DSC (never 4326 by default).
+        if propagation.epsg_or_none(g.epsg) is None:
+            layout.row().label(text=propagation.NOT_GEOREFERENCED, icon='INFO')
 
         # --- Active graph indicator ---
         graph = graph_sync.get_active_graph()

@@ -44,7 +44,8 @@ def write_state(scene, epsg: str, shift_x: float, shift_y: float, shift_z: float
     if not is_available():
         return False, "3DSC not available"
     try:
-        scene.BL_epsg = str(epsg) if epsg else 'NotSet'
+        # Senza EPSG, la sentinella di 3DSC per «nessun CRS» — mai 4326.
+        scene.BL_epsg = str(epsg).strip() if epsg and str(epsg).strip() else 'NotSet'
         scene.BL_x_shift = float(shift_x)
         scene.BL_y_shift = float(shift_y)
         scene.BL_z_shift = float(shift_z)

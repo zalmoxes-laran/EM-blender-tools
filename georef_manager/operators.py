@@ -21,7 +21,7 @@ from bpy.props import StringProperty
 from bpy.types import Operator
 from bpy_extras.io_utils import ImportHelper, ExportHelper
 
-from . import bgis_adapter, dsc_adapter, graph_sync, shift_io
+from . import bgis_adapter, dsc_adapter, graph_sync, propagation, shift_io
 
 
 def _em_log(msg, level="INFO"):
@@ -98,24 +98,13 @@ class EM_OT_georef_sync_all(Operator):
     def execute(self, context):
         scene = context.scene
         g = scene.em_georef
-        epsg = g.epsg or '4326'
-        pushed = []
-
-        if bgis_adapter.is_available():
-            ok, msg = bgis_adapter.write_state(
-                scene, epsg, g.shift_x, g.shift_y,
-                move_objects=bool(g.move_objects_on_change),
-                sync_lat_lon=bool(g.sync_lat_lon),
-            )
-            pushed.append(f"BGIS:{'ok' if ok else 'fail'}")
-            _em_log(f"[georef] sync BGIS: {msg}")
-
-        if dsc_adapter.is_available():
-            ok, msg = dsc_adapter.write_state(
-                scene, epsg, g.shift_x, g.shift_y, g.shift_z,
-            )
-            pushed.append(f"3DSC:{'ok' if ok else 'fail'}")
-            _em_log(f"[georef] sync 3DSC: {msg}")
+        # Senza EPSG nessun EPSG viaggia (mai 4326 per difetto): vedi propagation.
+        results = propagation.push_to_addons(
+            scene, g, bgis_adapter, dsc_adapter, log=_em_log,
+        )
+        pushed = [f"{name}:{outcome}" for name, outcome, _msg in results]
+        if propagation.epsg_or_none(g.epsg) is None and results:
+            pushed.append("no EPSG, not georeferenced")
 
         if not pushed:
             self.report({'INFO'}, "No external georef addon installed — nothing to sync")
