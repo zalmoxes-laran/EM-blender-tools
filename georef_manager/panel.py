@@ -210,6 +210,9 @@ class EM_PT_georef(Panel):
         row.enabled = graph is not None
         row.operator("em.georef_push_geonode", text="Push to GeoNode", icon='WORLD')
 
+        # --- G1 · graphs of this scene ---
+        _draw_graphs_box(layout, context)
+
         # --- Advanced ---
         if hasattr(layout, 'panel'):
             header, body = layout.panel("em_georef_advanced", default_closed=True)
@@ -223,6 +226,27 @@ class EM_PT_georef(Panel):
             box.label(text="Advanced:")
             box.prop(g, "move_objects_on_change")
             box.prop(g, "sync_lat_lon")
+
+
+def _draw_graphs_box(layout, context):
+    '''G1 · with more than one graph: which one is the scene's reference, the
+    button that aligns the others, and what was applied to each.'''
+    em_tools = getattr(context.scene, 'em_tools', None)
+    rows = list(getattr(em_tools, 'graphml_files', ()) or ())
+    if len(rows) < 2:
+        return
+    g = context.scene.em_georef
+    box = layout.box()
+    box.label(text="Graphs in this scene", icon='ORIENTATION_GLOBAL')
+    box.prop_search(g, "reference_graph", em_tools, "graphml_files",
+                    text="Scene CRS from")
+    box.operator("em.georef_align_graphs", icon='ORIENTATION_GLOBAL')
+    col = box.column(align=True)
+    for row in rows:
+        note = getattr(row, 'geo_note', '') or 'not aligned yet'
+        label = row.graph_code or row.name
+        col.label(text=f"{label}: {note}",
+                  icon='PINNED' if row.name == g.reference_graph else 'DOT')
 
 
 CLASSES = (EM_PT_georef,)

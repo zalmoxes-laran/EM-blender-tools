@@ -21,20 +21,24 @@ Moduli:
 - props         : EMGeorefProperties su Scene (+ update callbacks)
 - operators     : Import/Export/Sync/Pull/PushGeoNode
 - panel         : EM_PT_georef (tab "EM", default closed)
+- graph_align   : G1, più grafi in una scena (bpy-free: shift, convergenza)
+- graph_align_ops : «Align graphs to the scene» (sposta e dichiara)
 '''
 
 from __future__ import annotations
 
-from . import props, operators, panel
+from . import props, operators, panel, graph_align_ops
 
 
 def register():
     props.register()
     operators.register()
+    graph_align_ops.register()
     panel.register()
 
 
 def unregister():
     panel.unregister()
+    graph_align_ops.unregister()
     operators.unregister()
     props.unregister()

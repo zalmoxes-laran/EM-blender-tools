@@ -93,6 +93,18 @@ class EMGeorefProperties(PropertyGroup):
         # push_to_geonode, like the shift does.
     )  # type: ignore
 
+    # G1 · più grafi nella scena: il sistema di riferimento della scena è
+    # quello di UN grafo — il primo caricato, finché qualcuno non lo cambia.
+    reference_graph: StringProperty(
+        name="Scene reference graph",
+        description=(
+            "The graph whose georeferencing (EPSG, shift, azimuth) is the "
+            "scene's: the first graph loaded, unless changed. The other graphs "
+            "are aligned to it with «Align graphs to the scene»"
+        ),
+        default="",
+    )  # type: ignore
+
     # Toggle avanzati (default conservativi)
 
     move_objects_on_change: BoolProperty(

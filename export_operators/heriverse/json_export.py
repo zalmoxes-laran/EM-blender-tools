@@ -65,6 +65,13 @@ class HERIVERSE_OT_export_json(Operator, ExportHelper):
             # a passive reflection of scene state (scene.em_georef, BGIS,
             # or 3DSC) — populated here so the Heriverse JSON carries the
             # shift + EPSG for frontend consumption.
+            #
+            # G1 · …but a graph ALIGNED to the scene (another graph's CRS,
+            # `geo_applied`) has its own georeferencing, and writing the scene's
+            # into it would travel into its file at the next «Save». For those
+            # the node's data is kept and given back after the export: the
+            # export sees the scene's frame, the graph keeps its own.
+            _kept_geo = {}
             try:
                 from ...georef_manager import graph_sync
                 from s3dgraphy import get_graph
@@ -73,6 +80,13 @@ class HERIVERSE_OT_export_json(Operator, ExportHelper):
                     graph = get_graph(graph_id)
                     if graph is None:
                         continue
+                    _row = next((r for r in context.scene.em_tools.graphml_files
+                                 if r.name == graph_id), None)
+                    _node = graph_sync.get_geo_node(graph)
+                    if (_row is not None and getattr(_row, "geo_applied", False)
+                            and _node is not None
+                            and isinstance(getattr(_node, "data", None), dict)):
+                        _kept_geo[graph_id] = (_node, dict(_node.data))
                     graph_sync.push_to_geonode(
                         graph,
                         g.epsg or None,
@@ -82,7 +96,17 @@ class HERIVERSE_OT_export_json(Operator, ExportHelper):
             except Exception as exc:
                 em_log(f"[DP-56] GeoPositionNode mirror skipped: {exc}", "WARNING")
 
-            exporter.export_graphs(graph_ids=publishable_graph_ids)
+            try:
+                exporter.export_graphs(graph_ids=publishable_graph_ids)
+            finally:
+                for _node, _data in _kept_geo.values():
+                    _node.data = _data
+                    for _k in ('epsg', 'shift_x', 'shift_y', 'shift_z', 'rotation'):
+                        if _k in _data:
+                            try:
+                                setattr(_node, _k, _data[_k])
+                            except Exception:  # noqa: BLE001
+                                pass
             em_log("Graphs exported successfully", "DEBUG")
 
             self.report({'INFO'}, f"Heriverse data successfully exported to {self.filepath}")

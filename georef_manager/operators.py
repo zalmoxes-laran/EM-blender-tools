@@ -167,6 +167,16 @@ class EM_OT_georef_push_geonode(Operator):
             return {'CANCELLED'}
 
         g = context.scene.em_georef
+        # G1 · the scene's georeferencing is the REFERENCE graph's: writing it
+        # into another graph would overwrite that graph's own anchor.
+        rows = list(getattr(context.scene.em_tools, 'graphml_files', ()) or ())
+        ref = getattr(g, 'reference_graph', '') or ''
+        if len(rows) > 1 and ref and graph.graph_id != ref:
+            self.report({'WARNING'},
+                        f"{graph.graph_id} is not the scene's reference graph "
+                        f"({ref}): its own georeferencing is kept — use «Align "
+                        f"graphs to the scene» to place it")
+            return {'CANCELLED'}
         ok = graph_sync.push_to_geonode(
             graph, g.epsg or None, g.shift_x, g.shift_y, g.shift_z,
             g.rotation,
