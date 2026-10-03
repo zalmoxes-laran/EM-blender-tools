@@ -1,0 +1,804 @@
+"""A1–A3 · an asset and its versions in the scene: ONE object, the mesh changes.
+
+MICRO-ASSET-VERSIONI, decided by E.D. on 3 October 2026:
+
+* **the asset and its versions** live in the graph (s3dgraphy
+  ``api.add_version`` / ``versions_of``): the master is the asset, each version
+  (LOD1, LOD2…) a child resource made by a ``lod_generation`` step, with a
+  level and a purpose. The RM, the epochs and the unit are on the asset; the
+  versions inherit them. «Add version…» here writes exactly that — no layer to
+  declare by hand;
+* **one .blend library per asset**, holding the meshes of all its versions
+  (``<cache>/<room>/<asset>.blend``, linked into the scene). The object in the
+  scene stays ONE — its name, its graph bindings, its epochs — and changing
+  LOD is changing the mesh datablock it uses («LOD ▸», per object or for the
+  whole scene). Decorations and trials stay in the main file, «only here»;
+* **the cache is checked mesh by mesh**: every mesh of a library carries the
+  sha256 of the version it was made from (``em_asset_sha256``), so «Check the
+  scene against the room» downloads only the versions whose mesh is missing or
+  whose digest is not the one the graph cites now, and rebuilds that asset's
+  library around them.
+
+The decisions are pure (``plan_library``, ``step_level``, ``mesh_name``…),
+measured by ``tests/test_asset_versions.py``; the Blender side (libraries,
+import, the operators) sits below them.
+"""
+
+# NOT `from __future__ import annotations`: the operators are built inside a
+# function with `bpy` imported lazily, and Blender evaluates their property
+# annotations in this module's globals (the same note as scene_check).
+import os
+import re
+from typing import Any, Callable, Dict, List, Optional
+
+#: on the OBJECT: which asset it shows, and at which level now
+PROP_ASSET = "em_asset_id"
+PROP_LEVEL = "em_level"
+#: on the MESH (and mirrored on the object for the level it shows): the digest
+#: of the version's bytes, the version's resource, its level
+PROP_DIGEST = "em_asset_sha256"
+PROP_VERSION = "em_version_id"
+#: where the cache lives, beside the .blend (relative, so a package travels)
+CACHE_DIR = "em_cache"
+#: the separator between the asset and the level in a library mesh's name
+SEP = "@"
+
+#: the last check of the libraries, for the panel (session state)
+ULTIMO: Dict[str, Any] = {}
+
+
+def _digest(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    if text and not text.startswith("sha256:"):
+        text = "sha256:" + text
+    return text
+
+
+def safe(text: str) -> str:
+    """A file-system-safe form of an id or a room name."""
+    out = re.sub(r"[^A-Za-z0-9._-]+", "_", str(text or "")).strip("._")
+    return out or "asset"
+
+
+def library_relpath(asset_id: str, room: Optional[str]) -> str:
+    """`em_cache/<room>/<asset>.blend` — ONE library per asset, relative to the
+    folder of the working .blend."""
+    return "/".join((CACHE_DIR, safe(room or "local"), f"{safe(asset_id)}.blend"))
+
+
+def mesh_name(base: str, level: str) -> str:
+    """The name of a version's mesh inside its asset's library."""
+    return f"{base}{SEP}{level}"
+
+
+def level_of_mesh_name(name: str) -> Optional[str]:
+    if SEP not in str(name or ""):
+        return None
+    return str(name).rsplit(SEP, 1)[1] or None
+
+
+def level_key(level: Optional[str]):
+    """Natural order of levels (LOD2 before LOD10; a level without a number
+    after the numbered ones) — the same order s3dgraphy's versions_of uses."""
+    text = str(level or "")
+    m = re.search(r"(\d+)", text)
+    return (0 if m else 1, int(m.group(1)) if m else 0, text)
+
+
+def next_level(levels: List[str]) -> str:
+    """The level «Add version…» proposes: one past the highest LODn."""
+    numbers = [int(m.group(1)) for lv in levels or []
+               for m in [re.match(r"^LOD(\d+)$", str(lv or ""))] if m]
+    return f"LOD{(max(numbers) + 1) if numbers else 1}"
+
+
+def step_level(levels: List[str], current: Optional[str], direction: int
+               ) -> Optional[str]:
+    """«LOD ▸» (direction +1, lighter) and «◂ LOD» (-1, heavier), clamped to
+    the levels the library has. None when there is nothing to step to."""
+    ordered = sorted({str(lv) for lv in levels or [] if lv}, key=level_key)
+    if not ordered:
+        return None
+    if current not in ordered:
+        return ordered[0]
+    i = ordered.index(current) + (1 if direction > 0 else -1)
+    i = max(0, min(len(ordered) - 1, i))
+    return ordered[i]
+
+
+def plan_library(versions: List[Dict[str, Any]], have: Dict[str, str]
+                 ) -> Dict[str, List[Dict[str, Any]]]:
+    """Pure: what to do with one asset's library.
+
+    ``versions`` is ``api.versions_of`` (master first), ``have`` the levels the
+    library holds now with the digest each mesh carries (``{level: digest}``).
+
+    → ``here`` (same digest: nothing to fetch), ``fetch`` (each with ``why``:
+    ``missing`` | ``changed``), ``local`` (a version with no digest — a master
+    that lives as a datablock: kept as it is), ``external`` (a version whose
+    bytes are not in the store: counted, left where they are).
+    """
+    out = {"here": [], "fetch": [], "local": [], "external": []}
+    for entry in versions:
+        level = entry.get("level") or ("master" if entry.get("master") else None)
+        if not level:
+            out["local"].append({**entry, "level": None,
+                                 "why": "no level stated"})
+            continue
+        digest = _digest(entry.get("checksum"))
+        row = {**entry, "level": level}
+        if not digest:
+            out["local"].append({**row, "why": "no digest"})
+            continue
+        if str(entry.get("residency") or "") == "reference":
+            out["external"].append(row)
+            continue
+        held = _digest(have.get(level))
+        if held and held == digest:
+            out["here"].append(row)
+        elif held:
+            out["fetch"].append({**row, "why": "changed", "held": held})
+        else:
+            out["fetch"].append({**row, "why": "missing"})
+    return out
+
+
+def versioned_assets(records: List[Dict[str, Any]]) -> List[str]:
+    """The assets with versions among the records of ``geometry_summary`` (the
+    rows that carry ``asset_id``), in order of first appearance."""
+    seen: List[str] = []
+    for r in records or []:
+        a = r.get("asset_id")
+        if a and a not in seen:
+            seen.append(str(a))
+    return seen
+
+
+def sentences(report: Dict[str, Any]) -> List[str]:
+    """One line per fact, as the panel and the console say them."""
+    out = [f"{report.get('assets', 0)} asset(s) with versions: "
+           f"{report.get('here', 0)} mesh(es) already in their library"]
+    if report.get("fetched") is not None:
+        out.append(f"{report['fetched']} mesh(es) downloaded "
+                   f"({report.get('missing', 0)} missing, "
+                   f"{report.get('changed', 0)} changed)"
+                   + (f", {report['not_fetched']} not ({report.get('why_not', '')})"
+                      if report.get("not_fetched") else ""))
+    else:
+        out.append(f"{report.get('missing', 0)} missing, "
+                   f"{report.get('changed', 0)} changed (not downloaded)")
+    if report.get("objects_created"):
+        out.append(f"{report['objects_created']} object(s) created, one per asset")
+    return out
+
+
+# ── Blender ──────────────────────────────────────────────────────────────────
+
+def _bpy():  # pragma: no cover — bpy
+    import bpy  # type: ignore
+    return bpy
+
+
+def cache_folder() -> str:  # pragma: no cover — bpy
+    """Beside the working .blend (so `//em_cache/…` is relative and travels in
+    a package), or Blender's temp folder for a file never saved."""
+    bpy = _bpy()
+    if bpy.data.filepath:
+        return os.path.dirname(bpy.data.filepath)
+    return bpy.app.tempdir or os.path.expanduser("~")
+
+
+def library_abspath(asset_id: str, room: Optional[str]) -> str:  # pragma: no cover
+    return os.path.join(cache_folder(), *library_relpath(asset_id, room).split("/"))
+
+
+def _same_file(a: str, b: str) -> bool:  # pragma: no cover — bpy
+    bpy = _bpy()
+    try:
+        return os.path.normpath(bpy.path.abspath(a)) == os.path.normpath(bpy.path.abspath(b))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _library_block(path: str):  # pragma: no cover — bpy
+    for lib in _bpy().data.libraries:
+        if _same_file(lib.filepath, path):
+            return lib
+    return None
+
+
+def linked_meshes(path: str) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """{level: linked mesh} of the library at ``path``, linking what is not
+    linked yet. An absent file is an empty library."""
+    bpy = _bpy()
+    if not os.path.isfile(path):
+        return {}
+    lib = _library_block(path)
+    present = {m.name for m in bpy.data.meshes if m.library is not None and lib is not None
+               and m.library == lib}
+    rel = path
+    try:
+        rel = bpy.path.relpath(path) if bpy.data.filepath else path
+    except ValueError:
+        pass
+    with bpy.data.libraries.load(rel, link=True, relative=bool(bpy.data.filepath)) \
+            as (src, dst):
+        dst.meshes = [n for n in src.meshes if n not in present]
+    lib = _library_block(path)
+    out = {}
+    for mesh in bpy.data.meshes:
+        if lib is not None and mesh.library == lib:
+            level = mesh.get(PROP_LEVEL) or level_of_mesh_name(mesh.name)
+            if level:
+                out[str(level)] = mesh
+    return out
+
+
+def write_library(path: str, new_meshes: Dict[str, Any],
+                  base: str) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """(Re)write the asset's library: the meshes it holds now, with ``new_meshes``
+    (``{level: local mesh}``) added or REPLACING the same level. The local
+    meshes are moved into the library (removed from the main file once every
+    user points at the linked one). → ``{level: linked mesh}``.
+
+    Rewriting needs local copies of what stays: a linked datablock cannot be
+    written, its ``copy()`` can (measured in 5.2), and the copies go as soon
+    as the file is written.
+    """
+    bpy = _bpy()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    current = linked_meshes(path)
+    keep = []
+    for level, mesh in current.items():
+        if level in new_meshes:
+            continue
+        clone = mesh.copy()
+        clone.name = mesh_name(base, level)
+        keep.append(clone)
+    fresh = []
+    for level, mesh in new_meshes.items():
+        mesh.name = mesh_name(base, level)
+        mesh[PROP_LEVEL] = level
+        fresh.append(mesh)
+    bpy.data.libraries.write(path, set(keep) | set(fresh), fake_user=True,
+                             path_remap="ABSOLUTE")
+    for clone in keep:
+        bpy.data.meshes.remove(clone)
+    lib = _library_block(path)
+    if lib is not None:
+        lib.reload()
+    linked = linked_meshes(path)
+    for level, mesh in new_meshes.items():
+        target = linked.get(level)
+        if target is None:
+            continue
+        for obj in [o for o in bpy.data.objects if o.data == mesh]:
+            obj.data = target
+        if mesh.users == 0:
+            bpy.data.meshes.remove(mesh)
+    return linked
+
+
+def set_level(obj, level: str, meshes: Optional[Dict[str, Any]] = None
+              ) -> bool:  # pragma: no cover — bpy
+    """Show ``level`` on ``obj``: swap its mesh datablock. The object — its
+    name, its properties, its place in the graph — does not change."""
+    meshes = meshes if meshes is not None else levels_of(obj)
+    mesh = meshes.get(level)
+    if mesh is None:
+        return False
+    obj.data = mesh
+    obj[PROP_LEVEL] = level
+    if mesh.get(PROP_DIGEST):
+        obj[PROP_DIGEST] = mesh[PROP_DIGEST]
+    if mesh.get(PROP_VERSION):
+        obj[PROP_VERSION] = mesh[PROP_VERSION]
+    return True
+
+
+def levels_of(obj) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """{level: mesh} of the library ``obj``'s mesh comes from."""
+    bpy = _bpy()
+    data = getattr(obj, "data", None)
+    lib = getattr(data, "library", None)
+    if lib is None:
+        return {}
+    return linked_meshes(bpy.path.abspath(lib.filepath))
+
+
+def asset_objects(objects=None) -> List[Any]:  # pragma: no cover — bpy
+    objects = objects if objects is not None else _bpy().data.objects
+    return [o for o in objects if o.get(PROP_ASSET) and o.type == "MESH"]
+
+
+def step_object(obj, direction: int) -> Optional[str]:  # pragma: no cover — bpy
+    meshes = levels_of(obj)
+    target = step_level(list(meshes), obj.get(PROP_LEVEL), direction)
+    if target and target != obj.get(PROP_LEVEL):
+        set_level(obj, target, meshes)
+        return target
+    return None
+
+
+def mesh_from_file(path: str, importer: Optional[Callable] = None,
+                   frame=None):  # pragma: no cover — bpy
+    """Import a file and keep only its geometry, as ONE local mesh: several
+    mesh objects are joined, the imported objects removed.
+
+    The mesh is written in the frame of the asset's object (``frame``, its
+    world matrix) so that every level sits where the others sit, whatever
+    rotation the importer gave the objects it made; without a frame the
+    importer's transform is baked in."""
+    bpy = _bpy()
+    if importer is None:
+        from ..shelf_tool.operators import _import_mesh as importer
+    made = [o for o in (importer(path) or []) if o.type == "MESH"]
+    if not made:
+        return None
+    if len(made) > 1:
+        with bpy.context.temp_override(active_object=made[0],
+                                       selected_editable_objects=made,
+                                       selected_objects=made):
+            bpy.ops.object.join()
+        made = [made[0]]
+    obj = made[0]
+    mesh = obj.data
+    bpy.context.view_layer.update()
+    placed = obj.matrix_world.copy()
+    mesh.transform(frame.inverted() @ placed if frame is not None else placed)
+    bpy.data.objects.remove(obj)
+    return mesh
+
+
+def _stamp_mesh(mesh, *, asset_id: str, version_id: str, level: str,
+                digest: str) -> None:  # pragma: no cover — bpy
+    mesh[PROP_ASSET] = asset_id
+    mesh[PROP_VERSION] = version_id
+    mesh[PROP_LEVEL] = level
+    if digest:
+        mesh[PROP_DIGEST] = _digest(digest)
+
+
+def _suffix(entry: Dict[str, Any], media: str = "") -> str:
+    from .materialise import _suffix_for
+    return _suffix_for({"media_type": media or entry.get("media_type"),
+                        "url": entry.get("url"), "name": entry.get("name")})
+
+
+def check_libraries(graph, *, room: Optional[str], download: bool,
+                    fetch: Optional[Callable[[str], Any]] = None,
+                    importer: Optional[Callable] = None,
+                    summary: Optional[Dict[str, Any]] = None
+                    ) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """A3 · the assets with versions, against their libraries, mesh by mesh.
+
+    For each asset: the versions the graph cites now (``versions_of``), the
+    meshes its library holds (each with the digest it was made from), and the
+    plan — here / missing / changed. With ``download`` the missing and changed
+    ones are fetched by digest, imported as meshes, and the library rewritten
+    around them; the others are NOT fetched. An asset with no object in the
+    scene gets ONE, named after its RM, showing the master's level.
+    """
+    import tempfile
+
+    from s3dgraphy import api
+
+    bpy = _bpy()
+    if fetch is None:
+        from .materialise import _default_fetch as fetch
+    if summary is None:
+        summary = api.geometry_summary(graph)
+    report: Dict[str, Any] = {"assets": 0, "here": 0, "missing": 0, "changed": 0,
+                              "fetched": 0 if download else None, "not_fetched": 0,
+                              "why_not": "", "objects_created": 0,
+                              "fetched_levels": [], "per_asset": []}
+    reasons = set()
+    records = summary.get("resident") or []
+    for asset_id in versioned_assets(records):
+        versions = api.versions_of(graph, asset_id)
+        links = api.inherited_links(graph, asset_id)
+        facet = (links.get("facets") or [{}])[0]
+        base = _base_name(facet, versions[0])
+        path = library_abspath(asset_id, room)
+        have = {lv: str(m.get(PROP_DIGEST) or "")
+                for lv, m in linked_meshes(path).items()}
+        plan = plan_library(versions, have)
+        report["assets"] += 1
+        report["here"] += len(plan["here"])
+        report["missing"] += sum(1 for r in plan["fetch"] if r["why"] == "missing")
+        report["changed"] += sum(1 for r in plan["fetch"] if r["why"] == "changed")
+        fresh: Dict[str, Any] = {}
+        holder = next((o for o in asset_objects() if o.get(PROP_ASSET) == asset_id),
+                      None)
+        frame = holder.matrix_world.copy() if holder is not None else None
+        if download:
+            for row in plan["fetch"]:
+                try:
+                    data, media = fetch(row["checksum"])
+                except Exception as exc:  # noqa: BLE001 — a refusal is a row
+                    report["not_fetched"] += 1
+                    reasons.add(str(exc)[:80])
+                    continue
+                handle = tempfile.NamedTemporaryFile(suffix=_suffix(row, media),
+                                                     delete=False)
+                try:
+                    handle.write(data)
+                    handle.close()
+                    mesh = mesh_from_file(handle.name, importer, frame)
+                finally:
+                    try:
+                        os.unlink(handle.name)
+                    except OSError:
+                        pass
+                if mesh is None:
+                    report["not_fetched"] += 1
+                    reasons.add("no importer for these bytes")
+                    continue
+                _stamp_mesh(mesh, asset_id=asset_id, version_id=row["id"],
+                            level=row["level"], digest=row["checksum"])
+                fresh[row["level"]] = mesh
+                report["fetched"] += 1
+                report["fetched_levels"].append(f"{base}{SEP}{row['level']}")
+            if fresh:
+                write_library(path, fresh, base)
+        meshes = linked_meshes(path)
+        obj = next((o for o in asset_objects() if o.get(PROP_ASSET) == asset_id), None)
+        if obj is None and meshes:
+            obj = _object_for(asset_id, base, facet, links, meshes, versions)
+            report["objects_created"] += 1
+        elif obj is not None and obj.get(PROP_LEVEL) in meshes:
+            # the same level, maybe new bytes: point at the mesh the library has now
+            set_level(obj, obj[PROP_LEVEL], meshes)
+        report["per_asset"].append({"asset_id": asset_id, "name": base,
+                                    "library": path, "levels": sorted(meshes, key=level_key),
+                                    "plan": {k: [r.get("level") for r in v]
+                                             for k, v in plan.items()}})
+    report["why_not"] = "; ".join(sorted(reasons))[:160]
+    ULTIMO.clear()
+    ULTIMO.update({"sentences": sentences(report)})
+    return report
+
+
+def _base_name(facet: Dict[str, Any], master: Dict[str, Any]) -> str:
+    name = str(facet.get("name") or master.get("name") or "asset")
+    return name[len("Model for "):] if name.startswith("Model for ") else name
+
+
+def _object_for(asset_id, base, facet, links, meshes, versions):  # pragma: no cover
+    """ONE object for an asset that has none in the scene yet: named after its
+    RM, showing the master's level, bound like a materialised model."""
+    bpy = _bpy()
+    from .materialise import _bind_objects
+
+    master_level = versions[0].get("level") or "master"
+    level = master_level if master_level in meshes else sorted(meshes, key=level_key)[0]
+    obj = bpy.data.objects.new(base, meshes[level])
+    bpy.context.scene.collection.objects.link(obj)
+    obj[PROP_ASSET] = asset_id
+    set_level(obj, level, meshes)
+    _bind_objects([obj], {"checksum": obj.get(PROP_DIGEST, ""),
+                          "resource_id": asset_id,
+                          "node_id": facet.get("id") or asset_id,
+                          "bind": links.get("binds") or []})
+    obj[PROP_DIGEST] = meshes[level].get(PROP_DIGEST, "")
+    return obj
+
+
+# ── «Add version…» ───────────────────────────────────────────────────────────
+
+def master_of(graph, obj, scene=None) -> Optional[str]:  # pragma: no cover — bpy
+    """The asset (master resource) of the object, read off what binds it:
+    the asset it already shows, the resource it was materialised from, or the
+    resource its RM links (the master if one is declared). None if nothing."""
+    from s3dgraphy import api
+
+    for prop in (PROP_ASSET, "em_resource_id"):
+        rid = obj.get(prop)
+        if rid and graph.find_node_by_id(str(rid)) is not None:
+            return api.asset_of(graph, str(rid))
+    from ..rm_manager.containers import resolve_rm_node_id
+    rm_id = resolve_rm_node_id(graph, obj, scene=scene, migra=False)
+    if not rm_id:
+        return None
+    linked = [graph.find_node_by_id(e.edge_target) for e in graph.edges
+              if e.edge_type == "has_linked_resource" and e.edge_source == rm_id]
+    linked = [n for n in linked if n is not None and n.node_type == "resource"]
+    if not linked:
+        return None
+    masters = [n for n in linked if (n.data or {}).get("tier") == "master"]
+    return api.asset_of(graph, (masters or linked)[0].node_id)
+
+
+def add_version_from_mesh(graph, obj, mesh, *, level: str, purpose: str,
+                          master_level: str, files: List[Dict[str, Any]],
+                          room: Optional[str], technique: str = "",
+                          parameters: Optional[Dict[str, Any]] = None
+                          ) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """The gesture behind «Add version…», once the version's mesh and bytes are
+    in hand: the version in the graph, the mesh in the asset's library, the
+    object still ONE (showing the level it showed)."""
+    from s3dgraphy import api
+    if not hasattr(api, "add_version"):
+        raise RuntimeError("this Blender's s3dgraphy has no asset versions "
+                           "(api.add_version): it needs 1.6.0.dev34 or later")
+    scene = _bpy().context.scene
+    asset_id = master_of(graph, obj, scene)
+    warnings: List[str] = []
+    if asset_id is None:
+        from ..rm_manager.containers import ensure_rm_and_internal_resource
+        _rm, asset_id, warnings = ensure_rm_and_internal_resource(scene, graph, obj)
+        if not asset_id:
+            raise RuntimeError("; ".join(warnings) or
+                               "this object has no resource to be the master of")
+    digest = next((f.get("checksum") for f in files if f.get("checksum")), "")
+    out = api.add_version(graph, asset_id, level=level, purpose=purpose,
+                          master_level=master_level or None,
+                          files=files, residency="resident",
+                          technique=technique or None, parameters=parameters,
+                          tool="EM Tools")
+    asset_id = out["asset_id"]
+    master = api.versions_of(graph, asset_id)[0]
+    base = obj.name
+    path = library_abspath(asset_id, room)
+    fresh = {}
+    if obj.data is not None and obj.data.library is None:
+        # the first version: the master's own mesh moves into the library too
+        mlevel = master_level or master.get("level") or "master"
+        _stamp_mesh(obj.data, asset_id=asset_id, version_id=master["id"],
+                    level=mlevel, digest=master.get("checksum") or "")
+        fresh[mlevel] = obj.data
+        obj[PROP_LEVEL] = mlevel
+    _stamp_mesh(mesh, asset_id=asset_id, version_id=out["version_id"],
+                level=out["level"], digest=digest)
+    fresh[out["level"]] = mesh
+    obj[PROP_ASSET] = asset_id
+    meshes = write_library(path, fresh, base)
+    current = obj.get(PROP_LEVEL)
+    if current in meshes:
+        set_level(obj, current, meshes)
+    return {**out, "library": path, "levels": sorted(meshes, key=level_key),
+            "warnings": list(warnings) + list(out.get("warnings") or [])}
+
+
+def _export_glb(mesh, path: str) -> None:  # pragma: no cover — bpy
+    """The version's bytes when the mesh was made here: a glb of that mesh."""
+    bpy = _bpy()
+    tmp = bpy.data.objects.new("_em_version_export", mesh)
+    bpy.context.scene.collection.objects.link(tmp)
+    try:
+        with bpy.context.temp_override(selected_objects=[tmp], active_object=tmp):
+            for o in bpy.context.view_layer.objects:
+                o.select_set(o == tmp)
+            bpy.ops.export_scene.gltf(filepath=path, use_selection=True,
+                                      export_format="GLB")
+    finally:
+        bpy.data.objects.remove(tmp)
+
+
+def _room_id() -> Optional[str]:  # pragma: no cover — bpy
+    try:
+        from . import room
+        return room.room().get("room_id")
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _operator_classes():  # pragma: no cover — bpy
+    import bpy  # type: ignore
+
+    from .asset_upload import sha256_of_file
+
+    def _graph(context):
+        from ..functions import is_graph_available
+        ok, graph = is_graph_available(context)
+        return graph if ok else None
+
+    class EM_OT_asset_add_version(bpy.types.Operator):
+        """Add a version of the selected master: a child resource made from it
+        (lod_generation) with a level and a purpose. Its mesh goes into the
+        asset's library and the object stays one"""
+
+        bl_idname = "em.asset_add_version"
+        bl_label = "Add version…"
+        bl_options = {"REGISTER", "UNDO"}
+
+        level: bpy.props.StringProperty(  # type: ignore
+            name="Level", default="LOD1",
+            description="The level this version is (LOD1, LOD2…)")
+        purpose: bpy.props.EnumProperty(  # type: ignore
+            name="Purpose", default="web",
+            items=[("web", "Web viewing", "Light enough for a browser"),
+                   ("preview", "Preview", "For working fast in the scene"),
+                   ("analysis", "Analysis", "Geometry kept for measuring"),
+                   ("render", "Render", "For images and video"),
+                   ("print", "3D print", "For printing"),
+                   ("other", "Other", "Something else")])
+        master_level: bpy.props.StringProperty(  # type: ignore
+            name="Master is", default="LOD0",
+            description="The level of the master this version is made from")
+        source: bpy.props.EnumProperty(  # type: ignore
+            name="Geometry from", default="SELECTED",
+            items=[("SELECTED", "The other selected object",
+                    "Its mesh becomes the version; the object goes away"),
+                   ("FILE", "A file", "An OBJ / glTF / PLY of this level"),
+                   ("DECIMATE", "Decimate the master", "Made here, now")])
+        filepath: bpy.props.StringProperty(  # type: ignore
+            name="File", subtype="FILE_PATH", default="")
+        ratio: bpy.props.FloatProperty(  # type: ignore
+            name="Ratio", default=0.25, min=0.001, max=1.0)
+
+        @classmethod
+        def poll(cls, context):
+            obj = context.active_object
+            return obj is not None and obj.type == "MESH"
+
+        def invoke(self, context, event):
+            obj = context.active_object
+            have = list(levels_of(obj)) if obj is not None else []
+            self.level = next_level(have + [self.master_level])
+            if len([o for o in context.selected_objects if o.type == "MESH"]) < 2:
+                self.source = "FILE"
+            return context.window_manager.invoke_props_dialog(self)
+
+        def execute(self, context):
+            graph = _graph(context)
+            if graph is None:
+                self.report({"ERROR"}, "no graph loaded: a version is written "
+                                       "into the graph of its asset")
+                return {"CANCELLED"}
+            obj = context.active_object
+            room = _room_id()
+            folder = os.path.join(cache_folder(), CACHE_DIR, safe(room or "local"),
+                                  "versions")
+            os.makedirs(folder, exist_ok=True)
+            technique, parameters = "", {}
+            try:
+                if self.source == "FILE":
+                    path = bpy.path.abspath(self.filepath)
+                    if not os.path.isfile(path):
+                        self.report({"ERROR"}, f"no file at {path}")
+                        return {"CANCELLED"}
+                    mesh = mesh_from_file(path, frame=obj.matrix_world.copy())
+                    other = None
+                else:
+                    if self.source == "SELECTED":
+                        other = next((o for o in context.selected_objects
+                                      if o != obj and o.type == "MESH"), None)
+                        if other is None:
+                            self.report({"ERROR"}, "select the version's object "
+                                                   "too, with the master active")
+                            return {"CANCELLED"}
+                        mesh = other.data.copy()
+                        mesh.transform(obj.matrix_world.inverted() @ other.matrix_world)
+                    else:
+                        mod = obj.modifiers.new("_em_decimate", "DECIMATE")
+                        mod.ratio = self.ratio
+                        deps = context.evaluated_depsgraph_get()
+                        mesh = bpy.data.meshes.new_from_object(obj.evaluated_get(deps))
+                        obj.modifiers.remove(mod)
+                        other = None
+                        technique = "decimation"
+                        parameters = {"ratio": self.ratio}
+                    path = os.path.join(folder, f"{safe(obj.name)}{SEP}{safe(self.level)}.glb")
+                    _export_glb(mesh, path)
+                if mesh is None:
+                    self.report({"ERROR"}, "no geometry in that file")
+                    return {"CANCELLED"}
+                files = [{"path": os.path.basename(path), "url": path,
+                          "checksum": _digest(sha256_of_file(path)),
+                          "size_bytes": os.path.getsize(path)}]
+                out = add_version_from_mesh(
+                    graph, obj, mesh, level=self.level, purpose=self.purpose,
+                    master_level=self.master_level, files=files, room=room,
+                    technique=technique, parameters=parameters)
+            except Exception as exc:  # noqa: BLE001 — the reason is the user's
+                self.report({"ERROR"}, f"could not add the version: {exc}")
+                return {"CANCELLED"}
+            if self.source == "SELECTED" and other is not None:
+                bpy.data.objects.remove(other)
+            for w in out["warnings"]:
+                self.report({"WARNING"}, w)
+            self.report({"INFO"}, f"{obj.name}: version {out['level']} "
+                                  f"({self.purpose}); levels "
+                                  f"{', '.join(out['levels'])}")
+            return {"FINISHED"}
+
+    class EM_OT_asset_lod_step(bpy.types.Operator):
+        """Show the next level of detail: the object stays, its mesh changes"""
+
+        bl_idname = "em.asset_lod_step"
+        bl_label = "LOD ▸"
+        bl_options = {"REGISTER", "UNDO"}
+
+        direction: bpy.props.IntProperty(default=1)  # type: ignore
+        whole_scene: bpy.props.BoolProperty(default=False)  # type: ignore
+
+        def execute(self, context):
+            targets = (asset_objects() if self.whole_scene else
+                       [o for o in context.selected_objects if o.get(PROP_ASSET)])
+            if not targets:
+                self.report({"WARNING"}, "no object with versions here")
+                return {"CANCELLED"}
+            moved = [f"{o.name} → {lv}" for o in targets
+                     for lv in [step_object(o, self.direction)] if lv]
+            self.report({"INFO"}, "; ".join(moved[:6]) or "already at the end")
+            return {"FINISHED"}
+
+    class EM_OT_asset_set_level(bpy.types.Operator):
+        """Show this level of detail on the active object"""
+
+        bl_idname = "em.asset_set_level"
+        bl_label = "Show level"
+        bl_options = {"REGISTER", "UNDO"}
+
+        level: bpy.props.StringProperty()  # type: ignore
+
+        def execute(self, context):
+            obj = context.active_object
+            if obj is None or not set_level(obj, self.level):
+                self.report({"ERROR"}, f"no level {self.level} for this object")
+                return {"CANCELLED"}
+            return {"FINISHED"}
+
+    class VIEW3D_PT_em_asset_versions(bpy.types.Panel):
+        bl_label = "Asset versions"
+        bl_idname = "VIEW3D_PT_em_asset_versions"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "UI"
+        bl_category = "EM Bridge"
+        bl_order = 5
+        bl_options = {"DEFAULT_CLOSED"}
+
+        def draw(self, context):
+            layout = self.layout
+            obj = context.active_object
+            row = layout.row(align=True)
+            row.operator("em.asset_add_version", icon="ADD")
+            if obj is not None and obj.get(PROP_ASSET):
+                box = layout.box()
+                box.label(text=f"{obj.name} · {obj.get(PROP_LEVEL, '?')}",
+                          icon="MESH_DATA")
+                levels = sorted((obj.data.library and
+                                 [level_of_mesh_name(m.name) for m in bpy.data.meshes
+                                  if m.library == obj.data.library]) or [],
+                                key=level_key)
+                lrow = box.row(align=True)
+                op = lrow.operator("em.asset_lod_step", text="◂ LOD")
+                op.direction = -1
+                op = lrow.operator("em.asset_lod_step", text="LOD ▸")
+                op.direction = 1
+                grid = box.row(align=True)
+                for lv in [lv for lv in levels if lv]:
+                    grid.operator("em.asset_set_level", text=lv,
+                                  depress=(lv == obj.get(PROP_LEVEL))).level = lv
+            srow = layout.row(align=True)
+            srow.label(text="Whole scene:")
+            op = srow.operator("em.asset_lod_step", text="◂ LOD")
+            op.direction, op.whole_scene = -1, True
+            op = srow.operator("em.asset_lod_step", text="LOD ▸")
+            op.direction, op.whole_scene = 1, True
+            from . import scene_package
+            scene_package.draw(layout)
+
+    return (EM_OT_asset_add_version, EM_OT_asset_lod_step, EM_OT_asset_set_level,
+            VIEW3D_PT_em_asset_versions)
+
+
+_CLASSES: tuple = ()
+
+
+def register():  # pragma: no cover — bpy
+    import bpy  # type: ignore
+    global _CLASSES
+    _CLASSES = _operator_classes()
+    for cls in _CLASSES:
+        bpy.utils.register_class(cls)
+
+
+def unregister():  # pragma: no cover — bpy
+    import bpy  # type: ignore
+    for cls in reversed(_CLASSES):
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception:  # noqa: BLE001
+            pass

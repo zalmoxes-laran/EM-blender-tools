@@ -214,6 +214,11 @@ def materialise(graph: Any, *,
     importer = importer or _default_importer
     summary = plan(graph)
     todo = records if records is not None else summary["resident"]
+    # A2 · the versions of an asset are meshes of ONE object, built into that
+    # asset's library by «Check the scene against the room» (asset_versions):
+    # importing each as an object of its own would undo exactly that
+    versions = [r for r in todo if r.get("asset_id")]
+    todo = [r for r in todo if not r.get("asset_id")]
     if limit is not None:
         todo = todo[:limit]
     known = scene_digests(objects)
@@ -222,6 +227,7 @@ def materialise(graph: Any, *,
         "materialised": [], "reused": [], "skipped": [], "failed": [],
         "elsewhere": summary["counts"]["elsewhere"],
         "considered": len(todo),
+        "versions": len(versions),
     }
 
     for record in todo:
@@ -324,6 +330,9 @@ def summarise(report: Dict[str, Any]) -> str:
         parts.append(f"{len(report['failed'])} failed")
     if report.get("elsewhere"):
         parts.append(f"{report['elsewhere']} outside the store (not fetchable)")
+    if report.get("versions"):
+        parts.append(f"{report['versions']} asset version(s) left to «Check the "
+                     f"scene» (one object per asset)")
     return " · ".join(parts)
 
 

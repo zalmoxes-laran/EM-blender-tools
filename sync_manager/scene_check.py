@@ -39,7 +39,7 @@ from typing import Any, Callable, Dict, List, Optional
 PROP_ONLY_HERE = "em_only_here"
 #: the properties that bind an object to the graph (materialise / promote_model)
 _BINDING_PROPS = ("em_asset_sha256", "em_resource_id", "em_rm_node_id",
-                  "em_bound_to", "em_asset_ref")
+                  "em_bound_to", "em_asset_ref", "em_asset_id")
 #: object types that are CONTENT (geometry somebody could mean to publish)
 GEOMETRY_TYPES = ("MESH", "CURVE", "SURFACE", "META", "FONT", "POINTCLOUD",
                   "VOLUME", "CURVES", "GREASEPENCIL", "GPENCIL")
@@ -154,13 +154,27 @@ def mark_only_here(names: List[str]) -> None:  # pragma: no cover — bpy
 
 
 def check_scene(context, graph, *, download: bool,
-                materialise_fn: Optional[Callable[..., Dict[str, Any]]] = None
+                materialise_fn: Optional[Callable[..., Dict[str, Any]]] = None,
+                fetch_fn: Optional[Callable[[str], Any]] = None
                 ) -> Dict[str, Any]:  # pragma: no cover — bpy
     """Read the scene, decide, mark, and (if asked and in a room) download."""
     from .materialise import materialise, plan
 
     summary = plan(graph)
+    # A3 · an asset with versions is checked MESH BY MESH against its library
+    # (asset_versions): its rows leave the per-object classification below
+    versioned = [r for r in summary.get("resident") or [] if r.get("asset_id")]
+    libraries = None
+    if versioned:
+        from . import asset_versions
+        from . import room as room_cfg
+        libraries = asset_versions.check_libraries(
+            graph, room=room_cfg.room().get("room_id"), download=download,
+            fetch=fetch_fn, summary=summary)
+        summary = {**summary, "resident": [r for r in summary["resident"]
+                                           if not r.get("asset_id")]}
     report = classify_scene(summary, scene_objects(context, graph))
+    report["libraries"] = libraries
     mark_only_here(report["only_here"])
     if download and report["missing"]:
         fetched = (materialise_fn or materialise)(graph, records=report["missing"])
@@ -170,7 +184,11 @@ def check_scene(context, graph, *, download: bool,
         report["why_not"] = "; ".join(sorted({r["reason"] for r in skipped}))[:120]
         report["fetch"] = fetched
     ULTIMA_VERIFICA.clear()
-    ULTIMA_VERIFICA.update({"sentences": sentences(report),
+    lines = sentences(report)
+    if libraries is not None:
+        from . import asset_versions
+        lines = asset_versions.sentences(libraries) + lines
+    ULTIMA_VERIFICA.update({"sentences": lines,
                             "only_here": list(report["only_here"]),
                             "changed": [r.get("name") for r in report["changed"]]})
     for line in ULTIMA_VERIFICA["sentences"]:
