@@ -1243,10 +1243,21 @@ def room_status(context=None) -> dict:
 
 #: The three states a session can be in, with the names EMStudio uses. One
 #: vocabulary across the two apps: somebody switching between them should not
-#: have to learn that "Room" here is "Hub" there.
+#: have to learn that "Room" here is something else there.
+#:
+#: Z · UN NOME SOLO: Stanza/Room (MICRO-LA-BARRA-E-LE-STANZE). Quello che la
+#: persona legge si chiama «Room»; il VALORE resta "hub", ed è voluto: è
+#: l'identificatore dell'enum `Scene.em_session_mode`, salvato in ogni .blend
+#: (rinominarlo farebbe tornare Standalone i file già salvati in stanza), ed è
+#: anche il `mode` che `host_info` dichiara sul filo a EMStudio. Si cambiano le
+#: parole, non le chiavi.
 MODE_STANDALONE = "standalone"
 MODE_SIDECAR = "sidecar"
 MODE_HUB = "hub"
+
+#: valore → la parola che la persona legge (Z): un valore interno non si mostra.
+MODE_LABELS = {MODE_STANDALONE: "Standalone", MODE_SIDECAR: "Sidecar",
+               MODE_HUB: "Room"}
 
 
 def session_mode(context=None) -> str:
@@ -1303,7 +1314,7 @@ _modo_in_corso = False
 SESSION_MODES = (
     (MODE_STANDALONE, "Standalone", "This Blender alone: no bridge, no room"),
     (MODE_SIDECAR, "Sidecar", "Serve the local bridge EMStudio connects to"),
-    (MODE_HUB, "Hub", "Work in a room on an StratiGraph Server"),
+    (MODE_HUB, "Room", "Work in a room on a StratiGraph Server"),
 )
 
 
@@ -1328,7 +1339,9 @@ def divergenza(context=None) -> str:
     detto, vero = modo_dichiarato(context), session_mode(context)
     if detto == vero:
         return ""
-    return f"declared {detto}, actually {vero}"
+    # Z · le parole, non i valori: «declared hub» mostrava una chiave interna
+    return (f"declared {MODE_LABELS.get(detto, detto)}, "
+            f"actually {MODE_LABELS.get(vero, vero)}")
 
 
 def _annuncia_transizione(verso: str, perche: str) -> int:
@@ -1411,9 +1424,9 @@ def applica_modo(context, richiesto: str) -> dict:
             # dichiarazione che non si può eseguire non si accetta: sarebbe di
             # nuovo un modo che mente, che è esattamente ciò che C4 toglie.
             return {"ok": False, "mode": vero,
-                    "message": ("Hub means being in a room: join one first "
-                                "(EM Bridge ▸ Open room from link…, or Join a "
-                                "room)")}
+                    "message": ("Room mode means being in a room: join one "
+                                "first (EM Bridge ▸ pick a room, or Open room "
+                                "from link…)")}
         if is_running():
             quanti = _annuncia_transizione(
                 MODE_HUB, f"the host is moving into the room "
@@ -2079,8 +2092,8 @@ class EM_OT_set_mode(bpy.types.Operator):
 
     bl_idname = "em.set_mode"
     bl_label = "Set the session mode"
-    bl_description = ("Standalone, Sidecar or Hub. Choosing one DOES it: "
-                      "Sidecar starts the bridge, Standalone stops it, Hub "
+    bl_description = ("Standalone, Sidecar or Room. Choosing one DOES it: "
+                      "Sidecar starts the bridge, Standalone stops it, Room "
                       "needs a room you have already joined")
 
     mode: bpy.props.StringProperty(default="")  # type: ignore
@@ -2108,8 +2121,8 @@ def register():
             name="Mode",
             items=SESSION_MODES,
             default=MODE_STANDALONE,
-            description=("Standalone, Sidecar or Hub. Choosing one DOES it: "
-                         "Sidecar starts the bridge, Standalone stops it, Hub "
+            description=("Standalone, Sidecar or Room. Choosing one DOES it: "
+                         "Sidecar starts the bridge, Standalone stops it, Room "
                          "needs a room you have already joined"),
             update=_on_modo_changed)
     if not hasattr(bpy.types.Scene, "em_sync_accept"):

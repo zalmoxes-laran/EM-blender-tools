@@ -93,7 +93,8 @@ class EM_MT_utils(bpy.types.Menu):
 
 
 class EM_MT_mode(bpy.types.Menu):
-    """EM ▸ Mode — Standalone · Sidecar · Hub (C4, 13-09-2026).
+    """EM ▸ Mode — Standalone · Sidecar · Room (C4, 13-09-2026; «Hub» è
+    diventato Room il 3-10-2026, Z: un nome solo).
 
     Qui e non solo nel pannello perché è **raro e globale**, che è il criterio
     di questo menu: in che modo sto lavorando si sceglie una volta per sessione,
@@ -101,7 +102,7 @@ class EM_MT_mode(bpy.types.Menu):
 
     **Operatori e non `layout.prop` sull'enum**, contro l'abitudine del resto di
     questo file: `prop` in un menu disegna già la spunta, ma una dichiarazione
-    di modo può essere RIFIUTATA (Hub senza una stanza), e un rifiuto ha bisogno
+    di modo può essere RIFIUTATA (Room senza una stanza), e un rifiuto ha bisogno
     di un posto dove atterrare. `prop` non ne ha uno. La spunta la disegniamo
     noi, e mostra il modo **reale** — se dichiarato e reale divergono, la riga
     sotto lo dice invece di far finta.

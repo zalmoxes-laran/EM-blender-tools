@@ -26,10 +26,11 @@ cambiano quasi mai, e sono diventate preferenze dell'add-on (**EM ▸ Settings**
 
 Sotto il modo attivo compare solo ciò che quel modo rende pertinente.
 
-**I nomi sono quelli di EM Studio**: Standalone · Sidecar · Hub. Un vocabolario
-solo fra le due applicazioni. Il *posto* resta una stanza («in {room} · N
-present»), il *modo* è Hub: la stanza è dove sta il lavoro, l'hub è il servizio
-che lo tiene.
+**I nomi sono quelli di EM Studio**: Standalone · Sidecar · Room. Un
+vocabolario solo fra le due applicazioni, e dal 3 ottobre (Z, MICRO-LA-BARRA-E-
+LE-STANZE) un nome solo anche per la stanza: il modo e il posto si chiamano
+entrambi Room/Stanza, e «Hub» non compare più dove una persona legge. Il valore
+interno resta "hub" (vedi `operators.MODE_HUB`): sta nei .blend salvati.
 """
 
 from __future__ import annotations
@@ -44,8 +45,8 @@ _MODES = (
      "This Blender alone: no bridge served, no room joined."),
     (ops.MODE_SIDECAR, "Sidecar", "LINKED",
      "Paired with EMStudio over the local bridge — two screens, one person."),
-    (ops.MODE_HUB, "Hub", "WORLD",
-     "In a room on an StratiGraph Server: the EM Data Tree is that room's container."),
+    (ops.MODE_HUB, "Room", "WORLD",
+     "In a room on a StratiGraph Server: the EM Data Tree is that room's container."),
 )
 
 
@@ -326,7 +327,7 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
             line.operator("em.server_forget", text="", icon="X").url = entry["url"]
         acts.operator(
             "em.room_join",
-            text="Leave the room" if status["joined"] else "Join a room (Hub)…",
+            text="Leave the room" if status["joined"] else "Join a room…",
             icon="UNLINKED" if status["joined"] else "LINKED",
             depress=status["joined"])
         # ROUND-TRIP (emit-only): the same room, in EMStudio. Only while joined.
@@ -345,8 +346,8 @@ class EM_OT_mode_explain(bpy.types.Operator):
 
     bl_idname = "em.mode_explain"
     bl_label = "What this mode means"
-    bl_description = ("Standalone / Sidecar / Hub — choosing one DOES it: "
-                      "Sidecar starts the bridge, Standalone stops it, Hub "
+    bl_description = ("Standalone / Sidecar / Room — choosing one DOES it: "
+                      "Sidecar starts the bridge, Standalone stops it, Room "
                       "needs a room you have already joined.")
 
     mode: bpy.props.StringProperty(default="")  # type: ignore
