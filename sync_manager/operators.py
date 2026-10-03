@@ -589,6 +589,15 @@ def _host_info(context, graph):
     # So the descriptor carries the graph's id — which is what a `node_id`
     # belongs to — and the name stays as the LABEL a human reads.
     info.update(_documento(context, graph))
+    # Y6 · quali unità hanno il proxy IN QUESTA SCENA: EMStudio contava «0 of 15»
+    # con la collezione Proxy piena, perché il grafo non porta la catena di un
+    # proxy che la scena ha ma l'aggiornamento non ha ancora scritto.
+    if graph is not None:
+        try:
+            from .commands import scene_proxy_units
+            info["scene_proxies"] = scene_proxy_units(context, graph)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[host_info] scene proxies unavailable: {exc}")
     return info
 
 

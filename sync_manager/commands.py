@@ -124,6 +124,20 @@ def _proxy_object_for(node_name: str, context, graph):
     return bpy.data.objects.get(name) or bpy.data.objects.get(node_name)
 
 
+def scene_proxy_units(context, graph) -> List[str]:
+    """Y6 · the ids of the stratigraphic units whose proxy object is in this
+    scene — matched by name exactly as `create_proxy_for_unit` matches them."""
+    from s3dgraphy.nodes.stratigraphic_node import StratigraphicNode
+    out: List[str] = []
+    for node in getattr(graph, "nodes", []):
+        if not isinstance(node, StratigraphicNode):
+            continue
+        name = getattr(node, "name", None)
+        if name and _proxy_object_for(name, context, graph) is not None:
+            out.append(node.node_id)
+    return out
+
+
 def create_proxy_for_unit(target: str, params: Dict[str, Any], context,
                           graph) -> Dict[str, Any]:
     """Model the proxy of a stratigraphic unit, and report it as a delta.
