@@ -27,6 +27,17 @@ says the room already has; the seeding is all idempotent refusals.
 
 **One room, one graph (D-A)**: the ACTIVE graph is brought. Other graphs of the
 project stay here, and the report says so.
+
+**A file lives in one room (F1).** A file the node already keeps in ANOTHER
+room is listed apart («at home in another room»): the dialog names the rooms
+it would leave and the rooms whose graphs cite it (there it becomes a
+reference), and «Move here» happens only if the person ticks it — then the
+node changes its home, no byte is sent. Unticked, the resource points at the
+file where it lives, as a reference.
+
+**Lots are proposed (L1).** Photos of one session (same camera, EXIF times at
+most 30 min apart, at least 5) are proposed as a lot; a D.nn document or the
+DosCo never is. Only a ticked proposal becomes one acquisition.
 """
 
 # NOT `from __future__ import annotations`: the PropertyGroup below is built
@@ -39,6 +50,12 @@ from typing import Any, Callable, Dict, List, Optional
 
 from . import asset_upload, inventory, rooms_list
 from . import room as room_cfg
+
+try:
+    from ..functions import em_log
+except Exception:  # noqa: BLE001 — outside the addon (tests)
+    def em_log(message, *_a, **_k):
+        print(message)
 
 #: The last gesture, in memory, between the inventory dialog and the upload.
 STATE: Dict[str, Any] = {}
@@ -72,6 +89,14 @@ def base_dirs(context) -> List[str]:
     if bpy.data.filepath:
         out.append(os.path.dirname(bpy.data.filepath))
     return [p for p in out if p]
+
+
+def dosco_dirs(context) -> List[str]:
+    """L1 · the DosCo folder of the active graph: documentation, never a lot."""
+    import bpy  # type: ignore
+    entry = _active_entry(context)
+    raw = getattr(entry, "dosco_dir", "") if entry is not None else ""
+    return [bpy.path.abspath(raw)] if raw else []
 
 
 def open_room(base: str, token: Optional[str], name: str) -> Dict[str, Any]:
@@ -113,13 +138,83 @@ def prepare(context, graph, *, base: str, name: str, token: Optional[str]
     room_cfg.set_room(base, where["room_id"], token)
     rows = inventory.classify(
         inventory.resource_entries(graph), base_dirs=base_dirs(context),
-        has_asset=lambda hexd: asset_upload.has_asset(base, where["room_id"],
-                                                      hexd, token),
-        hasher=asset_upload.sha256_of_file)
+        asset_home=lambda hexd: asset_upload.asset_head(base, where["room_id"],
+                                                        hexd, token),
+        room_id=where["room_id"], hasher=asset_upload.sha256_of_file)
+    from . import exif_lite
+    lots = inventory.propose_sessions(rows, exif_of=exif_lite.photo_exif,
+                                      dosco_dirs=dosco_dirs(context))
+    # F1 · for every file at home elsewhere, the node's answer BEFORE the yes
+    views = {r["id"]: asset_upload.asset_home_view(base, where["room_id"],
+                                                   r["sha256"], token)
+             for r in rows if r["group"] == inventory.GROUP_ELSEWHERE and r.get("sha256")}
     STATE.clear()
     STATE.update({"base": base, "room_id": where["room_id"], "where": where,
-                  "rows": rows, "graph_id": str(getattr(graph, "graph_id", ""))})
+                  "rows": rows, "lots": lots, "move_views": views,
+                  "graph_id": str(getattr(graph, "graph_id", ""))})
     return STATE
+
+
+def move_here(graph, *, token: Optional[str], yes: bool) -> Dict[str, Any]:
+    """F1 · the files at home in another room: moved here on the person's yes,
+    else (or when the node refuses) left as references to where they live.
+    → `{moved, references, failed: [sentence]}`."""
+    base, room_id, rows = STATE["base"], STATE["room_id"], STATE["rows"]
+    plan = inventory.move_plan(rows, STATE.get("move_views") or {})
+    done = {"moved": 0, "references": 0, "failed": []}
+    moved_ids = set()
+    if yes:
+        for row in plan["movable"]:
+            view = STATE["move_views"][row["id"]]
+            try:
+                answer = asset_upload.move_asset_home(base, room_id, row["sha256"],
+                                                      view.get("home"), token)
+            except Exception as exc:  # noqa: BLE001 — one file, one sentence
+                done["failed"].append(f"{row['name']}: {exc}")
+                continue
+            if answer.get("home") != room_id:
+                done["failed"].append(f"{row['name']}: the node kept it in "
+                                      f"{answer.get('home')}")
+                continue
+            moved_ids.add(row["id"])
+            node = graph.find_node_by_id(row["id"])
+            if node is not None:
+                inventory.make_store_backed(
+                    node, url=asset_upload.asset_url(base, room_id, row["sha256"]),
+                    sha256=row["sha256"])
+            done["moved"] += 1
+            em_log(f"[bring] {row['name']} moved here from {view.get('home')}; "
+                   f"references now in {', '.join(view.get('references') or []) or 'no other room'}")
+    for b in plan["blocked"]:
+        em_log(f"[bring] {b['row']['name']} stays in {b['row'].get('home')}: {b['why']}")
+    for row in rows:
+        if row["group"] != inventory.GROUP_ELSEWHERE or row["id"] in moved_ids:
+            continue
+        node = graph.find_node_by_id(row["id"])
+        if node is not None and row.get("home") and row.get("sha256"):
+            inventory.make_store_backed(
+                node, url=asset_upload.asset_url(base, row["home"], row["sha256"]),
+                sha256=row["sha256"], residency="reference")
+        done["references"] += 1
+    return done
+
+
+def bucket_confirmed_lots(graph, lots: List[Dict[str, Any]]) -> List[str]:
+    """L1 · each CONFIRMED session becomes one acquisition in the graph (the
+    serial node, s3dgraphy `bucket_acquisition`); a proposal not confirmed
+    leaves its photos as files. → the acquisition ids."""
+    from s3dgraphy import api
+    made = []
+    for lot in lots or []:
+        if not lot.get("confirmed"):
+            continue
+        out = api.bucket_acquisition(
+            graph, lot["ids"], name=f"Photos · {lot['name']}",
+            metadata={"camera": lot["camera"], "taken_from": lot["from"],
+                      "taken_to": lot["to"],
+                      "source": "EMtools · bring into a room"})
+        made.append(str(out.get("acquisition_id") or out.get("id") or ""))
+    return made
 
 
 def scene_models(context, graph) -> List[Dict[str, str]]:
@@ -170,6 +265,8 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
     started = time.time()
     uploaded = {"count": 0, "size": 0, "already": 0}
     failed: List[str] = []
+    moves = move_here(graph, token=token, yes=bool(STATE.get("move_yes")))
+    failed.extend(moves["failed"])
     todo = [r for r in rows if r["group"] == inventory.GROUP_FOUND
             and r["choice"] == inventory.CHOICE_UPLOAD]
     total = sum(int(r.get("size") or 0) for r in todo)
@@ -215,6 +312,7 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
             else:
                 failed.append(f"{model['object']}: {result.get('error')}")
 
+    acquisitions = bucket_confirmed_lots(graph, STATE.get("lots") or [])
     seeded = {"applied": 0, "refused": [], "requests": 0}
     if STATE["where"].get("seedable"):
         from ..emjson_support import graph_to_emjson_dict
@@ -250,6 +348,7 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
     report = {
         "room_id": room_id, "link": link, "created": STATE["where"]["created"],
         "uploaded": uploaded["count"] + len(published),
+        "moved": moves["moved"], "lots": acquisitions,
         "uploaded_size": size_up,
         "already": uploaded["already"] + published_skip,
         "references": refs, "missing": missing,
@@ -259,9 +358,12 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
         "other_graphs": others, "seconds": round(time.time() - started, 1),
         "note": STATE["where"].get("note") or "",
     }
+    refs += moves["references"]
+    report["references"] = refs
     report["sentence"] = (
         f"uploaded {report['uploaded']} ({inventory.human_size(size_up)}), "
-        f"references {refs}, missing {missing} — room {room_id}: {link}")
+        + (f"moved here {moves['moved']}, " if moves["moved"] else "")
+        + f"references {refs}, missing {missing} — room {room_id}: {link}")
     ULTIMO_REFERTO.clear()
     ULTIMO_REFERTO.update(report)
     print(f"[bring] {report['sentence']}")
@@ -372,6 +474,16 @@ def _operator_classes():  # pragma: no cover — bpy
             name="Publish the scene's models (RM, proxy)", default=True)
         offer_blend: bpy.props.BoolProperty(  # type: ignore
             name="Then offer a .blend snapshot", default=True)
+        move_here: bpy.props.BoolProperty(  # type: ignore
+            name="Move here the files kept in another room",
+            description="Their home and rights become this room's; no byte is "
+                        "sent. Off: they stay where they are, as references",
+            default=False)
+        confirm_lots: bpy.props.BoolProperty(  # type: ignore
+            name="Make each proposed session one lot",
+            description="One acquisition per session of photos (same camera, "
+                        "contiguous EXIF times). Off: the photos stay files",
+            default=False)
 
         def invoke(self, context, event):
             return context.window_manager.invoke_props_dialog(self, width=560)
@@ -389,6 +501,30 @@ def _operator_classes():  # pragma: no cover — bpy
                                  "em_bring_index", rows=6)
             layout.label(text="Rights come from each resource or its batch; with "
                               "no licence, only the room sees it.", icon="LOCKED")
+            lots = STATE.get("lots") or []
+            if lots:
+                box = layout.box()
+                for lot in lots:
+                    box.label(text=f"Proposed lot: {lot['name']} · {len(lot['ids'])} photos",
+                              icon="IMAGE_DATA")
+                box.prop(self, "confirm_lots")
+            plan = inventory.move_plan(STATE.get("rows") or [], STATE.get("move_views") or {})
+            if plan["movable"] or plan["blocked"]:
+                # F1 · the listing BEFORE the yes
+                box = layout.box()
+                box.label(text=f"{len(plan['movable']) + len(plan['blocked'])} file(s) "
+                               f"are kept in another room", icon="FILE_REFRESH")
+                if plan["movable"]:
+                    box.label(text=f"They leave: {', '.join(plan['leave'])}", icon="BLANK1")
+                    box.label(text=("Cited by the graphs of: " + ", ".join(plan["references"])
+                                    + " (there they become a reference)")
+                              if plan["references"] else "No other room's graph cites them",
+                              icon="BLANK1")
+                    box.label(text="Whoever has no access to this room will not see them",
+                              icon="BLANK1")
+                    box.prop(self, "move_here")
+                for b in plan["blocked"]:
+                    box.label(text=f"{b['row']['name']} stays: {b['why']}"[:110], icon="LOCKED")
             layout.prop(self, "promote")
             layout.prop(self, "offer_blend")
 
@@ -406,6 +542,9 @@ def _operator_classes():  # pragma: no cover — bpy
             inventory.apply_choices(STATE["rows"],
                                     per_group={inventory.GROUP_FOUND: self.found_choice},
                                     per_item=per_item)
+            STATE["move_yes"] = bool(self.move_here)
+            for lot in STATE.get("lots") or []:
+                lot["confirmed"] = bool(self.confirm_lots)
             wm = context.window_manager
             wm.progress_begin(0, 100)
             try:

@@ -35,7 +35,7 @@ def _load():
     pkg = types.ModuleType("_p3_pkg")
     pkg.__path__ = [str(_REPO / "sync_manager")]
     sys.modules["_p3_pkg"] = pkg
-    for name in ("room", "asset_upload", "inventory"):
+    for name in ("room", "asset_upload", "inventory", "exif_lite"):
         spec = importlib.util.spec_from_file_location(
             f"_p3_pkg.{name}", _REPO / "sync_manager" / f"{name}.py")
         module = importlib.util.module_from_spec(spec)
@@ -295,3 +295,189 @@ def test_a_wrong_declared_digest_is_refused_and_nothing_stored(node, tmp_path):
     with pytest.raises(up.RoomError) as caught:
         up.upload_asset(node, "p3", str(f), "0" * 64, "text/plain", None)
     assert caught.value.status == 422
+
+
+# ── F1 · a file lives in ONE room: «Move here» ───────────────────────────────
+
+def test_f1_bytes_at_home_elsewhere_are_their_own_group(study):
+    """HEAD 200 with `X-EM-Home-Room: tempio-a` while bringing into tempio-b:
+    not «stored» (they are not this room's), «elsewhere», proposal «move»."""
+    pdf_hex = up.sha256_of_file(study["pdf"])
+    homes = {pdf_hex: "tempio-a", study["stored"]: "tempio-b"}
+    rows = inv.classify(inv.resource_entries(study["graph"]),
+                        base_dirs=[study["base"]], hasher=_hasher, room_id="tempio-b",
+                        asset_home=lambda hexd: (hexd in homes, homes.get(hexd)))
+    by_id = {r["id"]: r for r in rows}
+    assert by_id["r-pdf"]["group"] == "elsewhere"
+    assert by_id["r-pdf"]["home"] == "tempio-a" and by_id["r-pdf"]["choice"] == "move"
+    assert by_id["r-stored"]["group"] == "stored", "at home HERE is simply stored"
+    assert inv.summarise(rows)["upload"]["count"] == 3, "a file kept elsewhere is never re-sent"
+    inv.apply_choices(rows, per_item={"r-pdf": "upload"})
+    assert by_id["r-pdf"]["choice"] == "move", "it cannot be «uploaded»"
+    inv.apply_choices(rows, per_group={"elsewhere": "reference"})
+    assert by_id["r-pdf"]["choice"] == "reference"
+
+
+def test_f1_the_plan_lists_before_the_yes():
+    rows = [{"id": "podio", "name": "podio.glb", "group": "elsewhere", "choice": "move"},
+            {"id": "pianta", "name": "pianta.pdf", "group": "elsewhere", "choice": "move"},
+            {"id": "x", "name": "x", "group": "found", "choice": "upload"}]
+    plan = inv.move_plan(rows, {
+        "podio": {"home": "tempio-a", "references": ["tempio-a", "tempio-c"], "can_move": True},
+        "pianta": {"home": "tempio-a", "can_move": False, "why_not": "only its owner may move it out"}})
+    assert [r["id"] for r in plan["movable"]] == ["podio"]
+    assert [(b["row"]["id"], b["why"]) for b in plan["blocked"]] == [
+        ("pianta", "only its owner may move it out")]
+    assert plan["leave"] == ["tempio-a"] and plan["references"] == ["tempio-a", "tempio-c"]
+    assert len(inv.move_plan(rows, {"podio": {"error": "403"}})["blocked"]) == 2
+
+
+def test_f1_head_names_the_home_and_move_here_moves_it(node, tmp_path):
+    """Against the node: uploaded through `f1-a`, asked through `f1-b` — HEAD
+    names `f1-a`; the view lists `f1-b` as destination; the move makes `f1-b`
+    the ONLY home, and a second move is a no-op (dev mode: anybody may)."""
+    f = tmp_path / "podio.glb"
+    f.write_bytes(os.urandom(4096))
+    info = up.upload_asset(node, "f1-a", str(f), None, "model/gltf-binary", None)
+    assert info.get("home") == "f1-a"
+    present, home = up.asset_head(node, "f1-b", info["sha256"], None)
+    if home is None:
+        pytest.skip("this StratiGraph Server does not name the home yet (F1)")
+    assert present and home == "f1-a"
+    view = up.asset_home_view(node, "f1-b", info["sha256"], None)
+    assert view["home"] == "f1-a" and view["can_move"] is True
+    moved = up.move_asset_home(node, "f1-b", info["sha256"], "f1-a", None)
+    assert moved["moved"] is True and moved["home"] == "f1-b"
+    assert up.asset_head(node, "f1-a", info["sha256"], None) == (True, "f1-b")
+    with pytest.raises(up.RoomError) as stale:
+        up.move_asset_home(node, "f1-c", info["sha256"], "f1-a", None)
+    assert stale.value.status == 409, "a move against a stale home is refused"
+
+
+# ── L1 · the lot rule (the same cases as EMStudio check-room-inventory part 6) ─
+
+@pytest.mark.parametrize("name", ["D.01", "D.1.jpg", "D.12.jpg", "D.01.01.jpeg",
+                                  "D.07 Maison Carree Nimes.png", "D.11_scan.tif",
+                                  "D.3-bis.jpg"])
+def test_l1_an_em_document_name(name):
+    assert inv.is_em_document_name(name)
+
+
+@pytest.mark.parametrize("name", ["DSC_0001.JPG", "D.jpg", "DJI_0001.JPG", "D.01a.jpg",
+                                  "IMG_D.01.jpg", "d.01.jpg"])
+def test_l1_not_an_em_document_name(name):
+    assert not inv.is_em_document_name(name)
+
+
+def test_l1_the_dosco():
+    assert inv.in_dosco("/a/DosCo/x.jpg") and inv.in_dosco("/a/dosco/sub/x.jpg")
+    assert not inv.in_dosco("/a/DosCoX/x.jpg")
+    assert inv.in_dosco("/b/docs/x.jpg", ["/b/docs"])
+    assert not inv.in_dosco("/b/docs2/x.jpg", ["/b/docs"])
+
+
+_T0 = 1790762400   # 2026-09-30 10:00:00 UTC
+
+
+def _at(seconds):
+    return time.strftime("%Y:%m:%d %H:%M:%S", time.gmtime(_T0 + seconds))
+
+
+_CANON = "Canon EOS R5 #012345"
+
+
+def _shots():
+    out = [{"id": f"s{i}", "path": f"/f/session/IMG_{i}.JPG",
+            "exif": {"camera": _CANON, "taken_at": _at(15 * i)}} for i in range(12)]
+    out.append({"id": "tif", "path": "/f/session/IMG_0200.tif",
+                "exif": {"camera": _CANON, "taken_at": _at(200)}})
+    out.append({"id": "doc-out", "path": "/f/session/D.20.jpg",
+                "exif": {"camera": _CANON, "taken_at": _at(100)}})
+    out += [{"id": f"late{i}", "path": f"/f/session/IMG_10{i}.JPG",
+             "exif": {"camera": _CANON, "taken_at": _at(7200 + 10 * i)}} for i in range(2)]
+    out += [{"id": f"px{i}", "path": f"/f/session/PXL_{i}.jpg",
+             "exif": {"camera": "Google Pixel 8", "taken_at": _at(20 * i)}} for i in range(3)]
+    out += [{"id": f"dosco{i}", "path": f"/f/DosCo/D.07.0{i}.jpg",
+             "exif": {"camera": _CANON, "taken_at": _at(5 * i)}} for i in range(1, 6)]
+    out += [{"id": f"ddir{i}", "path": f"/f/docs/scan_{i}.jpg",
+             "exif": {"camera": _CANON, "taken_at": _at(6 * i)}} for i in range(1, 6)]
+    out += [{"id": f"nx{i}", "path": f"/f/noexif/foto_{i}.jpg", "exif": None} for i in range(8)]
+    out.append({"id": "pdf", "path": "/f/session/report.pdf",
+                "exif": {"camera": _CANON, "taken_at": _at(30)}})
+    return out
+
+
+def test_l1_one_session_and_nothing_else():
+    assert _at(0) == "2026:09:30 10:00:00"
+    lots = inv.session_lots(_shots(), dosco_dirs=["/f/docs"])
+    assert [(l["camera"], len(l["ids"]), l["from"], l["to"]) for l in lots] == [
+        (_CANON, 13, _at(0), _at(200))]
+
+
+def test_l1_the_gap_is_inclusive():
+    five = lambda step, tag: [{"id": f"{tag}{i}", "path": f"/g/{i}.jpg",
+                               "exif": {"camera": "X", "taken_at": _at(step * i)}}
+                              for i in range(5)]
+    assert len(inv.session_lots(five(1800, "g"))) == 1
+    assert len(inv.session_lots(five(1801, "h"))) == 0
+
+
+def test_l1_two_bodies_of_one_model_are_two_sessions():
+    shots = [{"id": f"b{b}-{i}", "path": f"/k/{b}_{i}.jpg",
+              "exif": {"camera": f"Nikon Z7 #{b}", "taken_at": _at(10 * i + b)}}
+             for b in (0, 1) for i in range(6)]
+    assert sorted(len(l["ids"]) for l in inv.session_lots(shots)) == [6, 6]
+
+
+def test_l1_templu_mare_dosco_is_never_a_lot():
+    """T-L1 on the real copy: the DosCo of Templu Mare (/tmp/micro-asset-versioni)
+    read with the real EXIF reader — no lot. Its D.nn files carry no EXIF, so
+    the rule is also tried with the fixture's EXIF-bearing D.07.0x (below)."""
+    dosco = pathlib.Path("/tmp/micro-asset-versioni/DosCo")
+    if not dosco.is_dir():
+        pytest.skip("the working copy of Templu Mare's DosCo is not in /tmp")
+    rows = [{"id": p.name, "path": str(p), "group": "found"}
+            for p in sorted(dosco.iterdir()) if p.is_file() and not p.name.startswith(".")]
+    assert len(rows) >= 18
+    lots = inv.propose_sessions(rows, exif_of=sys.modules["_p3_pkg.exif_lite"].photo_exif,
+                                dosco_dirs=[str(dosco)])
+    assert lots == [] and not any(r.get("batch_id") for r in rows)
+    # …and even if every photo there were one camera, one minute: no lot
+    shots = [{"id": f"d{i}", "path": str(dosco / f"D.07.0{i}.jpg"),
+              "exif": {"camera": _CANON, "taken_at": _at(i)}} for i in range(1, 6)]
+    assert inv.session_lots(shots) == []
+
+
+def test_l1_a_session_with_real_exif_is_proposed_not_applied(tmp_path):
+    """Photos whose EXIF Pillow wrote: the reader finds camera and time, the
+    session is PROPOSED (unconfirmed), the D.nn among them and the DosCo stay out."""
+    PIL = pytest.importorskip("PIL.Image")
+    exif_lite = sys.modules["_p3_pkg.exif_lite"]
+
+    def shot(path, seconds, camera=("Canon", "Canon EOS R5", "012345"), fmt="JPEG"):
+        im = PIL.new("RGB", (16, 12))
+        ex = PIL.Exif()
+        ex[0x010F], ex[0x0110] = camera[0], camera[1]
+        sub = ex.get_ifd(0x8769)
+        sub[0x9003] = _at(seconds)
+        sub[0xA431] = camera[2]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        im.save(path, fmt, exif=ex.tobytes())
+
+    for i in range(6):
+        shot(tmp_path / "session" / f"IMG_{i:04d}.JPG", 20 * i)
+    shot(tmp_path / "session" / "IMG_0099.tif", 130, fmt="TIFF")
+    shot(tmp_path / "session" / "D.09.jpg", 50)
+    for i in range(1, 6):
+        shot(tmp_path / "DosCo" / f"D.07.0{i}.jpg", 5 * i)
+    assert exif_lite.photo_exif(str(tmp_path / "session" / "IMG_0099.tif")) == {
+        "camera": _CANON, "taken_at": _at(130)}
+    assert exif_lite.photo_exif(str(tmp_path / "session" / "nope.pdf")) is None
+    rows = [{"id": p.name, "path": str(p), "group": "found", "choice": "upload"}
+            for p in sorted(tmp_path.rglob("*")) if p.is_file()]
+    lots = inv.propose_sessions(rows, exif_of=exif_lite.photo_exif)
+    assert len(lots) == 1 and lots[0]["confirmed"] is False
+    assert sorted(lots[0]["ids"]) == sorted([f"IMG_{i:04d}.JPG" for i in range(6)] + ["IMG_0099.tif"])
+    s = inv.summarise(rows)
+    assert s["batches"][0]["proposed"] is True
+    assert any(line.startswith("proposed lot «") for line in inv.sentences(s))

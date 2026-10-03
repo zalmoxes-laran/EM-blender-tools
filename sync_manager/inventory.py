@@ -6,6 +6,11 @@ person sees where every resource of the graph IS, in four groups:
 * **found** — on this disk: a path that resolves to a file. Default: upload;
 * **stored** — already in the room's store (HEAD on its sha256 → 200): nothing
   to send, and a second «Bring into a room» finds everything here;
+* **elsewhere** — the node has the bytes but they are AT HOME IN ANOTHER ROOM
+  (HEAD answers `X-EM-Home-Room`). A file lives in one room (F1, E.D. 3 Oct,
+  evening): the proposal is «Move here» — the home and its rights change, no
+  byte travels — confirmed after the rooms whose graphs cite it are listed;
+  otherwise it stays a reference to that room;
 * **external** — a URL, a NAS share, or a resource the graph declares a
   `reference` whose path is not on this machine: it stays where it is, counted;
 * **missing** — a path that does not resolve, or no locator at all.
@@ -16,6 +21,14 @@ included** (E.D., 3 Oct 2026: it is also the safety copy) — and raw photos go 
 their ACQUISITION: the resources a `dtc_acquisition` brought in
 (`dtc_had_output`) are shown and chosen as ONE batch line, never as hundreds of
 rows (s3dgraphy `dtc.ingest`: «the serial node is the acquisition»).
+
+**The lot rule** (L1, E.D. 3 Oct evening): a file named like an EM document
+(`D.01`, `D.07.03`, `D.11 Zenitale` — `is_em_document_name`) stays a document,
+nothing in a DosCo is ever a lot, and a lot is PROPOSED only for the photos of
+one session — same camera (EXIF make + model + body serial), EXIF times at most
+`SESSION_GAP_SECONDS` apart, at least `SESSION_MIN_PHOTOS` — and becomes one
+acquisition only when the person confirms it (`propose_sessions`). The same
+cases as EMStudio's `room-inventory.ts` (`check-room-inventory.mjs`, part 6).
 
 **Rights.** Nothing is written here about rights: they are already on the
 resource node or on its batch (licence, embargo, author — `rights_for_digest`
@@ -38,24 +51,28 @@ this module can move to s3Dgraphy as it is. Measured by
 from __future__ import annotations
 
 import os
+import re
 import urllib.parse
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
 GROUP_FOUND = "found"
 GROUP_STORED = "stored"
+GROUP_ELSEWHERE = "elsewhere"
 GROUP_EXTERNAL = "external"
 GROUP_MISSING = "missing"
-GROUPS = (GROUP_FOUND, GROUP_STORED, GROUP_EXTERNAL, GROUP_MISSING)
+GROUPS = (GROUP_FOUND, GROUP_STORED, GROUP_ELSEWHERE, GROUP_EXTERNAL, GROUP_MISSING)
 
 CHOICE_UPLOAD = "upload"
 CHOICE_REFERENCE = "reference"
 CHOICE_SKIP = "skip"
+CHOICE_MOVE = "move"
 CHOICES = (CHOICE_UPLOAD, CHOICE_REFERENCE, CHOICE_SKIP)
 
 #: The words a person reads for each group, one sentence each in the report.
 GROUP_LABELS = {
     GROUP_FOUND: "found on this disk",
     GROUP_STORED: "already in the room's storage",
+    GROUP_ELSEWHERE: "at home in another room",
     GROUP_EXTERNAL: "external references (NAS, URL)",
     GROUP_MISSING: "missing",
 }
@@ -197,31 +214,59 @@ def _is_store_url(locator: str) -> bool:
 def classify(entries: List[Dict[str, Any]], *,
              base_dirs: Iterable[str] = (),
              has_asset: Optional[Callable[[str], bool]] = None,
-             hasher: Optional[Callable[[str], str]] = None) -> List[Dict[str, Any]]:
+             hasher: Optional[Callable[[str], str]] = None,
+             asset_home: Optional[Callable[[str], Any]] = None,
+             room_id: str = "") -> List[Dict[str, Any]]:
     """Put every entry in its group. → the entries, each with `group`, `path`,
-    `size`, `sha256`, `choice`, `note`.
+    `size`, `sha256`, `choice`, `note` (and `home` for «elsewhere»).
 
     `has_asset(hex)` is the room's HEAD (None: no room to ask yet, nothing is
     «stored»). `hasher(path)` the sha256 of a file — the found ones are hashed
     so the HEAD can answer for them too: a file on this disk that the room
     already holds is «stored», not «found», and is not sent again.
+
+    `asset_home(hex)` → `(present, home)`, the same HEAD read whole (F1): when
+    given it answers instead of `has_asset`, and bytes present but at home in a
+    room other than `room_id` are «elsewhere», with the proposal «Move here».
     """
     bases = list(base_dirs or ())
+    if asset_home is not None:
+        def _where(hexd: str) -> str:
+            present, home = asset_home(hexd)
+            if not present:
+                return ""
+            return home if home and home != room_id else room_id or "here"
+    elif has_asset is not None:
+        def _where(hexd: str) -> str:
+            return (room_id or "here") if has_asset(hexd) else ""
+    else:
+        _where = None
+
+    def _held(row: Dict[str, Any], hexd: str, note: str) -> bool:
+        """The node has these bytes: «stored» here, or «elsewhere»."""
+        where = _where(hexd) if _where else ""
+        if not where:
+            return False
+        if where != (room_id or "here"):
+            row.update(group=GROUP_ELSEWHERE, choice=CHOICE_MOVE, home=where,
+                       note=f"at home in the room {where}")
+        else:
+            row.update(group=GROUP_STORED, choice=CHOICE_SKIP, note=note)
+        return True
+
     out = []
     for entry in entries:
         row = dict(entry)
         row.update({"group": GROUP_MISSING, "path": "", "size": 0,
                     "sha256": row.get("checksum", ""), "choice": CHOICE_SKIP,
-                    "note": ""})
+                    "note": "", "home": ""})
         loc = row.get("locator", "")
         kind = locator_kind(loc)
         recorded = row.get("checksum", "")
         # 1 · resident with a digest the room confirms
-        if recorded and has_asset is not None and (
+        if recorded and _where is not None and (
                 row.get("residency") == "resident" or _is_store_url(loc)):
-            if has_asset(recorded):
-                row.update(group=GROUP_STORED, choice=CHOICE_SKIP,
-                           note="in the room's store")
+            if _held(row, recorded, "in the room's store"):
                 out.append(row)
                 continue
         if kind in ("url", "share"):
@@ -270,10 +315,7 @@ def classify(entries: List[Dict[str, Any]], *,
         if digest and recorded and digest != recorded:
             row["note"] = ("the file on disk is not the bytes the graph "
                            "recorded: its current bytes will be uploaded")
-        if digest and has_asset is not None and has_asset(digest):
-            row.update(group=GROUP_STORED, choice=CHOICE_SKIP,
-                       note=row["note"] or "already in the room's store")
-        else:
+        if not (digest and _held(row, digest, row["note"] or "already in the room's store")):
             row.update(group=GROUP_FOUND, choice=CHOICE_UPLOAD)
         out.append(row)
     return out
@@ -297,8 +339,16 @@ def apply_choices(rows: List[Dict[str, Any]], *,
     """The person's choices, most specific wins: item > batch > group.
 
     Only FOUND rows can be uploaded; a choice of upload on any other group is
-    ignored (there is nothing on this disk to send)."""
+    ignored (there is nothing on this disk to send). ELSEWHERE rows take only
+    `move` or `reference`."""
     for row in rows:
+        if row["group"] == GROUP_ELSEWHERE:
+            # F1 · at home in another room: move it here, or leave a reference
+            choice = (per_item or {}).get(row["id"]) \
+                or (per_group or {}).get(GROUP_ELSEWHERE) or row["choice"]
+            if choice in (CHOICE_MOVE, CHOICE_REFERENCE):
+                row["choice"] = choice
+            continue
         if row["group"] != GROUP_FOUND:
             continue
         if not row.get("path") or os.path.isdir(row["path"]):
@@ -324,7 +374,8 @@ def summarise(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         if row.get("batch_id"):
             b = batches.setdefault(row["batch_id"], {
                 "id": row["batch_id"], "name": row.get("batch_name") or row["batch_id"],
-                "count": 0, "size": 0, "groups": {}})
+                "count": 0, "size": 0, "groups": {},
+                "proposed": bool(row.get("batch_proposed"))})
             b["count"] += 1
             b["size"] += int(row.get("size") or 0)
             b["groups"][row["group"]] = b["groups"].get(row["group"], 0) + 1
@@ -353,12 +404,160 @@ def sentences(summary: Dict[str, Any]) -> List[str]:
             line += f" ({human_size(g['size'])})"
         out.append(line)
     for b in summary["batches"]:
-        out.append(f"batch «{b['name']}»: {b['count']} file(s), "
-                   f"{human_size(b['size'])}")
+        out.append(f"{'proposed lot' if b.get('proposed') else 'batch'} "
+                   f"«{b['name']}»: {b['count']} file(s), {human_size(b['size'])}")
     return out
 
 
-def make_store_backed(resource: Any, *, url: str, sha256: str) -> List[Dict[str, Any]]:
+# ── L1 · the lot rule ────────────────────────────────────────────────────────
+
+_PHOTO_EXT = (".jpg", ".jpeg", ".tif", ".tiff", ".png", ".dng", ".cr2", ".cr3",
+              ".nef", ".arw", ".orf", ".rw2", ".heic", ".raf")
+#: two shots of one camera further apart than this are two sessions. 30
+#: minutes: a battery or card swap, a ladder moved, a drone relaunched stay in
+#: the session; the morning and the afternoon, or two days, do not.
+SESSION_GAP_SECONDS = 30 * 60
+#: fewer photos than this are files, not a lot worth proposing
+SESSION_MIN_PHOTOS = 5
+
+_EM_DOCUMENT = re.compile(r"^D\.\d+(?:\.\d+)?(?=$|[\s._-])")
+_EXIF_TIME = re.compile(r"^(\d{4})[:-](\d{2})[:-](\d{2})[ T](\d{2}):(\d{2}):(\d{2})")
+
+
+def is_em_document_name(leaf: str) -> bool:
+    """A file named like an EM document — `D.01`, `D.1`, `D.12.jpg`,
+    `D.07.03.jpg`, `D.11 Zenitale.png`: the prefix s3Dgraphy's DosCo scanner
+    reads (`fs_backend._EM_ID_PREFIX`), then the end, an extension, a space,
+    `_` or `-`. A document stays a document: never a lot."""
+    return bool(_EM_DOCUMENT.match(str(leaf or "").strip()))
+
+
+def in_dosco(path: str, dosco_dirs: Iterable[str] = ()) -> bool:
+    """Inside a DosCo — a declared DosCo folder, or a folder named DosCo on the
+    way. The DosCo is documentation: never a lot."""
+    p = str(path or "").replace("\\", "/")
+    if any(seg.lower() == "dosco" for seg in p.split("/")[:-1]):
+        return True
+    for d in dosco_dirs or ():
+        folder = str(d or "").replace("\\", "/").rstrip("/")
+        if folder and (p == folder or p.startswith(folder + "/")):
+            return True
+    return False
+
+
+def exif_seconds(taken_at: Optional[str]) -> Optional[float]:
+    """`2024:05:12 10:22:33` → seconds, or None. Naive time: one camera's clock
+    against itself, so the zone does not matter."""
+    import calendar
+    m = _EXIF_TIME.match(str(taken_at or "").strip())
+    if not m or int(m.group(1)) <= 1900:
+        return None
+    try:
+        return float(calendar.timegm(tuple(int(x) for x in m.groups()) + (0, 0, 0)))
+    except (ValueError, OverflowError):
+        return None
+
+
+def session_lots(files: Iterable[Dict[str, Any]], *, dosco_dirs: Iterable[str] = (),
+                 gap_seconds: float = SESSION_GAP_SECONDS,
+                 min_photos: int = SESSION_MIN_PHOTOS) -> List[Dict[str, Any]]:
+    """The photo SESSIONS among `files` (`{id, path, exif: {camera, taken_at}}`):
+    same camera, EXIF times at most `gap_seconds` apart, at least `min_photos`.
+    A document-named file, a file in a DosCo, a file that is not a photo, a
+    photo with no camera or no time: never in a session.
+    → `[{key, name, ids, camera, from, to}]`."""
+    per_camera: Dict[str, List[tuple]] = {}
+    dosco = list(dosco_dirs or ())
+    for f in files:
+        path = str(f.get("path") or "")
+        leaf = os.path.basename(path.replace("\\", "/"))
+        if not leaf.lower().endswith(_PHOTO_EXT) or is_em_document_name(leaf) \
+                or in_dosco(path, dosco):
+            continue
+        exif = f.get("exif") or {}
+        camera = str(exif.get("camera") or "").strip()
+        at = exif_seconds(exif.get("taken_at"))
+        if not camera or at is None:
+            continue
+        per_camera.setdefault(camera, []).append((at, str(f["id"]), str(exif["taken_at"])))
+    out = []
+    for camera, shots in per_camera.items():
+        shots.sort()
+        run: List[tuple] = []
+
+        def close():
+            if len(run) >= min_photos:
+                first, last = run[0][2], run[-1][2]
+                out.append({
+                    "key": f"session:{camera}@{first}", "camera": camera,
+                    "from": first, "to": last, "ids": [s[1] for s in run],
+                    "name": f"{camera} · {first[:10].replace(':', '-')} "
+                            f"{first[11:16]}–{last[11:16]}"})
+
+        for shot in shots:
+            if run and shot[0] - run[-1][0] > gap_seconds:
+                close()
+                run = []
+            run.append(shot)
+        close()
+    return out
+
+
+def propose_sessions(rows: List[Dict[str, Any]], *,
+                     exif_of: Optional[Callable[[str], Optional[Dict[str, Any]]]] = None,
+                     dosco_dirs: Iterable[str] = (),
+                     gap_seconds: float = SESSION_GAP_SECONDS,
+                     min_photos: int = SESSION_MIN_PHOTOS) -> List[Dict[str, Any]]:
+    """The sessions among the rows that have a file here and no batch yet,
+    PROPOSED: each row gets the session as its batch (`batch_proposed`), and
+    the returned lots are `confirmed: False` until the person says yes —
+    only a confirmed one becomes an acquisition."""
+    files = []
+    for row in rows:
+        if row.get("batch_id") or not row.get("path") \
+                or row.get("group") not in (GROUP_FOUND, GROUP_STORED):
+            continue
+        exif = exif_of(row["path"]) if exif_of else row.get("exif")
+        files.append({"id": row["id"], "path": row["path"], "exif": exif})
+    lots = session_lots(files, dosco_dirs=dosco_dirs, gap_seconds=gap_seconds,
+                        min_photos=min_photos)
+    by_id = {r["id"]: r for r in rows}
+    for lot in lots:
+        lot["confirmed"] = False
+        for rid in lot["ids"]:
+            by_id[rid].update(batch_id=lot["key"], batch_name=lot["name"],
+                              batch_proposed=True)
+    return lots
+
+
+# ── F1 · «Move here» ─────────────────────────────────────────────────────────
+
+def move_plan(rows: List[Dict[str, Any]], views: Dict[str, Dict[str, Any]]
+              ) -> Dict[str, Any]:
+    """The confirmation, before the yes: of the «elsewhere» rows chosen to
+    move, which may (the node's `can_move`), which may not and why, the rooms
+    they leave and the rooms whose graphs will hold a reference. `views` is
+    row id → the node's `GET …/asset-home/{ref}` answer (or `{"error": …}`)."""
+    movable, blocked, leave, refs = [], [], set(), set()
+    for row in rows:
+        if row.get("group") != GROUP_ELSEWHERE or row.get("choice") != CHOICE_MOVE:
+            continue
+        view = views.get(row["id"])
+        if not view or "error" in view:
+            blocked.append({"row": row, "why": (view or {}).get("error") or "not asked"})
+            continue
+        if not view.get("can_move"):
+            blocked.append({"row": row, "why": view.get("why_not") or "not allowed"})
+            continue
+        movable.append(row)
+        leave.update([view["home"]] if view.get("home") else view.get("legacy_homes") or [])
+        refs.update(view.get("references") or [])
+    return {"movable": movable, "blocked": blocked, "leave": sorted(leave),
+            "references": sorted(refs)}
+
+
+def make_store_backed(resource: Any, *, url: str, sha256: str,
+                      residency: str = "resident") -> List[Dict[str, Any]]:
     """The resource now lives in the room's store — and keeps its path.
 
     `data.url` becomes the store's address (what every consumer reads first),
@@ -380,10 +579,12 @@ def make_store_backed(resource: Any, *, url: str, sha256: str) -> List[Dict[str,
             resource.url = url
         except Exception:  # noqa: BLE001 — a read-only attribute on an odd node
             pass
+    # `reference` (F1): the bytes are kept in ANOTHER room's store — this
+    # graph cites them there, it does not hold them
     if hasattr(resource, "set_residency"):
-        resource.set_residency("resident")
+        resource.set_residency(residency)
     else:
-        data["residency"] = "resident"
+        data["residency"] = residency
     if old and old != url:
         add_address(resource, old, checksum=digest)
     return addresses(resource)

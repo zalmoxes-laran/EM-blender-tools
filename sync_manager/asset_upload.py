@@ -35,7 +35,7 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from .room import RoomError
 
@@ -104,6 +104,64 @@ def has_asset(node: str, room: str, sha256: str, token: Optional[str], *,
         raise RoomError(f"the room would not say whether it has "
                         f"sha256:{_hex(sha256)[:12]}… ({exc.code})",
                         status=exc.code) from exc
+    except urllib.error.URLError as exc:
+        raise RoomError(f"could not reach the node: {exc.reason}") from exc
+
+
+def asset_head(node: str, room: str, sha256: str, token: Optional[str], *,
+               timeout: float = 30.0) -> Tuple[bool, Optional[str]]:
+    """F1 · the same HEAD as `has_asset`, read whole: `(present, home)`.
+
+    `home` is the room the bytes LIVE in (`X-EM-Home-Room`): a file the node
+    holds at home in another room is not this room's, and «Bring into a room»
+    proposes «Move here» for it instead of calling it «already in the room».
+    Errors are raised as in `has_asset`."""
+    request = urllib.request.Request(asset_url(node, room, sha256), method="HEAD",
+                                     headers=_headers(token))
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as answer:
+            return True, (answer.headers.get("X-EM-Home-Room") or None)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return False, None
+        raise RoomError(f"the room would not say whether it has "
+                        f"sha256:{_hex(sha256)[:12]}… ({exc.code})",
+                        status=exc.code) from exc
+    except urllib.error.URLError as exc:
+        raise RoomError(f"could not reach the node: {exc.reason}") from exc
+
+
+def asset_home_view(node: str, room: str, sha256: str, token: Optional[str], *,
+                    timeout: float = 30.0) -> Dict[str, Any]:
+    """F1 · `GET …/asset-home/sha256:<hex>`: where the file lives, which rooms'
+    graphs cite it, and whether this caller may move it into `room`. A refusal
+    is returned as `{"error": "<status> <detail>"}`, not raised: it is one
+    row of the confirmation, not the end of the gesture."""
+    url = _room_url(node, room, f"asset-home/sha256:{_hex(sha256)}")
+    request = urllib.request.Request(url, headers=_headers(token))
+    try:
+        return _json_call(request, timeout)[0]
+    except urllib.error.HTTPError as exc:
+        return {"error": f"{exc.code} {_detail(exc)}"}
+    except urllib.error.URLError as exc:
+        return {"error": f"could not reach the node: {exc.reason}"}
+
+
+def move_asset_home(node: str, room: str, sha256: str, from_room: Optional[str],
+                    token: Optional[str], *, timeout: float = 30.0) -> Dict[str, Any]:
+    """F1 · «Move here», after the person said yes: `room` becomes the file's
+    ONLY home. No byte travels. `from_room` is the home the confirmation
+    showed: the node refuses (409) if it changed since. Raises `RoomError`."""
+    url = _room_url(node, room, f"asset-home/sha256:{_hex(sha256)}")
+    body = json.dumps({"from_room": from_room, "confirm": True}).encode("utf-8")
+    request = urllib.request.Request(
+        url, data=body, method="POST",
+        headers=_headers(token, **{"Content-Type": "application/json"}))
+    try:
+        return _json_call(request, timeout)[0]
+    except urllib.error.HTTPError as exc:
+        raise RoomError(f"could not move sha256:{_hex(sha256)[:12]}… here: "
+                        f"{_detail(exc)}", status=exc.code) from exc
     except urllib.error.URLError as exc:
         raise RoomError(f"could not reach the node: {exc.reason}") from exc
 
