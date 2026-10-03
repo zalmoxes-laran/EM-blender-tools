@@ -974,9 +974,8 @@ def _drain_inbox():
     with _drain_lock:
         _drain_scheduled = False  # cleared first: messages arriving now re-arm
     from . import room_session as _rs
-    from .room_session import SESSION
     srv = _server
-    if srv is None and not SESSION.joined:
+    if srv is None and not _rs.any_joined():
         return None
     context = bpy.context
     ok, graph = is_graph_available(context)
@@ -989,7 +988,29 @@ def _drain_inbox():
         except Exception:
             break
         _sicuro(raw, context, graph, ok)
-    for message in SESSION.drain():
+    # M2 · one session per graph: what a room sends applies to THAT room's
+    # graph (an op does not name its graph), not to whichever graph is active.
+    for room_graph_id, session in _rs.sessions():
+        if not session.joined:
+            continue
+        target, target_ok = graph, ok
+        if room_graph_id:
+            from s3dgraphy import get_graph as _get_graph
+            bound = _get_graph(room_graph_id)
+            if bound is not None:
+                target, target_ok = bound, True
+        _drena_stanza(session, context, target, target_ok)
+    if _pending_repop:  # batch: one list rebuild for the whole drained burst
+        _repopulate(context, graph)
+        _redraw()
+        _pending_repop = False
+    return None  # one-shot
+
+
+def _drena_stanza(session, context, graph, ok):
+    """Drain ONE room's inbox into `graph` (M2: the graph of that room)."""
+    from . import room_session as _rs
+    for message in session.drain():
         # C3 · I TRE CASI, adesso distinti invece che scartati insieme.
         #
         # Qui c'era un `continue` su OGNI `select` con un `connection_id`. Non
@@ -1000,7 +1021,7 @@ def _drain_inbox():
         # il `connection_id` che le serve la stanza lo manda dal join.
         if message.get("type") == "select":
             caso = _rs.classifica_select(message.get("payload"),
-                                         SESSION.connection_id)
+                                         session.connection_id)
             if caso != _rs.SELECT_COMANDO:
                 _annota("select", f"room: {caso} (does not move the viewport)",
                         chiavi=tuple((message.get("payload") or {}).keys()),
@@ -1008,13 +1029,8 @@ def _drain_inbox():
                                       .get("connection_id") or ""))
                 continue
         _sicuro(json.dumps(message), context, graph, ok)
-    if SESSION.joined:
-        SESSION.ack()
-    if _pending_repop:  # batch: one list rebuild for the whole drained burst
-        _repopulate(context, graph)
-        _redraw()
-        _pending_repop = False
-    return None  # one-shot
+    if session.joined:
+        session.ack()
 
 
 def _schedule_drain(_payload=None):
@@ -1273,9 +1289,10 @@ def session_mode(context=None) -> str:
     stronger fact than serving a bridge. After C4 the two are EXCLUSIVE anyway,
     so the precedence only ever decides a moment of transition.
     """
-    from .room_session import SESSION
+    from .room_session import any_joined
 
-    if SESSION.joined:
+    # M2 · a scene can be in several rooms (one per graph): any of them counts
+    if any_joined():
         return MODE_HUB
     if is_running():
         return MODE_SIDECAR
@@ -1372,6 +1389,19 @@ def _annuncia_transizione(verso: str, perche: str) -> int:
     return quanti
 
 
+def _lascia_tutte_le_stanze() -> list:
+    """M2 · leave every joined room (standalone and sidecar are exclusive with
+    rooms, all of them). Returns the room ids left."""
+    from . import room_session as _rs
+    lasciate = []
+    for _gid, session in list(_rs.sessions()):
+        if session.joined:
+            lasciate.append(str(session.room_id or "the room"))
+            _rs.SESSION = session
+            leave_room()
+    return lasciate
+
+
 def applica_modo(context, richiesto: str) -> dict:
     """C4 · ESEGUE la dichiarazione. → `{'ok', 'message', 'mode'}`.
 
@@ -1392,9 +1422,10 @@ def applica_modo(context, richiesto: str) -> dict:
                                            "the host is going standalone")
             _stop()
             detto.append(f"bridge stopped ({quanti} client(s) told)")
-        if SESSION.joined:
-            leave_room()
-            detto.append("left the room")
+        lasciate = _lascia_tutte_le_stanze()
+        if lasciate:
+            detto.append("left the room" if len(lasciate) == 1
+                         else f"left {len(lasciate)} rooms")
         return {"ok": True, "message": "; ".join(detto) or "already standalone",
                 "mode": MODE_STANDALONE}
 
@@ -1403,10 +1434,7 @@ def applica_modo(context, richiesto: str) -> dict:
         # Prima i due convivevano e drenavano la stessa coda, il che voleva
         # dire che lo stesso `op` poteva arrivare per due strade con due
         # ordini diversi.
-        lasciata = ""
-        if SESSION.joined:
-            lasciata = str(SESSION.room_id or "the room")
-            leave_room()
+        lasciata = ", ".join(_lascia_tutte_le_stanze())
         port = porta_sidecar()
         try:
             _start(port)
@@ -1419,7 +1447,8 @@ def applica_modo(context, richiesto: str) -> dict:
                 "message": f"serving the bridge on {port}{coda}"}
 
     if richiesto == MODE_HUB:
-        if not SESSION.joined:
+        from .room_session import any_joined
+        if not any_joined():
             # RICHIEDE UNA STANZA, e lo dice invece di fingere. Una
             # dichiarazione che non si può eseguire non si accetta: sarebbe di
             # nuovo un modo che mente, che è esattamente ciò che C4 toglie.
@@ -1669,8 +1698,11 @@ def join_room(context, base_url: str, room_id: str, token: str,
     keeps it in memory for this session and never writes it anywhere.
     """
     from . import room as room_cfg
-    from .room_session import SESSION
+    from . import room_session as _rs
 
+    # M2 · a scene can be in several rooms, one per graph: a room already
+    # joined (another graph's) keeps its session, and this join gets a new one.
+    SESSION = _rs.fresh_for_join()
     room_cfg.set_room(base_url, room_id, token)
     try:
         arrival = SESSION.join(since=SESSION.last_applied)
@@ -1693,9 +1725,15 @@ def join_room(context, base_url: str, room_id: str, token: str,
     SESSION.client._on_message = lambda _raw: _schedule_drain()
 
     note = ""
-    if adopt and arrival.get("snapshot"):
-        note = _adopt_snapshot(
-            (arrival["snapshot"].get("payload") or {}).get("doc") or {}, context)
+    room_doc = {}
+    if arrival.get("snapshot"):
+        room_doc = (arrival["snapshot"].get("payload") or {}).get("doc") or {}
+    if adopt and room_doc:
+        note = _adopt_snapshot(room_doc, context)
+    # M1/M2 · the room's graph remembers that it lives HERE, and this session
+    # is the one its edits go to (one room = one graph, D-A)
+    _lega_grafo_alla_stanza(context, SESSION, room_doc if adopt else {},
+                            base_url, room_id, token)
     plan = arrival.get("plan")
     if plan == "resync" and SESSION.last_applied:
         # a REBASE, not a first arrival: the two look the same to `plan_rejoin`
@@ -1777,11 +1815,63 @@ def join_manual(context, base: str, room_id: str, token: str, *,
     return result
 
 
+def _lega_grafo_alla_stanza(context, session, room_doc, base_url, room_id,
+                            token) -> list:
+    """M2 · bind the room's graph to this session, and record the origin.
+
+    Which graph: the study graphs of the room's document when it was adopted;
+    otherwise (the room was seeded from this scene, `adopt=False`) the active
+    graph. Returns the graph ids bound.
+    """
+    from . import room_session as _rs
+    ids = []
+    graphs = room_doc.get("graphs") if isinstance(room_doc, dict) else None
+    if isinstance(graphs, dict):
+        from s3dgraphy.container import is_dtc_corpus_member, is_shelf_member
+        ids = [str((sec or {}).get("graph_id") or gid)
+               for gid, sec in graphs.items()
+               if isinstance(sec, dict) and not is_shelf_member(sec)
+               and not is_dtc_corpus_member(sec)]
+    elif isinstance(room_doc, dict) and isinstance(room_doc.get("graph"), dict):
+        ids = [str(room_doc["graph"].get("graph_id") or "")]
+    if not ids:
+        ok, graph = is_graph_available(context)
+        if ok and graph is not None:
+            ids = [graph.graph_id]
+    em_tools = getattr(context.scene, "em_tools", None)
+    rows = list(getattr(em_tools, "graphml_files", ()) or ())
+    for gid in [g for g in ids if g]:
+        _rs.bind(gid, session, base_url, room_id, token)
+        for row in rows:
+            if row.name == gid and hasattr(row, "origin_kind"):
+                row.origin_kind = "ROOM"
+                row.origin_room = room_id
+                row.origin_node = (base_url or "").rstrip("/")
+    # The session just joined is now where the edits go, so the graph in front
+    # must be ITS graph — otherwise editing the graph of the first room would
+    # send the edits to the second one.
+    front = next((i for i, row in enumerate(rows) if ids and row.name == ids[0]),
+                 None)
+    if front is not None and em_tools.active_file_index != front:
+        em_tools.active_file_index = front
+        from s3dgraphy import get_graph
+        graph = get_graph(ids[0])
+        if graph is not None:
+            try:
+                _repopulate(context, graph)
+            except Exception as exc:  # noqa: BLE001 — the join stands
+                print(f"[room] lists not refreshed for {ids[0]}: {exc}")
+    return ids
+
+
 def leave_room() -> None:
+    """Leave the ACTIVE graph's room (M2: the other rooms stay joined)."""
     from . import room as room_cfg
+    from . import room_session as _rs
     from .room_session import SESSION
 
     SESSION.leave()
+    _rs.unbind_session(SESSION)
     room_cfg.forget_token()      # the credential goes when the membership does
     # C4 · e la dichiarazione segue il fatto. Senza questa riga il pannello
     # direbbe «declared hub, actually standalone» per una stanza che abbiamo

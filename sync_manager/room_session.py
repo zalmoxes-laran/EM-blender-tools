@@ -306,7 +306,98 @@ class RoomSession:
         return out
 
 
-#: The session of THIS Blender. One room at a time, deliberately: a client in two
-#: rooms would have to say which one every operation belongs to, and nobody has
-#: asked for that yet.
+#: The session of the ACTIVE graph — the room the edits go to.
+#:
+#: M2 · a scene can hold several graphs, and with «one room = one graph» (D-A)
+#: each can live in its own room: Tempio Grande in one, the temple beside it in
+#: another. An operation does not name its graph, so the rule that keeps that
+#: honest is ONE SESSION PER GRAPH: what arrives from a room applies to that
+#: room's graph, and what is edited goes to the room of the graph being edited.
+#: `SESSION` stays the name every caller already reads (always through
+#: `from .room_session import SESSION` inside a function, so rebinding it here
+#: is seen at the next call); `activate()` points it at the active graph's room.
 SESSION = RoomSession()
+
+#: graph_id → its session, and where that room is (the token in memory only,
+#: like `room._session`: never in a Scene property, never in the .blend).
+_by_graph: Dict[str, RoomSession] = {}
+_where: Dict[str, Dict[str, Optional[str]]] = {}
+
+
+def bind(graph_id: str, session: RoomSession, base_url: Optional[str],
+         room_id: Optional[str], token: Optional[str] = None) -> None:
+    """This graph lives in this room, through this session."""
+    if not graph_id:
+        return
+    _by_graph[graph_id] = session
+    _where[graph_id] = {"base_url": (base_url or "").rstrip("/") or None,
+                        "room_id": room_id or None, "token": token}
+
+
+def unbind_session(session: RoomSession) -> List[str]:
+    """Forget the graphs a session served (it left its room). Returns them."""
+    gone = [g for g, s in _by_graph.items() if s is session]
+    for g in gone:
+        _by_graph.pop(g, None)
+        _where.pop(g, None)
+    return gone
+
+
+def session_of(graph_id: Optional[str]) -> Optional[RoomSession]:
+    return _by_graph.get(graph_id or "")
+
+
+def where_of(graph_id: Optional[str]) -> Dict[str, Optional[str]]:
+    """`{base_url, room_id}` of a graph's room — without the token."""
+    w = _where.get(graph_id or "") or {}
+    return {"base_url": w.get("base_url"), "room_id": w.get("room_id")}
+
+
+def sessions() -> List[Any]:
+    """`[(graph_id or None, session)]`: every bound session once, and the active
+    one if it is not bound (a room joined before its graph arrived)."""
+    out: List[Any] = []
+    seen = set()
+    for gid, s in _by_graph.items():
+        if id(s) not in seen:
+            seen.add(id(s))
+            out.append((gid, s))
+    if id(SESSION) not in seen:
+        out.append((None, SESSION))
+    return out
+
+
+def any_joined() -> bool:
+    return any(s.joined for _g, s in sessions())
+
+
+def fresh_for_join() -> RoomSession:
+    """The session a NEW join should use. The active one if it is free;
+    otherwise a new one, so the room already joined (another graph's) stays."""
+    global SESSION
+    if SESSION.joined:
+        SESSION = RoomSession(on_message=SESSION._on_message)
+    return SESSION
+
+
+def activate(graph_id: Optional[str]) -> RoomSession:
+    """Make `graph_id`'s room the one the edits go to.
+
+    A graph in a room: its session becomes `SESSION` and the REST address
+    (`room._session`) points at its room, token included. A graph in no room:
+    `SESSION` becomes a session in no room — its edits must not reach another
+    graph's room — and the REST address is left as it was (the room list and
+    «Find a server» read it). A joined session that is bound to no graph is
+    never orphaned: it stays active.
+    """
+    global SESSION
+    if SESSION.joined and SESSION not in _by_graph.values():
+        return SESSION
+    target = _by_graph.get(graph_id or "")
+    if target is not None:
+        SESSION = target
+        w = _where.get(graph_id or "") or {}
+        room.set_room(w.get("base_url"), w.get("room_id"), w.get("token"))
+    elif SESSION in _by_graph.values():
+        SESSION = RoomSession(on_message=SESSION._on_message)
+    return SESSION

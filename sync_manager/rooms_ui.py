@@ -221,18 +221,19 @@ class EM_OT_room_pick(bpy.types.Operator):
 
     def execute(self, context):
         from . import operators as ops
-        from .room_session import SESSION
 
         base = str(getattr(context.scene, "em_room_url", "") or "").strip()
         if not base or not self.room_id:
             self.report({"ERROR"}, "no node or no room to enter")
             return {"CANCELLED"}
         token = room_cfg._session.get("token") or ""
-        if SESSION.joined:
-            if SESSION.room_id == self.room_id:
-                self.report({"INFO"}, f"already in {self.room_id}")
-                return {"FINISHED"}
-            ops.leave_room()            # forgets the token: keep ours first
+        from . import room_session as _rs
+        if any(s.joined and s.room_id == self.room_id
+               for _g, s in _rs.sessions()):
+            self.report({"INFO"}, f"already in {self.room_id}")
+            return {"FINISHED"}
+        # M2 · a room already joined is ANOTHER graph's room: it stays joined,
+        # and this one is entered beside it with its own session.
         context.scene.em_room_id = self.room_id
         result = ops.join_manual(context, base, self.room_id, token)
         if not result["ok"]:
