@@ -303,11 +303,12 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
 
         col = acts.column(align=True)
         col.enabled = not status["joined"]
-        col.label(text="…or by hand:", icon="GREASEPENCIL")
-        # C5 · LA STANZA PRIMA DEL SERVER: il nome della stanza cambia a ogni
-        # sessione, l'indirizzo del server ogni tanto. L'ordine è quello.
-        col.prop(context.scene, "em_room_id", text="Room")
-        col.prop(context.scene, "em_room_url", text="Server")
+        # R1 · IL CAMPO «ROOM» DA SCRIVERE A MANO NON C'È PIÙ: la stanza si
+        # SCEGLIE da un elenco che il nodo dà (`GET /v1/rooms`), con le tue e
+        # quelle condivise col ruolo. Il nodo resta un campo (cambia di rado, e
+        # un nodo nuovo si scrive una volta); `em_room_id` resta la property in
+        # cui la scelta finisce, salvata col progetto come prima.
+        col.prop(context.scene, "em_room_url", text="Node")
         # WHERE IS IT · a saved list (this installation's, not the .blend's) and
         # a probe. A URL somebody typed is a hope; `/v1/health` makes it a fact.
         # mDNS browsing is absent and NOT simulated — Blender's Python has no
@@ -325,11 +326,17 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
             line.operator("em.server_use", text=entry.get("label") or entry["url"],
                           icon="WORLD").url = entry["url"]
             line.operator("em.server_forget", text="", icon="X").url = entry["url"]
-        acts.operator(
-            "em.room_join",
-            text="Leave the room" if status["joined"] else "Join a room…",
-            icon="UNLINKED" if status["joined"] else "LINKED",
-            depress=status["joined"])
+        if not status["joined"]:
+            from . import rooms_ui
+            rooms_ui.draw_list(acts, context)
+        scelta = str(getattr(context.scene, "em_room_id", "") or "")
+        if status["joined"] or scelta:
+            acts.operator(
+                "em.room_join",
+                text="Leave the room" if status["joined"]
+                else f"Enter {scelta} (the room of this project)",
+                icon="UNLINKED" if status["joined"] else "LINKED",
+                depress=status["joined"])
         # ROUND-TRIP (emit-only): the same room, in EMStudio. Only while joined.
         if status["joined"]:
             acts.operator("em.room_open_elsewhere",
