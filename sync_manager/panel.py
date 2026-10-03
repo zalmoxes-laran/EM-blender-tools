@@ -303,11 +303,11 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
 
         col = acts.column(align=True)
         col.enabled = not status["joined"]
-        # R1 · IL CAMPO «ROOM» DA SCRIVERE A MANO NON C'È PIÙ: la stanza si
-        # SCEGLIE da un elenco che il nodo dà (`GET /v1/rooms`), con le tue e
-        # quelle condivise col ruolo. Il nodo resta un campo (cambia di rado, e
-        # un nodo nuovo si scrive una volta); `em_room_id` resta la property in
-        # cui la scelta finisce, salvata col progetto come prima.
+        # R1 · LA STANZA SI SCEGLIE da un elenco che il nodo dà (`GET
+        # /v1/rooms`), con le tue e quelle condivise col ruolo; il campo da
+        # scrivere a mano scende sotto l'elenco come riserva. Il nodo resta un
+        # campo (cambia di rado); `em_room_id` è la property in cui la scelta
+        # finisce, salvata col progetto come prima.
         col.prop(context.scene, "em_room_url", text="Node")
         # WHERE IS IT · a saved list (this installation's, not the .blend's) and
         # a probe. A URL somebody typed is a hope; `/v1/health` makes it a fact.
@@ -329,6 +329,12 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         if not status["joined"]:
             from . import rooms_ui
             rooms_ui.draw_list(acts, context)
+            # LA STRADA DICHIARATA DI RISERVA, sotto l'elenco e non al suo
+            # posto: un nodo in una trincea senza browser né elenco si
+            # raggiunge ancora scrivendo l'id (test_handoff lo tiene fermo).
+            col = acts.column(align=True)
+            col.label(text="…or by hand:", icon="GREASEPENCIL")
+            col.prop(context.scene, "em_room_id", text="Room")
         scelta = str(getattr(context.scene, "em_room_id", "") or "")
         if status["joined"] or scelta:
             acts.operator(

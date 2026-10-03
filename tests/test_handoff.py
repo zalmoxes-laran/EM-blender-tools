@@ -206,6 +206,9 @@ def test_the_manual_fields_remain_as_the_declared_fallback():
     # …but the link is offered FIRST, so nobody is taught to fill three fields
     assert source.index('"em.room_open_link"') < source.index('"em_room_url"')
     assert "or by hand" in source
+    # R1 · …and the node's room LIST comes before the field to type into
+    assert source.index("rooms_ui.draw_list") < source.index(
+        'col.prop(context.scene, "em_room_id"')
 
 
 # ── 5 · against a REAL server, when one is up ────────────────────────────────
