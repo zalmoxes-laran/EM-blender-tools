@@ -99,8 +99,15 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         # L'ESITO DELL'ULTIMA TRANSIZIONE. Un rifiuto («Hub vuole una stanza»)
         # da un `update` callback non ha un operatore in cui atterrare, quindi
         # finirebbe solo in console — invisibile a chi ha appena scelto.
+        # Y9 · UNA FRASE SOLA, E VERA. L'esito di una transizione vale finché il
+        # modo è quello a cui portava: dev.17 mostrava «bridge stopped (0
+        # client(s) told)» accanto a «ws://localhost:8788 · 1 client(s)», perché
+        # il ponte era stato riacceso dopo. Un rifiuto resta finché il modo non
+        # cambia; un esito superato dal modo reale non si dice più.
         ultima = ops.ULTIMA_TRANSIZIONE
-        if ultima.get("message"):
+        vero = ops.session_mode(context)
+        if ultima.get("message") and (not ultima.get("ok", True)
+                                      or ultima.get("mode") == vero):
             riga = layout.row()
             riga.alert = not ultima.get("ok", True)
             riga.label(text=str(ultima["message"])[:70],
@@ -145,7 +152,7 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         #: `alert` solo per un'eccezione: uno scarto legittimo (il nostro eco,
         #: il cancello chiuso) non è un errore, e colorarlo di rosso
         #: insegnerebbe a non leggere il rosso.
-        riga.alert = ultimo["esito"].startswith("ECCEZIONE")
+        riga.alert = ultimo["esito"].startswith("EXCEPTION")
         riga.label(text=f"{ultimo['tipo']}: {ultimo['esito']}")
         if ultimo.get("chiavi"):
             box.label(text=f"payload keys: {ultimo['chiavi']}", icon="BLANK1")

@@ -330,7 +330,7 @@ def _apply_incoming_select(node_id: str, context, graph) -> bool:
         dove = _etichetta_del_grafo(graph)
         esito = disallineamento(context, graph)
         coda = f" — {esito['frase']}" if not esito["allineati"] else ""
-        _annota("select", f"node_id non trovato in {dove}{coda}",
+        _annota("select", f"node_id not found in {dove}{coda}",
                 dettaglio=str(node_id))
         return False
     select_3D_obj(node.name, context=context, graph=graph)
@@ -377,7 +377,7 @@ def _apply_incoming_select_many(node_ids, active_id, context, graph) -> bool:
         dove = _etichetta_del_grafo(graph)
         esito = disallineamento(context, graph)
         coda = f" — {esito['frase']}" if not esito["allineati"] else ""
-        _annota("select", f"nessuno dei {len(node_ids)} node_id è in {dove}{coda}",
+        _annota("select", f"none of the {len(node_ids)} node_ids is in {dove}{coda}",
                 dettaglio=str(active_id or ""))
         return False
     _frame_selected()
@@ -686,7 +686,7 @@ def _handle_message(raw: str, context, graph, ok: bool):
         # SCARTO 1 · il nostro stesso eco. Giusto scartarlo, ma va detto:
         # se EM Studio spedisse `source: "emtools"` per un suo messaggio,
         # tutto sparirebbe qui e sembrerebbe che non arrivi niente.
-        _annota(msg.get("type", "?"), "scartato: source == emtools (eco)",
+        _annota(msg.get("type", "?"), "dropped: source == emtools (echo)",
                 chiavi=tuple(msg.keys()))
         return
     try:
@@ -701,7 +701,7 @@ def _handle_message(raw: str, context, graph, ok: bool):
             or (mtype == "op" and not _accetta_operazioni())):
         # SCARTO 2 · detto per esteso, col valore vero: «non riceve» non
         # bastava a sapere quale delle due cose stavo rifiutando.
-        _annota(mtype, f"scartato: em_sync_accept = {_accept()}",
+        _annota(mtype, f"dropped: em_sync_accept = {_accept()}",
                 chiavi=tuple(payload.keys()))
         return
     if mtype == "select" and ok and (payload.get("node_id") or payload.get("node_ids")):
@@ -724,7 +724,7 @@ def _handle_message(raw: str, context, graph, ok: bool):
         # strumentazione della prima notte era stata messa, e la strumentazione
         # si cancellava da sola.
         if applicato:
-            _annota(mtype, "select applicato", chiavi=tuple(payload.keys()),
+            _annota(mtype, "select applied", chiavi=tuple(payload.keys()),
                     dettaglio=str(active_id or node_ids))
     elif mtype == "op" and ok:
         _apply_op(payload, context, graph)
@@ -734,7 +734,7 @@ def _handle_message(raw: str, context, graph, ok: bool):
         _save_emjson_on_host()
     elif mtype == "command":
         _handle_command(payload, context, graph if ok else None)
-        _annota(mtype, "command gestito", chiavi=tuple(payload.keys()))
+        _annota(mtype, "command handled", chiavi=tuple(payload.keys()))
     elif mtype == "client_info":
         # C1 · L'ALTRA METÀ DELLA STRETTA DI MANO. `host_info` è come questo
         # capo si descrive; `client_info` è come si descrive chi si è
@@ -750,8 +750,8 @@ def _handle_message(raw: str, context, graph, ok: bool):
         esito = disallineamento(context, graph if ok else None)
         _annota(mtype,
                 esito["frase"] if not esito["allineati"]
-                else ("stesso documento" if esito["noto"]
-                      else "il pari non dichiara un documento"),
+                else ("same document" if esito["noto"]
+                      else "the peer declares no document"),
                 chiavi=tuple(payload.keys()))
         _redraw()
     elif mtype == "select":
@@ -762,13 +762,13 @@ def _handle_message(raw: str, context, graph, ok: bool):
         # chiavi che il ramo pretende (`node_id` / `node_ids`) — una
         # `nodeId` in camelCase finirebbe esattamente qui.
         if not ok:
-            _annota(mtype, "scartato: nessun grafo caricato",
+            _annota(mtype, "dropped: no graph loaded",
                     chiavi=tuple(payload.keys()))
         else:
-            _annota(mtype, "scartato: payload senza node_id/node_ids",
+            _annota(mtype, "dropped: payload without node_id/node_ids",
                     chiavi=tuple(payload.keys()))
     else:
-        _annota(mtype, "nessun ramo lo gestisce",
+        _annota(mtype, "no branch handles it",
                 chiavi=tuple(payload.keys()))
 
 
@@ -844,7 +844,7 @@ def _sicuro(raw, context, graph, ok):
         _handle_message(raw, context, graph, ok)
     except Exception as exc:                        # noqa: BLE001
         import traceback
-        _annota("?", f"ECCEZIONE: {type(exc).__name__}: {exc}")
+        _annota("?", f"EXCEPTION: {type(exc).__name__}: {exc}")
         traceback.print_exc()
 
 
@@ -889,7 +889,7 @@ def _drain_inbox():
             caso = _rs.classifica_select(message.get("payload"),
                                          SESSION.connection_id)
             if caso != _rs.SELECT_COMANDO:
-                _annota("select", f"stanza: {caso} (non muove il viewport)",
+                _annota("select", f"room: {caso} (does not move the viewport)",
                         chiavi=tuple((message.get("payload") or {}).keys()),
                         dettaglio=str((message.get("payload") or {})
                                       .get("connection_id") or ""))
@@ -1335,7 +1335,7 @@ def _on_modo_changed(self, context):
         if not esito["ok"]:
             self.em_session_mode = esito["mode"]
         print(f"[sync] mode {richiesto}: {esito['message']}")
-        ULTIMA_TRANSIZIONE.update({"ok": esito["ok"],
+        ULTIMA_TRANSIZIONE.update({"ok": esito["ok"], "mode": esito["mode"],
                                    "message": esito["message"]})
     finally:
         _modo_in_corso = False

@@ -135,9 +135,9 @@ def create_proxy_for_unit(target: str, params: Dict[str, Any], context,
     SemanticShape payload (`s3dgraphy.api.create_geometry_proxy`), which is the
     same chain the annotator and the 2D→3D path produce.
 
-    Idempotent twice over: an existing proxy object for the unit is REUSED
-    rather than duplicated, and `create_geometry_proxy` mints deterministic ids
-    from (unit, payload).
+    Idempotent twice over: a unit whose proxy object already exists gets
+    NOTHING new — the object is selected and the answer says ``already`` (Y5) —
+    and `create_geometry_proxy` mints deterministic ids from (unit, payload).
     """
     import bpy  # type: ignore
     from s3dgraphy.api import create_geometry_proxy
@@ -152,6 +152,24 @@ def create_proxy_for_unit(target: str, params: Dict[str, Any], context,
     node_name = getattr(unit, "name", None) or target
     proxy = _proxy_object_for(node_name, context, graph)
     reused = proxy is not None
+    if reused:
+        # Y5 · the unit HAS a proxy in this scene: say so, select it, write
+        # nothing. Measured on Templu Mare (SU002, 3 Oct): the reused object
+        # still went through `create_geometry_proxy` with its bbox, a payload
+        # different from the scene's glb proxy, so a THIRD geometry property
+        # (+ its shape, 2 nodes and 2 edges) joined «Proxy Geometry» and the
+        # glb's «Shape for SU002». The chain of an existing object is the
+        # scene update's job (`proxy_chain.ensure_unit_proxy`), not this verb's.
+        try:
+            for ob in context.selected_objects:
+                ob.select_set(False)
+            proxy.select_set(True)
+            context.view_layer.objects.active = proxy
+        except Exception:  # hidden/excluded object: selecting is a courtesy
+            pass
+        return {"ok": True, "delta": {"nodes": [], "edges": []},
+                "info": {"proxy_object": proxy.name, "reused_object": True,
+                         "already": True}}
     if proxy is None:
         size = float(params.get("size") or 1.0)
         loc = params.get("location")

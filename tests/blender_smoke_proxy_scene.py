@@ -9,7 +9,9 @@ extension enabled:
 Un "modello" (un parallelepipedo 1×2×3 fuori dall'origine, così ogni asse si
 vede) esportato come fa l'export Heriverse, cioè dall'exporter glTF di Blender
 (Y-up). Un proxy che lo racchiude esattamente, legato a una US con il verbo
-`create_proxy_for_unit`. Il convesso che finisce nel grafo, riletto da
+`_bbox_hull` + `create_geometry_proxy`, le due chiamate del verbo
+`create_proxy_for_unit` (che su un proxy GIÀ in scena non scrive niente: Y5).
+Il convesso che finisce nel grafo, riletto da
 s3Dgraphy e scritto con `geometry_to_gltf`, deve avere lo STESSO bounding box
 del glb del modello; e reimportato in Blender deve ricadere sul proxy.
 Prima della conversione il convesso era Z-up: sdraiato di 90° accanto al
@@ -110,10 +112,20 @@ bpy.context.scene.collection.objects.link(proxy)
 
 graph = Graph(graph_id="smoke_proxy_scene")
 graph.add_node(StratigraphicUnit(node_id="us-1", name="US01"))
+# Y5 · the verb on a unit whose proxy object EXISTS writes nothing: it says so
+# and selects the object (measured on Templu Mare: a third geometry property)
+n0, e0 = len(graph.nodes), len(graph.edges)
 out = commands.create_proxy_for_unit("us-1", {}, bpy.context, graph)
-check("create_proxy_for_unit ok, the box reused",
-      out.get("ok") and out["info"]["reused_object"], str(out.get("info") or out))
-shape = graph.find_node_by_id(out["info"]["shape_id"])
+check("create_proxy_for_unit on an existing proxy: already, nothing written",
+      out.get("ok") and out["info"].get("already") and out["info"]["reused_object"]
+      and out["delta"] == {"nodes": [], "edges": []}
+      and (len(graph.nodes), len(graph.edges)) == (n0, e0), str(out.get("info") or out))
+check("…and the existing proxy is the active, selected object",
+      bpy.context.view_layer.objects.active == proxy and proxy.select_get())
+# the hull the verb writes when it DOES model one: the same two calls
+from s3dgraphy.api import create_geometry_proxy  # noqa: E402
+made = create_geometry_proxy(graph, "us-1", {"convexshapes": [commands._bbox_hull(proxy)]})
+shape = graph.find_node_by_id(made.shape_id)
 hull = (shape.data.get("convexshapes") or [[]])[0] if shape is not None else []
 check("one convex of 8 corners in the graph", len(hull) == 24, str(len(hull)))
 check("the shape is the unit's proxy along the chain",
