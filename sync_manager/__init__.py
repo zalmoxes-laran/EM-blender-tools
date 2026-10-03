@@ -11,6 +11,8 @@ Modules:
 - materialise : DP-76's consuming half — the room's geometry into this scene
 - rooms_list  : R1 · the node's rooms (`GET /v1/rooms`), grouped; the id rule
 - rooms_ui    : R1 · the room list in the panel: cache, UIList, refresh/pick/new
+- scene_check : S1 · the scene as a cache of the graph: here / missing (fetched) /
+                changed / external / only here (marked, never uploaded)
 - backups     : the `.blend` safety archive — opaque snapshots into the room's
                 store, on demand (NOT versioning of the shared data, which is
                 content-addressed already)
@@ -18,12 +20,13 @@ Modules:
 
 from __future__ import annotations
 
-from . import backups, materialise, operators, panel, rooms_ui
+from . import backups, materialise, operators, panel, rooms_ui, scene_check
 
 
 def register():
     operators.register()
     materialise.register()
+    scene_check.register()
     backups.register()
     rooms_ui.register()
     panel.register()
@@ -33,5 +36,6 @@ def unregister():
     panel.unregister()
     rooms_ui.unregister()
     backups.unregister()
+    scene_check.unregister()
     materialise.unregister()
     operators.unregister()

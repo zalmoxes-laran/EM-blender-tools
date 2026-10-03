@@ -190,6 +190,9 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         # dell'add-on, perché si decide una volta e non a ogni sessione.
         geo.label(text="Only what lives in the store; an embargoed model is "
                        "skipped with a reason.", icon="INFO")
+        # S1 · la scena come cache del grafo: la verifica, e il suo referto
+        from . import scene_check
+        scene_check.draw(box)
 
         self._archivio(box)
 

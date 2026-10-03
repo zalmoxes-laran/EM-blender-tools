@@ -1709,6 +1709,21 @@ def join_room(context, base_url: str, room_id: str, token: str,
     if congedati:
         note = (note + " · " if note else "") + \
             f"the bridge stopped and {congedati} sidecar client(s) were told"
+    # S1 · ALL'INGRESSO la scena si verifica con la stanza. Scarica solo se la
+    # persona l'ha chiesto una volta per tutte (`materialise_on_adopt`): portare
+    # le mesh di altri nel proprio file resta un atto, non una conseguenza.
+    # Altrimenti si DICE cosa manca, e il bottone della verifica lo scarica.
+    try:
+        ok_g, graph_g = is_graph_available(context)
+        if ok_g:
+            from .scene_check import check_scene, sentences
+            verifica = check_scene(
+                context, graph_g,
+                download=bool(_preferenza("materialise_on_adopt", False)))
+            note = (note + " · " if note else "") + "scene: " + \
+                "; ".join(sentences(verifica)[:2])
+    except Exception as exc:  # noqa: BLE001 — una verifica non annulla l'ingresso
+        print(f"[scene check] not run at join: {exc}")
     _dichiara(context, MODE_HUB)
     return {"ok": True, "plan": plan, "room": SESSION.room_id,
             "members": len(SESSION.members), "host": SESSION.host_tool,

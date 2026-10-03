@@ -382,13 +382,24 @@ def promote_model(target: str, params: Dict[str, Any], context,
         # an asset nobody can fetch is the one thing worse than no reference
         return {"ok": False, "error": str(exc)}
 
+    # P3 · `residency` è un parametro: il default resta `reference` (la frase di
+    # sempre, e i test la tengono), ma «Bring into a room…» pubblica NEL
+    # deposito della stanza e lo dice — `resident` è ciò che
+    # `store_backed_geometry` elenca e quindi ciò che la verifica della scena
+    # può riscaricare.
+    residency = str(params.get("residency") or "reference")
     result = promote_resource(
         graph, resource_id, url=info["url"], sha256=info["sha256"],
         media_type=room.GLTF_MEDIA_TYPE, author=info.get("author"),
         link_to=None if is_resource else target,
-        name=params.get("name") or f"{node_name} (glTF)")
+        name=params.get("name") or f"{node_name} (glTF)",
+        residency=residency)
     obj["em_resource_id"] = resource_id
     obj["em_asset_ref"] = info["ref"]
+    # S1 · la stessa chiave della cache di `materialise` (PROP_DIGEST): l'oggetto
+    # da cui il glb è nato TIENE quei byte, e la verifica della scena non deve
+    # riscaricarli sopra di lui.
+    obj["em_asset_sha256"] = info["ref"]
     return {"ok": True,
             "delta": promotion_delta(graph, result),
             "info": {"object": obj.name, "resource_id": resource_id,
