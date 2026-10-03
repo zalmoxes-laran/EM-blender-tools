@@ -13,6 +13,9 @@ Modules:
 - rooms_ui    : R1 · the room list in the panel: cache, UIList, refresh/pick/new
 - scene_check : S1 · the scene as a cache of the graph: here / missing (fetched) /
                 changed / external / only here (marked, never uploaded)
+- inventory   : P3 · the graph's resources in four groups (pure, no bpy)
+- asset_upload: P3 · THE upload function (HEAD, streamed PUT, resumable door)
+- bring       : P3 · «Bring into a room…»: room, inventory, uploads, models, seed, enter
 - backups     : the `.blend` safety archive — opaque snapshots into the room's
                 store, on demand (NOT versioning of the shared data, which is
                 content-addressed already)
@@ -20,7 +23,7 @@ Modules:
 
 from __future__ import annotations
 
-from . import backups, materialise, operators, panel, rooms_ui, scene_check
+from . import backups, bring, materialise, operators, panel, rooms_ui, scene_check
 
 
 def register():
@@ -29,11 +32,13 @@ def register():
     scene_check.register()
     backups.register()
     rooms_ui.register()
+    bring.register()
     panel.register()
 
 
 def unregister():
     panel.unregister()
+    bring.unregister()
     rooms_ui.unregister()
     backups.unregister()
     scene_check.unregister()

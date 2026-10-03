@@ -172,3 +172,45 @@ def summary(groups: Dict[str, List[Dict[str, Any]]]) -> str:
     """One line: how many in each group."""
     return (f"{len(groups.get(GROUP_MINE) or [])} yours · "
             f"{len(groups.get(GROUP_SHARED) or [])} shared with you")
+
+
+def room_info(base: str, token: Optional[str], room_id: str, *,
+              timeout: float = 15.0) -> Dict[str, Any]:
+    """`GET {node}/v1/rooms/{id}` — the room as THIS identity sees it (role)."""
+    request = urllib.request.Request(
+        _url(base, f"/v1/rooms/{urllib.parse.quote(room_id, safe='')}"),
+        method="GET", headers=_headers(token))
+    answer = _call(request, timeout)
+    if not isinstance(answer, dict):
+        raise RoomError("the node did not describe the room")
+    return answer
+
+
+#: Below the node's `OPS_BATCH_MAX` (1000): the batch is applied under the
+#: room's lock, and a shorter one freezes the room for less time.
+OPS_PER_REQUEST = 500
+
+
+def send_ops(base: str, token: Optional[str], room_id: str,
+             ops: List[Dict[str, Any]], *, timeout: float = 120.0
+             ) -> Dict[str, Any]:
+    """`POST {node}/v1/rooms/{id}/ops` in parts → `{applied, refused, requests}`.
+
+    The connector door of the node: the same five idempotent verbs the
+    WebSocket relay takes (EMStudio seeds with them), applied AND KEPT under
+    the room's lock — so a seeded room survives a restart without a separate
+    `request_save`. A refusal (stale, idempotent) is not an error: it is the
+    convergent answer, and a second seeding of the same graph is all refusals.
+    """
+    applied, refused, requests = 0, [], 0
+    url = _url(base, f"/v1/rooms/{urllib.parse.quote(room_id, safe='')}/ops")
+    for start in range(0, len(ops), OPS_PER_REQUEST):
+        body = json.dumps({"ops": ops[start:start + OPS_PER_REQUEST]},
+                          ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(url, data=body, method="POST",
+                                         headers=_headers(token, json_body=True))
+        answer = _call(request, timeout) or {}
+        applied += int(answer.get("applied") or 0)
+        refused += list(answer.get("refused") or [])
+        requests += 1
+    return {"applied": applied, "refused": refused, "requests": requests}

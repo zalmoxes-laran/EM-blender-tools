@@ -329,6 +329,9 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
             line.operator("em.server_use", text=entry.get("label") or entry["url"],
                           icon="WORLD").url = entry["url"]
             line.operator("em.server_forget", text="", icon="X").url = entry["url"]
+        # P3 · portare il grafo, con le sue risorse, in una stanza nuova
+        from . import bring
+        bring.draw(acts, context)
         if not status["joined"]:
             from . import rooms_ui
             rooms_ui.draw_list(acts, context)
