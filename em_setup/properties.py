@@ -555,6 +555,52 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
         default="GRAPHML"
     )  # type: ignore
 
+    # M1/M2 · where this graph comes from, and where «Save» takes it back
+    # (graph_origins.py). Empty on a row written by an older EMtools: its
+    # origin is then its `graphml_path`, read when the row is read.
+    origin_kind: StringProperty(
+        name="Origin",
+        description="FILE (an em.json or GraphML on disk) or ROOM (a room on "
+                    "a StratiGraph node). Empty = the file in Path",
+        default=""
+    )  # type: ignore
+
+    origin_path: StringProperty(
+        name="Origin file",
+        description="The file this graph was loaded from: saving writes it "
+                    "back there, with that file's own graphs only",
+        subtype='FILE_PATH',
+        default=""
+    )  # type: ignore
+
+    origin_room: StringProperty(
+        name="Origin room",
+        description="The room this graph lives in (one room = one graph): "
+                    "its edits go there while the room is joined",
+        default=""
+    )  # type: ignore
+
+    origin_node: StringProperty(
+        name="Origin node",
+        description="Address of the StratiGraph node that holds the room",
+        default=""
+    )  # type: ignore
+
+    # G1 · what was applied to put this graph's local system in the scene's
+    # CRS (the first graph's). Stored so a second «Align» moves by the
+    # difference instead of twice, and so the panel can say what was done.
+    geo_applied: BoolProperty(name="Aligned", default=False)  # type: ignore
+    geo_dx: FloatProperty(name="Offset X", default=0.0, precision=3)  # type: ignore
+    geo_dy: FloatProperty(name="Offset Y", default=0.0, precision=3)  # type: ignore
+    geo_dz: FloatProperty(name="Offset Z", default=0.0, precision=3)  # type: ignore
+    geo_rot_z: FloatProperty(name="Rotation Z (deg)", default=0.0, precision=4)  # type: ignore
+    geo_note: StringProperty(
+        name="Georeferencing applied",
+        description="What was applied to place this graph in the scene's "
+                    "reference system, and how it was computed",
+        default=""
+    )  # type: ignore
+
     expanded: BoolProperty(
         name="Auxiliary Resources",
         description="Show/hide file details",

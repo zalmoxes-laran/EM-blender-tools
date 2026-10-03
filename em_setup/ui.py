@@ -1041,9 +1041,16 @@ class EM_SetupPanel(bpy.types.Panel):
             if not _stato["grafi_caricati"] and self._guida_richiesta():
                 self._guida(layout, _stato)
 
-            # List of GraphML files
-            row = layout.row()
-            row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=2)
+            # M1 · the graphs as a tree «file or room → graphs», like EMStudio's
+            # EMTree: each graph under the place it comes from, and «Save» on a
+            # branch writes that file with its own graphs only. With no rows
+            # the old list stays (empty state, same as before).
+            if len(em_tools.graphml_files):
+                from .graph_tree import draw_graph_tree
+                draw_graph_tree(layout, context, em_tools)
+            else:
+                row = layout.row()
+                row.template_list("EMTOOLS_UL_files", "", em_tools, "graphml_files", em_tools, "active_file_index", rows=2)
 
             if not _stato["ha_grafo"]:
                 # STATO VUOTO · zero grafi, una strada sola. La riga dei sei

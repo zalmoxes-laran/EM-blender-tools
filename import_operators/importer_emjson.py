@@ -30,6 +30,15 @@ from ..functions import ensure_valid_index, show_popup_message
 from ..emjson_support import import_container_from_emjson
 
 
+def _record_file_origin(row, path: str) -> None:
+    """M1 · this row's graph comes from this file, and «Save» goes back there."""
+    if hasattr(row, "origin_kind"):
+        row.origin_kind = "FILE"
+        row.origin_path = path
+        row.origin_room = ""
+        row.origin_node = ""
+
+
 class EM_import_emjson(bpy.types.Operator, ImportHelper):
     bl_idname = "import.em_emjson"
     bl_label = "Load em.json"
@@ -82,14 +91,43 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
         # The ACTIVE member is the one the panels populate from, because the
         # lists (units, epochs) show one graph at a time; the others are loaded
         # and reachable, exactly as they were when they came from separate files.
+        #
+        # M1 · the same graph cannot come from two files: the scene keeps one
+        # graph per id, and the second file would replace the first one's
+        # graph in memory — then «Save» writes it into the wrong file. Refused
+        # before anything is loaded, naming the file it is already open from.
+        from .. import graph_origins
+        target_origin = graph_origins.file_origin(path, abspath=bpy.path.abspath)
+        try:
+            clash = graph_origins.conflicts(
+                graph_origins.peek_graph_ids(bpy.path.abspath(path)),
+                em_tools.graphml_files, target_origin, abspath=bpy.path.abspath)
+        except Exception:  # noqa: BLE001 — unreadable here, the importer says why
+            clash = []
+        if clash:
+            gid0, where = clash[0]
+            msg = (f"graph {gid0} is already open from {where.label}: the same "
+                   f"graph cannot come from two files (give the copy its own "
+                   f"graph id, or close the other one first)")
+            self.report({"ERROR"}, msg)
+            if not bpy.app.background:      # a popup has no window to open in -b
+                show_popup_message(context, "Graph already open", msg, "ERROR")
+            return {"CANCELLED"}
+
         try:
             container, warnings = import_container_from_emjson(path)
         except Exception as exc:  # noqa: BLE001
             self.report({"ERROR"}, f"em.json import failed: {exc}")
             show_popup_message(context, "Import Error", str(exc), "ERROR")
             return {"CANCELLED"}
+        graph_origins.remember(target_origin.path, container)
 
         graph = container.active()
+        # the row 🔄 reloads THAT row's graph, not the file's active one
+        if self.file_index >= 0:
+            row_gid = em_tools.graphml_files[self.file_index].name
+            if row_gid in container.graphs:
+                graph = container.graphs[row_gid]
         if graph is None and container.shelf is not None:
             # a shelf-only project: readable, and there is nothing to populate
             self.report({"INFO"}, "em.json holds only a shelf — loaded, nothing to draw")
@@ -111,6 +149,8 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
                 extra.graphml_path = path
                 if hasattr(extra, "file_format"):
                     extra.file_format = "EMJSON"
+                existing = extra
+            _record_file_origin(existing, target_origin.path)
 
         # --- find/create the file entry for this graph -----------------------
         entry = None
@@ -124,6 +164,18 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
             em_tools.active_file_index = len(em_tools.graphml_files) - 1
         entry.name = gid
         entry.graphml_path = path  # the generic "Path" field holds the em.json path
+        _record_file_origin(entry, target_origin.path)
+        # M2 · a graph from a file: its edits go to no room
+        try:
+            from ..sync_manager import room_session as _rs
+            _rs.activate(gid)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[em.json import] room activation skipped: {exc}")
+        # G1 · the scene's reference system is the FIRST graph loaded's
+        georef = getattr(scene, "em_georef", None)
+        if georef is not None and hasattr(georef, "reference_graph") \
+                and not georef.reference_graph:
+            georef.reference_graph = gid
         if hasattr(entry, "file_format"):
             entry.file_format = "EMJSON"
         attrs = getattr(graph, "attributes", {}) or {}

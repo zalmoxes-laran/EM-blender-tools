@@ -20,6 +20,53 @@ from ..functions import is_graph_available, show_popup_message
 from ..emjson_support import export_container_to_emjson, export_graph_to_emjson
 
 
+def _save_as_origin(context, graph, out_path: str) -> str:
+    """Write the active graph's origin group into `out_path` (a new file)."""
+    from s3dgraphy import get_graph
+    from .. import graph_origins
+
+    em_tools = context.scene.em_tools
+    rows = list(em_tools.graphml_files)
+    index = em_tools.active_file_index
+    gid = getattr(graph, "graph_id", None)
+    if not (0 <= index < len(rows)):
+        return export_container_to_emjson(out_path, active_graph_id=gid)
+    origin = graph_origins.origin_of(rows[index], abspath=bpy.path.abspath)
+    if origin.is_emjson:
+        members = graph_origins.members_of(rows, origin, abspath=bpy.path.abspath)
+        base = graph_origins.remembered(origin.path)
+        return graph_origins.save_file(out_path, members, get_graph,
+                                       active_graph_id=gid, base=base).path
+    # a GraphML, a room's graph, a graph with no file: this graph alone
+    return graph_origins.save_file(out_path, [gid], get_graph,
+                                   active_graph_id=gid).path
+
+
+def _rebind_origin(context, out: str) -> None:
+    """After Save As, the saved graphs' origin is the new file — except a
+    room's graph: the file is a copy, the room stays where it lives."""
+    from .. import graph_origins
+
+    em_tools = context.scene.em_tools
+    rows = list(em_tools.graphml_files)
+    index = em_tools.active_file_index
+    if not (0 <= index < len(rows)):
+        return
+    origin = graph_origins.origin_of(rows[index], abspath=bpy.path.abspath)
+    if origin.is_room:
+        return
+    targets = ([r for r in rows if graph_origins.origin_of(
+        r, abspath=bpy.path.abspath).key == origin.key]
+        if origin.is_emjson else [rows[index]])
+    for entry in targets:
+        entry.graphml_path = out
+        if hasattr(entry, "file_format"):
+            entry.file_format = "EMJSON"
+        if hasattr(entry, "origin_kind"):
+            entry.origin_kind = "FILE"
+            entry.origin_path = out
+
+
 class EM_export_saveas(bpy.types.Operator, ExportHelper):
     bl_idname = "export.em_saveas"
     bl_label = "Save As…"
@@ -86,13 +133,12 @@ class EM_export_saveas(bpy.types.Operator, ExportHelper):
         out_path = self._normalize_ext(self.filepath, self.fmt)
         try:
             if self.fmt == "EMJSON":
-                # CONTAINER (2026-08-13): the file is the PROJECT — every graph
-                # registered in this scene, plus the shelf. A .blend holding four
-                # graphs used to export four files and the project existed only
-                # in somebody's head; now it is one portable file, and a single
-                # graph is a container-of-one (the shape Heriverse reads).
-                out = export_container_to_emjson(
-                    out_path, active_graph_id=getattr(graph, "graph_id", None))
+                # M1 · the file gets the graphs of the active graph's ORIGIN —
+                # its file's graphs (with that file's shelf, corpus, header and
+                # the graphs not open here), not every graph of the scene: a
+                # scene holding two files must not fuse them into one. A graph
+                # with no file, or from a room, is written alone.
+                out = _save_as_origin(context, graph, out_path)
             else:
                 from s3dgraphy.exporter.graphml.graphml_exporter import GraphMLExporter
                 GraphMLExporter(graph).export(out_path)
@@ -105,12 +151,7 @@ class EM_export_saveas(bpy.types.Operator, ExportHelper):
         # Remember the em.json path on the active entry so a later "Save" writes
         # in place (em.json is the canonical file).
         if self.fmt == "EMJSON":
-            em_tools = context.scene.em_tools
-            if em_tools.graphml_files and em_tools.active_file_index >= 0:
-                entry = em_tools.graphml_files[em_tools.active_file_index]
-                entry.graphml_path = out
-                if hasattr(entry, "file_format"):
-                    entry.file_format = "EMJSON"
+            _rebind_origin(context, out)
 
         self.report({"INFO"}, f"Saved {self.fmt} → {out}")
         return {"FINISHED"}
@@ -140,32 +181,21 @@ class EM_export_save(bpy.types.Operator):
             self.report({"ERROR"}, "No active EM graph to save")
             return {"CANCELLED"}
 
+        # M1 · «Save» writes the ACTIVE graph's origin and nothing else: its
+        # em.json with that file's own graphs; a room receives edits live and
+        # has no file; a GraphML or a graph with no file goes to Save As.
+        from ..em_setup.graph_tree import save_origin
         em_tools = context.scene.em_tools
-        entry = (
-            em_tools.graphml_files[em_tools.active_file_index]
-            if em_tools.graphml_files and em_tools.active_file_index >= 0
-            else None
-        )
-        path = entry.graphml_path if entry else ""
-        is_emjson_target = (
-            entry is not None
-            and getattr(entry, "file_format", "GRAPHML") == "EMJSON"
-            and path.lower().endswith((".em.json", ".json"))
-        )
-        if not is_emjson_target or not path:
-            # no in-place em.json target (graphml-origin, or never saved) → Save As
-            return bpy.ops.export.em_saveas("INVOKE_DEFAULT")
-
         try:
-            out = export_container_to_emjson(
-                path, active_graph_id=getattr(graph, "graph_id", None))
+            ok, message, save_as = save_origin(context, em_tools.active_file_index)
         except Exception as exc:  # noqa: BLE001
             self.report({"ERROR"}, f"Save failed: {exc}")
             show_popup_message(context, "Save Error", str(exc), "ERROR")
             return {"CANCELLED"}
-
-        self.report({"INFO"}, f"Saved em.json project → {out}")
-        return {"FINISHED"}
+        if save_as:
+            return bpy.ops.export.em_saveas("INVOKE_DEFAULT")
+        self.report({"INFO"} if ok else {"WARNING"}, message)
+        return {"FINISHED"} if ok else {"CANCELLED"}
 
 
 def register():
