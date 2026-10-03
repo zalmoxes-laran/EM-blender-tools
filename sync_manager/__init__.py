@@ -16,6 +16,10 @@ Modules:
 - inventory   : P3 · the graph's resources in four groups (pure, no bpy)
 - asset_upload: P3 · THE upload function (HEAD, streamed PUT, resumable door)
 - bring       : P3 · «Bring into a room…»: room, inventory, uploads, models, seed, enter
+- asset_versions: A1–A3 · an asset and its versions: one library .blend per
+                asset, ONE object whose mesh changes («LOD ▸»), the cache checked
+                mesh by mesh
+- scene_package: B1 · the .blend as a starter package, a room attachment
 - backups     : the `.blend` safety archive — opaque snapshots into the room's
                 store, on demand (NOT versioning of the shared data, which is
                 content-addressed already)
@@ -23,7 +27,8 @@ Modules:
 
 from __future__ import annotations
 
-from . import backups, bring, materialise, operators, panel, rooms_ui, scene_check
+from . import (asset_versions, backups, bring, materialise, operators, panel,
+               rooms_ui, scene_check, scene_package)
 
 
 def register():
@@ -33,11 +38,15 @@ def register():
     backups.register()
     rooms_ui.register()
     bring.register()
+    asset_versions.register()
+    scene_package.register()
     panel.register()
 
 
 def unregister():
     panel.unregister()
+    scene_package.unregister()
+    asset_versions.unregister()
     bring.unregister()
     rooms_ui.unregister()
     backups.unregister()
