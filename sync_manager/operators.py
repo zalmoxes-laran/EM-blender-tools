@@ -676,6 +676,97 @@ def _send_snapshot(graph, context=None):
         "snapshot",
         {"doc": doc, "host": _host_info(context or bpy.context, graph)},
         source=_SOURCE)))
+    # B1 · la domanda in attesa ha avuto la sua risposta, e si ricorda QUALE
+    # grafo è partito: la cintura e l'importatore possono arrivare entrambi
+    # per lo stesso caricamento, e il secondo non deve rispedire.
+    global _snapshot_atteso, _ultimo_snapshot
+    _snapshot_atteso = False
+    _ultimo_snapshot = _chiave_snapshot(graph)
+
+
+#: B1 · un `request_snapshot` arrivato quando non c'era un grafo da mandare. Un
+#: flag e non una coda: chi chiede lo snapshot chiede «il grafo attivo», e due
+#: domande in attesa hanno la stessa risposta.
+_snapshot_atteso = False
+
+#: B1 · quale grafo è partito per ultimo, come (graph_id, oggetto). L'oggetto
+#: e non solo l'id: ricaricare lo stesso file dal disco fa un grafo NUOVO con
+#: lo stesso id, ed è proprio quello che l'altro capo deve ricevere.
+_ultimo_snapshot = None
+
+
+def _chiave_snapshot(graph):
+    return (str(getattr(graph, "graph_id", "") or ""), id(graph))
+
+#: B1 · la ragione, come codice: EMStudio la traduce nella sua lingua, e la
+#: frase inglese accanto è per chi legge il messaggio senza EMStudio.
+SNAPSHOT_NO_GRAPH = "no_graph_loaded"
+
+
+def _grafi_non_caricati(context) -> list:
+    """I grafi ELENCATI nel pannello EM ma non in memoria (B1).
+
+    È il caso misurato: il .blend ricorda la riga (`graphml_files`), la
+    libreria non ha il grafo (`get_graph` → None) finché qualcuno non preme
+    «carica». I nomi servono a dire QUALE caricare, non solo che manca.
+    """
+    nomi = []
+    try:
+        from s3dgraphy import get_graph
+        for entry in context.scene.em_tools.graphml_files:
+            if get_graph(entry.name) is None:
+                nomi.append(str(entry.name))
+    except Exception:  # noqa: BLE001 — nessuna scena, nessuna libreria: elenco vuoto
+        pass
+    return nomi
+
+
+def _send_snapshot_unavailable(context, elencati=None) -> None:
+    """B1 · «non c'è un grafo da mandarti», detto. E la domanda resta in attesa."""
+    global _snapshot_atteso
+    _snapshot_atteso = True
+    srv = _server
+    if srv is None or not srv.running:
+        return
+    try:
+        host = _host_info(context, None)
+    except Exception as exc:  # noqa: BLE001 — la risposta conta più del descrittore
+        print(f"[sync] host_info unavailable for snapshot_unavailable: {exc}")
+        host = {}
+    srv.broadcast(json.dumps(envelope("snapshot_unavailable", {
+        "reason": SNAPSHOT_NO_GRAPH,
+        "message": "No graph loaded in Blender: load it from the EM panel",
+        "graphs": list(elencati if elencati is not None
+                       else _grafi_non_caricati(context)),
+        "host": host,
+    }, source=_SOURCE)))
+
+
+def grafo_caricato(context=None) -> bool:
+    """B1 · un grafo è appena diventato disponibile: chi aspettava lo riceve.
+
+    Chiamata dagli importatori (GraphML ed em.json) alla fine di un
+    caricamento riuscito, e dalla cintura `_forse_annuncia_documento`. Manda lo
+    snapshot se una domanda era in attesa, o se ci sono client collegati (un
+    grafo caricato mentre EMStudio guarda è il grafo che EMStudio deve
+    vedere). Niente altrimenti: senza nessuno dall'altra parte non si spedisce
+    niente. → True se lo snapshot è partito.
+    """
+    srv = _server
+    if srv is None or not srv.running:
+        return False
+    if not (_snapshot_atteso or srv.client_count()):
+        return False
+    context = context or bpy.context
+    ok, graph = is_graph_available(context)
+    if not ok or graph is None:
+        return False
+    if not _snapshot_atteso and _chiave_snapshot(graph) == _ultimo_snapshot:
+        return False            # questo grafo è già partito: niente doppioni
+    _send_snapshot(graph, context)
+    print(f"[sync] graph loaded → snapshot pushed to "
+          f"{srv.client_count()} client(s)")
+    return True
 
 
 def _handle_message(raw: str, context, graph, ok: bool):
@@ -739,6 +830,19 @@ def _handle_message(raw: str, context, graph, ok: bool):
         _apply_op(payload, context, graph)
     elif mtype == "request_snapshot" and ok:
         _send_snapshot(graph, context)
+        _annota(mtype, "snapshot sent", chiavi=tuple(payload.keys()))
+    elif mtype == "request_snapshot":
+        # B1 · IL SIDECAR SILENZIOSO. Misurato (3 ott): un .blend riaperto
+        # elenca il grafo ma non lo ha in memoria, e questa domanda cadeva in
+        # «no branch handles it» — EMStudio restava vuoto senza un perché. Ora
+        # si RISPONDE, con la ragione e i nomi dei grafi da caricare, e la
+        # domanda resta in attesa: quando il grafo arriva lo snapshot parte da
+        # sé (`grafo_caricato`), senza che nessuno debba riconnettersi.
+        elencati = _grafi_non_caricati(context)
+        _send_snapshot_unavailable(context, elencati)
+        _annota(mtype, "answered snapshot_unavailable: no graph loaded",
+                chiavi=tuple(payload.keys()),
+                dettaglio=", ".join(elencati) or "no graph listed")
     elif mtype == "request_save":
         _save_emjson_on_host()
     elif mtype == "command":
@@ -1022,8 +1126,17 @@ def _forse_annuncia_documento(context=None) -> bool:
     impronta = json.dumps(detto, sort_keys=True)
     if impronta == _documento_annunciato:
         return False
+    primo = _documento_annunciato is None
     _documento_annunciato = impronta
     _send_host_info(context, graph if ok else None)
+    # B1 · il documento è cambiato: se qualcuno aspettava un grafo, o se il
+    # grafo attivo è un altro, lo snapshot parte da sé (una volta sola per
+    # grafo: `grafo_caricato` non rispedisce quello già partito). Alla PRIMA
+    # dichiarazione della sessione no, se nessuno aspetta: è il momento della
+    # connessione, e lì lo snapshot lo chiede il client — mandarlo anche da
+    # qui lo farebbe arrivare due volte.
+    if ok and (not primo or _snapshot_atteso):
+        grafo_caricato(context)
     return True
 
 
@@ -1076,6 +1189,9 @@ def _start(port: int):
     _last_selection = frozenset()
     PARI.clear()              # C1 · una sessione nuova, nessuna dichiarazione
     _documento_annunciato = None
+    global _snapshot_atteso, _ultimo_snapshot
+    _snapshot_atteso = False  # B1 · nessuna domanda in attesa da un'altra sessione
+    _ultimo_snapshot = None
     with _drain_lock:
         _drain_scheduled = False
     srv = WsServer(port=port, on_message=_schedule_drain)

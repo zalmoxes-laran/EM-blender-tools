@@ -233,6 +233,14 @@ class EM_import_GraphML(bpy.types.Operator):
                 elif errors > 0:
                     self.report({'WARNING'}, f"GraphML loaded but {errors} auxiliary import(s) failed")
 
+                # B1 · chi aspettava un grafo dal ponte (EMStudio in Sidecar) lo
+                # riceve adesso, senza doversi riconnettere.
+                try:
+                    from ..sync_manager.operators import grafo_caricato
+                    grafo_caricato(context)
+                except Exception as e:  # noqa: BLE001 — il caricamento è riuscito comunque
+                    print(f"[GraphML Import] snapshot push skipped: {e}")
+
 
             except Exception as e:
                 # ✅ Ensure progress bar is closed on error

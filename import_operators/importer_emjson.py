@@ -186,6 +186,14 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
         except Exception as exc:  # noqa: BLE001
             print(f"[em.json import] WARN doc_list sync: {exc}")
 
+        # B1 · chi aspettava un grafo dal ponte (EMStudio in Sidecar) lo riceve
+        # adesso, senza doversi riconnettere.
+        try:
+            from ..sync_manager.operators import grafo_caricato
+            grafo_caricato(context)
+        except Exception as exc:  # noqa: BLE001 — il caricamento è riuscito comunque
+            print(f"[em.json import] snapshot push skipped: {exc}")
+
         n_warn = len(warnings) if warnings else 0
         n_graphs = len(container.graph_ids())
         project = f"{n_graphs} graphs" if n_graphs > 1 else "1 graph"
