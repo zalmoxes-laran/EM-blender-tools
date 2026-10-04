@@ -9,7 +9,17 @@ from s3dgraphy import get_graph
 from s3dgraphy.nodes.representation_node import RepresentationModelSpecialFindNode
 
 from ..us_types import SPECIAL_FIND_TYPES
-from .lod_utils import detect_lod_variants, _get_active_lod
+# U1 · the levels are the asset versions' (sync_manager/asset_versions.py)
+from ..sync_manager import asset_versions as _av
+
+
+def _av_stamp(item):
+    """The LOD column of a row: how many levels, the one shown."""
+    obj = bpy.data.objects.get(item.name)
+    count, active = _av.level_summary(obj) if obj is not None else (0, 0)
+    item.has_lod_variants = count >= 1 or _av.has_levels(obj)
+    item.lod_count = count
+    item.active_lod = active
 from .graph_utils import (
     _remove_item_from_graph,
     analyze_visibility_requirements,
@@ -128,10 +138,7 @@ class ANASTYLOSIS_OT_update_list(Operator):
                         item.is_publishable = node.attributes.get('is_publishable', True) if hasattr(node, 'attributes') else True
 
                     # Detect LOD variants
-                    variants = detect_lod_variants(item.name)
-                    item.has_lod_variants = len(variants) >= 1
-                    item.lod_count = len(variants)
-                    item.active_lod = _get_active_lod(item.name)
+                    _av_stamp(item)
 
             # Process all selected objects from scene if needed
             if not self.from_graph or not graph:
@@ -153,10 +160,7 @@ class ANASTYLOSIS_OT_update_list(Operator):
                     item.node_id = f"{obj.name}_rmsf"
 
                     # Detect LOD variants
-                    variants = detect_lod_variants(item.name)
-                    item.has_lod_variants = len(variants) >= 1
-                    item.lod_count = len(variants)
-                    item.active_lod = _get_active_lod(item.name)
+                    _av_stamp(item)
 
             # ── Sanitise stale rows ────────────────────────────────
             # Drop entries whose name maps neither to an RMSF graph
@@ -420,10 +424,7 @@ class ANASTYLOSIS_OT_add_selected(Operator):
             item.node_id = f"{obj.name}_rmsf"
 
             # Detect LOD variants
-            variants = detect_lod_variants(item.name)
-            item.has_lod_variants = len(variants) >= 1
-            item.lod_count = len(variants)
-            item.active_lod = _get_active_lod(item.name)
+            _av_stamp(item)
 
             # If we have a graph, create RMSF node
             if graph:

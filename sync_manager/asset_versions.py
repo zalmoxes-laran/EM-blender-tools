@@ -154,6 +154,59 @@ def step_level(levels: List[str], current: Optional[str], direction: int
     return ordered[i]
 
 
+#: U1 · the levels a model has BY NAME, the convention of the scenes made before
+#: the versions: `ME_EST_fr_LOD0…LOD2` side by side in `RB/TempluMare_2021.blend`,
+#: `ME_TM038_LOD0…LOD3` in `TM038_semented.blend` (measured on Templu Mare, 4
+#: Oct 2026: 15 objects of the scene show a mesh named so, the 8 tiles and the
+#: RMSF fragments). They were walked by two codes of their own (RM Manager and
+#: Anastylosis); now by this one.
+LOD_NAME = re.compile(r"^(.+)_LOD(\d+)$")
+
+
+def split_lod_name(name: Optional[str]):
+    """``("ME_TM038", 3)`` for ``ME_TM038_LOD3``; ``(None, None)`` otherwise."""
+    m = LOD_NAME.match(str(name or ""))
+    return (m.group(1), int(m.group(2))) if m else (None, None)
+
+
+def level_number(level: Optional[str]) -> int:
+    """The number of a level for the lists' LOD column (``LOD2`` → 2); 0 for
+    the master or a level without a number."""
+    m = re.search(r"(\d+)", str(level or ""))
+    return int(m.group(1)) if m else 0
+
+
+def resolve_level(levels: List[str], requested: str):
+    """(the level to show, whether it is another than the one asked).
+
+    The level asked when it is there; for a ``LODn`` that is not, the nearest
+    heavier one there is (the highest ``LODk`` with k ≤ n), else the lightest
+    numbered — the rule the two old codes had, kept so that «LOD 3» on a list
+    of fragments that stop at LOD2 still shows something. ``(None, False)``
+    when there is nothing to show."""
+    have = [str(lv) for lv in levels or [] if lv]
+    if requested in have:
+        return requested, False
+    m = re.match(r"^LOD(\d+)$", str(requested or ""), re.I)
+    numbered = {int(mm.group(1)): lv for lv in have for mm in [re.match(r"^LOD(\d+)$", lv, re.I)] if mm}
+    if not m or not numbered:
+        return None, False
+    n = int(m.group(1))
+    lower = [k for k in numbered if k <= n]
+    return numbered[max(lower) if lower else min(numbered)], True
+
+
+def said_moves(moved: List[str], fallbacks: List[str]) -> List[tuple]:
+    """The sentences of a change of level, the same from every panel:
+    ``[(kind, text)]`` with kind INFO or WARNING."""
+    out = []
+    if fallbacks:
+        out.append(("WARNING", "; ".join(fallbacks[:4]) + (" …" if len(fallbacks) > 4 else "")))
+    out.append(("INFO", ("; ".join(moved[:6]) + (f" (and {len(moved) - 6} more)" if len(moved) > 6 else ""))
+                if moved else "already at the end"))
+    return out
+
+
 def plan_library(versions: List[Dict[str, Any]], have: Dict[str, str]
                  ) -> Dict[str, List[Dict[str, Any]]]:
     """Pure: what to do with one asset's library.
@@ -442,13 +495,289 @@ def asset_objects(objects=None) -> List[Any]:  # pragma: no cover — bpy
     return [o for o in objects if o.get(PROP_ASSET) and o.type == "MESH"]
 
 
-def step_object(obj, direction: int) -> Optional[str]:  # pragma: no cover — bpy
-    meshes = levels_of(obj)
-    target = step_level(list(meshes), obj.get(PROP_LEVEL), direction)
-    if target and target != obj.get(PROP_LEVEL):
-        set_level(obj, target, meshes)
-        return target
+class NamedLevel:
+    """U1 · a level known by its NAME only, linked when it is shown: a mesh of
+    a library (``kind="lib"``) or, for scenes that keep each level as its own
+    object, another object of the scene (``kind="object"``)."""
+
+    __slots__ = ("kind", "name", "path")
+
+    def __init__(self, kind: str, name: str, path: str = ""):
+        self.kind, self.name, self.path = kind, name, path
+
+    def get(self, _key, default=None):  # a mesh's .get, for callers that read properties
+        return default
+
+    def __repr__(self):  # pragma: no cover
+        return f"NamedLevel({self.kind!r}, {self.name!r})"
+
+
+#: the meshes' NAMES of each library, read without linking them (the LOD0 of a
+#: tile is the heaviest mesh of the file): {abspath: (mtime, [names])}
+_LIBRARY_NAMES: Dict[str, Any] = {}
+
+
+def library_mesh_names(path: str) -> List[str]:  # pragma: no cover — bpy
+    bpy = _bpy()
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return []
+    got = _LIBRARY_NAMES.get(path)
+    if got and got[0] == mtime:
+        return got[1]
+    with bpy.data.libraries.load(path, link=True) as (src, _dst):
+        names = list(src.meshes)
+    _LIBRARY_NAMES[path] = (mtime, names)
+    return names
+
+
+def named_levels(obj) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """{``LODn``: NamedLevel} of an object without versions whose levels follow
+    the ``_LODn`` convention: the meshes of the SAME library with its base name
+    (the tiles, the RMSF fragments), or the other objects of the scene with its
+    base name."""
+    bpy = _bpy()
+    out: Dict[str, Any] = {}
+    data = getattr(obj, "data", None)
+    lib = getattr(data, "library", None) if data is not None else None
+    base, _ = split_lod_name(getattr(data, "name", ""))
+    if lib is not None and base:
+        path = bpy.path.abspath(lib.filepath)
+        for name in library_mesh_names(path):
+            b, k = split_lod_name(name)
+            if b == base:
+                out[f"LOD{k}"] = NamedLevel("lib", name, path)
+        return out
+    base = split_lod_name(obj.name)[0] or base
+    if not base:
+        return out
+    for other in bpy.data.objects:
+        b, k = split_lod_name(other.name)
+        if b == base and other.type == obj.type:
+            out[f"LOD{k}"] = NamedLevel("object", other.name)
+    return out if len(out) > 1 else {}
+
+
+def has_levels(obj) -> bool:  # pragma: no cover — bpy
+    """Cheap, for drawing: the object has versions or follows ``_LODn``."""
+    if obj is None:
+        return False
+    if obj.get(PROP_ASSET):
+        return True
+    data = getattr(obj, "data", None)
+    return bool(split_lod_name(obj.name)[0] or (data is not None and split_lod_name(data.name)[0]))
+
+
+def all_levels(obj) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """THE levels of an object, for every panel: its versions (the asset's
+    library and the master by reference, read through the graph's ids) when
+    it has them, else the ones its names give."""
+    if obj is None:
+        return {}
+    if obj.get(PROP_ASSET):
+        return levels_of(obj)
+    return named_levels(obj)
+
+
+def current_level(obj) -> Optional[str]:  # pragma: no cover — bpy
+    if obj is None:
+        return None
+    if obj.get(PROP_LEVEL):
+        return str(obj[PROP_LEVEL])
+    data = getattr(obj, "data", None)
+    for name in (getattr(data, "name", ""), obj.name):
+        _, k = split_lod_name(name)
+        if k is not None:
+            return f"LOD{k}"
     return None
+
+
+def _linked_mesh(path: str, name: str):  # pragma: no cover — bpy
+    bpy = _bpy()
+    for mesh in bpy.data.meshes:
+        if mesh.name == name and mesh.library is not None and _same_file(mesh.library.filepath, path):
+            return mesh
+    with bpy.data.libraries.load(path, link=True) as (src, dst):
+        dst.meshes = [n for n in src.meshes if n == name]
+    return dst.meshes[0] if dst.meshes else None
+
+
+def show_level(obj, level: str, levels: Optional[Dict[str, Any]] = None):  # pragma: no cover — bpy
+    """Show ``level`` on ``obj`` → the object that shows it now (the same one,
+    with its name following the level when it carried ``_LODn``; another one
+    for scenes that keep a level per object), or None."""
+    levels = levels if levels is not None else all_levels(obj)
+    ref = levels.get(level)
+    if ref is None:
+        return None
+    if not isinstance(ref, NamedLevel):
+        return obj if set_level(obj, level, levels) else None
+    if ref.kind == "object":
+        other = _bpy().data.objects.get(ref.name)
+        if other is None:
+            return None
+        if other is not obj:
+            obj.hide_viewport = obj.hide_render = True
+            other.hide_viewport = other.hide_render = False
+        return other
+    if getattr(obj, "library", None) is not None:
+        return None   # a linked object cannot take another mesh
+    mesh = _linked_mesh(ref.path, ref.name)
+    if mesh is None:
+        return None
+    obj.data = mesh
+    base, _ = split_lod_name(obj.name)
+    if base:
+        obj.name = f"{base}_{level}"
+    return obj
+
+
+def after_switch(scene, old_name: str, shown, level: str) -> None:  # pragma: no cover — bpy
+    """The lists that name the object follow it: RM Manager's, Anastylosis's,
+    the RM containers' mesh names."""
+    num = level_number(level)
+    lists = [getattr(scene, "rm_list", None)]
+    try:
+        lists.append(scene.em_tools.anastylosis.list)
+    except AttributeError:
+        pass
+    for coll in lists:
+        for item in coll or []:
+            if item.name == old_name:
+                item.name = shown.name
+                if hasattr(item, "active_lod"):
+                    item.active_lod = num
+                if hasattr(item, "object_exists"):
+                    item.object_exists = True
+    if old_name != shown.name:
+        try:
+            from ..rm_manager.containers import rename_mesh_in_containers
+            rename_mesh_in_containers(scene, old_name, shown.name)
+        except Exception:  # noqa: BLE001 — no containers here
+            pass
+
+
+def level_summary(obj):  # pragma: no cover — bpy
+    """(how many levels, the number of the one shown) for the lists' LOD column."""
+    levels = all_levels(obj)
+    return len(levels), level_number(current_level(obj))
+
+
+def switch(scene, obj, *, direction: int = 0, level: str = ""):  # pragma: no cover — bpy
+    """ONE change of level, from any panel → (the move said, or "", the
+    fallback said, or ""). ``direction`` steps («LOD ▸» +1, «◂ LOD» -1);
+    ``level`` asks one (with the nearest-heavier fallback)."""
+    levels = all_levels(obj)
+    now = current_level(obj)
+    fallback = ""
+    if level:
+        target, fell = resolve_level(list(levels), level)
+        if target and fell:
+            fallback = f"no {level} for {obj.name}: {target} shown"
+    else:
+        target = step_level(list(levels), now, direction)
+    if not target or target == now:
+        return "", fallback
+    old = obj.name
+    shown = show_level(obj, target, levels)
+    if shown is None:
+        return "", f"{old}: {target} could not be shown"
+    after_switch(scene, old, shown, target)
+    return f"{old} → {target}", fallback
+
+
+def step_object(obj, direction: int) -> Optional[str]:  # pragma: no cover — bpy
+    import bpy  # type: ignore
+    said, _ = switch(bpy.context.scene, obj, direction=direction)
+    return said.rsplit(" → ", 1)[1] if said else None
+
+
+_PENDING_NAMES: set = set()
+
+
+def _read_names_later(path: str) -> None:  # pragma: no cover — bpy
+    """A library's names cannot be read while a panel draws (no writing to
+    bpy.data there): read them in a timer, then redraw."""
+    if path in _PENDING_NAMES:
+        return
+    _PENDING_NAMES.add(path)
+    bpy = _bpy()
+
+    def later():
+        try:
+            library_mesh_names(path)
+        finally:
+            _PENDING_NAMES.discard(path)
+        for win in bpy.context.window_manager.windows:
+            for area in win.screen.areas:
+                area.tag_redraw()
+        return None
+
+    bpy.app.timers.register(later, first_interval=0.05)
+
+
+def levels_to_draw(obj) -> List[str]:  # pragma: no cover — bpy
+    """The levels of ``obj`` as a panel may know them WITHOUT touching
+    bpy.data: the meshes already linked, the names already read."""
+    bpy = _bpy()
+    out = set()
+    data = getattr(obj, "data", None)
+    if obj.get(PROP_ASSET):
+        lib = getattr(data, "library", None)
+        for mesh in bpy.data.meshes:
+            if mesh.library is not None and mesh.get(PROP_ASSET) == obj.get(PROP_ASSET) or (
+                    lib is not None and mesh.library == lib and level_of_mesh_name(mesh.name)):
+                lv = mesh.get(PROP_LEVEL) or level_of_mesh_name(mesh.name)
+                if lv:
+                    out.add(str(lv))
+        if obj.get(PROP_MASTER_MESH):
+            out.add(str(obj.get(PROP_MASTER_LEVEL) or "master"))
+        if obj.get(PROP_LEVEL):
+            out.add(str(obj[PROP_LEVEL]))
+        return sorted(out, key=level_key)
+    lib = getattr(data, "library", None) if data is not None else None
+    base, _ = split_lod_name(getattr(data, "name", ""))
+    if lib is not None and base:
+        path = bpy.path.abspath(lib.filepath)
+        got = _LIBRARY_NAMES.get(path)
+        if got is None:
+            _read_names_later(path)
+            names = [m.name for m in bpy.data.meshes if m.library == lib]
+        else:
+            names = got[1]
+        for name in names:
+            b, k = split_lod_name(name)
+            if b == base:
+                out.add(f"LOD{k}")
+        return sorted(out, key=level_key)
+    return sorted(named_levels(obj), key=level_key)
+
+
+def draw_levels(layout, obj, *, scope: str = "", title: str = "Levels of detail") -> None:  # pragma: no cover — bpy
+    """The same box in Asset versions, RM Manager and Anastylosis: the levels
+    of ``obj`` (◂ LOD, LOD ▸, one button per level) and, with ``scope``, the
+    same two arrows for the whole list."""
+    if obj is not None and has_levels(obj):
+        box = layout.box()
+        box.label(text=f"{title} · {obj.name} · {current_level(obj) or '?'}", icon="MOD_DECIM")
+        row = box.row(align=True)
+        op = row.operator("em.asset_lod_step", text="◂ LOD")
+        op.direction, op.scope, op.object_name = -1, "OBJECT", obj.name
+        op = row.operator("em.asset_lod_step", text="LOD ▸")
+        op.direction, op.scope, op.object_name = 1, "OBJECT", obj.name
+        grid = box.row(align=True)
+        now = current_level(obj)
+        for lv in levels_to_draw(obj):
+            op = grid.operator("em.asset_set_level", text=lv, depress=(lv == now))
+            op.level, op.scope, op.object_name = lv, "OBJECT", obj.name
+    if scope:
+        row = layout.row(align=True)
+        row.label(text="Whole list:" if scope != "SCENE" else "Whole scene:")
+        op = row.operator("em.asset_lod_step", text="◂ LOD")
+        op.direction, op.scope = -1, scope
+        op = row.operator("em.asset_lod_step", text="LOD ▸")
+        op.direction, op.scope = 1, scope
 
 
 def mesh_from_file(path: str, importer: Optional[Callable] = None,
@@ -977,6 +1306,36 @@ def _operator_classes():  # pragma: no cover — bpy
                                   f"{', '.join(out['levels'])}")
             return {"FINISHED"}
 
+    #: U1 · where a change of level applies: one object (a list's row), the
+    #: selection, every object of the scene with levels, or the objects of RM
+    #: Manager's / Anastylosis's list
+    SCOPES = [("SELECTED", "Selected", ""), ("OBJECT", "One object", ""),
+              ("SCENE", "Whole scene", ""), ("RM_LIST", "RM list", ""),
+              ("ANASTYLOSIS", "Anastylosis list", ""), ("ACTIVE", "Active object", "")]
+
+    def _targets(context, scope, object_name):
+        scene = context.scene
+        objs = bpy.data.objects
+        if scope == "OBJECT":
+            o = objs.get(object_name)
+            return [o] if o is not None else []
+        if scope == "ACTIVE":
+            o = context.active_object
+            return [o] if o is not None else []
+        if scope == "SCENE":
+            return [o for o in scene.objects if has_levels(o)]
+        if scope == "RM_LIST":
+            names = [it.name for it in getattr(scene, "rm_list", [])]
+        elif scope == "ANASTYLOSIS":
+            names = [it.name for it in scene.em_tools.anastylosis.list]
+        else:
+            return [o for o in context.selected_objects if has_levels(o)]
+        return [o for o in (objs.get(n) for n in names) if o is not None and has_levels(o)]
+
+    def _say(op, moved, fallbacks):
+        for kind, text in said_moves(moved, fallbacks):
+            op.report({kind}, text)
+
     class EM_OT_asset_lod_step(bpy.types.Operator):
         """Show the next level of detail: the object stays, its mesh changes"""
 
@@ -986,33 +1345,95 @@ def _operator_classes():  # pragma: no cover — bpy
 
         direction: bpy.props.IntProperty(default=1)  # type: ignore
         whole_scene: bpy.props.BoolProperty(default=False)  # type: ignore
+        scope: bpy.props.EnumProperty(items=SCOPES, default="SELECTED")  # type: ignore
+        object_name: bpy.props.StringProperty()  # type: ignore
 
         def execute(self, context):
-            targets = (asset_objects() if self.whole_scene else
-                       [o for o in context.selected_objects if o.get(PROP_ASSET)])
+            scope = "SCENE" if self.whole_scene else self.scope
+            targets = _targets(context, scope, self.object_name)
             if not targets:
-                self.report({"WARNING"}, "no object with versions here")
+                self.report({"WARNING"}, "no object with levels here")
                 return {"CANCELLED"}
-            moved = [f"{o.name} → {lv}" for o in targets
-                     for lv in [step_object(o, self.direction)] if lv]
-            self.report({"INFO"}, "; ".join(moved[:6]) or "already at the end")
+            moved, fallbacks = [], []
+            for o in targets:
+                said, fell = switch(context.scene, o, direction=self.direction)
+                if said:
+                    moved.append(said)
+                if fell:
+                    fallbacks.append(fell)
+            _say(self, moved, fallbacks)
             return {"FINISHED"}
 
     class EM_OT_asset_set_level(bpy.types.Operator):
-        """Show this level of detail on the active object"""
+        """Show this level of detail"""
 
         bl_idname = "em.asset_set_level"
         bl_label = "Show level"
         bl_options = {"REGISTER", "UNDO"}
 
         level: bpy.props.StringProperty()  # type: ignore
+        scope: bpy.props.EnumProperty(items=SCOPES, default="ACTIVE")  # type: ignore
+        object_name: bpy.props.StringProperty()  # type: ignore
 
         def execute(self, context):
-            obj = context.active_object
-            if obj is None or not set_level(obj, self.level):
+            targets = _targets(context, self.scope, self.object_name)
+            if not targets:
                 self.report({"ERROR"}, f"no level {self.level} for this object")
                 return {"CANCELLED"}
+            moved, fallbacks, none = [], [], []
+            for o in targets:
+                if self.level not in all_levels(o) and resolve_level(list(all_levels(o)), self.level)[0] is None:
+                    none.append(o.name)
+                    continue
+                said, fell = switch(context.scene, o, level=self.level)
+                if said:
+                    moved.append(said)
+                if fell:
+                    fallbacks.append(fell)
+            if none and not moved and not fallbacks:
+                self.report({"ERROR"}, f"no level {self.level} for {', '.join(none[:4])}")
+                return {"CANCELLED"}
+            _say(self, moved, fallbacks)
             return {"FINISHED"}
+
+    class EM_OT_asset_level_menu(bpy.types.Operator):
+        """The levels of this object, to show one"""
+
+        bl_idname = "em.asset_level_menu"
+        bl_label = "Levels of detail"
+        bl_options = set()
+
+        object_name: bpy.props.StringProperty()  # type: ignore
+
+        def invoke(self, context, event):
+            obj = bpy.data.objects.get(self.object_name)
+            if obj is None:
+                return {"CANCELLED"}
+            levels = sorted(all_levels(obj), key=level_key)
+            now = current_level(obj)
+            name = obj.name
+
+            def draw(menu, _context):
+                if not levels:
+                    menu.layout.label(text="no other level in its library")
+                for lv in levels:
+                    op = menu.layout.operator("em.asset_set_level", text=lv,
+                                              icon="CHECKMARK" if lv == now else "NONE")
+                    op.level, op.scope, op.object_name = lv, "OBJECT", name
+
+            context.window_manager.popup_menu(draw, title=f"Levels of detail · {name}")
+            return {"FINISHED"}
+
+    class EM_MT_asset_levels_selected(bpy.types.Menu):
+        """One level for every selected object that has it (the nearest heavier one otherwise)"""
+
+        bl_idname = "EM_MT_asset_levels_selected"
+        bl_label = "Level for the selection"
+
+        def draw(self, context):
+            for n in range(0, 5):
+                op = self.layout.operator("em.asset_set_level", text=f"LOD{n}")
+                op.level, op.scope = f"LOD{n}", "SELECTED"
 
     class VIEW3D_PT_em_asset_versions(bpy.types.Panel):
         bl_label = "Asset versions"
@@ -1029,42 +1450,22 @@ def _operator_classes():  # pragma: no cover — bpy
             row = layout.row(align=True)
             row.operator("em.asset_add_version", icon="ADD")
             if obj is not None and obj.get(PROP_ASSET):
-                box = layout.box()
-                box.label(text=f"{obj.name} · {obj.get(PROP_LEVEL, '?')}",
-                          icon="MESH_DATA")
                 # D1 · what the shown version IS: computed level, uses, measures
                 info = _version_info(context, obj)
                 if info:
-                    box.label(text=f"Level {info.get('lod_level') or '— (master)'} · "
-                                   f"uses: {', '.join(info.get('use') or []) or '—'}",
-                              icon="SORTSIZE")
+                    layout.label(text=f"Level {info.get('lod_level') or '— (master)'} · "
+                                      f"uses: {', '.join(info.get('use') or []) or '—'}",
+                                 icon="SORTSIZE")
                     line = _measures_line(info.get("measures") or {})
                     if line:
-                        box.label(text=line, icon="BLANK1")
-                levels = sorted((obj.data.library and
-                                 [level_of_mesh_name(m.name) for m in bpy.data.meshes
-                                  if m.library == obj.data.library]) or [],
-                                key=level_key)
-                lrow = box.row(align=True)
-                op = lrow.operator("em.asset_lod_step", text="◂ LOD")
-                op.direction = -1
-                op = lrow.operator("em.asset_lod_step", text="LOD ▸")
-                op.direction = 1
-                grid = box.row(align=True)
-                for lv in [lv for lv in levels if lv]:
-                    grid.operator("em.asset_set_level", text=lv,
-                                  depress=(lv == obj.get(PROP_LEVEL))).level = lv
-            srow = layout.row(align=True)
-            srow.label(text="Whole scene:")
-            op = srow.operator("em.asset_lod_step", text="◂ LOD")
-            op.direction, op.whole_scene = -1, True
-            op = srow.operator("em.asset_lod_step", text="LOD ▸")
-            op.direction, op.whole_scene = 1, True
+                        layout.label(text=line, icon="BLANK1")
+            # U1 · the one box of the levels, the same in RM Manager and Anastylosis
+            draw_levels(layout, obj, scope="SCENE")
             from . import scene_package
             scene_package.draw(layout)
 
     return (EM_OT_asset_add_version, EM_OT_asset_lod_step, EM_OT_asset_set_level,
-            VIEW3D_PT_em_asset_versions)
+            EM_OT_asset_level_menu, EM_MT_asset_levels_selected, VIEW3D_PT_em_asset_versions)
 
 
 _CLASSES: tuple = ()

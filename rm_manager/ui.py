@@ -4,12 +4,10 @@ from bpy.types import Panel, UIList, Menu  # type: ignore
 
 from ..functions import is_graph_available
 from .. import icons_manager
-from .operators import (
-    detect_lod_variants,
-    _split_lod_name,
-    LOD_MIN_LEVEL,
-    LOD_MAX_LEVEL,
-)
+# U1 · ONE change of level, the one of the asset versions: this panel calls it
+from ..sync_manager import asset_versions as av
+
+_split_lod_name = av.split_lod_name
 
 
 def _base_name(name):
@@ -42,7 +40,6 @@ __all__ = [
     'RM_UL_EpochList',
     'RMCONTAINER_UL_list',
     'RM_MT_epoch_selector',
-    'RM_MT_batch_lod_selected',
     'VIEW3D_PT_RM_Manager',
     'register_ui',
     'unregister_ui',
@@ -174,12 +171,11 @@ class RM_UL_List(UIList):
                 row = layout.row(align=True)
 
                 # LOD indicator — fixed width, first element
-                lod_variants = detect_lod_variants(item.name)
                 sub = row.row(align=True)
                 sub.ui_units_x = 2.3
-                if len(lod_variants) >= 1:
-                    op = sub.operator("rm.open_lod_menu", text=str(item.active_lod), icon='MOD_DECIM')
-                    op.rm_index = index
+                if av.has_levels(bpy.data.objects.get(item.name)):
+                    op = sub.operator("em.asset_level_menu", text=str(item.active_lod), icon='MOD_DECIM')
+                    op.object_name = item.name
                 else:
                     sub.label(text="X", icon='MOD_DECIM')
 
@@ -297,16 +293,6 @@ class RM_MT_epoch_selector(Menu):
             if i == epochs.list_index:
                 layout.separator()
 
-
-class RM_MT_batch_lod_selected(Menu):
-    bl_label = "Batch LOD for Selected"
-    bl_idname = "RM_MT_batch_lod_selected"
-
-    def draw(self, context):
-        layout = self.layout
-        for level in range(LOD_MIN_LEVEL, LOD_MAX_LEVEL + 1):
-            op = layout.operator("rm.batch_lod_selected", text=f"Set LOD {level}")
-            op.target_lod = level
 
 class VIEW3D_PT_RM_Manager(Panel):
     bl_label = "Representation Model (RM)"
@@ -615,10 +601,9 @@ class VIEW3D_PT_RM_Manager(Panel):
                 sub = row.row(align=True)
                 sub.alert = True
                 sub.operator("rm.demote_from_rm", text="", icon='TRASH')
-                has_lod_objects = any(len(detect_lod_variants(obj.name)) >= 1 for obj in selected_objects)
-                if has_lod_objects:
+                if any(av.has_levels(obj) for obj in selected_objects):
                     sub = row.row(align=True)
-                    sub.menu("RM_MT_batch_lod_selected", text="", icon='MOD_DECIM')
+                    sub.menu("EM_MT_asset_levels_selected", text="", icon='MOD_DECIM')
                 # Container-scoped op: move selected meshes between
                 # containers. The previous "add to active container"
                 # action is subsumed by "+": adding to an epoch now
@@ -671,46 +656,24 @@ class VIEW3D_PT_RM_Manager(Panel):
         if scene.rm_list_index >= 0 and len(scene.rm_list) > 0:
             item = scene.rm_list[scene.rm_list_index]
 
-            # LOD Management (if selected item has LOD variants)
-            lod_variants = detect_lod_variants(item.name)
-            if len(lod_variants) >= 1:
-                box = layout.box()
-                lod_header = box.row(align=True)
-                lod_header.label(text="Levels of Detail", icon='MOD_DECIM')
-                help_op = lod_header.operator("em.help_popup", text="", icon='QUESTION')
+            # U1 · the levels: the same box as Asset versions, the same gesture
+            lod_obj = bpy.data.objects.get(item.name)
+            if av.has_levels(lod_obj):
+                row = layout.row(align=True)
+                op = row.operator("rm.open_linked_file", text="", icon='FILE_FOLDER')
+                op.rm_index = scene.rm_list_index
+                help_op = row.operator("em.help_popup", text="", icon='QUESTION')
                 help_op.title = "RM Levels of Detail"
                 help_op.text = (
-                    "Switch between multiple LOD variants\n"
-                    "of the representation model. LOD0 is the\n"
-                    "coarsest, LOD3 the most detailed. Batch\n"
-                    "switch moves all RMs up or down together."
+                    "The levels of this model: its versions, or the\n"
+                    "meshes named _LOD0, _LOD1… in its library.\n"
+                    "LOD ▸ shows the next lighter one, ◂ LOD the\n"
+                    "heavier; Whole list moves every RM of the list."
                 )
                 help_op.url = "panels/rm_manager.html#rm-lod"
                 help_op.project = 'em_tools'
+                av.draw_levels(layout, lod_obj, scope="RM_LIST")
 
-                row = box.row(align=True)
-                op = row.operator("rm.open_linked_file", text="", icon='FILE_FOLDER')
-                op.rm_index = scene.rm_list_index
-                row.label(text="LOD:")
-                for lod_level in range(LOD_MIN_LEVEL, LOD_MAX_LEVEL + 1):
-                    sub = row.row(align=True)
-                    sub.scale_x = 0.7
-                    op = sub.operator(
-                        "rm.switch_lod",
-                        text=str(lod_level),
-                        depress=(item.active_lod == lod_level)
-                    )
-                    op.rm_index = scene.rm_list_index
-                    op.target_lod = lod_level
-
-                box.separator()
-                row = box.row(align=True)
-                row.label(text="Batch LOD switch:", icon='PRESET')
-                op = row.operator("rm.batch_switch_lod", text="", icon='TRIA_LEFT')
-                op.direction = -1
-                op = row.operator("rm.batch_switch_lod", text="", icon='TRIA_RIGHT')
-                op.direction = 1
-            
             # Show the list of associated epochs
             box = layout.box()
             row = box.row(align=True)
@@ -816,7 +779,6 @@ classes = [
     RM_UL_EpochList,
     RMCONTAINER_UL_list,
     RM_MT_epoch_selector,
-    RM_MT_batch_lod_selected,
 ]
 
 

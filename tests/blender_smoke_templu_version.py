@@ -27,6 +27,8 @@ def check(label, condition, detail=""):
 names = [n for n in sys.modules if n.endswith(".graph_origins") and n.startswith("bl_ext.")]
 PKG = names[0].rsplit(".graph_origins", 1)[0]
 av = importlib.import_module(PKG + ".sync_manager.asset_versions")
+# the copy may have been saved with another slot active (14:32 on 4 Oct: slot 2)
+bpy.context.scene.em_tools.active_file_index = 0
 getattr(bpy.ops, "import").em_graphml(graphml_index=0)
 from s3dgraphy import get_graph  # noqa: E402
 graph = get_graph(bpy.context.scene.em_tools.graphml_files[0].name)

@@ -5,7 +5,8 @@ import bpy
 from bpy.types import Panel, UIList
 
 from .. import icons_manager
-from .lod_utils import LOD_MIN_LEVEL, LOD_MAX_LEVEL, detect_lod_variants
+# U1 · ONE change of level, the one of the asset versions: this panel calls it
+from ..sync_manager import asset_versions as av
 
 
 class ANASTYLOSIS_UL_List(UIList):
@@ -33,14 +34,13 @@ class ANASTYLOSIS_UL_List(UIList):
             row = layout.row(align=True)
 
             # ── LOD indicator (column 1, fixed width) ──────────────
-            lod_variants = detect_lod_variants(item.name)
             lod_col = row.row(align=True)
             lod_col.ui_units_x = 2.3
-            if len(lod_variants) >= 1:
+            if av.has_levels(bpy.data.objects.get(item.name)):
                 op = lod_col.operator(
-                    "anastylosis.open_lod_menu",
+                    "em.asset_level_menu",
                     text=str(item.active_lod), icon='MOD_DECIM')
-                op.anastylosis_index = index
+                op.object_name = item.name
             else:
                 lod_col.label(text="X", icon='MOD_DECIM')
 
@@ -168,11 +168,10 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
             sub = row.row(align=True)
             sub.alert = True
             sub.operator("anastylosis.remove_selected", text="", icon='TRASH')
-            # Batch LOD dropdown (only if at least one selected object has LOD variants)
-            has_lod_objects = any(len(detect_lod_variants(obj.name)) >= 1 for obj in selected_objects)
-            if has_lod_objects:
+            # one level for the selection (only if a selected object has levels)
+            if any(av.has_levels(obj) for obj in selected_objects):
                 sub = row.row(align=True)
-                sub.menu("ANASTYLOSIS_MT_batch_lod_selected", text="", icon='MOD_DECIM')
+                sub.menu("EM_MT_asset_levels_selected", text="", icon='MOD_DECIM')
 
         box = layout.box()
         row = box.row(align=True)
@@ -274,47 +273,23 @@ class VIEW3D_PT_Anastylosis_Manager(Panel):
                 text="", icon='X')
             op.anastylosis_index = anastylosis.list_index
 
-            # LOD Management (if the selected item has LOD variants)
-            lod_variants = detect_lod_variants(item.name)
-
-            if len(lod_variants) >= 1:
-                box = layout.box()
-                lod_header = box.row(align=True)
-                lod_header.label(text="Anastylosis Fragments (LOD)", icon='MOD_DECIM')
-                help_op = lod_header.operator("em.help_popup", text="", icon='QUESTION')
+            # U1 · the levels: the same box as Asset versions, the same gesture
+            lod_obj = bpy.data.objects.get(item.name)
+            if av.has_levels(lod_obj):
+                row = layout.row(align=True)
+                op = row.operator("anastylosis.open_linked_file", text="", icon='FILE_FOLDER')
+                op.anastylosis_index = anastylosis.list_index
+                help_op = row.operator("em.help_popup", text="", icon='QUESTION')
                 help_op.title = "Anastylosis Fragments"
                 help_op.text = (
-                    "Switch between LOD variants of the\n"
-                    "anastylosis fragment. LOD0 is the coarsest,\n"
-                    "LOD3 the most detailed. Batch switches move\n"
-                    "all fragments up or down together."
+                    "The levels of this fragment: its versions, or the\n"
+                    "meshes named _LOD0, _LOD1… in its library.\n"
+                    "LOD ▸ shows the next lighter one, ◂ LOD the\n"
+                    "heavier; Whole list moves every fragment."
                 )
                 help_op.url = "panels/anastylosis_manager.html#anastylosis-fragments"
                 help_op.project = 'em_tools'
-
-                row = box.row(align=True)
-                op = row.operator("anastylosis.open_linked_file", text="", icon='FILE_FOLDER')
-                op.anastylosis_index = anastylosis.list_index
-                row.label(text="LOD:")
-                for lod_level in range(LOD_MIN_LEVEL, LOD_MAX_LEVEL + 1):
-                    sub = row.row(align=True)
-                    sub.scale_x = 0.7
-                    op = sub.operator(
-                        "anastylosis.switch_lod",
-                        text=str(lod_level),
-                        depress=(item.active_lod == lod_level)
-                    )
-                    op.anastylosis_index = anastylosis.list_index
-                    op.target_lod = lod_level
-
-                # Batch LOD switch for all items
-                box.separator()
-                row = box.row(align=True)
-                row.label(text="Batch LOD switch:", icon='PRESET')
-                op = row.operator("anastylosis.batch_switch_lod", text="", icon='TRIA_LEFT')
-                op.direction = -1
-                op = row.operator("anastylosis.batch_switch_lod", text="", icon='TRIA_RIGHT')
-                op.direction = 1
+                av.draw_levels(layout, lod_obj, scope="ANASTYLOSIS")
 
         # Settings (collapsible)
         box = layout.box()

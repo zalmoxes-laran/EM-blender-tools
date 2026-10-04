@@ -149,3 +149,48 @@ def test_the_master_comes_first_and_lod_steps_both_ways():
     assert av.step_level(levels, "master", +1) == "lod0"
     assert av.step_level(levels, "lod0", -1) == "master"
     assert av.step_level(levels, "lod1", -1) == "lod0"
+
+
+# ── U1 · one change of level for RM Manager, Anastylosis and the versions ────
+#
+# Measured on Templu Mare (4 Oct 2026): the tiles show `ME_EST_fr_LOD2` with
+# LOD0…LOD2 beside it in `RB/TempluMare_2021.blend`, the RMSF fragments
+# `ME_TM038_LOD3` with LOD0…LOD3 in `TM038_semented.blend`. Two codes of their
+# own walked them; the versions' one does now.
+
+def test_a_lod_name_is_split_into_base_and_number():
+    assert av.split_lod_name("ME_EST_fr_LOD2") == ("ME_EST_fr", 2)
+    assert av.split_lod_name("ME_TM038_LOD3") == ("ME_TM038", 3)
+    assert av.split_lod_name("TM026_2015") == (None, None)
+    assert av.split_lod_name("ME_PODIO@LOD1") == (None, None)
+    assert av.split_lod_name(None) == (None, None)
+
+
+def test_named_levels_step_like_the_versions():
+    levels = ["LOD0", "LOD1", "LOD2", "LOD3"]
+    assert av.step_level(levels, "LOD3", -1) == "LOD2"
+    assert av.step_level(levels, "LOD3", +1) == "LOD3"
+    assert av.step_level(levels, "LOD0", -1) == "LOD0"
+
+
+def test_a_level_asked_and_missing_falls_back_to_the_nearest_heavier():
+    assert av.resolve_level(["LOD0", "LOD1", "LOD2"], "LOD2") == ("LOD2", False)
+    assert av.resolve_level(["LOD0", "LOD1", "LOD2"], "LOD4") == ("LOD2", True)
+    assert av.resolve_level(["LOD2", "LOD3"], "LOD0") == ("LOD2", True)
+    assert av.resolve_level(["master", "LOD1"], "master") == ("master", False)
+    assert av.resolve_level(["master"], "LOD1") == (None, False)
+    assert av.resolve_level([], "LOD1") == (None, False)
+
+
+def test_the_list_column_reads_the_number_of_a_level():
+    assert av.level_number("LOD3") == 3
+    assert av.level_number("master") == 0
+    assert av.level_number(None) == 0
+
+
+def test_the_same_sentences_from_every_panel():
+    assert av.said_moves([], []) == [("INFO", "already at the end")]
+    said = av.said_moves(["ME_TM038_LOD3 → LOD2"], ["no LOD4 for ME_X: LOD2 shown"])
+    assert said == [("WARNING", "no LOD4 for ME_X: LOD2 shown"), ("INFO", "ME_TM038_LOD3 → LOD2")]
+    many = av.said_moves([f"o{i} → LOD1" for i in range(9)], [])
+    assert many[0][1].endswith("(and 3 more)")

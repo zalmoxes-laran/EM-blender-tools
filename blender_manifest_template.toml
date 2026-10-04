@@ -32,6 +32,7 @@ paths_exclude_pattern = [
     "blext/",
     "downloads/",
     "__pycache__/",
+    "_dead_code/",   # code taken out of the add-on, kept for reading (MICRO-EMTOOLS-MENO-E-MEGLIO)
     
     # Development files
     "*.bat",
