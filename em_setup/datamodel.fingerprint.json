@@ -48,6 +48,6 @@
       "version": "1.6"
     }
   },
-  "s3dgraphy": "1.6.0.dev36",
+  "s3dgraphy": "1.6.0.dev37",
   "_note": "the datamodel the pinned s3dgraphy wheel carries; written by scripts/rebundle_s3dgraphy.py --fingerprint, checked at startup by em_setup/version_banner.check_datamodel. Never edit by hand."
 }
