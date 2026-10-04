@@ -209,6 +209,11 @@ class SignIn:
         self.server = server
         self.state = "waiting"
         self.token: Optional[str] = None
+        #: what the realm gives beside the access, kept for `access.remember`
+        #: (in memory, like the token): the access is renewed with it
+        self.refresh_token = ""
+        self.expires_in: Optional[float] = None
+        self.token_endpoint = str(config.get("token_endpoint") or "")
         self.who = ""
         self.error = ""
         self._cancel = threading.Event()
@@ -337,6 +342,8 @@ class SignIn:
         if not token:
             return fail("the sign-in returned no access token")
         self.token, self.who = token, _who(token)
+        self.refresh_token = str(payload.get("refresh_token") or "")
+        self.expires_in = payload.get("expires_in")
         self.state = "done"
         return ("Signed in",
                 f"Signed in to {self.server}"
@@ -382,7 +389,21 @@ def sign_in(server: str, *, open_browser: Optional[Callable[[str], Any]] = None,
     running.wait(timeout + 5)
     if running.state != "done":
         raise HandoffError(running.error or "the sign-in did not complete")
+    keep(running)
     return running.token
+
+
+def keep(running: "SignIn") -> None:
+    """The access a finished sign-in returned, kept with what renews it."""
+    try:
+        from . import access
+    except ImportError:          # loaded by path, outside the package (the suite)
+        return
+    access.remember(running.server, running.token or "",
+                    refresh_token=running.refresh_token,
+                    expires_in=running.expires_in,
+                    token_endpoint=running.token_endpoint,
+                    client_id=running.client_id)
 
 
 def resolve(link: str, *, sign_in_with: Optional[Callable[[str], Optional[str]]] = None
@@ -424,7 +445,7 @@ def open_targets(base_url: str, room_id: str, *, token: Optional[str] = None,
         # grant in is refused, because a listing is not a discovery service
         request.add_header("Authorization", f"Bearer {token}")
     try:
-        from .trust import urlopen as _open
+        from .access import urlopen as _open
     except ImportError:          # loaded by path, outside the package (the suite)
         _open = urllib.request.urlopen
     try:

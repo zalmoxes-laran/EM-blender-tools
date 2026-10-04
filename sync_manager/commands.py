@@ -405,6 +405,7 @@ def promote_model(target: str, params: Dict[str, Any], context,
             "info": {"object": obj.name, "resource_id": resource_id,
                      "ref": info["ref"], "size": info.get("size"),
                      "stored": bool(info.get("created")),
+                     "already": bool(info.get("already")),
                      "process_id": result.get("process_id"),
                      "warnings": result.get("warnings") or []}}
 

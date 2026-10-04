@@ -158,6 +158,11 @@ class RoomSession:
             url += f"?since={since}"
         headers = {}
         token = room._session.get("token")        # never stored, never printed
+        try:
+            from . import access                  # X1 · renewed, not stale
+            token = access.fresh(token)
+        except ImportError:                       # loaded by path (the suite)
+            pass
         if token:
             headers["Authorization"] = f"Bearer {token}"
         client = WsClient(url, headers=headers, on_message=self._receive)

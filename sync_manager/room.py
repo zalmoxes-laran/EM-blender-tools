@@ -32,9 +32,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 def _urlopen(request, timeout=None):
     """Every call to a node verifies TLS against what this computer trusts
-    (`trust.py`: the dev node behind Caddy included)."""
+    (`trust.py`: the dev node behind Caddy included), with an access renewed
+    before it runs out and said when it cannot be (`access.py`)."""
     try:
-        from .trust import urlopen
+        from .access import urlopen
     except ImportError:          # loaded by path, outside the package (the suite)
         import urllib.request
         return urllib.request.urlopen(request, timeout=timeout)
@@ -77,6 +78,14 @@ def set_room(base_url: Optional[str], room_id: Optional[str],
     _session["room_id"] = (room_id or "").strip() or None
     if token is not None:
         _session["token"] = token.strip() or None
+        if _session["token"] and _session["base_url"]:
+            try:
+                from . import access
+            except ImportError:  # loaded by path, outside the package (the suite)
+                return
+            # a token that came another way is known by its node, so its
+            # expiry can be said as one; a signed-in one is already known
+            access.adopt(_session["base_url"], _session["token"])
 
 
 def forget_token() -> None:
@@ -87,6 +96,11 @@ def forget_token() -> None:
     exactly what this module exists to prevent.
     """
     _session["token"] = None
+    try:
+        from . import access
+    except ImportError:          # loaded by path, outside the package (the suite)
+        return
+    access.forget(_session["base_url"])
 
 
 def room() -> Dict[str, Optional[str]]:
@@ -150,6 +164,13 @@ def put_asset(data: bytes, media_type: str = GLTF_MEDIA_TYPE,
         raise RoomError("no room configured: set the room address and id first")
     local = content_id(data)
     base, room_id = _session["base_url"], _session["room_id"]
+    # X2 · asked first: bytes the room already holds are not sent again, and the
+    # answer says so (`already`) — «uploaded 66 (0 B)» counted as uploads models
+    # that never travelled
+    if _room_has(local):
+        return {"ref": local, "sha256": local, "size": len(data),
+                "media_type": media_type, "created": False, "already": True,
+                "author": None, "url": asset_url(local)}
     url = (f"{base}/v1/rooms/{urllib.parse.quote(str(room_id))}/asset"
            f"?media_type={urllib.parse.quote(media_type)}")
     request = urllib.request.Request(url, data=data, method="PUT",
@@ -171,7 +192,22 @@ def put_asset(data: bytes, media_type: str = GLTF_MEDIA_TYPE,
         raise RoomError(f"the room stored a different digest ({info.get('ref')}) "
                         f"than the bytes we sent ({local})")
     info["url"] = asset_url(info["ref"])
+    info["already"] = not info.get("created", True)
     return info
+
+
+def _room_has(ref: str, timeout: float = 30.0) -> bool:
+    """`HEAD` of the asset: True when the room holds it. Any doubt is False —
+    the PUT that follows is idempotent, so asking wrong costs one upload."""
+    request = urllib.request.Request(asset_url(ref), method="HEAD",
+                                     headers=_auth_headers())
+    try:
+        with _urlopen(request, timeout=timeout):
+            return True
+    except RoomError:
+        raise                    # an access that ran out: said, not guessed
+    except Exception:  # noqa: BLE001 — 404, or a node that does not answer HEAD
+        return False
 
 
 def asset_url(ref: str) -> str:

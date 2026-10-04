@@ -20,9 +20,10 @@ from typing import Any, Callable, Dict, List, Optional
 
 def _urlopen(request, timeout=None):
     """Every call to a node verifies TLS against what this computer trusts
-    (`trust.py`: the dev node behind Caddy included)."""
+    (`trust.py`: the dev node behind Caddy included), with an access renewed
+    before it runs out and said when it cannot be (`access.py`)."""
     try:
-        from .trust import urlopen
+        from .access import urlopen
     except ImportError:          # loaded by path, outside the package (the suite)
         import urllib.request
         return urllib.request.urlopen(request, timeout=timeout)

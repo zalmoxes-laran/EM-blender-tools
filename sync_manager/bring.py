@@ -272,6 +272,18 @@ def _already_published(obj, graph) -> bool:
                 and str(data.get("checksum") or "") == str(digest))
 
 
+def upload_phrase(uploaded: int, size: int, already: int) -> str:
+    """X2 · what travelled and what was already there, counted apart.
+
+    Measured on 4 Oct 2026: «uploaded 66 (0 B)» for 66 models the node already
+    held — nothing had been uploaded."""
+    if not uploaded:
+        return (f"{already} already on the node, nothing uploaded" if already
+                else "nothing uploaded")
+    said = f"uploaded {uploaded} ({inventory.human_size(size)})"
+    return said + (f", {already} already on the node" if already else "")
+
+
 def execute(context, graph, *, token: Optional[str], promote: bool = True,
             progress: Optional[Callable[[str, int, int], None]] = None
             ) -> Dict[str, Any]:
@@ -325,9 +337,12 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
                 context, graph)
             if result.get("ok"):
                 info = result["info"]
-                published.append(info["object"])
                 if info.get("stored"):
+                    published.append(info["object"])
                     published_size += int(info.get("size") or 0)
+                else:
+                    # X2 · the node had these bytes: published, not uploaded
+                    published_skip += 1
             else:
                 failed.append(f"{model['object']}: {result.get('error')}")
 
@@ -380,7 +395,7 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
     refs += moves["references"]
     report["references"] = refs
     report["sentence"] = (
-        f"uploaded {report['uploaded']} ({inventory.human_size(size_up)}), "
+        upload_phrase(report["uploaded"], size_up, report["already"]) + ", "
         + (f"moved here {moves['moved']}, " if moves["moved"] else "")
         + f"references {refs}, missing {missing} — room {room_id}: {link}")
     ULTIMO_REFERTO.clear()
@@ -388,8 +403,6 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
     print(f"[bring] {report['sentence']}")
     for line in inventory.sentences(summary):
         print(f"[bring]   {line}")
-    if report["already"]:
-        print(f"[bring]   {report['already']} already in the room: not sent again")
     if others:
         print(f"[bring]   one room, one graph: {others} other graph(s) of this "
               f"project stay here")

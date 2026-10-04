@@ -244,7 +244,7 @@ def server_reprojector(base_url: str, token: Optional[str] = None,
         req = urllib.request.Request(url, data=body, headers=headers,
                                      method='POST')
         try:        # the node behind Caddy too (sync_manager/trust.py)
-            from ..sync_manager.trust import urlopen as _open
+            from ..sync_manager.access import urlopen as _open
         except ImportError:  # loaded by path, outside the package (the suite)
             _open = urllib.request.urlopen
         with _open(req, timeout=timeout) as resp:

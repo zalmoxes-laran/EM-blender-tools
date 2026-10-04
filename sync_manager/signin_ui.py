@@ -40,10 +40,20 @@ class Waiting(Exception):
 
 
 def _held(base: str) -> Optional[str]:
+    """The session's access for that node, renewed when it is about to run out;
+    None when it ran out for good (the door then signs in again)."""
     held = room_cfg._session.get("token")
     held_base = room_cfg._session.get("base_url")
     if held and (not held_base or held_base == base.rstrip("/")):
-        return held
+        try:
+            from . import access
+            return access.fresh(held)
+        except ImportError:      # loaded by path, outside the package (the suite)
+            return held
+        except room_cfg.RoomError as exc:
+            print(f"[EM sign-in] {exc}")
+            room_cfg._session["token"] = None
+            return None
     return None
 
 
@@ -61,7 +71,7 @@ def access_or_wait(base: str, typed: str = "",
         return held, "session"
     import bpy
     if bpy.app.background:
-        got = handoff.sign_in(base)
+        got = handoff.sign_in(base)       # kept with its refresh token
         return (got, "signed-in") if got else (None, "open-node")
     running = PENDING.get("signin")
     if running is not None and running.state == "waiting":
@@ -111,6 +121,7 @@ def _poll():
     resume = PENDING.get("resume")
     PENDING.update({"signin": None, "resume": None})
     if running.state == "done":
+        handoff.keep(running)
         room_cfg.set_room(PENDING["base"], room_cfg._session.get("room_id"),
                           running.token)
         PENDING["line"] = (f"signed in to {PENDING['base']}"
@@ -144,8 +155,38 @@ def draw(layout) -> None:  # pragma: no cover — bpy
         row = layout.row(align=True)
         row.label(text=line, icon="TIME")
         row.operator("em.sign_in_cancel", text="Cancel", icon="CANCEL")
+        return
+    from . import access
+    if access.EXPIRED.get("base"):
+        # X1 · the access ran out and could not be renewed: say it, and the
+        # one gesture that fixes it, beside it
+        col = layout.column(align=True)
+        col.alert = True
+        col.label(text=f"The access to {access.EXPIRED['base']} has expired",
+                  icon="LOCKED")
+        col.operator("em.sign_in_again", text="Sign in again", icon="USER")
     elif line:
         layout.label(text=line, icon="INFO")
+
+
+def sign_in_again() -> str:
+    """Forget the expired access and sign in to that node again → the sentence."""
+    from . import access
+    base = access.EXPIRED.get("base") or room_cfg._session.get("base_url") or ""
+    if not base:
+        return "no node to sign in to"
+    if (room_cfg._session.get("base_url") or "") == base:
+        room_cfg._session["token"] = None
+    access.forget(base)
+    access.EXPIRED.update({"base": "", "line": ""})
+    try:
+        token, how = access_or_wait(base)
+    except Waiting as exc:
+        return str(exc)
+    if token:
+        room_cfg.set_room(base, room_cfg._session.get("room_id"), token)
+        return f"signed in to {base} again: press the button again"
+    return f"{base} asks for no sign-in ({how})"
 
 
 def _operator_classes():  # pragma: no cover — bpy
@@ -162,7 +203,21 @@ def _operator_classes():  # pragma: no cover — bpy
                 self.report({"INFO"}, "sign-in cancelled")
             return {"FINISHED"}
 
-    return (EM_OT_sign_in_cancel,)
+    class EM_OT_sign_in_again(bpy.types.Operator):
+        """The access to the node expired: sign in again in the browser"""
+
+        bl_idname = "em.sign_in_again"
+        bl_label = "Sign in again"
+
+        def execute(self, context):
+            try:
+                self.report({"INFO"}, sign_in_again())
+            except handoff.HandoffError as exc:
+                self.report({"ERROR"}, str(exc))
+                return {"CANCELLED"}
+            return {"FINISHED"}
+
+    return (EM_OT_sign_in_cancel, EM_OT_sign_in_again)
 
 
 _CLASSES = ()
