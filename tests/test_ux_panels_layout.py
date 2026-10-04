@@ -105,9 +105,20 @@ def test_LA_TAB_EM_SHELF_NON_ESISTE_PIU():
     assert orfani == {}, orfani
 
 
+def test_LE_VERSIONI_E_I_LOD_SONO_IN_EM_SCENE():
+    """U6 · Asset versions (le versioni e il cambio di LOD, U1) è il 3D: EM
+    Scene. La sua classe nasce dentro una funzione, che lo scanner dei
+    pannelli non legge: si guarda il sorgente."""
+    src = (_REPO / "sync_manager" / "asset_versions.py").read_text()
+    m = re.search(r'bl_label = "Asset versions".*?bl_category = "([^"]+)"', src, re.S)
+    assert m and m.group(1) == "EM Scene", m and m.group(1)
+
+
 def test_E_LE_TAB_SONO_ESATTAMENTE_TRE():
+    """U6 (MICRO-EMTOOLS-MENO-E-MEGLIO): «EM» il grafo nella scena, «EM
+    Scene» il 3D, «EM Stanza» dove lavori e con chi — EM Bridge non c'è più."""
     cat = {p["categoria"] for p in PANNELLI.values() if p["categoria"]}
-    assert cat == {"EM", "EM Scene", "EM Bridge"}, sorted(cat)
+    assert cat == {"EM", "EM Scene", "EM Stanza"}, sorted(cat)
 
 
 def test_OGNI_PANNELLO_DICHIARA_LA_SUA_TAB():
@@ -135,23 +146,22 @@ def test_OGNI_PANNELLO_DICHIARA_LA_SUA_TAB():
     ("VIEW3D_PT_RM_Manager", "EM Scene"),
     ("VIEW3D_PT_Anastylosis_Manager", "EM Scene"),
     ("VIEW3D_PT_RMDoc_Manager", "EM Scene"),
-    ("EM_PT_resources", "EM Scene"),
+    ("EM_PT_resources", "EM Stanza"),
     ("EM_PT_shelf", "EM Scene"),
     ("EM_PT_proxy_surface_tools", "EM Scene"),
     ("PROXYBOX_PT_main_panel", "EM Scene"),
     ("VIEW3D_PT_SurfaceAreale", "EM Scene"),
     ("VIEW3D_PT_proxy_offset", "EM Scene"),
     ("EM_PT_georef", "EM Scene"),
-    # EM Bridge · i ponti
-    ("VIEW3D_PT_ExportPanel", "EM Bridge"),
-    ("EM_PT_ExportPanel", "EM Bridge"),
-    ("TAPESTRY_PT_main_panel", "EM Bridge"),
-    ("VIEW3D_PT_em_sync", "EM Bridge"),
-    ("VIEW3D_PT_ServerPanel", "EM Bridge"),
-    # NIGHT-DECK · il Publication Deck: il tab dei ponti è il suo posto, ed è
-    # PRIMO (`bl_order = 0`) perché la domanda che risponde — cosa manca —
-    # viene prima di quella dell'Export Manager, che è come esportare.
-    ("VIEW3D_PT_em_publication_deck", "EM Bridge"),
+    # EM Stanza · dove lavori e con chi (U6: era EM Bridge)
+    ("VIEW3D_PT_ExportPanel", "EM Stanza"),
+    ("EM_PT_ExportPanel", "EM Stanza"),
+    ("TAPESTRY_PT_main_panel", "EM Stanza"),
+    ("VIEW3D_PT_em_sync", "EM Stanza"),
+    ("VIEW3D_PT_ServerPanel", "EM Stanza"),
+    # NIGHT-DECK · il Publication Deck, prima dell'Export Manager: la domanda
+    # che risponde — cosa manca — viene prima di come esportare.
+    ("VIEW3D_PT_em_publication_deck", "EM Stanza"),
 ])
 def test_OGNI_PANNELLO_E_DOVE_IL_PROMPT_DICE(classe, categoria):
     assert classe in PANNELLI, f"{classe} non esiste più: sparito nel trasloco?"
@@ -174,10 +184,13 @@ def test_NESSUN_PANNELLO_E_SPARITO_NEL_TRASLOCO():
     i quattro pannelli di EMGraph Tools e il pannello EMGraph del 3D, ora in
     `_dead_code/graph_editor/`: 29. U4 ne aggiunge uno, «Import from tables»
     (`VIEW3D_PT_import_from_tables`, figlio di EM Data Tree), che prende il
-    posto della modalità 3D GIS: 30.
+    posto della modalità 3D GIS: 30. U6 divide l'EM Data Tree nei suoi tre
+    mestieri, e gli ausiliari diventano il figlio `VIEW3D_PT_auxiliary_files`:
+    31.
     Nessuno via per sbaglio — verificato contandoli, non stimandoli.
     """
-    assert len(PANNELLI) == 30, sorted(PANNELLI)
+    assert len(PANNELLI) == 31, sorted(PANNELLI)
+    assert PANNELLI["VIEW3D_PT_auxiliary_files"]["parent"] == "VIEW3D_PT_EM_Tools_Setup"
     assert PANNELLI["VIEW3D_PT_import_from_tables"]["parent"] == "VIEW3D_PT_EM_Tools_Setup"
     assert not any(n.startswith("GRAPHEDIT_PT_") or n == "VIEW3D_PT_graphedit_sync" for n in PANNELLI)
     assert PANNELLI["VIEW3D_PT_em_readings"]["parent"] == "VIEW3D_PT_visual_panel"
@@ -235,20 +248,25 @@ def test_E_IL_DOCUMENT_MANAGER_E_PRIMO_in_EM_Scene():
     assert min(ordini, key=ordini.get) == "VIEW3D_PT_3DDocumentManager", ordini
 
 
-# ═══ A2 · RESOURCES & SHELF ══════════════════════════════════════════════════
+# ═══ A2 · FILES E SCAFFALE (U6: erano «Resources & Shelf») ═══════════════════
 
 def test_IL_PANNELLO_NON_SI_CHIAMA_PIU_COME_LA_SUA_TAB():
+    """U6 · i file sono di dove lavori — la stanza, il nodo —: «Files» in EM
+    Stanza, come nella barra di EMStudio."""
     p = PANNELLI["EM_PT_resources"]
-    assert p["label"] == "Resources & Shelf", p["label"]
+    assert p["label"] == "Files", p["label"]
+    assert p["categoria"] == "EM Stanza"
     assert p["label"] != p["categoria"]
 
 
-def test_LO_SHELF_E_UN_FIGLIO_e_conserva_la_sua_UIList():
-    """Assorbito come pannello FIGLIO e non come sezione, e la scelta è per la
-    UIList col filtro: un `template_list` annidato in un box perde spazio, e il
-    funnel del filtro è la prima cosa che lo perde."""
+def test_LO_SHELF_E_UN_PANNELLO_SUO_e_conserva_la_sua_UIList():
+    """U6 · lo Scaffale resta (E.D.): un grafo dentro l'em.json da cui
+    trascinare modelli nella scena, quindi in EM Scene, pannello suo ora che
+    il suo genitore è andato in EM Stanza. La UIList col filtro resta: un
+    `template_list` annidato in un box perde spazio, e il funnel del filtro è
+    la prima cosa che lo perde."""
     p = PANNELLI["EM_PT_shelf"]
-    assert p["parent"] == "EM_PT_resources", p
+    assert not p["parent"], p
     assert p["categoria"] == "EM Scene"
     src = (_REPO / "shelf_tool" / "ui.py").read_text()
     assert 'template_list("SHELF_UL_resources"' in src, "la UIList è sparita"

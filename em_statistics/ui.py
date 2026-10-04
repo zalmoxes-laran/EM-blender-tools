@@ -9,8 +9,8 @@ class EM_PT_ExportPanel(Panel):
     bl_idname = "EM_PT_ExportPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "EM Bridge"
-    bl_order = 2
+    bl_category = "EM Stanza"
+    bl_order = 4
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod

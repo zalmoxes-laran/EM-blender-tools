@@ -45,7 +45,7 @@ def room_state(origin) -> tuple:
             role = f" as {session.role}" if session.role else ""
             people = len(session.members or [])
             return (f"joined{role} · {people} here", "LINKED")
-    return ("not joined: enter the room from EM Bridge to send edits", "UNLINKED")
+    return ("not joined: enter the room from EM Stanza to send edits", "UNLINKED")
 
 
 def save_origin(context, index: int) -> tuple:

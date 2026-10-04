@@ -32,7 +32,7 @@ def draw_graph_info_section(layout, context) -> None:
     box = layout.box()
     header = box.row(align=True)
     header.prop(
-        p, "show", text="HDT-O · Heritage Digital Twin",
+        p, "show", text="Il grafo",
         icon="TRIA_DOWN" if p.show else "TRIA_RIGHT", emboss=False)
     if not p.show:
         return
@@ -145,7 +145,7 @@ class VIEW3D_PT_EM_GraphInfo(bpy.types.Panel):
     optional, non-blocking, and belongs to the graph rather than to the scene.
     """
 
-    bl_label = "HDT-O · Heritage Digital Twin"
+    bl_label = "Il grafo"
     bl_idname = "VIEW3D_PT_EM_GraphInfo"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'

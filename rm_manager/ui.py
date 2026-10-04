@@ -624,7 +624,7 @@ class VIEW3D_PT_RM_Manager(Panel):
             from ..sync_manager.file_states import ULTIMI as _files
             if len(scene.rm_list) and not _files.get("results"):
                 layout.label(text="Where each model's file is: «Check files» "
-                                  "in Resources & Shelf", icon='INFO')
+                                  "in EM Stanza ▸ Files", icon='INFO')
         except Exception:  # noqa: BLE001
             pass
 

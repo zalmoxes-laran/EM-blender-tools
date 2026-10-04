@@ -947,8 +947,8 @@ class EM_SetupPanel(bpy.types.Panel):
             # della scala sta fuori.
             self._draw_graph_warnings(context, layout, em_tools, active_file)
 
-            # I file ausiliari, che erano in coda a questo blocco.
-            self._draw_auxiliary_files(context, layout, active_file)
+            # U6 · the auxiliary files are the tree's third job: their own
+            # sub-panel («Auxiliary files», below «Import from tables»)
 
     def _draw_graph_info(self, context, layout, active_file):
         """B2 · i numeri e i metadati del grafo attivo."""
@@ -1633,6 +1633,28 @@ def draw_import_from_tables(layout, context, em_tools):
     row.operator("em.import_from_table", text="New graph from the table", icon='IMPORT')
 
 
+class VIEW3D_PT_auxiliary_files(bpy.types.Panel):
+    """U6 · the third job of EM Data Tree: the tables, DosCo and source lists
+    that ENRICH the active graph (a table that makes a new graph is «Import
+    from tables»)."""
+    bl_label = "Auxiliary files"
+    bl_idname = "VIEW3D_PT_auxiliary_files"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "EM"
+    bl_parent_id = "VIEW3D_PT_EM_Tools_Setup"
+    bl_order = 2
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        em_tools = context.scene.em_tools
+        if em_tools.active_file_index < 0 or not len(em_tools.graphml_files):
+            self.layout.label(text="Add and load a graph first: the auxiliary files enrich it", icon='INFO')
+            return
+        active_file = em_tools.graphml_files[em_tools.active_file_index]
+        EM_SetupPanel._draw_auxiliary_files(self, context, self.layout, active_file)
+
+
 class VIEW3D_PT_import_from_tables(bpy.types.Panel):
     bl_label = "Import from tables"
     bl_idname = "VIEW3D_PT_import_from_tables"
@@ -1677,6 +1699,7 @@ classes = (
     EMTOOLS_UL_files,
     EM_SetupPanel,
     VIEW3D_PT_import_from_tables,
+    VIEW3D_PT_auxiliary_files,
     AUXILIARY_MT_context_menu,
 )
 

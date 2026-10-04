@@ -1556,7 +1556,7 @@ def applica_modo(context, richiesto: str) -> dict:
             # nuovo un modo che mente, che è esattamente ciò che C4 toglie.
             return {"ok": False, "mode": vero,
                     "message": ("Room mode means being in a room: join one "
-                                "first (EM Bridge ▸ pick a room, or Open room "
+                                "first (EM Stanza ▸ Stanza ▸ pick a room, or Open room "
                                 "from link…)")}
         if is_running():
             quanti = _annuncia_transizione(
@@ -2292,7 +2292,7 @@ class EM_OT_room_open_elsewhere(bpy.types.Operator):
 
 class EM_OT_sync_toggle(bpy.types.Operator):
     bl_idname = "em.sync_toggle"
-    bl_label = "Toggle EMStudio Sync"
+    bl_label = "Toggle the Stanza sync"
     bl_description = "Start/stop the WebSocket server EMStudio connects to for live selection sync"
 
     def execute(self, context):

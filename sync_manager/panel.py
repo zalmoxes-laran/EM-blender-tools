@@ -51,12 +51,12 @@ _MODES = (
 
 
 class VIEW3D_PT_em_sync(bpy.types.Panel):
-    bl_label = "EMStudio Sync"
+    bl_label = "Stanza"
     bl_idname = "VIEW3D_PT_em_sync"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "EM Bridge"
-    bl_order = 4
+    bl_category = "EM Stanza"
+    bl_order = 0
     bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context):

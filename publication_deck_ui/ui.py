@@ -1,4 +1,4 @@
-"""Il pannello del Publication Deck (tab EM Bridge).
+"""Il pannello del Publication Deck (tab EM Stanza).
 
 Il tab dei ponti verso l'esterno, e il deck è il posto che guarda la soglia.
 `bl_order = 0`: sta **prima** dell'Export Manager perché risponde alla domanda
@@ -275,8 +275,8 @@ class VIEW3D_PT_em_publication_deck(bpy.types.Panel):
     bl_idname = "VIEW3D_PT_em_publication_deck"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "EM Bridge"
-    bl_order = 0
+    bl_category = "EM Stanza"
+    bl_order = 2
     #: APERTO di default, al contrario degli altri pannelli di questo tab.
     #: La riga di sintesi deve essere **sempre visibile**, e un pannello
     #: chiuso la nasconde.

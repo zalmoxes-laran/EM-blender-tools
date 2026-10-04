@@ -1,4 +1,4 @@
-"""EM Shelf tool UI — a CHILD panel of `Resources & Shelf`, in the EM Scene tab.
+"""EM Shelf tool UI — its own panel in the EM Scene tab (U6: it was a child of `Resources & Shelf`, now `Files` in EM Stanza).
 
 EM16-UX (11-09-2026): the `EM Shelf` tab is gone and this panel moved under
 `Resources & Shelf`. Absorbed as a CHILD PANEL and not as a section, and the
@@ -84,8 +84,7 @@ class EM_PT_shelf(bpy.types.Panel):
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "EM Scene"
-    bl_parent_id = "EM_PT_resources"
-    bl_order = 1
+    bl_order = 5
     bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context):

@@ -1,4 +1,4 @@
-"""publication_deck_ui — il Publication Deck (EM Bridge).
+"""publication_deck_ui — il Publication Deck (EM Stanza).
 
 Il posto che risponde a **una domanda sola**: *cosa manca perché questo em.json
 sia consumabile fuori da Blender?* Guarda la soglia fra il dentro e il fuori e

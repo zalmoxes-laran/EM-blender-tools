@@ -1440,8 +1440,8 @@ def _operator_classes():  # pragma: no cover — bpy
         bl_idname = "VIEW3D_PT_em_asset_versions"
         bl_space_type = "VIEW_3D"
         bl_region_type = "UI"
-        bl_category = "EM Bridge"
-        bl_order = 5
+        bl_category = "EM Scene"
+        bl_order = 9
         bl_options = {"DEFAULT_CLOSED"}
 
         def draw(self, context):

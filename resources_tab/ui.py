@@ -1,4 +1,4 @@
-"""`Resources & Shelf` — the face of the shared Resource layer.
+"""`Files` (tab EM Stanza; once `Resources & Shelf`) — the face of the shared Resource layer.
 
 EM16-UX (11-09-2026). This panel used to be labelled "EM Scene", i.e. it was
 named after the tab that contains it, which said nothing about what it holds.
@@ -35,12 +35,12 @@ from ..ui_helpers import draw_s3dgraphy_too_old
 
 
 class EM_PT_resources(bpy.types.Panel):
-    bl_label = "Resources & Shelf"
+    bl_label = "Files"
     bl_idname = "EM_PT_resources"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "EM Scene"
-    bl_order = 5
+    bl_category = "EM Stanza"
+    bl_order = 1
     bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context):
