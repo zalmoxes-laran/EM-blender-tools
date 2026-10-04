@@ -61,3 +61,6 @@ is read once and never written again, `graphml-solo-in-entrata`):
   baked in. Not drawn by any panel (measured). The enrichment of a loaded graph
   by em_paradata stays (auxiliary files), and «Bake auxiliaries into the graph»
   makes it graph-native in the em.json.
+- `graphml_lock.py` — **G1**, the write-lock pre-flight for a GraphML held by
+  yEd (`abort_if_graphml_locked`). Nothing writes a GraphML any more, so
+  nothing calls it.
