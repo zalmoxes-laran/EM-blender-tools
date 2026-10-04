@@ -25,9 +25,6 @@ Usage:
     def my_update(context):
         pass
 
-    # Thumbnails
-    thumbs = opt.load_thumbnails_async(us_id, aux_files, callback)
-
     # Icons
     opt.mark_icons_dirty("em_tools.stratigraphy.units")
     opt.update_icons_if_needed(context, "em_tools.stratigraphy.units")
@@ -220,45 +217,6 @@ def debounce_function(func: Callable, delay: float = 0.1) -> Callable:
     """
     from .debounce import debounce_function as _debounce_function
     return _debounce_function(func, delay)
-
-
-# ============================================================================
-# ASYNC THUMBNAIL WRAPPERS
-# ============================================================================
-
-def load_thumbnails_async(us_node_id: str, aux_files: List,
-                          on_ready: Optional[Callable] = None) -> List[Tuple]:
-    """
-    Load thumbnails asynchronously.
-
-    Args:
-        us_node_id: US node ID
-        aux_files: Auxiliary files to search
-        on_ready: Callback when ready
-
-    Returns:
-        Cached thumbnails or empty list
-
-    Usage:
-        def on_ready(thumbs):
-            display(thumbs)
-
-        thumbs = opt.load_thumbnails_async("US001", aux_files, on_ready)
-    """
-    from .thumb_async import load_thumbnails_async as _load_async
-    return _load_async(us_node_id, aux_files, on_ready)
-
-
-def get_cached_thumbnails(us_node_id: str) -> List[Tuple]:
-    """Get cached thumbnails without loading"""
-    from .thumb_async import get_cached_thumbnails
-    return get_cached_thumbnails(us_node_id)
-
-
-def clear_thumbnail_cache():
-    """Clear thumbnail cache"""
-    from .thumb_async import clear_thumbnail_cache
-    clear_thumbnail_cache()
 
 
 # ============================================================================

@@ -603,8 +603,6 @@ def process_resource_folder(graph, resource_folder_raw, source_item, graph_name,
         target_types: Optional list of node type strings to filter.
                       If None, uses legacy behavior.
     """
-    from ..thumb_utils import em_thumbs_root, load_index_json
-
     # Resolve path
     base_resource_folder = resolve_resource_path(resource_folder_raw)
     print(f"Resource folder resolved: {base_resource_folder}")
@@ -618,20 +616,8 @@ def process_resource_folder(graph, resource_folder_raw, source_item, graph_name,
         if not graph:
             raise Exception(f"Graph {graph_name} not found")
 
-    # Try fast path: thumbnails JSON
-    try:
-        thumbs_root = em_thumbs_root(resource_folder_raw)
-        index_data = load_index_json(thumbs_root)
-
-        if index_data.get("items") and len(index_data["items"]) > 0:
-            print(f"Found thumbnails JSON with {len(index_data['items'])} items - using fast import")
-            process_from_thumbnails_json(graph, base_resource_folder, index_data, allowed_formats)
-            return
-        else:
-            print(f"Thumbnails JSON exists but is empty - falling back to folder scan")
-    except Exception as e:
-        print(f"Could not load thumbnails JSON: {e} - falling back to folder scan")
-
+    # U5 · the old thumbnails' index (the fast path) is gone with them: the
+    # folder is scanned
     # Fallback: physical folder scan
     print(f"Processing resource folder: {base_resource_folder}")
     if allowed_formats:

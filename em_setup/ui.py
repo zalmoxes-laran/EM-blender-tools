@@ -8,7 +8,6 @@ from ..import_operators.importer_graphml import EM_import_GraphML
 from .. import icons_manager
 from ..populate_lists import clear_lists, populate_blender_lists_from_graph
 from ..functions import get_compatible_icon
-from ..thumb_utils import reload_doc_previews_from_cache, has_doc_thumbs
 from ..operators.graphml_converter import GRAPHML_OT_convert_borders
 from ..import_operators.geom_georef import classify_georef_state, STATE_CONFIGURED
 # XLSX_OT_to_graphml kept registered for F3 access but no longer used in panel UI
@@ -1364,42 +1363,13 @@ class EM_SetupPanel(bpy.types.Panel):
                     row.scale_y = 1.2
                     row.operator("auxiliary.import_now", text="Scan & Link Resources", icon='VIEWZOOM')
 
-                    # Thumbnails section
-                    box.separator()
-                    box.label(text="Thumbnails Generation:")
-
-                    thumb_row = box.row(align=True)
-
-                    # Thumbnail status indicator
-                    if has_doc_thumbs():
-                        thumb_row.label(text="", icon='KEYTYPE_JITTER_VEC')
-                    else:
-                        thumb_row.label(text="", icon='KEYTYPE_KEYFRAME_VEC')
-
-                    # Thumbnail action buttons
-                    thumb_row.operator("emtools.build_doc_thumbs", text="(Re)generate")
-                    thumb_row.operator("emtools.open_doc_thumbs_folder", text="", icon='FILE_FOLDER')
-                    op = thumb_row.operator("em.open_docs", text="", icon="HELP")
-                    op.url = "panels/em_setup.html#setting-up-resource-folders"
-                    op.project = 'em_tools'
-
-                    # Thumbnails path (collapsible)
-                    path_box = box.box()
-                    path_row = path_box.row(align=True)
-                    path_icon = 'TRIA_DOWN' if aux_file.show_thumbs_path_section else 'TRIA_RIGHT'
-                    path_row.prop(aux_file, "show_thumbs_path_section",
-                                  text="Thumbnails Path",
-                                  icon=path_icon,
-                                  emboss=False)
-
-                    if aux_file.show_thumbs_path_section:
-                        path_col = path_box.column()
-                        path_row = path_col.row()
-                        path_row.prop(aux_file, "custom_thumbs_path", text="")
-
-                        if not aux_file.custom_thumbs_path:
-                            info_row = path_col.row()
-                            info_row.label(text="Path will be auto-generated on first use", icon='INFO')
+                    # U5 · the thumbnails are no longer made here, from a
+                    # folder of this auxiliary file: the images of the units
+                    # are resources, proposed by name in the EM tree and
+                    # confirmed in Stratigraphy Manager ▸ Images of the unit,
+                    # their thumbnails a cache keyed by sha256
+                    box.label(text="Images of the units: Stratigraphy Manager ▸ Images of the unit",
+                              icon='IMAGE_DATA')
 
                 # ── Hybrid-C lifecycle: attached count, orphan
                 # list, revert-this-aux (Phase 2). Only shown

@@ -34,7 +34,6 @@ from bpy.props import ( # type: ignore
 from bpy.types import PropertyGroup # type: ignore
 from . import icons_manager
 
-from .thumb_utils import cleanup_preview_collections
 
 # Configure logging — only warnings and errors during normal operation
 logging.basicConfig(level=logging.WARNING)
@@ -690,7 +689,7 @@ def register_modules():
     from .export_operators import rdf as exporter_rdf
     from .import_operators import import_EMdb
     from .operators import graphml_converter
-    from . import thumb_operators
+    from . import unit_images  # U5 · the images of the units (the old thumbnails are in _dead_code)
     
     # FASE 0: Preferenze (devono essere registrate per prime)
     try:
@@ -741,7 +740,7 @@ def register_modules():
         graphml_converter,
         operators,
         cronofilter,
-        thumb_operators,
+        unit_images,
         viewport_overlay,  # Viewport overlay for epoch/US display
         debug_graph_connections  # Debug operator
     ]
@@ -851,7 +850,7 @@ def unregister_modules():
     from .export_operators import rdf as exporter_rdf
     from .import_operators import importer_graphml, importer_emjson, import_EMdb
     from .operators import graphml_converter
-    from . import thumb_operators
+    from . import unit_images
 
     # Rimuovi handler per validazione mapping
     if validate_mappings_on_load in bpy.app.handlers.load_post:
@@ -939,7 +938,7 @@ def unregister_modules():
     # FASE 4: Moduli core in ordine inverso
     core_modules = [
         debug_graph_connections,  # Debug operator
-        thumb_operators,
+        unit_images,
         cronofilter,
         operators,
         graphml_converter,
@@ -1055,13 +1054,6 @@ def register():
     # 8. ✅ OPTIMIZATION: Start performance optimization services
     if MODULE_IMPORT_SUCCESS:
         try:
-            from . import thumb_async
-            thumb_async.start_thumbnail_loader()
-            logger.info("Started async thumbnail loader")
-        except Exception as e:
-            logger.warning(f"Could not start thumbnail loader: {e}")
-
-        try:
             # Pre-warm caches for faster first access
             from . import graph_index, material_cache, object_cache
             logger.info("Loaded optimization modules (graph_index, material_cache, object_cache)")
@@ -1103,13 +1095,6 @@ def unregister():
 
     # 5. ✅ OPTIMIZATION: Stop performance optimization services
     if MODULE_IMPORT_SUCCESS:
-        try:
-            from . import thumb_async
-            thumb_async.stop_thumbnail_loader()
-            logger.info("Stopped async thumbnail loader")
-        except Exception as e:
-            logger.warning(f"Could not stop thumbnail loader: {e}")
-
         try:
             # Clear all caches
             from . import graph_index, material_cache, object_cache, debounce

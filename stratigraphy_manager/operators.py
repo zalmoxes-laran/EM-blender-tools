@@ -2670,7 +2670,6 @@ class STRAT_OT_add_us_suggest_next(Operator):
 def register_operators():
     """Register all operator classes."""
     operators = [
-        EMTOOLS_OT_refresh_us_thumbs,
         STRAT_OT_set_active_epoch,
         STRAT_OT_set_active_horizon,
         STRAT_OT_set_active_activity,
@@ -2709,28 +2708,6 @@ def register_operators():
         except ValueError:
             # Class might already be registered
             pass
-
-class EMTOOLS_OT_refresh_us_thumbs(Operator):
-    """Refresh thumbnail cache for the selected stratigraphic unit"""
-    bl_idname = "emtools.refresh_us_thumbs"
-    bl_label = "Refresh Documents"
-    bl_description = "Reload documents for this unit (use after importing auxiliary files)"
-    bl_options = {'REGISTER'}
-
-    def execute(self, context):
-        from ..thumb_utils import force_reload_thumbs_cache
-
-        if force_reload_thumbs_cache():
-            self.report({'INFO'}, "Cache refreshed - thumbnails reloaded")
-            # Force UI redraw
-            for area in context.screen.areas:
-                if area.type == 'VIEW_3D':
-                    area.tag_redraw()
-            return {'FINISHED'}
-        else:
-            self.report({'WARNING'}, "Could not refresh cache - check console")
-            return {'CANCELLED'}
-
 
 class STRAT_OT_set_active_epoch(Operator):
     """Set the active epoch for filtering"""
@@ -2827,7 +2804,6 @@ class STRAT_OT_set_active_activity(Operator):
 def unregister_operators():
     """Unregister all operator classes."""
     operators = [
-        EMTOOLS_OT_refresh_us_thumbs,
         STRAT_OT_set_active_epoch,
         STRAT_OT_set_active_horizon,
         STRAT_OT_set_active_activity,

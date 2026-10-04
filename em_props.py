@@ -58,22 +58,10 @@ from .surface_areale.data import SurfaceArealeSettings
 def update_stratigraphic_selection(self, context):
     """
     Called when the user changes the selection in the stratigraphic list.
-    Updates paradata lists if streaming mode is enabled.
-    Pre-loads thumbnails for the selected US to avoid UI lag.
+    Updates paradata lists if streaming mode is enabled. (U5 · the images of
+    the unit are read when the section draws, from the graph and the cache.)
     """
     try:
-        # Pre-load thumbnails for the selected US (only if needed)
-        scene = context.scene
-        strat = scene.em_tools.stratigraphy
-
-        if strat.units and strat.units_index >= 0:
-            selected_us = strat.units[strat.units_index]
-            if selected_us.id_node:
-                # Import here to avoid circular imports
-                from .thumb_utils import reload_doc_previews_for_us
-                # This will use cache if available, otherwise load once
-                reload_doc_previews_for_us(selected_us.id_node)
-
         # Import here to avoid circular imports
         from .functions import switch_paradata_lists
 
@@ -204,39 +192,6 @@ def update_epoch_index(self, context):
 # ENUM CALLBACKS FOR DYNAMIC PROPERTIES
 # =====================================================
 
-def get_doc_previews_enum_items(self, context):
-    """
-    Callback for EnumProperty that returns document previews for selected US.
-    Used by template_icon_view() in Gallery mode.
-
-    Returns:
-        List of tuples: (identifier, name, description, icon_id, index)
-    """
-    try:
-        # Import here to avoid circular dependency
-        from .thumb_utils import reload_doc_previews_for_us
-
-        scene = context.scene
-        strat = scene.em_tools.stratigraphy
-
-        # If no US selected, return empty list
-        if not strat.units or strat.units_index < 0:
-            return []
-
-        selected_us = strat.units[strat.units_index]
-
-        # Get thumbnails using existing function
-        enum_items = reload_doc_previews_for_us(selected_us.id_node)
-
-        return enum_items if enum_items else []
-
-    except Exception as e:
-        print(f"Error in get_doc_previews_enum_items: {e}")
-        import traceback
-        traceback.print_exc()
-        return []
-
-
 # =====================================================
 # MANAGER AGGREGATOR CLASSES
 # =====================================================
@@ -319,17 +274,6 @@ class StratigraphyManagerProps(PropertyGroup):
         default=True
     )  # type: ignore
 
-    documents_view_mode: EnumProperty(
-        name="Documents View Mode",
-        description="How to display document thumbnails",
-        items=[
-            ('OFF', "Preview OFF", "Don't show document previews", 'CANCEL', 0),
-            ('LIST', "List", "Show documents as a list with small thumbnails", 'LINENUMBERS_ON', 1),
-            ('GALLERY', "Gallery", "Show documents as a large gallery grid", 'IMAGE_DATA', 2),
-        ],
-        default='LIST'
-    )  # type: ignore
-
     filter_by_containment: BoolProperty(
         name="Filter by Containment",
         description="When active, list is filtered to show a container US and its children",
@@ -352,12 +296,6 @@ class StratigraphyManagerProps(PropertyGroup):
         name="Instance Chain Node IDs",
         description="Comma-separated node IDs of the currently filtered instance chain",
         default=""
-    )  # type: ignore
-
-    selected_document: EnumProperty(
-        name="Selected Document",
-        description="Currently selected document in gallery view",
-        items=get_doc_previews_enum_items
     )  # type: ignore
 
     preview_image: PointerProperty(

@@ -36,3 +36,13 @@ Each subfolder says why it left. From MICRO-EMTOOLS-MENO-E-MEGLIO (4 October
   EMdb ones) and makes a real graph saved as em.json in one gesture. The 3D
   GIS mode it replaces (`mode_em_advanced`, `emtools.switch_mode`, the fixed
   graph id `3dgis_graph`) is gone from the code, not kept here.
+- `thumbnails/` (`thumb_operators.py`, `thumb_utils.py`, `thumb_async.py`) —
+  **U5**, the old images of the units: thumbnails built from the
+  `resource_folder` of the ACTIVE auxiliary file, keyed by a hash of the path,
+  and «Use Resource Collections instead» when there was none (a concept that no
+  longer exists). Now `unit_images/`: each image is a resource (sha256 +
+  position, the one resolver R1), linked to its unit by `has_linked_resource`
+  when the person confirms what the naming convention proposed, searched first
+  in the EM standard tree (C1), with its thumbnail in a derived cache keyed by
+  sha256 (`~/.em_cache/thumbs`) and its file's state (R2) in the Stratigraphy
+  Manager.

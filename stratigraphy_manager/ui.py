@@ -556,139 +556,29 @@ class EM_ToolsPanel:
             icon=icon,
             text=""
         )
-        header_row.label(text="Associated Documents", icon='FILE_FOLDER')
-        
+        header_row.label(text="Images of the unit", icon='IMAGE_DATA')
+
         # Help button
         help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
-        help_op.title = "Documents Help"
+        help_op.title = "Images of the unit"
         help_op.text = (
-            "This section shows documents linked to this stratigraphic unit.\n"
-            "Click on thumbnail to preview, or use buttons to open files/folders."
+            "The images linked to this unit, each a resource of the graph\n"
+            "with its thumbnail and where its file is. Find images: the\n"
+            "names that say a unit ({unit}_*: US012_north.jpg) in the EM\n"
+            "tree of the project are proposed, and linked when you confirm."
         )
         help_op.url = "panels/document_manager_3d.html#_Document_Manager_3D"
         help_op.project = 'em_tools'
-        
-        # ✅ FIXED: Use reload_doc_previews_for_us() instead of inline code
+
+        # U5 · the images are resources linked to the unit (has_linked_resource),
+        # proposed by name and confirmed by the person; the thumbnails come
+        # from the derived cache keyed by sha256 (unit_images/)
         if strat.show_documents:
-            from ..functions import is_graph_available
-            from ..thumb_utils import reload_doc_previews_for_us, has_doc_thumbs
-
-            graph_available, graph = is_graph_available(context)
-
-            if not graph_available:
-                docs_box.label(text="No graph loaded", icon='ERROR')
-                return
-
-            # Check if thumbnails are available
-            thumbs_available = has_doc_thumbs()
-
-            if not thumbs_available:
-                info_box = docs_box.box()
-                info_box.label(text="No thumbnails generated yet", icon='INFO')
-                info_box.label(text="Go to EM Setup → Auxiliary Files")
-                info_box.label(text="and click '(Re)generate thumbnails'")
-                return
-
-            # Toolbar: View mode selector + Refresh button
-            toolbar_row = docs_box.row(align=True)
-            toolbar_row.prop(strat, "documents_view_mode", text="", expand=True)
-            toolbar_row.separator()
-            toolbar_row.operator("emtools.refresh_us_thumbs", text="", icon='FILE_REFRESH')
-
-            # Only proceed if view mode is not OFF
-            if strat.documents_view_mode == 'OFF':
-                info_box = docs_box.box()
-                info_box.label(text="Preview disabled", icon='CANCEL')
-                info_box.label(text="Select 'List' or 'Gallery' to view documents")
-                return
-
-            # Get thumbnails from cache (already loaded by update_stratigraphic_selection)
-            # This avoids reloading on every UI redraw
+            from ..unit_images.blender import draw as draw_unit_images
             try:
-                # This will ALWAYS return from cache because update_stratigraphic_selection
-                # already loaded them when the US was selected
-                enum_items = reload_doc_previews_for_us(selected_us.id_node)
-
-                if not enum_items:
-                    docs_box.label(text="No documents found for this unit", icon='INFO')
-                    docs_box.label(text="Try clicking 'Refresh Documents' after importing", icon='INFO')
-                    return
-
-                # Display based on view mode
-                # enum_items format: (doc_key, doc_name, src_path, icon_id, i)
-                content_box = docs_box.box()
-
-                if strat.documents_view_mode == 'LIST':
-                    # ===============================
-                    # LIST MODE: Rows with thumbnails
-                    # ===============================
-                    for doc_key, doc_name, src_path, icon_id, idx in enum_items:
-                        row = content_box.row(align=True)
-
-                        # Thumbnail using icon_id from preview collection
-                        row.label(text="", icon_value=icon_id)
-                        row.label(text=doc_name)
-
-                        # Action buttons on the same row
-                        ops = row.row(align=True)
-
-                        if src_path:
-                            folder_path = os.path.dirname(src_path)
-
-                            # Open folder button
-                            op = ops.operator("wm.path_open", text="", icon='FILE_FOLDER')
-                            op.filepath = folder_path
-
-                            # Open file button
-                            op = ops.operator("wm.path_open", text="", icon='FILE')
-                            op.filepath = src_path
-
-
-                elif strat.documents_view_mode == 'GALLERY':
-                    # ===============================
-                    # GALLERY MODE: Native Blender icon view
-                    # ===============================
-                    # Use template_icon_view for native gallery display
-                    thumb_row = content_box.row()
-                    thumb_row.template_icon_view(
-                        strat,
-                        "selected_document",
-                        show_labels=True,
-                        scale=5.0,
-                        scale_popup=5.0
-                    )
-
-                    # Action buttons for selected document
-                    if strat.selected_document:
-                        # Find the selected document data from enum_items
-                        selected_data = None
-                        for doc_key, doc_name, src_path, icon_id, idx in enum_items:
-                            if doc_key == strat.selected_document:
-                                selected_data = (doc_key, doc_name, src_path, icon_id, idx)
-                                break
-
-                        if selected_data:
-                            doc_key, doc_name, src_path, icon_id, idx = selected_data
-
-                            # Action buttons row
-                            actions_box = content_box.box()
-                            actions_row = actions_box.row(align=True)
-                            actions_row.label(text=f"Selected: {doc_name}", icon='FILE_IMAGE')
-
-                            # Open file button
-                            if src_path:
-                                op = actions_row.operator("wm.path_open", text="Open Original", icon='FILE')
-                                op.filepath = src_path
-
-                                # Open folder button
-                                folder_path = os.path.dirname(src_path)
-                                op = actions_row.operator("wm.path_open", text="Open Folder", icon='FILE_FOLDER')
-                                op.filepath = folder_path
-
-            except Exception as e:
-                docs_box.label(text=f"Error loading thumbnails: {str(e)}", icon='ERROR')
-                import traceback
-                traceback.print_exc()
+                draw_unit_images(docs_box, context, selected_us)
+            except Exception as e:  # noqa: BLE001 — the panel draws on
+                docs_box.label(text=f"Images not read: {e}", icon='ERROR')
 
 class VIEW3D_PT_ToolsPanel(Panel, EM_ToolsPanel):
     """Panel in the 3D View for the Stratigraphy Manager"""
