@@ -55,10 +55,17 @@ class EM_import_emjson(bpy.types.Operator, ImportHelper):
         if self.file_index >= 0:
             # reloading replaces the in-memory graph with the file on disk →
             # confirm first so live-sync / unsaved edits are not lost silently.
+            # Q4 · and the versions added here, counted and named
+            lost = ""
+            if self.file_index < len(context.scene.em_tools.graphml_files):
+                from ..sync_manager.asset_versions import reload_warning
+                lost = reload_warning(
+                    context.scene.em_tools.graphml_files[self.file_index].name)
             return context.window_manager.invoke_confirm(
                 self, event,
                 title="Reload graph from disk?",
-                message=("Reloading replaces the in-memory graph with the file "
+                message=(lost or
+                         "Reloading replaces the in-memory graph with the file "
                          "on disk. Unsaved changes (including live-sync edits) "
                          "will be lost. Save first if you want to keep them."),
                 confirm_text="Reload")

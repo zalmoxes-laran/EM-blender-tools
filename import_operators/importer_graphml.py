@@ -16,14 +16,50 @@ class EM_import_GraphML(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     # Aggiungiamo una proprietà per passare l'indice del file GraphML selezionato
-    graphml_index: bpy.props.IntProperty() # type: ignore
+    # Q5 · -1 (the default) is THE ACTIVE SLOT. Measured on 4 Oct 2026: the
+    # default was 0, so from a script or a second slot the first graph was
+    # reloaded instead of the one in front.
+    graphml_index: bpy.props.IntProperty(default=-1) # type: ignore
+    #: Q4 · reload even if versions added here would be lost (asked in invoke)
+    discard_unsaved: bpy.props.BoolProperty(default=False, options={"HIDDEN", "SKIP_SAVE"}) # type: ignore
+
+    def _lost(self, context):
+        em_tools = context.scene.em_tools
+        idx = self.graphml_index if self.graphml_index >= 0 else em_tools.active_file_index
+        if not (0 <= idx < len(em_tools.graphml_files)):
+            return ""
+        from ..sync_manager.asset_versions import reload_warning
+        return reload_warning(em_tools.graphml_files[idx].name)
+
+    def invoke(self, context, event):
+        lost = self._lost(context)
+        if lost:
+            self.discard_unsaved = True
+            return context.window_manager.invoke_confirm(
+                self, event, title="Reload the graph from disk?", message=lost,
+                confirm_text="Reload")
+        return self.execute(context)
 
     def execute(self, context):
         # Setup scene variable
         scene = context.scene
         em_tools = scene.em_tools
 
-        if self.graphml_index >= 0 and em_tools.graphml_files[self.graphml_index]:
+        lost = self._lost(context)
+        if lost and not self.discard_unsaved:
+            self.report({'ERROR'}, lost)
+            return {'CANCELLED'}
+        if lost:
+            from ..sync_manager.asset_versions import mark_saved
+            idx = self.graphml_index if self.graphml_index >= 0 else em_tools.active_file_index
+            mark_saved([em_tools.graphml_files[idx].name])
+        if self.graphml_index < 0:
+            self.graphml_index = em_tools.active_file_index
+        if not (0 <= self.graphml_index < len(em_tools.graphml_files)):
+            self.report({'ERROR'}, f"no graph slot {self.graphml_index}: "
+                                   f"{len(em_tools.graphml_files)} slot(s) in the list")
+            return {'CANCELLED'}
+        if em_tools.graphml_files[self.graphml_index]:
             # Ottieni il file GraphML selezionato
             graphml = em_tools.graphml_files[self.graphml_index]
 

@@ -222,6 +222,39 @@ def sentences(report: Dict[str, Any]) -> List[str]:
 
 # ── Blender ──────────────────────────────────────────────────────────────────
 
+#: Q4 · the versions added in THIS session and not yet written to a file,
+#: {graph_id: ["ME_PODIO lod0", …]}. Measured on 4 Oct 2026: reloading GT16
+#: went from 275 nodes back to 254 in silence — the library and the object's
+#: properties stayed, the versions' nodes did not. A reload now asks first
+#: (`import.em_graphml`, `import.em_emjson`), and saving the project as em.json
+#: (`emjson_support.export_container_to_emjson`) clears the list.
+UNSAVED: Dict[str, List[str]] = {}
+
+
+def unsaved(graph_id: str) -> List[str]:
+    return list(UNSAVED.get(str(graph_id or ""), []))
+
+
+def mark_saved(graph_ids=None) -> None:
+    if graph_ids is None:
+        UNSAVED.clear()
+        return
+    for gid in graph_ids:
+        UNSAVED.pop(str(gid), None)
+
+
+def reload_warning(graph_id: str) -> str:
+    """The sentence a reload says before dropping unsaved versions, or ''."""
+    lost = unsaved(graph_id)
+    if not lost:
+        return ""
+    shown = ", ".join(lost[:4]) + (f" +{len(lost) - 4}" if len(lost) > 4 else "")
+    return (f"{len(lost)} version(s) added here are not in the file on disk "
+            f"({shown}): reloading drops them from the graph — the meshes stay in "
+            f"their libraries. Save the project as em.json first to keep them "
+            f"(a GraphML does not carry the models they hang from).")
+
+
 def _bpy():  # pragma: no cover — bpy
     import bpy  # type: ignore
     return bpy
@@ -717,6 +750,8 @@ def add_version_from_mesh(graph, obj, mesh, *, level: str = "", purpose: str = "
         meshes = levels_of(obj)
     if current in meshes:
         set_level(obj, current, meshes)
+    gid = str(getattr(graph, "graph_id", "") or "")
+    UNSAVED.setdefault(gid, []).append(f"{obj.name} {out['level']}")
     return {**out, "library": path, "levels": sorted(meshes, key=level_key),
             "warnings": list(warnings) + list(out.get("warnings") or [])}
 

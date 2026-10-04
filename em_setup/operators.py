@@ -510,9 +510,22 @@ class AUXILIARY_OT_import_now(Operator):
     bl_label = "Import Auxiliary File"
     bl_description = "Import the auxiliary file data now"
 
+    #: Q5 · the graph slot whose auxiliary file this is; -1 = the active slot.
+    #: Measured on 4 Oct 2026: the auto-import of slot N set slot N's
+    #: auxiliary index and then read the ACTIVE slot's list — an IndexError
+    #: on a slot without auxiliaries.
+    graphml_index: bpy.props.IntProperty(default=-1, options={'SKIP_SAVE'})  # type: ignore
+
     def execute(self, context):
         em_tools = context.scene.em_tools
-        graphml = em_tools.graphml_files[em_tools.active_file_index]
+        idx = self.graphml_index if self.graphml_index >= 0 else em_tools.active_file_index
+        if not (0 <= idx < len(em_tools.graphml_files)):
+            self.report({'ERROR'}, f"no graph slot {idx}")
+            return {'CANCELLED'}
+        graphml = em_tools.graphml_files[idx]
+        if not (0 <= graphml.active_auxiliary_index < len(graphml.auxiliary_files)):
+            self.report({'WARNING'}, f"'{graphml.name}' has no auxiliary file to import")
+            return {'CANCELLED'}
         aux_file = graphml.auxiliary_files[graphml.active_auxiliary_index]
 
         # Handle DosCo type differently - no database import, just harvesting

@@ -77,8 +77,14 @@ def export_container_to_emjson(output_path: str, *, active_graph_id=None) -> str
     head. Now the project is a file.
     """
     from s3dgraphy.multigraph.multigraph import multi_graph_manager
-    return multi_graph_manager.save_container(output_path,
-                                              active_graph_id=active_graph_id)
+    written = multi_graph_manager.save_container(output_path,
+                                                 active_graph_id=active_graph_id)
+    try:            # Q4 · every graph is in the file now: no version is unsaved
+        from .sync_manager.asset_versions import mark_saved
+        mark_saved()
+    except ImportError:
+        pass
+    return written
 
 
 def merge_container_from_emjson(filepath: str):

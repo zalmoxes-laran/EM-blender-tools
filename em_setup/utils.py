@@ -57,7 +57,7 @@ def auto_import_auxiliary_files(context, graphml_index):
         try:
             # Set active auxiliary index and call unified import operator
             graphml.active_auxiliary_index = i
-            result = bpy.ops.auxiliary.import_now()
+            result = bpy.ops.auxiliary.import_now(graphml_index=graphml_index)
 
             if result == {'FINISHED'}:
                 imported_count += 1

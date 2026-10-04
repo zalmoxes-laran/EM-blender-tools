@@ -78,5 +78,20 @@ check("◂ LOD comes back to the master", obj.data.name == master_mesh,
       f"→ {obj.get('em_level')} ({obj.data.name})")
 r3 = bpy.ops.em.asset_lod_step(direction=1)
 check("…and forward again", obj.data.name == after_fwd, obj.data.name)
+
+# Q4 · a reload does not drop the version in silence
+n_before = len(graph.nodes)
+try:
+    r = getattr(bpy.ops, "import").em_graphml()
+except RuntimeError as exc:          # a CANCELLED with an ERROR, headless
+    r = {"CANCELLED"}
+    print("[SMOKE] the sentence:", str(exc)[:160])
+check("a reload with an unsaved version is refused, and says why",
+      r == {"CANCELLED"} and len(get_graph(graph.graph_id).nodes) == n_before,
+      f"{r} · {av.reload_warning(graph.graph_id)[:90]}")
+# Q5 · no index = the active slot; with the yes, the reload happens
+r = getattr(bpy.ops, "import").em_graphml(discard_unsaved=True)
+check("…and with the yes it reloads the ACTIVE slot", r == {"FINISHED"}
+      and not av.unsaved(graph.graph_id), str(r))
 print(f"[SMOKE] {'ALL PASS' if not FAILURES else 'FAILURES: ' + ', '.join(FAILURES)}")
 sys.exit(1 if FAILURES else 0)

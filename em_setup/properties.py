@@ -530,11 +530,9 @@ class GraphMLFileItem(bpy.types.PropertyGroup):
         default=False
     )  # type: ignore
 
-    is_loaded: BoolProperty(
-        name="Loaded",
-        description="Whether this graph has been loaded",
-        default=False
-    )  # type: ignore
+    # Q10 · `is_loaded` is gone (4 Oct 2026): nothing ever wrote it or read it,
+    # and a flag saved in the .blend would be false at every reopening. Whether
+    # a graph is loaded is `s3dgraphy.get_graph(name) is not None`, in memory.
 
     graphml_path: StringProperty(
         name="Path",
