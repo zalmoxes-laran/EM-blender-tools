@@ -129,7 +129,6 @@ def test_OGNI_PANNELLO_DICHIARA_LA_SUA_TAB():
     ("VIEW3D_PT_ParadataPanel", "EM"),
     ("VIEW3D_PT_visual_panel", "EM"),
     ("VIEW3D_PT_proxy_projection_panel", "EM"),
-    ("VIEW3D_PT_graphedit_sync", "EM"),
     ("EMTOOLS_PT_conflict_resolution", "EM"),
     # EM Scene · ciò che ha un corpo
     ("VIEW3D_PT_3DDocumentManager", "EM Scene"),
@@ -171,9 +170,13 @@ def test_NESSUN_PANNELLO_E_SPARITO_NEL_TRASLOCO():
     Publication Deck in EM Bridge — e siamo a 33. MICRO-EMTOOLS-PROXY ne
     aggiunge uno, `VIEW3D_PT_em_readings` (le letture 3D, figlio del Visual
     Manager perché è la lente): 34.
+    MICRO-EMTOOLS-MENO-E-MEGLIO (U3) stacca il grafo nel Node Editor: via
+    i quattro pannelli di EMGraph Tools e il pannello EMGraph del 3D, ora in
+    `_dead_code/graph_editor/`: 29.
     Nessuno via per sbaglio — verificato contandoli, non stimandoli.
     """
-    assert len(PANNELLI) == 34, sorted(PANNELLI)
+    assert len(PANNELLI) == 29, sorted(PANNELLI)
+    assert not any(n.startswith("GRAPHEDIT_PT_") or n == "VIEW3D_PT_graphedit_sync" for n in PANNELLI)
     assert PANNELLI["VIEW3D_PT_em_readings"]["parent"] == "VIEW3D_PT_visual_panel"
     assert "VIEW3D_PT_EM_Overview" not in PANNELLI
 
@@ -582,8 +585,6 @@ def test_D_NESSUN_TITOLO_DICE_PIU_EXPERIMENTAL():
     ("em_statistics/ui.py", "EM_PT_ExportPanel"),
     ("proxy_to_rm_projection/ui.py", "VIEW3D_PT_proxy_projection_panel"),
     ("tapestry_integration/ui.py", "TAPESTRY_PT_main_panel"),
-    ("graph_editor/ui.py", "GRAPHEDIT_PT_main_panel"),
-    ("graph_editor/ui.py", "VIEW3D_PT_graphedit_sync"),
 ])
 def test_D_MA_L_ICONA_C_E_nell_header(rel, classe):
     """L'icona c'era GIÀ in tutti e cinque: la parola nel titolo era un

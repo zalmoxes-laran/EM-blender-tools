@@ -25,3 +25,6 @@ Each subfolder says why it left. From MICRO-EMTOOLS-MENO-E-MEGLIO (4 October
   RM — is now «Offset proxy» (`proxy_offset/`): a Displace modifier «EM
   offset» along the normals, one distance for the scene. The panel offers to
   remove the old Solidify modifiers a file still carries.
+- `graph_editor/` — **U3**, the graph in the Node Editor (EMGraph Tools, four
+  panels, and the EMGraph panel of the 3D sidebar). Its own README says why
+  and when it might come back.

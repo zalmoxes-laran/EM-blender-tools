@@ -568,11 +568,8 @@ class EMTOOLS_UL_files(bpy.types.UIList):
 
             # Disabilita il pulsante se l'icona è rossa (grafo non esistente)
             if is_graph_present:
-                # Pulsante per aprire nel Graph Viewer (experimental only)
-                if hasattr(context.scene, 'em_tools') and context.scene.em_tools.experimental_features:
-                    row = layout.row(align=True)
-                    op = row.operator("graphedit.draw_graph", text="", icon='NODETREE', emboss=False)
-                    op.graphml_index = index  # Passa l'indice del graphml
+                # U3 · the graph in the Node Editor is gone (_dead_code/graph_editor):
+                # the graph's canvas is EMStudio's
 
                 # Pulsante per aggiornare le liste (con icona FILE_REFRESH)
                 row = layout.row(align=True)
