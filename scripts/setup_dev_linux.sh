@@ -19,7 +19,7 @@ if [ ! -f "requirements_wheels.txt" ]; then
 fi
 
 # Verifica Python
-if ! command -v python3 &> /dev/null; then
+if [ -z "${EM_PYTHON:-}" ] && ! command -v python3 &> /dev/null; then
     echo "ERROR: Python 3 not found!"
     echo "Please install Python 3.11+ via your package manager:"
     echo "  Ubuntu/Debian: sudo apt install python3 python3-pip"
@@ -29,7 +29,8 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-PYTHON_CMD="python3"
+# em.sh passes the Python it chose and verified (W5); alone, python3 of the PATH
+PYTHON_CMD="${EM_PYTHON:-python3}"
 
 # Version management
 #

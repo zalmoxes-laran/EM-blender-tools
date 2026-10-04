@@ -19,7 +19,7 @@ if [ ! -f "requirements_wheels.txt" ]; then
 fi
 
 # Verifica Python
-if ! command -v python3 &> /dev/null; then
+if [ -z "${EM_PYTHON:-}" ] && ! command -v python3 &> /dev/null; then
     echo "ERROR: Python 3 not found!"
     echo "Please install Python 3.11+ (recommended via Homebrew: brew install python)"
     read -p "Press enter to exit..."
@@ -27,7 +27,8 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 # Usa python3 per compatibilità macOS
-PYTHON_CMD="python3"
+# em.sh passes the Python it chose and verified (W5); alone, python3 of the PATH
+PYTHON_CMD="${EM_PYTHON:-python3}"
 
 # Version management
 #

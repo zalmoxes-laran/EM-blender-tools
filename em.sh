@@ -9,12 +9,39 @@ echo
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Detect Python command
-if command -v python3 &> /dev/null; then
-    PYTHON_CMD="python3"
+# The Python of this script, chosen and not found by chance (W5, 4 Oct 2026:
+# the release stopped at step 7 because the first `python3` of the PATH was the
+# venv of another extension, with no pip). In this order: EM_PYTHON when the
+# caller names one, the repository's own .venv (./em.sh first_setup), then
+# python3/python of the PATH. The one chosen must answer.
+if [ -n "${EM_PYTHON:-}" ]; then
+    PYTHON_CMD="$EM_PYTHON"
+    PYTHON_FROM="EM_PYTHON"
+elif [ -x "$SCRIPT_DIR/.venv/bin/python" ]; then
+    PYTHON_CMD="$SCRIPT_DIR/.venv/bin/python"
+    PYTHON_FROM="the repository's .venv"
+elif command -v python3 &> /dev/null; then
+    PYTHON_CMD="$(command -v python3)"
+    PYTHON_FROM="the PATH"
 else
-    PYTHON_CMD="python"
+    PYTHON_CMD="$(command -v python 2>/dev/null || echo python)"
+    PYTHON_FROM="the PATH"
 fi
+if ! "$PYTHON_CMD" -c "import sys" &> /dev/null; then
+    echo "❌ The Python of em.sh does not run: $PYTHON_CMD (from $PYTHON_FROM)."
+    echo "   Make the repository's venv with ./em.sh first_setup, or name one with EM_PYTHON=/path/to/python."
+    exit 1
+fi
+
+# The commands that download or build wheels need pip in that Python: said in
+# one sentence, before the command starts, instead of a traceback halfway.
+need_pip() {
+    if ! "$PYTHON_CMD" -m pip --version &> /dev/null; then
+        echo "❌ $PYTHON_CMD (from $PYTHON_FROM) has no pip, and './em.sh $1' needs it to download and build the wheels."
+        echo "   Make the repository's venv with ./em.sh first_setup, or name a Python with pip: EM_PYTHON=/path/to/python ./em.sh $1"
+        exit 1
+    fi
+}
 
 # ============================================
 # DEV SYNC FUNCTIONS
@@ -23,7 +50,7 @@ fi
 # Function to check if development s3dgraphy is active
 check_dev_s3dgraphy() {
     if [ -f "scripts/sync_s3dgraphy_dev.py" ]; then
-        if $PYTHON_CMD scripts/sync_s3dgraphy_dev.py --status 2>/dev/null | grep -q "DEVELOPMENT"; then
+        if "$PYTHON_CMD" scripts/sync_s3dgraphy_dev.py --status 2>/dev/null | grep -q "DEVELOPMENT"; then
             DEV_S3DGRAPHY_ACTIVE="true"
         else
             DEV_S3DGRAPHY_ACTIVE="false"
@@ -67,13 +94,13 @@ s3d_command() {
     if [ -f "scripts/sync_s3dgraphy_dev.py" ]; then
         case "$1" in
             status)
-                $PYTHON_CMD scripts/sync_s3dgraphy_dev.py --status
+                "$PYTHON_CMD" scripts/sync_s3dgraphy_dev.py --status
                 ;;
             restore|off)
-                $PYTHON_CMD scripts/sync_s3dgraphy_dev.py --restore
+                "$PYTHON_CMD" scripts/sync_s3dgraphy_dev.py --restore
                 ;;
             clean)
-                $PYTHON_CMD scripts/sync_s3dgraphy_dev.py --clean
+                "$PYTHON_CMD" scripts/sync_s3dgraphy_dev.py --clean
                 ;;
             help)
                 echo "🔧 s3dgraphy Development Sync Helper"
@@ -90,10 +117,10 @@ s3d_command() {
                 echo "NOTE: After any change, restart Blender"
                 ;;
             ""|on)
-                $PYTHON_CMD scripts/sync_s3dgraphy_dev.py
+                "$PYTHON_CMD" scripts/sync_s3dgraphy_dev.py
                 ;;
             *)
-                $PYTHON_CMD scripts/sync_s3dgraphy_dev.py "$1"
+                "$PYTHON_CMD" scripts/sync_s3dgraphy_dev.py "$1"
                 ;;
         esac
     else
@@ -209,7 +236,7 @@ show_help() {
 
 # Get current version for commit messages
 get_version() {
-    $PYTHON_CMD scripts/version_manager.py current | awk '{print $3}'
+    "$PYTHON_CMD" scripts/version_manager.py current | awk '{print $3}'
 }
 
 # Generate commit message
@@ -373,6 +400,9 @@ case "$1" in
 
         echo "Setting up development environment..."
         echo "🐍 Python target: $PYTHON_VER"
+        need_pip setup
+        echo "🐍 Python of the script: $PYTHON_CMD (from $PYTHON_FROM)"
+        export EM_PYTHON="$PYTHON_CMD"
 
         if [ "$PYTHON_VER" = "all" ]; then
             # Setup for both Python versions
@@ -426,7 +456,8 @@ case "$1" in
         # parti): EMtools girava codice vecchio e il sintomo era un ImportError
         # dentro un click. Questo lo ricostruisce, e VERIFICA per contenuto.
         shift
-        $PYTHON_CMD scripts/rebundle_s3dgraphy.py "$@"
+        need_pip rebundle
+        "$PYTHON_CMD" scripts/rebundle_s3dgraphy.py "$@"
         ;;
     manifest)
         # Rigenera solo il manifest puntando ai wheels già scaricati
@@ -438,13 +469,13 @@ case "$1" in
             WHEEL_COUNT=$(ls wheels/$CP_TAG/*.whl | wc -l | tr -d ' ')
             echo "🔄 Switching manifest to Blender target (Python $PYTHON_VER)"
             echo "   Found $WHEEL_COUNT wheels in wheels/$CP_TAG/"
-            $PYTHON_CMD scripts/version_manager.py update --python-version $PYTHON_VER
+            "$PYTHON_CMD" scripts/version_manager.py update --python-version $PYTHON_VER
             echo ""
             echo "✅ blender_manifest.toml rigenerato con wheels $CP_TAG"
             echo "   Ora puoi avviare Blender da VS Code."
         elif [ -d "wheels" ] && ls wheels/*.whl 1>/dev/null 2>&1; then
             echo "🔄 Switching manifest (legacy flat wheels directory)"
-            $PYTHON_CMD scripts/version_manager.py update --python-version $PYTHON_VER
+            "$PYTHON_CMD" scripts/version_manager.py update --python-version $PYTHON_VER
             echo ""
             echo "✅ blender_manifest.toml rigenerato"
         else
@@ -462,7 +493,7 @@ case "$1" in
     inc)
         PART=${2:-dev_build}
         echo "Incrementing $PART version..."
-        $PYTHON_CMD scripts/dev.py inc --part $PART
+        "$PYTHON_CMD" scripts/dev.py inc --part $PART
         echo
         echo "Suggested commit message:"
         echo "\"$(suggest_commit_message $PART)\""
@@ -471,13 +502,13 @@ case "$1" in
     build)
         MODE=${2:-dev}
         echo "Building extension in $MODE mode..."
-        $PYTHON_CMD scripts/dev.py build --mode $MODE
+        "$PYTHON_CMD" scripts/dev.py build --mode $MODE
         ;;
     
     dev)
         echo "Quick development iteration..."
-        $PYTHON_CMD scripts/dev.py inc
-        $PYTHON_CMD scripts/dev.py build
+        "$PYTHON_CMD" scripts/dev.py inc
+        "$PYTHON_CMD" scripts/dev.py build
         echo
         echo "Suggested commit message:"
         echo "\"$(suggest_commit_message dev_build)\""
@@ -498,8 +529,8 @@ case "$1" in
         # the preview. The actual increment still happens inside
         # `scripts/dev.py inc` below — this block is read-only.
         echo "📊 Current version:"
-        $PYTHON_CMD scripts/version_manager.py current
-        CURRENT_VERSION=$($PYTHON_CMD scripts/version_manager.py current | awk '{print $3}')
+        "$PYTHON_CMD" scripts/version_manager.py current
+        CURRENT_VERSION=$("$PYTHON_CMD" scripts/version_manager.py current | awk '{print $3}')
         # CURRENT_VERSION looks like "1.6.0-dev.42" (hyphen before "dev",
         # dot before the build number). Bump the trailing integer by 1
         # to preview the next dev build for the user.
@@ -525,7 +556,7 @@ case "$1" in
 
         echo
         echo "📝 Incrementing dev version..."
-        $PYTHON_CMD scripts/dev.py inc
+        "$PYTHON_CMD" scripts/dev.py inc
         
         VERSION=$(get_version)
         
@@ -587,7 +618,7 @@ case "$1" in
         echo
         
         echo "📊 Current version:"
-        $PYTHON_CMD scripts/version_manager.py current
+        "$PYTHON_CMD" scripts/version_manager.py current
         echo
         
         read -p "Increment type (patch/minor/major) [patch]: " INCREMENT
@@ -596,8 +627,8 @@ case "$1" in
         echo
         echo "📝 Incrementing $INCREMENT version and setting to STABLE..."
         
-        $PYTHON_CMD scripts/version_manager.py increment --part $INCREMENT
-        $PYTHON_CMD scripts/version_manager.py set-mode --mode stable
+        "$PYTHON_CMD" scripts/version_manager.py increment --part $INCREMENT
+        "$PYTHON_CMD" scripts/version_manager.py set-mode --mode stable
         
         VERSION=$(get_version)
         
@@ -659,12 +690,12 @@ case "$1" in
         echo "       just want to commit + tag + push."
         echo
         echo "📊 Current version (before flip):"
-        $PYTHON_CMD scripts/version_manager.py current
+        "$PYTHON_CMD" scripts/version_manager.py current
         echo
 
         # Flip to stable WITHOUT incrementing. set-mode strips the
         # -dev.N / -rc.N suffix and rewrites pyproject + manifest.
-        $PYTHON_CMD scripts/version_manager.py set-mode --mode stable
+        "$PYTHON_CMD" scripts/version_manager.py set-mode --mode stable
         VERSION=$(get_version)
 
         if [ -z "$VERSION" ]; then
@@ -742,7 +773,7 @@ case "$1" in
         read -p "Continue? (y/N): " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            $PYTHON_CMD scripts/release.py --mode rc --increment patch
+            "$PYTHON_CMD" scripts/release.py --mode rc --increment patch
         fi
         ;;
     
@@ -752,7 +783,7 @@ case "$1" in
         read -p "Continue? (y/N): " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            $PYTHON_CMD scripts/release.py --mode rc --increment rc_build
+            "$PYTHON_CMD" scripts/release.py --mode rc --increment rc_build
         fi
         ;;
     
@@ -762,12 +793,12 @@ case "$1" in
         read -p "Continue? (y/N): " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            $PYTHON_CMD scripts/release.py --mode stable
+            "$PYTHON_CMD" scripts/release.py --mode stable
         fi
         ;;
     
     status)
-        $PYTHON_CMD scripts/version_manager.py current
+        "$PYTHON_CMD" scripts/version_manager.py current
         echo
         echo "Git status:"
         git status --porcelain
