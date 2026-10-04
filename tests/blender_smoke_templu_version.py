@@ -30,6 +30,12 @@ av = importlib.import_module(PKG + ".sync_manager.asset_versions")
 getattr(bpy.ops, "import").em_graphml(graphml_index=0)
 from s3dgraphy import get_graph  # noqa: E402
 graph = get_graph(bpy.context.scene.em_tools.graphml_files[0].name)
+# Q8 · the auxiliary files of a .blend that moved are found in the EM tree
+import os  # noqa: E402
+for aux in bpy.context.scene.em_tools.graphml_files[0].auxiliary_files:
+    raw = aux.dosco_folder if aux.file_type == "dosco" else aux.filepath
+    check(f"the auxiliary '{aux.name}' is found where it is",
+          bool(raw) and os.path.exists(bpy.path.abspath(raw)), bpy.path.abspath(raw))
 
 obj = bpy.data.objects["ME_PODIO"]
 rm_before = obj["em_rm_node_id"]

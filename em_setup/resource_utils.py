@@ -19,6 +19,62 @@ from s3dgraphy import api as _s3d_api
 # PATH RESOLUTION
 # ============================================================================
 
+def project_roots(graphml=None):
+    """Q8 · the EM projects this scene belongs to, for a path that moved.
+
+    Where to look, in order: the graph's own file, the .blend, and every linked
+    library that exists — the libraries are what still points into the real
+    project when the .blend has been copied elsewhere (measured on 4 Oct 2026:
+    the copy of Templu Mare in `_datasets/templu-mare-prove` reaches
+    `01_EM_Tempio Grande` only through `RB/TempluMare_2021.blend`)."""
+    from s3dgraphy.project_tree import find_project_root
+    seeds = []
+    if graphml is not None and getattr(graphml, "graphml_path", ""):
+        seeds.append(bpy.path.abspath(graphml.graphml_path))
+    if bpy.data.filepath:
+        seeds.append(bpy.data.filepath)
+    for lib in bpy.data.libraries:
+        path = bpy.path.abspath(lib.filepath)
+        if os.path.exists(path):
+            seeds.append(path)
+    roots = []
+    for seed in seeds:
+        root = find_project_root(seed)
+        if root and root not in roots:
+            roots.append(root)
+    return roots
+
+
+def relocate_in_tree(resolved, graphml=None):
+    """Q8 · ``resolved`` if it exists, else the same name found inside an EM
+    tree of this scene (``project_tree.search_bases``: EM, EM/DosCo, …).
+
+    → ``(path, where)``: ``where`` is '' when the path stood, the project root
+    when it was found by name, None when it is nowhere (then ``path`` is the
+    one that was asked, for the sentence)."""
+    if resolved and os.path.exists(resolved):
+        return resolved, ""
+    from s3dgraphy.project_tree import search_bases
+    name = os.path.basename(os.path.normpath(resolved or ""))
+    if not name:
+        return resolved, None
+    for root in project_roots(graphml):
+        for base in search_bases(root):
+            candidate = os.path.join(base, name)
+            if os.path.exists(candidate):
+                return candidate, root
+    return resolved, None
+
+
+def remember_relocated(aux_file, attr, found):
+    """Write the found path back, relative to the .blend as the others are."""
+    try:
+        value = bpy.path.relpath(found) if bpy.data.filepath else found
+    except ValueError:                    # another drive: no relative path
+        value = found
+    setattr(aux_file, attr, value)
+
+
 def resolve_resource_path(raw_path):
     """
     Resolve a resource folder path to an absolute path.

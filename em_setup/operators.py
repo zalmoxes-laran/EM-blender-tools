@@ -516,6 +516,21 @@ class AUXILIARY_OT_import_now(Operator):
     #: on a slot without auxiliaries.
     graphml_index: bpy.props.IntProperty(default=-1, options={'SKIP_SAVE'})  # type: ignore
 
+    def _relocated(self, graphml, aux_file, attr, resolved):
+        """Q8 · a path relative to a .blend that moved: found by name in the
+        EM tree, said, and written back."""
+        from .resource_utils import relocate_in_tree, remember_relocated
+        found, root = relocate_in_tree(resolved, graphml)
+        if root:
+            remember_relocated(aux_file, attr, found)
+            self.report({'INFO'}, f"'{aux_file.name}' was not at {resolved}: "
+                                  f"found in the EM tree of {os.path.basename(root)} "
+                                  f"at {found}")
+        elif root is None:
+            self.report({'WARNING'}, f"'{aux_file.name}' is not at {resolved}, nor "
+                                     f"in the EM tree of this scene's projects")
+        return found
+
     def execute(self, context):
         em_tools = context.scene.em_tools
         idx = self.graphml_index if self.graphml_index >= 0 else em_tools.active_file_index
@@ -593,6 +608,7 @@ class AUXILIARY_OT_import_now(Operator):
             return {'CANCELLED'}
 
         import os
+        resolved = self._relocated(graphml, aux_file, "resource_folder", resolved)
         if not os.path.exists(resolved):
             self.report({'ERROR'}, f"Resource folder not found: {resolved}")
             return {'CANCELLED'}
@@ -670,7 +686,8 @@ class AUXILIARY_OT_import_now(Operator):
             self.report({'ERROR'}, str(e))
             return {'CANCELLED'}
 
-        # Check folder exists
+        # Check folder exists — or find it by name in the EM tree (Q8)
+        dosco_folder = self._relocated(graphml, aux_file, "dosco_folder", dosco_folder)
         if not os.path.exists(dosco_folder):
             self.report({'ERROR'}, f"DosCo folder not found: {dosco_folder}")
             return {'CANCELLED'}
@@ -787,6 +804,7 @@ class AUXILIARY_OT_import_now(Operator):
         except ValueError as e:
             self.report({'ERROR'}, str(e))
             return {'CANCELLED'}
+        filepath = self._relocated(graphml, aux_file, "filepath", filepath)
         if not os.path.exists(filepath):
             self.report({'ERROR'}, f"Source List file not found: {filepath}")
             return {'CANCELLED'}
