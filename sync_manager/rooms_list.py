@@ -31,6 +31,17 @@ from typing import Any, Dict, List, Optional
 
 from .room import RoomError
 
+
+def _urlopen(request, timeout=None):
+    """Every call to a node verifies TLS against what this computer trusts
+    (`trust.py`: the dev node behind Caddy included)."""
+    try:
+        from .trust import urlopen
+    except ImportError:          # loaded by path, outside the package (the suite)
+        import urllib.request
+        return urllib.request.urlopen(request, timeout=timeout)
+    return urlopen(request, timeout=timeout)
+
 #: The roles a room can give, from `GET /v1/rooms` (`your_role`). The order is
 #: the one a list shows them in.
 ROLES = ("owner", "admin", "editor", "viewer")
@@ -81,7 +92,7 @@ def _call(request: urllib.request.Request, timeout: float) -> Any:
     (`dev-stack/fcn-trust-ca.sh --export-only` writes `~/caddy-em-root.crt`).
     """
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as answer:
+        with _urlopen(request, timeout=timeout) as answer:
             body = answer.read()
     except urllib.error.HTTPError as exc:
         detail = ""

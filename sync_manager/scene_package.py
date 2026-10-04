@@ -31,6 +31,17 @@ import urllib.parse
 import urllib.request
 from typing import Any, Dict, List, Optional
 
+
+def _urlopen(request, timeout=None):
+    """Every call to a node verifies TLS against what this computer trusts
+    (`trust.py`: the dev node behind Caddy included)."""
+    try:
+        from .trust import urlopen
+    except ImportError:          # loaded by path, outside the package (the suite)
+        import urllib.request
+        return urllib.request.urlopen(request, timeout=timeout)
+    return urlopen(request, timeout=timeout)
+
 KIND = "package"
 
 #: the last listing (session state, never saved in the .blend)
@@ -124,7 +135,7 @@ def get_package(sha256: str, timeout: float = 1800.0) -> bytes:
     request = urllib.request.Request(url, method="GET",
                                      headers=room._auth_headers())
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with _urlopen(request, timeout=timeout) as response:
             data = response.read()
     except urllib.error.HTTPError as exc:
         raise room.RoomError(f"the room refused the package ({exc.code})",

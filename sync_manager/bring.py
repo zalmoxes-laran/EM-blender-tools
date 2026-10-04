@@ -461,10 +461,17 @@ def _operator_classes():  # pragma: no cover — bpy
             if not base:
                 self.report({"ERROR"}, "set the node address first")
                 return {"CANCELLED"}
+            from .signin_ui import Waiting
+            name, confirm = self.name, self.confirm
             try:
-                token, _how = _access_for(base, "")
+                token, _how = _access_for(
+                    base, "",
+                    resume=lambda: bpy.ops.em.room_bring(name=name, confirm=confirm))
                 _keep_access(base, token)
                 prepare(context, graph, base=base, name=self.name, token=token)
+            except Waiting as exc:
+                self.report({"INFO"}, str(exc))
+                return {"FINISHED"}
             except Exception as exc:  # noqa: BLE001 — the node's sentence
                 self.report({"ERROR"}, str(exc))
                 return {"CANCELLED"}

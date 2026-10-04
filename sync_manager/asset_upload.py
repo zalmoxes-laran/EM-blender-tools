@@ -39,6 +39,17 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 from .room import RoomError
 
+
+def _urlopen(request, timeout=None):
+    """Every call to a node verifies TLS against what this computer trusts
+    (`trust.py`: the dev node behind Caddy included)."""
+    try:
+        from .trust import urlopen
+    except ImportError:          # loaded by path, outside the package (the suite)
+        import urllib.request
+        return urllib.request.urlopen(request, timeout=timeout)
+    return urlopen(request, timeout=timeout)
+
 #: Up to here one streamed PUT; beyond, the resumable door. 64 MiB: a model or
 #: an orthophoto goes in one request, a scan of several GB in pieces that
 #: survive a dropped Wi-Fi.
@@ -96,7 +107,7 @@ def has_asset(node: str, room: str, sha256: str, token: Optional[str], *,
     request = urllib.request.Request(asset_url(node, room, sha256), method="HEAD",
                                      headers=_headers(token))
     try:
-        with urllib.request.urlopen(request, timeout=timeout):
+        with _urlopen(request, timeout=timeout):
             return True
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
@@ -119,7 +130,7 @@ def asset_head(node: str, room: str, sha256: str, token: Optional[str], *,
     request = urllib.request.Request(asset_url(node, room, sha256), method="HEAD",
                                      headers=_headers(token))
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as answer:
+        with _urlopen(request, timeout=timeout) as answer:
             return True, (answer.headers.get("X-EM-Home-Room") or None)
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
@@ -195,7 +206,7 @@ class _Window:
 
 
 def _json_call(request: urllib.request.Request, timeout: float):
-    with urllib.request.urlopen(request, timeout=timeout) as answer:
+    with _urlopen(request, timeout=timeout) as answer:
         body = answer.read()
         return json.loads(body.decode("utf-8")) if body else {}, answer.headers
 
@@ -237,7 +248,7 @@ def _single_shot(node, room, path, hexd, size, media_type, token, progress_cb,
 
 def _offset_now(url: str, token, timeout) -> int:
     request = urllib.request.Request(url, method="HEAD", headers=_headers(token))
-    with urllib.request.urlopen(request, timeout=timeout) as answer:
+    with _urlopen(request, timeout=timeout) as answer:
         return int(answer.headers.get("Upload-Offset") or 0)
 
 

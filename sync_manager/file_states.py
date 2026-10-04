@@ -17,6 +17,17 @@ not at every redraw: it touches the disk and, in a room, the node.
 import os
 from typing import Any, Callable, Dict, List, Optional
 
+
+def _urlopen(request, timeout=None):
+    """Every call to a node verifies TLS against what this computer trusts
+    (`trust.py`: the dev node behind Caddy included)."""
+    try:
+        from .trust import urlopen
+    except ImportError:          # loaded by path, outside the package (the suite)
+        import urllib.request
+        return urllib.request.urlopen(request, timeout=timeout)
+    return urlopen(request, timeout=timeout)
+
 #: the last resolution of the active graph, for the panel (session state)
 ULTIMI: Dict[str, Any] = {"graph_id": "", "results": [], "filter": ""}
 
@@ -117,7 +128,7 @@ def _upload_by_reference(where: Dict[str, Any], row: Dict[str, Any]) -> Dict[str
     req = urllib.request.Request(url, data=body, method="POST",
                                  headers={"Content-Type": "application/json",
                                           **({"Authorization": f"Bearer {token}"} if token else {})})
-    with urllib.request.urlopen(req, timeout=60) as answer:
+    with _urlopen(req, timeout=60) as answer:
         out = _json.loads(answer.read())
     out["already"] = not out.get("created", True)
     return out
@@ -249,7 +260,7 @@ def _operator_classes():  # pragma: no cover — bpy
                     continue
                 req = urllib.request.Request(asset_url(where["base_url"], where["room_id"], hexd),
                                              headers={"Authorization": f"Bearer {token}"} if token else {})
-                with urllib.request.urlopen(req, timeout=600) as answer:
+                with _urlopen(req, timeout=600) as answer:
                     data = answer.read()
                 if hashlib.sha256(data).hexdigest() != hexd:
                     self.report({"WARNING"}, f"{r.get('name')}: the bytes are not the graph's")

@@ -147,7 +147,8 @@ def test_the_redirect_is_a_loopback_listener_as_a_native_app_should_use():
     embedded browser (a webview is a phishing surface several IdPs refuse)."""
     source = (_REPO / "sync_manager" / "handoff.py").read_text(encoding="utf-8")
     assert '("127.0.0.1", 0)' in source
-    assert "http://127.0.0.1:{listener.server_port}" in source
+    assert "http://127.0.0.1:{self._listener.server_port}{LOOPBACK_PATH}" in source
+    assert 'LOOPBACK_PATH = "/"' in source
 
 
 # ── 4 · the join takes its three values FROM THE LINK ────────────────────────
@@ -161,7 +162,8 @@ def test_the_operator_hands_join_room_what_the_link_said(monkeypatch):
     is the honest half a headless test can reach."""
     source = (_REPO / "sync_manager" / "operators.py").read_text(encoding="utf-8")
     assert "class EM_OT_room_open_link" in source
-    assert "handoff.resolve(self.link)" in source
+    assert "where = handoff.resolve(" in source
+    assert "link, adopt = self.link, self.adopt" in source
     assert ('join_room(context, where["server"], where["room"], token,' in source)
     # the panel's fields are UPDATED from the link, never read into it
     assert 'context.scene.em_room_url = where["server"]' in source
@@ -487,3 +489,152 @@ def test_no_second_button_appeared_the_door_is_the_same_one():
     assert panel.count('"em.room_join"') == 1
     # …and the link is still offered FIRST, so nobody is taught to fill fields
     assert panel.index('"em.room_open_link"') < panel.index('"em_room_url"')
+
+
+# ── Q11 · the sign-in runs off Blender's UI thread and says the true outcome ──
+#
+# Measured on 4 Oct 2026: Keycloak refused the loopback return of `em-console`,
+# Blender waited on its UI thread, and the return page said «Signed in» to an
+# error. A fake realm on the loopback stands in for Keycloak here: the browser is
+# a function that follows the authorization URL the way an IdP would.
+
+import base64 as _b64
+import http.server as _hs
+import json as _json
+import threading as _th
+import urllib.parse as _up
+import urllib.request as _ur
+
+
+def _fake_realm(*, refuse_redirect=False, token_status=200):
+    seen = {}
+
+    class Realm(_hs.BaseHTTPRequestHandler):
+        def do_GET(self):                                    # noqa: N802
+            if refuse_redirect:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(b"<p>Invalid parameter: redirect_uri</p>")
+                return
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'<form id="kc-form-login"></form>')
+
+        def do_POST(self):                                   # noqa: N802
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            seen.update({k: v[0] for k, v in _up.parse_qs(body.decode()).items()})
+            claims = _b64.urlsafe_b64encode(
+                _json.dumps({"preferred_username": "dev"}).encode()).rstrip(b"=").decode()
+            self.send_response(token_status)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(_json.dumps(
+                {"access_token": f"h.{claims}.s"} if token_status == 200
+                else {"error": "invalid_grant", "error_description": "Code not valid"}
+            ).encode())
+
+        def log_message(self, *a):                           # noqa: A003
+            pass
+
+    server = _hs.HTTPServer(("127.0.0.1", 0), Realm)
+    _th.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_port}"
+    config = {"authorization_endpoint": f"{base}/auth", "token_endpoint": f"{base}/token",
+              "client_id": "em-console", "native_client_id": "em-tools"}
+    return server, config, seen
+
+
+def _idp(answer):
+    """A browser + IdP: reads the authorization URL, calls the loopback back."""
+    pages = []
+
+    def browse(url):
+        q = {k: v[0] for k, v in _up.parse_qs(_up.urlsplit(url).query).items()}
+        back = q["redirect_uri"] + "?" + _up.urlencode(answer(q))
+
+        def go():
+            with _ur.urlopen(back, timeout=10) as r:
+                pages.append(r.read().decode())
+        _th.Thread(target=go, daemon=True).start()
+    return browse, pages
+
+
+def test_the_sign_in_does_not_hold_the_caller_and_names_who_signed_in():
+    server, config, seen = _fake_realm()
+    browse, pages = _idp(lambda q: {"code": "c0de", "state": q["state"]})
+    running = handoff.SignIn("https://node", config, open_browser=browse, timeout=20)
+    # the constructor RETURNED: the caller (Blender's UI thread) is free
+    assert running.wait(10) and running.state == "done"
+    assert running.token.startswith("h.") and running.who == "dev"
+    assert seen["client_id"] == "em-tools"          # the NATIVE client, not em-console
+    assert seen["redirect_uri"].startswith("http://127.0.0.1:")
+    assert seen["redirect_uri"].endswith("/") and "client_secret" not in seen
+    _wait_for(pages)
+    assert "Signed in to https://node as dev" in pages[0]
+    server.shutdown()
+
+
+def test_the_return_page_says_a_refusal_and_not_signed_in():
+    server, config, _ = _fake_realm()
+    browse, pages = _idp(lambda q: {"error": "access_denied", "state": q["state"],
+                                    "error_description": "User cancelled"})
+    running = handoff.SignIn("https://node", config, open_browser=browse, timeout=20)
+    assert running.wait(10) and running.state == "failed"
+    assert "User cancelled" in running.error and running.token is None
+    _wait_for(pages)
+    assert "Sign-in did not complete" in pages[0] and "Signed in to" not in pages[0]
+    server.shutdown()
+
+
+def test_a_code_the_realm_refuses_is_said_on_the_page_too():
+    server, config, _ = _fake_realm(token_status=400)
+    browse, pages = _idp(lambda q: {"code": "c0de", "state": q["state"]})
+    running = handoff.SignIn("https://node", config, open_browser=browse, timeout=20)
+    assert running.wait(10) and running.state == "failed"
+    assert "Code not valid" in running.error
+    _wait_for(pages)
+    assert "Code not valid" in pages[0]
+    server.shutdown()
+
+
+def test_a_refused_return_address_is_said_BEFORE_the_browser_opens():
+    server, config, _ = _fake_realm(refuse_redirect=True)
+    opened = []
+    with pytest.raises(handoff.HandoffError) as said:
+        handoff.SignIn("https://node", config, open_browser=opened.append, timeout=20)
+    assert not opened
+    assert "http://127.0.0.1/" in str(said.value) and "em-tools" in str(said.value)
+    server.shutdown()
+
+
+def test_cancel_ends_the_wait_at_once():
+    import time
+    server, config, _ = _fake_realm()
+    running = handoff.SignIn("https://node", config, open_browser=lambda u: None,
+                             timeout=60)
+    started = time.monotonic()
+    running.cancel()
+    assert running.wait(5) and running.state == "cancelled"
+    assert time.monotonic() - started < 2
+    server.shutdown()
+
+
+def test_every_door_of_the_panels_waits_without_freezing_blender():
+    """No operator calls the blocking `handoff.sign_in` any more: they go through
+    `signin_ui.access_or_wait`, which raises `Waiting` and resumes by itself."""
+    for name in ("rooms_ui.py", "bring.py", "operators.py"):
+        source = (_REPO / "sync_manager" / name).read_text(encoding="utf-8")
+        assert "except Waiting as exc:" in source, name
+    ui = (_REPO / "sync_manager" / "signin_ui.py").read_text(encoding="utf-8")
+    assert "bpy.app.timers.register(_poll" in ui
+    assert '"em.sign_in_cancel"' in ui
+    panel = (_REPO / "sync_manager" / "panel.py").read_text(encoding="utf-8")
+    assert "signin_ui.draw(acts)" in panel
+
+
+def _wait_for(pages, seconds=5):
+    import time
+    end = time.monotonic() + seconds
+    while not pages and time.monotonic() < end:
+        time.sleep(0.05)
+    assert pages, "the browser got no page back"

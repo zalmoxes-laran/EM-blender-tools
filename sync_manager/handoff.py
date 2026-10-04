@@ -105,8 +105,11 @@ def auth_config(server: str, *, timeout: float = 10.0
     import urllib.request
 
     try:
-        with urllib.request.urlopen(
-                f"{server.rstrip('/')}/v1/auth-config", timeout=timeout) as answer:
+        from .trust import urlopen as _open
+    except ImportError:          # loaded by path, outside the package (the suite)
+        _open = urllib.request.urlopen
+    try:
+        with _open(f"{server.rstrip('/')}/v1/auth-config", timeout=timeout) as answer:
             if answer.status != 200:
                 return None
             return json.loads(answer.read() or b"{}")
@@ -114,105 +117,272 @@ def auth_config(server: str, *, timeout: float = 10.0
         return None
 
 
+#: The client a NATIVE app signs in as, when the node names one
+#: (`native_client_id` in `/v1/auth-config`). MEASURED on Keycloak 24.0.4 (4 Oct
+#: 2026, a throwaway container): a redirect URI registered as
+#: `http://127.0.0.1/` admits `http://127.0.0.1:<any port>/` — the port on the
+#: loopback is ignored, as RFC 8252 §7.3 asks — while the PATH stays exact
+#: (`/other` refused) and `[::1]` is refused. The browser client `em-console`
+#: does not carry that URI, and must not need to: its redirects are pages.
+LOOPBACK_PATH = "/"
+
+
+def _client_of(config: Dict[str, Any]) -> str:
+    return str(config.get("native_client_id") or config.get("client_id")
+               or "em-console")
+
+
+def _who(token: str) -> str:
+    """The name to SAY on the return page — read, not verified (the node verifies)."""
+    import base64
+    import json
+    try:
+        part = token.split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
+    except Exception:  # noqa: BLE001 — an opaque token: no name to say
+        return ""
+    return str(claims.get("preferred_username") or claims.get("orcid")
+               or claims.get("sub") or "")
+
+
+def _page(title: str, line: str) -> bytes:
+    import html
+    return (f"<!doctype html><meta charset=utf-8><title>{html.escape(title)}</title>"
+            f"<body style=\"font:16px system-ui;margin:3em\"><h1>{html.escape(title)}</h1>"
+            f"<p>{html.escape(line)}</p></body>").encode("utf-8")
+
+
+def _refused_redirect(url: str, timeout: float = 10.0) -> bool:
+    """Does the realm refuse this return address? Asked BEFORE the browser opens.
+
+    Keycloak answers an unknown `redirect_uri` with its own error page and never
+    comes back — so without this question Blender would wait for a return that
+    cannot happen, and the person would read the refusal in a browser tab.
+    """
+    import urllib.error
+    import urllib.request
+
+    class _Stay(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):           # noqa: D401
+            return None
+
+    handlers = [_Stay()]
+    try:
+        from .trust import context as _ctx
+        handlers.append(urllib.request.HTTPSHandler(context=_ctx()))
+    except ImportError:          # loaded by path, outside the package (the suite)
+        pass
+    try:
+        with urllib.request.build_opener(*handlers).open(url, timeout=timeout) as answer:
+            body = answer.read(65536).decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        body = exc.read(65536).decode("utf-8", "replace") if exc.code == 400 else ""
+    except (urllib.error.URLError, OSError):
+        return False             # not reachable from here: the browser will say it
+    return "redirect_uri" in body and "nvalid" in body
+
+
+class SignIn:
+    """One Authorization Code + PKCE round trip, run OFF Blender's UI thread.
+
+    Measured on 4 Oct 2026: the old `sign_in` waited with `done.wait(timeout)` on
+    the thread that draws Blender, so a realm that refused the return address left
+    Blender frozen for five minutes. Now the listener and the code exchange run in
+    a daemon thread; the UI only READS `state` (a timer polls it) and may
+    `cancel()`. And the tab the browser lands on says what really happened —
+    signed in as whom, or refused and why — instead of «Signed in» to everything.
+
+    `state` is `waiting`, then one of `done`, `failed`, `cancelled`.
+    """
+
+    def __init__(self, server: str, config: Dict[str, Any], *,
+                 open_browser: Optional[Callable[[str], Any]] = None,
+                 timeout: float = 300.0, preflight: bool = True):
+        import base64
+        import hashlib
+        import http.server
+        import secrets
+        import threading
+        import time
+        import webbrowser
+
+        self.server = server
+        self.state = "waiting"
+        self.token: Optional[str] = None
+        self.who = ""
+        self.error = ""
+        self._cancel = threading.Event()
+        self.finished = threading.Event()
+        self.deadline = time.monotonic() + timeout
+
+        verifier = base64.urlsafe_b64encode(
+            secrets.token_bytes(32)).rstrip(b"=").decode()
+        challenge = base64.urlsafe_b64encode(
+            hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+        state = secrets.token_urlsafe(24)
+        client_id = _client_of(config)
+        me = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):                                   # noqa: N802
+                split = urllib.parse.urlsplit(self.path)
+                got = {k: v[0] for k, v in urllib.parse.parse_qs(split.query).items()}
+                if split.path != LOOPBACK_PATH or not (got.get("code") or got.get("error")):
+                    self.send_response(404)                     # a favicon, a probe
+                    self.end_headers()
+                    return
+                title, line = me._conclude(got, state, verifier, redirect_uri,
+                                           client_id, config)
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(_page(title, line))
+
+            def log_message(self, *args):                       # noqa: A003
+                pass                        # Blender's console is not our log
+
+        self._listener = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        self._listener.timeout = 0.25
+        redirect_uri = f"http://127.0.0.1:{self._listener.server_port}{LOOPBACK_PATH}"
+        self.redirect_uri = redirect_uri
+        self.client_id = client_id
+
+        self.url = config["authorization_endpoint"] + "?" + urllib.parse.urlencode({
+            "response_type": "code",
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "scope": config.get("scope") or "openid profile email",
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+            "state": state,
+        })
+        if preflight and _refused_redirect(self.url):
+            self._listener.server_close()
+            raise HandoffError(
+                f"the node's sign-in (client {client_id}) does not accept Blender's "
+                f"return address {redirect_uri}. The node must name a native client "
+                f"whose redirect URI is http://127.0.0.1/ (any port on the loopback, "
+                f"RFC 8252) — ask whoever runs the node; on the dev stack, recreate "
+                f"Keycloak with the current realm-em-dev.json.")
+
+        def serve():
+            try:
+                while (me.state == "waiting" and not me._cancel.is_set()
+                       and time.monotonic() < me.deadline):
+                    self._listener.handle_request()
+                if me.state == "waiting":
+                    if me._cancel.is_set():
+                        me.state, me.error = "cancelled", "sign-in cancelled"
+                    else:
+                        me.state, me.error = "failed", (
+                            f"nobody completed the sign-in within {int(timeout)}s — "
+                            f"try again")
+            finally:
+                self._listener.server_close()
+                me.finished.set()
+
+        threading.Thread(target=serve, daemon=True, name="em-sign-in").start()
+        (open_browser or webbrowser.open)(self.url)
+
+    def _conclude(self, got, state, verifier, redirect_uri, client_id, config):
+        """The code, checked and exchanged — and the page's TRUE sentence."""
+        import json
+        import urllib.error
+        import urllib.request
+
+        def fail(why):
+            self.state, self.error = "failed", why
+            return ("Sign-in did not complete",
+                    f"{why}. Go back to Blender: nothing was signed in.")
+
+        if got.get("error"):
+            return fail(f"sign-in refused: {got.get('error_description') or got['error']}")
+        if got.get("state") != state:
+            # the one check that makes the round trip mean anything: a code delivered
+            # with somebody else's state is one this Blender did not ask for
+            return fail("the sign-in state did not match — refusing a code this "
+                        "session did not ask for")
+        if not got.get("code"):
+            return fail("no authorization code came back")
+        body = urllib.parse.urlencode({
+            "grant_type": "authorization_code",
+            "code": got["code"],
+            "redirect_uri": redirect_uri,
+            "client_id": client_id,
+            "code_verifier": verifier,
+            # NO client_secret: a public client that sent one would be publishing it
+        }).encode()
+        request = urllib.request.Request(
+            config["token_endpoint"], data=body, method="POST",
+            headers={"Content-Type": "application/x-www-form-urlencoded"})
+        try:
+            try:
+                from .trust import urlopen as _open
+            except ImportError:  # loaded by path, outside the package (the suite)
+                _open = urllib.request.urlopen
+            with _open(request, timeout=30) as answer:
+                payload = json.loads(answer.read() or b"{}")
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = json.loads(exc.read() or b"{}").get("error_description") or ""
+            except Exception:  # noqa: BLE001
+                pass
+            return fail(f"the realm refused the code ({exc.code})"
+                        + (f": {detail}" if detail else ""))
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            return fail(f"could not reach the realm to finish: "
+                        f"{getattr(exc, 'reason', exc)}")
+        token = str(payload.get("access_token") or "")
+        if not token:
+            return fail("the sign-in returned no access token")
+        self.token, self.who = token, _who(token)
+        self.state = "done"
+        return ("Signed in",
+                f"Signed in to {self.server}"
+                + (f" as {self.who}" if self.who else "")
+                + ". You can close this tab and go back to Blender.")
+
+    def cancel(self) -> None:
+        self._cancel.set()
+
+    def wait(self, timeout: Optional[float] = None) -> bool:
+        """For a caller that is NOT the UI thread (the suite, a headless run)."""
+        return self.finished.wait(timeout)
+
+
+def start_sign_in(server: str, *, open_browser: Optional[Callable[[str], Any]] = None,
+                  timeout: float = 300.0) -> Optional[SignIn]:
+    """Begin a sign-in and return at once; `None` when the node has no OIDC."""
+    config = auth_config(server)
+    if not config or not config.get("authorization_endpoint"):
+        return None
+    return SignIn(server, config, open_browser=open_browser, timeout=timeout)
+
+
 def sign_in(server: str, *, open_browser: Optional[Callable[[str], Any]] = None,
             timeout: float = 300.0) -> Optional[str]:
-    """Authorization Code + PKCE against that server; the token stays in memory.
+    """Authorization Code + PKCE against that server, WAITING for the result.
 
     The redirect comes back to a LOOPBACK listener, which is what a native app is
     supposed to use (RFC 8252) and what lets this work with no registered scheme
     and no embedded browser — an embedded webview is a phishing surface and
     several IdPs refuse it outright.
 
-    **Blender-safe**: the listener is a daemon thread that answers exactly one
-    request and closes. It touches no `bpy` and nothing on disk.
+    **Blocks the caller** — never call it from Blender's UI thread: the panels go
+    through `signin_ui.access_or_wait`, which runs a `SignIn` and polls it with a
+    timer. This is the door for a headless run and for the suite.
 
     Returns the access token, or `None` when the node has no OIDC — in which case
     the caller joins without one, which is what that node expects.
     """
-    import base64
-    import hashlib
-    import http.server
-    import json
-    import secrets
-    import threading
-    import urllib.request
-    import webbrowser
-
-    config = auth_config(server)
-    if not config or not config.get("authorization_endpoint"):
+    running = start_sign_in(server, open_browser=open_browser, timeout=timeout)
+    if running is None:
         return None
-
-    verifier = base64.urlsafe_b64encode(
-        secrets.token_bytes(32)).rstrip(b"=").decode()
-    challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
-    state = secrets.token_urlsafe(24)
-    got: Dict[str, str] = {}
-    done = threading.Event()
-
-    class Handler(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):                                   # noqa: N802
-            got.update({k: v[0] for k, v in urllib.parse.parse_qs(
-                urllib.parse.urlsplit(self.path).query).items()})
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(b"<h1>Signed in</h1><p>You can close this tab and "
-                             b"go back to Blender.</p>")
-            done.set()
-
-        def log_message(self, *args):                       # noqa: A003
-            pass                        # Blender's console is not our log
-
-    listener = http.server.HTTPServer(("127.0.0.1", 0), Handler)
-    redirect_uri = f"http://127.0.0.1:{listener.server_port}/"
-    threading.Thread(target=listener.handle_request, daemon=True).start()
-
-    url = config["authorization_endpoint"] + "?" + urllib.parse.urlencode({
-        "response_type": "code",
-        "client_id": config.get("client_id") or "em-console",
-        "redirect_uri": redirect_uri,
-        "scope": config.get("scope") or "openid profile email",
-        "code_challenge": challenge,
-        "code_challenge_method": "S256",
-        "state": state,
-    })
-    (open_browser or webbrowser.open)(url)
-    if not done.wait(timeout):
-        listener.server_close()
-        raise HandoffError(
-            f"nobody completed the sign-in within {int(timeout)}s. The link is "
-            f"still good — press Join again.")
-    listener.server_close()
-
-    if got.get("error"):
-        raise HandoffError(
-            f"sign-in refused: {got.get('error_description') or got['error']}")
-    if got.get("state") != state:
-        # the one check that makes the round trip mean anything: a code delivered
-        # with somebody else's state is one this Blender did not ask for
-        raise HandoffError("the sign-in state did not match — refusing a code "
-                           "this session did not ask for")
-    if not got.get("code"):
-        raise HandoffError("no authorization code came back")
-
-    body = urllib.parse.urlencode({
-        "grant_type": "authorization_code",
-        "code": got["code"],
-        "redirect_uri": redirect_uri,
-        "client_id": config.get("client_id") or "em-console",
-        "code_verifier": verifier,
-        # NO client_secret: a public client that sent one would be publishing it
-    }).encode()
-    request = urllib.request.Request(
-        config["token_endpoint"], data=body, method="POST",
-        headers={"Content-Type": "application/x-www-form-urlencoded"})
-    with urllib.request.urlopen(request, timeout=30) as answer:
-        payload = json.loads(answer.read() or b"{}")
-    token = str(payload.get("access_token") or "")
-    if not token:
-        raise HandoffError("the sign-in returned no access token")
-    return token
+    running.wait(timeout + 5)
+    if running.state != "done":
+        raise HandoffError(running.error or "the sign-in did not complete")
+    return running.token
 
 
 def resolve(link: str, *, sign_in_with: Optional[Callable[[str], Optional[str]]] = None
@@ -254,7 +424,11 @@ def open_targets(base_url: str, room_id: str, *, token: Optional[str] = None,
         # grant in is refused, because a listing is not a discovery service
         request.add_header("Authorization", f"Bearer {token}")
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as answer:
+        from .trust import urlopen as _open
+    except ImportError:          # loaded by path, outside the package (the suite)
+        _open = urllib.request.urlopen
+    try:
+        with _open(request, timeout=timeout) as answer:
             return json.loads(answer.read() or b"{}")
     except (urllib.error.URLError, OSError, ValueError):
         return None

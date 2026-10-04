@@ -319,6 +319,11 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
             acts.operator("em.room_open_link", text="Open room from link…",
                           icon="URL")
 
+        # Q11 · a sign-in waiting for the browser, with its Cancel — or how the
+        # last one ended. Blender is not frozen while it waits (signin_ui.py).
+        from . import signin_ui
+        signin_ui.draw(acts)
+
         # N1/N2 · «Choose the node»: the same finder and the same words as EMStudio
         if not status["joined"]:
             from . import node_choice

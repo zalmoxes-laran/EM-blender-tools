@@ -149,8 +149,12 @@ class WsClient:
         try:
             sock = socket.create_connection((host, port), timeout=timeout)
             if secure:
-                sock = ssl.create_default_context().wrap_socket(
-                    sock, server_hostname=host)
+                try:            # what this computer trusts (sync_manager/trust.py)
+                    from ..sync_manager.trust import context as _trusted
+                    tls = _trusted()
+                except ImportError:  # loaded by path, outside the package
+                    tls = ssl.create_default_context()
+                sock = tls.wrap_socket(sock, server_hostname=host)
         except OSError as exc:
             raise WsClientError(f"could not reach {host}:{port} — {exc}") from exc
 

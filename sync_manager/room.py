@@ -29,6 +29,17 @@ import urllib.parse
 import urllib.request
 from typing import Any, Dict, List, Optional, Tuple
 
+
+def _urlopen(request, timeout=None):
+    """Every call to a node verifies TLS against what this computer trusts
+    (`trust.py`: the dev node behind Caddy included)."""
+    try:
+        from .trust import urlopen
+    except ImportError:          # loaded by path, outside the package (the suite)
+        import urllib.request
+        return urllib.request.urlopen(request, timeout=timeout)
+    return urlopen(request, timeout=timeout)
+
 #: The room this Blender is talking to, for the length of THIS session.
 #: A module-level dict and not a Scene property on purpose: a Scene property is
 #: saved inside the .blend, and the token must not be.
@@ -145,7 +156,7 @@ def put_asset(data: bytes, media_type: str = GLTF_MEDIA_TYPE,
                                      headers={"Content-Type": media_type,
                                               **_auth_headers()})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with _urlopen(request, timeout=timeout) as response:
             info = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:                     # noqa: PERF203
         detail = exc.read().decode("utf-8", "replace")[:200]
@@ -181,7 +192,7 @@ def get_asset(ref: str, timeout: float = 60.0) -> Tuple[bytes, str]:
     request = urllib.request.Request(asset_url(ref), method="GET",
                                      headers=_auth_headers())
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with _urlopen(request, timeout=timeout) as response:
             data = response.read()
             media = response.headers.get("Content-Type") or "application/octet-stream"
     except urllib.error.HTTPError as exc:
@@ -242,7 +253,7 @@ def _room_json(url: str, *, method: str = "GET", data: Optional[bytes] = None,
     request = urllib.request.Request(url, data=data, method=method,
                                      headers=headers)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with _urlopen(request, timeout=timeout) as response:
             body = response.read()
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace")[:300]
@@ -290,7 +301,7 @@ def get_blend_backup(sha256: str, timeout: float = 600.0) -> bytes:
     url = _room_path(f"blend-backup/{urllib.parse.quote(wanted)}")
     request = urllib.request.Request(url, method="GET", headers=_auth_headers())
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with _urlopen(request, timeout=timeout) as response:
             data = response.read()
     except urllib.error.HTTPError as exc:
         if exc.code == 404:

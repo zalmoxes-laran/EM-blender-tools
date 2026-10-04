@@ -31,6 +31,17 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, List, Optional
 
+
+def _urlopen(request, timeout=None):
+    """Every call to a node verifies TLS against what this computer trusts
+    (`trust.py`: the dev node behind Caddy included)."""
+    try:
+        from .trust import urlopen
+    except ImportError:          # loaded by path, outside the package (the suite)
+        import urllib.request
+        return urllib.request.urlopen(request, timeout=timeout)
+    return urlopen(request, timeout=timeout)
+
 #: Where the saved list lives: a JSON file beside Blender's user config, because
 #: a list of servers is a property of THIS INSTALLATION, not of a .blend. Saving
 #: it in the scene would make it travel with a file somebody sends you, which is
@@ -106,7 +117,7 @@ def probe(url: str, timeout: float = 2.5) -> Dict[str, Any]:
     if "://" not in base:
         base = "http://" + base
     try:
-        with urllib.request.urlopen(f"{base}/v1/health", timeout=timeout) as answer:
+        with _urlopen(f"{base}/v1/health", timeout=timeout) as answer:
             body = json.loads(answer.read().decode("utf-8"))
         return {"ok": True, "url": base,
                 "service": body.get("service"), "version": body.get("version"),
@@ -123,12 +134,26 @@ def probe(url: str, timeout: float = 2.5) -> Dict[str, Any]:
 def candidates() -> List[str]:
     """Addresses worth trying on this network, without pretending to browse.
 
-    This machine (an FCN often runs on the same laptop), and this machine's own
-    Bonjour name — which is what the walkthrough tells people to use for the
-    other Mac, and which resolves without any mDNS library because the operating
-    system already speaks it.
+    This machine — the personal node, then the address behind Caddy that EMStudio
+    uses (`https://em.localhost:8443/em`, the node's own name in `/v1/auth-config`),
+    then the server's bare port —, and this machine's own Bonjour name, which is
+    what the walkthrough tells people to use for the other Mac and which resolves
+    without any mDNS library because the operating system already speaks it.
+
+    The list of this computer is s3dgraphy's (`node_finder.LOCAL_CANDIDATES`), so
+    «Find» and «Choose the node» try the same doors. Measured on 4 Oct 2026: the
+    Caddy one was missing here, and even listed it could not answer, because
+    Blender's Python did not trust Caddy's root (`trust.py`).
     """
-    out = ["http://localhost:8000"]
+    try:
+        from s3dgraphy.tools.node_finder import LOCAL_CANDIDATES
+        local = list(LOCAL_CANDIDATES)
+    except ImportError:          # an s3dgraphy from before the finder
+        local = ["http://127.0.0.1:8777", "http://localhost:8000",
+                 "https://em.localhost:8443/em"]
+    caddy = [u for u in local if u.startswith("https://")]
+    out = ([u for u in local if "127.0.0.1" in u] + caddy
+           + [u for u in local if u not in caddy and "127.0.0.1" not in u])
     try:
         host = socket.gethostname().split(".")[0]
         if host:

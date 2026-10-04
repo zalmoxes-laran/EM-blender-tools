@@ -55,11 +55,14 @@ def personal(action: str, root: str = "", lan: bool = False) -> Dict[str, Any]:
 
 
 def find(typed: str = "") -> Dict[str, Any]:
-    from s3dgraphy.tools.node_finder import find_nodes
-    from . import servers
+    from s3dgraphy.tools.node_finder import find_nodes, probe
+    from . import servers, trust
     saved = [s["url"] for s in servers.saved()]
     FOUND.clear()
-    FOUND.update(find_nodes(saved=saved, typed=typed, lang="en"))
+    # each probe verifies TLS against what this computer trusts: without it the
+    # node behind Caddy never answers Blender (trust.py, measured 4 Oct 2026)
+    FOUND.update(find_nodes(saved=saved, typed=typed, lang="en",
+                            prober=lambda u: probe(u, fetch=trust.fetch_json)))
     return FOUND
 
 

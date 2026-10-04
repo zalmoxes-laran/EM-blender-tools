@@ -144,18 +144,12 @@ def _worker(base: str, token):
         pass
 
 
-def _access_for(base: str, typed: str):
-    """→ (token or None, how). Typed wins; then the session's; then sign-in."""
-    typed = (typed or "").strip()
-    if typed:
-        return typed, "pasted"
-    held = room_cfg._session.get("token")
-    held_base = room_cfg._session.get("base_url")
-    if held and (not held_base or held_base == base.rstrip("/")):
-        return held, "session"
-    from . import handoff
-    got = handoff.sign_in(base)
-    return (got, "signed-in") if got else (None, "open-node")
+def _access_for(base: str, typed: str, resume=None):
+    """→ (token or None, how). Typed wins; then the session's; then sign-in —
+    in the browser, WITHOUT freezing Blender: `signin_ui.Waiting` is raised and
+    `resume` opens the door again when the browser comes back."""
+    from . import signin_ui
+    return signin_ui.access_or_wait(base, typed, resume)
 
 
 def _keep_access(base: str, token) -> None:
@@ -185,8 +179,15 @@ class EM_OT_room_list_refresh(bpy.types.Operator):
         if not base:
             self.report({"ERROR"}, "set the node address first (Server)")
             return {"CANCELLED"}
+        from .signin_ui import Waiting
+        wait = self.wait
         try:
-            token, how = _access_for(base, self.token)
+            token, how = _access_for(
+                base, self.token,
+                resume=lambda: bpy.ops.em.room_list_refresh(wait=wait))
+        except Waiting as exc:
+            self.report({"INFO"}, str(exc))
+            return {"FINISHED"}
         except Exception as exc:  # noqa: BLE001
             self.report({"ERROR"}, f"sign-in did not complete: {exc}")
             return {"CANCELLED"}
@@ -226,7 +227,18 @@ class EM_OT_room_pick(bpy.types.Operator):
         if not base or not self.room_id:
             self.report({"ERROR"}, "no node or no room to enter")
             return {"CANCELLED"}
-        token = room_cfg._session.get("token") or ""
+        from .signin_ui import Waiting
+        room_id = self.room_id
+        try:
+            token, _how = _access_for(
+                base, "", resume=lambda: bpy.ops.em.room_pick(room_id=room_id))
+        except Waiting as exc:
+            self.report({"INFO"}, str(exc))
+            return {"FINISHED"}
+        except Exception as exc:  # noqa: BLE001 — the realm, the network
+            self.report({"ERROR"}, f"sign-in did not complete: {exc}")
+            return {"CANCELLED"}
+        token = token or ""
         from . import room_session as _rs
         if any(s.joined and s.room_id == self.room_id
                for _g, s in _rs.sessions()):
@@ -273,9 +285,16 @@ class EM_OT_room_create(bpy.types.Operator):
         if not base:
             self.report({"ERROR"}, "set the node address first (Server)")
             return {"CANCELLED"}
+        from .signin_ui import Waiting
+        name, enter = self.name, self.enter
         try:
-            token, _how = _access_for(base, "")
+            token, _how = _access_for(
+                base, "",
+                resume=lambda: bpy.ops.em.room_create(name=name, enter=enter))
             created = rooms_list.create_room(base, token, self.name)
+        except Waiting as exc:
+            self.report({"INFO"}, str(exc))
+            return {"FINISHED"}
         except Exception as exc:  # noqa: BLE001 — the node's sentence
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}

@@ -2101,9 +2101,24 @@ class EM_OT_room_join(bpy.types.Operator):
         if not base or not room_id:
             self.report({"ERROR"}, "set the room address and id first")
             return {"CANCELLED"}
-        # An empty token no longer means "no identity": it means "sign me in".
-        # See `join_manual` for why a pasted one still wins.
-        result = join_manual(context, base, room_id, self.token,
+        # An empty token no longer means "no identity": it means "sign me in" —
+        # in the browser, without freezing Blender (signin_ui.py). See
+        # `join_manual` for why a pasted one still wins.
+        from .signin_ui import Waiting, access_or_wait
+        adopt = self.adopt
+        try:
+            token, _how = access_or_wait(
+                base, self.token,
+                resume=lambda: bpy.ops.em.room_join(adopt=adopt))
+        except Waiting as exc:
+            self.token = ""
+            self.report({"INFO"}, str(exc))
+            return {"FINISHED"}
+        except Exception as exc:  # noqa: BLE001 — the realm, the network
+            self.token = ""
+            self.report({"ERROR"}, f"sign-in did not complete: {exc}")
+            return {"CANCELLED"}
+        result = join_manual(context, base, room_id, token or "",
                              adopt=self.adopt)
         self.token = ""          # not even in the operator's own memory
         if not result["ok"]:
@@ -2164,8 +2179,16 @@ class EM_OT_room_open_link(bpy.types.Operator):
     def execute(self, context):
         from . import handoff
 
+        from .signin_ui import Waiting, access_or_wait
+        link, adopt = self.link, self.adopt
         try:
-            where = handoff.resolve(self.link)
+            where = handoff.resolve(
+                link, sign_in_with=lambda server: access_or_wait(
+                    server, "",
+                    resume=lambda: bpy.ops.em.room_open_link(link=link, adopt=adopt))[0])
+        except Waiting as exc:
+            self.report({"INFO"}, str(exc))
+            return {"FINISHED"}
         except handoff.HandoffError as exc:
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
