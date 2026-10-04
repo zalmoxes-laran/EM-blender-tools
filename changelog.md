@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — less and better (MICRO-EMTOOLS-MENO-E-MEGLIO, 4 October 2026)
+- **One change of level of detail.** RM Manager and Anastylosis call the asset
+  versions' `em.asset_lod_step` / `em.asset_set_level` / `em.asset_level_menu`
+  (same buttons, same sentences); the `_LODn` meshes of a library (the tiles of
+  Templu Mare, the RMSF fragments) and the nearest-heavier fallback live there.
+  Their own codes are in `_dead_code/`.
+- **Offset proxy** («Scosta il proxy») replaces the inflation: a Displace «EM
+  offset» along the normals, 1 cm by default (measured clean from 40 m on Templu
+  Mare), for the active proxy, the selection or all; the panel removes the old
+  Solidify modifiers.
+- **The graph in the Node Editor is gone** (`_dead_code/graph_editor/`, with a
+  README on why).
+- **Import from tables** replaces the 3D GIS mode: an Excel through a mapping,
+  an Excel sheet or pyArchInit (SQLite/PostgreSQL, filters) becomes a real graph
+  saved as em.json and listed with the others, with the US geometries of Enzo
+  Cocca's reader when asked. `mode_em_advanced`, `emtools.switch_mode`,
+  `3dgis_graph` and the xlsx → GraphML wizard are gone.
+- **Images of the units** are resources (sha256 + position) proposed by a naming
+  pattern in the EM tree and linked when confirmed (`has_linked_resource`); their
+  thumbnails are a cache keyed by sha256; they show in the Stratigraphy Manager
+  with the file's state. The old thumbnails are in `_dead_code/thumbnails/`.
+- **Tabs**: EM (the graph in the scene), EM Scene (the 3D, now with Asset
+  versions and the Shelf), EM Stanza (Stanza — once EMStudio Sync —, Files,
+  Publication Deck, Export Manager, statistics, Tapestry). «HDT-O» is «Il
+  grafo»; EM Data Tree has Import from tables and Auxiliary files as
+  sub-panels.
+- **Paradata in Blender read only**, with «Edit … in EMStudio».
+- `./em.sh` runs with `EM_PYTHON`, else the repository's `.venv`, and says when
+  that Python has no pip.
+
 ### Planned for 1.6 — .em.json adoption (decision 2026-07-11)
 - Adopt `.em.json` v1 (frozen in s3Dgraphy: `emjson_exporter` / `emjson_importer`)
   as the native project format alongside GraphML: GraphML becomes legacy one-way
