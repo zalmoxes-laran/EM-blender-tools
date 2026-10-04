@@ -2458,11 +2458,11 @@ class STRAT_OT_add_us(Operator):
         default=True,
     )  # type: ignore
     persist_after_create: bpy.props.BoolProperty(
-        name="Save GraphML immediately after create",
-        description="Persist the new US + its edges to the .graphml "
-                    "file right after Create. Recommended — keeps "
-                    "the on-disk graphml in sync with the in-memory "
-                    "state (a Blender crash otherwise loses the US).",
+        name="Save the graph immediately after create",
+        description="Persist the new US + its edges to the graph's "
+                    "em.json right after Create (in a room it is already "
+                    "there). Recommended — a Blender crash otherwise "
+                    "loses the US.",
         default=True,
     )  # type: ignore
     lock_us_type: bpy.props.BoolProperty(
@@ -2595,12 +2595,14 @@ class STRAT_OT_add_us(Operator):
         persisted = False
         if self.persist_after_create:
             try:
-                result = bpy.ops.export.graphml_update()
-                persisted = 'FINISHED' in result
+                from ..em_setup.graph_tree import persist_active
+                persisted, said = persist_active(context)
+                if not persisted:
+                    self.report({'WARNING'}, f"Auto-save: {said}")
             except Exception as e:
                 self.report({'WARNING'},
-                            f"Auto-save failed: {e}. Save manually "
-                            f"via Export > Update GraphML.")
+                            f"Auto-save failed: {e}. Save the graph manually "
+                            f"(Save, EM panel).")
 
         tag = " [persisted]" if persisted else ""
         self.report(

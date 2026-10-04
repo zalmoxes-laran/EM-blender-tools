@@ -14,7 +14,7 @@ Phase 4 — Bake button
     promotes every ``injected_by``-tagged node / edge / attribute
     override to graph-native status (by clearing the bookkeeping
     tags) and writes the result to disk via
-    ``GraphMLExporter.export(persist_auxiliary=True)``.
+    ``clear_aux_tags`` and a save of the graph's em.json (G1).
 
 Helper: ``AUX_OT_revert_injector`` wraps
 ``s3dgraphy.transforms.revert_injector`` so the user can unregister a
@@ -288,10 +288,9 @@ class AUX_OT_create_host_for_orphan(bpy.types.Operator):
     dropped; the next auxiliary refresh can then attach the payload
     (e.g. DosCo URL) to the new host.
 
-    By default the change is in-memory only. Tick "Save GraphML now"
-    to persist to disk via the volatile Save (keeps the host + drops
-    the DosCo enrichment layer), or run the Bake operator later to
-    persist enrichment too.
+    By default the change is in-memory only. Tick "Save the graph after
+    creation" to persist the host to the graph's em.json, or run Bake
+    later to make the enrichment graph-native too.
     """
     bl_idname = "em.aux_create_host_for_orphan"
     bl_label = "Create host node"
@@ -354,12 +353,12 @@ class AUX_OT_create_host_for_orphan(bpy.types.Operator):
     )  # type: ignore
 
     persist_after_create: BoolProperty(
-        name="Persist to GraphML after creation",
+        name="Save the graph after creation",
         description=(
-            "Preference: after the host is created, also run a "
-            "volatile Save GraphML so the new node survives Blender "
-            "close / graph reload. Leave unticked to review the "
-            "change in memory and save later."
+            "Preference: after the host is created, also save the "
+            "graph's em.json so the new node survives Blender close / "
+            "graph reload. Leave unticked to review the change in "
+            "memory and save later."
         ),
         default=False,
     )  # type: ignore
@@ -626,8 +625,10 @@ class AUX_OT_create_host_for_orphan(bpy.types.Operator):
         persisted = False
         if self.persist_after_create:
             try:
-                result = bpy.ops.export.graphml_update()
-                persisted = 'FINISHED' in result
+                from ..em_setup.graph_tree import persist_active
+                persisted, said = persist_active(context)
+                if not persisted:
+                    self.report({'WARNING'}, f"Host created; {said}")
             except Exception as e:
                 self.report({'WARNING'},
                             f"Host created but persist failed: {e}")
@@ -691,21 +692,22 @@ class AUX_OT_bake_to_graphml(bpy.types.Operator):
 
     Opens a confirmation dialog summarising, per injector, how many
     nodes / edges / attribute overrides / orphans will be promoted or
-    dropped. On confirm, calls
-    :meth:`s3dgraphy.GraphMLExporter.export(persist_auxiliary=True)`
-    which clears the ``injected_by`` / ``_aux_overrides`` bookkeeping
-    and writes a fully graph-native GraphML file.
+    dropped. On confirm, clears the ``injected_by`` / ``_aux_overrides``
+    bookkeeping (`s3dgraphy.transforms.aux_tracking.clear_aux_tags`) and
+    saves the graph to its em.json — G1: a GraphML is read once and never
+    written again, so the bake no longer overwrites one.
 
     After bake, the auxiliaries can be unregistered without losing
     their enrichment. This is a **one-way** operation: future edits
     to the auxiliary file on disk will no longer affect the baked
-    content.
+    content. (The id keeps its old name, `em.aux_bake_to_graphml`, so
+    keymaps and scripts that call it keep working.)
     """
     bl_idname = "em.aux_bake_to_graphml"
-    bl_label = "Bake auxiliary → GraphML"
+    bl_label = "Bake auxiliaries into the graph"
     bl_description = (
         "Promote the auxiliary enrichment to graph-native and save "
-        "the GraphML. One-way operation."
+        "the graph's em.json. One-way operation."
     )
     bl_options = {'REGISTER'}
 
@@ -734,8 +736,8 @@ class AUX_OT_bake_to_graphml(bpy.types.Operator):
             )
         layout.separator()
         layout.label(
-            text="After bake, these items become part of the GraphML "
-                 "file and survive unregistering the auxiliary.",
+            text="After bake, these items are part of the graph (its "
+                 "em.json) and survive unregistering the auxiliary.",
             icon='CHECKMARK')
         layout.label(
             text="This is a one-way operation — re-editing the "
@@ -745,33 +747,29 @@ class AUX_OT_bake_to_graphml(bpy.types.Operator):
     def execute(self, context):
         graphml, graph = _active_graphml_and_graph(context)
         if graph is None or graphml is None:
-            self.report({'ERROR'}, "No active graph / GraphML")
-            return {'CANCELLED'}
-        graphml_path = bpy.path.abspath(graphml.graphml_path or "")
-        if not graphml_path:
-            self.report({'ERROR'}, "Active GraphML has no path")
-            return {'CANCELLED'}
-        # Write-lock pre-flight — Bake overwrites the .graphml on disk.
-        from ..graphml_lock import abort_if_graphml_locked
-        if not abort_if_graphml_locked(self, graphml_path):
+            self.report({'ERROR'}, "No active graph")
             return {'CANCELLED'}
         try:
-            from s3dgraphy.exporter.graphml import GraphMLExporter
+            from s3dgraphy.transforms.aux_tracking import clear_aux_tags
+            from ..em_setup.graph_tree import persist_active
         except ImportError as e:
             self.report({'ERROR'}, f"s3dgraphy unavailable: {e}")
             return {'CANCELLED'}
-
         try:
-            exporter = GraphMLExporter(graph)
-            exporter.export(graphml_path, persist_auxiliary=True)
+            report = clear_aux_tags(graph)
+            ok, said = persist_active(context)
         except Exception as e:
             self.report({'ERROR'}, f"Bake failed: {e}")
             import traceback
             traceback.print_exc()
             return {'CANCELLED'}
-
+        if not ok:
+            self.report({'WARNING'},
+                        f"Baked in memory ({report['injected_cleared']} "
+                        f"items made graph-native); {said}")
+            return {'FINISHED'}
         self.report({'INFO'},
-                    f"Baked auxiliaries into {os.path.basename(graphml_path)}")
+                    f"Baked auxiliaries into the graph: {said}")
         for area in context.screen.areas:
             area.tag_redraw()
         return {'FINISHED'}

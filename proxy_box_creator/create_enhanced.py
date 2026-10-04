@@ -72,11 +72,8 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
             self.report({'ERROR'}, "Graph not loaded")
             return {'CANCELLED'}
 
-        from ..functions import normalize_path
-        from ..graphml_lock import abort_if_graphml_locked
-        target_path = normalize_path(graph_info.graphml_path or "")
-        if target_path and not abort_if_graphml_locked(self, target_path):
-            return {'CANCELLED'}
+        # G1 · the persistence below writes the graph's em.json, never a
+        # GraphML: the yEd write-lock pre-flight has nothing left to guard.
 
         graph_code = getattr(graph_info, "graph_code", "") or ""
 
@@ -220,7 +217,7 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
         except Exception:
             pass
 
-        # ── 5. Persist the paradata chain to .graphml ───────────────
+        # ── 5. Persist the paradata chain to the graph's em.json ────
         # The chain we just built — Document → Extractors → Combiner
         # → PropertyNode → US → Epoch — lives only in memory until
         # the user saves the file. Offer (and by default do) the save
@@ -231,12 +228,14 @@ class PROXYBOX_OT_create_proxy_enhanced(Operator):
         persisted = False
         if settings.persist_after_create:
             try:
-                result = bpy.ops.export.graphml_update()
-                persisted = 'FINISHED' in result
+                from ..em_setup.graph_tree import persist_active
+                persisted, said = persist_active(context)
+                if not persisted:
+                    self.report({'WARNING'}, f"Auto-save: {said}")
             except Exception as e:
                 self.report({'WARNING'},
-                            f"Auto-save failed: {e}. Save manually "
-                            f"via Export > Update GraphML.")
+                            f"Auto-save failed: {e}. Save the graph manually "
+                            f"(Save, EM panel).")
 
         tag = " [persisted]" if persisted else ""
         self.report({'INFO'}, f"Proxy created: {proxy_obj.name}{tag}")

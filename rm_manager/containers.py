@@ -610,6 +610,88 @@ def seat_model_of(scene, graph, obj):
                    f"carry models)")
 
 
+def seat_scene_models(scene, graph) -> dict:
+    """G1 · the scene's models into a graph that came from a GraphML.
+
+    A GraphML never carries the ``representation_model`` nodes; the scene does
+    (``em_rm_node_id`` on the object, its container's Document, its epochs in
+    ``EM_ep_belong_ob``). When the GraphML becomes an em.json they go in, so the
+    file — and a room seeded from it — has them. Measured on 4 Oct 2026: the room
+    templu-mare-q11, born from the GraphML of Templu Mare, had 66 models in its
+    storage and none in its graph («Units with a proxy 0/105», no RM).
+
+    An object's model is seated in ``graph`` when the object BELONGS to it: its
+    container's Document is in the graph, or every epoch it names is one of the
+    graph's. A model already in ANOTHER loaded graph stays there. The id is the
+    object's own (``em_rm_node_id``) — the identity Q2 keeps — and only an
+    object that never had one gets the legacy ``<name>_model``. Then
+    ``Document —has_representation_model→ model`` (as `add_mesh_to_container`)
+    and ``epoch —has_representation_model→ model`` (as
+    `update_representation_models`). Idempotent.
+
+    → ``{"seated", "present", "documents", "epochs", "elsewhere", "skipped"}``.
+    """
+    from s3dgraphy.nodes.representation_node import RepresentationModelNode
+    from .epoch_edges import sync_epoch_edges
+
+    counts = {"seated": 0, "present": 0, "documents": 0, "epochs": 0,
+              "elsewhere": 0, "skipped": 0}
+    epochs = {n.name for n in graph.nodes
+              if getattr(n, "node_type", None) == "EpochNode"}
+    others = []
+    try:
+        from s3dgraphy import get_all_graph_ids, get_graph
+        others = [g for g in (get_graph(gid) for gid in get_all_graph_ids())
+                  if g is not None and g is not graph]
+    except ImportError:
+        pass
+    publishable = {}
+    for item in getattr(scene, "rm_list", ()) or ():
+        publishable[item.name] = item.is_publishable
+
+    for obj in bpy.data.objects:
+        if obj.type not in {"MESH", "CURVE", "EMPTY"}:
+            continue
+        rm_id = str(obj.get("em_rm_node_id", "") or "")
+        scene_epochs = [ep.epoch for ep in getattr(obj, "EM_ep_belong_ob", ())
+                        if ep.epoch and ep.epoch != "no_epoch"]
+        doc_id = str(obj.get("em_rm_container_doc_id", "") or "")
+        if not doc_id:
+            idx = find_container_for_mesh(scene, obj.name)
+            if idx is not None:
+                doc_id = scene.rm_containers[idx].doc_node_id or ""
+        doc = graph.find_node_by_id(doc_id) if doc_id else None
+        if not rm_id and not scene_epochs and doc is None:
+            continue                                  # not a model at all
+        belongs = doc is not None or (scene_epochs and
+                                      all(e in epochs for e in scene_epochs))
+        if not belongs:
+            counts["skipped"] += 1
+            continue
+        if rm_id and graph.find_node_by_id(rm_id) is None and any(
+                o.find_node_by_id(rm_id) is not None for o in others):
+            counts["elsewhere"] += 1
+            continue
+        if not rm_id:
+            rm_id = f"{obj.name}_model"
+            obj["em_rm_node_id"] = rm_id
+        if graph.find_node_by_id(rm_id) is None:
+            graph.add_node(RepresentationModelNode(node_id=rm_id, name=obj.name,
+                                                   type="RM", description=""))
+            counts["seated"] += 1
+        else:
+            counts["present"] += 1
+        if doc is not None and not _has_edge(graph, doc_id, rm_id,
+                                             "has_representation_model"):
+            graph.add_edge(edge_id=f"{doc_id}_has_representation_model_{rm_id}",
+                           edge_source=doc_id, edge_target=rm_id,
+                           edge_type="has_representation_model")
+            counts["documents"] += 1
+        if publishable.get(obj.name, True) and scene_epochs:
+            counts["epochs"] += sync_epoch_edges(graph, rm_id, scene_epochs)[0]
+    return counts
+
+
 def ensure_rm_and_internal_resource(scene, graph, obj):
     """Il nodo RM di questa mesh e la sua risorsa interna.
 

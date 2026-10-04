@@ -1,10 +1,9 @@
-"""Save the active EM graph to a file — "Save As…" with a format choice.
+"""Save the active EM graph to a file — "Save As…", always em.json.
 
-  * em.json (default) — the canonical, FULL, lossless graph serialization
-    (EM 1.6 native; the live-sync format, ADR-002).
-  * GraphML — legacy interchange, NOT lossless (from-scratch export via
-    s3dgraphy's GraphMLExporter; layout is regenerated, some EM 1.6 data has
-    no yEd representation).
+em.json is the canonical, FULL, lossless graph serialization (EM 1.6 native;
+the live-sync format, ADR-002). G1 · the GraphML choice is gone: a GraphML is
+read once (`import.em_graphml` turns it into an em.json) and nothing writes one
+again (decision of E.D., 4 Oct 2026).
 
 Layout note: EMStudio owns the 2D swimlane layout; Blender has none, so it
 exports with ``layout=None``. Re-opening in EMStudio re-lays-out.
@@ -70,19 +69,20 @@ def _rebind_origin(context, out: str) -> None:
 class EM_export_saveas(bpy.types.Operator, ExportHelper):
     bl_idname = "export.em_saveas"
     bl_label = "Save As…"
-    bl_description = "Save the active EM graph — em.json (full, lossless) or GraphML (legacy, not lossless)"
+    bl_description = "Save the active EM graph as an em.json (full, lossless)"
 
     # Single-dot filename_ext: Blender's ensure_ext splits on the last dot, so
     # ".em.json" would double to ".em.em.json". We normalise in execute.
     filename_ext = ".json"
-    filter_glob: StringProperty(default="*.em.json;*.json;*.graphml", options={"HIDDEN"})  # type: ignore
+    filter_glob: StringProperty(default="*.em.json;*.json", options={"HIDDEN"})  # type: ignore
 
+    #: kept so scripts that pass `fmt="EMJSON"` keep working; em.json is the
+    #: only format (G1)
     fmt: EnumProperty(
         name="Format",
         description="Output format",
         items=[
             ("EMJSON", "em.json (full graph)", "Canonical EM 1.6 JSON — full, lossless"),
-            ("GRAPHML", "GraphML (not lossless)", "Legacy yEd GraphML — layout regenerated, some data lost"),
         ],
         default="EMJSON",
     )  # type: ignore
@@ -112,10 +112,10 @@ class EM_export_saveas(bpy.types.Operator, ExportHelper):
                 root = root[:-3]
             else:
                 break
-        return root + (".em.json" if fmt == "EMJSON" else ".graphml")
+        return root + ".em.json"
 
     def draw(self, context):
-        self.layout.prop(self, "fmt")
+        self.layout.label(text="em.json — the full graph", icon="FILE")
 
     def invoke(self, context, event):
         em_tools = context.scene.em_tools
@@ -132,17 +132,12 @@ class EM_export_saveas(bpy.types.Operator, ExportHelper):
 
         out_path = self._normalize_ext(self.filepath, self.fmt)
         try:
-            if self.fmt == "EMJSON":
-                # M1 · the file gets the graphs of the active graph's ORIGIN —
-                # its file's graphs (with that file's shelf, corpus, header and
-                # the graphs not open here), not every graph of the scene: a
-                # scene holding two files must not fuse them into one. A graph
-                # with no file, or from a room, is written alone.
-                out = _save_as_origin(context, graph, out_path)
-            else:
-                from s3dgraphy.exporter.graphml.graphml_exporter import GraphMLExporter
-                GraphMLExporter(graph).export(out_path)
-                out = out_path
+            # M1 · the file gets the graphs of the active graph's ORIGIN —
+            # its file's graphs (with that file's shelf, corpus, header and
+            # the graphs not open here), not every graph of the scene: a
+            # scene holding two files must not fuse them into one. A graph
+            # with no file, or from a room, is written alone.
+            out = _save_as_origin(context, graph, out_path)
         except Exception as exc:  # noqa: BLE001 — surface any exporter error to the UI
             self.report({"ERROR"}, f"Save failed: {exc}")
             show_popup_message(context, "Export Error", str(exc), "ERROR")
@@ -150,10 +145,9 @@ class EM_export_saveas(bpy.types.Operator, ExportHelper):
 
         # Remember the em.json path on the active entry so a later "Save" writes
         # in place (em.json is the canonical file).
-        if self.fmt == "EMJSON":
-            _rebind_origin(context, out)
+        _rebind_origin(context, out)
 
-        self.report({"INFO"}, f"Saved {self.fmt} → {out}")
+        self.report({"INFO"}, f"Saved em.json → {out}")
         return {"FINISHED"}
 
 

@@ -862,14 +862,14 @@ class EM_SetupPanel(bpy.types.Panel):
             self._riga_comandi(context, layout, em_tools, scene, _stato)
 
 
-        # Save / Export / Merge buttons (experimental — GraphML write-back not production-ready)
+        # Merge (experimental). G1 · «Save GraphML» and «Save As…» to GraphML
+        # are gone: a GraphML is read once and the graph lives in em.json
+        # (decision of E.D., 4 Oct 2026); Save and Save As above write it.
         if em_tools.experimental_features:
             row = layout.row(align=True)
-            row.operator('export.graphml_update', text="Save GraphML", icon="FILE_TICK")
-            row.operator('export.graphml_saveas', text="Save As...", icon="FILE_NEW")
             row.operator('em.merge_xlsx_start', text="Merge XLSX...", icon="AUTOMERGE_ON")
 
-            # Hybrid-C Phase 4: Bake auxiliary → GraphML. Shown only
+            # Hybrid-C Phase 4: Bake auxiliaries into the graph. Shown only
             # when the active graph carries any injected content
             # (nodes/edges tagged ``injected_by``, attribute
             # overrides, or orphan entries). One-way op: the
@@ -889,7 +889,7 @@ class EM_SetupPanel(bpy.types.Panel):
                 bake_row.alert = True
                 bake_row.operator(
                     'em.aux_bake_to_graphml',
-                    text="Bake Auxiliaries → GraphML",
+                    text="Bake auxiliaries into the graph",
                     icon='FILE_TICK')
 
         # (Multigraph Mode è nella riga di icone sopra — B3.)

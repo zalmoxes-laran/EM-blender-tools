@@ -1096,13 +1096,11 @@ class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
         default=""
     )  # type: ignore
     persist_after_create: bpy.props.BoolProperty(
-        name="Persist to GraphML after creation",
+        name="Save the graph after creation",
         description=(
-            "Also save the GraphML right after creating the document, "
-            "so the new master survives a Blender close or graph "
-            "reload. Requires the .graphml file to be CLOSED in yEd "
-            "(yEd does not hold a filesystem lock on macOS/Linux, so "
-            "the user is responsible for closing it before saving)."
+            "Also save the graph's em.json right after creating the "
+            "document, so the new master survives a Blender close or "
+            "graph reload (in a room it is already there)."
         ),
         default=True,
     )  # type: ignore
@@ -1265,19 +1263,13 @@ class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
         hint.label(text=color_hint, icon='CHECKMARK')
 
         # Persistence — default ON so the master document reaches disk
-        # right away. The disclaimer makes the yEd-must-be-closed
-        # constraint visible to the user (yEd does not hold an OS
-        # file-lock on macOS/Linux, so the system cannot detect it
-        # automatically).
+        # right away, in the graph's em.json (G1: never a GraphML).
         persist_box = layout.box()
         persist_box.prop(self, "persist_after_create")
         disclaimer = persist_box.row()
         if self.persist_after_create:
-            disclaimer.alert = True
-            disclaimer.label(
-                text="Close the .graphml in yEd before saving "
-                     "— yEd doesn't hold a file lock.",
-                icon='ERROR')
+            disclaimer.label(text="Saved to the graph's em.json.",
+                             icon='FILE_TICK')
         else:
             disclaimer.label(
                 text="In-memory only — lost on reload or Blender close.",
@@ -1351,20 +1343,19 @@ class DOCMANAGER_OT_create_master_document(bpy.types.Operator):
         # creation) can consume it after the dialog closes.
         em_tools["last_created_master_doc_id"] = node.node_id
 
-        # Optional persistence — run Save GraphML so the new master
-        # document reaches disk. The write-lock guard (see
-        # graphml_lock.py) will fail fast with a clear message when
-        # yEd holds the file on Windows; on macOS/Linux yEd doesn't
-        # lock, so the disclaimer shown in the dialog makes the
-        # responsibility explicit.
+        # Optional persistence — the active graph to its em.json (G1: a
+        # GraphML is read once and never written again), so the new master
+        # document reaches disk.
         persisted = False
         if self.persist_after_create:
             try:
-                result = bpy.ops.export.graphml_update()
-                persisted = 'FINISHED' in result
+                from ..em_setup.graph_tree import persist_active
+                persisted, said = persist_active(context)
+                if not persisted:
+                    self.report({'WARNING'}, f"Document created; {said}")
             except Exception as e:
                 self.report({'WARNING'},
-                            f"Document created but Save GraphML failed: {e}")
+                            f"Document created but saving the graph failed: {e}")
 
         msg_tail = f" @ {resolved_epoch.name}"
         if self.has_creation_year:

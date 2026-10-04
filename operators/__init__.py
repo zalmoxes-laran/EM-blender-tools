@@ -11,8 +11,8 @@ from .help_popup import *
 # Import save template operators
 from .save_template import *
 
-# Import bake paradata operator
-from .bake_paradata import *
+# G1 · «Bake Paradata into GraphML» (bake_paradata) is in _dead_code: it
+# overwrote a GraphML, and a GraphML is read once and never written again.
 
 # U4 · the xlsx → GraphML wizard and converter (xlsx_wizard, xlsx_to_graphml)
 # are in _dead_code: «Import from tables» makes the graph and saves it as
@@ -40,7 +40,6 @@ __all__ = [
     "XLSX_OT_to_graphml",
     "EMTOOLS_OT_save_stratigraphy_template",
     "EMTOOLS_OT_save_em_paradata_template",
-    "PARADATA_OT_bake",
     "XLSX_WIZARD_OT_convert_stratigraphy",
     "XLSX_WIZARD_OT_export_graphml",
     "AUX_OT_create_host_for_orphan",
@@ -63,7 +62,6 @@ def register():
     from . import update_graph
     from . import help_popup
     from . import save_template
-    from . import bake_paradata
     from . import aux_lifecycle
     from . import merge_conflict_ui
 
@@ -71,7 +69,6 @@ def register():
     update_graph.register()
     help_popup.register()
     save_template.register()
-    bake_paradata.register()
     aux_lifecycle.register()
     merge_conflict_ui.register()
 
@@ -82,14 +79,12 @@ def unregister():
     from . import update_graph
     from . import help_popup
     from . import save_template
-    from . import bake_paradata
     from . import aux_lifecycle
     from . import merge_conflict_ui
 
     # Unregister in reverse order
     merge_conflict_ui.unregister()
     aux_lifecycle.unregister()
-    bake_paradata.unregister()
     save_template.unregister()
     help_popup.unregister()
     update_graph.unregister()

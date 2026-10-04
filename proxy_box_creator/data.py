@@ -298,19 +298,18 @@ class ProxyBoxSettings(PropertyGroup):
         default=True,
     )  # type: ignore
 
-    # Persist the paradata chain to the .graphml immediately after
+    # Persist the paradata chain to the graph's em.json immediately after
     # Create. Default True because the Create operator produces a
     # non-trivial chain (US + PropertyNode + up to 7 Extractors +
     # Combiner + has_representation_model edge) and losing it to a
-    # Blender crash is expensive — the graphml write-lock guard has
-    # already checked that yEd isn't holding the file.
+    # Blender crash is expensive. G1: never a GraphML.
     persist_after_create: BoolProperty(
-        name="Save GraphML immediately",
-        description="Persist the paradata chain to the .graphml file "
-                    "right after Create. Recommended: the proxy "
-                    "creates a lot of new nodes/edges and keeping "
-                    "them only in memory means a crash throws them "
-                    "away.",
+        name="Save the graph immediately",
+        description="Persist the paradata chain to the graph's em.json "
+                    "right after Create (in a room it is already there). "
+                    "Recommended: the proxy creates a lot of new "
+                    "nodes/edges and keeping them only in memory means a "
+                    "crash throws them away.",
         default=True,
     )  # type: ignore
 

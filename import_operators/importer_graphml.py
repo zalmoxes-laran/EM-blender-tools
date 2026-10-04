@@ -1,4 +1,5 @@
 import bpy # type: ignore
+import os
 from s3dgraphy import get_graph
 from s3dgraphy import remove_graph
 from s3dgraphy.nodes.group_node import GroupNode
@@ -10,9 +11,14 @@ from s3dgraphy.multigraph.multigraph import load_graph_from_file
 
 
 class EM_import_GraphML(bpy.types.Operator):
+    """G1 · a GraphML is read ONCE: the graph goes into an em.json beside it
+    (`em_setup/graphml_entry.py`), the slot becomes that em.json, and nothing
+    writes the GraphML again (decision of E.D., 4 Oct 2026)."""
     bl_idname = "import.em_graphml"
-    bl_label = "Import EM (GraphML)"
-    bl_description = "(SHIFT+F5) Load/reload this EM from disk and set it active"
+    bl_label = "Import GraphML into em.json"
+    bl_description = ("Read this GraphML once and continue in an em.json saved "
+                      "beside it (you confirm the name). The GraphML is not "
+                      "written again")
     bl_options = {"REGISTER", "UNDO"}
 
     # Aggiungiamo una proprietà per passare l'indice del file GraphML selezionato
@@ -22,6 +28,45 @@ class EM_import_GraphML(bpy.types.Operator):
     graphml_index: bpy.props.IntProperty(default=-1) # type: ignore
     #: Q4 · reload even if versions added here would be lost (asked in invoke)
     discard_unsaved: bpy.props.BoolProperty(default=False, options={"HIDDEN", "SKIP_SAVE"}) # type: ignore
+    #: G1 · where the em.json goes — proposed beside the GraphML, confirmed in
+    #: the dialog; empty from a script means the proposal
+    emjson_path: bpy.props.StringProperty(  # type: ignore
+        name="em.json", subtype="FILE_PATH", options={"SKIP_SAVE"},
+        description="The em.json the graph will live in from now on (never an "
+                    "existing file)")
+
+    def _row(self, context):
+        em_tools = context.scene.em_tools
+        idx = self.graphml_index if self.graphml_index >= 0 else em_tools.active_file_index
+        if 0 <= idx < len(em_tools.graphml_files):
+            return em_tools.graphml_files[idx]
+        return None
+
+    def _proposal(self, context) -> str:
+        from ..em_setup.graphml_entry import proposed_emjson_path
+        row = self._row(context)
+        if row is None or not row.graphml_path:
+            return ""
+        return proposed_emjson_path(normalize_path(row.graphml_path))
+
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column(align=True)
+        col.label(text="The GraphML is read once: from now on this graph lives "
+                       "in an em.json.", icon="INFO")
+        col.label(text="Models and proxies of the scene go into it; the GraphML "
+                       "is not written again.")
+        layout.prop(self, "emjson_path")
+        if self.emjson_path and os.path.exists(bpy.path.abspath(self.emjson_path)):
+            warn = layout.row()
+            warn.alert = True
+            warn.label(text="That file exists: choose another name", icon="ERROR")
+        lost = self._lost(context)
+        if lost:
+            box = layout.box()
+            box.alert = True
+            for line in (lost[i:i + 90] for i in range(0, len(lost), 90)):
+                box.label(text=line)
 
     def _lost(self, context):
         em_tools = context.scene.em_tools
@@ -32,13 +77,13 @@ class EM_import_GraphML(bpy.types.Operator):
         return reload_warning(em_tools.graphml_files[idx].name)
 
     def invoke(self, context, event):
-        lost = self._lost(context)
-        if lost:
+        if self._lost(context):
             self.discard_unsaved = True
-            return context.window_manager.invoke_confirm(
-                self, event, title="Reload the graph from disk?", message=lost,
-                confirm_text="Reload")
-        return self.execute(context)
+        if not self.emjson_path:
+            self.emjson_path = self._proposal(context)
+        return context.window_manager.invoke_props_dialog(
+            self, width=560, title="Import this GraphML into an em.json",
+            confirm_text="Import")
 
     def execute(self, context):
         # Setup scene variable
@@ -268,6 +313,17 @@ class EM_import_GraphML(bpy.types.Operator):
                     self.report({'INFO'}, f"GraphML loaded + {imported} auxiliary file(s) auto-imported")
                 elif errors > 0:
                     self.report({'WARNING'}, f"GraphML loaded but {errors} auxiliary import(s) failed")
+
+                # G1 · the GraphML is read once: the graph goes into its
+                # em.json and the slot becomes that file
+                try:
+                    from ..em_setup.graphml_entry import convert
+                    done = convert(context, self.graphml_index,
+                                   self.emjson_path or self._proposal(context))
+                    self.report({'INFO'}, done["sentence"])
+                except Exception as e:  # noqa: BLE001 — loaded, not converted: say it
+                    self.report({'WARNING'},
+                                f"GraphML loaded but not saved as em.json: {e}")
 
                 # B1 · chi aspettava un grafo dal ponte (EMStudio in Sidecar) lo
                 # riceve adesso, senza doversi riconnettere.

@@ -684,7 +684,6 @@ def register_modules():
     from .import_operators import importer_graphml
     from .import_operators import importer_emjson
     from .export_operators import heriverse as exporter_heriverse
-    from .export_operators import exporter_graphml
     from .export_operators import exporter_emjson
     from .export_operators import rdf as exporter_rdf
     from .import_operators import import_EMdb
@@ -733,7 +732,6 @@ def register_modules():
         importer_graphml,
         importer_emjson,
         exporter_heriverse,
-        exporter_graphml,
         exporter_emjson,
         exporter_rdf,
         import_EMdb,
@@ -845,7 +843,6 @@ def unregister_modules():
         return
     
     from .export_operators import heriverse as exporter_heriverse
-    from .export_operators import exporter_graphml
     from .export_operators import exporter_emjson
     from .export_operators import rdf as exporter_rdf
     from .import_operators import importer_graphml, importer_emjson, import_EMdb
@@ -945,7 +942,6 @@ def unregister_modules():
         import_EMdb,
         exporter_rdf,
         exporter_emjson,
-        exporter_graphml,
         exporter_heriverse,
         importer_emjson,
         importer_graphml,

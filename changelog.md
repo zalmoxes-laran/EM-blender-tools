@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — em.json everywhere (MICRO-EMJSON-DAPPERTUTTO, 4 October 2026)
+- **A GraphML comes in once.** Loading a GraphML slot asks where its em.json
+  goes (beside the GraphML, a name never taken), puts the scene's models (their
+  own `em_rm_node_id`, under their container's document and their epochs) and
+  the units' proxies into the graph, writes the em.json and makes the slot that
+  file. The GraphML is not touched. «Save GraphML», «Save GraphML As…», the
+  GraphML choice of Save As and «Bake Paradata into GraphML» are gone
+  (`_dead_code/`); the saves after creating a US, a document, a proxy or a host
+  write the graph's em.json; Bake auxiliaries and Apply Merge write the graph.
+- **The access to a node does not expire in silence.** The sign-in keeps the
+  refresh token (in memory); every call to a node renews an access about to run
+  out, and once more after a 401; when the realm will not renew, «the access to
+  <node> has expired: sign in again» with **Sign in again** in EM Stanza —
+  never «Broken pipe» (the `em-tools` client's tokens live 15 minutes).
+- **«Bring into a room…» counts apart** what travelled and what the node
+  already had: «66 already on the node, nothing uploaded».
+
 ### Changed — less and better (MICRO-EMTOOLS-MENO-E-MEGLIO, 4 October 2026)
 - **One change of level of detail.** RM Manager and Anastylosis call the asset
   versions' `em.asset_lod_step` / `em.asset_set_level` / `em.asset_level_menu`

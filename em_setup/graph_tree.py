@@ -74,6 +74,17 @@ def save_origin(context, index: int) -> tuple:
     return True, result.sentence(), False
 
 
+def persist_active(context) -> tuple:
+    """G1 · the «salvataggio virtuoso» after a creation: the ACTIVE graph to its
+    origin — its em.json, or nothing to write in a room. Never a GraphML: a
+    graph that has no em.json yet is said, not saved. → `(ok, message)`."""
+    ok, message, save_as = save_origin(context, context.scene.em_tools.active_file_index)
+    if save_as:
+        return False, ("not saved: this graph has no em.json yet — Save As… "
+                       "writes one")
+    return ok, message
+
+
 class EM_OT_graph_activate(bpy.types.Operator):
     """Make this graph the active one: the lists show it, edits apply to it,
     and — when it lives in a room — the edits go to that room"""

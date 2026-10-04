@@ -46,3 +46,18 @@ Each subfolder says why it left. From MICRO-EMTOOLS-MENO-E-MEGLIO (4 October
   in the EM standard tree (C1), with its thumbnail in a derived cache keyed by
   sha256 (`~/.em_cache/thumbs`) and its file's state (R2) in the Stratigraphy
   Manager.
+
+From MICRO-EMJSON-DAPPERTUTTO (4 October 2026, decision of E.D.: the GraphML
+is read once and never written again, `graphml-solo-in-entrata`):
+
+- `export_operators/exporter_graphml.py` — **G1**, «Save GraphML»
+  (`export.graphml_update`, a patch of the GraphML in place with rotating
+  backups) and «Save GraphML As…» (`export.graphml_saveas`). Loading a GraphML
+  now turns it into an em.json (`em_setup/graphml_entry.py`) and Save / Save As
+  write the em.json; the four automatic saves after a creation go through
+  `graph_tree.persist_active`.
+- `operators/bake_paradata.py` — **G1**, «Bake Paradata into GraphML»
+  (`paradata.bake_to_graphml`): it overwrote a GraphML with em_paradata.xlsx
+  baked in. Not drawn by any panel (measured). The enrichment of a loaded graph
+  by em_paradata stays (auxiliary files), and «Bake auxiliaries into the graph»
+  makes it graph-native in the em.json.

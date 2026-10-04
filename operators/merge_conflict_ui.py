@@ -671,10 +671,10 @@ class EM_OT_navigate_conflict(bpy.types.Operator):
 
 
 class EM_OT_apply_merge(bpy.types.Operator):
-    """Apply all resolved conflicts and save to GraphML"""
+    """Apply all resolved conflicts and save the graph (its em.json)"""
     bl_idname = "em.apply_merge"
     bl_label = "Apply Merge"
-    bl_description = "Apply resolved conflicts to the graph and save to GraphML"
+    bl_description = "Apply resolved conflicts to the graph and save it (its em.json)"
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -686,9 +686,6 @@ class EM_OT_apply_merge(bpy.types.Operator):
 
     def execute(self, context):
         global _active_conflicts, _incoming_graph, _merger, _epoch_remap_plan
-        from ..functions import normalize_path
-        from s3dgraphy.exporter.graphml import GraphMLPatcher
-
         em_tools = context.scene.em_tools
         graphml_file = em_tools.graphml_files[em_tools.active_file_index]
         existing_graph = get_graph(graphml_file.name)
@@ -703,29 +700,18 @@ class EM_OT_apply_merge(bpy.types.Operator):
         # Apply epoch remapping
         _apply_epoch_remap(existing_graph, _incoming_graph, _epoch_remap_plan)
 
-        # Save to GraphML using the patcher
-        filepath = normalize_path(graphml_file.graphml_path)
-        # Write-lock pre-flight — the merge overwrites the target .graphml.
-        from ..graphml_lock import abort_if_graphml_locked
-        if not abort_if_graphml_locked(self, filepath):
-            return {'CANCELLED'}
+        # G1 · the merged graph goes to its em.json (in a room it is already
+        # there): a GraphML is read once and never written again
+        from ..em_setup.graph_tree import persist_active
         try:
-            patcher = GraphMLPatcher(filepath, existing_graph)
-            nodes_updated, nodes_added, edges_added, problems = patcher.patch()
-
-            for p in problems:
-                self.report({'WARNING'}, p)
-
-            stats = _merger.get_statistics(_active_conflicts)
-            self.report({'INFO'},
-                        f"Merge applied: {stats['accepted']} changes accepted, "
-                        f"{stats['rejected']} rejected. "
-                        f"GraphML: {nodes_updated} updated, "
-                        f"{nodes_added} added, {edges_added} edges added")
-
+            ok, said = persist_active(context)
         except Exception as e:
-            self.report({'ERROR'}, f"Error saving GraphML: {str(e)}")
+            self.report({'ERROR'}, f"Error saving the graph: {str(e)}")
             return {'CANCELLED'}
+        stats = _merger.get_statistics(_active_conflicts)
+        self.report({'INFO'} if ok else {'WARNING'},
+                    f"Merge applied: {stats['accepted']} changes accepted, "
+                    f"{stats['rejected']} rejected — {said}")
 
         # Refresh UI
         EM_OT_merge_xlsx_start._refresh_ui(context, existing_graph, graphml_file)
