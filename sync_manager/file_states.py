@@ -97,6 +97,32 @@ def relink(graph, resource_id: str, path: str) -> None:  # pragma: no cover — 
         api.set_field(node, "data.checksum", "sha256:" + sha256_of_file(path))
 
 
+def _personal(base: str) -> bool:
+    """N2 · is the node a personal one (its health says `profile`)?"""
+    from s3dgraphy.tools.node_finder import probe
+    return probe(base, timeout=2).get("profile") == "personal"
+
+
+def _upload_by_reference(where: Dict[str, Any], row: Dict[str, Any]) -> Dict[str, Any]:
+    """N2 · on a personal node a file of the tree is registered BY REFERENCE:
+    no byte is copied, the project's folders keep it."""
+    import json as _json
+    import urllib.parse
+    import urllib.request
+    from . import room as room_cfg
+    token = room_cfg._session.get("token")
+    url = (f"{where['base_url'].rstrip('/')}/v1/rooms/"
+           f"{urllib.parse.quote(where['room_id'], safe='')}/asset-reference")
+    body = _json.dumps({"path": row["path"], "sha256": row.get("sha256") or None}).encode()
+    req = urllib.request.Request(url, data=body, method="POST",
+                                 headers={"Content-Type": "application/json",
+                                          **({"Authorization": f"Bearer {token}"} if token else {})})
+    with urllib.request.urlopen(req, timeout=60) as answer:
+        out = _json.loads(answer.read())
+    out["already"] = not out.get("created", True)
+    return out
+
+
 def _operator_classes():  # pragma: no cover — bpy
     import bpy  # type: ignore
 
@@ -168,9 +194,10 @@ def _operator_classes():  # pragma: no cover — bpy
                 self.report({"ERROR"}, "not in a room: «Bring into a room» first")
                 return {"CANCELLED"}
             try:
-                out = upload_asset(where["base_url"], where["room_id"], row["path"],
-                                   row.get("sha256") or None, "",
-                                   room_cfg._session.get("token"))
+                out = _upload_by_reference(where, row) if _personal(where["base_url"]) else \
+                    upload_asset(where["base_url"], where["room_id"], row["path"],
+                                 row.get("sha256") or None, "",
+                                 room_cfg._session.get("token"))
             except Exception as exc:  # noqa: BLE001 — the reason is the user's
                 self.report({"ERROR"}, f"upload failed: {exc}")
                 return {"CANCELLED"}

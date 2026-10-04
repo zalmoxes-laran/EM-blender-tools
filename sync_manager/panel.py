@@ -319,6 +319,11 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
             acts.operator("em.room_open_link", text="Open room from link…",
                           icon="URL")
 
+        # N1/N2 · «Choose the node»: the same finder and the same words as EMStudio
+        if not status["joined"]:
+            from . import node_choice
+            node_choice.draw(acts, context)
+
         col = acts.column(align=True)
         col.enabled = not status["joined"]
         # R1 · LA STANZA SI SCEGLIE da un elenco che il nodo dà (`GET
