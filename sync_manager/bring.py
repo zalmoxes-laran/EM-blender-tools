@@ -272,6 +272,30 @@ def _already_published(obj, graph) -> bool:
                 and str(data.get("checksum") or "") == str(digest))
 
 
+def _fill_proxy_chain(graph, unit_id: str, info: Dict[str, Any],
+                      rows: List[Dict[str, Any]]) -> bool:
+    """G2 · a unit's proxy just published: its chain's resource
+    (`proxies/<US>.glb`, a placeholder until the Heriverse export names a file)
+    becomes those bytes in the room's store. Measured on 4 Oct 2026: the room
+    born from Templu Mare listed the 66 placeholders as «missing» beside the 66
+    proxies it had just published, and EMStudio's Models sheet read the
+    placeholders. A resource that already has its bytes is not touched."""
+    try:
+        from ..proxy_chain import glb_proxy
+    except ImportError:
+        return False
+    _shape, resource = glb_proxy(graph, unit_id)
+    data = getattr(resource, "data", None) if resource is not None else None
+    if resource is None or (isinstance(data, dict) and data.get("checksum")):
+        return False
+    inventory.make_store_backed(resource, url=room_cfg.asset_url(info["ref"]),
+                                sha256=info["ref"])
+    for row in rows:
+        if row.get("id") == resource.node_id and row["group"] == inventory.GROUP_MISSING:
+            row["group"] = inventory.GROUP_STORED
+    return True
+
+
 def upload_phrase(uploaded: int, size: int, already: int) -> str:
     """X2 · what travelled and what was already there, counted apart.
 
@@ -337,6 +361,8 @@ def execute(context, graph, *, token: Optional[str], promote: bool = True,
                 context, graph)
             if result.get("ok"):
                 info = result["info"]
+                if model.get("kind") == "proxy":
+                    _fill_proxy_chain(graph, model["target"], info, rows)
                 if info.get("stored"):
                     published.append(info["object"])
                     published_size += int(info.get("size") or 0)

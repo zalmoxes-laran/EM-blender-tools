@@ -214,3 +214,18 @@ def test_put_asset_does_not_send_bytes_the_room_holds(world):
         assert info["ref"] == Room.held
     finally:
         server.shutdown()
+
+
+def test_a_short_access_is_not_renewed_at_every_call(world):
+    """Measured with a 60 s access (the run of T-X1): 195 renewals in one
+    bring, because the margin was longer than the access's life."""
+    def b64(obj):
+        return base64.urlsafe_b64encode(json.dumps(obj).encode()).rstrip(b"=").decode()
+    now = time.time()
+    token = f"{b64({'alg': 'none'})}.{b64({'iat': int(now), 'exp': int(now) + 60})}.sig"
+    _World.valid.add(token)
+    access.remember(world, token, refresh_token="r0",
+                    token_endpoint=f"{world}/token", client_id="em-tools")
+    for _ in range(5):
+        _get(world, token)
+    assert _World.issued == 0, "a 60 s access with 59 s left needs no renewal"

@@ -97,6 +97,16 @@ def expiry_of(token: str) -> Optional[float]:
         return None
 
 
+def _life_of(token: str) -> Optional[float]:
+    """How long the realm let this access live (`exp - iat`), when it says."""
+    try:
+        part = str(token).split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
+        return float(claims["exp"]) - float(claims["iat"])
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def remember(base: str, token: str, *, refresh_token: str = "",
              expires_in: Optional[float] = None, token_endpoint: str = "",
              client_id: str = "") -> None:
@@ -105,12 +115,14 @@ def remember(base: str, token: str, *, refresh_token: str = "",
         return
     base = _norm(base)
     expires_at = (time.time() + float(expires_in)) if expires_in else expiry_of(token)
+    life = float(expires_in) if expires_in else _life_of(token)
     with _lock:
         old = _creds.get(base) or {}
         _creds[base] = {
             "token": token,
             "refresh_token": refresh_token or "",
             "expires_at": expires_at,
+            "life": life,
             "token_endpoint": token_endpoint or old.get("token_endpoint") or "",
             "client_id": client_id or old.get("client_id") or "",
         }
@@ -131,8 +143,8 @@ def adopt(base: str, token: Optional[str]) -> None:
         _lineage[token] = base
         if base not in _creds:
             _creds[base] = {"token": token, "refresh_token": "",
-                            "expires_at": expiry_of(token), "token_endpoint": "",
-                            "client_id": ""}
+                            "expires_at": expiry_of(token), "life": _life_of(token),
+                            "token_endpoint": "", "client_id": ""}
 
 
 def forget(base: Optional[str] = None) -> None:
@@ -239,6 +251,11 @@ def fresh(token: Optional[str], *, margin: float = SKEW) -> Optional[str]:
         cred = dict(_creds.get(base) or {})
     current = cred.get("token") or token
     left = _left(cred)
+    life = cred.get("life")
+    if life:
+        # an access that lives less than the margin would be renewed at every
+        # call (measured with a 60 s access: 195 renewals in one bring)
+        margin = min(margin, life / 4)
     if left is not None and left < margin:
         if cred.get("refresh_token"):
             return renew(base)
