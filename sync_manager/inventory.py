@@ -149,7 +149,22 @@ def locator_kind(locator: str) -> str:
 def resolve_path(locator: str, base_dirs: Iterable[str] = ()) -> Optional[str]:
     """The file a local locator points at, or None. Relative paths are tried
     against `base_dirs` in order (the DosCo folder, the em.json's folder, the
-    .blend's folder), `//` Blender-relative ones too."""
+    .blend's folder), `//` Blender-relative ones too.
+
+    R1 (E.D., 4 Oct 2026) · through s3dgraphy's ONE resolver
+    (`resources.locate.local_candidates`): `/DosCo/D.32.jpg` is a path of the
+    STUDY, and read as absolute it made D.32 «missing» while it was on the
+    disk. The old reading stays only for an s3dgraphy without the resolver."""
+    try:
+        from s3dgraphy.resources.locate import local_candidates
+    except ImportError:
+        local_candidates = None
+    if local_candidates is not None and str(locator or "").strip():
+        if locator_kind(str(locator).strip()) not in ("url", "blend"):
+            for cand in local_candidates(str(locator), list(base_dirs or ())):
+                if os.path.exists(cand):
+                    return cand
+            return None
     text = str(locator or "").strip()
     if locator_kind(text) == "file":
         text = urllib.parse.unquote(urllib.parse.urlsplit(text).path)
@@ -269,6 +284,10 @@ def classify(entries: List[Dict[str, Any]], *,
             if _held(row, recorded, "in the room's store"):
                 out.append(row)
                 continue
+        if kind == "share" and resolve_path(loc, bases):
+            # R1 · `//DosCo/D.33.jpg` is the study's (a double slash read as
+            # one, as s3dgraphy's resolver reads it), not a network share
+            kind = "path"
         if kind in ("url", "share"):
             if _is_store_url(loc):
                 row.update(group=GROUP_MISSING,

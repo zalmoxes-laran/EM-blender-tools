@@ -80,6 +80,13 @@ class EM_PT_resources(bpy.types.Panel):
         if p.status:
             srow.label(text=p.status)
 
+        # R1/R2 · where each file is, with ONE resolver and the common signs
+        try:
+            from ..sync_manager import file_states
+            file_states.draw(layout, context)
+        except Exception as exc:                   # noqa: BLE001
+            layout.label(text=f"Files: {exc}", icon='ERROR')
+
         # EM16-UX · «Documents» e «Representation Models» sono spariti: erano
         # due cartelli che dicevano solo «managed in the Document Manager
         # panel». Un pannello tiene solo ciò che possiede.

@@ -27,8 +27,8 @@ Modules:
 
 from __future__ import annotations
 
-from . import (asset_versions, backups, bring, materialise, operators, panel,
-               rooms_ui, scene_check, scene_package)
+from . import (asset_versions, backups, bring, file_states, materialise, operators,
+               panel, rooms_ui, scene_check, scene_package)
 
 
 def register():
@@ -39,6 +39,7 @@ def register():
     rooms_ui.register()
     bring.register()
     asset_versions.register()
+    file_states.register()
     scene_package.register()
     panel.register()
 
@@ -46,6 +47,7 @@ def register():
 def unregister():
     panel.unregister()
     scene_package.unregister()
+    file_states.unregister()
     asset_versions.unregister()
     bring.unregister()
     rooms_ui.unregister()

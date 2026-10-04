@@ -185,6 +185,13 @@ def check_scene(context, graph, *, download: bool,
         report["fetch"] = fetched
     ULTIMA_VERIFICA.clear()
     lines = sentences(report)
+    # R1 · the files of the graph through the ONE resolver: the same states
+    # EMStudio and StratiField give for the same files
+    try:
+        from . import file_states
+        lines.append(file_states.sentence(file_states.resolve_active(context, graph)))
+    except Exception as exc:  # noqa: BLE001 — the check stands without it
+        lines.append(f"Files: not resolved ({exc})")
     if libraries is not None:
         from . import asset_versions
         lines = asset_versions.sentences(libraries) + lines
