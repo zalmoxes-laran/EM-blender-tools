@@ -322,10 +322,14 @@ def populate_epoch_node(scene, node, index, graph=None):
     # landscape-mode populate, populate_functions.py:286-287).
     epoch_item.min_y = getattr(node, "min_y", 0.0)
     epoch_item.max_y = getattr(node, "max_y", 0.0)
-    epoch_item.start_time = node.start_time
-    epoch_item.end_time = node.end_time
-    epoch_item.epoch_color = node.color
-    epoch_item.epoch_RGB_color = hex_to_rgb(node.color)
+    # An epoch without dates (a GraphML converted without its swimlane years:
+    # measured on San Pietro, 4 Oct 2026) has start/end None, and a float
+    # property refuses None — the whole import used to fall here. 0.0 is the
+    # property's own «unset», as for min_y/max_y above.
+    epoch_item.start_time = node.start_time if node.start_time is not None else 0.0
+    epoch_item.end_time = node.end_time if node.end_time is not None else 0.0
+    epoch_item.epoch_color = node.color or "#FFFFFF"
+    epoch_item.epoch_RGB_color = hex_to_rgb(node.color or "#FFFFFF")
     epoch_item.description = node.description or ""  # em.json may carry None
     return index + 1
 
