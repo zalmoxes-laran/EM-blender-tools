@@ -58,9 +58,12 @@ def resolve_active(context, graph) -> List[Dict[str, Any]]:  # pragma: no cover 
     from .asset_versions import CACHE_DIR, cache_folder
     from .bring import base_dirs
     cache = os.path.join(cache_folder(), CACHE_DIR)
-    results = api.resolve_files(graph, project_root=project_root(context),
+    root = project_root(context)
+    caches = [d for d in (cache, os.path.join(cache, "files"),
+                          os.path.join(root, ".em_cache") if root else "") if d and os.path.isdir(d)]
+    results = api.resolve_files(graph, project_root=root,
                                 base_dirs=base_dirs(context),
-                                cache_dirs=[cache] if os.path.isdir(cache) else [],
+                                cache_dirs=caches,
                                 on_node=node_probe(), hasher=sha256_of_file)
     ULTIMI.update({"graph_id": str(getattr(graph, "graph_id", "")),
                    "results": results})
@@ -187,6 +190,51 @@ def _operator_classes():  # pragma: no cover — bpy
             bpy.ops.wm.path_open(filepath=folder)
             return {"FINISHED"}
 
+    class EM_OT_files_keep(bpy.types.Operator):
+        """Keep on this computer: copy the node's bytes of these files into the
+        cache (named by their sha256, checked) — to work offline from a room"""
+        bl_idname = "em.files_keep"
+        bl_label = "Keep on this computer"
+        resource_id: bpy.props.StringProperty(default="")  # type: ignore
+
+        def execute(self, context):
+            import hashlib
+            from . import room as room_cfg
+            from .asset_upload import asset_url
+            from .asset_versions import CACHE_DIR, cache_folder
+            import urllib.request
+            graph = _graph(context)
+            where = room_cfg.room()
+            if graph is None or not where.get("room_id"):
+                self.report({"ERROR"}, "not in a room: nothing to keep from")
+                return {"CANCELLED"}
+            token = room_cfg._session.get("token")
+            rows = [r for r in ULTIMI["results"] if r["state"] == "on_node"
+                    and (not self.resource_id or r["id"] == self.resource_id)]
+            kept = 0
+            for r in rows:
+                hexd = (r.get("sha256") or "").split(":")[-1]
+                if not hexd:
+                    continue
+                ext = os.path.splitext(r.get("name") or "")[1][:8]
+                dest = os.path.join(cache_folder(), CACHE_DIR, "files", hexd[:2], hexd + ext)
+                if os.path.exists(dest):
+                    continue
+                req = urllib.request.Request(asset_url(where["base_url"], where["room_id"], hexd),
+                                             headers={"Authorization": f"Bearer {token}"} if token else {})
+                with urllib.request.urlopen(req, timeout=600) as answer:
+                    data = answer.read()
+                if hashlib.sha256(data).hexdigest() != hexd:
+                    self.report({"WARNING"}, f"{r.get('name')}: the bytes are not the graph's")
+                    continue
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with open(dest, "wb") as fh:
+                    fh.write(data)
+                kept += 1
+            resolve_active(context, graph)
+            self.report({"INFO"}, f"kept {kept} file(s) on this computer")
+            return {"FINISHED"}
+
     class EM_OT_new_em_project(bpy.types.Operator):
         """New EM project…: the standard tree (EM/ with DosCo/ and proxies/, RB/,
         SB/, RM/, README.md, LICENCE.md) in a new folder"""
@@ -248,8 +296,8 @@ def _operator_classes():  # pragma: no cover — bpy
             return {"FINISHED"}
 
     return (EM_OT_files_check, EM_OT_files_filter, EM_OT_files_find_here,
-            EM_OT_files_upload, EM_OT_files_open_where, EM_OT_new_em_project,
-            EM_OT_reorder_em_project)
+            EM_OT_files_upload, EM_OT_files_open_where, EM_OT_files_keep,
+            EM_OT_new_em_project, EM_OT_reorder_em_project)
 
 
 #: the reorder's preview between invoke and the yes
@@ -280,6 +328,9 @@ def draw(layout, context) -> None:  # pragma: no cover — bpy
         op = frow.operator("em.files_filter", text=f"{n}", icon=icon,
                            depress=ULTIMI.get("filter") == state)
         op.state = state
+    if c.get("on_node"):
+        box.operator("em.files_keep", text=f"Keep the {c['on_node']} on this computer",
+                     icon="IMPORT").resource_id = ""
     chosen = ULTIMI.get("filter") or ""
     if chosen:
         box.label(text=sign("file." + chosen)[1] + " — " + sign("file." + chosen)[2],
@@ -298,6 +349,8 @@ def draw(layout, context) -> None:  # pragma: no cover — bpy
             row.operator("em.files_find_here", text="", icon="VIEWZOOM").resource_id = r["id"]
         if r["state"] == "on_disk" and in_room:
             row.operator("em.files_upload", text="", icon="EXPORT").resource_id = r["id"]
+        if r["state"] == "on_node":
+            row.operator("em.files_keep", text="", icon="IMPORT").resource_id = r["id"]
         if r.get("path"):
             row.operator("em.files_open_where", text="", icon="FILEBROWSER").path = r["path"]
 
