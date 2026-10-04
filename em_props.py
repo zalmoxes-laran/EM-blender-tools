@@ -241,6 +241,15 @@ def get_doc_previews_enum_items(self, context):
 # MANAGER AGGREGATOR CLASSES
 # =====================================================
 
+
+def _refresh_proxy_offsets(context):
+    """U2 · the distance changed: every proxy already offset follows it."""
+    try:
+        from .proxy_offset.operators import refresh_all
+        refresh_all(context.scene)
+    except Exception:  # noqa: BLE001 — a property update must not raise
+        pass
+
 class StratigraphyManagerProps(PropertyGroup):
     """
     Aggregates all stratigraphy-related properties.
@@ -1343,28 +1352,18 @@ class EM_Tools(PropertyGroup):
         update=update_proxy_display
     )  # type: ignore
 
-    # Proxy inflate settings
-    proxy_inflate_thickness: FloatProperty(
-        name="Thickness",
-        description="Thickness value for the Solidify modifier",
+    # U2 · «Offset proxy»: how far outside its surface a proxy is moved
+    proxy_offset_distance: FloatProperty(
+        name="Offset distance",
+        description="How far each offset proxy stands outside the surface it annotates, along its normals "
+                    "(1 cm: measured on Templu Mare, clean from 40 m)",
         default=0.01,
-        min=0.0001,
-        soft_max=0.1,
-        unit='LENGTH'
-    )  # type: ignore
-
-    proxy_inflate_offset: FloatProperty(
-        name="Offset",
-        description="Offset value for the Solidify modifier",
-        default=0.0,
-        min=-1.0,
-        max=1.0
-    )  # type: ignore
-
-    proxy_auto_inflate_on_export: BoolProperty(
-        name="Auto-Inflate on Export",
-        description="Automatically add inflation to proxies without it during export",
-        default=False
+        min=0.0,
+        soft_max=0.05,
+        step=0.1,
+        precision=4,
+        unit='LENGTH',
+        update=lambda self, context: _refresh_proxy_offsets(context),
     )  # type: ignore
 
     # ============================================

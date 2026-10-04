@@ -393,7 +393,7 @@ if DEPENDENCIES_LOADED:
             graph2geometry,
             activity_manager,
             rm_manager,
-            proxy_inflate_manager,
+            proxy_offset,
             anastylosis_manager,
             proxy_to_rm_projection,
             cronofilter,
@@ -767,7 +767,7 @@ def register_modules():
         # EM16-UX: il parent non è più il Visual Manager ma
         # EM_PT_proxy_surface_tools, registrato in FASE 1. La fase resta
         # questa perché l'ordine va bene comunque: il parent c'è già.
-        proxy_inflate_manager,  # figlio di EM_PT_proxy_surface_tools
+        proxy_offset,  # U2 · figlio di EM_PT_proxy_surface_tools (il gonfiaggio è in _dead_code)
         proxy_to_rm_projection, # Potrebbe dipendere dai pannelli visual
     ]
     
@@ -914,7 +914,7 @@ def unregister_modules():
     # FASE 2: Moduli dipendenti da pannelli UI
     ui_dependent_modules = [
         proxy_to_rm_projection,
-        proxy_inflate_manager,
+        proxy_offset,
     ]
     
     for module in ui_dependent_modules:

@@ -25,7 +25,7 @@ _REPO = pathlib.Path(__file__).resolve().parent.parent
 
 #: `build/` è un artefatto: contiene una copia di ogni file, e senza escluderla
 #: ogni pannello si conterebbe due volte.
-_ESCLUSI = ("__pycache__", ".venv", "build/", "tests/", "wheels/")
+_ESCLUSI = ("__pycache__", ".venv", "build/", "tests/", "wheels/", "_dead_code/")
 
 
 def _sorgenti():
@@ -141,7 +141,7 @@ def test_OGNI_PANNELLO_DICHIARA_LA_SUA_TAB():
     ("EM_PT_proxy_surface_tools", "EM Scene"),
     ("PROXYBOX_PT_main_panel", "EM Scene"),
     ("VIEW3D_PT_SurfaceAreale", "EM Scene"),
-    ("VIEW3D_PT_ProxyInflatePanel", "EM Scene"),
+    ("VIEW3D_PT_proxy_offset", "EM Scene"),
     ("EM_PT_georef", "EM Scene"),
     # EM Bridge · i ponti
     ("VIEW3D_PT_ExportPanel", "EM Bridge"),
@@ -190,14 +190,16 @@ def test_PROXY_E_SURFACE_TOOLS_e_un_contenitore_con_TRE_figli():
     figli = {n for n, p in PANNELLI.items()
              if p["parent"] == "EM_PT_proxy_surface_tools"}
     assert figli == {"PROXYBOX_PT_main_panel", "VIEW3D_PT_SurfaceAreale",
-                     "VIEW3D_PT_ProxyInflatePanel"}, figli
+                     "VIEW3D_PT_proxy_offset"}, figli
 
 
-def test_PROXY_INFLATE_NON_E_PIU_FIGLIO_DEL_VISUAL_MANAGER():
-    """La regola: gonfia geometria, quindi è uno strumento. Il Visual Manager
-    è la lente — colora proprietà del grafo — e colorare non è questo."""
-    assert PANNELLI["VIEW3D_PT_ProxyInflatePanel"]["parent"] == \
+def test_OFFSET_PROXY_E_UNO_STRUMENTO_NON_UNA_LENTE():
+    """La regola: sposta geometria, quindi è uno strumento. Il Visual Manager
+    è la lente — colora proprietà del grafo — e colorare non è questo. (U2:
+    «Offset proxy» prende il posto del gonfiaggio, ora in _dead_code.)"""
+    assert PANNELLI["VIEW3D_PT_proxy_offset"]["parent"] == \
         "EM_PT_proxy_surface_tools"
+    assert "VIEW3D_PT_ProxyInflatePanel" not in PANNELLI
 
 
 def test_MA_LA_PROIEZIONE_RESTA_FIGLIA_DEL_VISUAL_MANAGER():

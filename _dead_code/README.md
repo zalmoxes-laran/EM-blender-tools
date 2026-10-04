@@ -18,3 +18,10 @@ Each subfolder says why it left. From MICRO-EMTOOLS-MENO-E-MEGLIO (4 October
   tiles of `TempluMare_2021.blend`, the RMSF fragments of `TM0xx.blend`), the
   `_LODn` objects of the scene, the nearest-heavier fallback — moved into
   `asset_versions.named_levels` and `resolve_level`.
+- `proxy_inflate_manager/` and the six inflate operators that the Visual
+  Manager drew — **U2**, the inflation of the proxies (a Solidify modifier,
+  `<name>_inflate`) did not work well (E.D.). Its real purpose — a proxy a
+  little outside a flat surface it annotates, so it does not z-fight with the
+  RM — is now «Offset proxy» (`proxy_offset/`): a Displace modifier «EM
+  offset» along the normals, one distance for the scene. The panel offers to
+  remove the old Solidify modifiers a file still carries.
