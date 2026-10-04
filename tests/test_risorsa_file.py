@@ -239,6 +239,12 @@ def test_un_grafo_di_prima_si_apre_e_si_salva_senza_differenze():
     graph, _warnings = import_emjson(str(FIXTURE))
     prima = json.loads(FIXTURE.read_text(encoding="utf-8"))
     dopo = build_emjson(graph)
+    # D2 (E.D., 4 Oct 2026) · the one thing a file from before gains: the
+    # north its rotation is measured from, which is the definition (grid)
+    for sec in (dopo.get("graphs") or {}).values():
+        for n in sec.get("nodes") or []:
+            if n.get("node_type") == "geo_position":
+                assert n["data"].pop("rotation_reference") == "grid"
     assert _sezione(dopo) == _sezione(prima)
     # e chi legge ricava quello che la fixture non dichiara, senza scriverlo
     master = graph.find_node_by_id("M_model_res_blend")
