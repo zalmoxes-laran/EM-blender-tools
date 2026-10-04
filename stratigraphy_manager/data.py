@@ -24,8 +24,8 @@ from bpy.types import PropertyGroup # type: ignore
 
 def _on_item_description_changed(self, context):
     """Reverse sync (ADR-002 phase 2): a description edit in the Blender panel
-    writes to the graph node AND emits an update_node op to connected clients
-    (EMStudio). Guard: emit only when the value actually differs from the node
+    writes to the graph node AND emits the change to connected clients
+    (EMStudio, the room) — as `update_field`, translated by s3dgraphy (V1). Guard: emit only when the value actually differs from the node
     — so populate (which sets item.description FROM the node) never emits, and
     an incoming op doesn't echo back."""
     try:
@@ -41,13 +41,19 @@ def _on_item_description_changed(self, context):
             return
         if getattr(node, "description", "") == self.description:
             return  # populate / echo — the graph already has this value
-        node.description = self.description
+        # V1 · written with its clock (one act, `api.set_field`), and sent as
+        # the change it is: the library turns it into the wire's operation
+        # (`update_field`) for the Sidecar and the room alike
+        from s3dgraphy import api
+        from s3dgraphy.editorial import now_iso
+        at = now_iso()
+        api.set_field(node, "description", self.description, at=at)
         from ..sync_manager import operators as sync_ops
         sync_ops.emit_op({
-            "type": "op",
             "op": "update_node",
             "node_id": getattr(node, "node_id", ""),
             "patch": {"description": self.description},
+            "ts": at,
         })
     except Exception as exc:  # noqa: BLE001
         print(f"[sync] item description update failed: {exc}")

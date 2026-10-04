@@ -68,6 +68,7 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         self._modo(layout, context, mode, running)
         self._allineamento(layout, context)
         self._ultimo_in_ingresso(layout)
+        self._rifiuti(layout)
         if mode == ops.MODE_HUB:
             self._in_stanza(layout, context, status)
         self._permessi(layout, context, running)
@@ -157,6 +158,20 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         riga.label(text=f"{ultimo['tipo']}: {ultimo['esito']}")
         if ultimo.get("chiavi"):
             box.label(text=f"payload keys: {ultimo['chiavi']}", icon="BLANK1")
+
+    # ── 3b · V1 · le operazioni che non sono avvenute ──────────────────────
+
+    def _rifiuti(self, layout):
+        """Un'operazione rifiutata (dalla stanza, dalla libreria, da qui) è una
+        modifica che NON è avvenuta: va detta dove la persona guarda, non solo
+        in console. Le ultime tre, la più recente in testa."""
+        if not ops.RIFIUTI:
+            return
+        box = layout.box()
+        box.alert = True
+        box.label(text="Not applied", icon="CANCEL")
+        for r in ops.RIFIUTI[:3]:
+            box.label(text=f"{r['ora']} · {r['frase']}"[:110], icon="BLANK1")
 
     # ── 4 · in una stanza: cosa mostra l'albero, e cosa puoi fare ───────────
 

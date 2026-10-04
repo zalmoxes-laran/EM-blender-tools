@@ -441,59 +441,31 @@ def _repopulate(context, graph):
 
 
 def _apply_op(msg: dict, context, graph):
-    """Apply an op-log operation from EMStudio to the live s3dgraphy graph
-    (ADR-002 phase 2). Handles update_node (targeted) + structural
-    add/delete of nodes and edges (full list repopulate).
+    """Apply an operation that arrived (EMStudio over the Sidecar, or a room).
 
-    `msg` is the op's BODY (WIRE 2's `payload`), so `msg["source"]` here — if a
-    verb ever has one — is the op's own field and nothing else's.""" 
-    op = msg.get("op")
+    V1 · ONE VOCABULARY. The Sidecar and the room speak the same operations,
+    `s3dgraphy.crdt.OPS` (decision of E.D., 4 Oct 2026). What arrives in a
+    store's own verb (`update_node`, `delete_node`, a nested `edge`: an EMStudio
+    before V1) is translated by the library first, so there is one apply path
+    and not two. An operation the library refuses becomes a sentence in the
+    console and the panel (`rifiuto`), never a silent drop.
+
+    `msg` is the op's BODY (WIRE 2's `payload`), so `msg["source"]` here is the
+    op's own field (an edge's endpoint) and nothing else's."""
     if graph is None:
         return
-
-    if op == "update_node":
-        node_id = msg.get("node_id")
-        patch = msg.get("patch") or {}
-        finder = getattr(graph, "find_node_by_id", None)
-        node = finder(node_id) if callable(finder) else None
-        if not node or "description" not in patch:
-            return
-        node.description = patch["description"]
-        _reflect_in_em_list(context, node, patch)
-        _redraw()
-        return
-
-    changed = False
+    from s3dgraphy import crdt
     try:
-        if op == "add_node":
-            nd = msg.get("node") or {}
-            nid = nd.get("id")
-            if nid and not graph.find_node_by_id(nid):
-                node = _node_from_payload(nd)
-                if node is not None:
-                    graph.add_node(node, overwrite=True)
-                    changed = True
-        elif op == "delete_node":
-            nid = msg.get("node_id")
-            if nid and graph.find_node_by_id(nid):
-                graph.remove_node(nid)
-                changed = True
-        elif op == "add_edge":
-            ed = msg.get("edge") or {}
-            if ed.get("id") and ed.get("source") and ed.get("target"):
-                graph.add_edge(
-                    ed["id"], ed["source"], ed["target"],
-                    ed.get("edge_type") or "generic_connection")
-                changed = True
-        elif op == "delete_edge":
-            ed = msg.get("edge") or {}
-            if ed.get("id"):
-                graph.remove_edge(ed["id"])
-                changed = True
-    except Exception as exc:  # noqa: BLE001
-        print(f"[sync] _apply_op {op} failed: {exc}")
+        ops = crdt.ops_for_local_change(dict(msg))
+    except ValueError as exc:
+        rifiuto(f"an operation from {_chi(msg)} was not applied: {exc}")
         return
-
+    changed = False
+    for op in ops:
+        try:
+            changed = _apply_wire_op(op, context, graph) or changed
+        except Exception as exc:  # noqa: BLE001
+            rifiuto(f"{op.get('op')} from {_chi(msg)} failed here: {exc}")
     if changed:
         # batched: the actual list rebuild + redraw happen once at the end of
         # the inbox drain (a group op is add_node + N add_edges → 1 rebuild)
@@ -501,11 +473,99 @@ def _apply_op(msg: dict, context, graph):
         _pending_repop = True
 
 
+def _chi(msg: dict) -> str:
+    return str(msg.get("author") or "the other end")
+
+
+def _apply_wire_op(op: dict, context, graph) -> bool:
+    """One operation of `crdt.OPS` on the live graph. True when the LISTS must
+    be rebuilt (a structural change); a field lands in place."""
+    from s3dgraphy import api
+    kind = op["op"]
+    if kind == "update_field":
+        node = graph.find_node_by_id(str(op.get("node_id") or op.get("id")))
+        if node is None:
+            rifiuto(f"update_field of {op.get('field')}: node "
+                    f"'{op.get('node_id') or op.get('id')}' is not in this graph")
+            return False
+        name = str(op["field"])
+        if op.get("remove") is True:
+            api.clear_field(node, name, author=op.get("author"), at=op.get("ts"))
+        else:
+            api.set_field(node, name, op.get("value"), author=op.get("author"),
+                          at=op.get("ts"))
+        if name in ("name", "description"):
+            _reflect_in_em_list(context, node, {name: getattr(node, name, "")})
+            _redraw()
+        return False
+    if kind == "add_node":
+        nd = dict(op.get("node") or {})
+        nd.setdefault("id", op.get("id"))
+        if nd.get("id") and not graph.find_node_by_id(nd["id"]):
+            node = _node_from_payload(nd)
+            if node is not None:
+                graph.add_node(node, overwrite=True)
+                return True
+        return False
+    if kind == "remove_node":
+        nid = op.get("id") or op.get("node_id")
+        if nid and graph.find_node_by_id(nid):
+            graph.remove_node(nid)
+            return True
+        return False
+    if kind == "add_edge":
+        eid = op.get("id") or f"{op['source']}__{op['edge_type']}__{op['target']}"
+        if graph.find_edge_by_id(eid) is None:
+            graph.add_edge(eid, op["source"], op["target"], op["edge_type"])
+            return True
+        return False
+    # remove_edge
+    eid = op.get("id")
+    edge = graph.find_edge_by_id(eid) if eid else None
+    if edge is None and op.get("source"):
+        edge = next((e for e in graph.edges
+                     if (e.edge_source, e.edge_type, e.edge_target)
+                     == (op.get("source"), op.get("edge_type"), op.get("target"))), None)
+    if edge is not None:
+        graph.remove_edge(edge.edge_id)
+        return True
+    return False
+
+
+#: V1 · the refusals a person must read: an operation the other end (or this
+#: one) did not apply, said as a sentence. Newest first, a few — a feed, not a
+#: log. The panel draws them; the status bar shows the newest for a while.
+RIFIUTI: list = []
+
+
+def rifiuto(frase: str) -> None:
+    """Say, where the person looks, that an operation did not happen."""
+    import time
+    RIFIUTI.insert(0, {"ora": time.strftime("%H:%M:%S"), "frase": frase})
+    del RIFIUTI[8:]
+    print(f"[sync] REFUSED · {frase}")
+    try:
+        ws = bpy.context.workspace
+        if ws is not None:
+            ws.status_text_set(f"EM sync · {frase}")
+
+            def _clear():
+                try:
+                    ws.status_text_set(None)
+                except Exception:  # noqa: BLE001
+                    pass
+                return None
+            bpy.app.timers.register(_clear, first_interval=10.0)
+    except Exception:  # noqa: BLE001 — headless: the console and the panel say it
+        pass
+    _redraw()
+
+
 def emit_op(op: dict):
     """Emit a local (Blender-side) graph mutation to connected clients
     (ADR-002 phase 2, reverse direction). No-op when the sync server is off.
-    `op` is the BODY of the operation — `{"op": "update_node", "node_id": …,
-    "patch": …}`. WIRE 2 puts it inside `payload`, so a field of the op can
+    `op` is a change in the store's words (`{"op": "update_node", "node_id": …,
+    "patch": …}`) or already an operation of `crdt.OPS`. WIRE 2 puts it inside `payload`, so a field of the op can
     never collide with a word of the envelope (an `add_edge` carries
     `source`/`target` as its endpoints; the wire's `source` is who sent it).
 
@@ -518,19 +578,42 @@ def emit_op(op: dict):
     something they can see themselves doing.
     """
     from .room_session import SESSION
+    from s3dgraphy import crdt
 
+    # V1 · whatever the caller wrote (`update_node{patch}`, a nested `edge`…),
+    # what leaves is `crdt.OPS`, built by the library — for the Sidecar AND the
+    # room. The clock is THIS edit's moment, set here by the producer.
+    change = {k: v for k, v in op.items() if k != "type"}
+    if not change.get("ts"):
+        from s3dgraphy.editorial import now_iso
+        change["ts"] = now_iso()
+    try:
+        ops = crdt.ops_for_local_change(change, study_language=_study_language())
+    except ValueError as exc:
+        rifiuto(f"this edit was not sent: {exc}")
+        return
     srv = _server
-    if srv is not None and srv.running:
-        body = {k: v for k, v in op.items() if k != "type"}
-        try:
-            srv.broadcast(json.dumps(envelope("op", body, source=_SOURCE)))
-        except Exception as exc:  # noqa: BLE001
-            print(f"[sync] emit_op failed: {exc}")
-    if SESSION.joined:
-        try:
-            SESSION.send_op(op)
-        except Exception as exc:  # noqa: BLE001
-            print(f"[room] emit_op failed: {exc}")
+    for body in ops:
+        if srv is not None and srv.running:
+            try:
+                srv.broadcast(json.dumps(envelope("op", body, source=_SOURCE)))
+            except Exception as exc:  # noqa: BLE001
+                print(f"[sync] emit_op failed: {exc}")
+        if SESSION.joined:
+            try:
+                SESSION.send_op(body)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[room] emit_op failed: {exc}")
+
+
+def _study_language():
+    """The study's working language, for a node born here without one."""
+    try:
+        from s3dgraphy.language import working_language
+        ok, graph = is_graph_available(bpy.context)
+        return working_language(graph) if ok else None
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _host_info(context, graph):
@@ -828,6 +911,21 @@ def _handle_message(raw: str, context, graph, ok: bool):
                     dettaglio=str(active_id or node_ids))
     elif mtype == "op" and ok:
         _apply_op(payload, context, graph)
+    elif mtype == "op_result":
+        # V1 · the room's answer to OUR operation. Applied, stale, idempotent:
+        # nothing to say. Anything else is an edit that did not happen.
+        from s3dgraphy import crdt
+        reason = str(payload.get("reason") or "")
+        sent = payload.get("op") or {}
+        if not payload.get("applied") and crdt.refusal_is_news(reason):
+            rifiuto(f"the room did not apply {sent.get('op') or 'an operation'}"
+                    f"{' of ' + str(sent.get('field')) if sent.get('field') else ''}: {reason}")
+        _annota(mtype, "applied" if payload.get("applied") else f"not applied: {reason}",
+                chiavi=tuple(payload.keys()))
+    elif mtype == "denied":
+        rifiuto(f"the room refused {payload.get('verb') or 'an edit'}: "
+                f"{payload.get('reason') or 'no reason given'}")
+        _annota(mtype, str(payload.get("reason") or ""), chiavi=tuple(payload.keys()))
     elif mtype == "request_snapshot" and ok:
         _send_snapshot(graph, context)
         _annota(mtype, "snapshot sent", chiavi=tuple(payload.keys()))
