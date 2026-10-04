@@ -11,6 +11,8 @@ import pathlib
 import sys
 import types
 
+import pytest
+
 _REPO = pathlib.Path(__file__).resolve().parent.parent
 
 
@@ -112,3 +114,28 @@ def test_the_package_is_named_by_its_digest_and_never_the_file_in_use():
         "GreatTemple-package-abababababab.blend"
     script = sp.pack_script("/tmp/out.blend")
     assert "pack_libraries" in script and "copy=True" in script
+
+
+# ── D1 (E.D., 4 Oct 2026) · the measures of a version, taken when it is born ──
+
+def test_d1_measures_in_the_form_of_the_formula():
+    """Demetrescu et al. 2026, Table 1, Gardens: 864 m², 53 atlases 4096², UV
+    0.6 → 1.27 mm per texel side (the table's value)."""
+    m = av.version_measures(tris=1_776_384, area_m2=864.0, texture_count=53,
+                            texture_side_px=4096, uv_fraction=0.6, lod0_tris=3_552_768)
+    assert m["texel_density_dd"] == pytest.approx(1.273, abs=0.001)
+    assert m["tris_per_m2"] == pytest.approx(2056.0, abs=0.01)
+    assert m["texture_count"] == 53 and m["texture_side_px"] == 4096 and m["uv_ratio"] == 0.6
+    assert m["reduction_from_lod0"] == 0.5
+
+
+def test_d1_what_cannot_be_measured_is_left_out_not_zero():
+    m = av.version_measures(tris=1000, area_m2=0.0)
+    assert m == {}
+    m = av.version_measures(tris=1000, area_m2=10.0)
+    assert m == {"tris_per_m2": 100.0}
+
+
+def test_d1_the_uses_are_the_library_s():
+    from s3dgraphy.resources.versions import USES
+    assert tuple(k for k, _l, _t in av.USES) == USES

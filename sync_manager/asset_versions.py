@@ -92,6 +92,49 @@ def next_level(levels: List[str]) -> str:
     return f"LOD{(max(numbers) + 1) if numbers else 1}"
 
 
+#: D1 · the uses a version can serve (s3dgraphy ``resources.versions.USES``),
+#: with the words the dialog shows
+USES = (("analysis", "Analysis", "Study and measure: autopsy of the units, sections, annotation"),
+        ("realtime", "Real time", "An engine, desktop or HMD (Unreal, Unity, Godot, EMviq)"),
+        ("web", "Web", "A browser (ATON, Heriverse, Voyager), streamed too"),
+        ("mobile_ar", "Mobile / AR", "Augmented reality and mobile devices"),
+        ("print", "Print", "3D printing, a physical replica"),
+        ("render", "Render", "Plates, sections, reconstructive views, video"),
+        ("preview", "Preview", "A light preview for catalogues and records"))
+
+
+def version_measures(*, tris: int, area_m2: float, texture_count: int = 0,
+                     texture_side_px: int = 0, uv_fraction: float = 0.0,
+                     lod0_tris: Optional[int] = None) -> Dict[str, Any]:
+    """D1 · the measures of a version, measured when it is born.
+
+    * ``tris_per_m2`` — triangles per square metre (a measure, no target);
+    * ``texel_density_dd`` — the texel SIDE in mm, in the form of the
+      Demetrescu-D'Annibale formula: sqrt(area in mm² / (atlases × side² ×
+      UV ratio)); reference 1.26 (Demetrescu et al. 2026, Eq. 1);
+    * ``texture_count``, ``texture_side_px``, ``uv_ratio``;
+    * ``reduction_from_lod0`` — triangles / triangles of LOD0, when LOD0 is known.
+
+    A number that cannot be measured (no surface, no texture) is left out, not
+    written as 0."""
+    out: Dict[str, Any] = {}
+    if area_m2 and area_m2 > 0 and tris:
+        out["tris_per_m2"] = round(tris / area_m2, 3)
+    if texture_count:
+        out["texture_count"] = int(texture_count)
+    if texture_side_px:
+        out["texture_side_px"] = int(texture_side_px)
+    if uv_fraction and uv_fraction > 0:
+        # a UV layout that fills the atlas sums to 1 within float noise
+        out["uv_ratio"] = round(min(float(uv_fraction), 1.0), 4)
+    if area_m2 and area_m2 > 0 and texture_count and texture_side_px and out.get("uv_ratio"):
+        useful = texture_count * texture_side_px ** 2 * out["uv_ratio"]
+        out["texel_density_dd"] = round(((area_m2 * 1e6) / useful) ** 0.5, 3)
+    if lod0_tris and tris:
+        out["reduction_from_lod0"] = round(tris / lod0_tris, 4)
+    return out
+
+
 def step_level(levels: List[str], current: Optional[str], direction: int
                ) -> Optional[str]:
     """«LOD ▸» (direction +1, lighter) and «◂ LOD» (-1, heavier), clamped to
@@ -350,6 +393,34 @@ def mesh_from_file(path: str, importer: Optional[Callable] = None,
     return mesh
 
 
+def measure_mesh(mesh) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """The raw numbers of a mesh for :func:`version_measures`: triangles,
+    surface (scene units taken as metres), the share of UV space its islands
+    fill per atlas, and the image atlases its materials use."""
+    mesh.calc_loop_triangles()
+    tris = len(mesh.loop_triangles)
+    area = sum(p.area for p in mesh.polygons)
+    images = {}
+    for mat in getattr(mesh, "materials", []) or []:
+        tree = getattr(mat, "node_tree", None) if mat is not None else None
+        for node in (tree.nodes if tree is not None else []):
+            img = getattr(node, "image", None)
+            if img is not None:
+                images[img.name] = max(img.size[0], img.size[1]) if img.size[0] else 0
+    uv_area = 0.0
+    uv = mesh.uv_layers.active
+    if uv is not None:
+        data = uv.data
+        for tri in mesh.loop_triangles:
+            (ax, ay), (bx, by), (cx, cy) = (tuple(data[i].uv) for i in tri.loops)
+            uv_area += abs((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) / 2.0
+    count = len(images)
+    return {"tris": tris, "area_m2": area, "texture_count": count,
+            "texture_side_px": max(images.values()) if images else 0,
+            "uv_fraction": (uv_area / count) if count else 0.0,
+            "vertices": len(mesh.vertices), "faces": len(mesh.polygons)}
+
+
 def _stamp_mesh(mesh, *, asset_id: str, version_id: str, level: str,
                 digest: str) -> None:  # pragma: no cover — bpy
     mesh[PROP_ASSET] = asset_id
@@ -509,10 +580,12 @@ def master_of(graph, obj, scene=None) -> Optional[str]:  # pragma: no cover — 
     return api.asset_of(graph, (masters or linked)[0].node_id)
 
 
-def add_version_from_mesh(graph, obj, mesh, *, level: str, purpose: str,
-                          master_level: str, files: List[Dict[str, Any]],
+def add_version_from_mesh(graph, obj, mesh, *, level: str = "", purpose: str = "",
+                          master_level: str = "", files: List[Dict[str, Any]],
                           room: Optional[str], technique: str = "",
-                          parameters: Optional[Dict[str, Any]] = None
+                          parameters: Optional[Dict[str, Any]] = None,
+                          use: Optional[List[str]] = None,
+                          made_from: Optional[str] = None
                           ) -> Dict[str, Any]:  # pragma: no cover — bpy
     """The gesture behind «Add version…», once the version's mesh and bytes are
     in hand: the version in the graph, the mesh in the asset's library, the
@@ -531,9 +604,24 @@ def add_version_from_mesh(graph, obj, mesh, *, level: str, purpose: str,
             raise RuntimeError("; ".join(warnings) or
                                "this object has no resource to be the master of")
     digest = next((f.get("checksum") for f in files if f.get("checksum")), "")
-    out = api.add_version(graph, asset_id, level=level, purpose=purpose,
+    # D1 · made from the version the object shows (lod0 → lod1…), else from the
+    # master (→ lod0); the level, when not named, is the one the chain computes
+    source = made_from if made_from and graph.find_node_by_id(made_from) is not None \
+        else asset_id
+    raw = measure_mesh(mesh)
+    lod0 = next((e for e in api.versions_of(graph, asset_id)
+                 if e.get("lod_level") == "lod0"), None)
+    lod0_tris = ((lod0 or {}).get("primitives") or {}).get("triangles")
+    measures = version_measures(tris=raw["tris"], area_m2=raw["area_m2"],
+                                texture_count=raw["texture_count"],
+                                texture_side_px=raw["texture_side_px"],
+                                uv_fraction=raw["uv_fraction"], lod0_tris=lod0_tris)
+    out = api.add_version(graph, source, level=level or None, purpose=purpose,
+                          use=list(use or []) or None, measures=measures,
                           master_level=master_level or None,
                           files=files, residency="resident",
+                          primitives={"vertices": raw["vertices"], "faces": raw["faces"],
+                                      "triangles": raw["tris"]},
                           technique=technique or None, parameters=parameters,
                           tool="EM Tools")
     asset_id = out["asset_id"]
@@ -543,7 +631,7 @@ def add_version_from_mesh(graph, obj, mesh, *, level: str, purpose: str,
     fresh = {}
     if obj.data is not None and obj.data.library is None:
         # the first version: the master's own mesh moves into the library too
-        mlevel = master_level or master.get("level") or "master"
+        mlevel = master_level or master.get("level") or "master"   # D1: no level
         _stamp_mesh(obj.data, asset_id=asset_id, version_id=master["id"],
                     level=mlevel, digest=master.get("checksum") or "")
         fresh[mlevel] = obj.data
@@ -558,6 +646,44 @@ def add_version_from_mesh(graph, obj, mesh, *, level: str, purpose: str,
         set_level(obj, current, meshes)
     return {**out, "library": path, "levels": sorted(meshes, key=level_key),
             "warnings": list(warnings) + list(out.get("warnings") or [])}
+
+
+def _measures_line(m: Dict[str, Any]) -> str:
+    """The measures of a version in one line for a person."""
+    parts = []
+    if m.get("tris_per_m2") is not None:
+        parts.append(f"{m['tris_per_m2']:.0f} tris/m²")
+    if m.get("texel_density_dd") is not None:
+        parts.append(f"texel {m['texel_density_dd']:.2f} mm (ref. 1.26)")
+    if m.get("texture_count"):
+        parts.append(f"{m['texture_count']}×{m.get('texture_side_px', '?')} px")
+    if m.get("uv_ratio") is not None:
+        parts.append(f"UV {m['uv_ratio']:.2f}")
+    if m.get("reduction_from_lod0") is not None:
+        parts.append(f"{m['reduction_from_lod0']:.2%} of LOD0")
+    return " · ".join(parts)
+
+
+def _shown_version(obj) -> Optional[str]:  # pragma: no cover — bpy
+    """The version the object shows now (its mesh's resource), None for the
+    master or an object without versions."""
+    mesh = getattr(obj, "data", None)
+    vid = mesh.get(PROP_VERSION) if mesh is not None else None
+    asset = obj.get(PROP_ASSET) if obj is not None else None
+    return str(vid) if vid and vid != asset else None
+
+
+def _version_info(context, obj) -> Optional[Dict[str, Any]]:  # pragma: no cover — bpy
+    try:
+        from ..functions import is_graph_available
+        from s3dgraphy.resources.versions import version_info
+        ok, graph = is_graph_available(context)
+        vid = _shown_version(obj) or obj.get(PROP_ASSET)
+        if not ok or graph is None or not vid or graph.find_node_by_id(str(vid)) is None:
+            return None
+        return version_info(graph, str(vid))
+    except Exception:  # noqa: BLE001 — the panel draws without it
+        return None
 
 
 def _export_glb(mesh, path: str) -> None:  # pragma: no cover — bpy
@@ -603,19 +729,17 @@ def _operator_classes():  # pragma: no cover — bpy
         bl_options = {"REGISTER", "UNDO"}
 
         level: bpy.props.StringProperty(  # type: ignore
-            name="Level", default="LOD1",
-            description="The level this version is (LOD1, LOD2…)")
-        purpose: bpy.props.EnumProperty(  # type: ignore
-            name="Purpose", default="web",
-            items=[("web", "Web viewing", "Light enough for a browser"),
-                   ("preview", "Preview", "For working fast in the scene"),
-                   ("analysis", "Analysis", "Geometry kept for measuring"),
-                   ("render", "Render", "For images and video"),
-                   ("print", "3D print", "For printing"),
-                   ("other", "Other", "Something else")])
+            name="Name", default="",
+            description=("The version's name. Empty: the level the chain gives "
+                         "(lod0 from the master, lod1 from lod0…)"))
+        use: bpy.props.EnumProperty(  # type: ignore
+            name="Uses", options={"ENUM_FLAG"}, default={"web"},
+            description="What this version is for — one or more",
+            items=[(k, label, tip) for k, label, tip in USES])
         master_level: bpy.props.StringProperty(  # type: ignore
-            name="Master is", default="LOD0",
-            description="The level of the master this version is made from")
+            name="Master is", default="",
+            description="Legacy: the master has no level (D1)")
+        computed: bpy.props.StringProperty(default="")  # type: ignore
         source: bpy.props.EnumProperty(  # type: ignore
             name="Geometry from", default="SELECTED",
             items=[("SELECTED", "The other selected object",
@@ -634,11 +758,36 @@ def _operator_classes():  # pragma: no cover — bpy
 
         def invoke(self, context, event):
             obj = context.active_object
-            have = list(levels_of(obj)) if obj is not None else []
-            self.level = next_level(have + [self.master_level])
+            self.level = ""
+            self.computed = ""
+            graph = _graph(context)
+            made_from = _shown_version(obj)
+            if graph is not None:
+                try:
+                    from s3dgraphy.resources.versions import lod_steps
+                    src = made_from or master_of(graph, obj, context.scene)
+                    if src:
+                        self.computed = f"lod{lod_steps(graph, src)}"
+                except Exception:  # noqa: BLE001 — the dialog opens anyway
+                    pass
             if len([o for o in context.selected_objects if o.type == "MESH"]) < 2:
                 self.source = "FILE"
-            return context.window_manager.invoke_props_dialog(self)
+            return context.window_manager.invoke_props_dialog(self, width=420)
+
+        def draw(self, context):
+            col = self.layout.column()
+            col.label(text=f"Level: {self.computed or 'computed from the chain'} "
+                           f"(made from what the object shows)", icon="SORTSIZE")
+            col.prop(self, "level")
+            col.label(text="Uses")
+            col.prop(self, "use")
+            col.prop(self, "source")
+            if self.source == "FILE":
+                col.prop(self, "filepath")
+            elif self.source == "DECIMATE":
+                col.prop(self, "ratio")
+            col.label(text="Measures (tris/m², texel side, atlases, UV) are taken "
+                           "from the mesh.", icon="INFO")
 
         def execute(self, context):
             graph = _graph(context)
@@ -679,7 +828,8 @@ def _operator_classes():  # pragma: no cover — bpy
                         other = None
                         technique = "decimation"
                         parameters = {"ratio": self.ratio}
-                    path = os.path.join(folder, f"{safe(obj.name)}{SEP}{safe(self.level)}.glb")
+                    path = os.path.join(folder, f"{safe(obj.name)}{SEP}"
+                                                f"{safe(self.level or self.computed or 'version')}.glb")
                     _export_glb(mesh, path)
                 if mesh is None:
                     self.report({"ERROR"}, "no geometry in that file")
@@ -688,9 +838,10 @@ def _operator_classes():  # pragma: no cover — bpy
                           "checksum": _digest(sha256_of_file(path)),
                           "size_bytes": os.path.getsize(path)}]
                 out = add_version_from_mesh(
-                    graph, obj, mesh, level=self.level, purpose=self.purpose,
+                    graph, obj, mesh, level=self.level.strip(),
                     master_level=self.master_level, files=files, room=room,
-                    technique=technique, parameters=parameters)
+                    technique=technique, parameters=parameters,
+                    use=sorted(self.use), made_from=_shown_version(obj))
             except Exception as exc:  # noqa: BLE001 — the reason is the user's
                 self.report({"ERROR"}, f"could not add the version: {exc}")
                 return {"CANCELLED"}
@@ -699,7 +850,9 @@ def _operator_classes():  # pragma: no cover — bpy
             for w in out["warnings"]:
                 self.report({"WARNING"}, w)
             self.report({"INFO"}, f"{obj.name}: version {out['level']} "
-                                  f"({self.purpose}); levels "
+                                  f"= {out.get('lod_level') or '?'} "
+                                  f"({', '.join(out.get('use') or []) or 'no use'}); "
+                                  f"{_measures_line(out.get('measures') or {})}; levels "
                                   f"{', '.join(out['levels'])}")
             return {"FINISHED"}
 
@@ -758,6 +911,15 @@ def _operator_classes():  # pragma: no cover — bpy
                 box = layout.box()
                 box.label(text=f"{obj.name} · {obj.get(PROP_LEVEL, '?')}",
                           icon="MESH_DATA")
+                # D1 · what the shown version IS: computed level, uses, measures
+                info = _version_info(context, obj)
+                if info:
+                    box.label(text=f"Level {info.get('lod_level') or '— (master)'} · "
+                                   f"uses: {', '.join(info.get('use') or []) or '—'}",
+                              icon="SORTSIZE")
+                    line = _measures_line(info.get("measures") or {})
+                    if line:
+                        box.label(text=line, icon="BLANK1")
                 levels = sorted((obj.data.library and
                                  [level_of_mesh_name(m.name) for m in bpy.data.meshes
                                   if m.library == obj.data.library]) or [],
