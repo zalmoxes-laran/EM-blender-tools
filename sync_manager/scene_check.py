@@ -93,7 +93,17 @@ def classify_scene(summary: Dict[str, Any],
 
 def sentences(report: Dict[str, Any]) -> List[str]:
     """One sentence per group — the panel and the console say the same."""
-    out = [f"{len(report['here'])} model(s) of the graph are in the scene"]
+    # Q9 · said for what it MEASURES: the models whose file the graph cites (a
+    # resident resource with its sha256), matched by digest. Measured on Templu
+    # Mare: «0 model(s) of the graph are in the scene» with 99 RMs in the list
+    # and the containers full — none of them had a published file yet.
+    out = [f"{len(report['here'])} model(s) with a file in the graph are in the "
+           f"scene (matched by sha256)"]
+    rm = report.get("rm")
+    if rm:
+        out.append(f"RMs: {rm['in_scene']} in the scene, {rm['in_graph']} in the graph"
+                   + (f" ({rm['in_scene'] - rm['bound']} not in it — a GraphML "
+                      f"carries no models)" if rm["in_scene"] > rm["bound"] else ""))
     got = report.get("downloaded")
     if got is not None:
         out.append(f"{len(report['missing'])} missing: {got} downloaded"
@@ -141,6 +151,23 @@ def scene_objects(context, graph) -> List[Dict[str, Any]]:  # pragma: no cover �
     return out
 
 
+def count_rms(context, graph) -> Dict[str, int]:  # pragma: no cover — bpy
+    """Q9 · the RMs counted apart: in the scene (the RM list, or an
+    `em_rm_node_id`), in the graph, and how many of the scene's the graph has."""
+    import bpy  # type: ignore
+    ids = {str(n.node_id) for n in getattr(graph, "nodes", [])
+           if getattr(n, "node_type", "") == "representation_model"}
+    names = set()
+    try:
+        names = {item.name for item in context.scene.rm_list}
+    except Exception:  # noqa: BLE001
+        pass
+    scene = [o for o in bpy.data.objects
+             if o.name in names or o.get("em_rm_node_id")]
+    bound = sum(1 for o in scene if str(o.get("em_rm_node_id") or "") in ids)
+    return {"in_scene": len(scene), "in_graph": len(ids), "bound": bound}
+
+
 def mark_only_here(names: List[str]) -> None:  # pragma: no cover — bpy
     """The flag follows the fact: set on the local ones, removed from an object
     that has since become linked."""
@@ -175,6 +202,7 @@ def check_scene(context, graph, *, download: bool,
                                            if not r.get("asset_id")]}
     report = classify_scene(summary, scene_objects(context, graph))
     report["libraries"] = libraries
+    report["rm"] = count_rms(context, graph)
     mark_only_here(report["only_here"])
     if download and report["missing"]:
         fetched = (materialise_fn or materialise)(graph, records=report["missing"])

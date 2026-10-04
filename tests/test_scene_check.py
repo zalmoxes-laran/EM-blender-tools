@@ -85,3 +85,16 @@ def test_one_sentence_per_group():
     assert lines[-1].startswith("1 object(s) only here")
     r["downloaded"], r["not_downloaded"], r["why_not"] = 1, 0, ""
     assert sc.sentences(r)[1] == "1 missing: 1 downloaded"
+
+
+def test_the_first_sentence_says_what_it_measures_and_the_rms_are_counted_apart():
+    """Q9 · Templu Mare: «0 model(s) of the graph are in the scene» with 99 RMs
+    in the list — it counted only the models with a file in the graph."""
+    r = sc.classify_scene(SUMMARY, OBJECTS)
+    assert "with a file in the graph" in sc.sentences(r)[0]
+    r["rm"] = {"in_scene": 99, "in_graph": 0, "bound": 0}
+    lines = sc.sentences(r)
+    assert lines[1] == ("RMs: 99 in the scene, 0 in the graph (99 not in it — a "
+                        "GraphML carries no models)")
+    r["rm"] = {"in_scene": 3, "in_graph": 3, "bound": 3}
+    assert sc.sentences(r)[1] == "RMs: 3 in the scene, 3 in the graph"

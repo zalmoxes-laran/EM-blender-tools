@@ -45,7 +45,13 @@ def project_root(context) -> Optional[str]:  # pragma: no cover — bpy
             root = find_project_root(bpy.path.abspath(raw))
             if root:
                 return root
-    return None
+    # Q8 · a copied .blend reaches its project only through a linked library
+    try:
+        from ..em_setup.resource_utils import project_roots
+        roots = project_roots(entry)
+    except Exception:  # noqa: BLE001
+        roots = []
+    return roots[0] if roots else None
 
 
 def node_probe() -> Optional[Callable[[str], bool]]:  # pragma: no cover — network

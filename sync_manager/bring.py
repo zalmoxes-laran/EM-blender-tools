@@ -86,6 +86,10 @@ def base_dirs(context) -> List[str]:
                 continue
             path = bpy.path.abspath(raw)
             out.append(path if os.path.isdir(path) else os.path.dirname(path))
+        # the DosCo of the auxiliary files (where the legacy `dosco_dir` went)
+        for aux in getattr(entry, "auxiliary_files", ()):
+            if getattr(aux, "file_type", "") == "dosco" and aux.dosco_folder:
+                out.append(bpy.path.abspath(aux.dosco_folder))
     if bpy.data.filepath:
         out.append(os.path.dirname(bpy.data.filepath))
     return [p for p in out if p]
