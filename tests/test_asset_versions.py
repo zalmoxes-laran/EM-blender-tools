@@ -139,3 +139,13 @@ def test_d1_what_cannot_be_measured_is_left_out_not_zero():
 def test_d1_the_uses_are_the_library_s():
     from s3dgraphy.resources.versions import USES
     assert tuple(k for k, _l, _t in av.USES) == USES
+
+
+def test_the_master_comes_first_and_lod_steps_both_ways():
+    """Q1 · measured on Templu Mare: «master» sorted after lod0, so «LOD ▸» on
+    the master stayed put and «◂ LOD» went to the version."""
+    levels = ["lod1", "master", "lod0"]
+    assert sorted(levels, key=av.level_key) == ["master", "lod0", "lod1"]
+    assert av.step_level(levels, "master", +1) == "lod0"
+    assert av.step_level(levels, "lod0", -1) == "master"
+    assert av.step_level(levels, "lod1", -1) == "lod0"

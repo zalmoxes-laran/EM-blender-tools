@@ -542,6 +542,74 @@ def basi_dei_locator(context=None) -> list:
     return fuori
 
 
+class ModelNotHere(RuntimeError):
+    """The object's model lives in a graph that is not the active one."""
+
+
+def seat_model_of(scene, graph, obj):
+    """Q2 · the object's OWN model node in ``graph``, or a sentence.
+
+    → ``(rm_id or None, note)``. ``None`` only for an object that never had a
+    model (no ``em_rm_node_id``): then the caller makes one, as before.
+
+    Measured on 4 Oct 2026 (Templu Mare): ME_PODIO carries
+    ``em_rm_node_id = 40f840cf-…`` and is a member of the container «Survey
+    2015» (D.01), but the graph is a GraphML, and a GraphML never carries the
+    ``representation_model`` nodes (``graphml_patcher.INTERNAL_NODE_TYPES``, by
+    design). «Add version…» found no node, made ``ME_PODIO_model`` and cut the
+    object off D.01 and its units. Now, in this order:
+
+    1. the id is in the active graph → that node;
+    2. the id is in ANOTHER loaded graph → refused, naming the graph to make
+       active (the version belongs where the model is);
+    3. the id is nowhere, and the object's document (its container's, or
+       ``em_rm_container_doc_id``) IS in the active graph → the model is seated
+       again WITH ITS OWN ID, ``Document —has_representation_model→ model`` as
+       ``add_mesh_to_container`` writes it: identity and container intact;
+    4. otherwise → refused: the sentence says which graph to load.
+    """
+    rm_id = str(obj.get("em_rm_node_id", "") or "")
+    if not rm_id:
+        return None, ""
+    if graph.find_node_by_id(rm_id) is not None:
+        return rm_id, ""
+    try:
+        from s3dgraphy import get_all_graph_ids, get_graph
+        for gid in get_all_graph_ids():
+            other = get_graph(gid)
+            if other is None or other is graph:
+                continue
+            if other.find_node_by_id(rm_id) is not None:
+                raise ModelNotHere(
+                    f"{obj.name}'s model ({rm_id[:8]}…) is in the graph "
+                    f"{gid}: make that graph the "
+                    f"active one (EM panel) and add the version there")
+    except ImportError:
+        pass
+    doc_id = str(obj.get("em_rm_container_doc_id", "") or "")
+    if not doc_id:
+        idx = find_container_for_mesh(scene, obj.name) if scene is not None else None
+        if idx is not None:
+            doc_id = scene.rm_containers[idx].doc_node_id
+    doc = graph.find_node_by_id(doc_id) if doc_id else None
+    if doc is None:
+        raise ModelNotHere(
+            f"{obj.name}'s model ({rm_id[:8]}…) is in no loaded graph"
+            + (f", nor is its document ({doc_id[:8]}…)" if doc_id else "")
+            + ": load the graph this object's model was made in (an .em.json "
+              "keeps the models; a GraphML does not), then add the version")
+    from s3dgraphy.nodes.representation_node import RepresentationModelNode
+    graph.add_node(RepresentationModelNode(node_id=rm_id, name=obj.name,
+                                           type="RM", description=""))
+    if not _has_edge(graph, doc_id, rm_id, "has_representation_model"):
+        graph.add_edge(edge_id=f"{doc_id}_has_representation_model_{rm_id}",
+                       edge_source=doc_id, edge_target=rm_id,
+                       edge_type="has_representation_model")
+    return rm_id, (f"{obj.name}'s model seated again in the graph with its own id, "
+                   f"under {getattr(doc, 'name', '') or doc_id} (a GraphML does not "
+                   f"carry models)")
+
+
 def ensure_rm_and_internal_resource(scene, graph, obj):
     """Il nodo RM di questa mesh e la sua risorsa interna.
 

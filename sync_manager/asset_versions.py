@@ -81,6 +81,11 @@ def level_key(level: Optional[str]):
     """Natural order of levels (LOD2 before LOD10; a level without a number
     after the numbered ones) — the same order s3dgraphy's versions_of uses."""
     text = str(level or "")
+    if text == "master":
+        # D1 · the master has no level and is the heaviest: it comes FIRST, as
+        # in versions_of. Measured on Templu Mare: sorted after lod0, «LOD ▸»
+        # on the master stayed put and «◂ LOD» went to the version
+        return (-1, 0, text)
     m = re.search(r"(\d+)", text)
     return (0 if m else 1, int(m.group(1)) if m else 0, text)
 
@@ -339,14 +344,64 @@ def set_level(obj, level: str, meshes: Optional[Dict[str, Any]] = None
     return True
 
 
-def levels_of(obj) -> Dict[str, Any]:  # pragma: no cover — bpy
-    """{level: mesh} of the library ``obj``'s mesh comes from."""
+#: Q1 · where the MASTER's mesh is when it lives in a library of its own (the
+#: case of every real scene: `ME_PODIO_LOD0` in `RB/TempluMare_2021.blend`).
+#: Written on the OBJECT — a linked mesh cannot carry a property — by «Add
+#: version…», read by `levels_of`.
+PROP_MASTER_MESH = "em_master_mesh"
+PROP_MASTER_LIBRARY = "em_master_library"
+PROP_MASTER_LEVEL = "em_master_level"
+
+
+def _master_by_reference(obj) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """{level: the master's mesh} when it lives in a library of its own."""
     bpy = _bpy()
+    name = obj.get(PROP_MASTER_MESH)
+    if not name:
+        return {}
+    where = obj.get(PROP_MASTER_LIBRARY) or ""
+    level = str(obj.get(PROP_MASTER_LEVEL) or "master")
+    for mesh in bpy.data.meshes:
+        if mesh.name != name:
+            continue
+        lib = mesh.library
+        if (lib is None and not where) or (lib is not None and where
+                                           and _same_file(lib.filepath, where)):
+            return {level: mesh}
+    if where and os.path.isfile(bpy.path.abspath(where)):
+        # linked by the version's library before, not in this session yet
+        with bpy.data.libraries.load(where, link=True) as (src, dst):
+            dst.meshes = [n for n in src.meshes if n == name]
+        return {level: dst.meshes[0]} if dst.meshes else {}
+    return {}
+
+
+def levels_of(obj) -> Dict[str, Any]:  # pragma: no cover — bpy
+    """{level: mesh} of the object: the asset's library — found from the
+    asset, not from the mesh shown, so the chain is walkable both ways — and
+    the master where it lives, by reference.
+
+    Measured on 4 Oct 2026: reading only the library of the CURRENT mesh,
+    «LOD ▸» on ME_PODIO (master linked from `RB/TempluMare_2021.blend`, version
+    in `em_cache/local/<asset>.blend`) found one level either way and said
+    «already at the end»."""
+    bpy = _bpy()
+    out: Dict[str, Any] = {}
+    asset = obj.get(PROP_ASSET)
+    if asset:
+        room = _room_id()
+        for r in ([room, None] if room else [None]):
+            path = library_abspath(str(asset), r)
+            if os.path.isfile(path):
+                out.update(linked_meshes(path))
+                break
     data = getattr(obj, "data", None)
     lib = getattr(data, "library", None)
-    if lib is None:
-        return {}
-    return linked_meshes(bpy.path.abspath(lib.filepath))
+    if lib is not None and not out:
+        out.update(linked_meshes(bpy.path.abspath(lib.filepath)))
+    for level, mesh in _master_by_reference(obj).items():
+        out.setdefault(level, mesh)
+    return out
 
 
 def asset_objects(objects=None) -> List[Any]:  # pragma: no cover — bpy
@@ -595,11 +650,17 @@ def add_version_from_mesh(graph, obj, mesh, *, level: str = "", purpose: str = "
         raise RuntimeError("this Blender's s3dgraphy has no asset versions "
                            "(api.add_version): it needs 1.6.0.dev34 or later")
     scene = _bpy().context.scene
-    asset_id = master_of(graph, obj, scene)
     warnings: List[str] = []
+    # Q2 · the chain hangs off the model the object ALREADY has
+    from ..rm_manager.containers import seat_model_of
+    _rm, seated = seat_model_of(scene, graph, obj)
+    if seated:
+        warnings.append(seated)
+    asset_id = master_of(graph, obj, scene)
     if asset_id is None:
         from ..rm_manager.containers import ensure_rm_and_internal_resource
-        _rm, asset_id, warnings = ensure_rm_and_internal_resource(scene, graph, obj)
+        _rm, asset_id, more = ensure_rm_and_internal_resource(scene, graph, obj)
+        warnings += more
         if not asset_id:
             raise RuntimeError("; ".join(warnings) or
                                "this object has no resource to be the master of")
@@ -636,12 +697,24 @@ def add_version_from_mesh(graph, obj, mesh, *, level: str = "", purpose: str = "
                     level=mlevel, digest=master.get("checksum") or "")
         fresh[mlevel] = obj.data
         obj[PROP_LEVEL] = mlevel
+    elif (obj.data is not None and obj.data.library is not None
+          and not obj.get(PROP_LEVEL)
+          and not _same_file(obj.data.library.filepath, path)):
+        # Q1 · the master lives in a library of its own: it stays there, and the
+        # object remembers where, so «LOD ▸» and «◂ LOD» walk both ways
+        mlevel = master_level or master.get("level") or "master"
+        obj[PROP_MASTER_MESH] = obj.data.name
+        obj[PROP_MASTER_LIBRARY] = obj.data.library.filepath
+        obj[PROP_MASTER_LEVEL] = mlevel
+        obj[PROP_LEVEL] = mlevel
     _stamp_mesh(mesh, asset_id=asset_id, version_id=out["version_id"],
                 level=out["level"], digest=digest)
     fresh[out["level"]] = mesh
     obj[PROP_ASSET] = asset_id
     meshes = write_library(path, fresh, base)
     current = obj.get(PROP_LEVEL)
+    if obj.get(PROP_MASTER_MESH):
+        meshes = levels_of(obj)
     if current in meshes:
         set_level(obj, current, meshes)
     return {**out, "library": path, "levels": sorted(meshes, key=level_key),
@@ -691,6 +764,12 @@ def _export_glb(mesh, path: str) -> None:  # pragma: no cover — bpy
     bpy = _bpy()
     tmp = bpy.data.objects.new("_em_version_export", mesh)
     bpy.context.scene.collection.objects.link(tmp)
+    # Q3 · the selection and the active object come back as they were:
+    # measured, after «Add version…» the master was no longer selected and
+    # «LOD ▸» right after said «no object with versions here»
+    layer = bpy.context.view_layer
+    was_selected = [o for o in layer.objects if o.select_get()]
+    was_active = layer.objects.active
     try:
         with bpy.context.temp_override(selected_objects=[tmp], active_object=tmp):
             for o in bpy.context.view_layer.objects:
@@ -699,6 +778,13 @@ def _export_glb(mesh, path: str) -> None:  # pragma: no cover — bpy
                                       export_format="GLB")
     finally:
         bpy.data.objects.remove(tmp)
+        for o in was_selected:
+            try:
+                o.select_set(True)
+            except ReferenceError:
+                pass
+        if was_active is not None:
+            layer.objects.active = was_active
 
 
 def _room_id() -> Optional[str]:  # pragma: no cover — bpy
