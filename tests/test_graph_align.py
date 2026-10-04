@@ -119,3 +119,21 @@ def test_different_epsg_checked_against_pyproj():
         other.shift_x, other.shift_y)
     assert abs(pl.dx - (x32 - ref.shift_x)) < MM
     assert abs(pl.dy - (y32 - ref.shift_y)) < MM
+
+
+# ── Q7 · a scene in degrees is said, with a projected CRS to use ─────────────
+
+def test_a_geographic_crs_is_said_and_a_utm_zone_proposed():
+    epsg, line = ga.projected_for(4326, 8.6556, 39.8781)   # Tharros, Sardinia
+    assert epsg == 32632 and "degrees" in line and "zone 32N" in line
+    epsg, _ = ga.projected_for(4258, 12.5, 41.9)            # Rome, ETRS89
+    assert epsg == 25833
+    epsg, _ = ga.projected_for(4326, -70.0, -33.0)          # southern hemisphere
+    assert epsg == 32719
+
+
+def test_a_projected_crs_is_left_alone_and_no_zone_is_guessed_without_an_origin():
+    assert ga.projected_for(23033, 2450048.75, 1250000.0) is None   # Templu Mare
+    assert ga.projected_for(None) is None
+    epsg, line = ga.projected_for(4326, 0.0, 0.0)
+    assert epsg == 0 and "Choose a projected CRS" in line

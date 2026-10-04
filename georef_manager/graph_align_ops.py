@@ -112,9 +112,18 @@ def align_all(context, *, apply_objects=True, reprojector=None) -> list:
     if not ref_anchor.georeferenced and graph_align.anchor_from_data(
             {'epsg': georef.epsg}).georeferenced:
         ref_anchor = scene_anchor(scene)
-        ref_source = 'the scene Georeferencing panel (the graph declares no EPSG)'
+        # Q7 · measured on Templu Mare: GT16 is a GraphML with NO GeoPositionNode
+        # (the file carries none), while the scene says EPSG 23033 in the panel,
+        # 3DSC and BlenderGIS alike — so the scene's is the reference, and it is
+        # said where it can be written into the graph
+        ref_source = ('the scene Georeferencing panel — the graph file declares no '
+                      'EPSG; «Push to GeoNode» writes the scene\'s into it')
     ref_label = ref_row.graph_code or ref_row.name
     said.append(f"scene CRS = {ref_label} (EPSG {ref_anchor.epsg}), from {ref_source}")
+    degrees = graph_align.projected_for(ref_anchor.epsg, ref_anchor.shift_x,
+                                        ref_anchor.shift_y)
+    if degrees:
+        said.append(degrees[1])
     ref_row.geo_applied = False
     ref_row.geo_dx = ref_row.geo_dy = ref_row.geo_dz = ref_row.geo_rot_z = 0.0
     ref_row.geo_note = graph_align.place(ref_anchor, ref_anchor).sentence()
@@ -194,7 +203,43 @@ class EM_OT_georef_align_graphs(Operator):
         return {'FINISHED'}
 
 
-CLASSES = (EM_OT_georef_align_graphs,)
+class EM_OT_georef_use_projected(bpy.types.Operator):
+    """Q7 · Put the scene in a projected CRS: the origin is reprojected from the
+    geographic one (by the node, or pyproj), then the EPSG changes"""
+
+    bl_idname = "em.georef_use_projected"
+    bl_label = "Use a projected CRS"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    epsg: bpy.props.StringProperty(default="")  # type: ignore
+
+    def execute(self, context):
+        g = context.scene.em_georef
+        try:
+            source, target = int(str(g.epsg).strip()), int(self.epsg)
+        except ValueError:
+            self.report({'ERROR'}, "no EPSG to go from or to")
+            return {'CANCELLED'}
+        run, via, why = _choose(context, source)
+        if run is None:
+            self.report({'ERROR'}, f"the origin ({g.shift_x}, {g.shift_y}) is in "
+                                   f"degrees and has to be reprojected to EPSG "
+                                   f"{target} first, and nobody can: {why}. Enter "
+                                   f"the shift in EPSG {target} by hand")
+            return {'CANCELLED'}
+        try:
+            (x, y), = run([(g.shift_x, g.shift_y)], source, target)
+        except Exception as exc:  # noqa: BLE001
+            self.report({'ERROR'}, f"reprojection {source} → {target} failed: {exc}")
+            return {'CANCELLED'}
+        g.shift_x, g.shift_y = x, y
+        g.epsg = str(target)
+        self.report({'INFO'}, f"scene CRS EPSG {target}, origin ({x:.3f}, {y:.3f}) "
+                              f"m, reprojected via {via}")
+        return {'FINISHED'}
+
+
+CLASSES = (EM_OT_georef_align_graphs, EM_OT_georef_use_projected)
 
 
 def register():

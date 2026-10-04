@@ -119,6 +119,38 @@ class Placement:
         return '; '.join([head] + self.notes)
 
 
+#: Q7 · CRSs whose coordinates are DEGREES: a metric Blender scene cannot sit
+#: in one (a metre of the scene would be a degree, ~111 km). The common ones;
+#: an EPSG not listed here is taken as projected, which is what a scene needs.
+GEOGRAPHIC = {4326: "WGS 84", 4258: "ETRS89", 4230: "ED50", 4269: "NAD83",
+              4267: "NAD27", 4283: "GDA94", 4612: "JGD2000", 4019: "GRS 1980",
+              4979: "WGS 84 3D", 4937: "ETRS89 3D"}
+
+
+def projected_for(epsg: Optional[int], x: float = 0.0, y: float = 0.0
+                  ) -> Optional[Tuple[int, str]]:
+    """For a geographic EPSG: (the UTM EPSG to propose, the sentence); None
+    for a projected one. ``x``/``y`` are the origin in that CRS — longitude
+    and latitude — and choose the zone; with no origin, nothing is guessed."""
+    if epsg not in GEOGRAPHIC:
+        return None
+    name = GEOGRAPHIC[epsg]
+    head = (f"EPSG {epsg} ({name}) is in degrees: a metric scene cannot sit in it — "
+            f"one unit of the scene would be a degree.")
+    if not (-180.0 <= x <= 180.0 and -90.0 <= y <= 90.0) or (x == 0.0 and y == 0.0):
+        return (0, head + " Choose a projected CRS (UTM or the national grid).")
+    zone = int((x + 180.0) // 6.0) + 1
+    zone = min(max(zone, 1), 60)
+    base = 25800 if epsg in (4258, 4937) and y >= 0 else (32600 if y >= 0 else 32700)
+    if base == 25800 and not 28 <= zone <= 38:      # ETRS89 / UTM covers 28–38
+        base = 32600
+    proposed = base + zone
+    label = ("ETRS89 / UTM" if base == 25800 else "WGS 84 / UTM") + \
+        f" zone {zone}{'N' if y >= 0 else 'S'}"
+    return (proposed, head + f" Proposed: EPSG {proposed} ({label}), the zone of "
+                             f"the origin ({x:.4f}, {y:.4f}).")
+
+
 def _rot(x: float, y: float, deg: float) -> Point2:
     '''Rotazione antioraria di ``deg`` gradi.'''
     a = math.radians(deg)
@@ -211,7 +243,11 @@ def server_reprojector(base_url: str, token: Optional[str] = None,
             headers['Authorization'] = f'Bearer {token}'
         req = urllib.request.Request(url, data=body, headers=headers,
                                      method='POST')
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        try:        # the node behind Caddy too (sync_manager/trust.py)
+            from ..sync_manager.trust import urlopen as _open
+        except ImportError:  # loaded by path, outside the package (the suite)
+            _open = urllib.request.urlopen
+        with _open(req, timeout=timeout) as resp:
             doc = json.loads(resp.read().decode('utf-8'))
         return [(float(x), float(y)) for x, y in doc['points']]
     return run

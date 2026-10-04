@@ -129,6 +129,20 @@ class EM_PT_georef(Panel):
         # so: no CRS is passed to BlenderGIS or 3DSC (never 4326 by default).
         if propagation.epsg_or_none(g.epsg) is None:
             layout.row().label(text=propagation.NOT_GEOREFERENCED, icon='INFO')
+        else:
+            # Q7 · a CRS in degrees is said, with a projected one to use
+            from .graph_align import projected_for
+            try:
+                said = projected_for(int(str(g.epsg).strip()), g.shift_x, g.shift_y)
+            except ValueError:
+                said = None
+            if said:
+                box = layout.box()
+                for i, line in enumerate(_wrap(said[1], 60)):
+                    box.label(text=line, icon='ERROR' if i == 0 else 'BLANK1')
+                if said[0]:
+                    box.operator("em.georef_use_projected", text=f"Use EPSG {said[0]}",
+                                 icon='CHECKMARK').epsg = str(said[0])
 
         # --- Active graph indicator ---
         graph = graph_sync.get_active_graph()
@@ -263,3 +277,8 @@ def unregister():
             bpy.utils.unregister_class(cls)
         except Exception:
             pass
+
+
+def _wrap(text, width):
+    import textwrap
+    return textwrap.wrap(text, width) or [""]
