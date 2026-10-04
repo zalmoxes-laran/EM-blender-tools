@@ -481,3 +481,29 @@ def test_l1_a_session_with_real_exif_is_proposed_not_applied(tmp_path):
     s = inv.summarise(rows)
     assert s["batches"][0]["proposed"] is True
     assert any(line.startswith("proposed lot «") for line in inv.sentences(s))
+
+
+def test_d3_the_lot_thresholds_come_from_the_preferences():
+    """D3 (E.D., 4 Oct 2026): 30 minutes and 5 photos are the defaults,
+    changeable in the add-on preferences; the lot stays a proposal."""
+    for name in ("rooms_list", "bring"):
+        if f"_p3_pkg.{name}" not in sys.modules:
+            spec = importlib.util.spec_from_file_location(
+                f"_p3_pkg.{name}", _REPO / "sync_manager" / f"{name}.py")
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = module
+            spec.loader.exec_module(module)
+    bring = sys.modules["_p3_pkg.bring"]
+    no_prefs = types.SimpleNamespace(preferences=types.SimpleNamespace(addons={}))
+    assert bring.lot_thresholds(no_prefs) == (1800.0, 5)
+    prefs = types.SimpleNamespace(lot_gap_minutes=45, lot_min_photos=3)
+    ctx = types.SimpleNamespace(preferences=types.SimpleNamespace(
+        addons={"_p3_pkg": types.SimpleNamespace(preferences=prefs)}))
+    gap, least = bring.lot_thresholds(ctx)
+    assert (gap, least) == (2700.0, 3)
+    shots = [{"id": f"w{i}", "path": f"/w/{i}.jpg",
+              "exif": {"camera": "X", "taken_at": _at(2400 * i)}} for i in range(3)]
+    assert inv.session_lots(shots) == []
+    rows = [dict(s, group=inv.GROUP_FOUND) for s in shots]
+    lots = inv.propose_sessions(rows, gap_seconds=gap, min_photos=least)
+    assert [len(l["ids"]) for l in lots] == [3] and lots[0]["confirmed"] is False

@@ -91,6 +91,19 @@ def base_dirs(context) -> List[str]:
     return [p for p in out if p]
 
 
+def lot_thresholds(context) -> tuple:
+    """D3 · (gap in seconds, minimum photos) of the photo lot, from the add-on
+    preferences; the defaults (30 min, 5) when there are none."""
+    try:
+        pkg = __package__.rsplit(".", 1)[0]
+        prefs = context.preferences.addons[pkg].preferences
+        gap = int(getattr(prefs, "lot_gap_minutes", 30) or 30)
+        least = int(getattr(prefs, "lot_min_photos", 5) or 5)
+    except Exception:  # noqa: BLE001 — no prefs (tests, CLI): the defaults
+        gap, least = 30, 5
+    return float(max(gap, 1) * 60), max(least, 2)
+
+
 def dosco_dirs(context) -> List[str]:
     """L1 · the DosCo folder of the active graph: documentation, never a lot."""
     import bpy  # type: ignore
@@ -142,8 +155,10 @@ def prepare(context, graph, *, base: str, name: str, token: Optional[str]
                                                         hexd, token),
         room_id=where["room_id"], hasher=asset_upload.sha256_of_file)
     from . import exif_lite
+    gap, least = lot_thresholds(context)
     lots = inventory.propose_sessions(rows, exif_of=exif_lite.photo_exif,
-                                      dosco_dirs=dosco_dirs(context))
+                                      dosco_dirs=dosco_dirs(context),
+                                      gap_seconds=gap, min_photos=least)
     # F1 · for every file at home elsewhere, the node's answer BEFORE the yes
     views = {r["id"]: asset_upload.asset_home_view(base, where["room_id"],
                                                    r["sha256"], token)

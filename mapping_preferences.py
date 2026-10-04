@@ -170,6 +170,21 @@ class EMToolsMappingPreferences(AddonPreferences):
         default=False,
     )
 
+    # D3 (E.D., 4 Oct 2026) · le soglie del lotto di foto: 30 minuti e almeno
+    # 5 foto sono i valori predefiniti, qui modificabili; il lotto resta una
+    # PROPOSTA che chi carica conferma (come in EMStudio, Impostazioni).
+    lot_gap_minutes: IntProperty(
+        name="Photo lot: new session after (min)",
+        description=("Photos of one camera further apart than this are two "
+                     "sessions, two lots. 30 by default"),
+        default=30, min=1, max=24 * 60,
+    )
+    lot_min_photos: IntProperty(
+        name="Photo lot: at least (photos)",
+        description="Fewer photos than this are files, not a lot worth proposing. 5 by default",
+        default=5, min=2, max=10000,
+    )
+
     # VLONG-DEV27/D2 · il timbro alla nascita. E.D. (1 ott): «laddove Blender
     # CREA asset nuovi, li può già timbrare». Acceso di partenza: un file
     # esportato senza timbro è la provenienza che si perde in silenzio. Vale
@@ -343,6 +358,11 @@ class EMToolsMappingPreferences(AddonPreferences):
         sync_box.label(text="Live sync", icon='LINKED')
         sync_box.prop(self, "sync_port")
         sync_box.prop(self, "materialise_on_adopt")
+        lot = sync_box.row(align=True)
+        lot.prop(self, "lot_gap_minutes")
+        lot.prop(self, "lot_min_photos")
+        sync_box.label(text="«Bring into a room» proposes a photo lot; you confirm it.",
+                       icon='INFO')
         sync_box.label(text="The port is this installation's, not this "
                             "project's.", icon='INFO')
 
