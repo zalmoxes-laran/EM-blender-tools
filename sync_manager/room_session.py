@@ -131,6 +131,11 @@ class RoomSession:
         #: addon instead of as a study somebody let you read.
         self.role: Optional[str] = None
         self.can_write: bool = True
+        #: I1 · the sync, counted off the room's answers: every operation sent
+        #: gets one `op_result` (or a `denied`). Counted per membership.
+        self.sent_ops: int = 0
+        self.answered_ops: int = 0
+        self.refused_ops: int = 0
 
     # ── joining ──────────────────────────────────────────────────────────────
 
@@ -157,6 +162,7 @@ class RoomSession:
             headers["Authorization"] = f"Bearer {token}"
         client = WsClient(url, headers=headers, on_message=self._receive)
         client.connect(timeout=timeout)
+        self.sent_ops = self.answered_ops = self.refused_ops = 0
         self.client = client
         # ONE queue, the client's: two would mean two answers to "what has
         # arrived", and the drain would race the join
@@ -192,6 +198,7 @@ class RoomSession:
         self.members = []
         self.role = None
         self.can_write = True
+        self.sent_ops = self.answered_ops = self.refused_ops = 0
 
     # ── traffic ──────────────────────────────────────────────────────────────
 
@@ -217,7 +224,10 @@ class RoomSession:
         # NOT touched — in an edge op they are the endpoints, and since WIRE 2
         # they live in the payload where no envelope word can reach them.
         body = {k: v for k, v in op.items() if k not in ("author", "type")}
-        return self.send("op", body)
+        sent = self.send("op", body)
+        if sent:
+            self.sent_ops += 1
+        return sent
 
     def send_select(self, node_ids: List[str], active: Optional[str] = None) -> bool:
         """Awareness, never a lock: the others see where you are looking."""
@@ -276,6 +286,16 @@ class RoomSession:
             ts = body.get("ts")
             if ts and (self.last_applied is None or str(ts) > str(self.last_applied)):
                 self.last_applied = str(ts)
+        elif kind == "op_result":
+            # I1 · the room's answer to one of OUR operations
+            self.answered_ops += 1
+            if not body.get("applied"):
+                from s3dgraphy.crdt import refusal_is_news
+                if refusal_is_news(str(body.get("reason") or "")):
+                    self.refused_ops += 1
+        elif kind == "denied" and body.get("verb") == "op":
+            self.answered_ops += 1
+            self.refused_ops += 1
         elif kind == "error":
             self.error = str(body.get("detail") or "")
 

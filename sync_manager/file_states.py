@@ -83,7 +83,10 @@ def resolve_active(context, graph) -> List[Dict[str, Any]]:  # pragma: no cover 
                                 cache_dirs=caches,
                                 on_node=node_probe(), hasher=sha256_of_file)
     ULTIMI.update({"graph_id": str(getattr(graph, "graph_id", "")),
-                   "results": results})
+                   "results": results,
+                   # R2 · the row says the file and its document, not «Link to D.32»
+                   "described": {r["id"]: describe(graph, r["id"], r) for r in results},
+                   "models": model_states(graph, results)})
     return results
 
 
@@ -99,6 +102,130 @@ def sentence(results: List[Dict[str, Any]]) -> str:
     parts = [f"{sign('file.' + k)[1].split(' ', 1)[0]} {n} {k.replace('_', ' ')}"
              for k, n in c.items() if n]
     return "Files: " + (", ".join(parts) if parts else "none in the graph")
+
+
+# ── R2 · what a row SAYS of a file, and the sign beside a model ─────────────
+# The rows said «Link to D.32»: the name the GraphML importer gives every link,
+# the same for every file of every document. A row now says the FILE's name —
+# the last segment of where it is, or of where the graph says it is — and the
+# TITLE of the document it belongs to, as EMStudio does (`file-states.ts`
+# describeFile, 8b7f2e2).
+
+def last_segment(where: str) -> str:
+    """``/DosCo/D.32.jpg``, ``C:\\x\\D.32.jpg``, ``https://h/x/P01%5Bext%5D.jpeg?v=2``
+    → the last segment."""
+    import re
+    import urllib.parse
+    s = re.sub(r"[?#].*$", "", str(where or "").strip())
+    s = re.sub(r"[\\/]+$", "", s)
+    seg = re.split(r"[\\/]", s)[-1] if s else ""
+    try:
+        return urllib.parse.unquote(seg)
+    except Exception:  # noqa: BLE001
+        return seg
+
+
+def _edges(graph) -> List[Any]:
+    return [e for e in (getattr(graph, "edges", None) or [])
+            if not ((getattr(e, "attributes", None) or {}).get("removed"))]
+
+
+def _data(node) -> Dict[str, Any]:
+    data = getattr(node, "data", None)
+    return data if isinstance(data, dict) else {}
+
+
+def _owner(graph, rid: str, seen=None):
+    """The node that links a resource (a document, an extractor, a model) —
+    through its set when it is one file of a set."""
+    seen = seen if seen is not None else set()
+    if rid in seen:
+        return None
+    seen.add(rid)
+    edges = _edges(graph)
+    link = next((e for e in edges if e.edge_target == rid
+                 and e.edge_type == "has_linked_resource"), None)
+    if link is not None:
+        return graph.find_node_by_id(link.edge_source)
+    owner_set = next((e for e in edges if e.edge_target == rid
+                      and e.edge_type == "has_file"), None)
+    return _owner(graph, owner_set.edge_source, seen) if owner_set is not None else None
+
+
+def describe(graph, rid: str, row: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """``{file: "D.32.jpg", doc: "D.32 · <title>", doc_id}`` of one resource:
+    the file's own name, and the document (or model) it belongs to."""
+    node = graph.find_node_by_id(rid) if graph is not None else None
+    data = _data(node)
+    # every address the graph keeps, the resolver's path first; a store
+    # address ends in the digest (`/asset/sha256:…`), which names no file
+    wheres = [(row or {}).get("path"), data.get("url"), data.get("filename"),
+              data.get("path"), data.get("locator"), getattr(node, "url", None)]
+    wheres += [a.get("locator") for a in (data.get("addresses") or []) if isinstance(a, dict)]
+    segment = next((seg for seg in (last_segment(w) for w in wheres if isinstance(w, str) and w)
+                    if seg and not seg.lower().startswith("sha256:")), "")
+    name = str(getattr(node, "name", "") or (row or {}).get("name") or "")
+    file = (segment
+            or (name if name and not name.startswith("Link to ") else "")
+            or name or rid)
+    owner = _owner(graph, rid) if node is not None else None
+    doc = ""
+    if owner is not None:
+        title = str(_data(owner).get("title") or getattr(owner, "description", "") or "").strip()
+        oname = str(getattr(owner, "name", "") or owner.node_id)
+        doc = f"{oname} · {title}" if title and title != oname else oname
+    return {"file": file, "doc": doc,
+            "doc_id": getattr(owner, "node_id", None) if owner is not None else None}
+
+
+#: R2 · for a model, the place its bytes can best be had: one file of it on the
+#: disk is enough to work, one on the node is a «Keep» away
+BEST_FIRST = ("both", "on_disk", "on_node", "reference_only", "empty_copy", "missing")
+
+
+def best_state(states) -> Optional[str]:
+    """The best of the states of a model's files, or None when it has none."""
+    found = [s for s in states if s in BEST_FIRST]
+    return min(found, key=BEST_FIRST.index) if found else None
+
+
+def model_states(graph, results: List[Dict[str, Any]]) -> Dict[str, str]:
+    """``{model node id: state}`` — the state of the files each model links
+    (``has_linked_resource``), as the one resolver said them."""
+    by_id = {r["id"]: r["state"] for r in results}
+    linked: Dict[str, List[str]] = {}
+    for e in _edges(graph):
+        if e.edge_type == "has_linked_resource" and e.edge_target in by_id:
+            linked.setdefault(e.edge_source, []).append(by_id[e.edge_target])
+    out = {}
+    for model_id, states in linked.items():
+        node = graph.find_node_by_id(model_id)
+        if node is not None and getattr(node, "node_type", "") in (
+                "representation_model", "representation_model_doc",
+                "representation_model_sf"):
+            best = best_state(states)
+            if best:
+                out[model_id] = best
+    return out
+
+
+def model_state(item_node_id: str, obj=None) -> Optional[str]:
+    """The sign beside one model of the RM list: its model's files, or the
+    resource its object is bound to (`em_resource_id`, `em_asset_sha256`) —
+    from the last «Check files»; None before it, or for a model the graph
+    gives no file."""
+    states = []
+    if item_node_id and item_node_id in (ULTIMI.get("models") or {}):
+        states.append(ULTIMI["models"][item_node_id])
+    if obj is not None:
+        rid = str(obj.get("em_resource_id") or "")
+        sha = str(obj.get("em_asset_sha256") or "").lower()
+        if sha and not sha.startswith("sha256:"):
+            sha = "sha256:" + sha
+        for r in ULTIMI.get("results") or []:
+            if (rid and r["id"] == rid) or (sha and r.get("sha256") == sha):
+                states.append(r["state"])
+    return best_state(states)
 
 
 def relink(graph, resource_id: str, path: str) -> None:  # pragma: no cover — bpy
@@ -357,21 +484,21 @@ def draw(layout, context) -> None:  # pragma: no cover — bpy
     proj.operator("em.reorder_em_project", icon="SORTALPHA")
     box = layout.box()
     head = box.row(align=True)
-    head.label(text="Files", icon="FILE_FOLDER")
-    head.operator("em.files_check", text="Check files", icon="FILE_REFRESH")
     results = ULTIMI.get("results") or []
+    # R2 · the count is SAID in the heading, not drawn as a lone number in a
+    # button (it read as a field to fill)
+    head.label(text=f"Files · {len(results)}" if results else "Files", icon="FILE_FOLDER")
+    head.operator("em.files_check", text="Check files", icon="FILE_REFRESH")
     if not results:
         box.label(text="Not checked yet: «Check files» says where each one is.", icon="INFO")
         return
-    c = counts(results)
-    frow = box.row(align=True)
-    for state, n in c.items():
-        if not n:
-            continue
-        icon, text, _ = sign("file." + state)
-        op = frow.operator("em.files_filter", text=f"{n}", icon=icon,
+    chips = filter_chips(counts(results))
+    frow = box.grid_flow(row_major=True, columns=2, even_columns=True, align=True)
+    for state, icon, text in chips:
+        op = frow.operator("em.files_filter", text=text, icon=icon,
                            depress=ULTIMI.get("filter") == state)
         op.state = state
+    c = counts(results)
     if c.get("on_node"):
         box.operator("em.files_keep", text=f"Keep the {c['on_node']} on this computer",
                      icon="IMPORT").resource_id = ""
@@ -381,13 +508,16 @@ def draw(layout, context) -> None:  # pragma: no cover — bpy
                   icon="FILTER")
     from . import room as room_cfg
     in_room = bool(room_cfg.room().get("room_id"))
+    described = ULTIMI.get("described") or {}
     for r in results:
         if chosen and r["state"] != chosen:
             continue
         icon, text, meaning = sign("file." + r["state"])
-        row = box.row(align=True)
+        said = described.get(r["id"]) or {"file": r.get("name") or r["id"][:8], "doc": ""}
+        col = box.column(align=True)
+        row = col.row(align=True)
         row.alert = r["state"] in ("missing", "empty_copy")
-        row.label(text=f"{r.get('name') or r['id'][:8]}", icon=icon)
+        row.label(text=said["file"], icon=icon)
         row.label(text=text)
         if r["state"] in ("missing", "empty_copy"):
             row.operator("em.files_find_here", text="", icon="VIEWZOOM").resource_id = r["id"]
@@ -397,6 +527,23 @@ def draw(layout, context) -> None:  # pragma: no cover — bpy
             row.operator("em.files_keep", text="", icon="IMPORT").resource_id = r["id"]
         if r.get("path"):
             row.operator("em.files_open_where", text="", icon="FILEBROWSER").path = r["path"]
+        if said.get("doc"):
+            sub = col.row(align=True)
+            sub.active = False
+            sub.label(text=said["doc"], icon="BLANK1")
+
+
+def filter_chips(c: Dict[str, int]) -> List[tuple]:
+    """R2 · ``(state, icon, "● 3 on the disk")`` of each state present: a chip
+    says its sign, its count and its word, so it reads as a filter."""
+    from ..state_symbols import sign
+    out = []
+    for state, n in c.items():
+        if n:
+            icon, text, _ = sign("file." + state)
+            glyph, _sp, label = text.partition(" ")
+            out.append((state, icon, f"{glyph} {n} {label}"))
+    return out
 
 
 _CLASSES: tuple = ()

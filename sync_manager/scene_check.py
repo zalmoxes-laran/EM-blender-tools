@@ -122,6 +122,20 @@ def sentences(report: Dict[str, Any]) -> List[str]:
     return out
 
 
+def only_here_line(names: List[str]) -> Optional[tuple]:
+    """I1 · ``(icon, text)`` of the objects only here, with the sign of the
+    one list (``scene.only_here`` ◆), or None when there are none."""
+    if not names:
+        return None
+    try:
+        from ..state_symbols import ICONS, glyph
+    except ImportError:          # loaded by path, outside the package (the suite)
+        from state_symbols import ICONS, glyph  # type: ignore
+    return (ICONS["scene.only_here"],
+            f"{glyph('scene.only_here')} Only here: " + ", ".join(names[:6])
+            + (f" … +{len(names) - 6}" if len(names) > 6 else ""))
+
+
 # ── Blender ──────────────────────────────────────────────────────────────────
 
 def scene_objects(context, graph) -> List[Dict[str, Any]]:  # pragma: no cover — bpy
@@ -296,8 +310,6 @@ def draw(layout) -> None:  # pragma: no cover — bpy
     box.operator("em.scene_check", icon="VIEWZOOM")
     for line in ULTIMA_VERIFICA.get("sentences") or []:
         box.label(text=line[:90], icon="BLANK1")
-    names = ULTIMA_VERIFICA.get("only_here") or []
-    if names:
-        box.label(text="Only here: " + ", ".join(names[:6])
-                  + (f" … +{len(names) - 6}" if len(names) > 6 else ""),
-                  icon="HIDE_OFF")
+    line = only_here_line(ULTIMA_VERIFICA.get("only_here") or [])
+    if line:
+        box.label(text=line[1], icon=line[0])

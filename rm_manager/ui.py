@@ -22,6 +22,18 @@ def _base_name(name):
     base, _ = _split_lod_name(name or "")
     return base or name
 
+
+def _model_glyph(item, obj) -> str:
+    """R2 · the glyph of the common list for where this model's file is
+    (``sync_manager.file_states.model_state``), or "" when nothing is known."""
+    try:
+        from ..sync_manager.file_states import model_state
+        from ..state_symbols import glyph
+        state = model_state(str(getattr(item, "node_id", "") or ""), obj)
+        return glyph("file." + state) if state else ""
+    except Exception:  # noqa: BLE001 — a sign must never stop the list drawing
+        return ""
+
 # ✅ OPTIMIZED: Import object cache for O(1) lookups
 from ..object_cache import get_object_cache
 
@@ -177,6 +189,12 @@ class RM_UL_List(UIList):
                 # the suffix and is what bpy operators target; the
                 # label is just the stable base name.
                 display_name = _base_name(item.name)
+                # R2 · the sign of the common list beside the model: where its
+                # file is, as the one resolver said at the last «Check files»
+                # (blank before it, or for a model the graph gives no file)
+                sign_cell = row.row(align=True)
+                sign_cell.ui_units_x = 1.0
+                sign_cell.label(text=_model_glyph(item, obj))
                 if has_error:
                     row.label(text=display_name, icon='ERROR')
                 else:
@@ -621,6 +639,15 @@ class VIEW3D_PT_RM_Manager(Panel):
             scene, "rm_list",
             scene, "rm_list_index"
         )
+        # R2 · the sign beside each model comes from «Check files»: before it
+        # the column is blank, and the panel says where to get it
+        try:
+            from ..sync_manager.file_states import ULTIMI as _files
+            if len(scene.rm_list) and not _files.get("results"):
+                layout.label(text="Where each model's file is: «Check files» "
+                                  "in Resources & Shelf", icon='INFO')
+        except Exception:  # noqa: BLE001
+            pass
 
         # RM objects that no container holds are filtered out of the list
         # above but are still exported with their epochs: say so, instead

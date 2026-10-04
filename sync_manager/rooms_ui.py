@@ -67,7 +67,11 @@ class EM_UL_rooms(bpy.types.UIList):
             label = f"{item.title}  ·  {item.room_id}"
         row.label(text=label, icon="COMMUNITY" if item.group == "mine" else "USER")
         if item.group != "mine":
-            row.label(text=item.role or "?")
+            # I1 · the role with its sign from the one list (★ ✎ ◎); a role
+            # the list does not have keeps its word, with no sign
+            from ..state_symbols import glyph, role_state
+            rs = role_state(item.role)
+            row.label(text=f"{glyph(rs)} {item.role}" if rs else (item.role or "?"))
         row.operator("em.room_pick", text="", icon="LINKED").room_id = item.room_id
 
     def filter_items(self, context, data, propname):

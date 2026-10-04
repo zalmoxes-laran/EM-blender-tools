@@ -1351,7 +1351,11 @@ def room_status(context=None) -> dict:
                  "author": SESSION.author,
                  "role": SESSION.role,
                  "can_write": SESSION.can_write,
-                 "error": SESSION.error})
+                 "error": SESSION.error,
+                 # I1 · the edits of this Blender, counted off the room's answers
+                 "sent": SESSION.sent_ops,
+                 "answered": SESSION.answered_ops,
+                 "refused": SESSION.refused_ops})
     return info
 
 

@@ -85,6 +85,11 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
                           depress=(value == mode)).mode = value
         current = next(m for m in _MODES if m[0] == mode)
         layout.label(text=current[3], icon="INFO")
+        if mode != ops.MODE_HUB:
+            # I1 · outside a room, its sign (□): the room section says the rest
+            from ..state_symbols import room_signs
+            icon, text = room_signs({"joined": False})[0]
+            layout.label(text=text, icon=icon)
 
         # LA DIVERGENZA · dichiarato e reale non coincidono. Non si "ripara"
         # scrivendo la property da qui — scrivere mentre si disegna sporca il
@@ -176,9 +181,16 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
     # ── 4 · in una stanza: cosa mostra l'albero, e cosa puoi fare ───────────
 
     def _in_stanza(self, layout, context, status):
+        # I1 · the room, the role and the sync with the signs of the ONE list
+        # (state_symbols), the same EMStudio draws in its connection panel
+        from ..state_symbols import room_signs
         box = layout.box()
-        box.label(text=f"In {status['room_id']} · "
-                       f"{status['members']} present", icon="COMMUNITY")
+        signs = room_signs(status)
+        box.label(text=signs[0][1], icon=signs[0][0])
+        if status.get("can_write") is False:
+            box.label(text=f"Your role ({status.get('role') or 'viewer'}) does not "
+                           f"write: the room refuses edits from this Blender",
+                      icon="BLANK1")
         if status.get("author"):
             box.label(text=f"As {status['author']}", icon="USER")
         else:
@@ -187,12 +199,8 @@ class VIEW3D_PT_em_sync(bpy.types.Panel):
         # THE ROLE, believed rather than assumed. A panel that offered editing
         # the server refuses would read as a broken addon instead of as a study
         # somebody let you read (same rule as EMStudio's badge).
-        role = status.get("role")
-        if status.get("can_write") is False:
-            box.label(text=f"Read-only here ({role or 'viewer'}): the room "
-                           f"refuses edits from this Blender", icon="LOCKED")
-        elif role:
-            box.label(text=f"Role: {role}", icon="CHECKMARK")
+        for icon, text in signs[1:]:
+            box.label(text=text, icon=icon)
         box.label(text="The EM Data Tree is this room's container.",
                   icon="OUTLINER")
         # DP-76, consuming half. An ACTION and not a consequence of joining:
