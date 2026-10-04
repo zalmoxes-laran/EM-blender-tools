@@ -71,15 +71,17 @@ class EM_ParadataPanel:
             draw_objectmode_required_box(layout)
             return
 
+        # U7 · a READ view: where a unit comes from. Its paradata are edited in
+        # EMStudio (the paradata chain), and «Open in EMStudio» goes there
         header_row = layout.row(align=True)
-        header_row.label(text="Paradata", icon='PROPERTIES')
+        header_row.label(text="Where this unit comes from", icon='PROPERTIES')
         help_op = header_row.operator("em.help_popup", text="", icon='QUESTION')
         help_op.title = "Paradata Manager"
         help_op.text = (
-            "Browse Properties, Combiners, Extractors and\n"
-            "Sources for the selected stratigraphic unit.\n"
-            "Shows the provenance chain that supports\n"
-            "each reconstructed attribute."
+            "Read only: the Properties, Combiners, Extractors\n"
+            "and Sources that support the selected unit — its\n"
+            "provenance chain. To change them: Open in EMStudio\n"
+            "(it selects the unit with the Sidecar on)."
         )
         help_op.url = "panels/paradata_manager.html#_Paradata_Manager"
         help_op.project = 'em_tools'
@@ -88,6 +90,12 @@ class EM_ParadataPanel:
         row = control_box.row(align=True)
         row.prop(scene.em_tools, "paradata_auto_update", text="Auto Update")
         row.operator("em.update_paradata_lists", text="Refresh", icon="FILE_REFRESH")
+        _strat = scene.em_tools.stratigraphy
+        if len(_strat.units) and 0 <= _strat.units_index < len(_strat.units):
+            _unit = _strat.units[_strat.units_index]
+            op = control_box.operator("em.open_in_emstudio", text=f"Edit {_unit.name} in EMStudio",
+                                      icon='URL')
+            op.node_id, op.unit_name = _unit.id_node, _unit.name
         row = layout.row()
 
         if scene.em_tools.paradata_streaming_mode:
